@@ -1,0 +1,6 @@
+work/*
+architectures
+**/.Xil
+**/vivado*.jou
+**/vivado*.log
+**/vivado*.str

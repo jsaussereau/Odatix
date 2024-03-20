@@ -1,0 +1,303 @@
+AsteRISC_RV32IM_m1c_soc_10S-10S-05R:
+  M0000:
+    dmips_per_MHz: 0.678
+  M0001:
+    dmips_per_MHz: 0.462
+  M0008:
+    dmips_per_MHz: 0.599
+  M0016:
+    dmips_per_MHz: 0.63
+  M0024:
+    dmips_per_MHz: 0.561
+  M0025:
+    dmips_per_MHz: 0.405
+  M0036:
+    dmips_per_MHz: 0.462
+  M0037:
+    dmips_per_MHz: 0.351
+  M0039:
+    dmips_per_MHz: 0.310 
+  M0044:
+    dmips_per_MHz: 0.425
+  M0052:
+    dmips_per_MHz: 0.439 
+  M0060:
+    dmips_per_MHz: 0.405
+  M0061:
+    dmips_per_MHz: 0.317
+  M0100:
+    dmips_per_MHz: 0.453
+  M0108:
+    dmips_per_MHz: 0.416 
+  P0071:
+    dmips_per_MHz: 1.155
+  P0087:
+    dmips_per_MHz: 1.1
+  P0095:
+    dmips_per_MHz: 1.026
+AsteRISC_RV32IM_mfast_soc_10S-10S-05R:
+  M0000:
+    dmips_per_MHz: 0.678
+  M0001:
+    dmips_per_MHz: 0.462
+  M0008:
+    dmips_per_MHz: 0.599
+  M0016:
+    dmips_per_MHz: 0.63
+  M0024:
+    dmips_per_MHz: 0.561
+  M0025:
+    dmips_per_MHz: 0.405
+  M0036:
+    dmips_per_MHz: 0.462
+  M0037:
+    dmips_per_MHz: 0.351
+  M0039:
+    dmips_per_MHz: 0.310 
+  M0044:
+    dmips_per_MHz: 0.425
+  M0052:
+    dmips_per_MHz: 0.439 
+  M0060:
+    dmips_per_MHz: 0.405
+  M0061:
+    dmips_per_MHz: 0.317
+  M0100:
+    dmips_per_MHz: 0.453
+  M0108:
+    dmips_per_MHz: 0.416 
+  P0071:
+    dmips_per_MHz: 1.155
+  P0087:
+    dmips_per_MHz: 1.1
+  P0095:
+    dmips_per_MHz: 1.026
+AsteRISC_soc_08S-08S-05R:
+  M0000:
+    dmips_per_MHz: 0.678
+  M0001:
+    dmips_per_MHz: 0.462
+  M0008:
+    dmips_per_MHz: 0.599
+  M0016:
+    dmips_per_MHz: 0.63
+  M0024:
+    dmips_per_MHz: 0.561
+  M0025:
+    dmips_per_MHz: 0.405
+  M0036:
+    dmips_per_MHz: 0.462
+  M0037:
+    dmips_per_MHz: 0.351
+  M0039:
+    dmips_per_MHz: 0.310 
+  M0044:
+    dmips_per_MHz: 0.425
+  M0052:
+    dmips_per_MHz: 0.439 
+  M0060:
+    dmips_per_MHz: 0.405
+  M0061:
+    dmips_per_MHz: 0.317
+  M0100:
+    dmips_per_MHz: 0.453
+  M0108:
+    dmips_per_MHz: 0.416 
+  P0071:
+    dmips_per_MHz: 1.155
+  P0087:
+    dmips_per_MHz: 1.1
+  P0095:
+    dmips_per_MHz: 1.026
+AsteRISC_soc_10S-10S-05R:
+  M0000:
+    dmips_per_MHz: 0.678
+  M0001:
+    dmips_per_MHz: 0.462
+  M0008:
+    dmips_per_MHz: 0.599
+  M0016:
+    dmips_per_MHz: 0.63
+  M0024:
+    dmips_per_MHz: 0.561
+  M0025:
+    dmips_per_MHz: 0.405
+  M0036:
+    dmips_per_MHz: 0.462
+  M0037:
+    dmips_per_MHz: 0.351
+  M0039:
+    dmips_per_MHz: 0.310 
+  M0044:
+    dmips_per_MHz: 0.425
+  M0052:
+    dmips_per_MHz: 0.439 
+  M0060:
+    dmips_per_MHz: 0.405
+  M0061:
+    dmips_per_MHz: 0.317
+  M0100:
+    dmips_per_MHz: 0.453
+  M0108:
+    dmips_per_MHz: 0.416 
+  P0071:
+    dmips_per_MHz: 1.155
+  P0087:
+    dmips_per_MHz: 1.1
+  P0095:
+    dmips_per_MHz: 1.026
+AsteRISC_soc_10S-13S-05R:
+  M0000:
+    dmips_per_MHz: 0.678
+  M0001:
+    dmips_per_MHz: 0.462
+  M0008:
+    dmips_per_MHz: 0.599
+  M0016:
+    dmips_per_MHz: 0.63
+  M0024:
+    dmips_per_MHz: 0.561
+  M0025:
+    dmips_per_MHz: 0.405
+  M0036:
+    dmips_per_MHz: 0.462
+  M0037:
+    dmips_per_MHz: 0.351
+  M0039:
+    dmips_per_MHz: 0.310 
+  M0044:
+    dmips_per_MHz: 0.425
+  M0052:
+    dmips_per_MHz: 0.439 
+  M0060:
+    dmips_per_MHz: 0.405
+  M0061:
+    dmips_per_MHz: 0.317
+  M0100:
+    dmips_per_MHz: 0.453
+  M0108:
+    dmips_per_MHz: 0.416 
+  P0071:
+    dmips_per_MHz: 1.155
+  P0087:
+    dmips_per_MHz: 1.1
+  P0095:
+    dmips_per_MHz: 1.026
+AsteRISC_soc_12S-11S-05R:
+  M0000:
+    dmips_per_MHz: 0.678
+  M0001:
+    dmips_per_MHz: 0.462
+  M0008:
+    dmips_per_MHz: 0.599
+  M0016:
+    dmips_per_MHz: 0.63
+  M0024:
+    dmips_per_MHz: 0.561
+  M0025:
+    dmips_per_MHz: 0.405
+  M0036:
+    dmips_per_MHz: 0.462
+  M0037:
+    dmips_per_MHz: 0.351
+  M0039:
+    dmips_per_MHz: 0.310 
+  M0044:
+    dmips_per_MHz: 0.425
+  M0052:
+    dmips_per_MHz: 0.439 
+  M0060:
+    dmips_per_MHz: 0.405
+  M0061:
+    dmips_per_MHz: 0.317
+  M0100:
+    dmips_per_MHz: 0.453
+  M0108:
+    dmips_per_MHz: 0.416 
+  P0071:
+    dmips_per_MHz: 1.155
+  P0087:
+    dmips_per_MHz: 1.1
+  P0095:
+    dmips_per_MHz: 1.026
+AsteRISC_soc_12S-12S-05R:
+  M0000:
+    dmips_per_MHz: 0.678
+  M0001:
+    dmips_per_MHz: 0.462
+  M0008:
+    dmips_per_MHz: 0.599
+  M0016:
+    dmips_per_MHz: 0.63
+  M0024:
+    dmips_per_MHz: 0.561
+  M0025:
+    dmips_per_MHz: 0.405
+  M0036:
+    dmips_per_MHz: 0.462
+  M0037:
+    dmips_per_MHz: 0.351
+  M0039:
+    dmips_per_MHz: 0.310 
+  M0044:
+    dmips_per_MHz: 0.425
+  M0052:
+    dmips_per_MHz: 0.439 
+  M0060:
+    dmips_per_MHz: 0.405
+  M0061:
+    dmips_per_MHz: 0.317
+  M0100:
+    dmips_per_MHz: 0.453
+  M0108:
+    dmips_per_MHz: 0.416 
+  P0071:
+    dmips_per_MHz: 1.155
+  P0087:
+    dmips_per_MHz: 1.1
+  P0095:
+    dmips_per_MHz: 1.026
+AsteRISC_soc_13S-10S-05R:
+  M0000:
+    dmips_per_MHz: 0.678
+  M0001:
+    dmips_per_MHz: 0.462
+  M0008:
+    dmips_per_MHz: 0.599
+  M0016:
+    dmips_per_MHz: 0.63
+  M0024:
+    dmips_per_MHz: 0.561
+  M0025:
+    dmips_per_MHz: 0.405
+  M0036:
+    dmips_per_MHz: 0.462
+  M0037:
+    dmips_per_MHz: 0.351
+  M0039:
+    dmips_per_MHz: 0.310 
+  M0044:
+    dmips_per_MHz: 0.425
+  M0052:
+    dmips_per_MHz: 0.439 
+  M0060:
+    dmips_per_MHz: 0.405
+  M0061:
+    dmips_per_MHz: 0.317
+  M0100:
+    dmips_per_MHz: 0.453
+  M0108:
+    dmips_per_MHz: 0.416 
+  P0071:
+    dmips_per_MHz: 1.155
+  P0087:
+    dmips_per_MHz: 1.1
+  P0095:
+    dmips_per_MHz: 1.026
+PicoSoC_09S-05R:
+  small:
+    dmips_per_MHz: 0.305
+PicoSoC_11S-05R:
+  small:
+    dmips_per_MHz: 0.305
+  
