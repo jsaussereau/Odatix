@@ -4,3 +4,4 @@ architectures
 **/vivado*.jou
 **/vivado*.log
 **/vivado*.str
+**/tight_setup_hold_pins.txt

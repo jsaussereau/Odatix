@@ -26,6 +26,10 @@ proc exit_now {} {
   exit
 }
 
+proc exit_error {} {
+  exit -1
+}
+
 proc sleep {N} {
   after [expr {int($N * 1000)}]
 }

@@ -47,7 +47,13 @@ report_progress 10 $synth_statusfile
 ######################################
 # Synthetize
 ######################################
-synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO
+if {[catch {synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO} errmsg]} {
+    puts "<green>synth_script.tcl<end>: <bold><red>error: failed design synth, exiting<end>"
+    puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+    puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+    exit_now
+}
+
 report_progress 45 $synth_statusfile
 opt_design -sweep -remap -propconst
 report_progress 55 $synth_statusfile
@@ -57,7 +63,12 @@ report_progress 65 $synth_statusfile
 ######################################
 # Place and route
 ######################################
-place_design -directive Explore
+if {[catch {place_design -directive Explore} errmsg]} {
+    puts "<green>synth_script.tcl<end>: <bold><red>error: failed design place, exiting<end>"
+    puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+    puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+    exit_now
+}
 report_progress 70 $synth_statusfile
 phys_opt_design -retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt
 report_progress 75 $synth_statusfile
@@ -74,8 +85,14 @@ report_progress 98 $synth_statusfile
 ######################################
 # Report
 ######################################
-report_utilization > $utilization_rep
-report_timing > $timing_rep
-report_power > $power_rep
+if {[catch {
+    report_utilization > $utilization_rep
+    report_timing > $timing_rep
+    report_power > $power_rep
+} errmsg]} {
+    puts "<green>synth_script.tcl<end>: <bold><red>error: failed report, skipping<end>"
+    puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+    puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+}
 
 report_progress 0 $synth_statusfile

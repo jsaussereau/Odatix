@@ -20,6 +20,7 @@ set clock_signal      i_xtal_p
 
 set script_path       scripts
 set tmp_path          synth
+set arch_path         architectures
 set rtl_path          ../../../rtl
 set report_path       $tmp_path/report
 set log_path          $tmp_path/log
@@ -54,6 +55,7 @@ set file_copy_source  config/soc_config.sv
 set file_copy_dest    rtl/soc_config.sv
 
 # warning: escape characters twice (e.g. '\\/' for '/')
+set use_parameters    true
 set start_delimiter   "#("
 set stop_delimiter    ")("
 

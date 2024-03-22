@@ -5,7 +5,7 @@
 ---
 
 # overwrite existing results
-overwrite:        No
+overwrite:        Yes
 
 # prompt 'continue? (y/n)' after settings checks
 ask_continue:     Yes
@@ -15,29 +15,6 @@ show_log_if_one:  Yes
 
 # run synthesis in a screen session
 use_screen:       No
-
-# FPGA/ASIC targeted
-targets:
-  #- xc7s6-cpga196-1
-  #- xc7s25-csga225-1
-  #- xc7a15t-cpg236-1
-  #- xc7a35t-cpg236-1
-  - xc7a100t-csg324-1
-  #- xc7k70t-fbg676-2
-  #- xc7k70t-fbg676-3
-  #- xc7k160t-fbg484-2
-  #- xc7k160t-fbg484-3
-  #- xc7k325t-ffg900-2
-  #- xc7v585t-ffg1761-2
-  #- xc7v585t-ffg1761-3
-  #- xcku035-fbva676-2-e
-  #- xcku035-fbva676-3-e
-  #- xcvu065-ffvc1517-2-e
-  #- xcvu065-ffvc1517-3-e
-  #- xcku3p-ffva676-2-e
-  #- xcku3p-ffva676-3-e
-  #- xcvu3p-ffvc1517-2-e
-  #- xcvu3p-ffvc1517-3-e
 
 # architectures targeted
 architectures: 
@@ -85,20 +62,20 @@ architectures:
 # regfile :  2^5 x 32, registers
 #--------------------------------------------#
   - AsteRISC_soc_10S-10S-05R/M0000
-  - AsteRISC_soc_10S-10S-05R/M0001
-  - AsteRISC_soc_10S-10S-05R/M0008
-  - AsteRISC_soc_10S-10S-05R/M0016
-  - AsteRISC_soc_10S-10S-05R/M0024
-  - AsteRISC_soc_10S-10S-05R/M0025
-  - AsteRISC_soc_10S-10S-05R/M0036
-  - AsteRISC_soc_10S-10S-05R/M0037
-  - AsteRISC_soc_10S-10S-05R/M0039
-  - AsteRISC_soc_10S-10S-05R/M0044
-  - AsteRISC_soc_10S-10S-05R/M0052
-  - AsteRISC_soc_10S-10S-05R/M0060
+  #- AsteRISC_soc_10S-10S-05R/M0001
+  #- AsteRISC_soc_10S-10S-05R/M0008
+  #- AsteRISC_soc_10S-10S-05R/M0016
+  #- AsteRISC_soc_10S-10S-05R/M0024
+  #- AsteRISC_soc_10S-10S-05R/M0025
+  #- AsteRISC_soc_10S-10S-05R/M0036
+  #- AsteRISC_soc_10S-10S-05R/M0037
+  #- AsteRISC_soc_10S-10S-05R/M0039
+  #- AsteRISC_soc_10S-10S-05R/M0044
+  #- AsteRISC_soc_10S-10S-05R/M0052
+  #- AsteRISC_soc_10S-10S-05R/M0060
   #- AsteRISC_soc_10S-10S-05R/M0061
-  - AsteRISC_soc_10S-10S-05R/M0100
-  - AsteRISC_soc_10S-10S-05R/M0108
+  #- AsteRISC_soc_10S-10S-05R/M0100
+  #- AsteRISC_soc_10S-10S-05R/M0108
   #- AsteRISC_soc_10S-10S-05R/P0071
   #- AsteRISC_soc_10S-10S-05R/P0087
   #- AsteRISC_soc_10S-10S-05R/P0095
@@ -141,24 +118,24 @@ architectures:
   #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/P0087
   #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/P0095
 
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0000
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0001
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0008
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0016
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0024
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0025
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0036
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0037
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0039
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0044
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0052
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0060
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0061
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0100
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0108
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0071
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0087
-  - AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0095
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0000
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0001
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0008
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0016
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0024
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0025
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0036
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0037
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0039
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0044
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0052
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0060
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0061
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0100
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0108
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0071
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0087
+  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0095
 
   
 

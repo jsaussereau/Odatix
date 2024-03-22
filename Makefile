@@ -71,18 +71,32 @@ motd:
 
 .PHONY: clean
 clean:
-	@rm -f ./work/*.jou
-	@rm -f ./work/vivado*.log
+	@rm -r .Xil
+	@rm -f *.jou
+	@rm -f vivado*.log
+	@rm -f tight_setup_hold_pins.txt
+
+.PHONY: all
+all: motd run_vivado_only results_only explore_only
+
+.PHONY: results
+results: motd results_only
 
 .PHONY: results_only
 results_only:
 	@python3 ./$(SCRIPT_DIR)/export_results.py -m fpga --benchmark
 	@python3 ./$(SCRIPT_DIR)/export_results.py -m asic --benchmark
 
+.PHONY: explore
+explore: motd explore_only
+
 .PHONY: explore_only
 explore_only:
 	@python3 ./$(SCRIPT_DIR)/result_explorer.py&
 
-.PHONY: run_configs_only
-run_configs_only:
-	@python3 $(SCRIPT_DIR)/run_config.py
+.PHONY: run_vivado
+run_vivado: motd run_vivado_only
+
+.PHONY: run_vivado_only
+run_vivado_only:
+	@python3 $(SCRIPT_DIR)/run_config.py --tool vivado

@@ -32,20 +32,23 @@ from shutil import copytree
 # Settings
 ######################################
 
-tmp_dir_path = "result"
-script_path = "scripts"
+work_path = "work"
+script_path = "eda_tools"
+work_script_path = "scripts"
+common_script_path = "_common"
 log_path = "log"
-parameters_path = "parameters"
+arch_path = "architectures"
 
-run_config_settings_filename = "run_config_settings.yml"
 param_settings_filename = "_settings.yml"
 arch_filename = "architecture.txt"
 target_filename = "target.txt"
 config_filename = "settings.tcl"
 fmax_status_filename = "status.log"
 synth_status_filename = "synth_status.log"
+tool_makefile_filename = "makefile.mk"
 
 source_settings_tcl = "source scripts/settings.tcl"
+synth_fmax_rule = "synth_fmax_only"
 
 settings_ini_section = "SETTINGS"
 valid_status = "Done: 100%"
@@ -132,12 +135,38 @@ def progress_bar(progress, title, endstr=''):
     print(' ', end = '')
   print("] {}%".format(int(progress)) + endstr)
 
+def parse_arguments():
+  parser = argparse.ArgumentParser(description='Run fmax synthesis on selected architectures')
+  parser.add_argument('-i', '--input', default='architecture_select.yml',
+                      help='input architecture file (default: architecture_select.yml)')
+  parser.add_argument('-m', '--mode', choices=['fpga', 'asic'], default='fpga',
+                      help='Select the mode (fpga or asic, default: fpga)')
+  parser.add_argument('-t', '--tool', default='vivado',
+                      help='eda tool in use (default: vivado)')
+  parser.add_argument('-w', '--overwrite', action='store_true',
+                      help='overwrite existing results')
+  parser.add_argument('-y', '--noask', action='store_true',
+                      help='do not ask to continue')
+  return parser.parse_args()
+
 
 ######################################
 # Main
 ######################################
 
 if __name__ == "__main__":
+
+  args = parse_arguments()
+
+  if args.mode != 'fpga' and args.mode != 'asic' :
+    raise ValueError("Invalid mode selected. Please choose 'fpga' or 'asic'.")
+  
+  work_path += "/" + args.mode 
+
+  run_config_settings_filename = args.input
+  tool = args.tool
+
+  eda_target_filename = "target_" + tool + ".yml"
 
   # Get settings from yaml file
   if not isfile(run_config_settings_filename):
@@ -151,27 +180,32 @@ if __name__ == "__main__":
       ask_continue    = read_from_list("ask_continue", settings_data, run_config_settings_filename)
       show_log_if_one = read_from_list("show_log_if_one", settings_data, run_config_settings_filename)
       use_screen      = read_from_list("use_screen", settings_data, run_config_settings_filename)
-      targets         = read_from_list("targets", settings_data, run_config_settings_filename)
       architectures   = read_from_list("architectures", settings_data, run_config_settings_filename)
     except:
       sys.exit() # if a key is missing
-  
-  # get line arguments
-  parser = argparse.ArgumentParser(description='A script to run fmax synthesis on several cpu architectures')
-  parser.add_argument('-o', '--overwrite', help='overwrite existing results', required=False, action='store_true', dest='overwrite')
-  parser.add_argument('-s', '--skip', help='skip existing results', required=False, action='store_true', dest='skip')
-  
-  args = parser.parse_args()
-  if args.skip:
-    overwrite = False
-  elif args.overwrite:
+
+  if not isfile(eda_target_filename):
+    print(bcolors.BOLD + bcolors.FAIL + "error: Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist" + bcolors.ENDC)
+    sys.exit()
+
+  with open(eda_target_filename, 'r') as f:
+    settings_data = yaml.load(f, Loader=SafeLoader)
+    try:
+      targets         = read_from_list("targets", settings_data, eda_target_filename)
+    except:
+      sys.exit() # if a key is missing
+
+  if args.overwrite:
     overwrite = True
+  
+  if args.noask:
+    ask_continue = False
 
   for target in targets:
 
     print(bcolors.BOLD + bcolors.OKCYAN, end='')
     print("######################################")
-    print(" Target part: {}".format(target))
+    print(" Target: {}".format(target))
     print("######################################")
     print(bcolors.ENDC)
  
@@ -184,7 +218,7 @@ if __name__ == "__main__":
     new_archs = []
 
     for arch in architectures:
-      tmp_dir = tmp_dir_path + '/' + target + '/' + arch
+      tmp_dir = work_path + '/' + target + '/' + arch
       fmax_status_file = tmp_dir + '/' + log_path + '/' + fmax_status_filename
 
       # get param dir (arch name before '/')
@@ -196,9 +230,9 @@ if __name__ == "__main__":
         continue
 
       # check if parameter dir exists
-      arch_param = parameters_path + '/' + arch_param_dir
+      arch_param = arch_path + '/' + arch_param_dir
       if not isdir(arch_param):
-        print(bcolors.BOLD + bcolors.FAIL + "error: There is no directory \"" + arch_param_dir + "\" in directory \"" + parameters_path + "\"" + bcolors.ENDC)
+        print(bcolors.BOLD + bcolors.FAIL + "error: There is no directory \"" + arch_param_dir + "\" in directory \"" + arch_path + "\"" + bcolors.ENDC)
         error_archs.append(arch)
         continue
       
@@ -210,7 +244,7 @@ if __name__ == "__main__":
         continue
 
       # get settings variables
-      settings_filename = parameters_path + '/' + arch_param_dir + '/' + param_settings_filename
+      settings_filename = arch_path + '/' + arch_param_dir + '/' + param_settings_filename
       with open(settings_filename, 'r') as f:
         settings_data = yaml.load(f, Loader=SafeLoader)
         try:
@@ -222,6 +256,7 @@ if __name__ == "__main__":
           file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename)
           file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename)
           file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename)
+          use_parameters     = read_from_list('use_parameters', settings_data, settings_filename)
           start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename)
           stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename)
         except:
@@ -268,8 +303,8 @@ if __name__ == "__main__":
       f.close()
 
       # check if param file exists
-      if not isfile(parameters_path + '/' + arch + '.txt'):
-        print(bcolors.BOLD + bcolors.FAIL + "error: The parameter file \"" + arch + ".txt\" does not exist in directory \"" + parameters_path + "/" + arch_param_dir + "\"" + bcolors.ENDC)
+      if not isfile(arch_path + '/' + arch + '.txt'):
+        print(bcolors.BOLD + bcolors.FAIL + "error: The parameter file \"" + arch + ".txt\" does not exist in directory \"" + arch_path + "/" + arch_param_dir + "\"" + bcolors.ENDC)
         error_archs.append(arch)
         continue
 
@@ -328,7 +363,7 @@ if __name__ == "__main__":
 
     #print("valid_architectures : {}".format(valid_architectures))
     for arch in valid_archs:
-      tmp_dir = tmp_dir_path + '/' + target + '/' + arch
+      tmp_dir = work_path + '/' + target + '/' + arch
 
       # create directory
       if isdir(tmp_dir):
@@ -336,8 +371,9 @@ if __name__ == "__main__":
       makedirs(tmp_dir)
 
       # copy scripts
-      tmp_script_path = tmp_dir + '/' + script_path
-      copytree(script_path, tmp_script_path)
+      tmp_script_path = tmp_dir + '/' + work_script_path
+      copytree(script_path + '/' + common_script_path, tmp_script_path)
+      copytree(script_path + '/' + tool + '/tcl', tmp_script_path, dirs_exist_ok = True)
 
       # create target and architecture files
       f = open(tmp_dir + '/' + target_filename, 'w')
@@ -351,7 +387,7 @@ if __name__ == "__main__":
       arch_param_dir = re.sub('/.*', '', arch)
 
       # get settings variables
-      settings_filename = parameters_path + '/' + arch_param_dir + '/' + param_settings_filename
+      settings_filename = arch_path + '/' + arch_param_dir + '/' + param_settings_filename
       with open(settings_filename, 'r') as f:
         settings_data = yaml.load(f, Loader=SafeLoader)
         try:
@@ -363,6 +399,7 @@ if __name__ == "__main__":
           file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename)
           file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename)
           file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename)
+          use_parameters     = read_from_list('use_parameters', settings_data, settings_filename)
           start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename)
           stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename)
         except:
@@ -384,6 +421,10 @@ if __name__ == "__main__":
         file_copy_source = "/dev/null"
         file_copy_dest = "/dev/null"
 
+      use_parameters = use_parameters.lower()
+      if not use_parameters in tcl_bool_true:
+        use_parameters = "false"
+
       # add escape characters
       #start_delimiter = re.sub("(/)", "\\\\\\\\/", start_delimiter)
       #stop_delimiter = re.sub("(/)", "\\\\\\\\/", stop_delimiter)
@@ -400,9 +441,11 @@ if __name__ == "__main__":
       cf_content = re.sub("(set script_path.*)", "set script_path       " + tmp_script_path, cf_content)
       cf_content = re.sub("(set tmp_path.*)", "set tmp_path          " + tmp_dir, cf_content)
       cf_content = re.sub("(set rtl_path.*)", "set rtl_path          " + rtl_path, cf_content)
+      cf_content = re.sub("(set arch_path.*)", "set arch_path         " + arch_path, cf_content)
       cf_content = re.sub("(set clock_signal.*)", "set clock_signal      " + clock_signal, cf_content)
       cf_content = re.sub("(set top_level_module.*)", "set top_level_module  " + top_level_module, cf_content)
       cf_content = re.sub("(set top_level_file.*)", "set top_level_file    " + top_level_filename, cf_content)
+      cf_content = re.sub("(set use_parameters.*)", "set use_parameters    " + use_parameters, cf_content)
       cf_content = re.sub("(set start_delimiter.*)", "set start_delimiter   " + start_delimiter, cf_content)
       cf_content = re.sub("(set stop_delimiter.*)", "set stop_delimiter    " + stop_delimiter, cf_content)
       cf_content = re.sub("(set rtl_file_format.*)", "set rtl_file_format   " + rtl_file_format, cf_content)
@@ -426,10 +469,10 @@ if __name__ == "__main__":
 
       # run binary search script
       if len(valid_archs) == 1 and show_log_if_one:
-        #process = subprocess.run(["make", "synth_fmax_only", "SCRIPT_DIR=\"" + tmp_dir + '/' + script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"])
-        process = subprocess.Popen(["make", "synth_fmax_only", "SCRIPT_DIR=\"" + tmp_dir + '/' + script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"])
+        #process = subprocess.run(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, synth_fmax_rule, "SCRIPT_DIR=\"" + tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"])
+        process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, synth_fmax_rule, "SCRIPT_DIR=\"" + tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"])
       else:
-        process = subprocess.Popen(["make", "synth_fmax_only", "SCRIPT_DIR=\"" + tmp_dir + '/' + script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, synth_fmax_rule, "SCRIPT_DIR=\"" + tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
       running_arch_list.append(Running_arch(process, arch))
       print("started job for architecture \"{}\" between {} and {} MHz with pid {}".format(arch, fmax_lower_bound, fmax_upper_bound, process.pid))
@@ -451,7 +494,7 @@ if __name__ == "__main__":
       for running_arch in running_arch_list:
 
         # get status files full paths
-        tmp_dir = tmp_dir_path + '/' + target + '/' + running_arch.arch
+        tmp_dir = work_path + '/' + target + '/' + running_arch.arch
         fmax_status_file = tmp_dir + '/' + log_path + '/' + fmax_status_filename
         synth_status_file = tmp_dir + '/' + log_path + '/' + synth_status_filename
 
@@ -480,8 +523,11 @@ if __name__ == "__main__":
               synth_progress = int(parts.group(2))
 
         # compute progress
-        progress = fmax_progress + synth_progress / fmax_totalstep
-        
+        if fmax_totalstep != 0:
+          progress = fmax_progress + synth_progress / fmax_totalstep
+        else:
+          progress = synth_progress
+          
         # check if process has finished and print progress 
         if running_arch.process.poll() != None:
           active_running_arch_list.remove(running_arch)
