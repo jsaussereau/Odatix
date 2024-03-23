@@ -71,7 +71,7 @@ motd:
 
 .PHONY: clean
 clean:
-	@rm -r .Xil
+	@rm -rf .Xil
 	@rm -f *.jou
 	@rm -f vivado*.log
 	@rm -f tight_setup_hold_pins.txt
