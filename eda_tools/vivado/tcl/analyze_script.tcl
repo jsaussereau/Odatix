@@ -33,7 +33,7 @@ if {[catch {
             exec /bin/sh -c "cp $file_copy_source $tmp_path/$file_copy_dest"
         } else {
             error "analyze_script.tcl: <bold><red>error: target specified in '$target_file' ($target) has no assiociated target config file in './config' <end>"
-            exit_error
+            exit -1
         }
     }
 
@@ -56,13 +56,13 @@ if {[catch {
             if {$return_code_start == ""} {
                 puts "<green>analyze_script.tcl<end>: <bold><red>error: could not find start delimiter '$start_delimiter' for parameters in top level, exiting <end>"
                 puts "<green>analyze_script.tcl<end>: <cyan>note: make sure start/stop delimiters specified in the '_settings.yml' file of the architecture match the top level description in '$top_level_file'<end>"
-                exit_error
+                exit -1
             }
             set return_code_stop [exec /bin/sh -c "sed -n '/$stop_delimiter/p' $tmp_path/rtl/$top_level_file"]
             if {$return_code_stop == ""} {
                 puts "<green>analyze_script.tcl<end>: <bold><red>error: could not find stop delimiter '$stop_delimiter' for parameters in top level, exiting <end>"
                 puts "<green>analyze_script.tcl<end>: <cyan>note: make sure start/stop delimiters specified in the '_settings.yml' file of the architecture match the top level description in '$top_level_file'<end>"
-                exit_error
+                exit -1
             }
 
             # copy to top level file
@@ -70,13 +70,13 @@ if {[catch {
                 puts "<green>analyze_script.tcl<end>: <bold><red>error: error while copy parameters to top level file, exiting <end>"
                 puts "<green>analyze_script.tcl<end>: <cyan>note: you might use unsupported characters<end>"
                 puts "<green>analyze_script.tcl<end>: tool says -> $errmsg <end>"
-                exit_error
+                exit -1
             }
         } else {
             #puts "analyze_script.tcl: <bold><yellow>warning: architecture specified in '$architecture_file' ($target) has no assiociated target config file in directory '${arch_path}', using default parameters <end>"
             puts "<green>analyze_script.tcl<end>: <bold><red>error: architecture specified in '$architecture_file' ($target) has no assiociated parameter file in directory '${arch_path}', exiting <end>"
             puts "<green>analyze_script.tcl<end>: <cyan>note: make sure the file '$architecture.txt' in '${arch_path}'<end>"
-            exit_error
+            exit -1
         }
     }
 
@@ -91,7 +91,7 @@ if {[catch {
     if {[catch {read_verilog $filenames} errmsg]} {
         puts "<green>analyze_script.tcl<end>: <bold><red>error: failed reading source files, exiting<end>"
         puts "<green>analyze_script.tcl<end>: tool says -> $errmsg"
-        exit_error
+        exit -1
     }
 
 } ]} {
@@ -100,5 +100,5 @@ if {[catch {
     puts "<green>analyze_script.tcl<end>: <cyan>tcl error detail:<red>"
     puts "$errorInfo"
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
-    exit_error
+    exit -1
 }

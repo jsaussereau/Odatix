@@ -47,7 +47,7 @@ fmax_status_filename = "status.log"
 synth_status_filename = "synth_status.log"
 tool_makefile_filename = "makefile.mk"
 
-source_settings_tcl = "source scripts/settings.tcl"
+source_tcl = "source scripts/"
 synth_fmax_rule = "synth_fmax_only"
 
 settings_ini_section = "SETTINGS"
@@ -463,7 +463,10 @@ if __name__ == "__main__":
         if filename.endswith('.tcl'):
           with open(tmp_script_path + '/' + filename, 'r') as f:
             tcl_content = f.read()
-          tcl_content = re.sub("("+ source_settings_tcl + ")", "source " + config_file, tcl_content)
+          pattern = re.escape(source_tcl) + r"(.+?\.tcl)"
+          def replace_path(match):
+              return "source " + tmp_script_path + "/" + match.group(1)
+          tcl_content = re.sub(pattern, replace_path, tcl_content)
           with open(tmp_script_path + '/' + filename, 'w') as f:
             f.write(tcl_content)
 
