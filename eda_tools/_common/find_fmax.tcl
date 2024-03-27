@@ -236,8 +236,10 @@ if {[catch {
 } ]} {
     puts "<green>find_fmax.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
     puts "<green>find_fmax.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
-    puts "<green>find_fmax.tcl<end>: <cyan>tcl error detail:<red>"
-    puts "$errorInfo"
+    catch {
+      puts "<green>find_fmax.tcl<end>: <cyan>tcl error detail:<red>"
+      puts "$errorInfo"
+    }
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
     exit -1
 }

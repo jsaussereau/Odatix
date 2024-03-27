@@ -69,7 +69,11 @@ if {[catch {
         exit -1
     }
     report_progress 70 $synth_statusfile
-    phys_opt_design -retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt
+    if {[catch {phys_opt_design -retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt} errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: physical opt, skipping...<end>"
+        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+    }
     report_progress 75 $synth_statusfile
     route_design -directive AggressiveExplore
     report_progress 85 $synth_statusfile
@@ -78,7 +82,12 @@ if {[catch {
     phys_opt_design -retime -routing_opt
     # -lut_opt -casc_opt
     report_progress 95 $synth_statusfile
-    route_design -directive NoTimingRelaxation
+     if {[catch {route_design -directive NoTimingRelaxation} errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design route, exiting<end>"
+        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        exit -1
+    }
     report_progress 98 $synth_statusfile
 
     ######################################
@@ -99,8 +108,10 @@ if {[catch {
 } ]} {
     puts "<green>synth_script.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
     puts "<green>synth_script.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
-    puts "<green>synth_script.tcl<end>: <cyan>tcl error detail:<red>"
-    puts "$errorInfo"
+    catch {
+        puts "<green>synth_script.tcl<end>: <cyan>tcl error detail:<red>"
+        puts "$errorInfo"
+    }
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
     exit -1
 }
