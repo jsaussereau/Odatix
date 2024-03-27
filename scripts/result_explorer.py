@@ -46,7 +46,7 @@ for target, architectures in yml_data.items():
 df = pd.DataFrame(data)
 
 # Liste des métriques et des cibles disponibles
-available_metrics = ['Fmax_MHz', 'LUT_count', 'Reg_count', 'Total_LUT_reg', 'Dynamic_Power', 'Static_Power', 'Total_Power', 'DMIPS_per_MHz', 'DMIPS']
+available_metrics = ['Fmax_MHz', 'LUT_count', 'Reg_count', 'Total_LUT_reg', 'BRAM_count', 'DSP_count', 'Dynamic_Power', 'Static_Power', 'Total_Power', 'DMIPS_per_MHz', 'DMIPS']
 available_targets = df['Target'].unique()
 
 # Toutes les configurations et architectures

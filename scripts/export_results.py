@@ -38,6 +38,8 @@ status_done = 'Done: 100%'
 fmax_pattern = re.compile("(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz")
 slice_lut_pattern = re.compile("\\| Slice LUTs (\\s*)\\|(\\s*)([0-9]+)(.*)")
 slice_reg_pattern = re.compile("\\| Slice Registers (\\s*)\\|(\\s*)([0-9]+)(.*)")
+bram_pattern = re.compile("\\| Block RAM Tile (\\s*)\\|(\\s*)([0-9]+)(.*)")
+dsp_pattern = re.compile("\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)")
 area_pattern = re.compile("Total cell area:(\\s*)([0-9,.]+)(.*)")
 cell_count_pattern = re.compile("Cell count:(\\s*)([0-9,.]+)(.*)")
 dynamic_pow_pattern = re.compile("\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)")
@@ -100,6 +102,14 @@ def get_slice_lut(path):
 def get_slice_reg(path):
   file = path+'/'+utilization_report
   return get_re_group_from_file(file, slice_reg_pattern, 3)
+
+def get_bram(path):
+  file = path+'/'+utilization_report
+  return get_re_group_from_file(file, bram_pattern, 3)
+
+def get_dsp(path):
+  file = path+'/'+utilization_report
+  return get_re_group_from_file(file, dsp_pattern, 3)
 
 def get_area(path):
   file = path+'/'+area_report
@@ -169,6 +179,8 @@ def write_to_yaml(args, output_file, benchmark_data):
         if args.mode == 'fpga':
           slice_lut = get_slice_lut(cur_path)
           slice_reg = get_slice_reg(cur_path)
+          bram = get_bram(cur_path)
+          dsp = get_dsp(cur_path)
           dynamic_pow = get_dynamic_pow(cur_path)
           static_pow = get_static_pow(cur_path)
           total_ut = safe_cast(slice_lut, int, 0) + safe_cast(slice_reg, int, 0)
@@ -178,6 +190,8 @@ def write_to_yaml(args, output_file, benchmark_data):
             'Fmax_MHz': cast_to_int(fmax),
             'LUT_count': cast_to_int(slice_lut),
             'Reg_count': cast_to_int(slice_reg),
+            'BRAM_count': cast_to_int(bram),
+            'DSP_count': cast_to_int(dsp),
             'Total_LUT_reg': cast_to_int(total_ut),
             'Dynamic_Power': cast_to_float(dynamic_pow),
             'Static_Power': cast_to_float(static_pow),
