@@ -149,7 +149,6 @@ if {[catch {
       exec /bin/sh -c "cp $report_path/* $tmp_path/report_MET"
     } else {
       set upper_bound $cur_freq
-      set got_violated 1
       puts ""
       #puts "<bold><red>$cur_freq MHz: VIOLATED<end>"
       if {[is_slack_inf $timing_rep]} {
@@ -157,6 +156,7 @@ if {[catch {
         puts $logfile_handler  "INFINITE"
         close $logfile_handler
       } else {
+        set got_violated 1
         set logfile_handler [open $logfile a]
         puts $logfile_handler  "VIOLATED"
         close $logfile_handler
@@ -206,13 +206,7 @@ if {[catch {
   set logfile_handler [open $logfile a]
   puts $logfile_handler  ""
 
-  if {$got_violated == 0} {
-    puts ""
-    puts "<bold><red>No timing violated! Try raising the upper bound ($upper_bound MHz)<end>"
-    puts $logfile_handler "No timing violated! Try raising the upper bound ($upper_bound MHz)"
-  }
-
-  if {$got_met == 1} {
+  if {$got_met == 1 && $got_violated == 1} {
     #restore reports and results from the synthesis meeting timing requirements
     exec /bin/sh -c "cp $tmp_path/report_MET/* $report_path"
 
@@ -223,6 +217,16 @@ if {[catch {
     puts "<bold><cyan>Highest frequency with timing constraints being met: $lower_bound MHz<end>"
     puts "Report summaries for this synthesis:"
     source $summary_script
+  } elseif {$got_met == 0 && $got_violated == 0} {
+    puts ""
+    puts "<bold><red>Slack is infinite. Make sure there are registers at input and output of design<end>"
+    puts "<cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
+    puts $logfile_handler "Slack is infinite. Make sure there are registers at input and output of design"
+    puts $logfile_handler "Both the rtl description and the tool's synthesis choices could be at fault"
+  } elseif {$got_violated == 0} {
+    puts ""
+    puts "<bold><red>No timing violated! Try raising the upper bound ($upper_bound MHz)<end>"
+    puts $logfile_handler "No timing violated! Try raising the upper bound ($upper_bound MHz)"
   } else {
     puts ""
     puts "<bold><red>No timing met! Try lowering the lower bound ($lower_bound MHz)<end>"
