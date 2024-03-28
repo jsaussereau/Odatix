@@ -46,43 +46,81 @@ if {[catch {
     ######################################
     # Synthetize
     ######################################
-    if {[catch {synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO} errmsg]} {
+    if {[catch {
+        synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO
+    } errmsg]} {
         puts "<green>synth_script.tcl<end>: <bold><red>error: failed design synth, exiting<end>"
         puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
         puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
         exit -1
     }
-
     report_progress 45 $synth_statusfile
-    opt_design -sweep -remap -propconst
+    if {[catch {
+        opt_design -sweep -remap -propconst
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design opt, skipping<end>"
+        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+    }
     report_progress 55 $synth_statusfile
-    opt_design -directive Explore
+    if {[catch {
+        opt_design -directive Explore
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design opt, skipping<end>"
+        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+    }
     report_progress 65 $synth_statusfile
 
     ######################################
     # Place and route
     ######################################
-    if {[catch {place_design -directive Explore} errmsg]} {
+    if {[catch {
+        place_design -directive Explore
+    } errmsg]} {
         puts "<green>synth_script.tcl<end>: <bold><red>error: failed design place, exiting<end>"
         puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
         puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
         exit -1
     }
     report_progress 70 $synth_statusfile
-    if {[catch {phys_opt_design -retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt} errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: physical opt, skipping...<end>"
+    if {[catch {
+        phys_opt_design -retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed physical opt, skipping...<end>"
         puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
         puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
     }
     report_progress 75 $synth_statusfile
-    route_design -directive AggressiveExplore
+    if {[catch {
+        route_design -directive AggressiveExplore
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design route, exiting<end>"
+        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        exit -1
+    }
     report_progress 85 $synth_statusfile
-    place_design -post_place_opt
+    if {[catch {
+        place_design -post_place_opt
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed post-place opt, skipping...<end>"
+        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+    }
     report_progress 90 $synth_statusfile
-    phys_opt_design -retime -routing_opt
-    # -lut_opt -casc_opt
+    if {[catch {
+        phys_opt_design -retime -routing_opt
+        # -lut_opt -casc_opt
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed physical opt, skipping...<end>"
+        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+    }
     report_progress 95 $synth_statusfile
-     if {[catch {route_design -directive NoTimingRelaxation} errmsg]} {
+    if {[catch {
+        route_design -directive NoTimingRelaxation
+    } errmsg]} {
         puts "<green>synth_script.tcl<end>: <bold><red>error: failed design route, exiting<end>"
         puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
         puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
@@ -98,7 +136,7 @@ if {[catch {
         report_timing > $timing_rep
         report_power > $power_rep
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed report, skipping<end>"
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed report, skipping...<end>"
         puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
         puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
     }
