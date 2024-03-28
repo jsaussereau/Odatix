@@ -4,6 +4,8 @@
 ##############################################
 ---
 
+constraint_file: constraints.xdc
+
 # FPGA/ASIC targeted
 targets:
   #- xc7s6-cpga196-1
@@ -11,7 +13,7 @@ targets:
   #- xc7a15t-cpg236-1
   #- xc7a35t-cpg236-1
   - xc7a100t-csg324-1
-  #- xc7k70t-fbg676-2
+  - xc7k70t-fbg676-2
   #- xc7k70t-fbg676-3
   #- xc7k160t-fbg484-2
   #- xc7k160t-fbg484-3

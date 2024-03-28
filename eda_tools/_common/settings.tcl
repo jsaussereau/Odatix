@@ -31,7 +31,7 @@ set summary_script    $script_path/summary.tcl
 
 set target_file       $tmp_path/target.txt
 set architecture_file $tmp_path/architecture.txt
-set constraints_file  $tmp_path/constraints.xdc
+set constraints_file  $tmp_path/constraints.txt
 
 set utilization_rep   $report_path/utilization.rep
 set timing_rep        $report_path/timing.rep

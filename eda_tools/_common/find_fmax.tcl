@@ -16,6 +16,7 @@ if {[catch {
   ######################################
   source scripts/settings.tcl
   source scripts/is_slack_met.tcl
+  source scripts/update_freq.tcl
 
   set lower_bound $fmax_lower_bound
   set upper_bound $fmax_upper_bound
@@ -54,16 +55,6 @@ if {[catch {
   proc run_synth_script {synth_script} {
     source $synth_script
   }
-
-  proc update_freq {freq constraints_file} {
-    set period [expr {(1.0/$freq)*1000.0}]
-    set constraints_file_handler [open $constraints_file w]
-    puts -nonewline $constraints_file_handler {create_clock -period }
-    puts -nonewline $constraints_file_handler $period 
-    puts $constraints_file_handler { [get_ports $clock_signal]}
-    close $constraints_file_handler
-  }
-
 
   ######################################
   # Algorithm

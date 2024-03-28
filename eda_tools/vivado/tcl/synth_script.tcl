@@ -32,7 +32,13 @@ if {[catch {
     ######################################
     # Read constraints
     ######################################
-    read_xdc $constraints_file
+    if {[catch {
+        read_xdc $constraints_file
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: failed reading constraint file, exiting<end>"
+        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        exit -1
+    }
 
     ######################################
     # Get target
@@ -143,12 +149,12 @@ if {[catch {
 
     report_progress 0 $synth_statusfile
 
-} ]} {
+} gblerrmsg ]} {
     puts "<green>synth_script.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
     puts "<green>synth_script.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
     catch {
         puts "<green>synth_script.tcl<end>: <cyan>tcl error detail:<red>"
-        puts "$errorInfo"
+        puts "$gblerrmsg"
     }
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
     exit -1

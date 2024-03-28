@@ -46,7 +46,7 @@ config_filename = "settings.tcl"
 fmax_status_filename = "status.log"
 synth_status_filename = "synth_status.log"
 tool_makefile_filename = "makefile.mk"
-
+constraint_file = "constraints.txt"
 source_tcl = "source scripts/"
 synth_fmax_rule = "synth_fmax_only"
 
@@ -119,7 +119,8 @@ def print_arch_list(arch_list, description, color):
   print(bcolors.ENDC, end = '')
 
 def move_cursor_up():
-  sys.stdout.write('\x1b[1A')
+  sys.stdout.write('\x1b[1A') # Move cursor up
+  sys.stdout.write("\033[K") # Clear to the end of line
   sys.stdout.flush()
 
 def progress_bar(progress, title, endstr=''):
@@ -192,6 +193,7 @@ if __name__ == "__main__":
     settings_data = yaml.load(f, Loader=SafeLoader)
     try:
       targets         = read_from_list("targets", settings_data, eda_target_filename)
+      constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename)
     except:
       sys.exit() # if a key is missing
 
@@ -454,6 +456,7 @@ if __name__ == "__main__":
       cf_content = re.sub("(set file_copy_dest.*)", "set file_copy_dest    " + file_copy_dest, cf_content)
       cf_content = re.sub("(set fmax_lower_bound.*)", "set fmax_lower_bound  " + fmax_lower_bound, cf_content)
       cf_content = re.sub("(set fmax_upper_bound.*)", "set fmax_upper_bound  " + fmax_upper_bound, cf_content)
+      cf_content = re.sub("(set constraints_file.*)", "set constraints_file  " + constraint_file, cf_content)
 
       with open(config_file, 'w') as f:
         f.write(cf_content)
