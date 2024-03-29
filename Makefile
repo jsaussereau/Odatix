@@ -11,8 +11,6 @@
 #
 # Vivado Makefile
 #
-# Last edited: 2022/07/04 18:20
-#
 
 ########################################################
 # Paths
@@ -47,17 +45,19 @@ _BLACK                  =\x1b[30m
 VIVADO_COLOR            = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNING$(_END)/;s/ERROR/$(_RED)$(_BOLD)ERROR$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<yellow>/$(_YELLOW)/;s/<cyan>/$(_CYAN)/;s/<bold>/$(_BOLD)/;s/<end>/$(_END)/"
 
 ########################################################
-# Rules
+# General rules
 ########################################################
 
 .PHONY: help
 help: motd
 	@echo -e "SYNTHESIS"
-	@echo -e "\t$(_BOLD)make synth$(_END): run the whole synthesis script without gui"
+	@echo -e "\t$(_BOLD)make vivado$(_END): run synthesis + place&route in Vivado"	
+	@echo -e "\t$(_BOLD)make dc$(_END): run synthesis + place&route in Design Compiler"	
+	@echo -e "DATA EXPORT"
+	@echo -e "\t$(_BOLD)make results$(_END): export synthesis results"
 	@echo -e "DATA EXPLORATION"
 	@echo -e "\t$(_BOLD)make explore$(_END): explore results in a web app"
 	@echo -e "OTHERS"
-	@echo -e "\t$(_BOLD)make all$(_END): run synthesis + place&route"	
 	@echo -e "\t$(_BOLD)make help$(_END): display a list of useful commands"
 
 .PHONY: motd
@@ -76,23 +76,12 @@ clean:
 	@rm -f vivado*.log
 	@rm -f tight_setup_hold_pins.txt
 
-.PHONY: all
-all: motd run_vivado_only results_only explore_only
+########################################################
+# Vivado
+########################################################
 
-.PHONY: results
-results: motd results_only
-
-.PHONY: results_only
-results_only:
-	@python3 ./$(SCRIPT_DIR)/export_results.py -m fpga --benchmark
-	@python3 ./$(SCRIPT_DIR)/export_results.py -m asic --benchmark
-
-.PHONY: explore
-explore: motd explore_only
-
-.PHONY: explore_only
-explore_only:
-	@python3 ./$(SCRIPT_DIR)/result_explorer.py&
+.PHONY: vivado
+vivado: motd run_vivado_only clean results_vivado_only
 
 .PHONY: run_vivado
 run_vivado: motd run_vivado_only
@@ -100,3 +89,48 @@ run_vivado: motd run_vivado_only
 .PHONY: run_vivado_only
 run_vivado_only:
 	@python3 $(SCRIPT_DIR)/run_config.py --tool vivado
+
+.PHONY: results_vivado_only
+results_vivado_only:
+	@python3 ./$(SCRIPT_DIR)/export_results.py --tool vivado --benchmark
+
+
+########################################################
+# Design Compiler
+########################################################
+
+.PHONY: dc
+dc: motd run_dc_only clean results_dc_only
+
+.PHONY: run_dc
+run_dc: motd run_dc_only
+
+.PHONY: run_dc_only
+run_dc_only:
+	@python3 $(SCRIPT_DIR)/run_config.py --tool design_compiler
+
+.PHONY: results_dc_only
+results_dc_only:
+	@python3 ./$(SCRIPT_DIR)/export_results.py --tool design_compiler --benchmark
+
+########################################################
+# Generic
+########################################################
+
+# export results 
+
+.PHONY: results
+results: motd results_only
+
+.PHONY: results_only
+results_only: results_vivado_only results_dc_only
+
+
+# explore results
+
+.PHONY: explore
+explore: motd explore_only
+
+.PHONY: explore_only
+explore_only:
+	@python3 ./$(SCRIPT_DIR)/result_explorer.py&

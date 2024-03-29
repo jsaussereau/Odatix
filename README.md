@@ -17,7 +17,7 @@ With Asterism, users can effortlessly explore different architectural designs an
 
 1. Install Python 3.6+
 2. Install Python requirements listed in requirements.txt
-3. Run the example design : `make all`
+3. Run the example designs in Vivado : `make vivado`
 4. Explore the results : `make explore`
 
 # Supported EDA tools
