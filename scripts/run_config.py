@@ -140,8 +140,8 @@ def parse_arguments():
   parser = argparse.ArgumentParser(description='Run fmax synthesis on selected architectures')
   parser.add_argument('-i', '--input', default='architecture_select.yml',
                       help='input architecture file (default: architecture_select.yml)')
-  parser.add_argument('-m', '--mode', choices=['fpga', 'asic'], default='fpga',
-                      help='Select the mode (fpga or asic, default: fpga)')
+  #parser.add_argument('-m', '--mode', choices=['fpga', 'asic'], default='fpga',
+  #                    help='Select the mode (fpga or asic, default: fpga)')
   parser.add_argument('-t', '--tool', default='vivado',
                       help='eda tool in use (default: vivado)')
   parser.add_argument('-w', '--overwrite', action='store_true',
@@ -159,13 +159,13 @@ if __name__ == "__main__":
 
   args = parse_arguments()
 
-  if args.mode != 'fpga' and args.mode != 'asic' :
-    raise ValueError("Invalid mode selected. Please choose 'fpga' or 'asic'.")
+  #if args.mode != 'fpga' and args.mode != 'asic' :
+  #  raise ValueError("Invalid mode selected. Please choose 'fpga' or 'asic'.")
   
-  work_path += "/" + args.mode 
+  tool = args.tool
+  work_path += "/" + tool 
 
   run_config_settings_filename = args.input
-  tool = args.tool
 
   eda_target_filename = "target_" + tool + ".yml"
 
@@ -456,7 +456,7 @@ if __name__ == "__main__":
       cf_content = re.sub("(set file_copy_dest.*)", "set file_copy_dest    " + file_copy_dest, cf_content)
       cf_content = re.sub("(set fmax_lower_bound.*)", "set fmax_lower_bound  " + fmax_lower_bound, cf_content)
       cf_content = re.sub("(set fmax_upper_bound.*)", "set fmax_upper_bound  " + fmax_upper_bound, cf_content)
-      cf_content = re.sub("(set constraints_file.*)", "set constraints_file  " + constraint_file, cf_content)
+      cf_content = re.sub("(set constraints_file.*)", "set constraints_file  $tmp_path/" + constraint_file, cf_content)
 
       with open(config_file, 'w') as f:
         f.write(cf_content)

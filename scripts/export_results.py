@@ -12,10 +12,13 @@ use example: python3 result_to_csv.py
 ''' 
 
 import os
-import re
 import csv
 import yaml
 import argparse
+
+import sys
+sys.path.append('eda_tools/vivado/parser')
+sys.path.append('eda_tools/design_compiler/parser')
 
 from os.path import exists
 
@@ -26,26 +29,12 @@ from os.path import exists
 fieldnames_fpga = ['', 'architecture', 'variant', '', 'Fmax', '', 'LUTs', 'Regs', 'Tot Ut', '', 'DynP', 'StaP', 'TotP']
 fieldnames_asic = ['', 'architecture', 'variant', '', 'Fmax', '', 'Cells', 'Area', 'Tot Area', '', 'DynP', 'StaP', 'TotP']
 
-frequency_search_log = 'log/frequency_search.log'
-utilization_report = 'report/utilization.rep'
-area_report = 'report/area.rep'
-cell_count_report = 'report/cell_count.rep'
-power_report = 'report/power.rep'
 benchmark_file = 'benchmark/benchmark.yml'
 
 status_done = 'Done: 100%'
 
-fmax_pattern = re.compile("(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz")
-slice_lut_pattern = re.compile("\\| Slice LUTs (\\s*)\\|(\\s*)([0-9]+)(.*)")
-slice_reg_pattern = re.compile("\\| Slice Registers (\\s*)\\|(\\s*)([0-9]+)(.*)")
-bram_pattern = re.compile("\\| Block RAM Tile (\\s*)\\|(\\s*)([0-9]+)(.*)")
-dsp_pattern = re.compile("\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)")
-area_pattern = re.compile("Total cell area:(\\s*)([0-9,.]+)(.*)")
-cell_count_pattern = re.compile("Cell count:(\\s*)([0-9,.]+)(.*)")
-dynamic_pow_pattern = re.compile("\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)")
-static_pow_pattern = re.compile("\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)")
-
 bad_value = ' /   '
+format_mode = 'fpga'
 
 ######################################
 # Misc functions
@@ -67,75 +56,42 @@ def safe_cast(val, to_type, default=None):
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Process FPGA or ASIC results')
   parser.add_argument('-i', '--input', default='work',
-                      help='Input path (default: work/[fpga/asic])')
+                      help='Input path (default: work/<tool>)')
   parser.add_argument('-o', '--output', default='results',
                       help='Output path (default: results')
-  parser.add_argument('-m', '--mode', choices=['fpga', 'asic'], default='fpga',
-                      help='Select the mode (fpga or asic, default: fpga)')
+  #parser.add_argument('-m', '--mode', choices=['fpga', 'asic'], default='fpga',
+  #                    help='Select the mode (fpga or asic, default: fpga)')
+  parser.add_argument('-t', '--tool', choices=['vivado', 'design_compiler'], default='vivado',
+                      help='eda tool in use (default: vivado)')
   parser.add_argument('-f', '--format', choices=['csv', 'yml', 'all'], default='yml',
                       help='Output format: csv, yml, or all (default: yml)')
   parser.add_argument('-b', '--benchmark', action='store_true',
                       help='Use benchmark values in yaml file')
   return parser.parse_args()
 
+def import_result_parser(tool):
+  if tool == 'vivado':
+    import parse_vivado_results as selected_parser
+  elif tool == 'design_compiler':
+    import parse_design_compiler_results as selected_parser
+  else:
+    print("Unsupported parser")
+    exit
+  return selected_parser
+
 ######################################
 # Parsing functions
 ######################################
-
-def get_re_group_from_file(file, pattern, group_id):
-  if exists(file):
-    for i, line in enumerate(open(file)):
-      for match in re.finditer(pattern, line):
-        parts = pattern.search(match.group())
-        if group_id <= len(parts.groups()):
-          return parts.group(group_id)
-  return bad_value
-
-def get_fmax(path):
-  file = path+'/'+frequency_search_log
-  return get_re_group_from_file(file, fmax_pattern, 2)
-
-def get_slice_lut(path):
-  file = path+'/'+utilization_report
-  return get_re_group_from_file(file, slice_lut_pattern, 3)
-
-def get_slice_reg(path):
-  file = path+'/'+utilization_report
-  return get_re_group_from_file(file, slice_reg_pattern, 3)
-
-def get_bram(path):
-  file = path+'/'+utilization_report
-  return get_re_group_from_file(file, bram_pattern, 3)
-
-def get_dsp(path):
-  file = path+'/'+utilization_report
-  return get_re_group_from_file(file, dsp_pattern, 3)
-
-def get_area(path):
-  file = path+'/'+area_report
-  return get_re_group_from_file(file, area_pattern, 2)
-
-def get_cell_count(path):
-  file = path+'/'+cell_count_report
-  return get_re_group_from_file(file, cell_count_pattern, 2)
-
-def get_dynamic_pow(path):
-  file = path+'/'+power_report
-  return get_re_group_from_file(file, dynamic_pow_pattern, 3)
-
-def get_static_pow(path):
-  file = path+'/'+power_report
-  return get_re_group_from_file(file, static_pow_pattern, 3)
 
 def get_dmips_per_mhz(architecture, variant, benchmark_data):
   try:
     dmips_value = benchmark_data[architecture][variant]['dmips_per_MHz']
     return dmips_value
   except KeyError as e:
-    #print(f"Clé non trouvée : {e}")
+    #print(f"Could not find key in benchmark file: {e}")
     return None
   except Exception as e:
-    print(f"Erreur lors de la lecture du fichier {benchmark_file} : {e}")
+    print(f"Could not read benchmark file '{benchmark_file}': {e}")
     return None
 
 ######################################
@@ -154,7 +110,7 @@ def cast_to_float(input):
   else:
     return safe_cast(input, float, 0.0)
 
-def write_to_yaml(args, output_file, benchmark_data):
+def write_to_yaml(args, output_file, parser, benchmark_data):
   yaml_data = {}
 
   for target in sorted(next(os.walk(args.input))[1]):
@@ -175,14 +131,14 @@ def write_to_yaml(args, output_file, benchmark_data):
             continue
 
         # Extraction des valeurs
-        fmax = get_fmax(cur_path)
-        if args.mode == 'fpga':
-          slice_lut = get_slice_lut(cur_path)
-          slice_reg = get_slice_reg(cur_path)
-          bram = get_bram(cur_path)
-          dsp = get_dsp(cur_path)
-          dynamic_pow = get_dynamic_pow(cur_path)
-          static_pow = get_static_pow(cur_path)
+        fmax = parser.get_fmax(cur_path)
+        if format_mode == 'fpga':
+          slice_lut = parser.get_slice_lut(cur_path)
+          slice_reg = parser.get_slice_reg(cur_path)
+          bram = parser.get_bram(cur_path)
+          dsp = parser.get_dsp(cur_path)
+          dynamic_pow = parser.get_dynamic_pow(cur_path)
+          static_pow = parser.get_static_pow(cur_path)
           total_ut = safe_cast(slice_lut, int, 0) + safe_cast(slice_reg, int, 0)
           total_pow = safe_cast(static_pow, float, 0.0) + safe_cast(dynamic_pow, float, 0.0)
 
@@ -198,9 +154,9 @@ def write_to_yaml(args, output_file, benchmark_data):
             'Total_Power': cast_to_float("%.3f" % total_pow)
           }
 
-        elif args.mode == 'asic':
-          area = get_area(cur_path)
-          cell_count = get_cell_count(cur_path)
+        elif format_mode == 'asic':
+          area = parser.get_area(cur_path)
+          cell_count = parser.get_cell_count(cur_path)
 
           yaml_data[target][arch][variant] = {
             'fmax': cast_to_int(fmax),
@@ -222,7 +178,7 @@ def write_to_yaml(args, output_file, benchmark_data):
   with open(output_file, 'w') as file:
     yaml.dump(yaml_data, file, default_flow_style=False, sort_keys=False)
 
-def write_to_csv(args, output_file, fieldnames):
+def write_to_csv(args, output_file, parser, fieldnames):
   with open(output_file, 'w', newline='') as csvfile:
     writer = csv.writer(csvfile, delimiter='\t')
 
@@ -243,12 +199,12 @@ def write_to_csv(args, output_file, fieldnames):
               corrupted_directory(target, arch+'/'+variant)
 
           # get values
-          fmax = get_fmax(cur_path)        
-          if args.mode == 'fpga':
-            slice_lut = get_slice_lut(cur_path)
-            slice_reg = get_slice_reg(cur_path)
-            dynamic_pow = get_dynamic_pow(cur_path)
-            static_pow = get_static_pow(cur_path)
+          fmax = parser.get_fmax(cur_path)        
+          if format_mode == 'fpga':
+            slice_lut = parser.get_slice_lut(cur_path)
+            slice_reg = parser.get_slice_reg(cur_path)
+            dynamic_pow = parser.get_dynamic_pow(cur_path)
+            static_pow = parser.get_static_pow(cur_path)
             try:
               total_ut = int(slice_lut) + int(slice_reg)
             except:
@@ -257,14 +213,14 @@ def write_to_csv(args, output_file, fieldnames):
               total_pow = '%.3f'%(float(static_pow) + float(dynamic_pow))
             except:
               total_pow = ' /  '
-          elif args.mode == 'asic':
-            area = get_area(cur_path)
-            cell_count = get_cell_count(cur_path)
+          elif format_mode == 'asic':
+            area = parser.get_area(cur_path)
+            cell_count = parser.get_cell_count(cur_path)
           
           # write the line
-          if args.mode == 'fpga':
+          if format_mode == 'fpga':
             writer.writerow(['', arch, variant, '', fmax+'  ', '', slice_lut+' ', slice_reg+'  ', total_ut, '', dynamic_pow+' ', static_pow, total_pow])
-          elif args.mode == 'asic':
+          elif format_mode == 'asic':
             writer.writerow(['', arch, variant, '', fmax+'  ', '', cell_count, '            ', '' + area, '', '', '', ''])
         writer.writerow([])
 
@@ -275,15 +231,28 @@ def write_to_csv(args, output_file, fieldnames):
 if __name__ == "__main__":
   args = parse_arguments()
 
-  if args.mode == 'fpga':
+  if args.tool == 'vivado':
+    format_mode = 'fpga'
+  elif args.tool == 'design_compiler':
+    format_mode = 'asic'
+  else:
+    raise ValueError(f"Unsupported tool ({args.tool}) selected. Please choose 'vivado' or 'design_compiler'.")
+
+  parser = import_result_parser(args.tool)
+
+  if format_mode == 'fpga':
     fieldnames = fieldnames_fpga
-  elif args.mode == 'asic':
+  elif format_mode == 'asic':
     fieldnames = fieldnames_asic
   else:
-    raise ValueError("Invalid mode selected. Please choose 'fpga' or 'asic'.")
+    raise ValueError(f"Invalid format mode ({format_mode}) selected. Please choose 'fpga' or 'asic'.")
 
-  if not args.input.endswith(('/fpga', '/asic')):
-    args.input = f"{args.input}/{args.mode}"
+  if not args.input.endswith(('/vivado', '/design_compiler')):
+    args.input = f"{args.input}/{args.tool}"
+
+  if not os.path.isdir(args.input):
+    print(f"Input directory '{args.input}' does not exist")
+    sys.exit()
 
   benchmark_data = None
   if args.benchmark:
@@ -294,9 +263,9 @@ if __name__ == "__main__":
       benchmark_data = yaml.safe_load(file)
 
   if args.format in ['csv', 'all']:
-    csv_file = f"{args.output}/results_{args.mode}.csv"
-    write_to_csv(args, csv_file, fieldnames)
+    csv_file = f"{args.output}/results_{args.tool}.csv"
+    write_to_csv(args, csv_file, parser, fieldnames)
 
   if args.format in ['yml', 'all']:
-    yaml_file = f"{args.output}/results_{args.mode}.yml"
-    write_to_yaml(args, yaml_file, benchmark_data)
+    yaml_file = f"{args.output}/results_{args.tool}.yml"
+    write_to_yaml(args, yaml_file, parser, benchmark_data)
