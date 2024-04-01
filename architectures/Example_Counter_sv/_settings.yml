@@ -1,0 +1,35 @@
+
+##############################################
+# Settings for counter example
+##############################################
+---
+
+#rtl path, relative to "architectures" parent directory (Asterism root), not this directory
+rtl_path: "examples/counter_sv"
+
+top_level_file: "counter.sv"
+top_level_module: "counter"
+
+clock_signal: "i_clk"
+
+# copy a file into synthesis directory?
+file_copy_enable: "false"
+file_copy_source: "/dev/null"
+file_copy_dest: "/dev/null"
+
+# delimiters for parameter files
+use_parameters: "true"
+start_delimiter: "counter #("
+stop_delimiter: ")("
+
+# optionnal target-specific bounds to speed up fmax search
+xc7s25-csga225-1:
+  fmax_lower_bound: 50
+  fmax_upper_bound: 170
+xc7a100t-csg324-1:
+  fmax_lower_bound: 250
+  fmax_upper_bound: 900
+xc7k70t-fbg676-2:
+  fmax_lower_bound: 250
+  fmax_upper_bound: 1200
+...
