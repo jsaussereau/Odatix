@@ -4,6 +4,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 76
       LUT_count: 2027
       Reg_count: 326
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2353
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -14,6 +16,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 94
       LUT_count: 1736
       Reg_count: 475
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2211
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -24,6 +28,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 75
       LUT_count: 1974
       Reg_count: 395
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2369
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -34,6 +40,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 70
       LUT_count: 1822
       Reg_count: 361
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2183
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -44,6 +52,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 76
       LUT_count: 1831
       Reg_count: 430
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2261
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -54,6 +64,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 94
       LUT_count: 1708
       Reg_count: 579
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2287
       Dynamic_Power: 0.01
       Static_Power: 0.084
@@ -64,6 +76,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 90
       LUT_count: 1898
       Reg_count: 535
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2433
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -74,6 +88,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 91
       LUT_count: 1691
       Reg_count: 722
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2413
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -84,6 +100,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 90
       LUT_count: 1863
       Reg_count: 606
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2469
       Dynamic_Power: 0.01
       Static_Power: 0.084
@@ -94,6 +112,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 89
       LUT_count: 1910
       Reg_count: 543
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2453
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -104,6 +124,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 90
       LUT_count: 1884
       Reg_count: 612
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2496
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -114,6 +136,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 94
       LUT_count: 1728
       Reg_count: 758
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2486
       Dynamic_Power: 0.01
       Static_Power: 0.084
@@ -124,6 +148,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 92
       LUT_count: 1983
       Reg_count: 698
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2681
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -134,6 +160,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 90
       LUT_count: 1908
       Reg_count: 769
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2677
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -144,6 +172,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 57
       LUT_count: 2437
       Reg_count: 955
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 3392
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -154,6 +184,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 66
       LUT_count: 2438
       Reg_count: 986
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 3424
       Dynamic_Power: 0.014
       Static_Power: 0.084
@@ -164,6 +196,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 52
       LUT_count: 2431
       Reg_count: 1229
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 3660
       Dynamic_Power: 0.017
       Static_Power: 0.084
@@ -175,6 +209,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 77
       LUT_count: 1648
       Reg_count: 328
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 1976
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -185,6 +221,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 106
       LUT_count: 1560
       Reg_count: 477
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2037
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -195,6 +233,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 75
       LUT_count: 1601
       Reg_count: 397
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 1998
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -205,6 +245,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 78
       LUT_count: 1650
       Reg_count: 363
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2013
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -215,6 +257,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 75
       LUT_count: 1610
       Reg_count: 432
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2042
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -225,6 +269,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 108
       LUT_count: 1540
       Reg_count: 581
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2121
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -235,6 +281,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 94
       LUT_count: 1657
       Reg_count: 537
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2194
       Dynamic_Power: 0.01
       Static_Power: 0.084
@@ -245,6 +293,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 104
       LUT_count: 1560
       Reg_count: 682
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2242
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -255,6 +305,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 107
       LUT_count: 1554
       Reg_count: 724
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2278
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -265,6 +317,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 93
       LUT_count: 1615
       Reg_count: 608
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2223
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -275,6 +329,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 94
       LUT_count: 1667
       Reg_count: 545
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2212
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -285,6 +341,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 97
       LUT_count: 1642
       Reg_count: 614
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2256
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -295,6 +353,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 108
       LUT_count: 1543
       Reg_count: 760
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2303
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -305,6 +365,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 94
       LUT_count: 1738
       Reg_count: 700
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2438
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -315,6 +377,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 97
       LUT_count: 1711
       Reg_count: 771
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2482
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -325,6 +389,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 59
       LUT_count: 2148
       Reg_count: 959
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 3107
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -335,6 +401,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 70
       LUT_count: 2144
       Reg_count: 988
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 3132
       Dynamic_Power: 0.014
       Static_Power: 0.084
@@ -345,6 +413,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 57
       LUT_count: 2133
       Reg_count: 1231
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 3364
       Dynamic_Power: 0.02
       Static_Power: 0.084
@@ -356,6 +426,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 113
       LUT_count: 918
       Reg_count: 153
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1071
       Dynamic_Power: 0.009
       Static_Power: 0.091
@@ -364,6 +436,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 121
       LUT_count: 920
       Reg_count: 296
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1216
       Dynamic_Power: 0.009
       Static_Power: 0.091
@@ -372,6 +446,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 114
       LUT_count: 982
       Reg_count: 221
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1203
       Dynamic_Power: 0.011
       Static_Power: 0.091
@@ -380,6 +456,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 126
       LUT_count: 969
       Reg_count: 190
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1159
       Dynamic_Power: 0.023
       Static_Power: 0.091
@@ -388,6 +466,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 131
       LUT_count: 973
       Reg_count: 258
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1231
       Dynamic_Power: 0.024
       Static_Power: 0.091
@@ -396,6 +476,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 137
       LUT_count: 957
       Reg_count: 399
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1356
       Dynamic_Power: 0.009
       Static_Power: 0.091
@@ -404,6 +486,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 107
       LUT_count: 929
       Reg_count: 326
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1255
       Dynamic_Power: 0.01
       Static_Power: 0.091
@@ -412,6 +496,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 125
       LUT_count: 906
       Reg_count: 466
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1372
       Dynamic_Power: 0.013
       Static_Power: 0.091
@@ -420,6 +506,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 103
       LUT_count: 913
       Reg_count: 396
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1309
       Dynamic_Power: 0.009
       Static_Power: 0.091
@@ -428,6 +516,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 140
       LUT_count: 979
       Reg_count: 334
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1313
       Dynamic_Power: 0.017
       Static_Power: 0.091
@@ -436,6 +526,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 139
       LUT_count: 971
       Reg_count: 402
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1373
       Dynamic_Power: 0.017
       Static_Power: 0.091
@@ -444,6 +536,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 173
       LUT_count: 952
       Reg_count: 547
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1499
       Dynamic_Power: 0.016
       Static_Power: 0.091
@@ -453,6 +547,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 87
       LUT_count: 948
       Reg_count: 176
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1124
       Dynamic_Power: 0.005
       Static_Power: 0.084
@@ -463,6 +559,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 126
       LUT_count: 994
       Reg_count: 319
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1313
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -473,6 +571,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 88
       LUT_count: 927
       Reg_count: 243
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1170
       Dynamic_Power: 0.006
       Static_Power: 0.084
@@ -483,6 +583,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 93
       LUT_count: 1012
       Reg_count: 213
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1225
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -493,6 +595,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 95
       LUT_count: 978
       Reg_count: 280
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1258
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -503,6 +607,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 138
       LUT_count: 996
       Reg_count: 421
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1417
       Dynamic_Power: 0.01
       Static_Power: 0.084
@@ -513,6 +619,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 112
       LUT_count: 991
       Reg_count: 349
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1340
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -523,6 +631,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 124
       LUT_count: 966
       Reg_count: 489
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1455
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -533,6 +643,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 107
       LUT_count: 966
       Reg_count: 418
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1384
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -543,6 +655,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 130
       LUT_count: 1032
       Reg_count: 359
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1391
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -553,6 +667,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 141
       LUT_count: 1013
       Reg_count: 424
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1437
       Dynamic_Power: 0.012
       Static_Power: 0.084
@@ -563,6 +679,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 174
       LUT_count: 1020
       Reg_count: 569
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1589
       Dynamic_Power: 0.012
       Static_Power: 0.084
@@ -573,6 +691,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 126
       LUT_count: 1118
       Reg_count: 512
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1630
       Dynamic_Power: 0.012
       Static_Power: 0.084
@@ -583,6 +703,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 148
       LUT_count: 1105
       Reg_count: 582
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1687
       Dynamic_Power: 0.015
       Static_Power: 0.091
@@ -591,29 +713,35 @@ xc7a100t-csg324-1:
       DMIPS: 61.57
   AsteRISC_soc_10S-10S-05R:
     M0000:
-      Fmax_MHz: 88
-      LUT_count: 960
-      Reg_count: 178
-      Total_LUT_reg: 1138
-      Dynamic_Power: 0.006
+      Fmax_MHz: 89
+      LUT_count: 1034
+      Reg_count: 182
+      BRAM_count: 2
+      DSP_count: 0
+      Total_LUT_reg: 1216
+      Dynamic_Power: 0.007
       Static_Power: 0.084
-      Total_Power: 0.09
+      Total_Power: 0.091
       DMIPS_per_MHz: 0.678
-      DMIPS: 59.66
+      DMIPS: 60.34
     M0001:
-      Fmax_MHz: 128
-      LUT_count: 987
-      Reg_count: 321
-      Total_LUT_reg: 1308
-      Dynamic_Power: 0.008
+      Fmax_MHz: 129
+      LUT_count: 1124
+      Reg_count: 323
+      BRAM_count: 2
+      DSP_count: 0
+      Total_LUT_reg: 1447
+      Dynamic_Power: 0.01
       Static_Power: 0.084
-      Total_Power: 0.092
+      Total_Power: 0.094
       DMIPS_per_MHz: 0.462
-      DMIPS: 59.14
+      DMIPS: 59.6
     M0008:
       Fmax_MHz: 90
       LUT_count: 949
       Reg_count: 247
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1196
       Dynamic_Power: 0.006
       Static_Power: 0.084
@@ -624,6 +752,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 92
       LUT_count: 1011
       Reg_count: 215
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1226
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -634,6 +764,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 92
       LUT_count: 983
       Reg_count: 284
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1267
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -644,6 +776,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 139
       LUT_count: 997
       Reg_count: 425
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1422
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -654,6 +788,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 114
       LUT_count: 999
       Reg_count: 351
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1350
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -664,6 +800,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 126
       LUT_count: 970
       Reg_count: 491
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1461
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -674,6 +812,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 121
       LUT_count: 1028
       Reg_count: 544
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1572
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -684,6 +824,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 108
       LUT_count: 968
       Reg_count: 422
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1390
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -694,6 +836,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 127
       LUT_count: 1044
       Reg_count: 362
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1406
       Dynamic_Power: 0.01
       Static_Power: 0.084
@@ -704,6 +848,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 142
       LUT_count: 1019
       Reg_count: 428
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1447
       Dynamic_Power: 0.012
       Static_Power: 0.084
@@ -714,6 +860,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 176
       LUT_count: 1026
       Reg_count: 573
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1599
       Dynamic_Power: 0.015
       Static_Power: 0.084
@@ -724,6 +872,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 131
       LUT_count: 1141
       Reg_count: 515
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1656
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -734,6 +884,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 142
       LUT_count: 1089
       Reg_count: 585
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1674
       Dynamic_Power: 0.014
       Static_Power: 0.091
@@ -744,6 +896,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 68
       LUT_count: 1469
       Reg_count: 817
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2286
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -752,6 +906,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 79
       LUT_count: 1646
       Reg_count: 790
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2436
       Dynamic_Power: 0.016
       Static_Power: 0.084
@@ -762,6 +918,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 71
       LUT_count: 1478
       Reg_count: 792
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2270
       Dynamic_Power: 0.014
       Static_Power: 0.084
@@ -772,6 +930,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 61
       LUT_count: 1709
       Reg_count: 1031
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2740
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -783,6 +943,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 71
       LUT_count: 2049
       Reg_count: 1782
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 3831
       Dynamic_Power: 0.021
       Static_Power: 0.084
@@ -791,6 +953,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 65
       LUT_count: 1476
       Reg_count: 817
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2293
       Dynamic_Power: 0.012
       Static_Power: 0.084
@@ -799,6 +963,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 65
       LUT_count: 1689
       Reg_count: 1056
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2745
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -808,6 +974,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 87
       LUT_count: 978
       Reg_count: 178
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1156
       Dynamic_Power: 0.005
       Static_Power: 0.084
@@ -818,6 +986,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 124
       LUT_count: 999
       Reg_count: 321
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1320
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -828,6 +998,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 90
       LUT_count: 953
       Reg_count: 247
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1200
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -838,6 +1010,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 86
       LUT_count: 1008
       Reg_count: 215
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1223
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -848,6 +1022,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 93
       LUT_count: 988
       Reg_count: 284
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1272
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -858,6 +1034,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 140
       LUT_count: 1011
       Reg_count: 425
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1436
       Dynamic_Power: 0.011
       Static_Power: 0.084
@@ -868,6 +1046,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 110
       LUT_count: 1005
       Reg_count: 351
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1356
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -878,6 +1058,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 125
       LUT_count: 968
       Reg_count: 491
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1459
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -888,6 +1070,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 113
       LUT_count: 976
       Reg_count: 422
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1398
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -898,6 +1082,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 114
       LUT_count: 1040
       Reg_count: 363
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1403
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -908,6 +1094,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 146
       LUT_count: 1034
       Reg_count: 428
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1462
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -918,6 +1106,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 176
       LUT_count: 1033
       Reg_count: 573
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1606
       Dynamic_Power: 0.016
       Static_Power: 0.084
@@ -928,6 +1118,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 122
       LUT_count: 1127
       Reg_count: 515
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1642
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -938,6 +1130,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 141
       LUT_count: 1105
       Reg_count: 585
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1690
       Dynamic_Power: 0.015
       Static_Power: 0.092
@@ -949,6 +1143,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 91
       LUT_count: 938
       Reg_count: 178
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1116
       Dynamic_Power: 0.005
       Static_Power: 0.084
@@ -959,6 +1155,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 135
       LUT_count: 949
       Reg_count: 316
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1265
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -969,6 +1167,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 93
       LUT_count: 913
       Reg_count: 247
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1160
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -979,6 +1179,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 91
       LUT_count: 944
       Reg_count: 183
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1127
       Dynamic_Power: 0.006
       Static_Power: 0.084
@@ -989,6 +1191,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 92
       LUT_count: 919
       Reg_count: 252
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1171
       Dynamic_Power: 0.006
       Static_Power: 0.084
@@ -999,6 +1203,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 136
       LUT_count: 918
       Reg_count: 388
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1306
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -1009,6 +1215,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 110
       LUT_count: 980
       Reg_count: 343
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1323
       Dynamic_Power: 0.007
       Static_Power: 0.084
@@ -1019,6 +1227,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 128
       LUT_count: 960
       Reg_count: 480
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1440
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -1029,6 +1239,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 110
       LUT_count: 954
       Reg_count: 414
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1368
       Dynamic_Power: 0.008
       Static_Power: 0.084
@@ -1039,6 +1251,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 121
       LUT_count: 1025
       Reg_count: 354
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1379
       Dynamic_Power: 0.009
       Static_Power: 0.084
@@ -1049,6 +1263,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 141
       LUT_count: 1005
       Reg_count: 420
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1425
       Dynamic_Power: 0.012
       Static_Power: 0.084
@@ -1059,6 +1275,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 177
       LUT_count: 1005
       Reg_count: 562
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1567
       Dynamic_Power: 0.014
       Static_Power: 0.084
@@ -1069,6 +1287,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 132
       LUT_count: 1119
       Reg_count: 481
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1600
       Dynamic_Power: 0.013
       Static_Power: 0.084
@@ -1079,6 +1299,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 137
       LUT_count: 1041
       Reg_count: 550
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1591
       Dynamic_Power: 0.012
       Static_Power: 0.091
@@ -1090,6 +1312,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 1527
       Reg_count: 819
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 2346
       Dynamic_Power: 0.016
       Static_Power: 0.084
@@ -1100,6 +1324,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 1760
       Reg_count: 1058
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 2818
       Dynamic_Power: 0.016
       Static_Power: 0.084
@@ -1111,6 +1337,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1121,6 +1349,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1131,6 +1361,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1141,6 +1373,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1151,6 +1385,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1161,6 +1397,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1171,6 +1409,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1181,6 +1421,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1191,6 +1433,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1201,6 +1445,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1211,6 +1457,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.084
@@ -1222,6 +1470,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 552
       LUT_count: 11
       Reg_count: 13
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 24
       Dynamic_Power: 0.014
       Static_Power: 0.091
@@ -1230,6 +1480,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 552
       LUT_count: 11
       Reg_count: 13
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 24
       Dynamic_Power: 0.014
       Static_Power: 0.091
@@ -1239,15 +1491,303 @@ xc7a100t-csg324-1:
       Fmax_MHz: 706
       LUT_count: 19
       Reg_count: 24
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 43
       Dynamic_Power: 0.052
       Static_Power: 0.091
       Total_Power: 0.143
+  Example_ALU:
+    04bits:
+      Fmax_MHz: 405
+      LUT_count: 37
+      Reg_count: 35
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 72
+      Dynamic_Power: 0.013
+      Static_Power: 0.091
+      Total_Power: 0.104
+    08bits:
+      Fmax_MHz: 255
+      LUT_count: 94
+      Reg_count: 28
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 122
+      Dynamic_Power: 0.013
+      Static_Power: 0.091
+      Total_Power: 0.104
+    16bits:
+      Fmax_MHz: 230
+      LUT_count: 243
+      Reg_count: 52
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 295
+      Dynamic_Power: 0.023
+      Static_Power: 0.091
+      Total_Power: 0.114
+    24bits:
+      Fmax_MHz: 205
+      LUT_count: 378
+      Reg_count: 76
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 454
+      Dynamic_Power: 0.032
+      Static_Power: 0.091
+      Total_Power: 0.123
+    32bits:
+      Fmax_MHz: 200
+      LUT_count: 517
+      Reg_count: 100
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 617
+      Dynamic_Power: 0.042
+      Static_Power: 0.091
+      Total_Power: 0.133
+    48bits:
+      Fmax_MHz: 178
+      LUT_count: 847
+      Reg_count: 151
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 998
+      Dynamic_Power: 0.058
+      Static_Power: 0.091
+      Total_Power: 0.149
+    64bits:
+      Fmax_MHz: 174
+      LUT_count: 1104
+      Reg_count: 210
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 1314
+      Dynamic_Power: 0.078
+      Static_Power: 0.091
+      Total_Power: 0.169
+  Example_Counter_sv:
+    04bits:
+      Fmax_MHz: 843
+      LUT_count: 6
+      Reg_count: 5
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 11
+      Dynamic_Power: 0.015
+      Static_Power: 0.091
+      Total_Power: 0.106
+    08bits:
+      Fmax_MHz: 503
+      LUT_count: 9
+      Reg_count: 8
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 17
+      Dynamic_Power: 0.016
+      Static_Power: 0.091
+      Total_Power: 0.107
+    16bits:
+      Fmax_MHz: 490
+      LUT_count: 16
+      Reg_count: 16
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 32
+      Dynamic_Power: 0.026
+      Static_Power: 0.091
+      Total_Power: 0.117
+    24bits:
+      Fmax_MHz: 425
+      LUT_count: 24
+      Reg_count: 24
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 48
+      Dynamic_Power: 0.033
+      Static_Power: 0.091
+      Total_Power: 0.124
+    32bits:
+      Fmax_MHz: 400
+      LUT_count: 32
+      Reg_count: 32
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 64
+      Dynamic_Power: 0.041
+      Static_Power: 0.091
+      Total_Power: 0.132
+    48bits:
+      Fmax_MHz: 335
+      LUT_count: 48
+      Reg_count: 48
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 96
+      Dynamic_Power: 0.052
+      Static_Power: 0.091
+      Total_Power: 0.143
+    64bits:
+      Fmax_MHz: 288
+      LUT_count: 64
+      Reg_count: 64
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 128
+      Dynamic_Power: 0.06
+      Static_Power: 0.091
+      Total_Power: 0.151
+  Example_Counter_vhdl:
+    04bits:
+      Fmax_MHz: 850
+      LUT_count: 6
+      Reg_count: 5
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 11
+      Dynamic_Power: 0.015
+      Static_Power: 0.091
+      Total_Power: 0.106
+    08bits:
+      Fmax_MHz: 503
+      LUT_count: 9
+      Reg_count: 8
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 17
+      Dynamic_Power: 0.016
+      Static_Power: 0.091
+      Total_Power: 0.107
+    16bits:
+      Fmax_MHz: 490
+      LUT_count: 16
+      Reg_count: 16
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 32
+      Dynamic_Power: 0.026
+      Static_Power: 0.091
+      Total_Power: 0.117
+    24bits:
+      Fmax_MHz: 418
+      LUT_count: 24
+      Reg_count: 24
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 48
+      Dynamic_Power: 0.033
+      Static_Power: 0.091
+      Total_Power: 0.124
+    32bits:
+      Fmax_MHz: 387
+      LUT_count: 32
+      Reg_count: 32
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 64
+      Dynamic_Power: 0.04
+      Static_Power: 0.091
+      Total_Power: 0.131
+    48bits:
+      Fmax_MHz: 335
+      LUT_count: 48
+      Reg_count: 48
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 96
+      Dynamic_Power: 0.052
+      Static_Power: 0.091
+      Total_Power: 0.143
+    64bits:
+      Fmax_MHz: 288
+      LUT_count: 64
+      Reg_count: 64
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 128
+      Dynamic_Power: 0.06
+      Static_Power: 0.091
+      Total_Power: 0.151
+  Example_Mult:
+    04bits:
+      Fmax_MHz: 399
+      LUT_count: 6
+      Reg_count: 12
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 18
+      Dynamic_Power: 0.011
+      Static_Power: 0.091
+      Total_Power: 0.102
+    08bits:
+      Fmax_MHz: 261
+      LUT_count: 40
+      Reg_count: 39
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 79
+      Dynamic_Power: 0.019
+      Static_Power: 0.091
+      Total_Power: 0.11
+    16bits:
+      Fmax_MHz: /
+      LUT_count: 0
+      Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 1
+      Total_LUT_reg: 0
+      Dynamic_Power: 0.007
+      Static_Power: 0.091
+      Total_Power: 0.098
+    24bits:
+      Fmax_MHz: 253
+      LUT_count: 0
+      Reg_count: 17
+      BRAM_count: 0
+      DSP_count: 2
+      Total_LUT_reg: 17
+      Dynamic_Power: 0.058
+      Static_Power: 0.091
+      Total_Power: 0.149
+    32bits:
+      Fmax_MHz: 253
+      LUT_count: 16
+      Reg_count: 17
+      BRAM_count: 0
+      DSP_count: 3
+      Total_LUT_reg: 33
+      Dynamic_Power: 0.084
+      Static_Power: 0.091
+      Total_Power: 0.175
+    48bits:
+      Fmax_MHz: 135
+      LUT_count: 14
+      Reg_count: 17
+      BRAM_count: 0
+      DSP_count: 6
+      Total_LUT_reg: 31
+      Dynamic_Power: 0.069
+      Static_Power: 0.091
+      Total_Power: 0.16
+    64bits:
+      Fmax_MHz: 109
+      LUT_count: 31
+      Reg_count: 51
+      BRAM_count: 0
+      DSP_count: 10
+      Total_LUT_reg: 82
+      Dynamic_Power: 0.08
+      Static_Power: 0.091
+      Total_Power: 0.171
   PicoSoC_09S-05R:
     regular:
       Fmax_MHz: 191
       LUT_count: 1077
       Reg_count: 633
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1710
       Dynamic_Power: 0.039
       Static_Power: 0.091
@@ -1256,6 +1796,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 187
       LUT_count: 906
       Reg_count: 640
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1546
       Dynamic_Power: 0.055
       Static_Power: 0.091
@@ -1267,6 +1809,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 186
       LUT_count: 1078
       Reg_count: 633
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1711
       Dynamic_Power: 0.05
       Static_Power: 0.091
@@ -1275,6 +1819,8 @@ xc7a100t-csg324-1:
       Fmax_MHz: 188
       LUT_count: 906
       Reg_count: 640
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1546
       Dynamic_Power: 0.055
       Static_Power: 0.091
@@ -1287,6 +1833,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 124
       LUT_count: 1034
       Reg_count: 182
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1216
       Dynamic_Power: 0.008
       Static_Power: 0.08
@@ -1295,6 +1843,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 206
       LUT_count: 1599
       Reg_count: 355
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1954
       Dynamic_Power: 0.014
       Static_Power: 0.08
@@ -1303,6 +1853,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 124
       LUT_count: 1005
       Reg_count: 251
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1256
       Dynamic_Power: 0.008
       Static_Power: 0.08
@@ -1311,6 +1863,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 129
       LUT_count: 1073
       Reg_count: 217
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1290
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -1319,6 +1873,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 130
       LUT_count: 1177
       Reg_count: 286
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1463
       Dynamic_Power: 0.011
       Static_Power: 0.08
@@ -1327,6 +1883,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 193
       LUT_count: 1591
       Reg_count: 459
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 2050
       Dynamic_Power: 0.014
       Static_Power: 0.08
@@ -1335,6 +1893,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 216
       LUT_count: 1044
       Reg_count: 350
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1394
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -1343,6 +1903,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 235
       LUT_count: 1030
       Reg_count: 490
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1520
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -1351,6 +1913,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 237
       LUT_count: 1024
       Reg_count: 531
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1555
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -1359,6 +1923,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 225
       LUT_count: 953
       Reg_count: 422
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1375
       Dynamic_Power: 0.019
       Static_Power: 0.08
@@ -1367,6 +1933,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 245
       LUT_count: 1107
       Reg_count: 361
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1468
       Dynamic_Power: 0.018
       Static_Power: 0.08
@@ -1375,6 +1943,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 274
       LUT_count: 1641
       Reg_count: 459
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 2100
       Dynamic_Power: 0.024
       Static_Power: 0.08
@@ -1383,6 +1953,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 292
       LUT_count: 1599
       Reg_count: 604
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 2203
       Dynamic_Power: 0.025
       Static_Power: 0.08
@@ -1391,6 +1963,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 243
       LUT_count: 1215
       Reg_count: 517
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1732
       Dynamic_Power: 0.027
       Static_Power: 0.081
@@ -1399,6 +1973,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 270
       LUT_count: 1726
       Reg_count: 616
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 2342
       Dynamic_Power: 0.031
       Static_Power: 0.08
@@ -1407,6 +1983,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 128
       LUT_count: 1540
       Reg_count: 742
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 2282
       Dynamic_Power: 0.013
       Static_Power: 0.08
@@ -1415,6 +1993,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 147
       LUT_count: 2014
       Reg_count: 829
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 2843
       Dynamic_Power: 0.032
       Static_Power: 0.08
@@ -1423,6 +2003,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 128
       LUT_count: 2261
       Reg_count: 1072
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 3333
       Dynamic_Power: 0.03
       Static_Power: 0.08
@@ -1432,6 +2014,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 103
       LUT_count: 1930
       Reg_count: 326
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2256
       Dynamic_Power: 0.011
       Static_Power: 0.08
@@ -1442,6 +2026,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 170
       LUT_count: 1746
       Reg_count: 475
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2221
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -1452,6 +2038,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 103
       LUT_count: 1905
       Reg_count: 395
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2300
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -1462,6 +2050,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 101
       LUT_count: 1796
       Reg_count: 361
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2157
       Dynamic_Power: 0.011
       Static_Power: 0.08
@@ -1472,6 +2062,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 101
       LUT_count: 1770
       Reg_count: 430
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2200
       Dynamic_Power: 0.012
       Static_Power: 0.08
@@ -1482,6 +2074,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 168
       LUT_count: 1713
       Reg_count: 579
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2292
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -1492,6 +2086,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 167
       LUT_count: 1894
       Reg_count: 535
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2429
       Dynamic_Power: 0.021
       Static_Power: 0.08
@@ -1502,6 +2098,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 168
       LUT_count: 1763
       Reg_count: 680
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2443
       Dynamic_Power: 0.019
       Static_Power: 0.08
@@ -1512,6 +2110,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 162
       LUT_count: 1723
       Reg_count: 722
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2445
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -1522,6 +2122,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 164
       LUT_count: 1866
       Reg_count: 606
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2472
       Dynamic_Power: 0.021
       Static_Power: 0.08
@@ -1532,6 +2134,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 166
       LUT_count: 1913
       Reg_count: 543
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2456
       Dynamic_Power: 0.019
       Static_Power: 0.08
@@ -1542,6 +2146,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 169
       LUT_count: 1884
       Reg_count: 612
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2496
       Dynamic_Power: 0.021
       Static_Power: 0.08
@@ -1552,6 +2158,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 171
       LUT_count: 1740
       Reg_count: 758
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2498
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -1562,6 +2170,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 164
       LUT_count: 1988
       Reg_count: 698
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2686
       Dynamic_Power: 0.023
       Static_Power: 0.08
@@ -1572,6 +2182,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 162
       LUT_count: 1962
       Reg_count: 770
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 2732
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -1582,6 +2194,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 114
       LUT_count: 2438
       Reg_count: 945
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 3383
       Dynamic_Power: 0.013
       Static_Power: 0.08
@@ -1592,6 +2206,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 135
       LUT_count: 2963
       Reg_count: 1042
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 4005
       Dynamic_Power: 0.031
       Static_Power: 0.08
@@ -1602,6 +2218,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 106
       LUT_count: 2974
       Reg_count: 1285
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 4259
       Dynamic_Power: 0.028
       Static_Power: 0.081
@@ -1613,6 +2231,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 107
       LUT_count: 1595
       Reg_count: 328
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 1923
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -1623,6 +2243,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 184
       LUT_count: 1562
       Reg_count: 496
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2058
       Dynamic_Power: 0.014
       Static_Power: 0.08
@@ -1633,6 +2255,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 107
       LUT_count: 1568
       Reg_count: 397
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 1965
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -1643,6 +2267,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 107
       LUT_count: 1599
       Reg_count: 363
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 1962
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -1653,6 +2279,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 107
       LUT_count: 1570
       Reg_count: 432
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2002
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -1663,6 +2291,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 184
       LUT_count: 1527
       Reg_count: 614
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2141
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -1673,6 +2303,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 177
       LUT_count: 1679
       Reg_count: 537
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2216
       Dynamic_Power: 0.019
       Static_Power: 0.08
@@ -1683,6 +2315,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 190
       LUT_count: 1578
       Reg_count: 682
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2260
       Dynamic_Power: 0.019
       Static_Power: 0.08
@@ -1693,6 +2327,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 188
       LUT_count: 1558
       Reg_count: 724
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2282
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -1703,6 +2339,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 180
       LUT_count: 1642
       Reg_count: 610
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2252
       Dynamic_Power: 0.02
       Static_Power: 0.08
@@ -1713,6 +2351,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 177
       LUT_count: 1669
       Reg_count: 545
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2214
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -1723,6 +2363,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 178
       LUT_count: 1649
       Reg_count: 614
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2263
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -1733,6 +2375,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 186
       LUT_count: 1558
       Reg_count: 760
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2318
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -1743,6 +2387,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 177
       LUT_count: 1746
       Reg_count: 700
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2446
       Dynamic_Power: 0.021
       Static_Power: 0.08
@@ -1753,6 +2399,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 175
       LUT_count: 1733
       Reg_count: 771
+      BRAM_count: 2
+      DSP_count: 1
       Total_LUT_reg: 2504
       Dynamic_Power: 0.019
       Static_Power: 0.08
@@ -1763,6 +2411,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 114
       LUT_count: 2197
       Reg_count: 947
+      BRAM_count: 1
+      DSP_count: 1
       Total_LUT_reg: 3144
       Dynamic_Power: 0.012
       Static_Power: 0.08
@@ -1773,6 +2423,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 134
       LUT_count: 2684
       Reg_count: 1036
+      BRAM_count: 1
+      DSP_count: 1
       Total_LUT_reg: 3720
       Dynamic_Power: 0.028
       Static_Power: 0.08
@@ -1783,6 +2435,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 114
       LUT_count: 2679
       Reg_count: 1279
+      BRAM_count: 1
+      DSP_count: 1
       Total_LUT_reg: 3958
       Dynamic_Power: 0.028
       Static_Power: 0.081
@@ -1794,6 +2448,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 217
       LUT_count: 934
       Reg_count: 153
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1087
       Dynamic_Power: 0.02
       Static_Power: 0.081
@@ -1802,6 +2458,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 231
       LUT_count: 930
       Reg_count: 296
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1226
       Dynamic_Power: 0.021
       Static_Power: 0.081
@@ -1810,6 +2468,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 225
       LUT_count: 978
       Reg_count: 221
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1199
       Dynamic_Power: 0.022
       Static_Power: 0.081
@@ -1818,6 +2478,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 236
       LUT_count: 985
       Reg_count: 190
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1175
       Dynamic_Power: 0.044
       Static_Power: 0.081
@@ -1826,6 +2488,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 236
       LUT_count: 980
       Reg_count: 258
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1238
       Dynamic_Power: 0.041
       Static_Power: 0.081
@@ -1834,6 +2498,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 245
       LUT_count: 957
       Reg_count: 399
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1356
       Dynamic_Power: 0.017
       Static_Power: 0.081
@@ -1842,6 +2508,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 203
       LUT_count: 929
       Reg_count: 326
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1255
       Dynamic_Power: 0.018
       Static_Power: 0.081
@@ -1850,6 +2518,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 229
       LUT_count: 903
       Reg_count: 466
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1369
       Dynamic_Power: 0.022
       Static_Power: 0.081
@@ -1858,6 +2528,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 202
       LUT_count: 935
       Reg_count: 396
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1331
       Dynamic_Power: 0.018
       Static_Power: 0.081
@@ -1866,6 +2538,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 267
       LUT_count: 976
       Reg_count: 334
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1310
       Dynamic_Power: 0.033
       Static_Power: 0.081
@@ -1874,6 +2548,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 274
       LUT_count: 986
       Reg_count: 402
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1388
       Dynamic_Power: 0.034
       Static_Power: 0.081
@@ -1882,6 +2558,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 299
       LUT_count: 952
       Reg_count: 547
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1499
       Dynamic_Power: 0.028
       Static_Power: 0.081
@@ -1891,6 +2569,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 124
       LUT_count: 931
       Reg_count: 176
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1107
       Dynamic_Power: 0.007
       Static_Power: 0.08
@@ -1901,6 +2581,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 206
       LUT_count: 969
       Reg_count: 319
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1288
       Dynamic_Power: 0.011
       Static_Power: 0.08
@@ -1911,6 +2593,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 124
       LUT_count: 909
       Reg_count: 243
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1152
       Dynamic_Power: 0.008
       Static_Power: 0.08
@@ -1921,6 +2605,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 126
       LUT_count: 967
       Reg_count: 213
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1180
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -1931,6 +2617,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 131
       LUT_count: 951
       Reg_count: 280
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1231
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -1941,6 +2629,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 193
       LUT_count: 962
       Reg_count: 421
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1383
       Dynamic_Power: 0.012
       Static_Power: 0.08
@@ -1951,6 +2641,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 214
       LUT_count: 1003
       Reg_count: 349
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1352
       Dynamic_Power: 0.014
       Static_Power: 0.08
@@ -1961,6 +2653,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 241
       LUT_count: 991
       Reg_count: 489
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1480
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -1971,6 +2665,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 217
       LUT_count: 983
       Reg_count: 418
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1401
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -1981,6 +2677,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 231
       LUT_count: 1061
       Reg_count: 360
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1421
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -1991,6 +2689,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 269
       LUT_count: 1158
       Reg_count: 456
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1614
       Dynamic_Power: 0.023
       Static_Power: 0.08
@@ -2001,6 +2701,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 317
       LUT_count: 1155
       Reg_count: 601
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1756
       Dynamic_Power: 0.023
       Static_Power: 0.08
@@ -2011,6 +2713,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 243
       LUT_count: 1153
       Reg_count: 513
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 1666
       Dynamic_Power: 0.023
       Static_Power: 0.08
@@ -2021,6 +2725,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 265
       LUT_count: 1241
       Reg_count: 613
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 1854
       Dynamic_Power: 0.028
       Static_Power: 0.08
@@ -2032,6 +2738,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 124
       LUT_count: 936
       Reg_count: 180
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1116
       Dynamic_Power: 0.008
       Static_Power: 0.08
@@ -2042,6 +2750,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 206
       LUT_count: 957
       Reg_count: 321
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1278
       Dynamic_Power: 0.012
       Static_Power: 0.08
@@ -2052,6 +2762,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 124
       LUT_count: 909
       Reg_count: 249
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1158
       Dynamic_Power: 0.008
       Static_Power: 0.08
@@ -2062,6 +2774,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 128
       LUT_count: 972
       Reg_count: 215
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1187
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -2072,6 +2786,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 133
       LUT_count: 974
       Reg_count: 284
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1258
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -2082,6 +2798,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 193
       LUT_count: 959
       Reg_count: 425
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1384
       Dynamic_Power: 0.013
       Static_Power: 0.08
@@ -2092,6 +2810,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 219
       LUT_count: 1016
       Reg_count: 351
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1367
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -2102,6 +2822,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 229
       LUT_count: 987
       Reg_count: 491
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1478
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2112,6 +2834,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 238
       LUT_count: 1034
       Reg_count: 544
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1578
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -2122,6 +2846,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 216
       LUT_count: 985
       Reg_count: 422
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1407
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2132,6 +2858,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 231
       LUT_count: 1049
       Reg_count: 360
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1409
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -2142,6 +2870,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 271
       LUT_count: 1027
       Reg_count: 428
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1455
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2152,6 +2882,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 236
       LUT_count: 1135
       Reg_count: 514
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1649
       Dynamic_Power: 0.023
       Static_Power: 0.08
@@ -2162,6 +2894,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 265
       LUT_count: 1674
       Reg_count: 617
+      BRAM_count: 1
+      DSP_count: 0
       Total_LUT_reg: 2291
       Dynamic_Power: 0.029
       Static_Power: 0.08
@@ -2173,6 +2907,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 124
       LUT_count: 933
       Reg_count: 178
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1111
       Dynamic_Power: 0.008
       Static_Power: 0.08
@@ -2183,6 +2919,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 206
       LUT_count: 958
       Reg_count: 321
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1279
       Dynamic_Power: 0.013
       Static_Power: 0.08
@@ -2193,6 +2931,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 124
       LUT_count: 920
       Reg_count: 247
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1167
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -2203,6 +2943,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 126
       LUT_count: 977
       Reg_count: 215
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1192
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -2213,6 +2955,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 131
       LUT_count: 959
       Reg_count: 284
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1243
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -2223,6 +2967,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 193
       LUT_count: 971
       Reg_count: 425
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1396
       Dynamic_Power: 0.013
       Static_Power: 0.08
@@ -2233,6 +2979,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 208
       LUT_count: 1009
       Reg_count: 351
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1360
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2243,6 +2991,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 241
       LUT_count: 990
       Reg_count: 491
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1481
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -2253,6 +3003,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 217
       LUT_count: 988
       Reg_count: 422
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1410
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -2263,6 +3015,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 215
       LUT_count: 1049
       Reg_count: 363
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1412
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -2273,6 +3027,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 276
       LUT_count: 1042
       Reg_count: 428
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1470
       Dynamic_Power: 0.023
       Static_Power: 0.08
@@ -2283,6 +3039,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 293
       LUT_count: 1022
       Reg_count: 573
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1595
       Dynamic_Power: 0.023
       Static_Power: 0.08
@@ -2293,6 +3051,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 234
       LUT_count: 1134
       Reg_count: 515
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1649
       Dynamic_Power: 0.023
       Static_Power: 0.08
@@ -2303,6 +3063,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 265
       LUT_count: 1120
       Reg_count: 585
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1705
       Dynamic_Power: 0.027
       Static_Power: 0.08
@@ -2314,6 +3076,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 151
       LUT_count: 1001
       Reg_count: 181
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1182
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -2322,6 +3086,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 206
       LUT_count: 957
       Reg_count: 321
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1278
       Dynamic_Power: 0.012
       Static_Power: 0.08
@@ -2330,6 +3096,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 159
       LUT_count: 964
       Reg_count: 250
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1214
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -2338,6 +3106,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 152
       LUT_count: 1019
       Reg_count: 216
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1235
       Dynamic_Power: 0.012
       Static_Power: 0.08
@@ -2346,6 +3116,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 157
       LUT_count: 1055
       Reg_count: 285
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1340
       Dynamic_Power: 0.012
       Static_Power: 0.08
@@ -2354,6 +3126,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 237
       LUT_count: 980
       Reg_count: 426
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1406
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -2362,6 +3136,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 216
       LUT_count: 1009
       Reg_count: 351
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1360
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2370,6 +3146,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 231
       LUT_count: 984
       Reg_count: 490
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1474
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2378,6 +3156,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 217
       LUT_count: 981
       Reg_count: 421
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1402
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -2386,6 +3166,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 243
       LUT_count: 1053
       Reg_count: 361
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1414
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -2394,6 +3176,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 278
       LUT_count: 1028
       Reg_count: 427
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1455
       Dynamic_Power: 0.024
       Static_Power: 0.08
@@ -2402,6 +3186,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 293
       LUT_count: 1026
       Reg_count: 572
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1598
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2410,6 +3196,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 231
       LUT_count: 1128
       Reg_count: 497
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1625
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2418,6 +3206,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 265
       LUT_count: 1116
       Reg_count: 569
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1685
       Dynamic_Power: 0.027
       Static_Power: 0.08
@@ -2427,6 +3217,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 153
       LUT_count: 952
       Reg_count: 178
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1130
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -2437,6 +3229,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 243
       LUT_count: 967
       Reg_count: 316
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1283
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2447,6 +3241,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 157
       LUT_count: 917
       Reg_count: 247
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1164
       Dynamic_Power: 0.011
       Static_Power: 0.08
@@ -2457,6 +3253,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 154
       LUT_count: 964
       Reg_count: 183
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1147
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -2467,6 +3265,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 157
       LUT_count: 926
       Reg_count: 252
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1178
       Dynamic_Power: 0.01
       Static_Power: 0.08
@@ -2477,6 +3277,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 248
       LUT_count: 951
       Reg_count: 388
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1339
       Dynamic_Power: 0.014
       Static_Power: 0.08
@@ -2487,6 +3289,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 220
       LUT_count: 996
       Reg_count: 343
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1339
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2497,6 +3301,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 232
       LUT_count: 973
       Reg_count: 480
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1453
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2507,6 +3313,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 205
       LUT_count: 957
       Reg_count: 414
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1371
       Dynamic_Power: 0.014
       Static_Power: 0.08
@@ -2517,6 +3325,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 227
       LUT_count: 1030
       Reg_count: 356
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1386
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -2527,6 +3337,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 270
       LUT_count: 1021
       Reg_count: 420
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1441
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2537,6 +3349,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 290
       LUT_count: 996
       Reg_count: 562
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1558
       Dynamic_Power: 0.021
       Static_Power: 0.08
@@ -2547,6 +3361,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 235
       LUT_count: 1118
       Reg_count: 481
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1599
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2557,6 +3373,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 263
       LUT_count: 1089
       Reg_count: 553
+      BRAM_count: 3
+      DSP_count: 0
       Total_LUT_reg: 1642
       Dynamic_Power: 0.025
       Static_Power: 0.08
@@ -2568,6 +3386,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 151
       LUT_count: 947
       Reg_count: 180
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1127
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -2578,6 +3398,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 244
       LUT_count: 958
       Reg_count: 316
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1274
       Dynamic_Power: 0.016
       Static_Power: 0.08
@@ -2588,6 +3410,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 157
       LUT_count: 915
       Reg_count: 249
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1164
       Dynamic_Power: 0.011
       Static_Power: 0.08
@@ -2598,6 +3422,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 152
       LUT_count: 978
       Reg_count: 183
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1161
       Dynamic_Power: 0.009
       Static_Power: 0.08
@@ -2608,6 +3434,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 160
       LUT_count: 1008
       Reg_count: 254
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1262
       Dynamic_Power: 0.011
       Static_Power: 0.08
@@ -2618,6 +3446,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 242
       LUT_count: 942
       Reg_count: 388
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1330
       Dynamic_Power: 0.014
       Static_Power: 0.08
@@ -2628,6 +3458,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 212
       LUT_count: 998
       Reg_count: 343
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1341
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2638,6 +3470,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 232
       LUT_count: 968
       Reg_count: 480
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1448
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2648,6 +3482,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 218
       LUT_count: 971
       Reg_count: 414
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1385
       Dynamic_Power: 0.015
       Static_Power: 0.08
@@ -2658,6 +3494,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 226
       LUT_count: 1024
       Reg_count: 353
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1377
       Dynamic_Power: 0.017
       Static_Power: 0.08
@@ -2668,6 +3506,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 269
       LUT_count: 1013
       Reg_count: 420
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1433
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2678,6 +3518,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 287
       LUT_count: 985
       Reg_count: 562
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1547
       Dynamic_Power: 0.019
       Static_Power: 0.08
@@ -2688,6 +3530,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 230
       LUT_count: 1096
       Reg_count: 480
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1576
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2698,6 +3542,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 259
       LUT_count: 1078
       Reg_count: 553
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 1631
       Dynamic_Power: 0.025
       Static_Power: 0.08
@@ -2708,6 +3554,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 1494
       Reg_count: 819
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 2313
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2718,6 +3566,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 1717
       Reg_count: 1058
+      BRAM_count: 5
+      DSP_count: 0
       Total_LUT_reg: 2775
       Dynamic_Power: 0.022
       Static_Power: 0.08
@@ -2729,6 +3579,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2737,6 +3589,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2745,6 +3599,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2753,6 +3609,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2761,6 +3619,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2769,6 +3629,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2777,6 +3639,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2785,6 +3649,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2793,6 +3659,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2801,6 +3669,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2809,6 +3679,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2817,6 +3689,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2825,6 +3699,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 232
       LUT_count: 1080
       Reg_count: 418
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1498
       Dynamic_Power: 0.02
       Static_Power: 0.08
@@ -2833,6 +3709,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 262
       LUT_count: 1072
       Reg_count: 532
+      BRAM_count: 9
+      DSP_count: 0
       Total_LUT_reg: 1604
       Dynamic_Power: 0.025
       Static_Power: 0.08
@@ -2842,6 +3720,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2850,6 +3730,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2858,6 +3740,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2866,6 +3750,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2874,6 +3760,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2882,6 +3770,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2890,6 +3780,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2898,6 +3790,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2906,6 +3800,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2914,6 +3810,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2922,6 +3820,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2930,6 +3830,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: /
       LUT_count: 0
       Reg_count: 0
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 0
       Dynamic_Power: 0.0
       Static_Power: 0.079
@@ -2939,6 +3841,8 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 499
       LUT_count: 9
       Reg_count: 13
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 22
       Dynamic_Power: 0.014
       Static_Power: 0.081
@@ -2948,15 +3852,161 @@ xc7k70t-fbg676-2:
       Fmax_MHz: 499
       LUT_count: 16
       Reg_count: 24
+      BRAM_count: 0
+      DSP_count: 0
       Total_LUT_reg: 40
       Dynamic_Power: 0.037
       Static_Power: 0.081
       Total_Power: 0.118
+  Example_ALU:
+    04bits:
+      Fmax_MHz: 616
+      LUT_count: 36
+      Reg_count: 16
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 52
+      Dynamic_Power: 0.019
+      Static_Power: 0.081
+      Total_Power: 0.1
+    08bits:
+      Fmax_MHz: 483
+      LUT_count: 94
+      Reg_count: 28
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 122
+      Dynamic_Power: 0.026
+      Static_Power: 0.081
+      Total_Power: 0.107
+    16bits:
+      Fmax_MHz: 439
+      LUT_count: 239
+      Reg_count: 52
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 291
+      Dynamic_Power: 0.046
+      Static_Power: 0.081
+      Total_Power: 0.127
+    24bits:
+      Fmax_MHz: 371
+      LUT_count: 373
+      Reg_count: 76
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 449
+      Dynamic_Power: 0.057
+      Static_Power: 0.081
+      Total_Power: 0.138
+    32bits:
+      Fmax_MHz: 360
+      LUT_count: 511
+      Reg_count: 100
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 611
+      Dynamic_Power: 0.076
+      Static_Power: 0.081
+      Total_Power: 0.157
+    48bits:
+      Fmax_MHz: 322
+      LUT_count: 837
+      Reg_count: 151
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 988
+      Dynamic_Power: 0.105
+      Static_Power: 0.081
+      Total_Power: 0.186
+    64bits:
+      Fmax_MHz: 315
+      LUT_count: 1088
+      Reg_count: 210
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 1298
+      Dynamic_Power: 0.146
+      Static_Power: 0.081
+      Total_Power: 0.227
+  Example_Counter_sv:
+    04bits:
+      Fmax_MHz: /
+      LUT_count: 3
+      Reg_count: 4
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 7
+      Dynamic_Power: 0.006
+      Static_Power: 0.081
+      Total_Power: 0.087
+    08bits:
+      Fmax_MHz: /
+      LUT_count: 9
+      Reg_count: 8
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 17
+      Dynamic_Power: 0.01
+      Static_Power: 0.081
+      Total_Power: 0.091
+    16bits:
+      Fmax_MHz: /
+      LUT_count: 16
+      Reg_count: 16
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 32
+      Dynamic_Power: 0.017
+      Static_Power: 0.081
+      Total_Power: 0.098
+    24bits:
+      Fmax_MHz: /
+      LUT_count: 24
+      Reg_count: 24
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 48
+      Dynamic_Power: 0.024
+      Static_Power: 0.081
+      Total_Power: 0.105
+    32bits:
+      Fmax_MHz: /
+      LUT_count: 32
+      Reg_count: 32
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 64
+      Dynamic_Power: 0.031
+      Static_Power: 0.081
+      Total_Power: 0.112
+    48bits:
+      Fmax_MHz: /
+      LUT_count: 48
+      Reg_count: 48
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 96
+      Dynamic_Power: 0.046
+      Static_Power: 0.081
+      Total_Power: 0.127
+    64bits:
+      Fmax_MHz: /
+      LUT_count: 64
+      Reg_count: 64
+      BRAM_count: 0
+      DSP_count: 0
+      Total_LUT_reg: 128
+      Dynamic_Power: 0.062
+      Static_Power: 0.081
+      Total_Power: 0.143
   PicoSoC_11S-05R:
     small:
       Fmax_MHz: 305
       LUT_count: 909
       Reg_count: 640
+      BRAM_count: 2
+      DSP_count: 0
       Total_LUT_reg: 1549
       Dynamic_Power: 0.089
       Static_Power: 0.082

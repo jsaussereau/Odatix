@@ -27,7 +27,7 @@ from itertools import product
 plot_colors = px.colors.qualitative.Plotly
 
 # Charger les données depuis le fichier YML
-file_path = 'results/results_fpga.yml'
+file_path = 'results/results_vivado.yml'
 with open(file_path, 'r') as file:
     yml_data = yaml.safe_load(file)
 
