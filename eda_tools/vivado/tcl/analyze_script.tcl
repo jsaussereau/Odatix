@@ -28,6 +28,8 @@ if {[catch {
     set target [gets $f]
     close $f
 
+    set verilog_error 0
+
     if {bool($file_copy_enable) == bool(true)} {
         if {[file exists $file_copy_source]} {
             exec /bin/sh -c "cp $file_copy_source $tmp_path/$file_copy_dest"
