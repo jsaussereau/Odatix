@@ -5,7 +5,7 @@
 ---
 
 # overwrite existing results
-overwrite:        Yes
+overwrite:        No
 
 # prompt 'continue? (y/n)' after settings checks
 ask_continue:     Yes
@@ -18,271 +18,40 @@ use_screen:       No
 
 # architectures targeted
 architectures: 
-#--------------------------------------------#
-# Core only (Harvard)
-#--------------------------------------------#
-  #- AsteRISC_core/M0000
-  #- AsteRISC_core/M0001
-  #- AsteRISC_core/M0008
-  #- AsteRISC_core/M0016
-  #- AsteRISC_core/M0024
-  #- AsteRISC_core/M0025
-  #- AsteRISC_core/M0036
-  #- AsteRISC_core/M0037
-  #- AsteRISC_core/M0044
-  #- AsteRISC_core/M0052
-  #- AsteRISC_core/M0060
-  #- AsteRISC_core/M0061
 
 #--------------------------------------------#
-# SoC with 8 gpios
-# imem    :  2^8 x 32, SRAM
-# dmem    :  2^8 x 32, SRAM
-# regfile :  2^5 x 32, registers
+# Examples
 #--------------------------------------------#
-  #- AsteRISC_soc_08S-08S-05R/M0000
-  #- AsteRISC_soc_08S-08S-05R/M0001
-  #- AsteRISC_soc_08S-08S-05R/M0008
-  #- AsteRISC_soc_08S-08S-05R/M0016
-  #- AsteRISC_soc_08S-08S-05R/M0024
-  #- AsteRISC_soc_08S-08S-05R/M0025
-  #- AsteRISC_soc_08S-08S-05R/M0036
-  #- AsteRISC_soc_08S-08S-05R/M0037
-  #- AsteRISC_soc_08S-08S-05R/M0044
-  #- AsteRISC_soc_08S-08S-05R/M0052
-  #- AsteRISC_soc_08S-08S-05R/M0060
-  #- AsteRISC_soc_08S-08S-05R/M0061
-  #- AsteRISC_soc_08S-08S-05R/M0100
-  #- AsteRISC_soc_08S-08S-05R/M0108
+  - Example_Counter_vhdl/04bits
+  - Example_Counter_vhdl/08bits
+  - Example_Counter_vhdl/16bits
+  - Example_Counter_vhdl/24bits
+  - Example_Counter_vhdl/32bits
+  - Example_Counter_vhdl/48bits
+  - Example_Counter_vhdl/64bits
 
-#--------------------------------------------#
-# SoC with 8 gpios
-# imem    :  2^10 x 32, SRAM
-# dmem    :  2^10 x 32, SRAM
-# regfile :  2^5 x 32, registers
-#--------------------------------------------#
-  - AsteRISC_soc_10S-10S-05R/M0000
-  #- AsteRISC_soc_10S-10S-05R/M0001
-  #- AsteRISC_soc_10S-10S-05R/M0008
-  #- AsteRISC_soc_10S-10S-05R/M0016
-  #- AsteRISC_soc_10S-10S-05R/M0024
-  #- AsteRISC_soc_10S-10S-05R/M0025
-  #- AsteRISC_soc_10S-10S-05R/M0036
-  #- AsteRISC_soc_10S-10S-05R/M0037
-  #- AsteRISC_soc_10S-10S-05R/M0039
-  #- AsteRISC_soc_10S-10S-05R/M0044
-  #- AsteRISC_soc_10S-10S-05R/M0052
-  #- AsteRISC_soc_10S-10S-05R/M0060
-  #- AsteRISC_soc_10S-10S-05R/M0061
-  #- AsteRISC_soc_10S-10S-05R/M0100
-  #- AsteRISC_soc_10S-10S-05R/M0108
-  #- AsteRISC_soc_10S-10S-05R/P0071
-  #- AsteRISC_soc_10S-10S-05R/P0087
-  #- AsteRISC_soc_10S-10S-05R/P0095
+  #- Example_Counter_sv/04bits
+  #- Example_Counter_sv/08bits
+  #- Example_Counter_sv/16bits
+  #- Example_Counter_sv/24bits
+  #- Example_Counter_sv/32bits
+  #- Example_Counter_sv/48bits
+  #- Example_Counter_sv/64bits
 
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0000
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0001
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0008
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0016
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0024
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0025
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0036
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0037
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0039
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0044
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0052
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0060
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0061
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0100
-  #- AsteRISC_RV32E_soc_10S-10S-05R/M0108
-  #- AsteRISC_RV32E_soc_10S-10S-05R/P0071
-  #- AsteRISC_RV32E_soc_10S-10S-05R/P0087
-  #- AsteRISC_RV32E_soc_10S-10S-05R/P0095
+  #- Example_Mult/04bits
+  #- Example_Mult/08bits
+  #- Example_Mult/16bits
+  #- Example_Mult/24bits
+  #- Example_Mult/32bits
+  #- Example_Mult/48bits
+  #- Example_Mult/64bits
 
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0000
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0001
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0008
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0016
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0024
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0025
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0036
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0037
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0039
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0044
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0052
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0060
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0061
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0100
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/M0108
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/P0071
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/P0087
-  #- AsteRISC_RV32IM_m1c_soc_10S-10S-05R/P0095
+  #- Example_ALU/04bits
+  #- Example_ALU/08bits
+  #- Example_ALU/16bits
+  #- Example_ALU/24bits
+  #- Example_ALU/32bits
+  #- Example_ALU/48bits
+  #- Example_ALU/64bits
 
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0000
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0001
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0008
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0016
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0024
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0025
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0036
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0037
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0039
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0044
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0052
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0060
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0061
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0100
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/M0108
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0071
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0087
-  #- AsteRISC_RV32IM_mfast_soc_10S-10S-05R/P0095
-
-  
-
-#--------------------------------------------#
-# SoC with 8 gpios
-# imem    :  2^11 x 32, SRAM
-# dmem    :  2^11 x 32, SRAM
-# regfile :  2^5 x 32, registers
-#--------------------------------------------#
-  #- AsteRISC_soc_11S-11S-05R/M0000
-  #- AsteRISC_soc_11S-11S-05R/M0001
-  #- AsteRISC_soc_11S-11S-05R/M0008
-  #- AsteRISC_soc_11S-11S-05R/M0016
-  #- AsteRISC_soc_11S-11S-05R/M0024
-  #- AsteRISC_soc_11S-11S-05R/M0025
-  #- AsteRISC_soc_11S-11S-05R/M0036
-  #- AsteRISC_soc_11S-11S-05R/M0037
-  #- AsteRISC_soc_11S-11S-05R/M0044
-  #- AsteRISC_soc_11S-11S-05R/M0052
-  #- AsteRISC_soc_11S-11S-05R/M0060
-  #- AsteRISC_soc_11S-11S-05R/M0061
-  #- AsteRISC_soc_11S-11S-05R/M0100
-  #- AsteRISC_soc_11S-11S-05R/M0108
-
-
-#--------------------------------------------#
-# SoC with 8 gpios
-# imem    :  2^10 x 32, SRAM
-# dmem    :  2^13 x 32, SRAM
-# regfile :  2^5 x 32, registers
-#--------------------------------------------#
-  #- AsteRISC_soc_10S-13S-05R/M0000
-  #- AsteRISC_soc_10S-13S-05R/M0001
-  #- AsteRISC_soc_10S-13S-05R/M0008
-  #- AsteRISC_soc_10S-13S-05R/M0016
-  #- AsteRISC_soc_10S-13S-05R/M0024
-  #- AsteRISC_soc_10S-13S-05R/M0025
-  #- AsteRISC_soc_10S-13S-05R/M0036
-  #- AsteRISC_soc_10S-13S-05R/M0037
-  #- AsteRISC_soc_10S-13S-05R/M0044
-  #- AsteRISC_soc_10S-13S-05R/M0052
-  #- AsteRISC_soc_10S-13S-05R/M0060
-  #- AsteRISC_soc_10S-13S-05R/M0061
-  #- AsteRISC_soc_10S-13S-05R/M0100
-  #- AsteRISC_soc_10S-13S-05R/M0108
-
-#--------------------------------------------#
-# SoC with 8 gpios
-# imem    :  2^12 x 32, SRAM
-# dmem    :  2^11 x 32, SRAM
-# regfile :  2^5 x 32, registers
-#--------------------------------------------#
-  #- AsteRISC_soc_12S-11S-05R/M0000
-  #- AsteRISC_soc_12S-11S-05R/M0001
-  #- AsteRISC_soc_12S-11S-05R/M0008
-  #- AsteRISC_soc_12S-11S-05R/M0016
-  #- AsteRISC_soc_12S-11S-05R/M0024
-  #- AsteRISC_soc_12S-11S-05R/M0025
-  #- AsteRISC_soc_12S-11S-05R/M0036
-  #- AsteRISC_soc_12S-11S-05R/M0037
-  #- AsteRISC_soc_12S-11S-05R/M0044
-  #- AsteRISC_soc_12S-11S-05R/M0052
-  #- AsteRISC_soc_12S-11S-05R/M0060
-  #- AsteRISC_soc_12S-11S-05R/M0061
-  #- AsteRISC_soc_12S-11S-05R/M0100
-  #- AsteRISC_soc_12S-11S-05R/M0108
-
-#--------------------------------------------#
-# SoC with 8 gpios
-# imem    :  2^12 x 32, SRAM
-# dmem    :  2^12 x 32, SRAM
-# regfile :  2^5 x 32, registers
-#--------------------------------------------#
-  #- AsteRISC_soc_12S-12S-05R/M0000
-  #- AsteRISC_soc_12S-12S-05R/M0001
-  #- AsteRISC_soc_12S-12S-05R/M0008
-  #- AsteRISC_soc_12S-12S-05R/M0016
-  #- AsteRISC_soc_12S-12S-05R/M0024
-  #- AsteRISC_soc_12S-12S-05R/M0025
-  #- AsteRISC_soc_12S-12S-05R/M0036
-  #- AsteRISC_soc_12S-12S-05R/M0037
-  #- AsteRISC_soc_12S-12S-05R/M0044
-  #- AsteRISC_soc_12S-12S-05R/M0052
-  #- AsteRISC_soc_12S-12S-05R/M0060
-  #- AsteRISC_soc_12S-12S-05R/M0061
-  #- AsteRISC_soc_12S-12S-05R/M0100
-  #- AsteRISC_soc_12S-12S-05R/M0108
-  #- AsteRISC_soc_12S-12S-05R/P0087
-  #- AsteRISC_soc_12S-12S-05R/P0095
-
-#--------------------------------------------#
-# SoC with 8 gpios
-# imem    :  2^13 x 32, SRAM
-# dmem    :  2^13 x 32, SRAM
-# regfile :  2^5 x 32, registers
-#--------------------------------------------#
-  #- AsteRISC_soc_13S-13S-05R/M0000
-  #- AsteRISC_soc_13S-13S-05R/M0001
-  #- AsteRISC_soc_13S-13S-05R/M0008
-  #- AsteRISC_soc_13S-13S-05R/M0016
-  #- AsteRISC_soc_13S-13S-05R/M0024
-  #- AsteRISC_soc_13S-13S-05R/M0025
-  #- AsteRISC_soc_13S-13S-05R/M0036
-  #- AsteRISC_soc_13S-13S-05R/M0037
-  #- AsteRISC_soc_13S-13S-05R/M0044
-  #- AsteRISC_soc_13S-13S-05R/M0052
-  #- AsteRISC_soc_13S-13S-05R/M0060
-  #- AsteRISC_soc_13S-13S-05R/M0061
-  #- AsteRISC_soc_13S-13S-05R/M0100
-  #- AsteRISC_soc_13S-13S-05R/M0108
-
-#--------------------------------------------#
-# TEST
-#--------------------------------------------#
-  #- AsteRISC_soc_test/M0000
-  #- AsteRISC_soc_test/M0001
-  #- AsteRISC_soc_test/M0008
-  #- AsteRISC_soc_test/M0016
-  #- AsteRISC_soc_test/M0024
-  #- AsteRISC_soc_test/M0025
-  #- AsteRISC_soc_test/M0036
-  #- AsteRISC_soc_test/M0037
-  #- AsteRISC_soc_test/M0044
-  #- AsteRISC_soc_test/M0052
-  #- AsteRISC_soc_test/M0060
-  #- AsteRISC_soc_test/M0061
-
-#--------------------------------------------#
-# PicoSoC with 8 gpios
-# mem     :  2^9 x 32, SRAM
-# regfile :  2^5 x 32, registers
-#--------------------------------------------#
-  #- PicoSoC_09S-05R/regular
-  #- PicoSoC_09S-05R/small
-
-#--------------------------------------------#
-# PicoSoC with 8 gpios
-# mem     :  2^11 x 32, SRAM
-# regfile :  2^5 x 32, registers
-#--------------------------------------------#
-  #- PicoSoC_11S-05R/regular
-  #- PicoSoC_11S-05R/small
-
-#--------------------------------------------#
-# CRC module
-#--------------------------------------------#
-  #- CRC_module_serial/crc6
-  #- CRC_module_parallel/crc6
-  
 ...
