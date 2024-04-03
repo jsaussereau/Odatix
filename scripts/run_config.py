@@ -14,6 +14,7 @@ use example: python3 run_config.py
 import re
 import sys
 import time
+import copy
 import yaml
 import argparse
 import subprocess
@@ -45,6 +46,7 @@ target_filename = "target.txt"
 config_filename = "settings.tcl"
 fmax_status_filename = "status.log"
 synth_status_filename = "synth_status.log"
+frequency_search_filename = "frequency_search.log"
 tool_makefile_filename = "makefile.mk"
 constraint_file = "constraints.txt"
 source_tcl = "source scripts/"
@@ -485,7 +487,7 @@ if __name__ == "__main__":
     for running_arch in running_arch_list:
       print() 
 
-    active_running_arch_list = running_arch_list
+    active_running_arch_list = copy.copy(running_arch_list)
 
     # wait for all processes to finish
     while len(active_running_arch_list) > 0:
@@ -533,9 +535,34 @@ if __name__ == "__main__":
           
         # check if process has finished and print progress 
         if running_arch.process.poll() != None:
-          active_running_arch_list.remove(running_arch)
-          progress_bar(progress, title=running_arch.arch, endstr=" (terminated)")
+          try: 
+            active_running_arch_list.remove(running_arch)
+          except:
+            pass
+
+          match running_arch.process.returncode:
+            case 0:
+              comment = " (" + bcolors.OKGREEN + "done" + bcolors.ENDC + ")"
+            case _:
+              comment = " (" + bcolors.FAIL + "terminated with errors" + bcolors.ENDC + ")"
+          progress_bar(progress, title=running_arch.arch, endstr=comment)
         else: 
           progress_bar(progress, title=running_arch.arch)
 
       time.sleep(refresh_time)
+
+    # summary
+    print()
+    for running_arch in running_arch_list:
+      tmp_dir = work_path + '/' + target + '/' + running_arch.arch
+      frequency_search_file = tmp_dir + '/' + log_path + '/' + frequency_search_filename
+      #try:
+      with open(frequency_search_file, 'r') as file:
+        lines = file.readlines()
+        if len(lines) >= 1:
+          summary_line = lines[-1]
+          print(running_arch.arch + ": " + summary_line, end='')
+      #except:
+      #  print(f"frequency_search_file '{frequency_search_file}' does not exist")
+      #  pass
+    print()

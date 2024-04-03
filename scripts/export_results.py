@@ -42,6 +42,7 @@ format_mode = 'fpga'
 
 class bcolors:
   WARNING = '\033[93m'
+  OKCYAN = '\033[96m'
   ENDC = '\033[0m'
 
 def corrupted_directory(target, variant):
@@ -229,6 +230,8 @@ def write_to_csv(args, output_file, parser, fieldnames):
 ######################################
 
 if __name__ == "__main__":
+  print(f"{bcolors.OKCYAN}exporting results...{bcolors.ENDC}")
+
   args = parse_arguments()
 
   if args.tool == 'vivado':

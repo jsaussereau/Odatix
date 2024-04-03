@@ -112,8 +112,14 @@ synth_fmax_only: logdir
 	-source $(SCRIPT_DIR)/$(SYNTH_FREQ_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(EXIT_SCRIPT) \
 	| tee $(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log \
-	| sed $(VIVADO_COLOR)
-	@echo "result logged to \"$(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log\""
+	| sed $(VIVADO_COLOR); \
+	EXIT_CODE=$${PIPESTATUS[0]}; \
+	echo "result logged to \"$(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log\""; \
+	exit $$EXIT_CODE
+
+.PHONY: test
+test:
+	@exit 0
 
 .PHONY: synth
 synth: motd synth_only clean
