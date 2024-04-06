@@ -1,12 +1,22 @@
+#**********************************************************************#
+#                               Asterism                               #
+#**********************************************************************#
 #
-# Copyright(C) 2022 by Jonathan Saussereau. All rights reserved.
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Asterism.
+# Asterism is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 # 
-# All source codes and documentation contain proprietary confidential
-# information and are distributed under license. It may be used, copied
-# and/or disclosed only pursuant to the terms of a valid license agreement
-# with Jonathan Saussereau. This copyright must be retained at all times.
-#
-# Last edited: 2022/07/08 22:04
+# Asterism is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
 
 if {[catch {
@@ -214,14 +224,17 @@ if {[catch {
     puts "<cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
     puts $logfile_handler "Slack is infinite. Make sure there are registers at input and output of design"
     puts $logfile_handler "Both the rtl description and the tool's synthesis choices could be at fault"
+    exit -2
   } elseif {$got_violated == 0} {
     puts ""
     puts "<bold><red>No timing violated! Try raising the upper bound ($upper_bound MHz)<end>"
     puts $logfile_handler "No timing violated! Try raising the upper bound ($upper_bound MHz)"
+    exit -3
   } else {
     puts ""
     puts "<bold><red>No timing met! Try lowering the lower bound ($lower_bound MHz)<end>"
     puts $logfile_handler "No timing met! Try lowering the lower bound ($lower_bound MHz)"
+    exit -4
   }
 
   close $logfile_handler

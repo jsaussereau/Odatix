@@ -1,17 +1,22 @@
-#******************************************************#
-#     					AsteRISC     
-#******************************************************#
+#**********************************************************************#
+#                               Asterism                               #
+#**********************************************************************#
 #
-# Copyright(C) 2022 by Jonathan Saussereau. All rights reserved.
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Asterism.
+# Asterism is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 # 
-# All source codes and documentation contain proprietary confidential
-# information and are distributed under license. It may be used, copied
-# and/or disclosed only pursuant to the terms of a valid license agreement
-# with Jonathan Saussereau. This copyright must be retained at all times.
-#
-# Vivado Makefile
-#
-# Last edited: 2022/07/04 18:20
+# Asterism is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
 
 ########################################################
