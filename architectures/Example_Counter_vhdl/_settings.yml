@@ -22,14 +22,14 @@ use_parameters: "true"
 start_delimiter: "generic ("
 stop_delimiter: ");"
 
-# optionnal target-specific bounds to speed up fmax search
+# optionnal target-specific bounds (in MHz) to speed up fmax search
 xc7s25-csga225-1:
-  fmax_lower_bound: 50
-  fmax_upper_bound: 170
+  fmax_lower_bound: 100
+  fmax_upper_bound: 900
 xc7a100t-csg324-1:
   fmax_lower_bound: 250
   fmax_upper_bound: 900
 xc7k70t-fbg676-2:
-  fmax_lower_bound: 250
-  fmax_upper_bound: 1200
+  fmax_lower_bound: 500
+  fmax_upper_bound: 1650
 ...
