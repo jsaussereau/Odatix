@@ -32,6 +32,7 @@ import webbrowser
 from threading import Timer
 from itertools import product
 
+# Couleur des courbes
 plot_colors = px.colors.qualitative.Plotly
 
 # Charger les données depuis le fichier YML
@@ -121,10 +122,11 @@ legend_items = [create_legend_item(architecture, '2px dashed', plot_colors[i % l
 
 # Création de l'application Dash
 app = dash.Dash(__name__)
+app.title = 'Asterism'
 
 # Mise en place du layout de l'application
 app.layout = html.Div([
-    html.H1("Implementation Result Explorer"),
+    html.H1("Asterism - Implementation Result Explorer"),
     dcc.Dropdown(
         id='metric-dropdown',
         options=[{'label': metric, 'value': metric} for metric in available_metrics],
