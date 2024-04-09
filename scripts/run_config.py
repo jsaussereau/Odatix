@@ -548,10 +548,9 @@ if __name__ == "__main__":
           except:
             pass
 
-          match running_arch.process.returncode:
-            case 0:
+          if running_arch.process.returncode == 0:
               comment = " (" + bcolors.OKGREEN + "done" + bcolors.ENDC + ")"
-            case _:
+          else:
               comment = " (" + bcolors.FAIL + "terminated with errors" + bcolors.ENDC + ")"
           progress_bar(progress, title=running_arch.arch, endstr=comment)
         else: 
