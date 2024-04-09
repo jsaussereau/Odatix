@@ -563,13 +563,13 @@ if __name__ == "__main__":
     for running_arch in running_arch_list:
       tmp_dir = work_path + '/' + target + '/' + running_arch.arch
       frequency_search_file = tmp_dir + '/' + log_path + '/' + frequency_search_filename
-      #try:
-      with open(frequency_search_file, 'r') as file:
-        lines = file.readlines()
-        if len(lines) >= 1:
-          summary_line = lines[-1]
-          print(running_arch.arch + ": " + summary_line, end='')
-      #except:
+      try:
+        with open(frequency_search_file, 'r') as file:
+          lines = file.readlines()
+          if len(lines) >= 1:
+            summary_line = lines[-1]
+            print(running_arch.arch + ": " + summary_line, end='')
+      except:
       #  print(f"frequency_search_file '{frequency_search_file}' does not exist")
-      #  pass
+        pass
     print()
