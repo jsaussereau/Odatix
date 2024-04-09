@@ -25,13 +25,41 @@ With Asterism, users can effortlessly explore different architectural designs an
 
 # Quick start guide
 
-1. Install Python 3.6+
-2. Install Python requirements listed in requirements.txt
-3. Install one of the supported EDA tools (e.g. Vivado) and make sure it is added to your PATH environment variable
-4. Choose the designs you want to implement by uncommenting them in `architecture_select.yml`
-5. Choose your target device/technology in the yaml file corresponding to your EDA tool. For Vivado: `target_vivado.yml`
-6. Run the selected designs. For Vivado: `make vivado`
-7. Visualize and explore the results: `make explore`
+### Step 1: Clone the repository
+```bash
+git clone https://github.com/jsaussereau/Asterism.git
+cd Asterism/
+```
+### Step 2: Install Python 3.6+
+On Ubuntu:
+```bash
+sudo apt update
+sudo apt install python3
+```
+### Step 3: Install Python requirements listed in requirements.txt
+```bash
+pip install -r requirements.txt
+```
+### Step 4: Install one of the supported EDA tools and make sure it is added to your PATH environment variable
+Example to add Vivado to your PATH (replace with your own installation path):
+```bash
+PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin
+```
+### Step 5: Choose the designs you want to implement
+Uncomment them in `architecture_select.yml`
+### Step 6: Choose your target device/technology
+Select the target devide or technology in the yaml file corresponding to your EDA tool.
+
+For Vivado the file is `target_vivado.yml`
+### Step 7: Run the selected designs
+For Vivado: 
+```bash
+make vivado
+```
+### Step 8: Visualize and explore the results
+```bash
+make explore
+```
 
 # Add your own design
 
