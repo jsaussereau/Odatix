@@ -1,0 +1,9 @@
+python-dash
+python-dash-core-components
+python-dash-bootstrap-components
+python-plotly
+python-flask
+python-numpy
+python-pandas
+python-yaml
+python-waitress
