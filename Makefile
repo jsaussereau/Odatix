@@ -32,7 +32,7 @@ LOG_DIR                 = $(WORK_DIR)/log
 ########################################################
 
 EXPORT_SCRIPT           = $(SCRIPT_DIR)/export_results.py
-EXPLORE_SCRIPT          = $(SCRIPT_DIR)/explore_results.py
+EXPLORE_SCRIPT          = $(SCRIPT_DIR)/start_result_explorer.py
 RUN_SCRIPT              = $(SCRIPT_DIR)/run_config.py
 
 ########################################################
@@ -95,11 +95,11 @@ run_vivado: motd run_vivado_only
 
 .PHONY: run_vivado_only
 run_vivado_only:
-	@python3 $(SCRIPT_DIR)/run_config.py --tool vivado
+	@python3 $(RUN_SCRIPT) --tool vivado
 
 .PHONY: results_vivado_only
 results_vivado_only:
-	@python3 ./$(SCRIPT_DIR)/export_results.py --tool vivado --benchmark
+	@python3 ./$(EXPORT_SCRIPT) --tool vivado --benchmark
 
 
 ########################################################
@@ -140,4 +140,4 @@ explore: motd explore_only
 
 .PHONY: explore_only
 explore_only:
-	@python3 ./$(SCRIPT_DIR)/result_explorer.py&
+	@python3 ./$(EXPLORE_SCRIPT)
