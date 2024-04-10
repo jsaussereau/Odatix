@@ -21,7 +21,8 @@ With Asterism, users can effortlessly explore different architectural designs an
 | Synopsys Design Compiler | 🚧 work in progress |
 | Intel Quartus Prime      | 📅 planned          |
 
-*Please note that these tools are not included in Asterism and must be obtained separately.*
+> [!NOTE]
+> Please note that these tools are not included in Asterism and must be obtained separately.
 
 ## Installation
 
