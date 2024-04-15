@@ -95,7 +95,9 @@ if {[catch {
             }
 
             # copy to top level file
-            if {[catch {exec /bin/sh -c "sed -i '/$start_delimiter/,/$stop_delimiter/!b;//!d;/$stop_delimiter/e cat ./${arch_path}/$architecture.txt' $tmp_path/rtl/$top_level_file"} errmsg]} {
+            if {[catch {
+                exec /bin/sh -c "sed -i '/$start_delimiter/,/$stop_delimiter/!b;//!d;/$stop_delimiter/e cat ./${arch_path}/$architecture.txt' $tmp_path/rtl/$top_level_file"
+            } errmsg]} {
                 puts "<green>init_script.tcl<end>: <bold><red>error: error while copy parameters to top level file, exiting <end>"
                 puts "<green>init_script.tcl<end>: <cyan>note: you might use unsupported characters<end>"
                 puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"

@@ -101,6 +101,7 @@ if {[catch {
   set fs_start_time [clock seconds]
 
   # do analyze and elaborate steps once
+  source $init_script
   source $analyze_script
 
   # do not analyze rtl after that (try tcsh and bash versions)

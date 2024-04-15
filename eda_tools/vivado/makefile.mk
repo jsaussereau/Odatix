@@ -31,6 +31,7 @@ LOG_DIR                 = ./log
 # Files
 ########################################################
 
+INIT_SCRIPT             = init_script.tcl
 ANALYZE_SCRIPT          = analyze_script.tcl
 SYNTH_SCRIPT            = synth_script.tcl
 SYNTH_FREQ_SCRIPT       = find_fmax.tcl
@@ -103,6 +104,7 @@ analyze: motd analyze_only clean
 analyze_only: logdir
 	@$(VIVADO_INIT)\
 	vivado -mode tcl -notrace \
+	-source $(SCRIPT_DIR)/$(INIT_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(ANALYZE_SCRIPT) \
 	| tee $(LOG_DIR)/$(ANALYZE_SCRIPT).log | sed $(VIVADO_COLOR)
 	@echo "result logged to \"$(LOG_DIR)/$(ANALYZE_SCRIPT).log\""
@@ -133,6 +135,7 @@ synth: motd synth_only clean
 synth_only: logdir
 	@$(VIVADO_INIT)\
 	vivado -mode tcl -notrace \
+	-source $(SCRIPT_DIR)/$(INIT_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(ANALYZE_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(SYNTH_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(EXIT_SCRIPT) \
