@@ -1,0 +1,13 @@
+
+##############################################
+# Target settings for Design Compiler
+##############################################
+---
+
+constraint_file: timing_constraints.txt
+
+# ASIC technology targeted
+targets:
+  - AMS350CMOS
+
+...
