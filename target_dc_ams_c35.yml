@@ -6,6 +6,9 @@
 
 constraint_file: timing_constraints.txt
 
+script_copy_enable: "true"
+script_copy_source: "eda_tools/design_compiler/technology/AMS_C35/synopsys_dc.setup"
+
 # ASIC technology targeted
 targets:
   - AMS350CMOS

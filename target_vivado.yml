@@ -6,6 +6,9 @@
 
 constraint_file: constraints.xdc
 
+script_copy_enable: "false"
+script_copy_source: "/dev/null"
+
 # FPGA/ASIC targeted
 targets:
   #- xc7s6-cpga196-1

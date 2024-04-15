@@ -202,8 +202,10 @@ if __name__ == "__main__":
   with open(eda_target_filename, 'r') as f:
     settings_data = yaml.load(f, Loader=SafeLoader)
     try:
-      targets         = read_from_list("targets", settings_data, eda_target_filename)
-      constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename)
+      targets            = read_from_list("targets", settings_data, eda_target_filename)
+      constraint_file    = read_from_list("constraint_file", settings_data, eda_target_filename)
+      script_copy_enable = read_from_list("script_copy_enable", settings_data, eda_target_filename)
+      script_copy_source = read_from_list("script_copy_source", settings_data, eda_target_filename)
     except:
       sys.exit() # if a key is missing
 
@@ -442,28 +444,30 @@ if __name__ == "__main__":
       # add quote characters
       start_delimiter = '"' + start_delimiter + '"'
       stop_delimiter = '"' + stop_delimiter + '"'
-      
+
       # edit config script
       config_file = tmp_script_path + '/' + config_filename
       with open(config_file, 'r') as f:
         cf_content = f.read()
-     
-      cf_content = re.sub("(set script_path.*)", "set script_path       " + tmp_script_path, cf_content)
-      cf_content = re.sub("(set tmp_path.*)", "set tmp_path          " + tmp_dir, cf_content)
-      cf_content = re.sub("(set rtl_path.*)", "set rtl_path          " + rtl_path, cf_content)
-      cf_content = re.sub("(set arch_path.*)", "set arch_path         " + arch_path, cf_content)
-      cf_content = re.sub("(set clock_signal.*)", "set clock_signal      " + clock_signal, cf_content)
-      cf_content = re.sub("(set top_level_module.*)", "set top_level_module  " + top_level_module, cf_content)
-      cf_content = re.sub("(set top_level_file.*)", "set top_level_file    " + top_level_filename, cf_content)
-      cf_content = re.sub("(set use_parameters.*)", "set use_parameters    " + use_parameters, cf_content)
-      cf_content = re.sub("(set start_delimiter.*)", "set start_delimiter   " + start_delimiter, cf_content)
-      cf_content = re.sub("(set stop_delimiter.*)", "set stop_delimiter    " + stop_delimiter, cf_content)
-      cf_content = re.sub("(set file_copy_enable.*)", "set file_copy_enable  " + file_copy_enable, cf_content)
-      cf_content = re.sub("(set file_copy_source.*)", "set file_copy_source  " + file_copy_source, cf_content)
-      cf_content = re.sub("(set file_copy_dest.*)", "set file_copy_dest    " + file_copy_dest, cf_content)
-      cf_content = re.sub("(set fmax_lower_bound.*)", "set fmax_lower_bound  " + fmax_lower_bound, cf_content)
-      cf_content = re.sub("(set fmax_upper_bound.*)", "set fmax_upper_bound  " + fmax_upper_bound, cf_content)
-      cf_content = re.sub("(set constraints_file.*)", "set constraints_file  $tmp_path/" + constraint_file, cf_content)
+
+      cf_content = re.sub("(set script_path.*)",        "set script_path        " + tmp_script_path, cf_content)
+      cf_content = re.sub("(set tmp_path.*)",           "set tmp_path           " + tmp_dir, cf_content)
+      cf_content = re.sub("(set rtl_path.*)",           "set rtl_path           " + rtl_path, cf_content)
+      cf_content = re.sub("(set arch_path.*)",          "set arch_path          " + arch_path, cf_content)
+      cf_content = re.sub("(set clock_signal.*)",       "set clock_signal       " + clock_signal, cf_content)
+      cf_content = re.sub("(set top_level_module.*)",   "set top_level_module   " + top_level_module, cf_content)
+      cf_content = re.sub("(set top_level_file.*)",     "set top_level_file     " + top_level_filename, cf_content)
+      cf_content = re.sub("(set use_parameters.*)",     "set use_parameters     " + use_parameters, cf_content)
+      cf_content = re.sub("(set start_delimiter.*)",    "set start_delimiter    " + start_delimiter, cf_content)
+      cf_content = re.sub("(set stop_delimiter.*)",     "set stop_delimiter     " + stop_delimiter, cf_content)
+      cf_content = re.sub("(set file_copy_enable.*)",   "set file_copy_enable   " + file_copy_enable, cf_content)
+      cf_content = re.sub("(set file_copy_source.*)",   "set file_copy_source   " + file_copy_source, cf_content)
+      cf_content = re.sub("(set file_copy_dest.*)",     "set file_copy_dest     " + file_copy_dest, cf_content)
+      cf_content = re.sub("(set fmax_lower_bound.*)",   "set fmax_lower_bound   " + fmax_lower_bound, cf_content)
+      cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + fmax_upper_bound, cf_content)
+      cf_content = re.sub("(set script_copy_enable.*)", "set script_copy_enable " + script_copy_enable, cf_content)
+      cf_content = re.sub("(set script_copy_source.*)", "set script_copy_source " + script_copy_source, cf_content)
+      cf_content = re.sub("(set constraints_file.*)",   "set constraints_file   $tmp_path/" + constraint_file, cf_content)
 
       with open(config_file, 'w') as f:
         f.write(cf_content)
