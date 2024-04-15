@@ -34,17 +34,34 @@ if {[catch {
     # copy file (optionnaly)
     ######################################
     # get target 
-    set f [open $target_file]
-    set target [gets $f]
-    close $f
+    if {[catch {
+        set f [open $target_file]
+        set target [gets $f]
+        close $f
+    } errmsg]} {
+        error "<green>init_script.tcl<end>: <bold><red>could not open target file '$target_file'<end>"
+        puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
+        exit -1
+    }
 
     set verilog_error 0
 
     if {bool($file_copy_enable) == bool(true)} {
-        if {[file exists $file_copy_source]} {
+        if {[catch {
             exec /bin/sh -c "cp $file_copy_source $tmp_path/$file_copy_dest"
-        } else {
-            error "init_script.tcl: <bold><red>error: target specified in '$target_file' ($target) has no assiociated target config file in './config' <end>"
+        } errmsg]} {
+            error "<green>init_script.tcl<end>: <bold><red>error: could not copy '$file_copy_source' into '$tmp_path/$file_copy_dest'<end>"
+            puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
+            exit -1
+        }
+    }
+
+    if {bool($script_copy_enable) == bool(true)} {
+        if {[catch {
+            exec /bin/sh -c "cp $script_copy_source $tmp_path/$script_path"
+        } errmsg]} {
+            error "<green>init_script.tcl<end>: <bold><red>error: could not copy '$script_copy_source' into '$tmp_path/$script_path'<end>"
+            puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
             exit -1
         }
     }
