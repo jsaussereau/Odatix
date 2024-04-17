@@ -46,7 +46,11 @@ if {[catch {
 
     set verilog_error 0
 
-    if {bool($file_copy_enable) == bool(true)} {
+    # quick and dirty bool conversion in case bool is not supported
+    set file_copy_enable_bool [expr {!!$file_copy_enable}]
+    set script_copy_enable_bool [expr {!!$script_copy_enable}]
+
+    if {$file_copy_enable_bool == 1} {
         if {[catch {
             exec /bin/sh -c "cp $file_copy_source $tmp_path/$file_copy_dest"
         } errmsg]} {
@@ -56,7 +60,7 @@ if {[catch {
         }
     }
 
-    if {bool($script_copy_enable) == bool(true)} {
+    if {$script_copy_enable_bool == 1} {
         if {[catch {
             exec /bin/sh -c "cp $script_copy_source $tmp_path/$script_path"
         } errmsg]} {
@@ -117,5 +121,5 @@ if {[catch {
     puts "<green>init_script.tcl<end>: <cyan>tcl error detail:<red>"
     puts "$errorInfo"
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
-    exit_now
+    exit -1
 }
