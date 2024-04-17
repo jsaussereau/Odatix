@@ -57,7 +57,7 @@ _MAGENTA                =\x1b[35m
 _CYAN                   =\x1b[36m
 _WHITE                  =\x1b[37m
 
-DC_COLOR				= "s/Information/$(_CYAN)Information$(_END)/;s/Warning/$(_YELLOW)Warning$(_END)/;s/Error/$(_RED)$(_BOLD)Error$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<cyan>/$(_CYAN)/;s/<bold>/$(_BOLD)/;s/<end>/$(_END)/;s/<Err0r>/Error/;s/<W4rning>/Warning/"
+DC_COLOR				= "s/Information/$(_CYAN)Information$(_END)/;s/Warning/$(_YELLOW)Warning$(_END)/;s/Error/$(_RED)$(_BOLD)Error$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<cyan>/$(_CYAN)/;s/<bold>/$(_BOLD)/;s/<Err0r>/Error/;s/<W4rning>/Warning/;s/<end>/$(_END)/g"
 
 ########################################################
 # Rules
@@ -65,7 +65,7 @@ DC_COLOR				= "s/Information/$(_CYAN)Information$(_END)/;s/Warning/$(_YELLOW)War
 
 .PHONY: synth_fmax_only
 synth_fmax_only: logdir
-	$(DC_COMPILER) -x "gui_stop; source $(SCRIPT_DIR)/$(SYNTH_FREQ_SCRIPT); quit" \
+	@$(DC_COMPILER) -x "gui_stop; source $(SCRIPT_DIR)/$(SYNTH_FREQ_SCRIPT); quit" \
 	| tee $(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log \
 	| sed $(DC_COLOR); \
 	EXIT_CODE=$${PIPESTATUS[0]}; \
