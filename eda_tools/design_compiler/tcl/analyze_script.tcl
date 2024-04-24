@@ -22,7 +22,14 @@
 if {[catch {
 
     source scripts/settings.tcl
-    source scripts/synopsys_dc.setup
+
+    if {[catch {
+        source scripts/synopsys_dc_setup.tcl
+    } errmsg]} {
+        puts "<green>analyze_script.tcl<end>: <bold><red>error: could not source 'synopsys_dc_setup.tcl'<end>"
+        puts "<green>analyze_script.tcl<end>: <cyan>note: design compiler needs a technology file, make sure you added one in 'target_design_compiler.yml'<end>"
+        exit -1
+    }
 
     ######################################
     # Read source files
@@ -36,7 +43,7 @@ if {[catch {
     if {[catch {analyze -library WORK -f verilog -autoread -recursive $tmp_path/rtl/} errmsg]} {
         if {$verilog_filenames == ""} {
             puts "<green>analyze_script.tcl<end>: <cyan>note: no verilog file in source directory<end>"
-        } {
+        } else {
             puts "<green>analyze_script.tcl<end>: <bold><red>error: failed reading verilog source files<end>"
             puts "<green>analyze_script.tcl<end>: tool says -> $errmsg"
         }
@@ -64,7 +71,7 @@ if {[catch {
         }
         if {$verilog_error == 1} {
             puts "<green>analyze_script.tcl<end>:<red>error: failed reading both verilog and vhdl source files, exiting"
-            exit_now
+            exit -1
         }
     }
 
@@ -74,5 +81,5 @@ if {[catch {
     puts "<green>analyze_script.tcl<end>: <cyan>tcl error detail:<red>"
     puts "$errorInfo"
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
-    exit_now
+    exit -1
 }
