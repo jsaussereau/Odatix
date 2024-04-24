@@ -47,7 +47,7 @@ if {[catch {
     if {[catch {analyze -library WORK -f sverilog -autoread -recursive $tmp_path/rtl/} errmsg]} {
         if {$verilog_filenames == ""} {
             puts "<green>analyze_script.tcl<end>: <cyan>note: no verilog file in source directory<end>"
-        } {
+        } else {
             puts "<green>analyze_script.tcl<end>: <bold><red>error: failed reading verilog source files<end>"
             puts "<green>analyze_script.tcl<end>: tool says -> $errmsg"
         }
