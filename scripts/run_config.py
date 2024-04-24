@@ -252,18 +252,20 @@ if __name__ == "__main__":
     print("######################################")
     print(bcolors.ENDC)
     
-    if target_settings == {}:
+    try:
+      if target_settings == {}:
+        raise
+      this_target_settings = read_from_list(target, target_settings, eda_target_filename, optionnal=True, parent="target_settings")
+      script_copy_enable = read_from_list('script_copy_enable', this_target_settings, eda_target_filename, optionnal=True, parent="target_settings/" + target)
+      script_copy_source = read_from_list('script_copy_source', this_target_settings, eda_target_filename, optionnal=True, parent="target_settings/" + target)
+      if not file_copy_enable in tcl_bool_true:
+        raise
+      if not os.path.exists(script_copy_source):
+        print(bcolors.OKCYAN + "note: the script source file \"" + script_copy_source + "\"specified in \"" + eda_target_filename + "\" does not exist. Script copy disabled." + bcolors.ENDC)
+        raise
+    except:
       script_copy_enable = "false"
       script_copy_source = "/dev/null"
-    else:
-      try:
-        this_target_settings = read_from_list(target, target_settings, eda_target_filename, parent="target_settings")
-        script_copy_enable = read_from_list('script_copy_enable', this_target_settings, eda_target_filename, optionnal=True, parent="target_settings/" + target)
-        script_copy_source = read_from_list('script_copy_source', this_target_settings, eda_target_filename, optionnal=True, parent="target_settings/" + target)
-      except:
-        script_copy_enable = "false"
-        script_copy_source = "/dev/null"
-        pass
 
     banned_arch_param = []
     valid_archs = []
@@ -460,21 +462,30 @@ if __name__ == "__main__":
           continue # if an identifier is missing (modified since first read)
         
         # optionnal settings
-        target_options     = read_from_list(target, settings_data, settings_filename, raise_if_missing=False)
-        if target_options != False:
-          fmax_lower_bound = str(target_options['fmax_lower_bound'])
-          fmax_upper_bound = str(target_options['fmax_upper_bound'])
-        else:
+        try:
+          target_options = read_from_list(target, settings_data, settings_filename, optionnal=True, raise_if_missing=False, print_error=False)
+          if target_options == False:
+            print(bcolors.OKCYAN + "note: Cannot find optionnal target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(default_fmax_lower_bound, default_fmax_upper_bound) + bcolors.ENDC)
+            raise
+          fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, eda_target_filename, optionnal=True)
+          fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, eda_target_filename, optionnal=True)
+        except:
           fmax_lower_bound = str(default_fmax_lower_bound)
           fmax_upper_bound = str(default_fmax_upper_bound)
-        
-      # set source and dest to null if copy is disabled
-      file_copy_enable = file_copy_enable.lower()
-      if not file_copy_enable in tcl_bool_true:
-        file_copy_enable = "false"
-        file_copy_source = "/dev/null"
-        file_copy_dest = "/dev/null"
 
+        # set source and dest to null if copy is disabled
+        file_copy_enable = file_copy_enable.lower()
+        try:
+          if not file_copy_enable in tcl_bool_true:
+            raise
+          if not os.path.exists(file_copy_source):
+            print(bcolors.OKCYAN + "note: the file \"" + file_copy_source + "\"specified in \"" + settings_filename + "\" does not exist. File copy disabled." + bcolors.ENDC)
+            raise
+        except:
+          file_copy_enable = "false"
+          file_copy_source = "/dev/null"
+          file_copy_dest = "/dev/null"
+        
       use_parameters = use_parameters.lower()
       if not use_parameters in tcl_bool_true:
         use_parameters = "false"
