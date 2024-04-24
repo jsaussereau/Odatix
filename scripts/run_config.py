@@ -19,6 +19,7 @@
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
 import re
 import sys
 import time
@@ -34,8 +35,8 @@ from os.path import isdir
 from os import makedirs
 from os import listdir
 
+import shutil
 from shutil import rmtree
-from shutil import copytree
 
 ######################################
 # Settings
@@ -99,6 +100,22 @@ class bcolors:
 ######################################
 # Misc functions
 ######################################
+
+# python 3.8+ like copytree
+def copytree(src, dst, dirs_exist_ok=False, **kwargs):
+  if not os.path.exists(dst):
+    shutil.copytree(src, dst, **kwargs)
+  else:
+    if dirs_exist_ok:
+      for item in os.listdir(src):
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if os.path.isdir(s):
+          shutil.copytree(s, d, **kwargs)
+        else:
+          shutil.copy2(s, d)
+    else:
+      raise
 
 def read_from_list(key, input_list, filename, raise_if_missing=True, optionnal=False, print_error=True, parent=None):
   if key in input_list:
