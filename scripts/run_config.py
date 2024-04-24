@@ -100,12 +100,17 @@ class bcolors:
 # Misc functions
 ######################################
 
-def read_from_list(key, input_list, filename, raise_if_missing=True):
+def read_from_list(key, input_list, filename, raise_if_missing=True, optionnal=False, print_error=True, parent=None):
   if key in input_list:
     return input_list[key]
   else:
+    parent_string = "" if parent == None else ", inside list \"" + parent + "\","
+    if print_error:
+      if optionnal:
+        print(bcolors.OKCYAN + "note: Cannot find optionnal key \"" + key + "\"" + parent_string + " in \"" + filename + "\". Using default values instead." + bcolors.ENDC)
+      else:
+        print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"" + key + "\"" + parent_string + " in \"" + filename + "\"." + bcolors.ENDC)
     if raise_if_missing:
-      print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"" + key + "\" in \"" + filename + "\"." + bcolors.ENDC)
       raise
     return False
 
@@ -201,13 +206,20 @@ if __name__ == "__main__":
 
   with open(eda_target_filename, 'r') as f:
     settings_data = yaml.load(f, Loader=SafeLoader)
+    # mandatory keys
     try:
       targets            = read_from_list("targets", settings_data, eda_target_filename)
       constraint_file    = read_from_list("constraint_file", settings_data, eda_target_filename)
-      script_copy_enable = read_from_list("script_copy_enable", settings_data, eda_target_filename)
-      script_copy_source = read_from_list("script_copy_source", settings_data, eda_target_filename)
     except:
       sys.exit() # if a key is missing
+      
+    # optionnal keys
+    try:
+      target_settings    = read_from_list("target_settings", settings_data, eda_target_filename, optionnal=True)
+    except:
+      target_settings    = {}
+      print()
+      pass # if a key is missing
 
   if args.overwrite:
     overwrite = True
@@ -222,7 +234,20 @@ if __name__ == "__main__":
     print(" Target: {}".format(target))
     print("######################################")
     print(bcolors.ENDC)
- 
+    
+    if target_settings == {}:
+      script_copy_enable = "false"
+      script_copy_source = "/dev/null"
+    else:
+      try:
+        this_target_settings = read_from_list(target, target_settings, eda_target_filename, parent="target_settings")
+        script_copy_enable = read_from_list('script_copy_enable', this_target_settings, eda_target_filename, optionnal=True, parent="target_settings/" + target)
+        script_copy_source = read_from_list('script_copy_source', this_target_settings, eda_target_filename, optionnal=True, parent="target_settings/" + target)
+      except:
+        script_copy_enable = "false"
+        script_copy_source = "/dev/null"
+        pass
+
     banned_arch_param = []
     valid_archs = []
     cached_archs = []
