@@ -50,8 +50,10 @@ format_mode = 'fpga'
 
 class bcolors:
   WARNING = '\033[93m'
+  FAIL = '\033[91m'
   OKCYAN = '\033[96m'
   ENDC = '\033[0m'
+  BOLD = '\033[1m'
 
 def corrupted_directory(target, variant):
   print(f"{bcolors.WARNING}warning{bcolors.ENDC}: {target}/{variant} => synthesis has not finished or directory has been corrupted")
@@ -79,13 +81,18 @@ def parse_arguments():
   return parser.parse_args()
 
 def import_result_parser(tool):
-  if tool == 'vivado':
-    import parse_vivado_results as selected_parser
-  elif tool == 'design_compiler':
-    import parse_design_compiler_results as selected_parser
-  else:
-    print("Unsupported parser")
-    exit
+  try:
+    if tool == 'vivado':
+      import parse_vivado_results as selected_parser
+    elif tool == 'design_compiler':
+      import parse_design_compiler_results as selected_parser
+    else:
+      print(bcolors.BOLD + bcolors.FAIL + "error: the tool \"" + args.tool + "\" is not supported by this tool." + bcolors.ENDC)
+      sys.exit()
+  except:
+    print(bcolors.BOLD + bcolors.FAIL + "error: could not find a parser for tool \"" + tool + "\"" + bcolors.ENDC)
+    print(bcolors.OKCYAN + "note: check if the python parser \"eda_tools/" + tool + "/parser/parse_" + tool + "_results.py\" exists and is valid." + bcolors.ENDC)
+    sys.exit()
   return selected_parser
 
 ######################################
