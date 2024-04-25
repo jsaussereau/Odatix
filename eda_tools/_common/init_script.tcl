@@ -49,6 +49,7 @@ if {[catch {
     # quick and dirty bool conversion in case bool is not supported
     set file_copy_enable_bool [expr {!!$file_copy_enable}]
     set script_copy_enable_bool [expr {!!$script_copy_enable}]
+    set use_parameters_bool [expr {!!$use_parameters}]
 
     if {$file_copy_enable_bool == 1} {
         if {[catch {
@@ -82,7 +83,7 @@ if {[catch {
     set architecture [gets $f]
     close $f
 
-    if {bool($use_parameters) == bool(true)} {
+    if {$use_parameters_bool == 1} {
         if {[file exists ./${arch_path}/$architecture.txt]} {
             # check if there is a match
             set return_code_start [exec /bin/sh -c "sed -n '/$start_delimiter/p' $tmp_path/rtl/$top_level_file"]
