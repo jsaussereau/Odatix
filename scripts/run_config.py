@@ -258,7 +258,7 @@ if __name__ == "__main__":
       this_target_settings = read_from_list(target, target_settings, eda_target_filename, optionnal=True, parent="target_settings")
       script_copy_enable = read_from_list('script_copy_enable', this_target_settings, eda_target_filename, optionnal=True, parent="target_settings/" + target)
       script_copy_source = read_from_list('script_copy_source', this_target_settings, eda_target_filename, optionnal=True, parent="target_settings/" + target)
-      if not file_copy_enable in tcl_bool_true:
+      if not script_copy_enable in tcl_bool_true:
         raise
       if not os.path.exists(script_copy_source):
         print(bcolors.OKCYAN + "note: the script source file \"" + script_copy_source + "\"specified in \"" + eda_target_filename + "\" does not exist. Script copy disabled." + bcolors.ENDC)
