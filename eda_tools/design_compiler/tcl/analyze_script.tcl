@@ -23,6 +23,8 @@ if {[catch {
 
     source scripts/settings.tcl
 
+    puts "<green>analyze_script.tcl<end>: <cyan>note: you can safely ignore the error message (UID-4) below.<end>"
+
     if {[catch {
         source scripts/synopsys_dc_setup.tcl
     } errmsg]} {
@@ -36,41 +38,32 @@ if {[catch {
     ######################################
     suppress_message { AUTOREAD-303 AUTOREAD-107 AUTOREAD-105 AUTOREAD-102 AUTOREAD-100 VER-26 }
 
-    #set filenames [split [exec find $rtl_path/ -type f ( -name *.sv -o -name *.v )] \n]
-    #set filenames [split [exec find $rtl_path/core $rtl_path/soc -type f -name *.sv ! -name soc_config.sv ] \n]
-
     # read verilog source files
-    if {[catch {analyze -library WORK -f verilog -autoread -recursive $tmp_path/rtl/} errmsg]} {
-        if {$verilog_filenames == ""} {
-            puts "<green>analyze_script.tcl<end>: <cyan>note: no verilog file in source directory<end>"
-        } else {
-            puts "<green>analyze_script.tcl<end>: <bold><red>error: failed reading verilog source files<end>"
-            puts "<green>analyze_script.tcl<end>: tool says -> $errmsg"
-        }
+    puts "\n<green>analyze_script.tcl<end>: reading verilog...<end>"
+    if {![
+        analyze -library WORK -f verilog -autoread -recursive $tmp_path/rtl/
+    ]} {
+        puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading verilog source files<end>"
         set verilog_error 1
     }
 
     # read systemverilog source files
-    if {[catch {analyze -library WORK -f sverilog -autoread -recursive $tmp_path/rtl/} errmsg]} {
-        if {$verilog_filenames == ""} {
-            puts "<green>analyze_script.tcl<end>: <cyan>note: no verilog file in source directory<end>"
-        } else {
-            puts "<green>analyze_script.tcl<end>: <bold><red>error: failed reading verilog source files<end>"
-            puts "<green>analyze_script.tcl<end>: tool says -> $errmsg"
-        }
-        set verilog_error 1
+    puts "\n<green>analyze_script.tcl<end>: reading system verilog...<end>"
+    if {![
+        analyze -library WORK -f sverilog -autoread -recursive $tmp_path/rtl/
+    ]} {
+        puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading systemverilog source files<end>"
+        set sverilog_error 1
     }
 
     # read vhdl source files
-    if {[catch {analyze -library WORK -f vhdl -autoread -recursive $tmp_path/rtl/} errmsg]} {
-        if {$vhdl_filenames == ""} {
-            puts "<green>analyze_script.tcl<end>: <cyan>note: no vhdl file in source directory<end>"
-        } else {
-            puts "<green>analyze_script.tcl<end>: <bold><red>error: failed reading vhdl source files<end>"
-            puts "<green>analyze_script.tcl<end>: tool says -> $errmsg"
-        }
-        if {$verilog_error == 1} {
-            puts "<green>analyze_script.tcl<end>:<red>error: failed reading both verilog and vhdl source files, exiting"
+    puts "\n<green>analyze_script.tcl<end>: reading vhdl verilog...<end>"
+    if {![
+        analyze -library WORK -f vhdl -autoread -recursive $tmp_path/rtl/
+    ]} {
+        puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading vhdl source files<end>"
+        if {$verilog_error == 1 && $sverilog_error == 1} {
+            puts "<green>analyze_script.tcl<end>:<red>error: failed reading verilog, system verilog and vhdl source files, exiting"
             exit -1
         }
     }
