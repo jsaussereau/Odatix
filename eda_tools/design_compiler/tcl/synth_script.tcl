@@ -139,6 +139,8 @@ if {[catch {
         # Report Area 
         puts "Writing area report file '$area_rep'."
         report_area -nosplit -hierarchy > $area_rep
+        # create the utilization_rep file 
+        close [open $utilization_rep w]
         echo -n "Cell count:                     " > $utilization_rep
         sizeof_collection [ get_cells  -hier  *] >> $utilization_rep
     } errmsg]} {
