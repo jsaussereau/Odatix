@@ -28,6 +28,10 @@ import sys
 sys.path.append('eda_tools/vivado/parser')
 sys.path.append('eda_tools/design_compiler/parser')
 
+asic_functions = ['get_area', 'get_cell_count']
+fpga_functions = ['get_slice_lut', 'get_slice_reg', 'get_bram', 'get_dsp']
+misc_functions = ['get_fmax', 'get_dynamic_pow', 'get_static_pow']
+
 from os.path import exists
 
 ######################################
@@ -87,13 +91,25 @@ def import_result_parser(tool):
     elif tool == 'design_compiler':
       import parse_design_compiler_results as selected_parser
     else:
-      print(bcolors.BOLD + bcolors.FAIL + "error: the tool \"" + args.tool + "\" is not supported by this tool." + bcolors.ENDC)
+      print(bcolors.BOLD + bcolors.FAIL + "error: the tool \"" + tool + "\" is not supported by this tool." + bcolors.ENDC)
       sys.exit()
   except:
     print(bcolors.BOLD + bcolors.FAIL + "error: could not find a parser for tool \"" + tool + "\"" + bcolors.ENDC)
     print(bcolors.OKCYAN + "note: check if the python parser \"eda_tools/" + tool + "/parser/parse_" + tool + "_results.py\" exists and is valid." + bcolors.ENDC)
     sys.exit()
   return selected_parser
+
+def check_parser(parser, format_mode, tool):
+  function_to_test = misc_functions
+  if format_mode == 'fpga':
+    function_to_test.extend(fpga_functions)
+  elif format_mode == 'asic':
+    function_to_test.extend(asic_functions)
+
+  for function in function_to_test:
+    if not hasattr(parser, function):
+        print(bcolors.BOLD + bcolors.FAIL + "error: function \"" + str(function) + "\" is not defined in parser lib \"parse_" + tool + "_results.py\"")
+        sys.exit()
 
 ######################################
 # Parsing functions
@@ -175,9 +191,9 @@ def write_to_yaml(args, output_file, parser, benchmark_data):
           cell_count = parser.get_cell_count(cur_path)
 
           yaml_data[target][arch][variant] = {
-            'fmax': cast_to_int(fmax),
-            'cell_count': cast_to_int(cell_count),
-            'area': cast_to_float(area)
+            'Fmax_MHz': cast_to_int(fmax),
+            'Cell_count': cast_to_int(cell_count),
+            'Area_um2': cast_to_float(area)
           }
 
         # benchmark
@@ -257,6 +273,7 @@ if __name__ == "__main__":
     raise ValueError(f"Unsupported tool ({args.tool}) selected. Please choose 'vivado' or 'design_compiler'.")
 
   parser = import_result_parser(args.tool)
+  check_parser (parser, format_mode, args.tool)
 
   if format_mode == 'fpga':
     fieldnames = fieldnames_fpga
