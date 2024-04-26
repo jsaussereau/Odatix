@@ -75,14 +75,6 @@ set start_delimiter    "#("
 set stop_delimiter     ")("
 
 ######################################
-# Create directories
-######################################
-
-exec /bin/sh -c "mkdir -p $tmp_path"
-exec /bin/sh -c "mkdir -p $report_path"
-exec /bin/sh -c "mkdir -p $log_path"
-
-######################################
 # Procedure
 ######################################
 

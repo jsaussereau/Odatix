@@ -24,6 +24,15 @@ if {[catch {
     source scripts/settings.tcl
 
     ######################################
+    # Create directories
+    ######################################
+
+    exec /bin/sh -c "mkdir -p $tmp_path"
+    exec /bin/sh -c "mkdir -p $report_path"
+    exec /bin/sh -c "mkdir -p $result_path"
+    exec /bin/sh -c "mkdir -p $log_path"
+
+    ######################################
     # Create a local copy of source files
     ######################################
     exec /bin/sh -c "rm -rf $tmp_path/rtl"
