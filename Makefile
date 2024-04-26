@@ -77,18 +77,14 @@ motd:
 	@echo ""
 
 .PHONY: clean
-clean:
-	@rm -rf .Xil
-	@rm -f *.jou
-	@rm -f vivado*.log
-	@rm -f tight_setup_hold_pins.txt
+clean: clean_vivado clean_dc
 
 ########################################################
 # Vivado
 ########################################################
 
 .PHONY: vivado
-vivado: motd run_vivado_only clean results_vivado_only
+vivado: motd run_vivado_only clean_vivado results_vivado_only
 
 .PHONY: run_vivado
 run_vivado: motd run_vivado_only
@@ -101,13 +97,19 @@ run_vivado_only:
 results_vivado_only:
 	@python3 ./$(EXPORT_SCRIPT) --tool vivado --benchmark
 
+.PHONY: clean_vivado
+clean_vivado:
+	@rm -rf .Xil
+	@rm -f *.jou
+	@rm -f vivado*.log
+	@rm -f tight_setup_hold_pins.txt
 
 ########################################################
 # Design Compiler
 ########################################################
 
 .PHONY: dc
-dc: motd run_dc_only clean results_dc_only
+dc: motd run_dc_only results_dc_only
 
 .PHONY: run_dc
 run_dc: motd run_dc_only
@@ -119,6 +121,17 @@ run_dc_only:
 .PHONY: results_dc_only
 results_dc_only:
 	@python3 ./$(SCRIPT_DIR)/export_results.py --tool design_compiler --benchmark
+
+.PHONY: clean_dc
+clean_dc:
+	@rm -f command.log
+	@rm -f default.svf
+	@rm -rf alib-52
+	@rm -rf work/ARCH
+	@rm -rf work/ENTI
+	@rm -f work/*.syn
+	@rm -f work/*.mr
+	@rm -f change_names_verilog
 
 ########################################################
 # Generic
