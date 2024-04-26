@@ -32,6 +32,7 @@ set script_path        scripts
 set tmp_path           synth
 set arch_path          architectures
 set rtl_path           ../../../rtl
+set result_path        $tmp_path/result
 set report_path        $tmp_path/report
 set log_path           $tmp_path/log
 
