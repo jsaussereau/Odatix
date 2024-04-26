@@ -480,8 +480,11 @@ if __name__ == "__main__":
           fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, eda_target_filename, optionnal=True)
           fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, eda_target_filename, optionnal=True)
         except:
-          fmax_lower_bound = str(default_fmax_lower_bound)
-          fmax_upper_bound = str(default_fmax_upper_bound)
+          fmax_lower_bound = default_fmax_lower_bound
+          fmax_upper_bound = default_fmax_upper_bound
+
+        fmax_lower_bound = str(fmax_lower_bound)
+        fmax_upper_bound = str(fmax_upper_bound)
 
         # set source and dest to null if copy is disabled
         file_copy_enable = file_copy_enable.lower()
