@@ -11,6 +11,7 @@ top_level_file: "mult.sv"
 top_level_module: "mult"
 
 clock_signal: "i_clk"
+reset_signal: "i_rst"
 
 # copy a file into synthesis directory?
 file_copy_enable: "false"

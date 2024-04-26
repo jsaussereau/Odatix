@@ -310,6 +310,7 @@ if __name__ == "__main__":
           top_level_filename = read_from_list('top_level_file', settings_data, settings_filename)
           top_level_module   = read_from_list('top_level_module', settings_data, settings_filename)
           clock_signal       = read_from_list('clock_signal', settings_data, settings_filename)
+          reset_signal       = read_from_list('reset_signal', settings_data, settings_filename)
           file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename)
           file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename)
           file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename)
@@ -354,6 +355,15 @@ if __name__ == "__main__":
       f = open(top_level, "r")
       if not clock_signal in f.read():
         print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
+        error_archs.append(arch)
+        f.close()
+        continue
+      f.close()
+      
+      # check if the top reset name exists in the top level file, at least
+      f = open(top_level, "r")
+      if not clock_signal in f.read():
+        print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
         error_archs.append(arch)
         f.close()
         continue
@@ -508,6 +518,7 @@ if __name__ == "__main__":
       cf_content = re.sub("(set rtl_path.*)",           "set rtl_path           " + rtl_path, cf_content)
       cf_content = re.sub("(set arch_path.*)",          "set arch_path          " + arch_path, cf_content)
       cf_content = re.sub("(set clock_signal.*)",       "set clock_signal       " + clock_signal, cf_content)
+      cf_content = re.sub("(set reset_signal.*)",       "set reset_signal       " + reset_signal, cf_content)
       cf_content = re.sub("(set top_level_module.*)",   "set top_level_module   " + top_level_module, cf_content)
       cf_content = re.sub("(set top_level_file.*)",     "set top_level_file     " + top_level_filename, cf_content)
       cf_content = re.sub("(set use_parameters.*)",     "set use_parameters     " + use_parameters, cf_content)

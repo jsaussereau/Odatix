@@ -27,6 +27,7 @@ set top_level_module   soc_wrapper_top
 set top_level_file     soc/soc_top_level.sv
 
 set clock_signal       i_xtal_p
+set reset_signal       i_rst
 
 set script_path        scripts
 set tmp_path           synth

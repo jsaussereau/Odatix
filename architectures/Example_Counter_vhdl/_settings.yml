@@ -11,6 +11,7 @@ top_level_file: "counter.vhdl"
 top_level_module: "counter"
 
 clock_signal: "i_clk"
+reset_signal: "i_rst"
 
 # copy a file into synthesis directory?
 file_copy_enable: "false"
