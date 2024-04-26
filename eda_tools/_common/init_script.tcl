@@ -63,9 +63,9 @@ if {[catch {
 
     if {$script_copy_enable_bool == 1} {
         if {[catch {
-            exec /bin/sh -c "cp $script_copy_source $tmp_path/$script_path"
+            exec /bin/sh -c "cp $script_copy_source $script_path"
         } errmsg]} {
-            error "<green>init_script.tcl<end>: <bold><red>error: could not copy '$script_copy_source' into '$tmp_path/$script_path'<end>"
+            error "<green>init_script.tcl<end>: <bold><red>error: could not copy '$script_copy_source' into '$script_path'<end>"
             puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
             exit -1
         }
