@@ -131,25 +131,36 @@ if {[catch {
         # Report Power 
         #puts "Writing power report file '${REPORT_DIR}/${OUTPUT_PREFIX}power.rep'."
         #report_power -analysis_effort high > ${REPORT_DIR}/${OUTPUT_PREFIX}power.rep
-
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write power report<end>"
+        puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
+    }
+    if {[catch {
         # Report Area 
         puts "Writing area report file '$area_rep'."
         report_area -nosplit -hierarchy > $area_rep
         echo -n "Cell count:                     " > $utilization_rep
         sizeof_collection [ get_cells  -hier  *] >> $utilization_rep
-
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write area report<end>"
+        puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
+    }
+    if {[catch {
         # Report Timing 
         puts "Writing timing report file '$timing_rep'."
         report_timing -path full -delay max -nworst 1 -max_paths 1 -significant_digits 4 -sort_by group > $timing_rep
         echo -n "Target frequency:               $frequency" > $freq_rep
-
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write timing report<end>"
+        puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
+    }
+    if {[catch {
         # Report Reference
         puts "Writing reference report file '$ref_rep'."
         report_reference -hierarchy > $ref_rep    
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write reports<end>"
+        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write reference report<end>"
         puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        exit -1
     }
 
     report_progress 96 $synth_statusfile
