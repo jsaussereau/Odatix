@@ -23,6 +23,9 @@ if {[catch {
     
     source scripts/settings.tcl
 
+    set basename ${top_level_module}
+    set runname gates_dc
+
     report_progress 2 $synth_statusfile
 
     #puts "<bold>"
@@ -51,9 +54,6 @@ if {[catch {
     puts "**************************************"
     puts "<end>"
     uniquify
-
-    set basename ${top_level_module}
-    set runname gates_dc
 
     report_progress 10 $synth_statusfile
 
@@ -96,7 +96,7 @@ if {[catch {
     set_wire_load_mode segmented
     set_clock_uncertainty -hold $clock_skew $clock_signal
     set_clock_uncertainty -setup $clock_skew $clock_signal
-    set_max_transition 0.5 $reset_net
+    set_max_transition 0.5 $reset_signal
 
     check_timing
 
@@ -127,24 +127,30 @@ if {[catch {
     puts "**************************************"
     puts "<end>"
 
-    # Report Power 
-    #puts "Writing power report file '${REPORT_DIR}/${OUTPUT_PREFIX}power.rep'."
-    #report_power -analysis_effort high > ${REPORT_DIR}/${OUTPUT_PREFIX}power.rep
+    if {[catch {
+        # Report Power 
+        #puts "Writing power report file '${REPORT_DIR}/${OUTPUT_PREFIX}power.rep'."
+        #report_power -analysis_effort high > ${REPORT_DIR}/${OUTPUT_PREFIX}power.rep
 
-    # Report Area 
-    puts "Writing area report file '$area_rep'."
-    report_area -nosplit -hierarchy > $area_rep
-    echo -n "Cell count:                     " > $utilization_rep
-    sizeof_collection [ get_cells  -hier  *] >> $utilization_rep
+        # Report Area 
+        puts "Writing area report file '$area_rep'."
+        report_area -nosplit -hierarchy > $area_rep
+        echo -n "Cell count:                     " > $utilization_rep
+        sizeof_collection [ get_cells  -hier  *] >> $utilization_rep
 
-    # Report Timing 
-    puts "Writing timing report file '$timing_rep'."
-    report_timing -path full -delay max -nworst 1 -max_paths 1 -significant_digits 4 -sort_by group > $timing_rep
-    echo -n "Target frequency:               $frequency" > $freq_rep
+        # Report Timing 
+        puts "Writing timing report file '$timing_rep'."
+        report_timing -path full -delay max -nworst 1 -max_paths 1 -significant_digits 4 -sort_by group > $timing_rep
+        echo -n "Target frequency:               $frequency" > $freq_rep
 
-    # Report Reference
-    puts "Writing reference report file '$ref_rep'."
-    report_reference -hierarchy > $ref_rep
+        # Report Reference
+        puts "Writing reference report file '$ref_rep'."
+        report_reference -hierarchy > $ref_rep    
+    } errmsg]} {
+        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write reports<end>"
+        puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        exit -1
+    }
 
     report_progress 96 $synth_statusfile
 
