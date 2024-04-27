@@ -30,7 +30,13 @@ cell_count_report = 'report/utilization.rep'
 power_report = 'report/power.rep'
 
 fmax_pattern = re.compile("(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz")
-area_pattern = re.compile("Total cell area:(\\s*)([0-9,.]+)(.*)")
+comb_area_pattern = re.compile("Combinational area:(\\s*)([0-9,.]+)(.*)")
+noncomb_area_pattern = re.compile("Noncombinational area:(\\s*)([0-9,.]+)(.*)")
+buf_inv_area_pattern = re.compile("Buf/Inv area:(\\s*)([0-9,.]+)(.*)")
+macro_area_pattern = re.compile("Macro/Black Box area:(\\s*)([0-9,.]+)(.*)")
+net_area_pattern = re.compile("Net Interconnect area:(\\s*)([0-9,.]+)(.*)")
+cell_area_pattern = re.compile("Total cell area:(\\s*)([0-9,.]+)(.*)")
+total_area_pattern = re.compile("Total area:(\\s*)([0-9,.]+)(.*)")
 cell_count_pattern = re.compile("Cell count:(\\s*)([0-9,.]+)(.*)")
 dynamic_pow_pattern = re.compile("\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)")
 static_pow_pattern = re.compile("\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)")
@@ -43,9 +49,33 @@ def get_fmax(path):
   file = path+'/'+frequency_search_log
   return rh.get_re_group_from_file(file, fmax_pattern, 2)
 
-def get_area(path):
+def get_cell_area(path):
   file = path+'/'+area_report
-  return rh.get_re_group_from_file(file, area_pattern, 2)
+  return rh.get_re_group_from_file(file, cell_area_pattern, 2)
+
+def get_total_area(path):
+  file = path+'/'+area_report
+  return rh.get_re_group_from_file(file, total_area_pattern, 2)
+
+def get_comb_area(path):
+  file = path+'/'+area_report
+  return rh.get_re_group_from_file(file, comb_area_pattern, 2)
+
+def get_noncomb_area(path):
+  file = path+'/'+area_report
+  return rh.get_re_group_from_file(file, noncomb_area_pattern, 2)
+
+def get_buf_inv_area(path):
+  file = path+'/'+area_report
+  return rh.get_re_group_from_file(file, buf_inv_area_pattern, 2)
+
+def get_macro_area(path):
+  file = path+'/'+area_report
+  return rh.get_re_group_from_file(file, macro_area_pattern, 2)
+
+def get_net_area(path):
+  file = path+'/'+area_report
+  return rh.get_re_group_from_file(file, net_area_pattern, 2)
 
 def get_cell_count(path):
   file = path+'/'+cell_count_report

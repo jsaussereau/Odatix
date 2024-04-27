@@ -28,7 +28,7 @@ import sys
 sys.path.append('eda_tools/vivado/parser')
 sys.path.append('eda_tools/design_compiler/parser')
 
-asic_functions = ['get_area', 'get_cell_count']
+asic_functions = ['get_total_area', 'get_cell_area', 'get_comb_area', 'get_noncomb_area', 'get_buf_inv_area', 'get_macro_area', 'get_net_area', 'get_cell_count']
 fpga_functions = ['get_slice_lut', 'get_slice_reg', 'get_bram', 'get_dsp']
 misc_functions = ['get_fmax', 'get_dynamic_pow', 'get_static_pow']
 
@@ -187,13 +187,25 @@ def write_to_yaml(args, output_file, parser, benchmark_data):
           }
 
         elif format_mode == 'asic':
-          area = parser.get_area(cur_path)
+          total_area = parser.get_total_area(cur_path)
+          cell_area = parser.get_cell_area(cur_path)
+          comb_area = parser.get_comb_area(cur_path)
+          noncomb_area = parser.get_noncomb_area(cur_path)
+          buf_inv_area = parser.get_buf_inv_area(cur_path)
+          macro_area = parser.get_macro_area(cur_path)
+          net_area = parser.get_net_area(cur_path)
           cell_count = parser.get_cell_count(cur_path)
 
           yaml_data[target][arch][variant] = {
             'Fmax_MHz': cast_to_int(fmax),
             'Cell_count': cast_to_int(cell_count),
-            'Area_um2': cast_to_float(area)
+            'Total_area_um2': cast_to_float(total_area),
+            'Cell_area_um2': cast_to_float(cell_area),
+            'Comb_area_um2': cast_to_float(comb_area),
+            'Non_comb_area_um2': cast_to_float(noncomb_area),
+            'Buf_inv_area_um2': cast_to_float(buf_inv_area),
+            'Macro_area_um2': cast_to_float(macro_area),
+            'Net_area_um2': cast_to_float(net_area)
           }
 
         # benchmark
@@ -246,7 +258,7 @@ def write_to_csv(args, output_file, parser, fieldnames):
             except:
               total_pow = ' /  '
           elif format_mode == 'asic':
-            area = parser.get_area(cur_path)
+            area = parser.get_cell_area(cur_path)
             cell_count = parser.get_cell_count(cur_path)
           
           # write the line
