@@ -36,6 +36,7 @@ set rtl_path           ../../../rtl
 set result_path        $tmp_path/result
 set report_path        $tmp_path/report
 set log_path           $tmp_path/log
+set work_path          $tmp_path/work
 
 set init_script        $script_path/init_script.tcl
 set analyze_script     $script_path/analyze_script.tcl

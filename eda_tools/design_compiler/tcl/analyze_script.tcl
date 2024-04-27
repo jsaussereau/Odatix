@@ -23,6 +23,8 @@ if {[catch {
 
     source scripts/settings.tcl
 
+    define_design_lib WORK -path $work_path
+
     puts "<green>analyze_script.tcl<end>: <cyan>note: you can safely ignore the error message (UID-4) below.<end>"
 
     if {[catch {

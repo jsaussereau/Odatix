@@ -2,7 +2,7 @@
 ##     Initialization Setup file for Synopsys Design Compiler      ##
 #####################################################################
 
-define_design_lib WORK -path "./work"
+#define_design_lib WORK -path "./work/design_compiler"
 
 ### retrieve Xfab directory path and SYNOPSYS path from the environement variables
 set XKIT ~/xfab180n/XKIT
@@ -31,4 +31,3 @@ set bus_naming_style    "%s_%d"
 set write_name_nets_same_as_ports true
 
 #puts "USE: set_fix_multiple_port_nets -all [all_designs]"
-define_design_lib WORK -path "./work"
