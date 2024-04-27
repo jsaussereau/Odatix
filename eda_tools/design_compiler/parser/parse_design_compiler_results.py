@@ -25,9 +25,8 @@ import re_helper as rh
 import re
 
 frequency_search_log = 'log/frequency_search.log'
-utilization_report = 'report/utilization.rep'
 area_report = 'report/area.rep'
-cell_count_report = 'report/cell_count.rep'
+cell_count_report = 'report/utilization.rep'
 power_report = 'report/power.rep'
 
 fmax_pattern = re.compile("(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz")
