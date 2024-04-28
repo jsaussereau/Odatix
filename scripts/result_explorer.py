@@ -19,6 +19,7 @@
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
@@ -32,47 +33,63 @@ import webbrowser
 from threading import Timer
 from itertools import product
 
+# Préparation des données pour le DataFrame
+def update_dataframe(yaml_data):
+    data = []
+    for target, architectures in yaml_data.items():
+        for architecture, configurations in architectures.items():
+            for config, metrics in configurations.items():
+                row = metrics.copy()
+                row['Target'] = target
+                row['Architecture'] = architecture
+                row['Configuration'] = config
+                data.append(row)
+
+    # Création du DataFrame
+    return pd.DataFrame(data)
+
+def get_yaml_data(file_path):
+    with open(file_path, 'r') as file:
+        return yaml.safe_load(file)
+
+# Liste des métriques et des cibles disponibles
+# Récupérer les métriques à partir du fichier YAML
+def update_metrics(yaml_data):
+    metrics_from_yaml = set()
+    for target_data in yaml_data.values():
+        for architecture_data in target_data.values():
+            for configuration_data in architecture_data.values():
+                metrics_from_yaml.update(configuration_data.keys())
+    return metrics_from_yaml
+
+def get_complete_df(df):
+    complete_df = pd.DataFrame(product(all_architectures, all_configurations), columns=['Architecture', 'Configuration'])
+    for metric in available_metrics:
+        complete_df[metric] = None
+    return complete_df
+
+####################################################################################
+
 # Couleur des courbes
 plot_colors = px.colors.qualitative.Plotly
 
-# Charger les données depuis le fichier YML
-file_path = 'results/results_vivado.yml'
-with open(file_path, 'r') as file:
-    yml_data = yaml.safe_load(file)
+# Obtenir la liste des fichiers YAML dans le dossier results
+yaml_files = [file for file in os.listdir('results') if file.endswith('.yml')]
 
-# Préparation des données pour le DataFrame
-data = []
-for target, architectures in yml_data.items():
-    for architecture, configurations in architectures.items():
-        for config, metrics in configurations.items():
-            row = metrics.copy()
-            row['Target'] = target
-            row['Architecture'] = architecture
-            row['Configuration'] = config
-            data.append(row)
+# Charger les données depuis tous les fichiers YAML
+all_data = {}
+for yaml_file in yaml_files:
+    file_path = os.path.join('results', yaml_file)
+    all_data[yaml_file] = get_yaml_data(file_path)
 
-# Création du DataFrame
-df = pd.DataFrame(data)
+# Préparation des données pour la DataFrame
+dfs = {yaml_file: update_dataframe(data) for yaml_file, data in all_data.items()}
 
-# Liste des métriques et des cibles disponibles
-available_metrics = ['Fmax_MHz', 'LUT_count', 'Reg_count', 'Total_LUT_reg', 'BRAM_count', 'DSP_count', 'Dynamic_Power', 'Static_Power', 'Total_Power', 'DMIPS_per_MHz', 'DMIPS']
-available_targets = df['Target'].unique()
+# Obtenez toutes les architectures de tous les fichiers YAML
+all_architectures = sorted(set(architecture for df in dfs.values() for architecture in df['Architecture'].unique()))
 
-# Toutes les configurations et architectures
-all_configurations = sorted(df['Configuration'].unique())
-all_architectures = sorted(df['Architecture'].unique())
-
-# Fusion avec les données existantes pour compléter les métriques manquantes
-complete_df = pd.merge(
-    pd.DataFrame(product(all_architectures, all_configurations), columns=['Architecture', 'Configuration']),
-    df, 
-    on=['Architecture', 'Configuration'], 
-    how='left'
-)
-
-for metric in available_metrics:
-    if metric not in complete_df.columns:
-        complete_df[metric] = None
+# Toutes les configurations
+all_configurations = sorted(set(config for df in dfs.values() for config in df['Configuration'].unique()))
 
 # Liste des boutons pour chaque architecture
 def create_legend_item(architecture, line_style, color):
@@ -104,19 +121,7 @@ def create_legend_item(architecture, line_style, color):
         html.Div(f'{architecture}', style={'display': 'inline-block', 'margin-left': '5px'})
     ], id=f'legend-item-{architecture}', style={'display': 'block', 'margin-bottom': '5px'})  # Modifiez ici pour 'display': 'block' et ajoutez une marge en bas
 
-# Créez une fonction pour générer les entrées Input pour les architectures du target actuel
-def generate_architecture_inputs(selected_target):
-    architectures_for_target = df[df['Target'] == selected_target]['Architecture'].unique()
-    return [Input(f'checklist-{architecture}', 'value') for architecture in architectures_for_target]
-
-def get_architectures_for_target(selected_target):
-    return df[df['Target'] == selected_target]['Architecture'].unique()
-    
-# Obtenir les architectures pour le target sélectionné par défaut
-default_target = available_targets[0]
-default_architectures = get_architectures_for_target(default_target)
-
-# Création de la légende personnalisée pour le target par défaut
+# Création de la légende personnalisée
 legend_items = [create_legend_item(architecture, '2px dashed', plot_colors[i % len(plot_colors)]) 
                 for i, architecture in enumerate(all_architectures)]
 
@@ -128,15 +133,21 @@ app.title = 'Asterism'
 app.layout = html.Div([
     html.H1("Asterism - Implementation Result Explorer"),
     dcc.Dropdown(
-        id='metric-dropdown',
-        options=[{'label': metric, 'value': metric} for metric in available_metrics],
-        value='Fmax_MHz'
+        id='yaml-dropdown',
+        options=[{'label': yaml_file, 'value': yaml_file} for yaml_file in yaml_files],
+        value=yaml_files[0]  # Sélectionnez le premier fichier par défaut
     ),
-    dcc.Dropdown(
-        id='target-dropdown',
-        options=[{'label': target, 'value': target} for target in available_targets],
-        value=available_targets[0]
-    ),
+    html.Div([
+        dcc.Dropdown(
+            id='metric-dropdown',
+            value='Fmax_MHz'
+        ),
+        dcc.Dropdown(
+            id='target-dropdown',
+            value=dfs[yaml_files[0]]['Target'].iloc[0]
+        ),
+    ], id='dropdowns'),  # Mettez les dropdowns dans un conteneur div pour les mettre à jour ensemble
+
     html.Div([
         html.Div([
             dcc.Graph(id="graph"),
@@ -154,15 +165,50 @@ app.layout = html.Div([
     html.Div(id='checklist-states', style={'display': 'none'})
 ])
 
+####################################################################################
+
+# Callback pour la mise à jour des dropdowns
+@app.callback(
+    [Output('metric-dropdown', 'options'),
+     Output('target-dropdown', 'options')],
+    Input('yaml-dropdown', 'value')
+)
+def update_dropdowns(selected_yaml):
+    df = dfs[selected_yaml]
+    metrics_from_yaml = update_metrics(all_data[selected_yaml])
+    available_metrics = [{'label': metric, 'value': metric} for metric in metrics_from_yaml]
+    available_targets = [{'label': target, 'value': target} for target in df['Target'].unique()]
+    return available_metrics, available_targets
+
+# Callback pour le changement de fichier YAML
+@app.callback(
+    Output('dropdowns', 'children'),
+    Input('yaml-dropdown', 'value')
+)
+def update_yaml(selected_yaml):
+    df = dfs[selected_yaml]
+    return [
+        dcc.Dropdown(
+            id='metric-dropdown',
+            value='Fmax_MHz'
+        ),
+        dcc.Dropdown(
+            id='target-dropdown',
+            value=df['Target'].iloc[0]
+        ),
+    ]
+
 # Callback pour la mise à jour du graphique
 @app.callback(
     Output('graph', 'figure'),
-    [Input('metric-dropdown', 'value'),
+    [Input('yaml-dropdown', 'value'),
+     Input('metric-dropdown', 'value'),
      Input('target-dropdown', 'value'),
      Input('show-all', 'n_clicks'),
-     Input('hide-all', 'n_clicks')] + [Input(f'checklist-{architecture}', 'value') for architecture in all_architectures],
+     Input('hide-all', 'n_clicks')] + 
+    [Input(f'checklist-{architecture}', 'value') for architecture in all_architectures],
 )
-def update_graph(selected_metric, selected_target, show_all, hide_all, *checklist_values):
+def update_graph(selected_yaml, selected_metric, selected_target, show_all, hide_all, *checklist_values):
     ctx = dash.callback_context
     triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -174,8 +220,8 @@ def update_graph(selected_metric, selected_target, show_all, hide_all, *checklis
         visible_architectures = set(architecture for i, architecture in enumerate(all_architectures) if checklist_values[i])
 
      # Filtrer le DataFrame pour les architectures sélectionnées
-    filtered_df = complete_df[(complete_df['Target'] == selected_target) &
-                              (complete_df['Architecture'].isin(visible_architectures))]
+    filtered_df = dfs[selected_yaml][(dfs[selected_yaml]['Target'] == selected_target) &
+                                      (dfs[selected_yaml]['Architecture'].isin(visible_architectures))]
 
     unique_configurations = sorted(filtered_df['Configuration'].unique())
     
@@ -211,10 +257,11 @@ def update_graph(selected_metric, selected_target, show_all, hide_all, *checklis
 # Callback pour changer la visibilité des dropdowns
 @app.callback(
     [Output(f'legend-item-{architecture}', 'style') for architecture in all_architectures],
-    [Input('target-dropdown', 'value')]
+    [Input('target-dropdown', 'value'),
+     Input('yaml-dropdown', 'value')]
 )
-def update_legend_visibility(selected_target):
-    architectures_for_target = get_architectures_for_target(selected_target)
+def update_legend_visibility(selected_target, selected_yaml):
+    architectures_for_target = dfs[selected_yaml][dfs[selected_yaml]['Target'] == selected_target]['Architecture'].unique()
     return [{'display': 'block' if architecture in architectures_for_target else 'none'}
             for architecture in all_architectures]
 
