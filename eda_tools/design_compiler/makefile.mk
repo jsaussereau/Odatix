@@ -65,7 +65,8 @@ DC_COLOR				= "s/Information/$(_CYAN)Information$(_END)/;s/Warning/$(_YELLOW)War
 
 .PHONY: synth_fmax_only
 synth_fmax_only: logdir
-	@$(DC_COMPILER) -no_gui -x "source $(SCRIPT_DIR)/$(SYNTH_FREQ_SCRIPT); quit" \
+	@cd $(WORK_DIR); \
+	$(DC_COMPILER) -no_gui -x "cd ../../../../../; source $(SCRIPT_DIR)/$(SYNTH_FREQ_SCRIPT); quit" \
 	| tee $(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log \
 	| sed $(DC_COLOR); \
 	EXIT_CODE=$${PIPESTATUS[0]}; \

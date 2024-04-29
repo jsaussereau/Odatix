@@ -43,7 +43,7 @@ if {[catch {
     puts "**************************************"
     puts "<end>"
 
-    elaborate ${top_level_module} -library WORK
+    elaborate ${top_level_module} -library $lib_name
 
     link
     report_progress 8 $synth_statusfile

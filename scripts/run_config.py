@@ -516,6 +516,9 @@ if __name__ == "__main__":
       with open(config_file, 'r') as f:
         cf_content = f.read()
 
+      # lib name
+      lib_name = "DC_WORK_" + target + "_" + arch.replace("/", "_")
+
       cf_content = re.sub("(set script_path.*)",        "set script_path        " + tmp_script_path, cf_content)
       cf_content = re.sub("(set tmp_path.*)",           "set tmp_path           " + tmp_dir, cf_content)
       cf_content = re.sub("(set rtl_path.*)",           "set rtl_path           " + rtl_path, cf_content)
@@ -534,6 +537,7 @@ if __name__ == "__main__":
       cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + fmax_upper_bound, cf_content)
       cf_content = re.sub("(set script_copy_enable.*)", "set script_copy_enable " + script_copy_enable, cf_content)
       cf_content = re.sub("(set script_copy_source.*)", "set script_copy_source " + script_copy_source, cf_content)
+      cf_content = re.sub("(set lib_name.*)",           "set lib_name           " + lib_name, cf_content)
       cf_content = re.sub("(set constraints_file.*)",   "set constraints_file   $tmp_path/" + constraint_file, cf_content)
 
       with open(config_file, 'w') as f:

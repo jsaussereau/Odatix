@@ -43,7 +43,7 @@ if {[catch {
     # read verilog source files
     puts "\n<green>analyze_script.tcl<end>: reading verilog...<end>"
     if {![
-        analyze -library WORK -f verilog -autoread -recursive $tmp_path/rtl/
+        analyze -library $lib_name -f verilog -autoread -recursive $tmp_path/rtl/
     ]} {
         puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading verilog source files<end>"
         set verilog_error 1
@@ -52,7 +52,7 @@ if {[catch {
     # read systemverilog source files
     puts "\n<green>analyze_script.tcl<end>: reading system verilog...<end>"
     if {![
-        analyze -library WORK -f sverilog -autoread -recursive $tmp_path/rtl/
+        analyze -library $lib_name -f sverilog -autoread -recursive $tmp_path/rtl/
     ]} {
         puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading systemverilog source files<end>"
         set sverilog_error 1
@@ -61,7 +61,7 @@ if {[catch {
     # read vhdl source files
     puts "\n<green>analyze_script.tcl<end>: reading vhdl verilog...<end>"
     if {![
-        analyze -library WORK -f vhdl -autoread -recursive $tmp_path/rtl/
+        analyze -library $lib_name -f vhdl -autoread -recursive $tmp_path/rtl/
     ]} {
         puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading vhdl source files<end>"
         if {$verilog_error == 1 && $sverilog_error == 1} {
