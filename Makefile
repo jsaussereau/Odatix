@@ -109,7 +109,7 @@ clean_vivado:
 ########################################################
 
 .PHONY: dc
-dc: motd run_dc_only results_dc_only
+dc: motd run_dc_only results_dc_only clean_dc_work
 
 .PHONY: run_dc
 run_dc: motd run_dc_only
@@ -123,18 +123,22 @@ results_dc_only:
 	@python3 ./$(SCRIPT_DIR)/export_results.py --tool design_compiler --benchmark
 
 .PHONY: clean_dc
-clean_dc:
+clean_dc: clean_dc_work
 	@rm -f command.log
 	@rm -f default.svf
 	@rm -f filenames*.log
 	@rm -rf DC_WORK_*_autoread
-	@rm -rf alib-*
 	@rm -rf work/ARCH
 	@rm -rf WORK_autoread
 	@rm -rf work/ENTI
 	@rm -f work/*.syn
 	@rm -f work/*.mr
 	@rm -f change_names_verilog
+
+.PHONY: clean_dc_work
+clean_dc_work:
+	@rm -rf alib-*
+	@rm -rf DC_WORK_*_autoread
 
 ########################################################
 # Generic
