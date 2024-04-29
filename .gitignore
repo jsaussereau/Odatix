@@ -6,10 +6,14 @@ work/design_compiler/*
 **/vivado*.str
 **/tight_setup_hold_pins.txt
 **/__pycache__
-alib-52
+alib-*
 work/ARCH
 work/ENTI
 work/*.syn
 work/*.mr
 command.log
 default.svf
+change_names_verilog
+filenames*.log
+.nfs*
+DC_WORK_*_autoread
