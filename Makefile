@@ -126,8 +126,11 @@ results_dc_only:
 clean_dc:
 	@rm -f command.log
 	@rm -f default.svf
-	@rm -rf alib-52
+	@rm -f filenames*.log
+	@rm -rf DC_WORK_*_autoread
+	@rm -rf alib-*
 	@rm -rf work/ARCH
+	@rm -rf WORK_autoread
 	@rm -rf work/ENTI
 	@rm -f work/*.syn
 	@rm -f work/*.mr
