@@ -1,6 +1,6 @@
 # Welcome to Asterism!
 
-Asterism is a framework designed to facilitate logical synthesis on various FPGA and ASIC tools such as Vivado and Design Compiler. 
+Asterism is a toolbox designed to facilitate logical synthesis on various FPGA and ASIC tools such as Vivado and Design Compiler. 
 It allows to easily find the maximum operating frequency of any digital architecture described with an HDL (VHDL, Verilog, SystemVerilog).
 
 The primary feature of this framework lies in its capability to compare different architectural configurations using parameter files. 
@@ -18,7 +18,7 @@ With Asterism, users can effortlessly explore different architectural designs an
 | EDA Tool                 | Status              |
 | :----------------------- | :------------------ |
 | AMD Vivado               | ✔️ supported        |
-| Synopsys Design Compiler | 🚧 work in progress |
+| Synopsys Design Compiler | ✔️ supported        |
 | Intel Quartus Prime      | 📅 planned          |
 
 > [!NOTE]
