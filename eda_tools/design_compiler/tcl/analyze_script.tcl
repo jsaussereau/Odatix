@@ -39,6 +39,9 @@ if {[catch {
     # Read source files
     ######################################
     suppress_message { AUTOREAD-303 AUTOREAD-107 AUTOREAD-105 AUTOREAD-102 AUTOREAD-100 VER-26 }
+    
+    set verilog_error 0
+    set sverilog_error 0
 
     # read verilog source files
     puts "\n<green>analyze_script.tcl<end>: reading verilog...<end>"
