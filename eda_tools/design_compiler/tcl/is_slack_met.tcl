@@ -36,7 +36,7 @@ proc is_slack_inf {timing_rep} {
   set tfile [open $timing_rep]
   #check if we can find "Slack:                    inf" in the timing report
   while {[gets $tfile data] != -1} {
-    if {[string match *[string toupper "Slack:                    inf"]* [string toupper $data]]} {
+    if {[string match *[string toupper "(Path is unconstrained)"]* [string toupper $data]]} {
       close $tfile
       return 1  
     }
