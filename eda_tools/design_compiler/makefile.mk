@@ -75,7 +75,7 @@ synth_fmax_only: logdir
 
 .PHONY: test_tool
 test_tool:
-	@$(DC_COMPILER) -no_gui -x "exit"
+	$(DC_COMPILER) -no_gui -x "exit"
 
 .PHONY: logdir
 logdir:
