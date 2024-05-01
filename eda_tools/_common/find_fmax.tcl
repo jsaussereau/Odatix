@@ -221,9 +221,9 @@ if {[catch {
     source $summary_script
   } elseif {$got_met == 0 && $got_violated == 0} {
     puts ""
-    puts "<bold><red>Slack is infinite. Make sure there are registers at input and output of design<end>"
+    puts "<bold><red>Path is unconstrained. Make sure there are registers at input and output of design<end>"
     puts "<cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
-    puts $logfile_handler "Slack is infinite. Make sure there are registers at input and output of design"
+    puts $logfile_handler "Path is unconstrained. Make sure there are registers at input and output of design"
     puts $logfile_handler "Both the rtl description and the tool's synthesis choices could be at fault"
     exit -2
   } elseif {$got_violated == 0} {
