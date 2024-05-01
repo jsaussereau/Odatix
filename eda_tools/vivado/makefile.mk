@@ -148,6 +148,10 @@ vivado:
 	$(VIVADO) -mode tcl -notrace \
 	| sed $(VIVADO_COLOR)
 
+.PHONY: test_tool
+test_tool:
+	@$(VIVADO_INIT) $(VIVADO) -version
+
 .PHONY: logdir
 logdir:
 	@mkdir -p $(LOG_DIR)

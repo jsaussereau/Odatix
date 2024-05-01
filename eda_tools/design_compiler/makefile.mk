@@ -73,6 +73,10 @@ synth_fmax_only: logdir
 	echo "result logged to \"$(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log\""; \
 	exit $$EXIT_CODE
 
+.PHONY: test_tool
+test_tool:
+	@$(DC_COMPILER) -no_gui -x "exit"
+
 .PHONY: logdir
 logdir:
 	@mkdir -p $(LOG_DIR)
