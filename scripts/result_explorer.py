@@ -33,7 +33,7 @@ import webbrowser
 from threading import Timer
 from itertools import product
 
-# Préparation des données pour le DataFrame
+# Prepare data for the dataframe
 def update_dataframe(yaml_data):
     data = []
     for target, architectures in yaml_data.items():
@@ -45,15 +45,15 @@ def update_dataframe(yaml_data):
                 row['Configuration'] = config
                 data.append(row)
 
-    # Création du DataFrame
+    # Create the dataframe
     return pd.DataFrame(data)
 
 def get_yaml_data(file_path):
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
 
-# Liste des métriques et des cibles disponibles
-# Récupérer les métriques à partir du fichier YAML
+# List of metrics and available targets
+# Retrieve metrics from the YAML file
 def update_metrics(yaml_data):
     metrics_from_yaml = set()
     for target_data in yaml_data.values():
@@ -70,34 +70,34 @@ def get_complete_df(df):
 
 ####################################################################################
 
-# Couleur des courbes
+# Color of the lines
 plot_colors = px.colors.qualitative.Plotly
 
-# Obtenir la liste des fichiers YAML dans le dossier results
+# Get the list of YAML files in the results folder
 yaml_files = [file for file in os.listdir('results') if file.endswith('.yml')]
 
-# Charger les données depuis tous les fichiers YAML
+# Load data from all YAML files
 all_data = {}
 for yaml_file in yaml_files:
     file_path = os.path.join('results', yaml_file)
     all_data[yaml_file] = get_yaml_data(file_path)
 
-# Préparation des données pour la DataFrame
+# Prepare data for the dataframe
 dfs = {yaml_file: update_dataframe(data) for yaml_file, data in all_data.items()}
 
-# Obtenez toutes les architectures de tous les fichiers YAML
+# Get all architectures from all YAML files
 all_architectures = sorted(set(architecture for df in dfs.values() for architecture in df['Architecture'].unique()))
 
-# Toutes les configurations
+# All configurations
 all_configurations = sorted(set(config for df in dfs.values() for config in df['Configuration'].unique()))
 
-# Liste des boutons pour chaque architecture
+# List of buttons for each architecture
 def create_legend_item(architecture, line_style, color):
     return html.Div([
         dcc.Checklist(
             id=f'checklist-{architecture}',
             options=[{'label': '', 'value': architecture}],
-            value=[architecture],  # Sélectionnée par défaut
+            value=[architecture],  # Selected by default
             inline=True,
             style={'display': 'inline-block', 'margin-right': '10px'}
         ),
@@ -119,23 +119,23 @@ def create_legend_item(architecture, line_style, color):
             'border-radius': '50%'
         })),
         html.Div(f'{architecture}', style={'display': 'inline-block', 'margin-left': '5px'})
-    ], id=f'legend-item-{architecture}', style={'display': 'block', 'margin-bottom': '5px'})  # Modifiez ici pour 'display': 'block' et ajoutez une marge en bas
+    ], id=f'legend-item-{architecture}', style={'display': 'block', 'margin-bottom': '5px'})  # Change here to 'display': 'block' and add bottom margin
 
-# Création de la légende personnalisée
+# Create custom legend
 legend_items = [create_legend_item(architecture, '2px dashed', plot_colors[i % len(plot_colors)]) 
                 for i, architecture in enumerate(all_architectures)]
 
-# Création de l'application Dash
+# Create Dash application
 app = dash.Dash(__name__)
 app.title = 'Asterism'
 
-# Mise en place du layout de l'application
+# Set up the application layout
 app.layout = html.Div([
     html.H1("Asterism - Implementation Result Explorer"),
     dcc.Dropdown(
         id='yaml-dropdown',
         options=[{'label': yaml_file, 'value': yaml_file} for yaml_file in yaml_files],
-        value=yaml_files[0]  # Sélectionnez le premier fichier par défaut
+        value=yaml_files[0]  # Select the first file by default
     ),
     html.Div([
         dcc.Dropdown(
@@ -146,7 +146,7 @@ app.layout = html.Div([
             id='target-dropdown',
             value=dfs[yaml_files[0]]['Target'].iloc[0]
         ),
-    ], id='dropdowns'),  # Mettez les dropdowns dans un conteneur div pour les mettre à jour ensemble
+    ], id='dropdowns'),  # Put dropdowns in a div container to update them together
 
     html.Div([
         html.Div([
@@ -155,8 +155,8 @@ app.layout = html.Div([
         
         html.Div([
             html.Div([
-                html.Button("Afficher Tout", id="show-all", n_clicks=0, style={'margin-top': '100px'}),
-                html.Button("Masquer Tout", id="hide-all", n_clicks=0),
+                html.Button("Show All", id="show-all", n_clicks=0, style={'margin-top': '100px'}),
+                html.Button("Hide All", id="hide-all", n_clicks=0),
             ]),
             
             html.Div(legend_items, id='custom-legend', style={'margin-top': '5px'}),
@@ -167,7 +167,7 @@ app.layout = html.Div([
 
 ####################################################################################
 
-# Callback pour la mise à jour des dropdowns
+# Callback to update the dropdowns
 @app.callback(
     [Output('metric-dropdown', 'options'),
      Output('target-dropdown', 'options')],
@@ -180,7 +180,7 @@ def update_dropdowns(selected_yaml):
     available_targets = [{'label': target, 'value': target} for target in df['Target'].unique()]
     return available_metrics, available_targets
 
-# Callback pour le changement de fichier YAML
+# Callback for YAML file change
 @app.callback(
     Output('dropdowns', 'children'),
     Input('yaml-dropdown', 'value')
@@ -198,7 +198,7 @@ def update_yaml(selected_yaml):
         ),
     ]
 
-# Callback pour la mise à jour du graphique
+# Callback to update the graph
 @app.callback(
     Output('graph', 'figure'),
     [Input('yaml-dropdown', 'value'),
@@ -212,20 +212,20 @@ def update_graph(selected_yaml, selected_metric, selected_target, show_all, hide
     ctx = dash.callback_context
     triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    # Mise à jour des architectures visibles en fonction du bouton déclencheur
+    # Update visible architectures based on the triggering button
     if triggered_id in ['show-all', 'hide-all']:
         visible_architectures = set(all_architectures if triggered_id == 'show-all' else [])
     else:
-        # Extraire les architectures visibles des checklists
+        # Extract visible architectures from checklists
         visible_architectures = set(architecture for i, architecture in enumerate(all_architectures) if checklist_values[i])
 
-     # Filtrer le DataFrame pour les architectures sélectionnées
+    # Filter dataframe for selected architectures
     filtered_df = dfs[selected_yaml][(dfs[selected_yaml]['Target'] == selected_target) &
                                       (dfs[selected_yaml]['Architecture'].isin(visible_architectures))]
 
     unique_configurations = sorted(filtered_df['Configuration'].unique())
     
-    # Construction du graphique
+    # Build the graph
     fig = go.Figure()
     for i, architecture in enumerate(all_architectures):
         if architecture in visible_architectures:
@@ -248,13 +248,13 @@ def update_graph(selected_yaml, selected_metric, selected_target, show_all, hide
             )
 
     fig.update_layout(
-        yaxis=dict(range=[0, None]), # ymin à 0 et ymax automatique
+        yaxis=dict(range=[0, None]), # ymin at 0 and automatic ymax
         width=1450,
         height=720
     )    
     return fig
 
-# Callback pour changer la visibilité des dropdowns
+# Callback to change the visibility of dropdowns
 @app.callback(
     [Output(f'legend-item-{architecture}', 'style') for architecture in all_architectures],
     [Input('target-dropdown', 'value'),
@@ -265,7 +265,7 @@ def update_legend_visibility(selected_target, selected_yaml):
     return [{'display': 'block' if architecture in architectures_for_target else 'none'}
             for architecture in all_architectures]
 
-# Callback pour synchroniser les boutons "Afficher Tout" et "Masquer Tout" avec les checklists individuelles
+# Callback to synchronize "Show All" and "Hide All" buttons with individual checklists
 @app.callback(
     [Output(f'checklist-{architecture}', 'value') for architecture in all_architectures],
     [Input('show-all', 'n_clicks'),
@@ -275,18 +275,19 @@ def update_legend_visibility(selected_target, selected_yaml):
 def update_checklist_states(show_all_clicks, hide_all_clicks, *current_values):
     ctx = dash.callback_context
     if not ctx.triggered:
-        # Pas de changement si aucun bouton n'est cliqué
+        # No change if no button is clicked
         return dash.no_update
 
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     if button_id == 'show-all':
-        # Sélectionner toutes les architectures
+        # Select all architectures
         return [[architecture] for architecture in all_architectures]
     elif button_id == 'hide-all':
-        # Désélectionner toutes les architectures
+        # Deselect all architectures
         return [[] for _ in all_architectures]
 
     return current_values
 
 if __name__ == "__main__":
     app.run_server(debug=True)
+    
