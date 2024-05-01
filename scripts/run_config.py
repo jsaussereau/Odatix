@@ -64,6 +64,7 @@ test_tool_rule = "test_tool"
 
 settings_ini_section = "SETTINGS"
 valid_status = "Done: 100%"
+valid_frequency_search = "Highest frequency with timing constraints being met"
 
 progress_bar_size = 50
 refresh_time = 5
@@ -296,6 +297,7 @@ if __name__ == "__main__":
     for arch in architectures:
       tmp_dir = work_path + '/' + target + '/' + arch
       fmax_status_file = tmp_dir + '/' + log_path + '/' + fmax_status_filename
+      frequency_search_file = tmp_dir + '/' + log_path + '/' + frequency_search_filename
 
       # get param dir (arch name before '/')
       arch_param_dir = re.sub('/.*', '', arch)
@@ -401,26 +403,30 @@ if __name__ == "__main__":
           continue
 
       # check if the architecture is in cache and has a status file
-      if isdir(tmp_dir) and isfile(fmax_status_file):
+      if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
         # check if the previous synth_fmax has completed
-        f = open(fmax_status_file, "r")
-        if valid_status in f.read():
-          if overwrite:
-            print(bcolors.WARNING + "Found cached results for \"" + arch + "\" with target \"" + target + "\"." + bcolors.ENDC)
-            overwrite_archs.append(arch)
-            f.close()
+        sf = open(fmax_status_file, "r")
+        if valid_status in sf.read():
+          ff = open(frequency_search_file, "r")
+          if valid_frequency_search in ff.read():
+            if overwrite:
+              print(bcolors.WARNING + "Found cached results for \"" + arch + "\" with target \"" + target + "\"." + bcolors.ENDC)
+              overwrite_archs.append(arch)
+            else:
+              print(bcolors.OKCYAN + "Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping." + bcolors.ENDC)
+              cached_archs.append(arch)
+              continue
           else:
-            print(bcolors.OKCYAN + "Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping." + bcolors.ENDC)
-            cached_archs.append(arch)
-            f.close()
-            continue
+            print(bcolors.WARNING + "The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency." + bcolors.ENDC)
+            overwrite_archs.append(arch)
+          ff.close()
         else: 
           print(bcolors.WARNING + "The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted." + bcolors.ENDC)
           incomplete_archs.append(arch)
-          f.close()
+        sf.close()
       else:
         new_archs.append(arch)
-      
+
       # passed all check: added to the list
       valid_archs.append(arch)
     
