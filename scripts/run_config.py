@@ -60,6 +60,7 @@ tool_makefile_filename = "makefile.mk"
 constraint_file = "constraints.txt"
 source_tcl = "source scripts/"
 synth_fmax_rule = "synth_fmax_only"
+test_tool_rule = "test_tool"
 
 settings_ini_section = "SETTINGS"
 valid_status = "Done: 100%"
@@ -220,6 +221,23 @@ if __name__ == "__main__":
   if not isfile(eda_target_filename):
     print(bcolors.BOLD + bcolors.FAIL + "error: Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist" + bcolors.ENDC)
     sys.exit()
+
+  # Try launching eda tool 
+  print("checking the selected eda tool \"" + tool + "\" ..", end='')
+  sys.stdout.flush()
+  test_process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, test_tool_rule, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+  while test_process.poll() is None:
+    print('.', end='', flush=True)
+    time.sleep(0.5)
+  if test_process.returncode == 0:
+      print(bcolors.OKGREEN + " success!" + bcolors.ENDC)
+  else:
+    print(bcolors.FAIL + " failed!" + bcolors.ENDC)
+    print(bcolors.BOLD + bcolors.FAIL + "error: Could not launch eda tool \"" + tool + "\"" + bcolors.ENDC)
+    print(bcolors.OKCYAN + "note: did you add the tool path to your PATH environment variable?" + bcolors.ENDC)
+    print(bcolors.OKCYAN + "note: example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin" + bcolors.ENDC)
+    sys.exit()
+  print()
 
   with open(eda_target_filename, 'r') as f:
     settings_data = yaml.load(f, Loader=SafeLoader)
