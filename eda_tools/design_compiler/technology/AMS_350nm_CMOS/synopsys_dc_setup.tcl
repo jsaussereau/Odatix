@@ -2,7 +2,7 @@
 #########
 ### Define Work Library Location
 #########
-define_design_lib WORK -path "./work"
+#define_design_lib WORK -path "./work"
 
 #########
 ### retrieve AMS directory path and SYNOPSYS path from the environement variables
@@ -36,4 +36,4 @@ set bus_inference_style "%s_%d_"
 set bus_naming_style    "%s_%d"
 set write_name_nets_same_as_ports true
 
-puts "USE: set_fix_multiple_port_nets -all [all_designs]"
+#puts "USE: set_fix_multiple_port_nets -all [all_designs]"
