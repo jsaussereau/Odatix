@@ -20,7 +20,7 @@ file_copy_dest: "/dev/null"
 
 # delimiters for parameter files
 use_parameters: "true"
-start_delimiter: "alu_top #("
+start_delimiter: "# ("
 stop_delimiter: ")("
 
 # optionnal target-specific bounds (in MHz) to speed up fmax search
@@ -34,6 +34,9 @@ xc7k70t-fbg676-2:
   fmax_lower_bound: 100
   fmax_upper_bound: 700
 XFAB180CMOS:
-  fmax_lower_bound: 50
+  fmax_lower_bound: 300
   fmax_upper_bound: 700
+AMS350CMOS:
+  fmax_lower_bound: 50
+  fmax_upper_bound: 400
 ...

@@ -34,6 +34,9 @@ xc7k70t-fbg676-2:
   fmax_lower_bound: 500
   fmax_upper_bound: 1650
 XFAB180CMOS:
-  fmax_lower_bound: 100
+  fmax_lower_bound: 400
   fmax_upper_bound: 700
+AMS350CMOS:
+  fmax_lower_bound: 60
+  fmax_upper_bound: 160
 ...
