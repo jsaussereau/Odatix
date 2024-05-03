@@ -68,7 +68,7 @@ if {[catch {
     ]} {
         puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading vhdl source files<end>"
         if {$verilog_error == 1 && $sverilog_error == 1} {
-            puts "<green>analyze_script.tcl<end>:<red>error: failed reading verilog, system verilog and vhdl source files, exiting"
+            puts "<green>analyze_script.tcl<end>: <red>error: failed reading verilog, system verilog and vhdl source files, exiting<end>"
             exit -1
         }
     }
