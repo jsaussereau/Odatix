@@ -63,7 +63,8 @@ help: motd
 	@echo -e "DATA EXPORT"
 	@echo -e "\t$(_BOLD)make results$(_END): export synthesis results"
 	@echo -e "DATA EXPLORATION"
-	@echo -e "\t$(_BOLD)make explore$(_END): explore results in a web app"
+	@echo -e "\t$(_BOLD)make explore$(_END): explore results in a web app (localhost only)"
+	@echo -e "\t$(_BOLD)make explore_network$(_END): explore results in a web app (network-accessible)"
 	@echo -e "OTHERS"
 	@echo -e "\t$(_BOLD)make help$(_END): display a list of useful commands"
 
@@ -161,3 +162,10 @@ explore: motd explore_only
 .PHONY: explore_only
 explore_only:
 	@python3 ./$(EXPLORE_SCRIPT)
+
+.PHONY: explore_network
+explore_network: motd explore_network_only
+
+.PHONY: explore_network_only
+explore_network_only:
+	@python3 ./$(EXPLORE_SCRIPT) --network

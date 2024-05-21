@@ -27,10 +27,21 @@ import tty
 import termios
 import result_explorer
 import select
+import socket
 
 # Default ip address: local
 host_address = '127.0.0.1'
 port = 8052
+network = False
+
+class bcolors:
+  BLINK = '\033[5m'
+  WARNING = '\033[93m'
+  FAIL = '\033[91m'
+  OKBLUE = '\033[94m'
+  OKCYAN = '\033[96m'
+  ENDC = '\033[0m'
+  BOLD = '\033[1m'
 
 def open_browser():
     webbrowser.open(host_address + ':' + str(port), new=0, autoraise=True)
@@ -56,9 +67,18 @@ if __name__ == "__main__":
 
     # Check options
     if "-n" in sys.argv or "--network" in sys.argv:
-        host_address = '0.0.0.0'
+        network = True
+        ip_address = host_address
 
-    print("result explorer server running on http://" + host_address + ":" + str(port) + '/')
+    if network:
+        host_address = '0.0.0.0'
+        ip_address = socket.gethostbyname(socket.gethostname())
+
+    print("result explorer server running on " + bcolors.OKBLUE + " http://" + ip_address + ":" + str(port) + '/' + bcolors.ENDC, end="")
+    if network:
+        print(" (localhost only)")
+    else:
+        print(" (network-accessible)")
     print("press 'q' to quit")
 
     # Open the web page
