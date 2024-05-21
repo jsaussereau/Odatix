@@ -31,6 +31,7 @@ import socket
 
 # Default ip address: local
 host_address = '127.0.0.1'
+ip_address = host_address
 port = 8052
 network = False
 
@@ -44,7 +45,7 @@ class bcolors:
   BOLD = '\033[1m'
 
 def open_browser():
-    webbrowser.open(host_address + ':' + str(port), new=0, autoraise=True)
+    webbrowser.open(ip_address + ':' + str(port), new=0, autoraise=True)
 
 def close_server():
     restore_mode(old_settings)
@@ -68,7 +69,6 @@ if __name__ == "__main__":
     # Check options
     if "-n" in sys.argv or "--network" in sys.argv:
         network = True
-        ip_address = host_address
 
     if network:
         host_address = '0.0.0.0'
@@ -76,9 +76,9 @@ if __name__ == "__main__":
 
     print("result explorer server running on " + bcolors.OKBLUE + " http://" + ip_address + ":" + str(port) + '/' + bcolors.ENDC, end="")
     if network:
-        print(" (localhost only)")
-    else:
         print(" (network-accessible)")
+    else:
+        print(" (localhost only)")
     print("press 'q' to quit")
 
     # Open the web page
