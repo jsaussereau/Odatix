@@ -74,7 +74,7 @@ if {[catch {
 
   # sanity checks
   if {$upper_bound < $lower_bound} {
-    error "<bold><red>script error: upper bound ($upper_bound) cannot be smaller than lower bound ($lower_bound)<end>"
+    error "<green>init_script.tcl<end>: <red>upper bound ($upper_bound) cannot be smaller than lower bound ($lower_bound)<end>"
     exit -1
   }
 
