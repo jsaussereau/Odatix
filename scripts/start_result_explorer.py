@@ -28,6 +28,7 @@ import termios
 import result_explorer
 import select
 
+# Default ip address: local
 host_address = '127.0.0.1'
 port = 8052
 
@@ -52,6 +53,10 @@ def restore_mode(old_settings):
 if __name__ == "__main__":
     from waitress import serve
     from flask import request
+
+    # Check options
+    if "-n" in sys.argv or "--network" in sys.argv:
+        host_address = '0.0.0.0'
 
     print("result explorer server running on http://" + host_address + ":" + str(port) + '/')
     print("press 'q' to quit")
