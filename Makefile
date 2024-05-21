@@ -34,6 +34,7 @@ LOG_DIR                 = $(WORK_DIR)/log
 EXPORT_SCRIPT           = $(SCRIPT_DIR)/export_results.py
 EXPLORE_SCRIPT          = $(SCRIPT_DIR)/start_result_explorer.py
 RUN_SCRIPT              = $(SCRIPT_DIR)/run_config.py
+MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 
 ########################################################
 # Text formatting
@@ -70,12 +71,7 @@ help: motd
 
 .PHONY: motd
 motd:
-	@echo -ne "$(_BOLD)"
-	@echo "********************************************************************"
-	@echo "*                             Asterism                             *"
-	@echo "********************************************************************"
-	@echo -ne "$(_END)"
-	@echo ""
+	@python3 $(MOTD_SCRIPT)
 
 .PHONY: clean
 clean: clean_vivado clean_dc
