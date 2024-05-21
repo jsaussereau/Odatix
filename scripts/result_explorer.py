@@ -33,6 +33,13 @@ import webbrowser
 from threading import Timer
 from itertools import product
 
+class bcolors:
+  WARNING = '\033[93m'
+  FAIL = '\033[91m'
+  OKCYAN = '\033[96m'
+  ENDC = '\033[0m'
+  BOLD = '\033[1m'
+
 # Prepare data for the dataframe
 def update_dataframe(yaml_data):
     data = []
@@ -46,7 +53,14 @@ def update_dataframe(yaml_data):
                 data.append(row)
 
     # Create the dataframe
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+
+    # Check if the dataframe contains the required columns and they are not empty
+    required_columns = ['Target', 'Architecture', 'Configuration']
+    if not all(column in df.columns and not df[column].empty for column in required_columns):
+        return None
+
+    return df
 
 def get_yaml_data(file_path):
     with open(file_path, 'r') as file:
@@ -75,12 +89,19 @@ plot_colors = px.colors.qualitative.Plotly
 
 # Get the list of YAML files in the results folder
 yaml_files = [file for file in os.listdir('results') if file.endswith('.yml')]
+valid_yaml_files = []
 
 # Load data from all YAML files
 all_data = {}
 for yaml_file in yaml_files:
     file_path = os.path.join('results', yaml_file)
-    all_data[yaml_file] = get_yaml_data(file_path)
+    data = get_yaml_data(file_path)
+    df = update_dataframe(data)   
+    if df is None:
+        print(bcolors.WARNING + f"warning: yaml file \"{yaml_file}\" is empty or corrupted, skipping..." + bcolors.ENDC)
+    else:
+        all_data[yaml_file] = data
+        valid_yaml_files.append(yaml_file)
 
 # Prepare data for the dataframe
 dfs = {yaml_file: update_dataframe(data) for yaml_file, data in all_data.items()}
@@ -144,7 +165,7 @@ app.layout = html.Div([
         ),
         dcc.Dropdown(
             id='target-dropdown',
-            value=dfs[yaml_files[0]]['Target'].iloc[0]
+            value=dfs[valid_yaml_files[0]]['Target'].iloc[0]
         ),
     ], id='dropdowns'),  # Put dropdowns in a div container to update them together
 
