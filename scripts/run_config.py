@@ -72,8 +72,8 @@ refresh_time = 5
 default_fmax_lower_bound = 50
 default_fmax_upper_bound = 500
 
-fmax_status_pattern = re.compile("(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
-synth_status_pattern = re.compile("(.*): ([0-9]+)%(.*)")
+fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
+synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 
 tcl_bool_true = ['true', 'yes', 'on', '1']
 tcl_bool_false = ['false', 'no', 'off', '0']
@@ -650,7 +650,7 @@ if __name__ == "__main__":
           if running_arch.process.returncode == 0:
               comment = " (" + bcolors.OKGREEN + "done" + bcolors.ENDC + ")"
           else:
-              comment = " (" + bcolors.FAIL + "terminated with errors" + bcolors.ENDC + ")"
+              comment = " (" + bcolors.FAIL + "terminated with errors: code " + str(running_arch.process.returncode) + bcolors.ENDC + ")"
           progress_bar(progress, title=running_arch.arch, endstr=comment)
         else: 
           progress_bar(progress, title=running_arch.arch)
