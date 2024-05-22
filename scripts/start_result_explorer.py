@@ -74,7 +74,7 @@ if __name__ == "__main__":
         host_address = '0.0.0.0'
         ip_address = socket.gethostbyname(socket.gethostname())
 
-    print("result explorer server running on " + bcolors.OKBLUE + " http://" + ip_address + ":" + str(port) + '/' + bcolors.ENDC, end="")
+    print("result explorer server running on " + bcolors.OKBLUE + "http://" + ip_address + ":" + str(port) + '/' + bcolors.ENDC, end="")
     if network:
         print(" (network-accessible)")
     else:
