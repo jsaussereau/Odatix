@@ -650,7 +650,7 @@ if __name__ == "__main__":
           if running_arch.process.returncode == 0:
               comment = " (" + bcolors.OKGREEN + "done" + bcolors.ENDC + ")"
           else:
-              comment = " (" + bcolors.FAIL + "terminated with errors: code " + str(running_arch.process.returncode) + bcolors.ENDC + ")"
+              comment = " (" + bcolors.FAIL + "terminated with errors" + bcolors.ENDC + ")"
           progress_bar(progress, title=running_arch.arch, endstr=comment)
         else: 
           progress_bar(progress, title=running_arch.arch)

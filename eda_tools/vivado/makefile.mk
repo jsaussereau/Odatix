@@ -115,7 +115,8 @@ synth_fmax: motd synth_fmax_only clean
 
 .PHONY: synth_fmax_only
 synth_fmax_only: logdir
-	@$(VIVADO_INIT)\
+	@/bin/bash -c '\
+	$(VIVADO_INIT)\
 	$(VIVADO) -mode tcl -notrace \
 	-source $(SCRIPT_DIR)/$(SYNTH_FREQ_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(EXIT_SCRIPT) \
@@ -123,7 +124,7 @@ synth_fmax_only: logdir
 	| sed $(VIVADO_COLOR); \
 	EXIT_CODE=$${PIPESTATUS[0]}; \
 	echo "result logged to \"$(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log\""; \
-	exit $$EXIT_CODE
+	exit $$EXIT_CODE'
 
 .PHONY: test
 test:
