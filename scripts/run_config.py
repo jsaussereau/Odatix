@@ -157,13 +157,14 @@ def move_cursor_up():
   sys.stdout.write("\033[K") # Clear to the end of line
   sys.stdout.flush()
 
-def progress_bar(progress, title, endstr=''):
+def progress_bar(progress, title, title_size=50, endstr=''):
   if progress > 100:
     progress = 100
   
   limit = int(progress * progress_bar_size / 100)
-        
-  print(title + ": [", end = '')
+  padded_title = title.ljust(title_size)
+
+  print(padded_title + " [", end = '')
   for i in range(0, limit):
     print('#', end = '')
   for i in range(limit, progress_bar_size):
@@ -603,6 +604,8 @@ if __name__ == "__main__":
         for running_arch in running_arch_list:
           move_cursor_up()
 
+      max_title_length = max(len(running_arch.arch) for running_arch in running_arch_list)
+
       for running_arch in running_arch_list:
 
         # get status files full paths
@@ -651,9 +654,9 @@ if __name__ == "__main__":
               comment = " (" + bcolors.OKGREEN + "done" + bcolors.ENDC + ")"
           else:
               comment = " (" + bcolors.FAIL + "terminated with errors" + bcolors.ENDC + ")"
-          progress_bar(progress, title=running_arch.arch, endstr=comment)
+          progress_bar(progress, title=running_arch.arch, title_size=max_title_length, endstr=comment)
         else: 
-          progress_bar(progress, title=running_arch.arch)
+          progress_bar(progress, title=running_arch.arch, title_size=max_title_length)
 
       time.sleep(refresh_time)
 
