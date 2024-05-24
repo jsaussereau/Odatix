@@ -73,11 +73,6 @@ set file_copy_dest     /dev/null
 set script_copy_enable false
 set script_copy_source /dev/null
 
-# warning: escape characters twice (e.g. '\\/' for '/')
-set use_parameters     true
-set start_delimiter    "#("
-set stop_delimiter     ")("
-
 set lib_name           WORK
 
 ######################################
