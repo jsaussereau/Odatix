@@ -156,7 +156,12 @@ if {[catch {
       if {[is_slack_inf $timing_rep]} {
         set logfile_handler [open $logfile a]
         puts $logfile_handler  "INFINITE"
+        puts ""
+        puts "<bold><red>Path is unconstrained. Make sure there are registers at input and output of design. Make sure you select the correct clock signal.<end>"
+        puts "<cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
+        puts $logfile_handler "Path is unconstrained. Make sure there are registers at input and output of design.  Make sure you select the correct clock signal. Both the rtl description and the tool's synthesis choices could be at fault"
         close $logfile_handler
+        exit -2
       } else {
         set got_violated 1
         set logfile_handler [open $logfile a]
@@ -223,8 +228,7 @@ if {[catch {
     puts ""
     puts "<bold><red>Path is unconstrained. Make sure there are registers at input and output of design<end>"
     puts "<cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
-    puts $logfile_handler "Path is unconstrained. Make sure there are registers at input and output of design"
-    puts $logfile_handler "Both the rtl description and the tool's synthesis choices could be at fault"
+    puts $logfile_handler "Path is unconstrained. Make sure there are registers at input and output of design. Both the rtl description and the tool's synthesis choices could be at fault"
     exit -2
   } elseif {$got_violated == 0} {
     puts ""
