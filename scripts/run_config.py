@@ -359,22 +359,6 @@ if __name__ == "__main__":
             continue
 
         try:
-          design_path = read_from_list('design_path', settings_data, settings_filename, optionnal=True, print_error=False)
-        except:
-          design_path = rtl_path
-
-        try:
-          param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optionnal=True, print_error=False)
-          # check if param target file path exists
-          param_target_file = design_path + '/' + param_target_filename
-          if not isfile(param_target_file): 
-            print(bcolors.BOLD + bcolors.FAIL + "error: The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
-            error_archs.append(arch)
-            continue
-        except:
-          param_target_filename = top_level_filename
-
-        try:
           generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optionnal=True, print_error=False)
           if generate_rtl in tcl_bool_true:
             try:
@@ -386,6 +370,30 @@ if __name__ == "__main__":
               continue
         except:
           generate_rtl = "false"
+
+        try:
+          design_path = read_from_list('design_path', settings_data, settings_filename, optionnal=True, print_error=False)
+        except:
+          design_path = -1
+          if generate_rtl in tcl_bool_true:
+            print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true" + bcolors.ENDC)
+            banned_arch_param.append(arch_param_dir)
+            continue
+        
+        try:
+          param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optionnal=True, print_error=False)
+          if design_path == -1:
+            print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"design_path\" in \"" + settings_filename + "\" while param_target_file is defined" + bcolors.ENDC)
+            banned_arch_param.append(arch_param_dir)
+            continue
+          # check if param target file path exists
+          param_target_file = design_path + '/' + param_target_filename
+          if not isfile(param_target_file): 
+            print(bcolors.BOLD + bcolors.FAIL + "error: The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
+            banned_arch_param.append(arch_param_dir)
+            continue
+        except:
+          param_target_filename = top_level_filename
 
       # check if file_copy_enable is a boolean
       file_copy_enable = file_copy_enable.lower()
@@ -546,14 +554,9 @@ if __name__ == "__main__":
         fmax_upper_bound = str(fmax_upper_bound)
 
         try:
-          design_path = read_from_list('design_path', settings_data, settings_filename, optionnal=True, print_error=False)
-        except:
-          design_path = rtl_path
-
-        try:
           param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optionnal=True, print_error=False)
         except:
-          param_target_filename = top_level_filename
+          param_target_filename = 'rtl/' + top_level_filename
 
         try:
           generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optionnal=True, print_error=False)
@@ -581,13 +584,21 @@ if __name__ == "__main__":
       copytree(script_path + '/' + tool + '/tcl', tmp_script_path, dirs_exist_ok = True)
 
       # copy design 
-      copytree(design_path, tmp_dir, dirs_exist_ok = True)
+      try:
+        design_path = read_from_list('design_path', settings_data, settings_filename, optionnal=True, print_error=False)
+        copytree(design_path, tmp_dir, dirs_exist_ok = True)
+      except:
+        design_path = ""
+
+      # copy rtl (if exists) 
+      if not generate_rtl in tcl_bool_true:
+        copytree(rtl_path, tmp_dir + '/' + 'rtl', dirs_exist_ok = True)
 
       # replace parameters
       if use_parameters in tcl_bool_true:
-        print(bcolors.OKCYAN + "Replace parameters" + bcolors.ENDC)
+        #print(bcolors.OKCYAN + "Replace parameters" + bcolors.ENDC)
         param_target_file = tmp_dir + '/' + param_target_filename
-        param_filename = arch_path + '/' + arch + ".txt"
+        param_filename = arch_path + '/' + arch + '.txt'
         rp.replace_params(
           base_text_file=param_target_file, 
           replacement_text_file=param_filename, 
@@ -596,7 +607,7 @@ if __name__ == "__main__":
           stop_delimiter=stop_delimiter, 
           replace_all_occurrences=False
         )
-        print()
+        #print()
 
       # run generate command
       if generate_rtl in tcl_bool_true:
