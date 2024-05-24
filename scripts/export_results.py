@@ -22,6 +22,7 @@
 import os
 import csv
 import yaml
+import printc
 import argparse
 
 import sys
@@ -48,19 +49,14 @@ status_done = 'Done: 100%'
 bad_value = ' /   '
 format_mode = 'fpga'
 
+script_name = "export_results.py"
+
 ######################################
 # Misc functions
 ######################################
 
-class bcolors:
-  WARNING = '\033[93m'
-  FAIL = '\033[91m'
-  OKCYAN = '\033[96m'
-  ENDC = '\033[0m'
-  BOLD = '\033[1m'
-
 def corrupted_directory(target, variant):
-  print(f"{bcolors.WARNING}warning{bcolors.ENDC}: {target}/{variant} => synthesis has not finished or directory has been corrupted")
+  printc.warning(target + "/" + variant + " => synthesis has not finished or directory has been corrupted", script_name)
 
 def safe_cast(val, to_type, default=None):
   try:
@@ -91,11 +87,11 @@ def import_result_parser(tool):
     elif tool == 'design_compiler':
       import parse_design_compiler_results as selected_parser
     else:
-      print(bcolors.BOLD + bcolors.FAIL + "error: the tool \"" + tool + "\" is not supported by this tool." + bcolors.ENDC)
+      printc.error("the tool \"" + tool + "\" is not supported by this tool", script_name)
       sys.exit()
   except:
-    print(bcolors.BOLD + bcolors.FAIL + "error: could not find a parser for tool \"" + tool + "\"" + bcolors.ENDC)
-    print(bcolors.OKCYAN + "note: check if the python parser \"eda_tools/" + tool + "/parser/parse_" + tool + "_results.py\" exists and is valid." + bcolors.ENDC)
+    printc.error("could not find a parser for tool \"" + tool + "\"", script_name)
+    printc.note("check if the python parser \"eda_tools/" + tool + "/parser/parse_" + tool + "_results.py\" exists and is valid", script_name)
     sys.exit()
   return selected_parser
 
@@ -108,8 +104,8 @@ def check_parser(parser, format_mode, tool):
 
   for function in function_to_test:
     if not hasattr(parser, function):
-        print(bcolors.BOLD + bcolors.FAIL + "error: function \"" + str(function) + "\" is not defined in parser lib \"parse_" + tool + "_results.py\"")
-        sys.exit()
+        printc.error("function \"" + str(function) + "\" is not defined in parser lib \"parse_" + tool + "_results.py\"", script_name)
+        sys.exit(1)
 
 ######################################
 # Parsing functions
@@ -120,10 +116,10 @@ def get_dmips_per_mhz(architecture, variant, benchmark_data):
     dmips_value = benchmark_data[architecture][variant]['dmips_per_MHz']
     return dmips_value
   except KeyError as e:
-    #print(f"Could not find key in benchmark file: {e}")
+    #printc.error(f"could not find key in benchmark file: {e}", script_name)
     return None
   except Exception as e:
-    print(f"Could not read benchmark file '{benchmark_file}': {e}")
+    printc.error("could not read benchmark file \"" + benchmark_file + " : " + str(e), script_name)
     return None
 
 ######################################
@@ -273,8 +269,6 @@ def write_to_csv(args, output_file, parser, fieldnames):
 ######################################
 
 if __name__ == "__main__":
-  print(f"{bcolors.OKCYAN}exporting results...{bcolors.ENDC}")
-
   args = parse_arguments()
 
   if args.tool == 'vivado':
@@ -282,7 +276,10 @@ if __name__ == "__main__":
   elif args.tool == 'design_compiler':
     format_mode = 'asic'
   else:
-    raise ValueError(f"Unsupported tool ({args.tool}) selected. Please choose 'vivado' or 'design_compiler'.")
+    printc.error("unsupported tool (" + args.tool + " ) selected, please choose 'vivado' or 'design_compiler'", script_name)
+    sys.exit(1)
+
+  print(printc.colors.CYAN + "Export " +  args.tool + " results" + printc.colors.ENDC)
 
   parser = import_result_parser(args.tool)
   check_parser (parser, format_mode, args.tool)
@@ -292,27 +289,30 @@ if __name__ == "__main__":
   elif format_mode == 'asic':
     fieldnames = fieldnames_asic
   else:
-    raise ValueError(f"Invalid format mode ({format_mode}) selected. Please choose 'fpga' or 'asic'.")
+    printc.error("invalid format mode (" + format_mode + ") selected. Please choose 'fpga' or 'asic'", script_name)
+    sys.exit(1)
 
   if not args.input.endswith(('/vivado', '/design_compiler')):
-    args.input = f"{args.input}/{args.tool}"
+    args.input = args.input + "/" + args.tool
 
   if not os.path.isdir(args.input):
-    print(f"Input directory '{args.input}' does not exist")
-    sys.exit()
+    printc.error("input directory \"" + args.input + "\" does not exist", script_name)
+    sys.exit(1)
 
   benchmark_data = None
   if args.benchmark:
     if not exists(benchmark_file):
       args.benchmark = False
-      print(f"{bcolors.ERROR}error{bcolors.ENDC}: cannot find benchmark file '{benchmark_file}', benchmark export disabled.")
+      printc.error("cannot find benchmark file \"" + benchmark_file + "\", benchmark export disabled", script_name)
     with open(benchmark_file, 'r') as file:
       benchmark_data = yaml.safe_load(file)
 
   if args.format in ['csv', 'all']:
-    csv_file = f"{args.output}/results_{args.tool}.csv"
+    csv_file = args.output + "/results_" + args.tool + ".csv"
     write_to_csv(args, csv_file, parser, fieldnames)
 
   if args.format in ['yml', 'all']:
-    yaml_file = f"{args.output}/results_{args.tool}.yml"
+    yaml_file = args.output + "/results_" + args.tool + ".yml"
     write_to_yaml(args, yaml_file, parser, benchmark_data)
+
+  print()
