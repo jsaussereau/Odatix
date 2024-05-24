@@ -33,13 +33,6 @@ if {[catch {
     exec /bin/sh -c "mkdir -p $log_path"
 
     ######################################
-    # Create a local copy of source files
-    ######################################
-    exec /bin/sh -c "rm -rf $tmp_path/rtl"
-    exec /bin/sh -c "mkdir -p $tmp_path/rtl"
-    exec /bin/sh -c "rsync -av --exclude=\".*\" $rtl_path/* $tmp_path/rtl"
-
-    ######################################
     # copy file (optionnaly)
     ######################################
     # get target 
@@ -58,7 +51,6 @@ if {[catch {
     # quick and dirty bool conversion in case bool is not supported
     set file_copy_enable_bool [expr {!!$file_copy_enable}]
     set script_copy_enable_bool [expr {!!$script_copy_enable}]
-    set use_parameters_bool [expr {!!$use_parameters}]
 
     if {$file_copy_enable_bool == 1} {
         if {[catch {
@@ -76,51 +68,6 @@ if {[catch {
         } errmsg]} {
             error "<green>init_script.tcl<end>: <bold><red>error: could not copy '$script_copy_source' into '$script_path'<end>"
             puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
-            exit -1
-        }
-    }
-
-    ######################################
-    # update top level parameters
-    ######################################
-    # add escape characters
-    set start_delimiter [exec /bin/sh -c "echo \"$start_delimiter\" | sed 's|/|\\\\\\\\/|g'"]
-    set stop_delimiter [exec /bin/sh -c "echo \"$stop_delimiter\" | sed 's|/|\\\\\\\\/|g'"]
-
-    # get architecture
-    set f [open $architecture_file]
-    set architecture [gets $f]
-    close $f
-
-    if {$use_parameters_bool == 1} {
-        if {[file exists ./${arch_path}/$architecture.txt]} {
-            # check if there is a match
-            set return_code_start [exec /bin/sh -c "sed -n '/$start_delimiter/p' $tmp_path/rtl/$top_level_file"]
-            if {$return_code_start == ""} {
-                puts "<green>init_script.tcl<end>: <bold><red>error: could not find start delimiter '$start_delimiter' for parameters in top level, exiting <end>"
-                puts "<green>init_script.tcl<end>: <cyan>note: make sure start/stop delimiters specified in the '_settings.yml' file of the architecture match the top level description in '$top_level_file'<end>"
-                exit -1
-            }
-            set return_code_stop [exec /bin/sh -c "sed -n '/$stop_delimiter/p' $tmp_path/rtl/$top_level_file"]
-            if {$return_code_stop == ""} {
-                puts "<green>init_script.tcl<end>: <bold><red>error: could not find stop delimiter '$stop_delimiter' for parameters in top level, exiting <end>"
-                puts "<green>init_script.tcl<end>: <cyan>note: make sure start/stop delimiters specified in the '_settings.yml' file of the architecture match the top level description in '$top_level_file'<end>"
-                exit -1
-            }
-
-            # copy to top level file
-            if {[catch {
-                exec /bin/sh -c "sed -i '/$start_delimiter/,/$stop_delimiter/!b;//!d;/$stop_delimiter/e cat ./${arch_path}/$architecture.txt' $tmp_path/rtl/$top_level_file"
-            } errmsg]} {
-                puts "<green>init_script.tcl<end>: <bold><red>error: error while copy parameters to top level file, exiting <end>"
-                puts "<green>init_script.tcl<end>: <cyan>note: you might use unsupported characters<end>"
-                puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
-                exit -1
-            }
-        } else {
-            #puts "init_script.tcl: <bold><yellow>warning: architecture specified in '$architecture_file' ($target) has no assiociated target config file in directory '${arch_path}', using default parameters <end>"
-            puts "<green>init_script.tcl<end>: <bold><red>error: architecture specified in '$architecture_file' ($target) has no assiociated parameter file in directory '${arch_path}', exiting <end>"
-            puts "<green>init_script.tcl<end>: <cyan>note: make sure the file '$architecture.txt' in '${arch_path}'<end>"
             exit -1
         }
     }

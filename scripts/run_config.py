@@ -27,6 +27,7 @@ import copy
 import yaml
 import argparse
 import subprocess
+import replace_params as rp
 
 from yaml.loader import SafeLoader
 
@@ -343,6 +344,32 @@ if __name__ == "__main__":
           error_archs.append(arch)
           continue # if an identifier is missing
 
+        param_filename = arch + ".txt"
+        use_parameters = use_parameters.lower()
+        if use_parameters in use_parameters:
+          # check if parameter file exists
+          if not isfile(arch_path + '/' + param_filename):
+            print(bcolors.BOLD + bcolors.FAIL + "error: There is no parameter file \"" + arch_path + param_filename + "\", while use_parameters=true" + bcolors.ENDC)
+            banned_arch_param.append(arch_param_dir)
+            error_archs.append(arch)
+            continue
+
+        try:
+          design_path = read_from_list('design_path', settings_data, settings_filename, optionnal=True, print_error=False)
+        except:
+          design_path = rtl_path
+
+        try:
+          param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optionnal=True, print_error=False)
+          # check if param target file path exists
+          param_target_file = design_path + '/' + param_target_filename
+          if not isfile(param_target_file): 
+            print(bcolors.BOLD + bcolors.FAIL + "error: The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
+            error_archs.append(arch)
+            continue
+        except:
+          param_target_filename = top_level_filename
+
       # check if file_copy_enable is a boolean
       file_copy_enable = file_copy_enable.lower()
       if not (file_copy_enable in tcl_bool_true or file_copy_enable in tcl_bool_false):
@@ -356,39 +383,39 @@ if __name__ == "__main__":
         error_archs.append(arch)
         continue
 
-      # check if top level file path exists
-      top_level = rtl_path + '/' + top_level_filename
-      if not isfile(top_level):
-        print(bcolors.BOLD + bcolors.FAIL + "error: The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
-        error_archs.append(arch)
-        continue
+        # check if top level file path exists
+        top_level = rtl_path + '/' + top_level_filename
+        if not isfile(top_level):
+          print(bcolors.BOLD + bcolors.FAIL + "error: The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
+          error_archs.append(arch)
+          continue
 
-      # check if the top level module name exists in the top level file, at least
-      f = open(top_level, "r")
-      if not top_level_module in f.read():
-        print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
-        error_archs.append(arch)
+        # check if the top level module name exists in the top level file, at least
+        f = open(top_level, "r")
+        if not top_level_module in f.read():
+          print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
+          error_archs.append(arch)
+          f.close()
+          continue
         f.close()
-        continue
-      f.close()
-      
-      # check if the top clock name exists in the top level file, at least
-      f = open(top_level, "r")
-      if not clock_signal in f.read():
-        print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
-        error_archs.append(arch)
+        
+        # check if the top clock name exists in the top level file, at least
+        f = open(top_level, "r")
+        if not clock_signal in f.read():
+          print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
+          error_archs.append(arch)
+          f.close()
+          continue
         f.close()
-        continue
-      f.close()
-      
-      # check if the top reset name exists in the top level file, at least
-      f = open(top_level, "r")
-      if not clock_signal in f.read():
-        print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
-        error_archs.append(arch)
+        
+        # check if the top reset name exists in the top level file, at least
+        f = open(top_level, "r")
+        if not clock_signal in f.read():
+          print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
+          error_archs.append(arch)
+          f.close()
+          continue
         f.close()
-        continue
-      f.close()
 
       # check if param file exists
       if not isfile(arch_path + '/' + arch + '.txt'):
@@ -457,24 +484,6 @@ if __name__ == "__main__":
     for arch in valid_archs:
       tmp_dir = work_path + '/' + target + '/' + arch
 
-      # create directory
-      if isdir(tmp_dir):
-        rmtree(tmp_dir)
-      makedirs(tmp_dir)
-
-      # copy scripts
-      tmp_script_path = tmp_dir + '/' + work_script_path
-      copytree(script_path + '/' + common_script_path, tmp_script_path)
-      copytree(script_path + '/' + tool + '/tcl', tmp_script_path, dirs_exist_ok = True)
-
-      # create target and architecture files
-      f = open(tmp_dir + '/' + target_filename, 'w')
-      print(target, file = f)
-      f.close()
-      f = open(tmp_dir + '/' + arch_filename, 'w')
-      print(arch, file = f)
-      f.close()
-
       # get param dir (arch name before '/')
       arch_param_dir = re.sub('/.*', '', arch)
 
@@ -511,30 +520,79 @@ if __name__ == "__main__":
         fmax_lower_bound = str(fmax_lower_bound)
         fmax_upper_bound = str(fmax_upper_bound)
 
-        # set source and dest to null if copy is disabled
-        file_copy_enable = file_copy_enable.lower()
         try:
-          if not file_copy_enable in tcl_bool_true:
-            raise
-          if not os.path.exists(file_copy_source):
-            print(bcolors.OKCYAN + "note: the file \"" + file_copy_source + "\"specified in \"" + settings_filename + "\" does not exist. File copy disabled." + bcolors.ENDC)
-            raise
+          design_path = read_from_list('design_path', settings_data, settings_filename, optionnal=True, print_error=False)
         except:
-          file_copy_enable = "false"
-          file_copy_source = "/dev/null"
-          file_copy_dest = "/dev/null"
-        
+          design_path = rtl_path
+
+        try:
+          param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optionnal=True, print_error=False)
+        except:
+          param_target_filename = top_level_filename
+
+        try:
+          generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optionnal=True, print_error=False)
+          try:
+            generate_command = read_from_list('generate_command', settings_data, settings_filename, optionnal=True, print_error=False)
+          except:
+            print(bcolors.OKCYAN + "note: Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true, disabled hdl generation" + bcolors.ENDC)
+            generate_command = ""
+            generate_rtl = "false"
+        except:
+          generate_rtl = "false"
+
       use_parameters = use_parameters.lower()
       if not use_parameters in tcl_bool_true:
         use_parameters = "false"
 
-      # add escape characters
-      #start_delimiter = re.sub("(/)", "\\\\\\\\/", start_delimiter)
-      #stop_delimiter = re.sub("(/)", "\\\\\\\\/", stop_delimiter)
+      # create directory
+      if isdir(tmp_dir):
+        rmtree(tmp_dir)
+      makedirs(tmp_dir)
 
-      # add quote characters
-      start_delimiter = '"' + start_delimiter + '"'
-      stop_delimiter = '"' + stop_delimiter + '"'
+      # copy scripts
+      tmp_script_path = tmp_dir + '/' + work_script_path
+      copytree(script_path + '/' + common_script_path, tmp_script_path)
+      copytree(script_path + '/' + tool + '/tcl', tmp_script_path, dirs_exist_ok = True)
+
+      # copy design 
+      copytree(design_path, tmp_dir, dirs_exist_ok = True)
+
+      # replace parameters
+      if use_parameters in tcl_bool_true:
+        print(bcolors.OKCYAN + "Replace parameters" + bcolors.ENDC)
+        param_target_file = tmp_dir + '/' + param_target_filename
+        param_filename = arch_path + '/' + arch + ".txt"
+        rp.replace_params(
+          base_text_file=param_target_file, 
+          replacement_text_file=param_filename, 
+          output_file=param_target_file, 
+          start_delimiter=start_delimiter, 
+          stop_delimiter=stop_delimiter, 
+          replace_all_occurrences=False
+        )
+        print()
+
+      # create target and architecture files
+      f = open(tmp_dir + '/' + target_filename, 'w')
+      print(target, file = f)
+      f.close()
+      f = open(tmp_dir + '/' + arch_filename, 'w')
+      print(arch, file = f)
+      f.close()
+
+      # set source and dest to null if copy is disabled
+      file_copy_enable = file_copy_enable.lower()
+      try:
+        if not file_copy_enable in tcl_bool_true:
+          raise
+        if not os.path.exists(file_copy_source):
+          print(bcolors.OKCYAN + "note: the file \"" + file_copy_source + "\"specified in \"" + settings_filename + "\" does not exist. File copy disabled." + bcolors.ENDC)
+          raise
+      except:
+        file_copy_enable = "false"
+        file_copy_source = "/dev/null"
+        file_copy_dest = "/dev/null"
 
       # edit config script
       config_file = tmp_script_path + '/' + config_filename
@@ -552,9 +610,6 @@ if __name__ == "__main__":
       cf_content = re.sub("(set reset_signal.*)",       "set reset_signal       " + reset_signal, cf_content)
       cf_content = re.sub("(set top_level_module.*)",   "set top_level_module   " + top_level_module, cf_content)
       cf_content = re.sub("(set top_level_file.*)",     "set top_level_file     " + top_level_filename, cf_content)
-      cf_content = re.sub("(set use_parameters.*)",     "set use_parameters     " + use_parameters, cf_content)
-      cf_content = re.sub("(set start_delimiter.*)",    "set start_delimiter    " + start_delimiter, cf_content)
-      cf_content = re.sub("(set stop_delimiter.*)",     "set stop_delimiter     " + stop_delimiter, cf_content)
       cf_content = re.sub("(set file_copy_enable.*)",   "set file_copy_enable   " + file_copy_enable, cf_content)
       cf_content = re.sub("(set file_copy_source.*)",   "set file_copy_source   " + file_copy_source, cf_content)
       cf_content = re.sub("(set file_copy_dest.*)",     "set file_copy_dest     " + file_copy_dest, cf_content)
