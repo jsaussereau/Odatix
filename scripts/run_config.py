@@ -95,6 +95,7 @@ class bcolors:
   OKGREEN = '\033[92m'
   WARNING = '\033[93m'
   FAIL = '\033[91m'
+  GREY = '\033[30m'
   ENDC = '\033[0m'
   BOLD = '\033[1m'
   UNDERLINE = '\033[4m'
@@ -103,6 +104,9 @@ class bcolors:
 ######################################
 # Misc functions
 ######################################
+
+def script_name():
+  return bcolors.GREY + "[run_config.py]" + bcolors.ENDC + " "
 
 # python 3.8+ like copytree
 def copytree(src, dst, dirs_exist_ok=False, **kwargs):
@@ -370,6 +374,19 @@ if __name__ == "__main__":
         except:
           param_target_filename = top_level_filename
 
+        try:
+          generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optionnal=True, print_error=False)
+          if generate_rtl in tcl_bool_true:
+            try:
+              generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False)
+            except:
+              print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true" + bcolors.ENDC)
+              banned_arch_param.append(arch_param_dir)
+              error_archs.append(arch)
+              continue
+        except:
+          generate_rtl = "false"
+
       # check if file_copy_enable is a boolean
       file_copy_enable = file_copy_enable.lower()
       if not (file_copy_enable in tcl_bool_true or file_copy_enable in tcl_bool_false):
@@ -377,11 +394,19 @@ if __name__ == "__main__":
         error_archs.append(arch)
         continue
 
-      # check if rtl path exists
-      if not isdir(rtl_path):
-        print(bcolors.BOLD + bcolors.FAIL + "error: The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
+      # check if generate_rtl is a boolean
+      generate_rtl = generate_rtl.lower()
+      if not (generate_rtl in tcl_bool_true or generate_rtl in tcl_bool_false):
+        print(bcolors.BOLD + bcolors.FAIL + "error: Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")" + bcolors.ENDC)
         error_archs.append(arch)
         continue
+
+      if not generate_rtl in tcl_bool_true:
+        # check if rtl path exists
+        if not isdir(rtl_path):
+          print(bcolors.BOLD + bcolors.FAIL + "error: The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
+          error_archs.append(arch)
+          continue
 
         # check if top level file path exists
         top_level = rtl_path + '/' + top_level_filename
@@ -571,6 +596,16 @@ if __name__ == "__main__":
           stop_delimiter=stop_delimiter, 
           replace_all_occurrences=False
         )
+        print()
+
+      # run generate command
+      if generate_rtl in tcl_bool_true:
+        try:
+          print(bcolors.OKCYAN + "Run generate command" + bcolors.ENDC)
+          print(bcolors.BOLD + generate_command + bcolors.ENDC)
+          result = subprocess.run([generate_command], cwd=tmp_dir, shell=True, check=True, text=True)
+        except subprocess.CalledProcessError as e:
+          print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find identifier \"" + identifier + "\" in \"" + filename + "\"." + bcolors.ENDC)
         print()
 
       # create target and architecture files
