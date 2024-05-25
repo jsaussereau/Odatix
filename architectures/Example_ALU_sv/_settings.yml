@@ -1,10 +1,10 @@
 
 ##############################################
-# Settings for counter example
+# Settings for ALU example
 ##############################################
 ---
 
-#rtl path, relative to "architectures" parent directory (Asterism root), not this directory
+#rtl path, relative to Asterism root directory, not this directory
 rtl_path: "examples/alu"
 
 top_level_file: "alu_top.sv"
@@ -20,7 +20,7 @@ file_copy_dest: "/dev/null"
 
 # delimiters for parameter files
 use_parameters: "true"
-start_delimiter: "# ("
+start_delimiter: "#("
 stop_delimiter: ")("
 
 # optionnal target-specific bounds (in MHz) to speed up fmax search
