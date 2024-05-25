@@ -4,19 +4,17 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.{ChiselStage}
 
-class Counter(bits: Int) extends Module {
+class Counter(BITS: Int) extends Module {
   val io = IO(new Bundle {
     val i_clk     = Input(Clock())
     val i_rst     = Input(Bool())
     val i_init    = Input(Bool())
     val i_inc_dec = Input(Bool())
-    val o_value   = Output(UInt(bits.W))
+    val o_value   = Output(UInt(BITS.W))
   })
 
-  // Create a register to hold the counter value
-  val counter = RegInit(0.U(bits.W))
+  val counter = RegInit(0.U(BITS.W))
 
-  // Define the behavior of the counter
   when (io.i_rst) {
     counter := 0.U
   } .elsewhen (io.i_init) {
@@ -29,11 +27,9 @@ class Counter(bits: Int) extends Module {
     }
   }
 
-  // Connect the output
   io.o_value := counter
 }
 
-// Objet pour générer le SystemVerilog du module Counter
 object Counter extends App {
   _root_.circt.stage.ChiselStage.emitSystemVerilog(
     new Counter(8),
