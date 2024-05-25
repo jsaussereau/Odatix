@@ -21,18 +21,10 @@
 
 import re
 import sys
+import printc
 import argparse
 
-class bcolors:
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    OKCYAN = '\033[96m'
-    GREY = '\033[30m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-
-def script_name():
-    return bcolors.GREY + "[replace_params.py]" + bcolors.ENDC + " "
+script_name = "replace_params.py"
 
 def read_file(file_path):
     try:
@@ -40,7 +32,7 @@ def read_file(file_path):
             content = file.read()
         return content
     except:
-        print(script_name() + bcolors.BOLD + bcolors.FAIL + "error:" + bcolors.ENDC + bcolors.FAIL + " could not open input file \"" + file_path + "\"" + bcolors.ENDC)
+        printc.error("could not open input file \"" + file_path + "\"", script_name)
         sys.exit(1)
 
 def write_file(file_path, content):
@@ -48,7 +40,7 @@ def write_file(file_path, content):
         with open(file_path, 'w') as file:
             file.write(content)
     except Exception as e:
-        print(script_name() + bcolors.BOLD + bcolors.FAIL + "error:" + bcolors.ENDC + bcolors.FAIL + " could not write output file \"" + file_path + "\": " + str(e) + bcolors.ENDC)
+        printc.error("could not write output file \"" + file_path + "\": " + str(e), script_name)
         sys.exit(1)
 
 def replace_content(base_text, replacement_text, start_delim, stop_delim, replace_all_occurrences):
@@ -59,7 +51,7 @@ def replace_content(base_text, replacement_text, start_delim, stop_delim, replac
         new_text = re.sub(pattern, start_delim + replacement_text + stop_delim, base_text, count=1, flags=re.DOTALL)
     return new_text
 
-def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False):
+def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False, silent=False):
     # Read the contents of text files
     base_text = read_file(base_text_file)
     replacement_text = read_file(replacement_text_file)
@@ -70,10 +62,11 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
     # Write the new content to the output file
     write_file(output_file, new_text)
 
-    if new_text != base_text:
-        print(script_name() + "content replaced successfully, output saved to \"" + output_file + "\"")
-    else:
-        print(script_name() + "nothing to be done, input copied to \"" + output_file + "\"")
+    if not silent:
+        if new_text != base_text:
+            printc.say("content replaced successfully, output saved to \"" + output_file + "\"", script_name)
+        else:
+            printc.say("nothing to be done, input copied to \"" + output_file + "\"", script_name)
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Replace content between delimiters in a text file.")
