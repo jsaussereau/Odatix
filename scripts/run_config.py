@@ -25,6 +25,7 @@ import sys
 import time
 import copy
 import yaml
+import printc
 import argparse
 import subprocess
 import replace_params as rp
@@ -79,6 +80,8 @@ synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 tcl_bool_true = ['true', 'yes', 'on', '1']
 tcl_bool_false = ['false', 'no', 'off', '0']
 
+script_name= "run_config.py"
+
 ######################################
 # Misc classes
 ######################################
@@ -104,9 +107,6 @@ class bcolors:
 ######################################
 # Misc functions
 ######################################
-
-def script_name():
-  return bcolors.GREY + "[run_config.py]" + bcolors.ENDC + " "
 
 # python 3.8+ like copytree
 def copytree(src, dst, dirs_exist_ok=False, **kwargs):
@@ -605,19 +605,24 @@ if __name__ == "__main__":
           output_file=param_target_file, 
           start_delimiter=start_delimiter, 
           stop_delimiter=stop_delimiter, 
-          replace_all_occurrences=False
+          replace_all_occurrences=False,
+          silent=True
         )
         #print()
 
       # run generate command
       if generate_rtl in tcl_bool_true:
         try:
-          print(bcolors.OKCYAN + "Run generate command" + bcolors.ENDC)
-          print(bcolors.BOLD + generate_command + bcolors.ENDC)
+          print()
+          printc.subheader("Run generate command (" + arch + ")")
+          printc.bold(" > " + generate_command)
           result = subprocess.run([generate_command], cwd=tmp_dir, shell=True, check=True, text=True)
         except subprocess.CalledProcessError as e:
-          print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find identifier \"" + identifier + "\" in \"" + filename + "\"." + bcolors.ENDC)
-        print()
+          print()
+          printc.error("rtl generation failed", script_name)
+          printc.note("look for earlier error to solve this issue", script_name)
+          print()
+          continue
 
       # create target and architecture files
       f = open(tmp_dir + '/' + target_filename, 'w')
@@ -689,7 +694,7 @@ if __name__ == "__main__":
         process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, synth_fmax_rule, "WORK_DIR=\"" + tmp_dir + "\"", "SCRIPT_DIR=\"" + tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
       running_arch_list.append(Running_arch(process, arch))
-      print("started job for architecture \"{}\" between {} and {} MHz with pid {}".format(arch, fmax_lower_bound, fmax_upper_bound, process.pid))
+      printc.say("started job for architecture \"{}\" between {} and {} MHz with pid {}".format(arch, fmax_lower_bound, fmax_upper_bound, process.pid), script_name)
 
     # prepare output
     print()
