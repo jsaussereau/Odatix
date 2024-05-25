@@ -23,6 +23,8 @@ if {[catch {
 
     source scripts/settings.tcl
 
+    set signature "<grey>\[analyze_script.tcl\]<end>"
+
     ######################################
     # Read source files
     ######################################
@@ -33,10 +35,10 @@ if {[catch {
     set verilog_filenames [split [exec find $tmp_path/rtl/ -type f ( -name *.v -o -name *.sv )] \n]
     if {[catch {read_verilog $verilog_filenames} errmsg]} {
         if {$verilog_filenames == ""} {
-            puts "<green>analyze_script.tcl<end>: <cyan>note: no verilog file in source directory<end>"
+            puts "$signature <cyan>note: no verilog file in source directory<end>"
         } else {
-            puts "<green>analyze_script.tcl<end>: <bold><red>error: failed reading verilog source files<end>"
-            puts "<green>analyze_script.tcl<end>: tool says -> $errmsg"
+            puts "$signature <bold><red>error: failed reading verilog source files<end>"
+            puts "$signature tool says -> $errmsg"
         }
         set verilog_error 1
     }
@@ -45,21 +47,21 @@ if {[catch {
     set vhdl_filenames [split [exec find $tmp_path/rtl/ -type f ( -name *.vhd -o -name *.vhdl )] \n]
     if {[catch {read_vhdl $vhdl_filenames} errmsg]} {
         if {$vhdl_filenames == ""} {
-            puts "<green>analyze_script.tcl<end>: <cyan>note: no vhdl file in source directory<end>"
+            puts "$signature <cyan>note: no vhdl file in source directory<end>"
         } else {
-            puts "<green>analyze_script.tcl<end>: <bold><red>error: failed reading vhdl source files<end>"
-            puts "<green>analyze_script.tcl<end>: tool says -> $errmsg"
+            puts "$signature <bold><red>error: failed reading vhdl source files<end>"
+            puts "$signature tool says -> $errmsg"
         }
         if {$verilog_error == 1} {
-            puts "<green>analyze_script.tcl<end>:<red>error: failed reading both verilog and vhdl source files, exiting"
+            puts "$signature <red>error: failed reading both verilog and vhdl source files, exiting"
             exit -1
         }
     }
 
 } ]} {
-    puts "<green>analyze_script.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
-    puts "<green>analyze_script.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
-    puts "<green>analyze_script.tcl<end>: <cyan>tcl error detail:<red>"
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    puts "$signature <cyan>tcl error detail:<red>"
     puts "$errorInfo"
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
     exit -1

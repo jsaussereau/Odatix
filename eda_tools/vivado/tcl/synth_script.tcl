@@ -23,6 +23,8 @@ if {[catch {
 
     source scripts/settings.tcl
 
+    set signature "<grey>\[synth_script.tcl\]<end>"
+
     report_progress 0 $synth_statusfile
 
     ######################################
@@ -45,8 +47,8 @@ if {[catch {
     if {[catch {
         read_xdc $constraints_file
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed reading constraint file, exiting<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "$signature <bold><red>error: failed reading constraint file, exiting<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
         exit -1
     }
 
@@ -65,26 +67,26 @@ if {[catch {
     if {[catch {
         synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design synth, exiting<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed design synth, exiting<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
         exit -1
     }
     report_progress 45 $synth_statusfile
     if {[catch {
         opt_design -sweep -remap -propconst
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design opt, skipping<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed design opt, skipping<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
     report_progress 55 $synth_statusfile
     if {[catch {
         opt_design -directive Explore
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design opt, skipping<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed design opt, skipping<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
     report_progress 65 $synth_statusfile
 
@@ -94,52 +96,52 @@ if {[catch {
     if {[catch {
         place_design -directive Explore
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design place, exiting<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed design place, exiting<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
         exit -1
     }
     report_progress 70 $synth_statusfile
     if {[catch {
         phys_opt_design -retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed physical opt, skipping...<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed physical opt, skipping...<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
     report_progress 75 $synth_statusfile
     if {[catch {
         route_design -directive AggressiveExplore
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design route, exiting<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed design route, exiting<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
         exit -1
     }
     report_progress 85 $synth_statusfile
     if {[catch {
         place_design -post_place_opt
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed post-place opt, skipping...<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed post-place opt, skipping...<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
     report_progress 90 $synth_statusfile
     if {[catch {
         phys_opt_design -retime -routing_opt
         # -lut_opt -casc_opt
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed physical opt, skipping...<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed physical opt, skipping...<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
     report_progress 95 $synth_statusfile
     if {[catch {
         route_design -directive NoTimingRelaxation
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed design route, exiting<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed design route, exiting<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
         exit -1
     }
     report_progress 98 $synth_statusfile
@@ -152,18 +154,18 @@ if {[catch {
         report_timing > $timing_rep
         report_power > $power_rep
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: failed report, skipping...<end>"
-        puts -nonewline "<green>synth_script.tcl<end>: tool says -> $errmsg"
-        puts "<green>synth_script.tcl<end>: <cyan>note: look for earlier error to solve this issue<end>"
+        puts "$signature <bold><red>error: failed report, skipping...<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
 
     report_progress 0 $synth_statusfile
 
 } gblerrmsg ]} {
-    puts "<green>synth_script.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
-    puts "<green>synth_script.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
     catch {
-        puts "<green>synth_script.tcl<end>: <cyan>tcl error detail:<red>"
+        puts "$signature <cyan>tcl error detail:<red>"
         puts "$gblerrmsg"
     }
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"

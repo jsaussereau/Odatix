@@ -23,6 +23,8 @@ if {[catch {
 
     source scripts/settings.tcl
 
+    set signature "<grey>\[init_script.tcl\]<end>"
+
     ######################################
     # Create directories
     ######################################
@@ -41,8 +43,8 @@ if {[catch {
         set target [gets $f]
         close $f
     } errmsg]} {
-        error "<green>init_script.tcl<end>: <bold><red>could not open target file '$target_file'<end>"
-        puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
+        error "$signature <bold><red>could not open target file '$target_file'<end>"
+        puts "$signature tool says -> $errmsg <end>"
         exit -1
     }
 
@@ -56,8 +58,8 @@ if {[catch {
         if {[catch {
             exec /bin/sh -c "cp $file_copy_source $tmp_path/$file_copy_dest"
         } errmsg]} {
-            error "<green>init_script.tcl<end>: <bold><red>error: could not copy '$file_copy_source' into '$tmp_path/$file_copy_dest'<end>"
-            puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
+            error "$signature <bold><red>error: could not copy '$file_copy_source' into '$tmp_path/$file_copy_dest'<end>"
+            puts "$signature tool says -> $errmsg <end>"
             exit -1
         }
     }
@@ -66,16 +68,16 @@ if {[catch {
         if {[catch {
             exec /bin/sh -c "cp $script_copy_source $script_path"
         } errmsg]} {
-            error "<green>init_script.tcl<end>: <bold><red>error: could not copy '$script_copy_source' into '$script_path'<end>"
-            puts "<green>init_script.tcl<end>: tool says -> $errmsg <end>"
+            error "$signature <bold><red>error: could not copy '$script_copy_source' into '$script_path'<end>"
+            puts "$signature tool says -> $errmsg <end>"
             exit -1
         }
     }
 
 } ]} {
-    puts "<green>init_script.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
-    puts "<green>init_script.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
-    puts "<green>init_script.tcl<end>: <cyan>tcl error detail:<red>"
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    puts "$signature <cyan>tcl error detail:<red>"
     puts "$errorInfo"
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
     exit -1

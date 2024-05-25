@@ -23,6 +23,8 @@ if {[catch {
     
     source scripts/settings.tcl
 
+    set signature "<grey>\[synth_script.tcl\]<end>"
+
     set basename ${top_level_module}
     set runname gates_dc
 
@@ -132,8 +134,8 @@ if {[catch {
         #puts "Writing power report file '${REPORT_DIR}/${OUTPUT_PREFIX}power.rep'."
         #report_power -analysis_effort high > ${REPORT_DIR}/${OUTPUT_PREFIX}power.rep
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write power report<end>"
-        puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "$signature <bold><red>error: could not write power report<end>"
+        puts "$signature tool says -> $errmsg"
     }
     if {[catch {
         # Report Area 
@@ -144,8 +146,8 @@ if {[catch {
         echo -n "Cell count:                     " > $utilization_rep
         sizeof_collection [ get_cells  -hier  *] >> $utilization_rep
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write area report<end>"
-        puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "$signature <bold><red>error: could not write area report<end>"
+        puts "$signature tool says -> $errmsg"
     }
     if {[catch {
         # Report Timing 
@@ -153,16 +155,16 @@ if {[catch {
         report_timing -path full -delay max -nworst 1 -max_paths 1 -significant_digits 4 -sort_by group > $timing_rep
         echo -n "Target frequency:               $frequency" > $freq_rep
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write timing report<end>"
-        puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "$signature <bold><red>error: could not write timing report<end>"
+        puts "$signature tool says -> $errmsg"
     }
     if {[catch {
         # Report Reference
         puts "Writing reference report file '$ref_rep'."
         report_reference -hierarchy > $ref_rep    
     } errmsg]} {
-        puts "<green>synth_script.tcl<end>: <bold><red>error: could not write reference report<end>"
-        puts "<green>synth_script.tcl<end>: tool says -> $errmsg"
+        puts "$signature <bold><red>error: could not write reference report<end>"
+        puts "$signature tool says -> $errmsg"
     }
 
     report_progress 96 $synth_statusfile
@@ -196,10 +198,10 @@ if {[catch {
     report_progress 0 $synth_statusfile
 
 } gblerrmsg ]} {
-    puts "<green>synth_script.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
-    puts "<green>synth_script.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
     catch {
-        puts "<green>synth_script.tcl<end>: <cyan>tcl error detail:<red>"
+        puts "$signature <cyan>tcl error detail:<red>"
         puts "$gblerrmsg"
     }
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"

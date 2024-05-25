@@ -56,8 +56,9 @@ _BLUE                   =\x1b[34m
 _MAGENTA                =\x1b[35m
 _CYAN                   =\x1b[36m
 _WHITE                  =\x1b[37m
+_GREY                   =\x1b[90m
 
-DC_COLOR				= "s/Information/$(_CYAN)Information$(_END)/;s/Warning/$(_YELLOW)Warning$(_END)/;s/Error/$(_RED)$(_BOLD)Error$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<cyan>/$(_CYAN)/;s/<bold>/$(_BOLD)/;s/<Err0r>/Error/;s/<W4rning>/Warning/;s/<end>/$(_END)/g"
+DC_COLOR				= "s/Information/$(_CYAN)Information$(_END)/;s/Warning/$(_YELLOW)Warning$(_END)/;s/Error/$(_RED)$(_BOLD)Error$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<cyan>/$(_CYAN)/;s/<magenta>/$(_MAGENTA)/;s/<grey>/$(_GREY)/;s/<bold>/$(_BOLD)/;s/<Err0r>/Error/;s/<W4rning>/Warning/;s/<end>/$(_END)/g"
 
 ########################################################
 # Rules

@@ -23,15 +23,17 @@ if {[catch {
 
     source scripts/settings.tcl
 
+    set signature "<grey>\[analyze_script.tcl\]<end>"
+
     define_design_lib WORK -path $work_path
 
-    puts "<green>analyze_script.tcl<end>: <cyan>note: you can safely ignore the error message (UID-4) below.<end>"
+    puts "$signature <cyan>note: you can safely ignore the error message (UID-4) below.<end>"
 
     if {[catch {
         source scripts/synopsys_dc_setup.tcl
     } errmsg]} {
-        puts "<green>analyze_script.tcl<end>: <bold><red>error: could not source 'synopsys_dc_setup.tcl'<end>"
-        puts "<green>analyze_script.tcl<end>: <cyan>note: design compiler needs a technology file, make sure you added one in 'target_design_compiler.yml'<end>"
+        puts "$signature <bold><red>error: could not source 'synopsys_dc_setup.tcl'<end>"
+        puts "$signature <cyan>note: design compiler needs a technology file, make sure you added one in 'target_design_compiler.yml'<end>"
         exit -1
     }
 
@@ -44,39 +46,39 @@ if {[catch {
     set sverilog_error 0
 
     # read verilog source files
-    puts "\n<green>analyze_script.tcl<end>: reading verilog...<end>"
+    puts "\n$signature reading verilog...<end>"
     if {![
         analyze -library $lib_name -f verilog -autoread -recursive $tmp_path/rtl/
     ]} {
-        puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading verilog source files<end>"
+        puts "$signature <cyan>note: failed reading verilog source files<end>"
         set verilog_error 1
     }
 
     # read systemverilog source files
-    puts "\n<green>analyze_script.tcl<end>: reading system verilog...<end>"
+    puts "\n$signature reading system verilog...<end>"
     if {![
         analyze -library $lib_name -f sverilog -autoread -recursive $tmp_path/rtl/
     ]} {
-        puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading systemverilog source files<end>"
+        puts "$signature <cyan>note: failed reading systemverilog source files<end>"
         set sverilog_error 1
     }
 
     # read vhdl source files
-    puts "\n<green>analyze_script.tcl<end>: reading vhdl verilog...<end>"
+    puts "\n$signature reading vhdl verilog...<end>"
     if {![
         analyze -library $lib_name -f vhdl -autoread -recursive $tmp_path/rtl/
     ]} {
-        puts "<green>analyze_script.tcl<end>: <cyan>note: failed reading vhdl source files<end>"
+        puts "$signature <cyan>note: failed reading vhdl source files<end>"
         if {$verilog_error == 1 && $sverilog_error == 1} {
-            puts "<green>analyze_script.tcl<end>: <red>error: failed reading verilog, system verilog and vhdl source files, exiting<end>"
+            puts "$signature <red>error: failed reading verilog, system verilog and vhdl source files, exiting<end>"
             exit -1
         }
     }
 
 } ]} {
-    puts "<green>analyze_script.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
-    puts "<green>analyze_script.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
-    puts "<green>analyze_script.tcl<end>: <cyan>tcl error detail:<red>"
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    puts "$signature <cyan>tcl error detail:<red>"
     puts "$errorInfo"
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
     exit -1

@@ -28,6 +28,8 @@ if {[catch {
   source scripts/is_slack_met.tcl
   source scripts/update_freq.tcl
 
+  set signature "<grey>\[find_fmax.tcl\]<end>"
+
   set lower_bound $fmax_lower_bound
   set upper_bound $fmax_upper_bound
 
@@ -74,7 +76,7 @@ if {[catch {
 
   # sanity checks
   if {$upper_bound < $lower_bound} {
-    error "<green>find_fmax.tcl<end>: <red>upper bound ($upper_bound) cannot be smaller than lower bound ($lower_bound)<end>"
+    error "$signature <red>upper bound ($upper_bound) cannot be smaller than lower bound ($lower_bound)<end>"
     exit -1
   }
 
@@ -157,8 +159,8 @@ if {[catch {
         set logfile_handler [open $logfile a]
         puts $logfile_handler  "INFINITE"
         puts ""
-        puts "<bold><red>Path is unconstrained. Make sure there are registers at input and output of design. Make sure you select the correct clock signal.<end>"
-        puts "<cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
+        puts "$signature <bold><red>Path is unconstrained. Make sure there are registers at input and output of design. Make sure you select the correct clock signal.<end>"
+        puts "$signature <cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
         puts $logfile_handler "Path is unconstrained. Make sure there are registers at input and output of design.  Make sure you select the correct clock signal. Both the rtl description and the tool's synthesis choices could be at fault"
         close $logfile_handler
         exit -2
@@ -208,7 +210,7 @@ if {[catch {
   set fs_total_time_formatted [format "%02d:%02d:%02d" $h $m $s]
   #set total_time_formatted [clock format $total_time -format %H:%M:%S]
   puts ""
-  puts "total time for max frequency search: $fs_total_time_formatted ($fs_total_time seconds)" 
+  puts "$signature total time for max frequency search: $fs_total_time_formatted ($fs_total_time seconds)" 
 
   set logfile_handler [open $logfile a]
   puts $logfile_handler  ""
@@ -221,23 +223,23 @@ if {[catch {
 
     puts $logfile_handler "Highest frequency with timing constraints being met: $lower_bound MHz"
     puts ""
-    puts "<bold><cyan>Highest frequency with timing constraints being met: $lower_bound MHz<end>"
-    puts "Report summaries for this synthesis:"
+    puts "$signature <bold><cyan>Highest frequency with timing constraints being met: $lower_bound MHz<end>"
+    puts "$signature Report summaries for this synthesis:"
     source $summary_script
   } elseif {$got_met == 0 && $got_violated == 0} {
     puts ""
-    puts "<bold><red>Path is unconstrained. Make sure there are registers at input and output of design<end>"
-    puts "<cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
+    puts "$signature <bold><red>Path is unconstrained. Make sure there are registers at input and output of design<end>"
+    puts "$signature <cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
     puts $logfile_handler "Path is unconstrained. Make sure there are registers at input and output of design. Both the rtl description and the tool's synthesis choices could be at fault"
     exit -2
   } elseif {$got_violated == 0} {
     puts ""
-    puts "<bold><red>No timing violated! Try raising the upper bound ($upper_bound MHz)<end>"
+    puts "$signature <bold><red>No timing violated! Try raising the upper bound ($upper_bound MHz)<end>"
     puts $logfile_handler "No timing violated! Try raising the upper bound ($upper_bound MHz)"
     exit -3
   } else {
     puts ""
-    puts "<bold><red>No timing met! Try lowering the lower bound ($lower_bound MHz)<end>"
+    puts "$signature <bold><red>No timing met! Try lowering the lower bound ($lower_bound MHz)<end>"
     puts $logfile_handler "No timing met! Try lowering the lower bound ($lower_bound MHz)"
     exit -4
   }
@@ -247,10 +249,10 @@ if {[catch {
   exit
 
 } ]} {
-    puts "<green>find_fmax.tcl<end>: <bold><red>error: unhandled tcl error, exiting<end>"
-    puts "<green>find_fmax.tcl<end>: <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
     catch {
-      puts "<green>find_fmax.tcl<end>: <cyan>tcl error detail:<red>"
+      puts "$signature <cyan>tcl error detail:<red>"
       puts "$errorInfo"
     }
     puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
