@@ -31,17 +31,31 @@ class colors:
   BOLD = '\033[1m'
   UNDERLINE = '\033[4m'
 
+def say(message, script_name=""):
+  if script_name != "":
+    script_name = colors.GREY + "[" + script_name + "] " + colors.ENDC
+  print(script_name + message)
+
 def error(message, script_name=""):
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "] "
-  print(script_name + colors.BOLD + colors.RED + "error" +  colors.RED + ": " + message)
+  print(script_name + colors.BOLD + colors.RED + "error" + colors.ENDC + colors.RED + ": " + message + colors.ENDC)
 
 def warning(message, script_name=""):
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "] "
-  print(script_name + colors.YELLOW + "warning: " + message)
+  print(script_name + colors.YELLOW + "warning: " + message + colors.ENDC)
 
 def note(message, script_name=""):
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "] "
-  print(script_name + colors.CYAN + "note: " + message)
+  print(script_name + colors.CYAN + "note: " + message + colors.ENDC)
+
+def header(message):
+  print(colors.BOLD + colors.CYAN + message + colors.ENDC)
+
+def subheader(message):
+  print(colors.CYAN + message + colors.ENDC)
+
+def bold(message):
+  print(colors.BOLD + message + colors.ENDC)
