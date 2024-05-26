@@ -1,0 +1,30 @@
+
+##############################################
+# Settings for ALU example
+##############################################
+---
+
+#rtl path, relative to Asterism root directory, not this directory
+rtl_path: "examples/shift_register_sv"
+
+top_level_file: "shift_register.sv"
+top_level_module: "shift_register"
+
+clock_signal: "i_clk"
+reset_signal: "i_rst"
+
+# copy a file into synthesis directory?
+file_copy_enable: "false"
+file_copy_source: "/dev/null"
+file_copy_dest: "/dev/null"
+
+# delimiters for parameter files
+use_parameters: "true"
+start_delimiter: "#("
+stop_delimiter: ")("
+
+# optionnal target-specific bounds (in MHz) to speed up fmax search
+xc7a100t-csg324-1:
+  fmax_lower_bound: 650
+  fmax_upper_bound: 1000
+...
