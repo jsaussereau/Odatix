@@ -15,6 +15,8 @@ module alu
 
   reg [BITS-1:0] value;
 
+  localparam int SHIFT_BITS = $clog2(BITS);
+
   always_ff @(posedge i_clk) begin
     if (i_rst) begin
       value <= 0;
@@ -27,9 +29,9 @@ module alu
         alu_xor  : value <= i_op_a ^ i_op_b;
         alu_slt  : value <= ($signed(i_op_a) < $signed(i_op_b)) ? 1 : 0; 
         alu_sltu : value <= (i_op_a < i_op_b) ? 1 : 0;
-        alu_sll  : value <= i_op_a << i_op_b;
-        alu_srl  : value <= i_op_a >> i_op_b;
-        alu_sra  : value <= $signed(i_op_a) >>> i_op_b;
+        alu_sll  : value <= i_op_a << i_op_b[SHIFT_BITS-1:0];
+        alu_srl  : value <= i_op_a >> i_op_b[SHIFT_BITS-1:0];
+        alu_sra  : value <= $signed(i_op_a) >>> i_op_b[SHIFT_BITS-1:0];
         alu_cpa  : value <= i_op_a;
         alu_cpb  : value <= i_op_b;
         default  : value <= 0;

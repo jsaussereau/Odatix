@@ -5,7 +5,7 @@
 ---
 
 #rtl path, relative to Asterism root directory, not this directory
-rtl_path: "examples/alu"
+rtl_path: "examples/alu_sv"
 
 top_level_file: "alu_top.sv"
 top_level_module: "alu_top"
