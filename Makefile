@@ -63,6 +63,8 @@ help: motd
 	@echo -e "\t$(_BOLD)make dc$(_END): run synthesis + place&route in Design Compiler"	
 	@echo -e "DATA EXPORT"
 	@echo -e "\t$(_BOLD)make results$(_END): export synthesis results"
+	@echo -e "\t$(_BOLD)make results_vivado$(_END): export Vivado synthesis results"
+	@echo -e "\t$(_BOLD)make results_dc$(_END): export Design Compiler synthesis results"
 	@echo -e "DATA EXPLORATION"
 	@echo -e "\t$(_BOLD)make explore$(_END): explore results in a web app (localhost only)"
 	@echo -e "\t$(_BOLD)make explore_network$(_END): explore results in a web app (network-accessible)"
@@ -90,6 +92,9 @@ run_vivado: motd run_vivado_only
 run_vivado_only:
 	@python3 $(RUN_SCRIPT) --tool vivado
 
+.PHONY: results_vivado
+results_vivado: motd results_vivado_only
+
 .PHONY: results_vivado_only
 results_vivado_only:
 	@python3 ./$(EXPORT_SCRIPT) --tool vivado --benchmark
@@ -114,6 +119,9 @@ run_dc: motd run_dc_only
 .PHONY: run_dc_only
 run_dc_only:
 	@python3 $(SCRIPT_DIR)/run_config.py --tool design_compiler
+
+.PHONY: results_dc
+results_dc: motd results_dc_only
 
 .PHONY: results_dc_only
 results_dc_only:
