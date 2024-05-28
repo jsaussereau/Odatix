@@ -31,24 +31,24 @@ class colors:
   BOLD = '\033[1m'
   UNDERLINE = '\033[4m'
 
-def say(message, script_name=""):
+def say(message="", script_name="", color=colors.ENDC, end='\n'):
   if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "] " + colors.ENDC
-  print(script_name + message)
+    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
+  print(script_name + color + message + colors.ENDC, end=end)
 
-def error(message, script_name=""):
+def error(message, script_name="", end='\n'):
   if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "] "
+    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.BOLD + colors.RED + "error" + colors.ENDC + colors.RED + ": " + message + colors.ENDC)
 
-def warning(message, script_name=""):
+def warning(message, script_name="", end='\n'):
   if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "] "
+    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.YELLOW + "warning: " + message + colors.ENDC)
 
-def note(message, script_name=""):
+def note(message, script_name="", end='\n'):
   if script_name != "":
-    script_name = colors.GREY + "[" + script_name + "] "
+    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.CYAN + "note: " + message + colors.ENDC)
 
 def header(message):
@@ -59,3 +59,30 @@ def subheader(message):
 
 def bold(message):
   print(colors.BOLD + message + colors.ENDC)
+
+def grey(message, script_name="", end='\n'):
+  say(message=message, script_name=script_name, color=colors.GREY, end=end)
+
+def red(message, script_name="", end='\n'):
+  say(message=message, script_name=script_name, color=colors.RED, end=end)
+
+def green(message, script_name="", end='\n'):
+  say(message=message, script_name=script_name, color=colors.GREEN, end=end)
+
+def yellow(message, script_name="", end='\n'):
+  say(message=message, script_name=script_name, color=colors.YELLOW, end=end)
+
+def blue(message, script_name="", end='\n'):
+  say(message=message, script_name=script_name, color=colors.BLUE, end=end)
+
+def magenta(message, script_name="", end='\n'):
+  say(message=message, script_name=script_name, color=colors.MAGENTA, end=end)
+
+def cyan(message, script_name="", end='\n'):
+  say(message=message, script_name=script_name, color=colors.CYAN, end=end)
+
+def color(color=colors.ENDC):
+  print(color, end='')
+
+def endc():
+  print(colors.ENDC, end='')
