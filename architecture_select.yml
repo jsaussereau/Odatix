@@ -16,6 +16,9 @@ show_log_if_one:  Yes
 # run synthesis in a screen session
 use_screen:       No
 
+# maximum number of parallel synthesis
+nb_jobs:          8
+
 # architectures targeted
 architectures: 
 

@@ -45,7 +45,6 @@ from shutil import rmtree
 # Settings
 ######################################
 
-nb_jobs = 4
 
 work_path = "work"
 script_path = "eda_tools"
@@ -53,6 +52,8 @@ work_script_path = "scripts"
 common_script_path = "_common"
 log_path = "log"
 arch_path = "architectures"
+
+nb_jobs = 4
 
 param_settings_filename = "_settings.yml"
 arch_filename = "architecture.txt"
@@ -246,6 +247,7 @@ if __name__ == "__main__":
       ask_continue    = read_from_list("ask_continue", settings_data, run_config_settings_filename)
       show_log_if_one = read_from_list("show_log_if_one", settings_data, run_config_settings_filename)
       use_screen      = read_from_list("use_screen", settings_data, run_config_settings_filename)
+      nb_jobs         = read_from_list("nb_jobs", settings_data, run_config_settings_filename)
       architectures   = read_from_list("architectures", settings_data, run_config_settings_filename)
     except:
       sys.exit() # if a key is missing
@@ -586,10 +588,11 @@ if __name__ == "__main__":
         sys.exit()
       else:
         print("Please enter yes or no")
+  
+  print()
 
   if len(architecture_instances) > nb_jobs:
     nb_chunks = math.ceil(len(architecture_instances) / nb_jobs)
-    print()
     printc.note("Current maximum number of jobs is " + str(nb_jobs) + ". Splitting architectures in " + str(nb_chunks) + " chunks")
     print()
     architecture_instances_chunks = list(chunk_list(architecture_instances, nb_jobs))
