@@ -121,18 +121,6 @@ class Running_arch:
     self.arch = arch
     self.display_name = display_name
 
-class bcolors:
-  HEADER = '\033[95m'
-  OKBLUE = '\033[94m'
-  OKCYAN = '\033[96m'
-  OKGREEN = '\033[92m'
-  WARNING = '\033[93m'
-  FAIL = '\033[91m'
-  GREY = '\033[30m'
-  ENDC = '\033[0m'
-  BOLD = '\033[1m'
-  UNDERLINE = '\033[4m'
-
 
 ######################################
 # Misc functions
@@ -161,9 +149,9 @@ def read_from_list(key, input_list, filename, raise_if_missing=True, optional=Fa
     parent_string = "" if parent == None else ", inside list \"" + parent + "\","
     if print_error:
       if optional:
-        print(bcolors.OKCYAN + "note: Cannot find optional key \"" + key + "\"" + parent_string + " in \"" + filename + "\". Using default values instead." + bcolors.ENDC)
+        printc.note("Cannot find optional key \"" + key + "\"" + parent_string + " in \"" + filename + "\". Using default values instead.", script_name)
       else:
-        print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"" + key + "\"" + parent_string + " in \"" + filename + "\"." + bcolors.ENDC)
+        printc.error("Cannot find key \"" + key + "\"" + parent_string + " in \"" + filename + "\".", script_name)
     if raise_if_missing:
       raise
     return False
@@ -172,7 +160,7 @@ def read_from_config(identifier, config, filename):
   if identifier in config[settings_ini_section]:
     return config[settings_ini_section][identifier]
   else:
-    print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find identifier \"" + identifier + "\" in \"" + filename + "\"." + bcolors.ENDC)
+    printc.error("Cannot find identifier \"" + identifier + "\" in \"" + filename + "\".", script_name)
     raise
     return False
 
@@ -181,11 +169,11 @@ def print_arch_list(arch_list, description, color):
     return
 
   print()
-  print(bcolors.BOLD + description + ":" + bcolors.ENDC)
-  print(color, end = '')
+  printc.bold(description + ":")
+  printc.color(color)
   for arch in arch_list:
     print("  - " + arch)
-  print(bcolors.ENDC, end = '')
+  printc.endc()
 
 def move_cursor_up():
   sys.stdout.write('\x1b[1A') # Move cursor up
@@ -241,7 +229,7 @@ if __name__ == "__main__":
 
   # Get settings from yaml file
   if not isfile(run_config_settings_filename):
-    print(bcolors.BOLD + bcolors.FAIL + "error: Settings file \"" + run_config_settings_filename + "\" does not exist" + bcolors.ENDC)
+    printc.error("Settings file \"" + run_config_settings_filename + "\" does not exist", script_name)
     sys.exit()
 
   with open(run_config_settings_filename, 'r') as f:
@@ -256,7 +244,7 @@ if __name__ == "__main__":
       sys.exit() # if a key is missing
 
   if not isfile(eda_target_filename):
-    print(bcolors.BOLD + bcolors.FAIL + "error: Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist" + bcolors.ENDC)
+    printc.error("Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
     sys.exit()
 
   # Try launching eda tool 
@@ -267,12 +255,12 @@ if __name__ == "__main__":
     print('.', end='', flush=True)
     time.sleep(0.5)
   if test_process.returncode == 0:
-      print(bcolors.OKGREEN + " success!" + bcolors.ENDC)
+      printc.green(" success!")
   else:
-    print(bcolors.FAIL + " failed!" + bcolors.ENDC)
-    print(bcolors.BOLD + bcolors.FAIL + "error: Could not launch eda tool \"" + tool + "\"" + bcolors.ENDC)
-    print(bcolors.OKCYAN + "note: did you add the tool path to your PATH environment variable?" + bcolors.ENDC)
-    print(bcolors.OKCYAN + "note: example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin" + bcolors.ENDC)
+    printc.red(" failed!")
+    printc.error("Could not launch eda tool \"" + tool + "\"", script_name)
+    printc.note("did you add the tool path to your PATH environment variable?", script_name)
+    printc.note("example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin", script_name)
     sys.exit()
   print()
 
@@ -320,7 +308,7 @@ if __name__ == "__main__":
       if not script_copy_enable in tcl_bool_true:
         raise
       if not os.path.exists(script_copy_source):
-        print(bcolors.OKCYAN + "note: the script source file \"" + script_copy_source + "\"specified in \"" + eda_target_filename + "\" does not exist. Script copy disabled." + bcolors.ENDC)
+        printc.note("the script source file \"" + script_copy_source + "\"specified in \"" + eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
         raise
     except:
       script_copy_enable = "false"
@@ -347,13 +335,13 @@ if __name__ == "__main__":
       # check if parameter dir exists
       arch_param = arch_path + '/' + arch_param_dir
       if not isdir(arch_param):
-        print(bcolors.BOLD + bcolors.FAIL + "error: There is no directory \"" + arch_param_dir + "\" in directory \"" + arch_path + "\"" + bcolors.ENDC)
+        printc.error("There is no directory \"" + arch_param_dir + "\" in directory \"" + arch_path + "\"", script_name)
         error_archs.append(arch_display_name)
         continue
       
       # check if settings file exists
       if not isfile(arch_param + '/' + param_settings_filename):
-        print(bcolors.BOLD + bcolors.FAIL + "error: There is no setting file \"" + param_settings_filename + "\" in directory \"" + arch_param + "\"" + bcolors.ENDC)
+        printc.error("There is no setting file \"" + param_settings_filename + "\" in directory \"" + arch_param + "\"", script_name)
         banned_arch_param.append(arch_param_dir)
         error_archs.append(arch_display_name)
         continue
@@ -384,7 +372,7 @@ if __name__ == "__main__":
         if use_parameters in use_parameters:
           # check if parameter file exists
           if not isfile(arch_path + '/' + param_filename):
-            print(bcolors.BOLD + bcolors.FAIL + "error: There is no parameter file \"" + arch_path + param_filename + "\", while use_parameters=true" + bcolors.ENDC)
+            printc.error("There is no parameter file \"" + arch_path + param_filename + "\", while use_parameters=true", script_name)
             banned_arch_param.append(arch_param_dir)
             error_archs.append(arch_display_name)
             continue
@@ -396,7 +384,7 @@ if __name__ == "__main__":
             try:
               generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False)
             except:
-              print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true" + bcolors.ENDC)
+              printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
               banned_arch_param.append(arch_param_dir)
               error_archs.append(arch_display_name)
               continue
@@ -408,20 +396,20 @@ if __name__ == "__main__":
         except:
           design_path = -1
           if generate_rtl in tcl_bool_true:
-            print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true" + bcolors.ENDC)
+            printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
             banned_arch_param.append(arch_param_dir)
             continue
         
         try:
           param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False)
           if design_path == -1:
-            print(bcolors.BOLD + bcolors.FAIL + "error: Cannot find key \"design_path\" in \"" + settings_filename + "\" while param_target_file is defined" + bcolors.ENDC)
+            printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while param_target_file is defined", script_name)
             banned_arch_param.append(arch_param_dir)
             continue
           # check if param target file path exists
           param_target_file = design_path + '/' + param_target_filename
           if not isfile(param_target_file): 
-            print(bcolors.BOLD + bcolors.FAIL + "error: The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
+            printc.error("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
             banned_arch_param.append(arch_param_dir)
             continue
         except:
@@ -430,7 +418,7 @@ if __name__ == "__main__":
       # check if file_copy_enable is a boolean
       file_copy_enable = file_copy_enable.lower()
       if not (file_copy_enable in tcl_bool_true or file_copy_enable in tcl_bool_false):
-        print(bcolors.BOLD + bcolors.FAIL + "error: Value for identifier \"file_copy_enable\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")" + bcolors.ENDC)
+        printc.error("Value for identifier \"file_copy_enable\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
         banned_arch_param.append(arch_param_dir)
         error_archs.append(arch_display_name)
         continue
@@ -438,7 +426,7 @@ if __name__ == "__main__":
       # check if generate_rtl is a boolean
       generate_rtl = generate_rtl.lower()
       if not (generate_rtl in tcl_bool_true or generate_rtl in tcl_bool_false):
-        print(bcolors.BOLD + bcolors.FAIL + "error: Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")" + bcolors.ENDC)
+        printc.error("Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
         banned_arch_param.append(arch_param_dir)
         error_archs.append(arch_display_name)
         continue
@@ -446,7 +434,7 @@ if __name__ == "__main__":
       if not generate_rtl in tcl_bool_true:
         # check if rtl path exists
         if not isdir(rtl_path):
-          print(bcolors.BOLD + bcolors.FAIL + "error: The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
+          printc.error("The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
           banned_arch_param.append(arch_param_dir)
           error_archs.append(arch_display_name)
           continue
@@ -454,7 +442,7 @@ if __name__ == "__main__":
         # check if top level file path exists
         top_level = rtl_path + '/' + top_level_filename
         if not isfile(top_level):
-          print(bcolors.BOLD + bcolors.FAIL + "error: The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist" + bcolors.ENDC)
+          printc.error("The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
           banned_arch_param.append(arch_param_dir)
           error_archs.append(arch_display_name)
           continue
@@ -462,7 +450,7 @@ if __name__ == "__main__":
         # check if the top level module name exists in the top level file, at least
         f = open(top_level, "r")
         if not top_level_module in f.read():
-          print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
+          printc.error("There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"", script_name)
           banned_arch_param.append(arch_param_dir)
           error_archs.append(arch_display_name)
           f.close()
@@ -472,7 +460,7 @@ if __name__ == "__main__":
         # check if the top clock name exists in the top level file, at least
         f = open(top_level, "r")
         if not clock_signal in f.read():
-          print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
+          printc.error("There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"", script_name)
           banned_arch_param.append(arch_param_dir)
           error_archs.append(arch_display_name)
           f.close()
@@ -482,7 +470,7 @@ if __name__ == "__main__":
         # check if the top reset name exists in the top level file, at least
         f = open(top_level, "r")
         if not clock_signal in f.read():
-          print(bcolors.BOLD + bcolors.FAIL + "error: There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"" + bcolors.ENDC)
+          printc.error("There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"", script_name)
           banned_arch_param.append(arch_param_dir)
           error_archs.append(arch_display_name)
           f.close()
@@ -491,7 +479,7 @@ if __name__ == "__main__":
 
       # check if param file exists
       if not isfile(arch_path + '/' + arch + '.txt'):
-        print(bcolors.BOLD + bcolors.FAIL + "error: The parameter file \"" + arch + ".txt\" does not exist in directory \"" + arch_path + "/" + arch_param_dir + "\"" + bcolors.ENDC)
+        printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + arch_path + "/" + arch_param_dir + "\"", script_name)
         banned_arch_param.append(arch_param_dir)
         error_archs.append(arch_display_name)
         continue
@@ -499,7 +487,7 @@ if __name__ == "__main__":
       # check file copy
       if file_copy_enable in tcl_bool_true:
         if not isfile(file_copy_source):
-          print(bcolors.BOLD + bcolors.FAIL + "error: The source file to copy \"" + file_copy_source + "\" does not exist" + bcolors.ENDC)
+          printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
           banned_arch_param.append(arch_param_dir)
           error_archs.append(arch_display_name)
           continue
@@ -508,7 +496,7 @@ if __name__ == "__main__":
       try:
         target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False)
         if target_options == False:
-          print(bcolors.OKCYAN + "note: Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(default_fmax_lower_bound, default_fmax_upper_bound) + bcolors.ENDC)
+          printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(default_fmax_lower_bound, default_fmax_upper_bound), script_name)
           raise
         fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, eda_target_filename, optional=True)
         fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, eda_target_filename, optional=True)
@@ -527,18 +515,18 @@ if __name__ == "__main__":
           ff = open(frequency_search_file, "r")
           if valid_frequency_search in ff.read():
             if overwrite:
-              print(bcolors.WARNING + "Found cached results for \"" + arch + "\" with target \"" + target + "\"." + bcolors.ENDC)
+              printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".")
               overwrite_archs.append(arch_display_name)
             else:
-              print(bcolors.OKCYAN + "Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping." + bcolors.ENDC)
+              printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.")
               cached_archs.append(arch_display_name)
               continue
           else:
-            print(bcolors.WARNING + "The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency." + bcolors.ENDC)
+            printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.")
             overwrite_archs.append(arch_display_name)
           ff.close()
         else: 
-          print(bcolors.WARNING + "The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted." + bcolors.ENDC)
+          printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.")
           incomplete_archs.append(arch_display_name)
         sf.close()
       else:
@@ -575,11 +563,11 @@ if __name__ == "__main__":
       architecture_instances.append(arch_instance)
     
   # print checklist summary
-  print_arch_list(new_archs, "New architectures", bcolors.ENDC)
-  print_arch_list(incomplete_archs, "Incomplete results (will be overwritten)", bcolors.WARNING)
-  print_arch_list(cached_archs, "Existing results (skipped)", bcolors.OKCYAN)
-  print_arch_list(overwrite_archs, "Existing results (will be overwritten)", bcolors.WARNING)
-  print_arch_list(error_archs, "Invalid settings, (skipped, see errors above)", bcolors.FAIL)
+  print_arch_list(new_archs, "New architectures", printc.colors.ENDC)
+  print_arch_list(incomplete_archs, "Incomplete results (will be overwritten)", printc.colors.YELLOW)
+  print_arch_list(cached_archs, "Existing results (skipped)", printc.colors.CYAN)
+  print_arch_list(overwrite_archs, "Existing results (will be overwritten)", printc.colors.YELLOW)
+  print_arch_list(error_archs, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
 
   if ask_continue and len(valid_archs) > 0:
     print()
@@ -650,7 +638,7 @@ if __name__ == "__main__":
 
     # replace parameters
     if use_parameters in tcl_bool_true:
-      #print(bcolors.OKCYAN + "Replace parameters" + bcolors.ENDC)
+      #printc.subheader("Replace parameters")
       param_target_file = tmp_dir + '/' + param_target_filename
       param_filename = arch_path + '/' + arch + '.txt'
       rp.replace_params(
@@ -692,7 +680,7 @@ if __name__ == "__main__":
       if not file_copy_enable in tcl_bool_true:
         raise
       if not os.path.exists(file_copy_source):
-        print(bcolors.OKCYAN + "note: the file \"" + file_copy_source + "\"specified in \"" + settings_filename + "\" does not exist. File copy disabled." + bcolors.ENDC)
+        printc.note("the file \"" + file_copy_source + "\"specified in \"" + settings_filename + "\" does not exist. File copy disabled.", script_name)
         raise
     except:
       file_copy_enable = "false"
@@ -811,9 +799,9 @@ if __name__ == "__main__":
           pass
 
         if running_arch.process.returncode == 0:
-            comment = " (" + bcolors.OKGREEN + "done" + bcolors.ENDC + ")"
+            comment = " (" + printc.colors.GREEN + "done" + printc.colors.ENDC + ")"
         else:
-            comment = " (" + bcolors.FAIL + "terminated with errors" + bcolors.ENDC + ")"
+            comment = " (" + printc.colors.RED + "terminated with errors" + printc.colors.ENDC + ")"
         progress_bar(progress, title=running_arch.display_name, title_size=max_title_length, endstr=comment)
       else: 
         progress_bar(progress, title=running_arch.display_name, title_size=max_title_length)
