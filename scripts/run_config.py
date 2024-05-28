@@ -86,6 +86,35 @@ script_name= "run_config.py"
 # Misc classes
 ######################################
 
+class Architecture:
+  def __init__(self, target, arch_name, tmp_script_path, tmp_dir, design_path, rtl_path, arch_path,
+               clock_signal, reset_signal, top_level_module, top_level_filename,
+               file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, fmax_lower_bound,
+               fmax_upper_bound, script_copy_enable, script_copy_source, param_target_filename, generate_rtl, generate_command):
+    self.arch_name = arch_name
+    self.target = target
+    self.tmp_script_path = tmp_script_path
+    self.tmp_dir = tmp_dir
+    self.design_path = design_path
+    self.rtl_path = rtl_path
+    self.arch_path = arch_path
+    self.clock_signal = clock_signal
+    self.reset_signal = reset_signal
+    self.top_level_module = top_level_module
+    self.top_level_filename = top_level_filename
+    self.file_copy_enable = file_copy_enable
+    self.file_copy_source = file_copy_source
+    self.file_copy_dest = file_copy_dest
+    self.script_copy_enable = script_copy_enable
+    self.script_copy_source = script_copy_source
+    self.fmax_lower_bound = fmax_lower_bound
+    self.fmax_upper_bound = fmax_upper_bound
+    self.script_copy_enable = script_copy_enable
+    self.script_copy_source = script_copy_source
+    self.param_target_filename = param_target_filename
+    self.generate_rtl = generate_rtl
+    self.generate_command = generate_command
+
 class Running_arch:
   def __init__(self, process, arch):
     self.process = process
@@ -300,6 +329,8 @@ if __name__ == "__main__":
     incomplete_archs = []
     new_archs = []
 
+    architecture_instances = []
+
     for arch in architectures:
       tmp_dir = work_path + '/' + target + '/' + arch
       fmax_status_file = tmp_dir + '/' + log_path + '/' + fmax_status_filename
@@ -358,6 +389,7 @@ if __name__ == "__main__":
             error_archs.append(arch)
             continue
 
+        generate_command = ""
         try:
           generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optionnal=True, print_error=False)
           if generate_rtl in tcl_bool_true:
@@ -393,7 +425,7 @@ if __name__ == "__main__":
             banned_arch_param.append(arch_param_dir)
             continue
         except:
-          param_target_filename = top_level_filename
+          param_target_filename = 'rtl/' + top_level_filename
 
       # check if file_copy_enable is a boolean
       file_copy_enable = file_copy_enable.lower()
@@ -463,6 +495,21 @@ if __name__ == "__main__":
           error_archs.append(arch)
           continue
 
+      # optionnal settings
+      try:
+        target_options = read_from_list(target, settings_data, settings_filename, optionnal=True, raise_if_missing=False, print_error=False)
+        if target_options == False:
+          print(bcolors.OKCYAN + "note: Cannot find optionnal target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(default_fmax_lower_bound, default_fmax_upper_bound) + bcolors.ENDC)
+          raise
+        fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, eda_target_filename, optionnal=True)
+        fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, eda_target_filename, optionnal=True)
+      except:
+        fmax_lower_bound = default_fmax_lower_bound
+        fmax_upper_bound = default_fmax_upper_bound
+
+      fmax_lower_bound = str(fmax_lower_bound)
+      fmax_upper_bound = str(fmax_upper_bound)
+
       # check if the architecture is in cache and has a status file
       if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
         # check if the previous synth_fmax has completed
@@ -490,6 +537,32 @@ if __name__ == "__main__":
 
       # passed all check: added to the list
       valid_archs.append(arch)
+
+      arch_instance = Architecture(
+        arch_name = arch,
+        target = target,
+        tmp_script_path=script_path,
+        tmp_dir=tmp_dir,
+        design_path=design_path,
+        rtl_path=rtl_path,
+        arch_path=arch_path,
+        clock_signal=clock_signal,
+        reset_signal=reset_signal,
+        top_level_module=top_level_module,
+        top_level_filename=top_level_filename,
+        file_copy_enable=file_copy_enable,
+        file_copy_source=file_copy_source,
+        file_copy_dest=file_copy_dest,
+        fmax_lower_bound=fmax_lower_bound,
+        fmax_upper_bound=fmax_upper_bound,
+        script_copy_enable=script_copy_enable,
+        script_copy_source=script_copy_source,
+        param_target_filename=param_target_filename,
+        generate_rtl=generate_rtl,
+        generate_command=generate_command
+      )
+    
+      architecture_instances.append(arch_instance)
     
     # print checklist summary
     print_arch_list(new_archs, "New architectures", bcolors.ENDC)
@@ -514,61 +587,30 @@ if __name__ == "__main__":
     active_running_arch_list = []
 
     #print("valid_architectures : {}".format(valid_architectures))
-    for arch in valid_archs:
+    for arch_instance in architecture_instances:
+
+      arch = arch_instance.arch_name
+      rtl_path = arch_instance.rtl_path
+      top_level_filename = arch_instance.top_level_filename
+      top_level_module = arch_instance.top_level_module
+      clock_signal = arch_instance.clock_signal
+      reset_signal = arch_instance.reset_signal
+      file_copy_enable = arch_instance.file_copy_enable
+      file_copy_source = arch_instance.file_copy_source
+      file_copy_dest = arch_instance.file_copy_dest
+      fmax_lower_bound = arch_instance.fmax_lower_bound
+      fmax_upper_bound = arch_instance.fmax_upper_bound
+      script_copy_enable = arch_instance.script_copy_enable
+      script_copy_source = arch_instance.script_copy_source
+      generate_rtl = arch_instance.generate_rtl
+      generate_command = arch_instance.generate_command
+      param_target_filename = arch_instance.param_target_filename
+        
       tmp_dir = work_path + '/' + target + '/' + arch
 
       # get param dir (arch name before '/')
       arch_param_dir = re.sub('/.*', '', arch)
-
-      # get settings variables
-      settings_filename = arch_path + '/' + arch_param_dir + '/' + param_settings_filename
-      with open(settings_filename, 'r') as f:
-        settings_data = yaml.load(f, Loader=SafeLoader)
-        try:
-          rtl_path           = read_from_list('rtl_path', settings_data, settings_filename)
-          top_level_filename = read_from_list('top_level_file', settings_data, settings_filename)
-          top_level_module   = read_from_list('top_level_module', settings_data, settings_filename)
-          clock_signal       = read_from_list('clock_signal', settings_data, settings_filename)
-          file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename)
-          file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename)
-          file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename)
-          use_parameters     = read_from_list('use_parameters', settings_data, settings_filename)
-          start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename)
-          stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename)
-        except:
-          continue # if an identifier is missing (modified since first read)
-        
-        # optionnal settings
-        try:
-          target_options = read_from_list(target, settings_data, settings_filename, optionnal=True, raise_if_missing=False, print_error=False)
-          if target_options == False:
-            print(bcolors.OKCYAN + "note: Cannot find optionnal target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(default_fmax_lower_bound, default_fmax_upper_bound) + bcolors.ENDC)
-            raise
-          fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, eda_target_filename, optionnal=True)
-          fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, eda_target_filename, optionnal=True)
-        except:
-          fmax_lower_bound = default_fmax_lower_bound
-          fmax_upper_bound = default_fmax_upper_bound
-
-        fmax_lower_bound = str(fmax_lower_bound)
-        fmax_upper_bound = str(fmax_upper_bound)
-
-        try:
-          param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optionnal=True, print_error=False)
-        except:
-          param_target_filename = 'rtl/' + top_level_filename
-
-        try:
-          generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optionnal=True, print_error=False)
-          try:
-            generate_command = read_from_list('generate_command', settings_data, settings_filename, optionnal=True, print_error=False)
-          except:
-            print(bcolors.OKCYAN + "note: Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true, disabled hdl generation" + bcolors.ENDC)
-            generate_command = ""
-            generate_rtl = "false"
-        except:
-          generate_rtl = "false"
-
+    
       use_parameters = use_parameters.lower()
       if not use_parameters in tcl_bool_true:
         use_parameters = "false"
