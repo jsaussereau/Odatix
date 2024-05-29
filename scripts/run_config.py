@@ -524,18 +524,18 @@ if __name__ == "__main__":
           ff = open(frequency_search_file, "r")
           if valid_frequency_search in ff.read():
             if overwrite:
-              printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".")
+              printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
               overwrite_archs.append(arch_display_name)
             else:
-              printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.")
+              printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
               cached_archs.append(arch_display_name)
               continue
           else:
-            printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.")
+            printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
             overwrite_archs.append(arch_display_name)
           ff.close()
         else: 
-          printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.")
+          printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
           incomplete_archs.append(arch_display_name)
         sf.close()
       else:
