@@ -92,7 +92,7 @@ script_name= "run_config.py"
 
 class Architecture:
   def __init__(self, arch_name, arch_display_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, arch_path,
-               clock_signal, reset_signal, top_level_module, top_level_filename,
+               clock_signal, reset_signal, top_level_module, top_level_filename, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
                fmax_lower_bound, fmax_upper_bound, param_target_filename, generate_rtl, generate_command):
     self.arch_name = arch_name
@@ -115,6 +115,8 @@ class Architecture:
     self.fmax_lower_bound = fmax_lower_bound
     self.fmax_upper_bound = fmax_upper_bound
     self.param_target_filename = param_target_filename
+    self.start_delimiter = start_delimiter
+    self.stop_delimiter = stop_delimiter
     self.generate_rtl = generate_rtl
     self.generate_command = generate_command
 
@@ -566,6 +568,8 @@ if __name__ == "__main__":
         fmax_upper_bound=fmax_upper_bound,
         param_target_filename=param_target_filename,
         generate_rtl=generate_rtl,
+        start_delimiter=start_delimiter,
+        stop_delimiter=stop_delimiter,
         generate_command=generate_command
       )
     
@@ -627,6 +631,8 @@ if __name__ == "__main__":
       fmax_upper_bound = arch_instance.fmax_upper_bound
       script_copy_enable = arch_instance.script_copy_enable
       script_copy_source = arch_instance.script_copy_source
+      start_delimiter = arch_instance.start_delimiter
+      stop_delimiter = arch_instance.stop_delimiter
       generate_rtl = arch_instance.generate_rtl
       generate_command = arch_instance.generate_command
       param_target_filename = arch_instance.param_target_filename

@@ -45,11 +45,14 @@ def write_file(file_path, content):
 
 def replace_content(base_text, replacement_text, start_delim, stop_delim, replace_all_occurrences):
     pattern = re.escape(start_delim) + '.*?' + re.escape(stop_delim)
+
+    match_found = re.search(pattern, base_text, flags=re.DOTALL) is not None
+    
     if replace_all_occurrences:
         new_text = re.sub(pattern, start_delim + replacement_text + stop_delim, base_text, flags=re.DOTALL)
     else:
         new_text = re.sub(pattern, start_delim + replacement_text + stop_delim, base_text, count=1, flags=re.DOTALL)
-    return new_text
+    return new_text, match_found
 
 def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False, silent=False):
     # Read the contents of text files
@@ -57,12 +60,15 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
     replacement_text = read_file(replacement_text_file)
 
     # Replace content between delimiters
-    new_text = replace_content(base_text, replacement_text, start_delimiter, stop_delimiter, replace_all_occurrences)
+    new_text, match_found = replace_content(base_text, replacement_text, start_delimiter, stop_delimiter, replace_all_occurrences)
 
     # Write the new content to the output file
     write_file(output_file, new_text)
 
-    if not silent:
+    if not match_found:
+        printc.warning("could not find pattern \"" + start_delimiter + " [...] " + stop_delimiter + "\" in \"" + base_text_file + "\"", script_name)
+
+    if not silent and match_found:
         if new_text != base_text:
             printc.say("content replaced successfully, output saved to \"" + output_file + "\"", script_name)
         else:
