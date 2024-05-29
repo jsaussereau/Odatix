@@ -578,6 +578,15 @@ if __name__ == "__main__":
   print_arch_list(overwrite_archs, "Existing results (will be overwritten)", printc.colors.YELLOW)
   print_arch_list(error_archs, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
 
+  if len(architecture_instances) > nb_jobs:
+    nb_chunks = math.ceil(len(architecture_instances) / nb_jobs)
+    print()
+    printc.note("Current maximum number of jobs is " + str(nb_jobs) + ". Architectures will be split in " + str(nb_chunks) + " chunks")
+    architecture_instances_chunks = list(chunk_list(architecture_instances, nb_jobs))
+  else:
+    nb_chunks = 1
+    architecture_instances_chunks = []
+
   if ask_continue and len(valid_archs) > 0:
     print()
     while True:
@@ -590,15 +599,6 @@ if __name__ == "__main__":
         print("Please enter yes or no")
   
   print()
-
-  if len(architecture_instances) > nb_jobs:
-    nb_chunks = math.ceil(len(architecture_instances) / nb_jobs)
-    printc.note("Current maximum number of jobs is " + str(nb_jobs) + ". Splitting architectures in " + str(nb_chunks) + " chunks")
-    print()
-    architecture_instances_chunks = list(chunk_list(architecture_instances, nb_jobs))
-  else:
-    nb_chunks = 1
-    architecture_instances_chunks = []
 
   for i_chunk in range(nb_chunks):
     running_arch_list = []
