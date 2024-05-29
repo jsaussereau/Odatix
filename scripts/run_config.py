@@ -615,6 +615,7 @@ if __name__ == "__main__":
       arch = arch_instance.arch_name
       arch_display_name = arch_instance.arch_display_name
       rtl_path = arch_instance.rtl_path
+      design_path = arch_instance.design_path
       top_level_filename = arch_instance.top_level_filename
       top_level_module = arch_instance.top_level_module
       clock_signal = arch_instance.clock_signal
@@ -650,11 +651,8 @@ if __name__ == "__main__":
       copytree(script_path + '/' + tool + '/tcl', tmp_script_path, dirs_exist_ok = True)
 
       # copy design 
-      try:
-        design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False)
+      if design_path != -1:
         copytree(design_path, tmp_dir, dirs_exist_ok = True)
-      except:
-        design_path = ""
 
       # copy rtl (if exists) 
       if not generate_rtl in tcl_bool_true:
