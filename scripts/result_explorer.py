@@ -29,16 +29,12 @@ import plotly.graph_objs as go
 import pandas as pd
 import yaml
 import json
+import printc
 import webbrowser
 from threading import Timer
 from itertools import product
 
-class bcolors:
-  WARNING = '\033[93m'
-  FAIL = '\033[91m'
-  OKCYAN = '\033[96m'
-  ENDC = '\033[0m'
-  BOLD = '\033[1m'
+script_name = "result_explorer.py"
 
 # Prepare data for the dataframe
 def update_dataframe(yaml_data):
@@ -98,7 +94,7 @@ for yaml_file in yaml_files:
     data = get_yaml_data(file_path)
     df = update_dataframe(data)   
     if df is None:
-        print(bcolors.WARNING + f"warning: yaml file \"{yaml_file}\" is empty or corrupted, skipping..." + bcolors.ENDC)
+        printc.warning("yaml file \"" + yaml_file + "\" is empty or corrupted, skipping...", script_name)
     else:
         all_data[yaml_file] = data
         valid_yaml_files.append(yaml_file)
