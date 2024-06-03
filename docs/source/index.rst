@@ -1,22 +1,48 @@
-Welcome to Lumache's documentation!
-===================================
+Welcome to Asterism's documentation!
+====================================
 
-**Lumache** (/lu'make/) is a Python library for cooks and food lovers
-that creates recipes mixing random ingredients.
-It pulls data from the `Open Food Facts database <https://world.openfoodfacts.org/>`_
-and offers a *simple* and *intuitive* API.
+**Asterism** is a toolbox designed to facilitate logical synthesis on various FPGA and ASIC tools such as Vivado and Design Compiler. 
+It allows to easily find the maximum operating frequency of any digital architecture described with an HDL (VHDL, Verilog, SystemVerilog). RTL generation is also supported, using Chisel for example.
 
-Check out the :doc:`usage` section for further information, including
-how to :ref:`installation` the project.
+The primary feature of this framework lies in its capability to compare different architectural configurations using parameter files. 
+With Asterism, users can effortlessly explore different architectural designs and evaluate their performance based on numerous metrics including Fmax, hardware resource utilization, power consumption, and more.
 
 .. note::
 
    This project is under active development.
+
+Key Features
+------------
+
+- Synthesis: Easily conduct logical synthesis on diverse FPGA and ASIC tools for various targets.
+- Fmax search: Find the maximum frequency of the design on a specific target.
+- Architecture Comparison: Easily compare architectural configurations using parameters.
+- Interactive Results Exploration: Visualize, compare, and explore architecture implementation results based on various metrics for each target.
+
+.. note::
+   Please note that these tools are not included in Asterism and must be obtained separately.
+
+Supported EDA tools
+-------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - EDA Tool
+     - Status
+   * - AMD Vivado
+     - ✔️ supported
+   * - Synopsys Design Compiler
+     - ✔️ supported
+   * - Intel Quartus Prime
+     - 📅 planned
+
 
 Contents
 --------
 
 .. toctree::
 
-   usage
-   api
+   installation
+   quick_start
+   add_design
