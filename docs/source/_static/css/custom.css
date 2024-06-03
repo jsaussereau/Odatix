@@ -1,0 +1,38 @@
+
+.headerlink {
+    opacity:0;
+}
+
+.headerlink:hover {
+    opacity:1;
+}
+
+.dark .highlight {
+    border-radius: 0.5rem;
+    background-color: #0f1526 !important;
+}
+
+.dark .sphinx-tabs-panel {
+    background-color: #030711 !important;
+}  
+
+.dark .sphinx-tabs-tab {
+    border: 1 solid #e5e7eb;
+    margin: 0px;
+    margin-left: -1px;
+    margin-right: 1px;
+    margin-bottom: 0px;
+}
+
+.dark .sphinx-tabs-tab[aria-selected="true"] {
+    border: 1 solid #e5e7eb;
+    border-bottom: 1px solid #030711;
+    margin-left: -1px;
+    margin-right: 1px;
+    margin-bottom: -1px;
+}
+
+.dark .group-tab {
+    color: white;
+    background-color: #030711 !important;
+}
