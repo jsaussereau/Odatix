@@ -1,3 +1,6 @@
+
+# Vivado
+work/vivado*
 work/vivado/*
 work/design_compiler/*
 **/.Xil
@@ -6,14 +9,19 @@ work/design_compiler/*
 **/vivado*.str
 **/tight_setup_hold_pins.txt
 **/__pycache__
-alib-*
+
+# Design Compiler
 work/ARCH
 work/ENTI
 work/*.syn
 work/*.mr
-command.log
-default.svf
-change_names_verilog
-filenames*.log
 .nfs*
+alib-*
+command.log
+change_names_verilog
+default.svf
+filenames*.log
 DC_WORK_*_autoread
+
+# Docs
+docs/build
