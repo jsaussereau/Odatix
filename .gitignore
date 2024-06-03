@@ -1,16 +1,18 @@
 
+# Python
+**/__pycache__
+
 # Vivado
 work/vivado*
 work/vivado/*
-work/design_compiler/*
 **/.Xil
 **/vivado*.jou
 **/vivado*.log
 **/vivado*.str
 **/tight_setup_hold_pins.txt
-**/__pycache__
 
 # Design Compiler
+work/design_compiler/*
 work/ARCH
 work/ENTI
 work/*.syn
