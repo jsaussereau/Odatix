@@ -6,8 +6,8 @@ project = 'Asterism'
 copyright = '2022, Jonathan Saussereau'
 author = 'Jonathan Saussereau'
 
-release = '0.1'
-version = '0.1.0'
+#release = '0.1'
+#version = '0.1.0'
 
 # -- General configuration
 
@@ -32,8 +32,9 @@ templates_path = ['_templates']
 # -- Options for HTML output
 
 #html_theme = 'sphinx_rtd_theme'
+html_theme = 'furo'
 #html_theme = 'sphinx_book_theme'
-html_theme = 'sphinxawesome_theme'
+#html_theme = 'sphinxawesome_theme'
 
 html_static_path = ['_static']
 html_css_files = [
