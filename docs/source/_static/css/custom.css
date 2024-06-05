@@ -1,4 +1,36 @@
 
+/* Misc */
+
+h1 {
+    font-size: 2em !important;
+    font-weight: 700 !important;
+}
+
+h2 {
+    font-size: 1.5em !important;
+    font-weight: 600 !important;
+    margin-bottom: 15px !important;
+}
+
+.sphinx-tabs-tab {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.sphinx-tabs-panel {
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;  
+    border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.highlight {
+    border-radius: 0.5rem;
+}
+
+
+/* Headerlink */
+/*
 .headerlink {
     opacity:0;
 }
@@ -6,6 +38,9 @@
 .headerlink:hover {
     opacity:1;
 }
+*/
+
+/* Dark Theme */
 
 .dark .highlight {
     border-radius: 0.5rem;
