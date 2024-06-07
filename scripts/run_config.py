@@ -47,10 +47,10 @@ import replace_params as rp
 import utils
 from utils import *
 
+
 ######################################
 # Settings
 ######################################
-
 
 work_path = "work"
 script_path = "eda_tools"
@@ -96,78 +96,6 @@ script_name = os.path.basename(__file__)
 ######################################
 # Misc functions
 ######################################
-
-# python 3.8+ like copytree
-def copytree(src, dst, dirs_exist_ok=False, **kwargs):
-  if not os.path.exists(dst):
-    shutil.copytree(src, dst, **kwargs)
-  else:
-    if dirs_exist_ok:
-      for item in os.listdir(src):
-        s = os.path.join(src, item)
-        d = os.path.join(dst, item)
-        if os.path.isdir(s):
-          shutil.copytree(s, d, **kwargs)
-        else:
-          shutil.copy2(s, d)
-    else:
-      raise
-
-def chunk_list(lst, n):
-  for i in range(0, len(lst), n):
-    yield lst[i:i + n]
-
-def read_from_list(key, input_list, filename, raise_if_missing=True, optional=False, print_error=True, parent=None):
-  if key in input_list:
-    return input_list[key]
-  else:
-    parent_string = "" if parent == None else ", inside list \"" + parent + "\","
-    if print_error:
-      if optional:
-        printc.note("Cannot find optional key \"" + key + "\"" + parent_string + " in \"" + filename + "\". Using default values instead.", script_name)
-      else:
-        printc.error("Cannot find key \"" + key + "\"" + parent_string + " in \"" + filename + "\".", script_name)
-    if raise_if_missing:
-      raise
-    return False
-
-def read_from_config(identifier, config, filename):
-  if identifier in config[settings_ini_section]:
-    return config[settings_ini_section][identifier]
-  else:
-    printc.error("Cannot find identifier \"" + identifier + "\" in \"" + filename + "\".", script_name)
-    raise
-    return False
-
-def print_arch_list(arch_list, description, color):
-  if not len(arch_list) > 0:
-    return
-
-  print()
-  printc.bold(description + ":")
-  printc.color(color)
-  for arch in arch_list:
-    print("  - " + arch)
-  printc.endc()
-
-def move_cursor_up():
-  sys.stdout.write('\x1b[1A') # Move cursor up
-  sys.stdout.write("\033[K") # Clear to the end of line
-  sys.stdout.flush()
-
-def progress_bar(progress, title, title_size=50, endstr=''):
-  if progress > 100:
-    progress = 100
-  
-  limit = int(progress * progress_bar_size / 100)
-  padded_title = title.ljust(title_size)
-
-  print(padded_title + " [", end = '')
-  for i in range(0, limit):
-    print('#', end = '')
-  for i in range(limit, progress_bar_size):
-    print(' ', end = '')
-  print("] {}%".format(int(progress)) + endstr)
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Run fmax synthesis on selected architectures')
