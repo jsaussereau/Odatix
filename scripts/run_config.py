@@ -44,6 +44,7 @@ sys.path.append(lib_path)
 
 import printc
 import replace_params as rp
+import architecture_handler as ah
 import utils
 from utils import *
 
@@ -136,7 +137,7 @@ if __name__ == "__main__":
     sys.exit()
 
   with open(run_config_settings_filename, 'r') as f:
-    settings_data = yaml.load(f, Loader=SafeLoader)
+    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     try:
       overwrite       = read_from_list("overwrite", settings_data, run_config_settings_filename)
       ask_continue    = read_from_list("ask_continue", settings_data, run_config_settings_filename)
@@ -169,7 +170,7 @@ if __name__ == "__main__":
   print()
 
   with open(eda_target_filename, 'r') as f:
-    settings_data = yaml.load(f, Loader=SafeLoader)
+    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     # mandatory keys
     try:
       targets            = read_from_list("targets", settings_data, eda_target_filename)
@@ -191,309 +192,35 @@ if __name__ == "__main__":
   if args.noask:
     ask_continue = False
 
-  banned_arch_param = []
-  valid_archs = []
-  cached_archs = []
-  overwrite_archs = []
-  error_archs = []
-  incomplete_archs = []
-  new_archs = []
+  arch_handler = ah.ArchitectureHandler(
+    work_path = work_path,
+    arch_path = arch_path,
+    script_path = script_path,
+    log_path = log_path,
+    eda_target_filename = eda_target_filename,
+    fmax_status_filename = fmax_status_filename,
+    frequency_search_filename = frequency_search_filename,
+    param_settings_filename = param_settings_filename,
+    valid_status = valid_status,
+    valid_frequency_search = valid_frequency_search,
+    default_fmax_lower_bound = default_fmax_lower_bound,
+    default_fmax_upper_bound = default_fmax_upper_bound,
+    target_settings = target_settings,
+    overwrite = overwrite
+  )
 
-  architecture_instances = []
+  architecture_instances = arch_handler.get_architectures(architectures, targets)
 
-  for target in targets:
-
-    try:
-      if target_settings == {}:
-        raise
-      this_target_settings = read_from_list(target, target_settings, eda_target_filename, optional=True, parent="target_settings")
-      script_copy_enable = read_from_list('script_copy_enable', this_target_settings, eda_target_filename, optional=True, parent="target_settings/" + target)
-      script_copy_source = read_from_list('script_copy_source', this_target_settings, eda_target_filename, optional=True, parent="target_settings/" + target)
-      if not script_copy_enable in tcl_bool_true:
-        raise
-      if not os.path.exists(script_copy_source):
-        printc.note("the script source file \"" + script_copy_source + "\"specified in \"" + eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
-        raise
-    except:
-      script_copy_enable = "false"
-      script_copy_source = "/dev/null"
-      
-    for arch in architectures:
-      if len(targets) == 1:
-        arch_display_name = arch
-      else:
-        arch_display_name = arch + " (" + target + ")"
-
-      tmp_dir = work_path + '/' + target + '/' + arch
-      fmax_status_file = tmp_dir + '/' + log_path + '/' + fmax_status_filename
-      frequency_search_file = tmp_dir + '/' + log_path + '/' + frequency_search_filename
-
-      # get param dir (arch name before '/')
-      arch_param_dir = re.sub('/.*', '', arch)
-
-      # check if arch_param has been banned
-      if arch_param_dir in banned_arch_param:
-        error_archs.append(arch_display_name)
-        continue
-
-      # check if parameter dir exists
-      arch_param = arch_path + '/' + arch_param_dir
-      if not isdir(arch_param):
-        printc.error("There is no directory \"" + arch_param_dir + "\" in directory \"" + arch_path + "\"", script_name)
-        error_archs.append(arch_display_name)
-        continue
-      
-      # check if settings file exists
-      if not isfile(arch_param + '/' + param_settings_filename):
-        printc.error("There is no setting file \"" + param_settings_filename + "\" in directory \"" + arch_param + "\"", script_name)
-        banned_arch_param.append(arch_param_dir)
-        error_archs.append(arch_display_name)
-        continue
-
-      # get settings variables
-      settings_filename = arch_path + '/' + arch_param_dir + '/' + param_settings_filename
-      with open(settings_filename, 'r') as f:
-        settings_data = yaml.load(f, Loader=SafeLoader)
-        try:
-          rtl_path           = read_from_list('rtl_path', settings_data, settings_filename)
-          top_level_filename = read_from_list('top_level_file', settings_data, settings_filename)
-          top_level_module   = read_from_list('top_level_module', settings_data, settings_filename)
-          clock_signal       = read_from_list('clock_signal', settings_data, settings_filename)
-          reset_signal       = read_from_list('reset_signal', settings_data, settings_filename)
-          file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename)
-          file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename)
-          file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename)
-          use_parameters     = read_from_list('use_parameters', settings_data, settings_filename)
-          start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename)
-          stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename)
-        except:
-          banned_arch_param.append(arch_param_dir)
-          error_archs.append(arch_display_name)
-          continue # if an identifier is missing
-
-        param_filename = arch + ".txt"
-        use_parameters = use_parameters.lower()
-        if use_parameters in use_parameters:
-          # check if parameter file exists
-          if not isfile(arch_path + '/' + param_filename):
-            printc.error("There is no parameter file \"" + arch_path + param_filename + "\", while use_parameters=true", script_name)
-            banned_arch_param.append(arch_param_dir)
-            error_archs.append(arch_display_name)
-            continue
-
-        generate_command = ""
-        try:
-          generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optional=True, print_error=False)
-          if generate_rtl in tcl_bool_true:
-            try:
-              generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False)
-            except:
-              printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-              banned_arch_param.append(arch_param_dir)
-              error_archs.append(arch_display_name)
-              continue
-        except:
-          generate_rtl = "false"
-
-        try:
-          design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False)
-        except:
-          design_path = -1
-          if generate_rtl in tcl_bool_true:
-            printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-            banned_arch_param.append(arch_param_dir)
-            continue
-        
-        try:
-          param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False)
-          if design_path == -1:
-            printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while param_target_file is defined", script_name)
-            banned_arch_param.append(arch_param_dir)
-            continue
-          # check if param target file path exists
-          param_target_file = design_path + '/' + param_target_filename
-          if not isfile(param_target_file): 
-            printc.error("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
-            banned_arch_param.append(arch_param_dir)
-            continue
-        except:
-          param_target_filename = 'rtl/' + top_level_filename
-
-      # check if file_copy_enable is a boolean
-      file_copy_enable = file_copy_enable.lower()
-      if not (file_copy_enable in tcl_bool_true or file_copy_enable in tcl_bool_false):
-        printc.error("Value for identifier \"file_copy_enable\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-        banned_arch_param.append(arch_param_dir)
-        error_archs.append(arch_display_name)
-        continue
-
-      # check if generate_rtl is a boolean
-      generate_rtl = generate_rtl.lower()
-      if not (generate_rtl in tcl_bool_true or generate_rtl in tcl_bool_false):
-        printc.error("Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-        banned_arch_param.append(arch_param_dir)
-        error_archs.append(arch_display_name)
-        continue
-
-      if not generate_rtl in tcl_bool_true:
-        # check if rtl path exists
-        if not isdir(rtl_path):
-          printc.error("The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
-          banned_arch_param.append(arch_param_dir)
-          error_archs.append(arch_display_name)
-          continue
-
-        # check if top level file path exists
-        top_level = rtl_path + '/' + top_level_filename
-        if not isfile(top_level):
-          printc.error("The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
-          banned_arch_param.append(arch_param_dir)
-          error_archs.append(arch_display_name)
-          continue
-
-        # check if the top level module name exists in the top level file, at least
-        f = open(top_level, "r")
-        if not top_level_module in f.read():
-          printc.error("There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"", script_name)
-          banned_arch_param.append(arch_param_dir)
-          error_archs.append(arch_display_name)
-          f.close()
-          continue
-        f.close()
-        
-        # check if the top clock name exists in the top level file, at least
-        f = open(top_level, "r")
-        if not clock_signal in f.read():
-          printc.error("There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"", script_name)
-          banned_arch_param.append(arch_param_dir)
-          error_archs.append(arch_display_name)
-          f.close()
-          continue
-        f.close()
-        
-        # check if the top reset name exists in the top level file, at least
-        f = open(top_level, "r")
-        if not clock_signal in f.read():
-          printc.error("There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"", script_name)
-          banned_arch_param.append(arch_param_dir)
-          error_archs.append(arch_display_name)
-          f.close()
-          continue
-        f.close()
-
-      # check if param file exists
-      if not isfile(arch_path + '/' + arch + '.txt'):
-        printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + arch_path + "/" + arch_param_dir + "\"", script_name)
-        banned_arch_param.append(arch_param_dir)
-        error_archs.append(arch_display_name)
-        continue
-
-      # check file copy
-      if file_copy_enable in tcl_bool_true:
-        if not isfile(file_copy_source):
-          printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
-          banned_arch_param.append(arch_param_dir)
-          error_archs.append(arch_display_name)
-          continue
-
-      # optional settings
-      try:
-        target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False)
-        if target_options == False:
-          printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(default_fmax_lower_bound, default_fmax_upper_bound), script_name)
-          raise
-        fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, eda_target_filename, optional=True)
-        fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, eda_target_filename, optional=True)
-      except:
-        fmax_lower_bound = default_fmax_lower_bound
-        fmax_upper_bound = default_fmax_upper_bound
-
-      fmax_lower_bound = str(fmax_lower_bound)
-      fmax_upper_bound = str(fmax_upper_bound)
-
-      # check if the architecture is in cache and has a status file
-      if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
-        # check if the previous synth_fmax has completed
-        sf = open(fmax_status_file, "r")
-        if valid_status in sf.read():
-          ff = open(frequency_search_file, "r")
-          if valid_frequency_search in ff.read():
-            if overwrite:
-              printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
-              overwrite_archs.append(arch_display_name)
-            else:
-              printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
-              cached_archs.append(arch_display_name)
-              continue
-          else:
-            printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
-            overwrite_archs.append(arch_display_name)
-          ff.close()
-        else: 
-          printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
-          incomplete_archs.append(arch_display_name)
-        sf.close()
-      else:
-        new_archs.append(arch_display_name)
-
-      # passed all check: added to the list
-      valid_archs.append(arch_display_name)
-
-      arch_instance = Architecture(
-        arch_name = arch,
-        arch_display_name = arch_display_name,
-        target = target,
-        tmp_script_path=script_path,
-        tmp_dir=tmp_dir,
-        design_path=design_path,
-        rtl_path=rtl_path,
-        arch_path=arch_path,
-        clock_signal=clock_signal,
-        reset_signal=reset_signal,
-        top_level_module=top_level_module,
-        top_level_filename=top_level_filename,
-        file_copy_enable=file_copy_enable,
-        file_copy_source=file_copy_source,
-        file_copy_dest=file_copy_dest,
-        script_copy_enable = script_copy_enable,
-        script_copy_source = script_copy_source,
-        fmax_lower_bound=fmax_lower_bound,
-        fmax_upper_bound=fmax_upper_bound,
-        param_target_filename=param_target_filename,
-        generate_rtl=generate_rtl,
-        start_delimiter=start_delimiter,
-        stop_delimiter=stop_delimiter,
-        generate_command=generate_command
-      )
-    
-      architecture_instances.append(arch_instance)
-    
   # print checklist summary
-  print_arch_list(new_archs, "New architectures", printc.colors.ENDC)
-  print_arch_list(incomplete_archs, "Incomplete results (will be overwritten)", printc.colors.YELLOW)
-  print_arch_list(cached_archs, "Existing results (skipped)", printc.colors.CYAN)
-  print_arch_list(overwrite_archs, "Existing results (will be overwritten)", printc.colors.YELLOW)
-  print_arch_list(error_archs, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
+  arch_handler.print_summary()
 
-  if len(architecture_instances) > nb_jobs:
-    nb_chunks = math.ceil(len(architecture_instances) / nb_jobs)
-    print()
-    printc.note("Current maximum number of jobs is " + str(nb_jobs) + ". Architectures will be split in " + str(nb_chunks) + " chunks")
-    architecture_instances_chunks = list(chunk_list(architecture_instances, nb_jobs))
-  else:
-    nb_chunks = 1
-    architecture_instances_chunks = []
+  # split architecture in chunks, depending on the number of jobs
+  architecture_instances_chunks, nb_chunks = arch_handler.get_chuncks(nb_jobs)
 
-  if ask_continue and len(valid_archs) > 0:
+  # ask to quit or continue
+  if ask_continue and arch_handler.get_valid_arch_count() > 0:
     print()
-    while True:
-      answer = input("Continue? (Y/n) ")
-      if answer.lower() in ['yes', 'ye', 'y', '1', '']:
-        break
-      elif answer.lower() in ['no', 'n', '0']:
-        sys.exit()
-      else:
-        print("Please enter yes or no")
+    ask_to_continue()
   
   print()
 
@@ -524,6 +251,7 @@ if __name__ == "__main__":
       fmax_upper_bound = arch_instance.fmax_upper_bound
       script_copy_enable = arch_instance.script_copy_enable
       script_copy_source = arch_instance.script_copy_source
+      use_parameters = arch_instance.use_parameters
       start_delimiter = arch_instance.start_delimiter
       stop_delimiter = arch_instance.stop_delimiter
       generate_rtl = arch_instance.generate_rtl
@@ -656,7 +384,7 @@ if __name__ == "__main__":
       else:
         process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, synth_fmax_rule, "WORK_DIR=\"" + tmp_dir + "\"", "SCRIPT_DIR=\"" + tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
-      running_arch_list.append(Running_arch(process, target, arch, arch_display_name))
+      running_arch_list.append(ah.Running_arch(process, target, arch, arch_display_name))
       printc.say("started job for architecture \"{}\" between {} and {} MHz with pid {}".format(arch, fmax_lower_bound, fmax_upper_bound, process.pid), script_name)
 
     # prepare output
