@@ -41,7 +41,7 @@ sys.path.append(lib_path)
 
 import printc
 
-script_name = "result_explorer.py"
+script_name = os.path.basename(__file__)
 
 # Prepare data for the dataframe
 def update_dataframe(yaml_data):

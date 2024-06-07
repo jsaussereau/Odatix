@@ -31,7 +31,7 @@ sys.path.append(lib_path)
 
 import printc
 
-script_name = "replace_params.py"
+script_name = os.path.basename(__file__)
 
 def read_file(file_path):
     try:

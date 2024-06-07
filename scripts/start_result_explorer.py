@@ -36,6 +36,8 @@ sys.path.append(lib_path)
 
 import printc
 
+script_name = "result_explorer.py"
+
 # Default ip address: local
 host_address = '127.0.0.1'
 ip_address = host_address
@@ -72,12 +74,12 @@ if __name__ == "__main__":
         host_address = '0.0.0.0'
         ip_address = socket.gethostbyname(socket.gethostname())
 
-    print("result explorer server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + '/' + printc.colors.ENDC, end="")
+    printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + '/' + printc.colors.ENDC, end="", script_name=script_name)
     if network:
         print(" (network-accessible)")
     else:
         print(" (localhost only)")
-    print("press 'q' to quit")
+    printc.say("press 'q' to quit", script_name=script_name)
 
     # Open the web page
     process = Thread(target=open_browser).start()

@@ -55,7 +55,7 @@ status_done = 'Done: 100%'
 bad_value = ' /   '
 format_mode = 'fpga'
 
-script_name = "export_results.py"
+script_name = os.path.basename(__file__)
 
 ######################################
 # Misc functions

@@ -90,48 +90,7 @@ synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 tcl_bool_true = ['true', 'yes', 'on', '1']
 tcl_bool_false = ['false', 'no', 'off', '0']
 
-script_name= "run_config.py"
-
-######################################
-# Misc classes
-######################################
-
-class Architecture:
-  def __init__(self, arch_name, arch_display_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, arch_path,
-               clock_signal, reset_signal, top_level_module, top_level_filename, start_delimiter, stop_delimiter,
-               file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
-               fmax_lower_bound, fmax_upper_bound, param_target_filename, generate_rtl, generate_command):
-    self.arch_name = arch_name
-    self.arch_display_name = arch_display_name
-    self.target = target
-    self.tmp_script_path = tmp_script_path
-    self.tmp_dir = tmp_dir
-    self.design_path = design_path
-    self.rtl_path = rtl_path
-    self.arch_path = arch_path
-    self.clock_signal = clock_signal
-    self.reset_signal = reset_signal
-    self.top_level_module = top_level_module
-    self.top_level_filename = top_level_filename
-    self.file_copy_enable = file_copy_enable
-    self.file_copy_source = file_copy_source
-    self.file_copy_dest = file_copy_dest
-    self.script_copy_enable = script_copy_enable
-    self.script_copy_source = script_copy_source
-    self.fmax_lower_bound = fmax_lower_bound
-    self.fmax_upper_bound = fmax_upper_bound
-    self.param_target_filename = param_target_filename
-    self.start_delimiter = start_delimiter
-    self.stop_delimiter = stop_delimiter
-    self.generate_rtl = generate_rtl
-    self.generate_command = generate_command
-
-class Running_arch:
-  def __init__(self, process, target, arch, display_name):
-    self.process = process
-    self.target = target
-    self.arch = arch
-    self.display_name = display_name
+script_name = os.path.basename(__file__)
 
 
 ######################################
