@@ -20,6 +20,7 @@
 #
 
 import os
+import sys
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
@@ -29,10 +30,16 @@ import plotly.graph_objs as go
 import pandas as pd
 import yaml
 import json
-import printc
 import webbrowser
 from threading import Timer
 from itertools import product
+
+# Add local libs to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+lib_path = os.path.join(current_dir, 'lib')
+sys.path.append(lib_path)
+
+import printc
 
 script_name = "result_explorer.py"
 

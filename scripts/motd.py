@@ -19,17 +19,18 @@
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
 
-class bcolors:
-  BLINK = '\033[5m'
-  WARNING = '\033[93m'
-  FAIL = '\033[91m'
-  OKBLUE = '\033[94m'
-  OKCYAN = '\033[96m'
-  ENDC = '\033[0m'
-  BOLD = '\033[1m'
+import os
+import sys
 
-print(bcolors.BOLD, end="")
+# Add local libs to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+lib_path = os.path.join(current_dir, 'lib')
+sys.path.append(lib_path)
+
+import printc
+
+print(printc.colors.BOLD, end="")
 print("********************************************************************")
 print("*                             Asterism                             *")
 print("********************************************************************")
-print(bcolors.ENDC)
+print(printc.colors.ENDC)

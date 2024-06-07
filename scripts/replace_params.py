@@ -19,10 +19,17 @@
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
 import re
 import sys
-import printc
 import argparse
+
+# Add local libs to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+lib_path = os.path.join(current_dir, 'lib')
+sys.path.append(lib_path)
+
+import printc
 
 script_name = "replace_params.py"
 

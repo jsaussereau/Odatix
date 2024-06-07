@@ -20,12 +20,18 @@
 #
 
 import os
+import sys
 import csv
 import yaml
-import printc
 import argparse
 
-import sys
+# Add local libs to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+lib_path = os.path.join(current_dir, 'lib')
+sys.path.append(lib_path)
+
+import printc
+
 sys.path.append('eda_tools/vivado/parser')
 sys.path.append('eda_tools/design_compiler/parser')
 

@@ -26,12 +26,8 @@ import math
 import time
 import copy
 import yaml
-import printc
 import argparse
 import subprocess
-import replace_params as rp
-
-from yaml.loader import SafeLoader
 
 from os.path import isfile
 from os.path import isdir
@@ -40,6 +36,16 @@ from os import listdir
 
 import shutil
 from shutil import rmtree
+
+# Add local libs to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+lib_path = os.path.join(current_dir, 'lib')
+sys.path.append(lib_path)
+
+import printc
+import replace_params as rp
+import utils
+from utils import *
 
 ######################################
 # Settings
