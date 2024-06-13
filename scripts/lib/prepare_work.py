@@ -1,0 +1,61 @@
+#**********************************************************************#
+#                               Asterism                               #
+#**********************************************************************#
+#
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Asterism.
+# Asterism is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# Asterism is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with Asterism. If not, see <https://www.gnu.org/licenses/>.
+#
+
+import os
+import re
+import sys
+
+import shutil
+from shutil import rmtree
+
+from os.path import isdir
+from os import makedirs
+
+from utils import *
+
+def create_dir(dir):
+  if isdir(dir):
+    rmtree(dir)
+  makedirs(dir)
+
+def edit_config_file(arch, config_file, constraint_file): 
+  with open(config_file, 'r') as f:
+    cf_content = f.read()
+    cf_content = re.sub("(set script_path.*)",        "set script_path        " + arch.tmp_script_path, cf_content)
+    cf_content = re.sub("(set tmp_path.*)",           "set tmp_path           " + arch.tmp_dir, cf_content)
+    cf_content = re.sub("(set rtl_path.*)",           "set rtl_path           " + arch.rtl_path, cf_content)
+    cf_content = re.sub("(set arch_path.*)",          "set arch_path          " + arch.arch_path, cf_content)
+    cf_content = re.sub("(set clock_signal.*)",       "set clock_signal       " + arch.clock_signal, cf_content)
+    cf_content = re.sub("(set reset_signal.*)",       "set reset_signal       " + arch.reset_signal, cf_content)
+    cf_content = re.sub("(set top_level_module.*)",   "set top_level_module   " + arch.top_level_module, cf_content)
+    cf_content = re.sub("(set top_level_file.*)",     "set top_level_file     " + arch.top_level_filename, cf_content)
+    cf_content = re.sub("(set file_copy_enable.*)",   "set file_copy_enable   " + arch.file_copy_enable, cf_content)
+    cf_content = re.sub("(set file_copy_source.*)",   "set file_copy_source   " + arch.file_copy_source, cf_content)
+    cf_content = re.sub("(set file_copy_dest.*)",     "set file_copy_dest     " + arch.file_copy_dest, cf_content)
+    cf_content = re.sub("(set fmax_lower_bound.*)",   "set fmax_lower_bound   " + arch.fmax_lower_bound, cf_content)
+    cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + arch.fmax_upper_bound, cf_content)
+    cf_content = re.sub("(set script_copy_enable.*)", "set script_copy_enable " + arch.script_copy_enable, cf_content)
+    cf_content = re.sub("(set script_copy_source.*)", "set script_copy_source " + arch.script_copy_source, cf_content)
+    cf_content = re.sub("(set lib_name.*)",           "set lib_name           " + arch.lib_name, cf_content)
+    cf_content = re.sub("(set constraints_file.*)",   "set constraints_file   $tmp_path/" + constraint_file, cf_content)
+ 
+  with open(config_file, 'w') as f:
+    f.write(cf_content)
