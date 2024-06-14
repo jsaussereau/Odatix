@@ -22,6 +22,7 @@
 import os
 import re
 import sys
+import math
 import yaml
 
 from os.path import isfile
@@ -35,20 +36,14 @@ script_name = os.path.basename(__file__)
 tcl_bool_true = ['true', 'yes', 'on', '1']
 tcl_bool_false = ['false', 'no', 'off', '0']
 
-class Running_arch:
-  def __init__(self, process, target, arch, display_name):
-    self.process = process
-    self.target = target
-    self.arch = arch
-    self.display_name = display_name
-
 class Architecture:
-  def __init__(self, arch_name, arch_display_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, arch_path,
+  def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, arch_path,
                clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
                fmax_lower_bound, fmax_upper_bound, param_target_filename, generate_rtl, generate_command):
     self.arch_name = arch_name
     self.arch_display_name = arch_display_name
+    self.lib_name = lib_name
     self.target = target
     self.tmp_script_path = tmp_script_path
     self.tmp_dir = tmp_dir
@@ -75,10 +70,11 @@ class Architecture:
 
 class ArchitectureHandler:
 
-  def __init__(self, work_path, arch_path, script_path, log_path, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, target_settings, overwrite):
+  def __init__(self, work_path, arch_path, script_path, work_script_path, log_path, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, target_settings, overwrite):
     self.work_path = work_path
     self.arch_path = arch_path
     self.script_path = script_path
+    self.work_script_path = work_script_path
     self.log_path = log_path
 
     self.eda_target_filename = eda_target_filename
@@ -116,7 +112,7 @@ class ArchitectureHandler:
         if not script_copy_enable in tcl_bool_true:
           raise
         if not os.path.exists(script_copy_source):
-          printc.note("the script source file \"" + script_copy_source + "\"specified in \"" + eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
+          printc.note("the script source file \"" + script_copy_source + "\"specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
           raise
       except:
         script_copy_enable = "false"
@@ -177,33 +173,56 @@ class ArchitectureHandler:
 
           param_filename = arch + ".txt"
           use_parameters = use_parameters.lower()
-          if use_parameters in use_parameters:
+          if use_parameters in tcl_bool_true:
+            use_parameters = True
             # check if parameter file exists
             if not isfile(self.arch_path + '/' + param_filename):
               printc.error("There is no parameter file \"" + self.arch_path + param_filename + "\", while use_parameters=true", script_name)
               self.banned_arch_param.append(arch_param_dir)
               self.error_archs.append(arch_display_name)
               continue
+          elif use_parameters in tcl_bool_false:
+              use_parameters = False
+          else:
+            printc.error("Value for identifier \"use_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.error_archs.append(arch_display_name)
+            continue
 
           generate_command = ""
           try:
             generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optional=True, print_error=False)
+            # check if generate_rtl is a boolean
+            generate_rtl = generate_rtl.lower()
             if generate_rtl in tcl_bool_true:
-              try:
-                generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False)
-              except:
-                printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-                self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
-                continue
+              generate_rtl = True
+            elif generate_rtl in tcl_bool_false:
+              generate_rtl = False
+            else:
+              printc.error("Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
+              self.banned_arch_param.append(arch_param_dir)
+              self.error_archs.append(arch_display_name)
+              generate_rtl = False
+              continue
           except:
-            generate_rtl = "false"
+            generate_rtl = False
+
+          if generate_rtl:
+            try:
+              generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False)
+              generate_rtl = True
+            except:
+              printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
+              self.banned_arch_param.append(arch_param_dir)
+              self.error_archs.append(arch_display_name)
+              generate_rtl = False
+              continue
 
           try:
             design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False)
           except:
             design_path = -1
-            if generate_rtl in tcl_bool_true:
+            if generate_rtl:
               printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
               self.banned_arch_param.append(arch_param_dir)
               continue
@@ -225,21 +244,17 @@ class ArchitectureHandler:
 
         # check if file_copy_enable is a boolean
         file_copy_enable = file_copy_enable.lower()
-        if not (file_copy_enable in tcl_bool_true or file_copy_enable in tcl_bool_false):
+        if file_copy_enable in tcl_bool_true:
+          file_copy_enable = True
+        elif file_copy_enable in tcl_bool_false:
+          file_copy_enable = False
+        else:
           printc.error("Value for identifier \"file_copy_enable\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
           self.banned_arch_param.append(arch_param_dir)
           self.error_archs.append(arch_display_name)
           continue
 
-        # check if generate_rtl is a boolean
-        generate_rtl = generate_rtl.lower()
-        if not (generate_rtl in tcl_bool_true or generate_rtl in tcl_bool_false):
-          printc.error("Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-          continue
-
-        if not generate_rtl in tcl_bool_true:
+        if not generate_rtl:
           # check if rtl path exists
           if not isdir(rtl_path):
             printc.error("The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
@@ -293,7 +308,7 @@ class ArchitectureHandler:
           continue
 
         # check file copy
-        if file_copy_enable in tcl_bool_true:
+        if file_copy_enable:
           if not isfile(file_copy_source):
             printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
             self.banned_arch_param.append(arch_param_dir)
@@ -301,19 +316,25 @@ class ArchitectureHandler:
             continue
 
         # optional settings
-        try:
-          target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False)
-          if target_options == False:
-            printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
-            raise
-          fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, eda_target_filename, optional=True)
-          fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, eda_target_filename, optional=True)
-        except:
+        target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False)
+        if target_options == False:
+          printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
           fmax_lower_bound = self.default_fmax_lower_bound
           fmax_upper_bound = self.default_fmax_upper_bound
-
-        fmax_lower_bound = str(fmax_lower_bound)
-        fmax_upper_bound = str(fmax_upper_bound)
+        else:
+          fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True)
+          if fmax_lower_bound == False:
+            printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
+            fmax_lower_bound = self.default_fmax_lower_bound
+          else:
+            fmax_lower_bound = str(fmax_lower_bound)
+          
+          fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True)
+          if fmax_upper_bound == False:
+            printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
+            fmax_upper_bound = self.default_fmax_upper_bound
+          else:
+            fmax_upper_bound = str(fmax_upper_bound)
 
         # check if the architecture is in cache and has a status file
         if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
@@ -343,11 +364,16 @@ class ArchitectureHandler:
         # passed all check: added to the list
         self.valid_archs.append(arch_display_name)
 
+        lib_name = "LIB_" + target + "_" + arch.replace("/", "_")
+
+        tmp_script_path = tmp_dir + '/' + self.work_script_path
+
         arch_instance = Architecture(
           arch_name = arch,
           arch_display_name = arch_display_name,
+          lib_name = lib_name,
           target = target,
-          tmp_script_path=self.script_path,
+          tmp_script_path=tmp_script_path,
           tmp_dir=tmp_dir,
           design_path=design_path,
           rtl_path=rtl_path,

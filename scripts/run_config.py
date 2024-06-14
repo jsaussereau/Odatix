@@ -22,20 +22,12 @@
 import os
 import re
 import sys
-import math
-import time
-import copy
 import yaml
 import argparse
-import subprocess
 
 from os.path import isfile
 from os.path import isdir
-from os import makedirs
 from os import listdir
-
-import shutil
-from shutil import rmtree
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -43,11 +35,12 @@ lib_path = os.path.join(current_dir, 'lib')
 sys.path.append(lib_path)
 
 import printc
-import replace_params as rp
-import architecture_handler as ah
-import utils
-from utils import *
+from replace_params import replace_params
 
+from architecture_handler import ArchitectureHandler
+from utils import *
+from prepare_work import *
+from run_parallel import *
 
 ######################################
 # Settings
@@ -87,9 +80,6 @@ default_fmax_upper_bound = 500
 
 fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
 synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
-
-tcl_bool_true = ['true', 'yes', 'on', '1']
-tcl_bool_false = ['false', 'no', 'off', '0']
 
 script_name = os.path.basename(__file__)
 
@@ -153,21 +143,7 @@ if __name__ == "__main__":
     sys.exit()
 
   # Try launching eda tool 
-  print("checking the selected eda tool \"" + tool + "\" ..", end='')
-  sys.stdout.flush()
-  test_process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, test_tool_rule, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-  while test_process.poll() is None:
-    print('.', end='', flush=True)
-    time.sleep(0.5)
-  if test_process.returncode == 0:
-      printc.green(" success!")
-  else:
-    printc.red(" failed!")
-    printc.error("Could not launch eda tool \"" + tool + "\"", script_name)
-    printc.note("did you add the tool path to your PATH environment variable?", script_name)
-    printc.note("example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin", script_name)
-    sys.exit()
-  print()
+  check_tool(tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule)
 
   with open(eda_target_filename, 'r') as f:
     settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
@@ -192,10 +168,13 @@ if __name__ == "__main__":
   if args.noask:
     ask_continue = False
 
-  arch_handler = ah.ArchitectureHandler(
+  Running_arch.set_patterns(fmax_status_pattern, synth_status_pattern)
+
+  arch_handler = ArchitectureHandler(
     work_path = work_path,
     arch_path = arch_path,
     script_path = script_path,
+    work_script_path = work_script_path,
     log_path = log_path,
     eda_target_filename = eda_target_filename,
     fmax_status_filename = fmax_status_filename,
@@ -234,80 +213,53 @@ if __name__ == "__main__":
       architecture_instances_chunk = architecture_instances_chunks[i_chunk]
 
     #print("valid_architectures : {}".format(valid_architectures))
-    for arch_instance in architecture_instances_chunk:
-      target = arch_instance.target
-      arch = arch_instance.arch_name
-      arch_display_name = arch_instance.arch_display_name
-      rtl_path = arch_instance.rtl_path
-      design_path = arch_instance.design_path
-      top_level_filename = arch_instance.top_level_filename
-      top_level_module = arch_instance.top_level_module
-      clock_signal = arch_instance.clock_signal
-      reset_signal = arch_instance.reset_signal
-      file_copy_enable = arch_instance.file_copy_enable
-      file_copy_source = arch_instance.file_copy_source
-      file_copy_dest = arch_instance.file_copy_dest
-      fmax_lower_bound = arch_instance.fmax_lower_bound
-      fmax_upper_bound = arch_instance.fmax_upper_bound
-      script_copy_enable = arch_instance.script_copy_enable
-      script_copy_source = arch_instance.script_copy_source
-      use_parameters = arch_instance.use_parameters
-      start_delimiter = arch_instance.start_delimiter
-      stop_delimiter = arch_instance.stop_delimiter
-      generate_rtl = arch_instance.generate_rtl
-      generate_command = arch_instance.generate_command
-      param_target_filename = arch_instance.param_target_filename
-        
-      tmp_dir = work_path + '/' + target + '/' + arch
+    for i_arch in architecture_instances_chunk:
 
       # get param dir (arch name before '/')
-      arch_param_dir = re.sub('/.*', '', arch)
-    
-      use_parameters = use_parameters.lower()
-      if not use_parameters in tcl_bool_true:
-        use_parameters = "false"
+      arch_param_dir = re.sub('/.*', '', i_arch.arch_name)
 
       # create directory
-      if isdir(tmp_dir):
-        rmtree(tmp_dir)
-      makedirs(tmp_dir)
+      create_dir(i_arch.tmp_dir)
 
       # copy scripts
-      tmp_script_path = tmp_dir + '/' + work_script_path
-      copytree(script_path + '/' + common_script_path, tmp_script_path)
-      copytree(script_path + '/' + tool + '/tcl', tmp_script_path, dirs_exist_ok = True)
+      try:
+        copytree(script_path + '/' + common_script_path, i_arch.tmp_script_path)
+      except: 
+        printc.error("\"" + i_arch.tmp_script_path + "\" exists while it should not" , script_name)
+
+      copytree(script_path + '/' + tool + '/tcl', i_arch.tmp_script_path, dirs_exist_ok = True)
 
       # copy design 
-      if design_path != -1:
-        copytree(design_path, tmp_dir, dirs_exist_ok = True)
+      if i_arch.design_path != -1:
+        copytree(i_arch.design_path, i_arch.tmp_dir, dirs_exist_ok = True)
 
       # copy rtl (if exists) 
-      if not generate_rtl in tcl_bool_true:
-        copytree(rtl_path, tmp_dir + '/' + 'rtl', dirs_exist_ok = True)
+      if not i_arch.generate_rtl:
+        copytree(i_arch.rtl_path, i_arch.tmp_dir + '/' + 'rtl', dirs_exist_ok = True)
 
       # replace parameters
-      if use_parameters in tcl_bool_true:
+      if i_arch.use_parameters:
         #printc.subheader("Replace parameters")
-        param_target_file = tmp_dir + '/' + param_target_filename
-        param_filename = arch_path + '/' + arch + '.txt'
-        rp.replace_params(
+        param_target_file = i_arch.tmp_dir + '/' + i_arch.param_target_filename
+        param_filename = arch_path + '/' + i_arch.arch_name + '.txt'
+        replace_params(
           base_text_file=param_target_file, 
           replacement_text_file=param_filename, 
           output_file=param_target_file, 
-          start_delimiter=start_delimiter, 
-          stop_delimiter=stop_delimiter, 
+          start_delimiter=i_arch.start_delimiter, 
+          stop_delimiter=i_arch.stop_delimiter, 
           replace_all_occurrences=False,
           silent=True
         )
         #print()
 
       # run generate command
-      if generate_rtl in tcl_bool_true:
+      if i_arch.generate_rtl:
         try:
           print()
-          printc.subheader("Run generate command for " + arch_display_name)
-          printc.bold(" > " + generate_command)
-          result = subprocess.run([generate_command], cwd=tmp_dir, shell=True, check=True, text=True)
+          printc.subheader("Run generate command for " + i_arch.arch_display_name)
+          printc.bold(" > " + i_arch.generate_command)
+          result = subprocess.run([i_arch.generate_command], cwd=i_arch.tmp_dir, shell=True, check=True, text=True)
         except subprocess.CalledProcessError as e:
           print()
           printc.error("rtl generation failed", script_name)
@@ -316,146 +268,72 @@ if __name__ == "__main__":
           continue
 
       # create target and architecture files
-      f = open(tmp_dir + '/' + target_filename, 'w')
-      print(target, file = f)
+      f = open(i_arch.tmp_dir + '/' + target_filename, 'w')
+      print(i_arch.target, file = f)
       f.close()
-      f = open(tmp_dir + '/' + arch_filename, 'w')
-      print(arch, file = f)
+      f = open(i_arch.tmp_dir + '/' + arch_filename, 'w')
+      print(i_arch.arch_name, file = f)
       f.close()
 
       # set source and dest to null if copy is disabled
-      file_copy_enable = file_copy_enable.lower()
       try:
-        if not file_copy_enable in tcl_bool_true:
+        if not i_arch.file_copy_enable:
           raise
-        if not os.path.exists(file_copy_source):
-          printc.note("the file \"" + file_copy_source + "\"specified in \"" + settings_filename + "\" does not exist. File copy disabled.", script_name)
+        if not os.path.exists(i_arch.file_copy_source):
+          printc.note("the file \"" + i_arch.file_copy_source + "\"specified in \"" + settings_filename + "\" does not exist. File copy disabled.", script_name)
           raise
+        i_arch.file_copy_enable = "true"
       except:
-        file_copy_enable = "false"
-        file_copy_source = "/dev/null"
-        file_copy_dest = "/dev/null"
+        i_arch.file_copy_enable = "false"
+        i_arch.file_copy_source = "/dev/null"
+        i_arch.file_copy_dest = "/dev/null"
+      
+      if i_arch.script_copy_enable:
+        i_arch.script_copy_enable = "true"
+      else: 
+        i_arch.script_copy_enable = "false"
 
       # edit config script
-      config_file = tmp_script_path + '/' + config_filename
-      with open(config_file, 'r') as f:
-        cf_content = f.read()
-
-      # lib name
-      lib_name = "DC_WORK_" + target + "_" + arch.replace("/", "_")
-
-      cf_content = re.sub("(set script_path.*)",        "set script_path        " + tmp_script_path, cf_content)
-      cf_content = re.sub("(set tmp_path.*)",           "set tmp_path           " + tmp_dir, cf_content)
-      cf_content = re.sub("(set rtl_path.*)",           "set rtl_path           " + rtl_path, cf_content)
-      cf_content = re.sub("(set arch_path.*)",          "set arch_path          " + arch_path, cf_content)
-      cf_content = re.sub("(set clock_signal.*)",       "set clock_signal       " + clock_signal, cf_content)
-      cf_content = re.sub("(set reset_signal.*)",       "set reset_signal       " + reset_signal, cf_content)
-      cf_content = re.sub("(set top_level_module.*)",   "set top_level_module   " + top_level_module, cf_content)
-      cf_content = re.sub("(set top_level_file.*)",     "set top_level_file     " + top_level_filename, cf_content)
-      cf_content = re.sub("(set file_copy_enable.*)",   "set file_copy_enable   " + file_copy_enable, cf_content)
-      cf_content = re.sub("(set file_copy_source.*)",   "set file_copy_source   " + file_copy_source, cf_content)
-      cf_content = re.sub("(set file_copy_dest.*)",     "set file_copy_dest     " + file_copy_dest, cf_content)
-      cf_content = re.sub("(set fmax_lower_bound.*)",   "set fmax_lower_bound   " + fmax_lower_bound, cf_content)
-      cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + fmax_upper_bound, cf_content)
-      cf_content = re.sub("(set script_copy_enable.*)", "set script_copy_enable " + script_copy_enable, cf_content)
-      cf_content = re.sub("(set script_copy_source.*)", "set script_copy_source " + script_copy_source, cf_content)
-      cf_content = re.sub("(set lib_name.*)",           "set lib_name           " + lib_name, cf_content)
-      cf_content = re.sub("(set constraints_file.*)",   "set constraints_file   $tmp_path/" + constraint_file, cf_content)
-
-      with open(config_file, 'w') as f:
-        f.write(cf_content)
+      config_file = i_arch.tmp_script_path + '/' + config_filename 
+      edit_config_file(i_arch, config_file, constraint_file)
 
       # link all scripts to config script
-      for filename in listdir(tmp_script_path):
+      for filename in listdir(i_arch.tmp_script_path):
         if filename.endswith('.tcl'):
-          with open(tmp_script_path + '/' + filename, 'r') as f:
+          with open(i_arch.tmp_script_path + '/' + filename, 'r') as f:
             tcl_content = f.read()
           pattern = re.escape(source_tcl) + r"(.+?\.tcl)"
           def replace_path(match):
-              return "source " + tmp_script_path + "/" + match.group(1)
+              return "source " + i_arch.tmp_script_path + "/" + match.group(1)
           tcl_content = re.sub(pattern, replace_path, tcl_content)
-          with open(tmp_script_path + '/' + filename, 'w') as f:
+          with open(i_arch.tmp_script_path + '/' + filename, 'w') as f:
             f.write(tcl_content)
 
       # run binary search script
-      if len(architecture_instances_chunk) == 1 and show_log_if_one:
-        #process = subprocess.run(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, synth_fmax_rule, "SCRIPT_DIR=\"" + tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"])
-        process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, synth_fmax_rule, "WORK_DIR=\"" + tmp_dir + "\"", "SCRIPT_DIR=\"" + tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"])
-      else:
-        process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + tool_makefile_filename, synth_fmax_rule, "WORK_DIR=\"" + tmp_dir + "\"", "SCRIPT_DIR=\"" + tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + tmp_dir + '/' + log_path + "\"", "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+      tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
+      process = run_parallel(
+        command = ["make", "-f", tool_makefile_file, synth_fmax_rule, "WORK_DIR=\"" + i_arch.tmp_dir + "\"", "SCRIPT_DIR=\"" + i_arch.tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + i_arch.tmp_dir + '/' + log_path + "\"", "--no-print-directory"],
+        nb_process = len(architecture_instances_chunk),
+        show_log_if_one = show_log_if_one
+      )
 
-      running_arch_list.append(ah.Running_arch(process, target, arch, arch_display_name))
-      printc.say("started job for architecture \"{}\" between {} and {} MHz with pid {}".format(arch, fmax_lower_bound, fmax_upper_bound, process.pid), script_name)
+      fmax_status_file = i_arch.tmp_dir + '/' + log_path + '/' + fmax_status_filename
+      synth_status_file = i_arch.tmp_dir + '/' + log_path + '/' + synth_status_filename
 
-    # prepare output
-    print()
-    for running_arch in running_arch_list:
-      print() 
+      running_arch_list.append(
+        Running_arch(
+          process=process,
+          target=i_arch.target,
+          arch=i_arch.arch_name,
+          display_name=i_arch.arch_display_name,
+          status_file=fmax_status_file,
+          progress_file=synth_status_file,
+          tmp_dir=i_arch.tmp_dir
+        )
+      )
+      printc.say("started job for architecture \"{}\" between {} and {} MHz with pid {}".format(i_arch.arch_name, i_arch.fmax_lower_bound, i_arch.fmax_upper_bound, process.pid), script_name)
 
-    active_running_arch_list = copy.copy(running_arch_list)
-
-    # wait for all processes to finish
-    while len(active_running_arch_list) > 0:
-      if not(len(running_arch_list) == 1 and show_log_if_one):
-        # go back to first line
-        for running_arch in running_arch_list:
-          move_cursor_up()
-
-      max_title_length = max(len(running_arch.display_name) for running_arch in running_arch_list)
-
-      for running_arch in running_arch_list:
-
-        # get status files full paths
-        tmp_dir = work_path + '/' + running_arch.target + '/' + running_arch.arch
-        fmax_status_file = tmp_dir + '/' + log_path + '/' + fmax_status_filename
-        synth_status_file = tmp_dir + '/' + log_path + '/' + synth_status_filename
-
-        # get progress from fmax status file
-        fmax_progress = 0
-        fmax_step = 1
-        fmax_totalstep = 1
-        if isfile(fmax_status_file):
-          with open(fmax_status_file, 'r') as f:
-            content = f.read()
-          for match in re.finditer(fmax_status_pattern, content):
-            parts = fmax_status_pattern.search(match.group())
-            if len(parts.groups()) >= 4:
-              fmax_progress = int(parts.group(2))
-              fmax_step = int(parts.group(3))
-              fmax_totalstep = int(parts.group(4))
-        
-        # get progress from synth status file
-        synth_progress = 0
-        if isfile(synth_status_file):
-          with open(synth_status_file, 'r') as f:
-            content = f.read()
-          for match in re.finditer(synth_status_pattern, content):
-            parts = synth_status_pattern.search(match.group())
-            if len(parts.groups()) >= 2:
-              synth_progress = int(parts.group(2))
-
-        # compute progress
-        if fmax_totalstep != 0:
-          progress = fmax_progress + synth_progress / fmax_totalstep
-        else:
-          progress = synth_progress
-          
-        # check if process has finished and print progress 
-        if running_arch.process.poll() != None:
-          try: 
-            active_running_arch_list.remove(running_arch)
-          except:
-            pass
-
-          if running_arch.process.returncode == 0:
-              comment = " (" + printc.colors.GREEN + "done" + printc.colors.ENDC + ")"
-          else:
-              comment = " (" + printc.colors.RED + "terminated with errors" + printc.colors.ENDC + ")"
-          progress_bar(progress, title=running_arch.display_name, title_size=max_title_length, endstr=comment)
-        else: 
-          progress_bar(progress, title=running_arch.display_name, title_size=max_title_length)
-
-      time.sleep(refresh_time)
+    show_progress(running_arch_list, refresh_time, show_log_if_one)
 
     # summary
     print()
