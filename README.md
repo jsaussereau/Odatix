@@ -6,6 +6,8 @@ It allows to easily find the maximum operating frequency of any digital architec
 The primary feature of this framework lies in its capability to compare different architectural configurations using parameter files. 
 With Asterism, users can effortlessly explore different architectural designs and evaluate their performance based on numerous metrics including Fmax, hardware resource utilization, power consumption, and more.
 
+Asterism documentation can be found at [https://asterism.readthedocs.io/](https://asterism.readthedocs.io/)
+
 ## Key Features
 
 - Synthesis: Easily conduct logical synthesis on diverse FPGA and ASIC tools for various targets.
