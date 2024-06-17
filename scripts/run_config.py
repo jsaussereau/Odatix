@@ -29,7 +29,7 @@ from os.path import isfile
 from os.path import isdir
 from os import listdir
 
-# Add local libs to path
+# add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, 'lib')
 sys.path.append(lib_path)
@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
   eda_target_filename = "target_" + tool + ".yml"
 
-  # Get settings from yaml file
+  # get settings from yaml file
   if not isfile(run_config_settings_filename):
     printc.error("Settings file \"" + run_config_settings_filename + "\" does not exist", script_name)
     sys.exit()
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     printc.error("Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
     sys.exit()
 
-  # Try launching eda tool 
+  # try launching eda tool 
   check_tool(tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule)
 
   with open(eda_target_filename, 'r') as f:
