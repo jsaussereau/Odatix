@@ -382,7 +382,7 @@ class ArchitectureHandler:
             self.incomplete_archs.append(arch_display_name)
           sf.close()
         else:
-          self.new_archs.append(arch_display_name)
+          self.new_archs.append(arch_display_name + " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC))
 
         # passed all check: added to the list
         self.valid_archs.append(arch_display_name)
