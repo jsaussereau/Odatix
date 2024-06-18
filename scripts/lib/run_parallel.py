@@ -62,7 +62,7 @@ def check_tool(tool, script_path, makefile, rule):
     printc.error("Could not launch eda tool \"" + tool + "\"", script_name)
     printc.note("did you add the tool path to your PATH environment variable?", script_name)
     printc.note("example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin", script_name)
-    sys.exit()
+    sys.exit(-1)
   print()
 
 def run_parallel(command, nb_process=1, show_log_if_one=True):
