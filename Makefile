@@ -40,16 +40,16 @@ MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 # Text formatting
 ########################################################
 
-_BOLD                   =\x1b[1m
-_END                    =\x1b[0m
-_RED                    =\x1b[31m
-_BLUE                   =\x1b[34m
-_CYAN                   =\x1b[36m
-_YELLOW                 =\x1b[33m
-_GREEN                  =\x1b[32m
-_WHITE                  =\x1b[37m
-_GREY                   =\x1b[90m
-_BLACK                  =\x1b[30m
+_BOLD                   =\033[1m
+_END                    =\033[0m
+_RED                    =\033[31m
+_BLUE                   =\033[34m
+_CYAN                   =\033[36m
+_YELLOW                 =\033[33m
+_GREEN                  =\033[32m
+_WHITE                  =\033[37m
+_GREY                   =\033[90m
+_BLACK                  =\033[30m
 
 VIVADO_COLOR            = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNING$(_END)/;s/ERROR/$(_RED)$(_BOLD)ERROR$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<yellow>/$(_YELLOW)/;s/<cyan>/$(_CYAN)/;s/<bold>/$(_BOLD)/;s/<end>/$(_END)/"
 
