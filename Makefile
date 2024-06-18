@@ -57,8 +57,10 @@ VIVADO_COLOR            = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNI
 # Installation
 ########################################################
 
+PIPX_CHECK              = command -v pipx >/dev/null 2>&1
 PIPX_INSTALL_CMD        = pipx install ./pipx --include-deps
-PIPX_ACTIVATE_SCRIPT    = ~/.local/share/pipx/venvs/asterism/bin/activate
+PIPX_VENV_PATH          = $(shell $(PIPX_CHECK) && pipx list | sed -n "s/venvs are in \(.*\)/\1/p")
+PIPX_ACTIVATE_SCRIPT    = $(PIPX_VENV_PATH)/asterism/bin/activate
 ACTIVATE_VENV           = [[ -f $(PIPX_ACTIVATE_SCRIPT) ]] && source $(PIPX_ACTIVATE_SCRIPT) && printf "$(_GREY)[Makefile]$(_END) activated asterism virtual environment\n"
 
 ########################################################
@@ -91,8 +93,16 @@ clean: clean_vivado clean_dc
 # Installation
 ########################################################
 
+.PHONY: check_pipx
+check_pipx:
+	@if ! $(PIPX_CHECK); then \
+		printf "$(_GREY)[Makefile]$(_END) $(_BOLD)$(_RED)error:$(_END) $(_RED)pipx is not installed. Please install pipx to proceed with installation of python requirements\n"; \
+		printf "$(_GREY)[Makefile]$(_END) $(_CYAN)note:$(_END) $(_CYAN)follow installation guide at $(_BLUE)https://asterism.readthedocs.io/en/latest/installation.html$(_END)\n"; \
+		exit 1; \
+	fi
+
 .PHONY: pipx_install
-pipx_install:
+pipx_install: check_pipx
 	@$(PIPX_INSTALL_CMD)
 
 ########################################################
