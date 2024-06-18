@@ -37,13 +37,6 @@ RUN_SCRIPT              = $(SCRIPT_DIR)/run_config.py
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 
 ########################################################
-# Installation
-########################################################
-
-PIPX_INSTALL_CMD        = pipx install ./pipx --include-deps
-PIPX_ACTIVATE_CMD       = source ~/.local/share/pipx/venvs/asterism/bin/activate
-
-########################################################
 # Text formatting
 ########################################################
 
@@ -55,9 +48,18 @@ _CYAN                   =\x1b[36m
 _YELLOW                 =\x1b[33m
 _GREEN                  =\x1b[32m
 _WHITE                  =\x1b[37m
+_GREY                   =\x1b[90m
 _BLACK                  =\x1b[30m
 
 VIVADO_COLOR            = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNING$(_END)/;s/ERROR/$(_RED)$(_BOLD)ERROR$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<yellow>/$(_YELLOW)/;s/<cyan>/$(_CYAN)/;s/<bold>/$(_BOLD)/;s/<end>/$(_END)/"
+
+########################################################
+# Installation
+########################################################
+
+PIPX_INSTALL_CMD        = pipx install ./pipx --include-deps
+PIPX_ACTIVATE_SCRIPT    = ~/.local/share/pipx/venvs/asterism/bin/activate
+ACTIVATE_VENV           = [[ -f $(PIPX_ACTIVATE_SCRIPT) ]] && source $(PIPX_ACTIVATE_SCRIPT) && printf "$(_GREY)[Makefile]$(_END) activated asterism virtual environment\n"
 
 ########################################################
 # General rules
@@ -92,10 +94,6 @@ clean: clean_vivado clean_dc
 .PHONY: pipx_install
 pipx_install:
 	@$(PIPX_INSTALL_CMD)
-
-.PHONY: pipx_activate
-pipx_activate:
-	@$(PIPX_ACTIVATE_CMD) || true
 
 ########################################################
 # Vivado
@@ -184,11 +182,11 @@ explore: motd explore_only
 
 .PHONY: explore_only
 explore_only:
-	@python3 ./$(EXPLORE_SCRIPT)
+	@/bin/bash -c '$(ACTIVATE_VENV); python3 ./$(EXPLORE_SCRIPT)'
 
 .PHONY: explore_network
 explore_network: motd explore_network_only
 
 .PHONY: explore_network_only
 explore_network_only:
-	@python3 ./$(EXPLORE_SCRIPT) --network
+	@/bin/bash -c '$(ACTIVATE_VENV); python3 ./$(EXPLORE_SCRIPT) --network'
