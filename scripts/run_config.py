@@ -124,7 +124,7 @@ if __name__ == "__main__":
   # get settings from yaml file
   if not isfile(run_config_settings_filename):
     printc.error("Settings file \"" + run_config_settings_filename + "\" does not exist", script_name)
-    sys.exit()
+    sys.exit(-1)
 
   with open(run_config_settings_filename, 'r') as f:
     settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
@@ -136,11 +136,11 @@ if __name__ == "__main__":
       nb_jobs         = read_from_list("nb_jobs", settings_data, run_config_settings_filename, script_name=script_name)
       architectures   = read_from_list("architectures", settings_data, run_config_settings_filename, script_name=script_name)
     except:
-      sys.exit() # if a key is missing
+      sys.exit(-1) # if a key is missing
 
   if not isfile(eda_target_filename):
     printc.error("Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
-    sys.exit()
+    sys.exit(-1)
 
   # try launching eda tool 
   check_tool(tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule)
@@ -152,7 +152,7 @@ if __name__ == "__main__":
       targets            = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
       constraint_file    = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
     except:
-      sys.exit() # if a key is missing
+      sys.exit(-1) # if a key is missing
       
     # optional keys
     try:
@@ -197,9 +197,12 @@ if __name__ == "__main__":
   architecture_instances_chunks, nb_chunks = arch_handler.get_chuncks(nb_jobs)
 
   # ask to quit or continue
-  if ask_continue and arch_handler.get_valid_arch_count() > 0:
-    print()
-    ask_to_continue()
+  if arch_handler.get_valid_arch_count() > 0:
+    if ask_continue:
+      print()
+      ask_to_continue()
+  else:
+    sys.exit(-1)
   
   print()
 

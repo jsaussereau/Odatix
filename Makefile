@@ -35,6 +35,7 @@ EXPORT_SCRIPT           = $(SCRIPT_DIR)/export_results.py
 EXPLORE_SCRIPT          = $(SCRIPT_DIR)/start_result_explorer.py
 RUN_SCRIPT              = $(SCRIPT_DIR)/run_config.py
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
+VIVADO_SUCCESS_FILE     = $(WORK_DIR)/.run_vivado_success
 
 ########################################################
 # Text formatting
@@ -117,14 +118,17 @@ run_vivado: motd run_vivado_only
 
 .PHONY: run_vivado_only
 run_vivado_only:
-	@python3 $(RUN_SCRIPT) --tool vivado
+	@python3 $(RUN_SCRIPT) --tool vivado || { rm -f $(VIVADO_SUCCESS_FILE); exit 0; }; \
+	touch $(VIVADO_SUCCESS_FILE)
 
 .PHONY: results_vivado
 results_vivado: motd results_vivado_only
 
 .PHONY: results_vivado_only
 results_vivado_only:
-	@python3 ./$(EXPORT_SCRIPT) --tool vivado --benchmark
+	@if [ -f $(VIVADO_SUCCESS_FILE) ]; then \
+		python3 ./$(EXPORT_SCRIPT) --tool vivado --benchmark; \
+	fi
 
 .PHONY: clean_vivado
 clean_vivado:
