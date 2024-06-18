@@ -67,18 +67,18 @@ ACTIVATE_VENV           = [[ -f $(PIPX_ACTIVATE_SCRIPT) ]] && source $(PIPX_ACTI
 
 .PHONY: help
 help: motd
-	@echo -e "SYNTHESIS"
-	@echo -e "\t$(_BOLD)make vivado$(_END): run synthesis + place&route in Vivado"	
-	@echo -e "\t$(_BOLD)make dc$(_END): run synthesis + place&route in Design Compiler"	
-	@echo -e "DATA EXPORT"
-	@echo -e "\t$(_BOLD)make results$(_END): export synthesis results"
-	@echo -e "\t$(_BOLD)make results_vivado$(_END): export Vivado synthesis results"
-	@echo -e "\t$(_BOLD)make results_dc$(_END): export Design Compiler synthesis results"
-	@echo -e "DATA EXPLORATION"
-	@echo -e "\t$(_BOLD)make explore$(_END): explore results in a web app (localhost only)"
-	@echo -e "\t$(_BOLD)make explore_network$(_END): explore results in a web app (network-accessible)"
-	@echo -e "OTHERS"
-	@echo -e "\t$(_BOLD)make help$(_END): display a list of useful commands"
+	@printf "SYNTHESIS\n"
+	@printf "\t$(_BOLD)make vivado$(_END): run synthesis + place&route in Vivado\n"
+	@printf "\t$(_BOLD)make dc$(_END): run synthesis + place&route in Design Compiler\n"
+	@printf "DATA EXPORT\n"
+	@printf "\t$(_BOLD)make results$(_END): export synthesis results\n"
+	@printf "\t$(_BOLD)make results_vivado$(_END): export Vivado synthesis results\n"
+	@printf "\t$(_BOLD)make results_dc$(_END): export Design Compiler synthesis results\n"
+	@printf "DATA EXPLORATION\n"
+	@printf "\t$(_BOLD)make explore$(_END): explore results in a web app (localhost only)\n"
+	@printf "\t$(_BOLD)make explore_network$(_END): explore results in a web app (network-accessible)\n"
+	@printf "OTHERS\n"
+	@printf "\t$(_BOLD)make help$(_END): display a list of useful commands\n"
 
 .PHONY: motd
 motd:
