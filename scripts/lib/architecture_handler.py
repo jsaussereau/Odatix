@@ -131,6 +131,9 @@ class ArchitectureHandler:
         # get param dir (arch name before '/')
         arch_param_dir = re.sub('/.*', '', arch)
 
+        # get param dir (arch name after '/')
+        arch_suffix = re.sub('.*/', '', arch)
+
         # check if arch_param has been banned
         if arch_param_dir in self.banned_arch_param:
           self.error_archs.append(arch_display_name)
@@ -316,25 +319,45 @@ class ArchitectureHandler:
             continue
 
         # optional settings
+        fmax_lower_bound_ok = False
+        fmax_upper_bound_ok = False
         target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False)
         if target_options == False:
           printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
           fmax_lower_bound = self.default_fmax_lower_bound
           fmax_upper_bound = self.default_fmax_upper_bound
         else:
-          fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True)
-          if fmax_lower_bound == False:
-            printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
-            fmax_lower_bound = self.default_fmax_lower_bound
-          else:
-            fmax_lower_bound = str(fmax_lower_bound)
-          
-          fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True)
-          if fmax_upper_bound == False:
-            printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
-            fmax_upper_bound = self.default_fmax_upper_bound
-          else:
-            fmax_upper_bound = str(fmax_upper_bound)
+          architectures_bounds = read_from_list('architectures', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False)
+          if architectures_bounds:
+            this_architecture_bounds = read_from_list(arch_suffix, architectures_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False)
+            if this_architecture_bounds:
+              fmax_lower_bound = read_from_list('fmax_lower_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False)
+              if fmax_lower_bound:
+                fmax_lower_bound_ok = True
+                fmax_lower_bound = str(fmax_lower_bound)
+              
+              fmax_upper_bound = read_from_list('fmax_upper_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False)
+              if fmax_upper_bound:
+                fmax_upper_bound_ok = True
+                fmax_upper_bound = str(fmax_upper_bound)
+
+          if fmax_lower_bound_ok == False:
+            fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False)
+            if fmax_lower_bound == False:
+              printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
+              fmax_lower_bound = self.default_fmax_lower_bound
+            else:
+              #printc.note("Cannot find optional key \"fmax_lower_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
+              fmax_lower_bound = str(fmax_lower_bound)
+
+          if fmax_upper_bound_ok == False:
+            fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False)
+            if fmax_upper_bound == False:
+              printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
+              fmax_upper_bound = self.default_fmax_upper_bound
+            else:
+              #printc.note("Cannot find optional key \"fmax_upper_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
+              fmax_upper_bound = str(fmax_upper_bound)
 
         # check if the architecture is in cache and has a status file
         if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
