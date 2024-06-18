@@ -44,7 +44,7 @@ def chunk_list(lst, n):
   for i in range(0, len(lst), n):
     yield lst[i:i + n]
 
-def read_from_list(key, input_list, filename, raise_if_missing=True, optional=False, print_error=True, parent=None):
+def read_from_list(key, input_list, filename, raise_if_missing=True, optional=False, print_error=True, parent=None, script_name=""):
   if key in input_list:
     return input_list[key]
   else:
@@ -58,7 +58,7 @@ def read_from_list(key, input_list, filename, raise_if_missing=True, optional=Fa
       raise
     return False
 
-def read_from_config(identifier, config, filename):
+def read_from_config(identifier, config, filename, script_name=""):
   if identifier in config[settings_ini_section]:
     return config[settings_ini_section][identifier]
   else:

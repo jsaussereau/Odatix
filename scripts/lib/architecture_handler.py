@@ -106,9 +106,9 @@ class ArchitectureHandler:
       try:
         if target_settings == {}:
           raise
-        this_target_settings = read_from_list(target, target_settings, self.eda_target_filename, optional=True, parent="target_settings")
-        script_copy_enable = read_from_list('script_copy_enable', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target)
-        script_copy_source = read_from_list('script_copy_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target)
+        this_target_settings = read_from_list(target, target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
+        script_copy_enable = read_from_list('script_copy_enable', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)
+        script_copy_source = read_from_list('script_copy_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)
         if not script_copy_enable in tcl_bool_true:
           raise
         if not os.path.exists(script_copy_source):
@@ -158,17 +158,17 @@ class ArchitectureHandler:
         with open(settings_filename, 'r') as f:
           settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
           try:
-            rtl_path           = read_from_list('rtl_path', settings_data, settings_filename)
-            top_level_filename = read_from_list('top_level_file', settings_data, settings_filename)
-            top_level_module   = read_from_list('top_level_module', settings_data, settings_filename)
-            clock_signal       = read_from_list('clock_signal', settings_data, settings_filename)
-            reset_signal       = read_from_list('reset_signal', settings_data, settings_filename)
-            file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename)
-            file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename)
-            file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename)
-            use_parameters     = read_from_list('use_parameters', settings_data, settings_filename)
-            start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename)
-            stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename)
+            rtl_path           = read_from_list('rtl_path', settings_data, settings_filename, script_name=script_name)
+            top_level_filename = read_from_list('top_level_file', settings_data, settings_filename, script_name=script_name)
+            top_level_module   = read_from_list('top_level_module', settings_data, settings_filename, script_name=script_name)
+            clock_signal       = read_from_list('clock_signal', settings_data, settings_filename, script_name=script_name)
+            reset_signal       = read_from_list('reset_signal', settings_data, settings_filename, script_name=script_name)
+            file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename, script_name=script_name)
+            file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename, script_name=script_name)
+            file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename, script_name=script_name)
+            use_parameters     = read_from_list('use_parameters', settings_data, settings_filename, script_name=script_name)
+            start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename, script_name=script_name)
+            stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename, script_name=script_name)
           except:
             self.banned_arch_param.append(arch_param_dir)
             self.error_archs.append(arch_display_name)
@@ -194,7 +194,7 @@ class ArchitectureHandler:
 
           generate_command = ""
           try:
-            generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optional=True, print_error=False)
+            generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
             # check if generate_rtl is a boolean
             generate_rtl = generate_rtl.lower()
             if generate_rtl in tcl_bool_true:
@@ -212,7 +212,7 @@ class ArchitectureHandler:
 
           if generate_rtl:
             try:
-              generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False)
+              generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False, script_name=script_name)
               generate_rtl = True
             except:
               printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
@@ -222,7 +222,7 @@ class ArchitectureHandler:
               continue
 
           try:
-            design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False)
+            design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
           except:
             design_path = -1
             if generate_rtl:
@@ -231,7 +231,7 @@ class ArchitectureHandler:
               continue
           
           try:
-            param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False)
+            param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
             if design_path == -1:
               printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while param_target_file is defined", script_name)
               self.banned_arch_param.append(arch_param_dir)
@@ -321,28 +321,28 @@ class ArchitectureHandler:
         # optional settings
         fmax_lower_bound_ok = False
         fmax_upper_bound_ok = False
-        target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False)
+        target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
         if target_options == False:
           printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
           fmax_lower_bound = self.default_fmax_lower_bound
           fmax_upper_bound = self.default_fmax_upper_bound
         else:
-          architectures_bounds = read_from_list('architectures', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False)
+          architectures_bounds = read_from_list('architectures', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
           if architectures_bounds:
-            this_architecture_bounds = read_from_list(arch_suffix, architectures_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False)
+            this_architecture_bounds = read_from_list(arch_suffix, architectures_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
             if this_architecture_bounds:
-              fmax_lower_bound = read_from_list('fmax_lower_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False)
+              fmax_lower_bound = read_from_list('fmax_lower_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
               if fmax_lower_bound:
                 fmax_lower_bound_ok = True
                 fmax_lower_bound = str(fmax_lower_bound)
               
-              fmax_upper_bound = read_from_list('fmax_upper_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False)
+              fmax_upper_bound = read_from_list('fmax_upper_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
               if fmax_upper_bound:
                 fmax_upper_bound_ok = True
                 fmax_upper_bound = str(fmax_upper_bound)
 
           if fmax_lower_bound_ok == False:
-            fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False)
+            fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
             if fmax_lower_bound == False:
               printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
               fmax_lower_bound = self.default_fmax_lower_bound
@@ -351,7 +351,7 @@ class ArchitectureHandler:
               fmax_lower_bound = str(fmax_lower_bound)
 
           if fmax_upper_bound_ok == False:
-            fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False)
+            fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
             if fmax_upper_bound == False:
               printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
               fmax_upper_bound = self.default_fmax_upper_bound

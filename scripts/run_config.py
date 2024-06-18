@@ -129,12 +129,12 @@ if __name__ == "__main__":
   with open(run_config_settings_filename, 'r') as f:
     settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     try:
-      overwrite       = read_from_list("overwrite", settings_data, run_config_settings_filename)
-      ask_continue    = read_from_list("ask_continue", settings_data, run_config_settings_filename)
-      show_log_if_one = read_from_list("show_log_if_one", settings_data, run_config_settings_filename)
-      use_screen      = read_from_list("use_screen", settings_data, run_config_settings_filename)
-      nb_jobs         = read_from_list("nb_jobs", settings_data, run_config_settings_filename)
-      architectures   = read_from_list("architectures", settings_data, run_config_settings_filename)
+      overwrite       = read_from_list("overwrite", settings_data, run_config_settings_filename, script_name=script_name)
+      ask_continue    = read_from_list("ask_continue", settings_data, run_config_settings_filename, script_name=script_name)
+      show_log_if_one = read_from_list("show_log_if_one", settings_data, run_config_settings_filename, script_name=script_name)
+      use_screen      = read_from_list("use_screen", settings_data, run_config_settings_filename, script_name=script_name)
+      nb_jobs         = read_from_list("nb_jobs", settings_data, run_config_settings_filename, script_name=script_name)
+      architectures   = read_from_list("architectures", settings_data, run_config_settings_filename, script_name=script_name)
     except:
       sys.exit() # if a key is missing
 
@@ -149,14 +149,14 @@ if __name__ == "__main__":
     settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     # mandatory keys
     try:
-      targets            = read_from_list("targets", settings_data, eda_target_filename)
-      constraint_file    = read_from_list("constraint_file", settings_data, eda_target_filename)
+      targets            = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
+      constraint_file    = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
     except:
       sys.exit() # if a key is missing
       
     # optional keys
     try:
-      target_settings    = read_from_list("target_settings", settings_data, eda_target_filename, optional=True)
+      target_settings    = read_from_list("target_settings", settings_data, eda_target_filename, optional=True, script_name=script_name)
     except:
       target_settings    = {}
       print()
