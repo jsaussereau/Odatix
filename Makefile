@@ -37,6 +37,13 @@ RUN_SCRIPT              = $(SCRIPT_DIR)/run_config.py
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 
 ########################################################
+# Installation
+########################################################
+
+PIPX_INSTALL_CMD        = pipx install ./pipx --include-deps
+PIPX_ACTIVATE_CMD       = source ~/.local/share/pipx/venvs/asterism/bin/activate
+
+########################################################
 # Text formatting
 ########################################################
 
@@ -77,6 +84,18 @@ motd:
 
 .PHONY: clean
 clean: clean_vivado clean_dc
+
+########################################################
+# Installation
+########################################################
+
+.PHONY: pipx_install
+pipx_install:
+	@$(PIPX_INSTALL_CMD)
+
+.PHONY: pipx_activate
+pipx_activate:
+	@$(PIPX_ACTIVATE_CMD) || true
 
 ########################################################
 # Vivado

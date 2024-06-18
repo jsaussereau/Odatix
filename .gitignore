@@ -1,6 +1,8 @@
 
 # Python
 **/__pycache__
+pipx/Asterism*
+pipx/build
 
 # Vivado
 work/vivado*
