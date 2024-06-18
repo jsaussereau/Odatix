@@ -341,6 +341,12 @@ class ArchitectureHandler:
                 fmax_upper_bound_ok = True
                 fmax_upper_bound = str(fmax_upper_bound)
 
+              # check if bounds are valid
+              if (fmax_upper_bound <= fmax_lower_bound) : 
+                printc.error("The upper bound (" + fmax_upper_bound + ") must be strictly superior to the lower bound (" + fmax_lower_bound + ")", script_name)
+                self.error_archs.append(arch_display_name)
+                continue
+
           if fmax_lower_bound_ok == False:
             fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
             if fmax_lower_bound == False:
@@ -358,6 +364,15 @@ class ArchitectureHandler:
             else:
               #printc.note("Cannot find optional key \"fmax_upper_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
               fmax_upper_bound = str(fmax_upper_bound)
+              
+        # check if bounds are valid
+        if (fmax_upper_bound <= fmax_lower_bound) : 
+          printc.error("The upper bound (" + fmax_upper_bound + ") must be strictly superior to the lower bound (" + fmax_lower_bound + ")", script_name)
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+          continue
+
+        formatted_bound = " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC)
 
         # check if the architecture is in cache and has a status file
         if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
@@ -368,21 +383,21 @@ class ArchitectureHandler:
             if self.valid_frequency_search in ff.read():
               if self.overwrite:
                 printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
-                self.overwrite_archs.append(arch_display_name)
+                self.overwrite_archs.append(arch_display_name + formatted_bound)
               else:
                 printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
                 self.cached_archs.append(arch_display_name)
                 continue
             else:
               printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
-              self.overwrite_archs.append(arch_display_name)
+              self.incomplete_archs.append(arch_display_name + formatted_bound)
             ff.close()
           else: 
             printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
-            self.incomplete_archs.append(arch_display_name)
+            self.incomplete_archs.append(arch_display_name + formatted_bound)
           sf.close()
         else:
-          self.new_archs.append(arch_display_name + " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC))
+          self.new_archs.append(arch_display_name + formatted_bound)
 
         # passed all check: added to the list
         self.valid_archs.append(arch_display_name)
@@ -452,7 +467,7 @@ class ArchitectureHandler:
 
     print()
     printc.bold(description + ":")
-    printc.color(color)
     for arch in arch_list:
+      printc.color(color)
       print("  - " + arch)
     printc.endc()
