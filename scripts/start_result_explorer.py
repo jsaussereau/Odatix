@@ -28,6 +28,7 @@ import termios
 import result_explorer
 import select
 import socket
+import logging 
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -65,6 +66,8 @@ def restore_mode(old_settings):
 if __name__ == "__main__":
     from waitress import serve
     from flask import request
+
+    logging.getLogger('waitress').setLevel(logging.ERROR)
 
     # Check options
     if "-n" in sys.argv or "--network" in sys.argv:
