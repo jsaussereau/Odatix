@@ -28,47 +28,9 @@ Asterism documentation can be found at [https://asterism.readthedocs.io/](https:
 
 ## Installation
 
-### Step 1: Clone the repository
-```bash
-git clone https://github.com/jsaussereau/Asterism.git
-cd Asterism/
-```
-### Step 2: Install Python 3.6+ and make
-On Ubuntu/Debian:
-```bash
-sudo apt update
-sudo apt install python3 python3-pip make
-```
-On Fedora/CentOS/AlmaLinux:
-```bash
-sudo dnf update
-sudo dnf install python3 python3-pip make
-```
-On Arch Linux:
-```bash
-sudo pacman -Sy python3 make
-```
-### Step 3: Install Python requirements listed in requirements.txt
-On Ubuntu/Debian or Fedora/CentOS/AlmaLinux:
-```bash
-pip install -r requirements.txt
-```
-On Arch Linux (includes packages from the AUR):
-```
-sudo pacman -Sy - < requirements-archlinux.txt
-```
+The detailed installation procedure can be found at the following link:
+[https://asterism.readthedocs.io/en/latest/installation.html](https://asterism.readthedocs.io/en/latest/installation.html)
 
-### Step 4: Install one of the supported EDA tools 
-Make sure your EDA tool is added to your PATH environment variable
-```bash
-PATH=$PATH:<eda_tool_installation_path>
-```
-Replace `<eda_tool_installation_path>` with your own installation path. 
-
-Example of adding Vivado to the PATH environment variable (your installation path may be different):
-```bash
-PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin
-```
 ## Quick start guide
 
 ### Step 1: Choose the designs you want to implement
