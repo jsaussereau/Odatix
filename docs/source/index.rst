@@ -7,9 +7,7 @@ It allows to easily find the maximum operating frequency of any digital architec
 The primary feature of this framework lies in its capability to compare different architectural configurations using parameter files. 
 With Asterism, users can effortlessly explore different architectural designs and evaluate their performance based on numerous metrics including Fmax, hardware resource utilization, power consumption, and more.
 
-.. note::
-
-   This project is under active development.
+Asterism repository can be found at https://github.com/jsaussereau/Asterism
 
 Key Features
 ------------
