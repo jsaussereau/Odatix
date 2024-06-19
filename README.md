@@ -1,4 +1,7 @@
-# Welcome to Asterism!
+# Asterism
+
+[![GitHub License](https://img.shields.io/github/license/jsaussereau/Asterism)](https://github.com/jsaussereau/Asterism/blob/main/LICENSE)
+[![Documentation Status](https://readthedocs.org/projects/asterism/badge/?version=latest)](https://asterism.readthedocs.io)
 
 Asterism is a toolbox designed to facilitate logical synthesis on various FPGA and ASIC tools such as Vivado and Design Compiler. 
 It allows to easily find the maximum operating frequency of any digital architecture described with an HDL (VHDL, Verilog, SystemVerilog).
