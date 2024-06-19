@@ -11,7 +11,7 @@ Step 1: Clone the repository
       .. code-block:: console
 
          sudo apt update
-         sudo apt install git
+         sudo apt install -y git
          git clone https://github.com/jsaussereau/Asterism.git
          cd Asterism/
 
@@ -20,7 +20,7 @@ Step 1: Clone the repository
       .. code-block:: console
 
          sudo dnf update
-         sudo dnf install git
+         sudo dnf install -y git
          git clone https://github.com/jsaussereau/Asterism.git
          cd Asterism/
 
@@ -42,13 +42,13 @@ Step 2: Install Python 3.6+ and make
 
       .. code-block:: console
 
-         sudo apt install python3 make
+         sudo apt install -y python3 make
 
    .. group-tab:: Fedora/CentOS/AlmaLinux
 
       .. code-block:: console
 
-         sudo dnf install python3 make
+         sudo dnf install -y python3 make
 
    .. group-tab:: Arch Linux
 
@@ -68,7 +68,7 @@ Option #1: Using pipx (recommended)
 
       .. code-block:: console
 
-         sudo apt install pipx
+         sudo apt install -y pipx
          make pipx_install
          pipx ensurepath
 
@@ -76,7 +76,7 @@ Option #1: Using pipx (recommended)
 
       .. code-block:: console
 
-         sudo dnf install pipx
+         sudo dnf install -y pipx
          make pipx_install
          pipx ensurepath
 
@@ -98,21 +98,21 @@ Option #2: Using pip
       .. code-block:: console
 
          sudo apt install python3-pip
-         pip install -r requirements.txt
+         pip3 install -r requirements.txt
 
    .. group-tab:: Fedora/CentOS/AlmaLinux
 
       .. code-block:: console
 
          sudo dnf install python3-pip
-         pip install -r requirements.txt
+         pip3 install -r requirements.txt
 
    .. group-tab:: Arch Linux
 
       .. code-block:: console
 
          sudo pacman -Sy python-pip
-         pip install -r requirements.txt
+         pip3 install -r requirements.txt
 
 .. Option #3: Using system package manager
 .. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
