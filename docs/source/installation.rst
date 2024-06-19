@@ -28,7 +28,8 @@ Step 1: Clone the repository
 
       .. code-block:: console
 
-         sudo pacman -Sy git
+         sudo pacman -Syu
+         sudo pacman -S git --noconfirm
          git clone https://github.com/jsaussereau/Asterism.git
          cd Asterism/
 
@@ -54,7 +55,7 @@ Step 2: Install Python 3.6+ and make
 
       .. code-block:: console
 
-         sudo pacman -Sy python3 make
+         sudo pacman -S python3 make --noconfirm
 
 Step 3: Install Python requirements
 -----------------------------------
@@ -84,9 +85,12 @@ Option #1: Using pipx (recommended)
 
       .. code-block:: console
          
-         sudo pacman -Sy python-pipx
+         sudo pacman -S python-pipx --noconfirm
          make pipx_install
          pipx ensurepath
+
+.. warning::
+   If the directory where pipx stores apps was not already in your PATH environment variable, you have to start a new shell session before running Asterism
 
 Option #2: Using pip
 ~~~~~~~~~~~~~~~~~~~~
