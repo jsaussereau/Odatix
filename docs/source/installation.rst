@@ -12,6 +12,8 @@ Step 1: Clone the repository
 
          sudo apt update
          sudo apt install git
+         git clone https://github.com/jsaussereau/Asterism.git
+         cd Asterism/
 
    .. group-tab:: Fedora/CentOS/AlmaLinux
 
@@ -19,17 +21,16 @@ Step 1: Clone the repository
 
          sudo dnf update
          sudo dnf install git
+         git clone https://github.com/jsaussereau/Asterism.git
+         cd Asterism/
 
    .. group-tab:: Arch Linux
 
       .. code-block:: console
 
          sudo pacman -Sy git
-
-.. code-block:: console
-
-   git clone https://github.com/jsaussereau/Asterism.git
-   cd Asterism/
+         git clone https://github.com/jsaussereau/Asterism.git
+         cd Asterism/
 
 
 Step 2: Install Python 3.6+ and make
@@ -69,6 +70,7 @@ Option #1: Using pipx (recommended)
 
          sudo apt install pipx
          make pipx_install
+         pipx ensurepath
 
    .. group-tab:: Fedora/CentOS/AlmaLinux
 
@@ -76,6 +78,7 @@ Option #1: Using pipx (recommended)
 
          sudo dnf install pipx
          make pipx_install
+         pipx ensurepath
 
    .. group-tab:: Arch Linux
 
@@ -83,6 +86,7 @@ Option #1: Using pipx (recommended)
          
          sudo pacman -Sy python-pipx
          make pipx_install
+         pipx ensurepath
 
 Option #2: Using pip
 ~~~~~~~~~~~~~~~~~~~~
