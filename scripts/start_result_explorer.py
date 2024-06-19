@@ -46,7 +46,7 @@ port = 8052
 network = False
 
 def open_browser():
-    webbrowser.open(ip_address + ':' + str(port), new=0, autoraise=True)
+    webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
 
 def close_server():
     restore_mode(old_settings)
