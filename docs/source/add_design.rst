@@ -9,40 +9,83 @@ Create a folder named after your design in the ``architectures`` folder.
 Step 2: Setting file
 ~~~~~~~~~~~~~~~~~~~~
 
-- Add a ``_settings.yml`` in your newly created folder and fill it with the template below
+- Add a ``_settings.yml`` in your newly created folder and fill it with one of the templates below
 
-.. code-block:: yaml
+.. tabs::
 
-   ---
-   #rtl path, relative to Asterism root, not this directory
-   rtl_path: "examples/alu"
+   .. group-tab:: VHDL/Verilog/SystemVerilog
+      .. code-block:: yaml
+         :caption: _setting.yml
+         :linenos:
 
-   top_level_file: "alu_top.sv"
-   top_level_module: "alu_top"
+         ---
+         #rtl path, relative to Asterism root directory, not this directory
+         rtl_path: "examples/alu_sv"
 
-   clock_signal: "i_clk"
+         top_level_file: "alu_top.sv"
+         top_level_module: "alu_top"
 
-   # copy a file into synthesis directory?
-   file_copy_enable: "false"
-   file_copy_source: "/dev/null"
-   file_copy_dest: "/dev/null"
+         clock_signal: "i_clk"
+         reset_signal: "i_rst"
 
-   # delimiters for parameter files
-   use_parameters: "true"
-   start_delimiter: "alu_top #("
-   stop_delimiter: ")("
+         # copy a file into synthesis directory?
+         file_copy_enable: "false"
+         file_copy_source: "/dev/null"
+         file_copy_dest: "/dev/null"
 
-   # optionnal target-specific bounds (in MHz) to speed up fmax search
-   xc7s25-csga225-1:
-      fmax_lower_bound: 100
-      fmax_upper_bound: 450
-   xc7a100t-csg324-1:
-      fmax_lower_bound: 150
-      fmax_upper_bound: 450
-   xc7k70t-fbg676-2:
-      fmax_lower_bound: 100
-      fmax_upper_bound: 700
-   ...
+         # delimiters for parameter files
+         use_parameters: "true"
+         start_delimiter: "#("
+         stop_delimiter: ")("
+
+         # optionnal target-specific bounds (in MHz) to speed up fmax search
+         xc7s25-csga225-1:
+            fmax_lower_bound: 100
+            fmax_upper_bound: 450
+         xc7a100t-csg324-1:
+            fmax_lower_bound: 150
+            fmax_upper_bound: 450
+         ...
+
+   .. group-tab:: Chisel/HLS
+      .. code-block:: yaml
+         :caption: _setting.yml
+         :linenos:
+
+         ---
+         # generate the rtl (from chisel for example)
+         generate_rtl: "true"
+         generate_command: "sbt 'runMain ALUTop --o=rtl'" # command for rtl generation
+
+         # design path, relative to Asterism root directory, not this directory
+         design_path: "examples/alu_chisel"
+         rtl_path: "examples/alu_chisel/rtl"
+
+         # generated design settings
+         top_level_file: "ALUTop.sv"
+         top_level_module: "ALUTop"
+         clock_signal: "clock"
+         reset_signal: "reset"
+
+         # copy a file into synthesis directory?
+         file_copy_enable: "false"
+         file_copy_source: "/dev/null"
+         file_copy_dest: "/dev/null"
+
+         # delimiters for parameter files
+         use_parameters: "true"
+         param_target_file: "src/main/scala/ALUTop.scala"
+         start_delimiter: "new ALUTop("
+         stop_delimiter: ")"
+
+         # optionnal target-specific bounds (in MHz) to speed up fmax search
+         xc7s25-csga225-1:
+            fmax_lower_bound: 100
+            fmax_upper_bound: 450
+         xc7a100t-csg324-1:
+            fmax_lower_bound: 150
+            fmax_upper_bound: 800
+         ...
 
 - Edit the file so it matches your design source files directory, top level filename, module name, and clock signal name.
 - Set `start_delimiter` and `stop_delimiter` so it matches the delimiters of the parameter section in your top level source file.
@@ -58,6 +101,9 @@ Parameter files should match the parameter section of your top-level source file
 For instance, with the following Verilog module
 
 .. code-block:: verilog
+   :caption: alu_top.sv
+   :linenos:
+   :emphasize-lines: 2
 
    module alu_top #(
       parameter BITS = 8
@@ -74,12 +120,16 @@ For instance, with the following Verilog module
 One of the parameter file could contain:
 
 .. code-block:: verilog
+   :caption: 16bits.txt
+   :linenos:
 
      parameter BITS = 16
 
 Another parameter file could contain:
 
 .. code-block:: verilog
+   :caption: 32bits.txt
+   :linenos:
 
      parameter BITS = 32
 

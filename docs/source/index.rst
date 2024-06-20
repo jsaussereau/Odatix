@@ -18,7 +18,7 @@ Key Features
 - Interactive Results Exploration: Visualize, compare, and explore architecture implementation results based on various metrics for each target.
 
 .. note::
-   Please note that these tools are not included in Asterism and must be obtained separately.
+  Please note that these tools are not included in Asterism and must be obtained separately.
 
 Supported EDA tools
 -------------------
