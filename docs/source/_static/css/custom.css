@@ -30,50 +30,45 @@ h3 {
     border-radius: 0 0 0.5rem 0.5rem;
 }
 
+.code-block-caption {
+    border-radius: 0.5rem;
+    font-family: var(--font-stack--monospace);
+    font-weight: 700;
+    padding-bottom: 20px;
+    margin-bottom: -20px;
+    margin-top: 15px;
+}
+
 .highlight {
     border-radius: 0.5rem;
 }
 
-
-/* Headerlink */
-/*
-.headerlink {
-    opacity:0;
+body:not([data-theme="light"]) .hll {
+    background-color: #343942 !important;
 }
 
-.headerlink:hover {
-    opacity:1;
-}
-*/
-
-/* Dark Theme */
-
-.dark .highlight {
-    border-radius: 0.5rem;
-    background-color: #0f1526 !important;
+body:not([data-theme="light"]) .admonition {
+    background-color: #161b22 !important;
 }
 
-.dark .sphinx-tabs-panel {
-    background-color: #030711 !important;
-}  
-
-.dark .sphinx-tabs-tab {
-    border: 1 solid #e5e7eb;
-    margin: 0px;
-    margin-left: -1px;
-    margin-right: 1px;
-    margin-bottom: 0px;
+body:not([data-theme="light"]) .code-block-caption {
+    background-color: #161b22 !important;
 }
 
-.dark .sphinx-tabs-tab[aria-selected="true"] {
-    border: 1 solid #e5e7eb;
-    border-bottom: 1px solid #030711;
-    margin-left: -1px;
-    margin-right: 1px;
-    margin-bottom: -1px;
+body:not([data-theme="light"]) .sphinx-tabs-panel {
+    background-color: #21262d !important;
 }
 
-.dark .group-tab {
-    color: white;
-    background-color: #030711 !important;
+body:not([data-theme="light"]) .sphinx-tabs-tab[aria-selected="true"] {
+    background-color: #21262d !important;
+    border-bottom: 1px solid #21262d;
+}
+
+body:not([data-theme="light"]) .highlight {
+    background-color: #161b22 !important;
+}
+
+body:not([data-theme="light"]) {
+    --color-background-primary: #010409;
+    --color-background-secondary: #0d1117;
 }
