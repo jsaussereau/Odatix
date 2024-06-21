@@ -77,7 +77,16 @@ body:not([data-theme="light"]) .highlight {
     background-color: #161b22 !important;
 }
 
+body:not([data-theme="light"]) .head {
+    background-color: #161b22 !important;
+}
+
+body:not([data-theme="light"]) .literal {
+    border-radius: 0.35rem;
+    background-color: #343942 !important;
+}
+
 body:not([data-theme="light"]) {
-    --color-background-primary: #010409;
-    --color-background-secondary: #0d1117;
+    --color-background-primary: #0d1117;
+    --color-background-secondary: #010409;
 }
