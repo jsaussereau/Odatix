@@ -334,12 +334,10 @@ class ArchitectureHandler:
               fmax_lower_bound = read_from_list('fmax_lower_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
               if fmax_lower_bound:
                 fmax_lower_bound_ok = True
-                fmax_lower_bound = str(fmax_lower_bound)
               
               fmax_upper_bound = read_from_list('fmax_upper_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
               if fmax_upper_bound:
                 fmax_upper_bound_ok = True
-                fmax_upper_bound = str(fmax_upper_bound)
 
               # check if bounds are valid
               if (fmax_upper_bound <= fmax_lower_bound) : 
@@ -361,9 +359,8 @@ class ArchitectureHandler:
             if fmax_upper_bound == False:
               printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
               fmax_upper_bound = self.default_fmax_upper_bound
-            else:
+           #else:
               #printc.note("Cannot find optional key \"fmax_upper_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
-              fmax_upper_bound = str(fmax_upper_bound)
               
         # check if bounds are valid
         if (fmax_upper_bound <= fmax_lower_bound) : 
@@ -371,6 +368,9 @@ class ArchitectureHandler:
           self.banned_arch_param.append(arch_param_dir)
           self.error_archs.append(arch_display_name)
           continue
+
+        fmax_lower_bound = str(fmax_lower_bound)
+        fmax_upper_bound = str(fmax_upper_bound)
 
         formatted_bound = " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC)
 
