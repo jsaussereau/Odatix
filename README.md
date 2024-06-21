@@ -32,7 +32,7 @@ Asterism documentation can be found at [https://asterism.readthedocs.io/](https:
 ## Installation
 
 The detailed installation procedure can be found at the following link:
-[https://asterism.readthedocs.io/en/latest/installation.html](https://asterism.readthedocs.io/en/latest/installation.html)
+[https://asterism.readthedocs.io/en/latest/userguide/installation.html](https://asterism.readthedocs.io/en/latest/userguide/installation.html)
 
 ## Quick start guide
 
