@@ -40,7 +40,14 @@ Contents
 --------
 
 .. toctree::
+  :caption: User Guide
 
-   installation
-   quick_start
-   add_design
+  userguide/installation
+  userguide/quick_start
+  userguide/add_design
+
+.. toctree::
+  :caption: Documentation
+
+  documentation/makefile_rules
+  documentation/architecture_settings

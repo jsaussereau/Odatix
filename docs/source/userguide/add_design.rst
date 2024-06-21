@@ -88,9 +88,9 @@ Step 2: Setting file
          ...
 
 - Edit the file so it matches your design source files directory, top level filename, module name, and clock signal name.
-- Set `start_delimiter` and `stop_delimiter` so it matches the delimiters of the parameter section in your top level source file.
+- Set ``start_delimiter`` and ``stop_delimiter`` so it matches the delimiters of the parameter section in your top level source file.
 - Add target-specific bounds for the binary search.
-- A documentation of the keys for `_settings.yml` files can be found [here](https://github.com/jsaussereau/Asterism/tree/main/documentation#architecture-settings)
+- A documentation of the keys for ``_settings.yml`` files can be found in section :doc:`/documentation/architecture_settings`
 
 Step 3: Parameter files
 ~~~~~~~~~~~~~~~~~~~~~~~
