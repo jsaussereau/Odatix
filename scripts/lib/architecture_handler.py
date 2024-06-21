@@ -350,9 +350,8 @@ class ArchitectureHandler:
             if fmax_lower_bound == False:
               printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
               fmax_lower_bound = self.default_fmax_lower_bound
-            else:
+            #else:
               #printc.note("Cannot find optional key \"fmax_lower_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
-              fmax_lower_bound = str(fmax_lower_bound)
 
           if fmax_upper_bound_ok == False:
             fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
