@@ -72,7 +72,7 @@ def run_parallel(command, nb_process=1, show_log_if_one=True):
     process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
   return process
 
-def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True):
+def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True, mode="synthesis"):
   # prepare output    
   print()
   for running_arch in running_arch_list:
@@ -91,53 +91,60 @@ def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True):
 
     for running_arch in running_arch_list:
 
-      # get status files full paths
-      fmax_status_file = running_arch.status_file
-      synth_status_file = running_arch.progress_file
-      fmax_status_pattern = Running_arch.status_file_pattern
-      synth_status_pattern = Running_arch.progress_file_pattern
+      if mode == "synthesis":
+        # get status files full paths
+        fmax_status_file = running_arch.status_file
+        synth_status_file = running_arch.progress_file
+        fmax_status_pattern = Running_arch.status_file_pattern
+        synth_status_pattern = Running_arch.progress_file_pattern
 
-      # get progress from fmax status file
-      fmax_progress = 0
-      fmax_step = 1
-      fmax_totalstep = 1
-      if os.path.isfile(fmax_status_file):
-        with open(fmax_status_file, 'r') as f:
-          content = f.read()
-        for match in re.finditer(fmax_status_pattern, content):
-          parts = fmax_status_pattern.search(match.group())
-          if len(parts.groups()) >= 4:
-            fmax_progress = int(parts.group(2))
-            fmax_step = int(parts.group(3))
-            fmax_totalstep = int(parts.group(4))
-      
-      # get progress from synth status file
-      synth_progress = 0
-      if os.path.isfile(synth_status_file):
-        with open(synth_status_file, 'r') as f:
-          content = f.read()
-        for match in re.finditer(synth_status_pattern, content):
-          parts = synth_status_pattern.search(match.group())
-          if len(parts.groups()) >= 2:
-            synth_progress = int(parts.group(2))
+        # get progress from fmax status file
+        fmax_progress = 0
+        fmax_step = 1
+        fmax_totalstep = 1
+        if os.path.isfile(fmax_status_file):
+          with open(fmax_status_file, 'r') as f:
+            content = f.read()
+          for match in re.finditer(fmax_status_pattern, content):
+            parts = fmax_status_pattern.search(match.group())
+            if len(parts.groups()) >= 4:
+              fmax_progress = int(parts.group(2))
+              fmax_step = int(parts.group(3))
+              fmax_totalstep = int(parts.group(4))
+        
+        # get progress from synth status file
+        synth_progress = 0
+        if os.path.isfile(synth_status_file):
+          with open(synth_status_file, 'r') as f:
+            content = f.read()
+          for match in re.finditer(synth_status_pattern, content):
+            parts = synth_status_pattern.search(match.group())
+            if len(parts.groups()) >= 2:
+              synth_progress = int(parts.group(2))
 
-      # compute progress
-      if fmax_totalstep != 0:
-        progress = fmax_progress + synth_progress / fmax_totalstep
+        # compute progress
+        if fmax_totalstep != 0:
+          progress = fmax_progress + synth_progress / fmax_totalstep
+        else:
+          progress = synth_progress
       else:
-        progress = synth_progress
+        progress = None
         
       # check if process has finished and print progress 
-      if running_arch.process.poll() != None:
+      if running_arch.process.poll() is not None:
         try: 
           active_running_arch_list.remove(running_arch)
         except:
           pass
-
+        
         if running_arch.process.returncode == 0:
-            comment = " (" + printc.colors.GREEN + "done" + printc.colors.ENDC + ")"
+          comment = " (" + printc.colors.GREEN + "done" + printc.colors.ENDC + ")"
+          if progress is None:
+            progress = 100
         else:
-            comment = " (" + printc.colors.RED + "terminated with errors" + printc.colors.ENDC + ")"
+          comment = " (" + printc.colors.RED + "terminated with errors" + printc.colors.ENDC + ")"
+          if progress is None:
+            progress = 0
         progress_bar(progress, title=running_arch.display_name, title_size=max_title_length, endstr=comment)
       else: 
         progress_bar(progress, title=running_arch.display_name, title_size=max_title_length)
