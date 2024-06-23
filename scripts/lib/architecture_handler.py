@@ -143,6 +143,7 @@ class ArchitectureHandler:
         arch_param = self.arch_path + '/' + arch_param_dir
         if not isdir(arch_param):
           printc.error("There is no directory \"" + arch_param_dir + "\" in directory \"" + self.arch_path + "\"", script_name)
+          self.banned_arch_param.append(arch_param_dir)
           self.error_archs.append(arch_display_name)
           continue
         
