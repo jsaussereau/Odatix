@@ -46,3 +46,21 @@ def get_synth_settings(settings_filename):
       sys.exit(-1) # if a key is missing
   return overwrite, ask_continue, show_log_if_one, nb_jobs, architectures
 
+
+def get_sim_settings(settings_filename):
+  # get sim settings from yaml file
+  if not os.path.isfile(settings_filename):
+    printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
+    sys.exit(-1)
+
+  with open(settings_filename, 'r') as f:
+    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    try:
+      overwrite       = read_from_list("overwrite", settings_data, settings_filename, script_name=script_name)
+      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, script_name=script_name)
+      show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, script_name=script_name)
+      nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, script_name=script_name)
+      simulations     = read_from_list("simulations", settings_data, settings_filename, script_name=script_name)
+    except:
+      sys.exit(-1) # if a key is missing
+  return overwrite, ask_continue, show_log_if_one, nb_jobs, simulations
