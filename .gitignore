@@ -4,8 +4,10 @@
 pipx/Asterism*
 pipx/build
 
+# Simulation
+work/simulation/*
+
 # Vivado
-work/vivado*
 work/vivado/*
 **/.Xil
 **/vivado*.jou
@@ -26,6 +28,9 @@ change_names_verilog
 default.svf
 filenames*.log
 DC_WORK_*_autoread
+
+# Others
+**/.stamp.*
 
 # Docs
 docs/build
