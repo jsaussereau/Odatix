@@ -33,7 +33,7 @@ LOG_DIR                 = $(WORK_DIR)/log
 
 EXPORT_SCRIPT           = $(SCRIPT_DIR)/export_results.py
 EXPLORE_SCRIPT          = $(SCRIPT_DIR)/start_result_explorer.py
-RUN_SCRIPT              = $(SCRIPT_DIR)/run_config.py
+RUN_SCRIPT              = $(SCRIPT_DIR)/run_fmax_synthesis.py
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 VIVADO_SUCCESS_FILE     = $(WORK_DIR)/.run_vivado_success
 
