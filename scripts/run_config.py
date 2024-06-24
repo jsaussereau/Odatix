@@ -25,10 +25,6 @@ import sys
 import yaml
 import argparse
 
-from os.path import isfile
-from os.path import isdir
-from os import listdir
-
 # add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, 'lib')
@@ -41,6 +37,7 @@ from architecture_handler import ArchitectureHandler
 from utils import *
 from prepare_work import *
 from run_parallel import *
+from run_settings import *
 
 ######################################
 # Settings
@@ -92,8 +89,6 @@ def parse_arguments():
   parser = argparse.ArgumentParser(description='Run fmax synthesis on selected architectures')
   parser.add_argument('-i', '--input', default='architecture_select.yml',
                       help='input architecture file (default: architecture_select.yml)')
-  #parser.add_argument('-m', '--mode', choices=['fpga', 'asic'], default='fpga',
-  #                    help='Select the mode (fpga or asic, default: fpga)')
   parser.add_argument('-t', '--tool', default='vivado',
                       help='eda tool in use (default: vivado)')
   parser.add_argument('-w', '--overwrite', action='store_true',
@@ -110,35 +105,16 @@ def parse_arguments():
 if __name__ == "__main__":
 
   args = parse_arguments()
-
-  #if args.mode != 'fpga' and args.mode != 'asic' :
-  #  raise ValueError("Invalid mode selected. Please choose 'fpga' or 'asic'.")
   
   tool = args.tool
   work_path += "/" + tool 
 
   run_config_settings_filename = args.input
+  overwrite, ask_continue, show_log_if_one, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   eda_target_filename = "target_" + tool + ".yml"
 
-  # get settings from yaml file
-  if not isfile(run_config_settings_filename):
-    printc.error("Settings file \"" + run_config_settings_filename + "\" does not exist", script_name)
-    sys.exit(-1)
-
-  with open(run_config_settings_filename, 'r') as f:
-    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-    try:
-      overwrite       = read_from_list("overwrite", settings_data, run_config_settings_filename, script_name=script_name)
-      ask_continue    = read_from_list("ask_continue", settings_data, run_config_settings_filename, script_name=script_name)
-      show_log_if_one = read_from_list("show_log_if_one", settings_data, run_config_settings_filename, script_name=script_name)
-      use_screen      = read_from_list("use_screen", settings_data, run_config_settings_filename, script_name=script_name)
-      nb_jobs         = read_from_list("nb_jobs", settings_data, run_config_settings_filename, script_name=script_name)
-      architectures   = read_from_list("architectures", settings_data, run_config_settings_filename, script_name=script_name)
-    except:
-      sys.exit(-1) # if a key is missing
-
-  if not isfile(eda_target_filename):
+  if not os.path.isfile(eda_target_filename):
     printc.error("Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
     sys.exit(-1)
 
@@ -301,7 +277,7 @@ if __name__ == "__main__":
       edit_config_file(i_arch, config_file, constraint_file)
 
       # link all scripts to config script
-      for filename in listdir(i_arch.tmp_script_path):
+      for filename in os.listdir(i_arch.tmp_script_path):
         if filename.endswith('.tcl'):
           with open(i_arch.tmp_script_path + '/' + filename, 'r') as f:
             tcl_content = f.read()
@@ -315,7 +291,7 @@ if __name__ == "__main__":
       # run binary search script
       tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
       process = run_parallel(
-        command = ["make", "-f", tool_makefile_file, synth_fmax_rule, "WORK_DIR=\"" + i_arch.tmp_dir + "\"", "SCRIPT_DIR=\"" + i_arch.tmp_dir + '/' + work_script_path + "\"", "LOG_DIR=\"" + i_arch.tmp_dir + '/' + log_path + "\"", "--no-print-directory"],
+        command = "make -f " + tool_makefile_file + " " + synth_fmax_rule + " WORK_DIR=\"" + i_arch.tmp_dir + "\" SCRIPT_DIR=\"" + i_arch.tmp_dir + '/' + work_script_path + "\" LOG_DIR=\"" + i_arch.tmp_dir + '/' + log_path + "\" --no-print-directory",
         nb_process = len(architecture_instances_chunk),
         show_log_if_one = show_log_if_one
       )
@@ -336,7 +312,7 @@ if __name__ == "__main__":
       )
       printc.say("started job for architecture \"{}\" between {} and {} MHz with pid {}".format(i_arch.arch_name, i_arch.fmax_lower_bound, i_arch.fmax_upper_bound, process.pid), script_name)
 
-    show_progress(running_arch_list, refresh_time, show_log_if_one)
+    show_progress(running_arch_list, refresh_time, show_log_if_one, mode="synthesis")
 
     # summary
     print()
