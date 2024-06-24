@@ -1,6 +1,6 @@
 
 ##############################################
-# Settings for run_config.py
+# Settings for fmax synthesis
 ##############################################
 ---
 
@@ -12,9 +12,6 @@ ask_continue:     Yes
 
 # show synthesis log if there is only one architecture selected
 show_log_if_one:  Yes
-
-# run synthesis in a screen session
-use_screen:       No
 
 # maximum number of parallel synthesis
 nb_jobs:          8

@@ -87,8 +87,8 @@ script_name = os.path.basename(__file__)
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Run fmax synthesis on selected architectures')
-  parser.add_argument('-i', '--input', default='architecture_select.yml',
-                      help='input architecture file (default: architecture_select.yml)')
+  parser.add_argument('-i', '--input', default='_run_fmax_synthesis_settings.yml',
+                      help='input settings file (default: _run_fmax_synthesis_settings.yml)')
   parser.add_argument('-t', '--tool', default='vivado',
                       help='eda tool in use (default: vivado)')
   parser.add_argument('-w', '--overwrite', action='store_true',
