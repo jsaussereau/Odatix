@@ -71,26 +71,37 @@ def move_cursor_up():
   sys.stdout.write("\033[K") # Clear to the end of line
   sys.stdout.flush()
 
-def progress_bar(progress, title, title_size=50, bar_size=50, endstr=''):
-  if progress > 100:
-    progress = 100
-  
-  limit = int(progress * bar_size / 100)
+def progress_bar(progress, title, title_size=50, bar_size=50, endstr='', progress_char="#"):
+  if progress is None:
+    limit = 1
+  else:
+    if progress > 100:
+      progress = 100
+    limit = int(progress * bar_size / 100)
+
   padded_title = title.ljust(title_size)
 
-  print(padded_title + " [", end = '')
+  print(padded_title + " [", end='')
+  if progress is None:
+    printc.color(printc.colors.BLINK)
   for i in range(0, limit):
-    print('#', end = '')
+    print(progress_char, end='')
   for i in range(limit, bar_size):
-    print(' ', end = '')
-  print("] {}%".format(int(progress)) + endstr)
+    print(' ', end='')
+  if progress is None:
+    printc.color(printc.colors.ENDC)
+  print("]", end='')
+  if progress is not None:
+    print(" {}%".format(int(progress)) + endstr)
+  else:
+    print()
 
-def ask_to_continue():
+def ask_to_continue(exit_code=-1):
   while True:
     answer = input("Continue? (Y/n) ")
     if answer.lower() in ['yes', 'ye', 'y', '1', '']:
       break
     elif answer.lower() in ['no', 'n', '0']:
-      sys.exit()
+      sys.exit(exit_code)
     else:
       print("Please enter yes or no")
