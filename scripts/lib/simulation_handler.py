@@ -150,7 +150,7 @@ class SimulationHandler:
 
     sim_instance = Simulation(
       sim_name = sim_name,
-      sim_display_name = sim_name,
+      sim_display_name = sim_display_name,
       architecture = architecture,
       tmp_dir = tmp_dir,
       source_sim_dir = source_sim_dir,
