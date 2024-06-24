@@ -34,6 +34,7 @@ LOG_DIR                 = $(WORK_DIR)/log
 EXPORT_SCRIPT           = $(SCRIPT_DIR)/export_results.py
 EXPLORE_SCRIPT          = $(SCRIPT_DIR)/start_result_explorer.py
 RUN_SCRIPT              = $(SCRIPT_DIR)/run_fmax_synthesis.py
+SIM_SCRIPT              = $(SCRIPT_DIR)/run_simulations.py
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 VIVADO_SUCCESS_FILE     = $(WORK_DIR)/.run_vivado_success
 
@@ -70,6 +71,8 @@ ACTIVATE_VENV           = [[ -f $(PIPX_ACTIVATE_SCRIPT) ]] && source $(PIPX_ACTI
 
 .PHONY: help
 help: motd
+	@printf "SIMULATION\n"
+	@printf "\t$(_BOLD)make sim$(_END): run simulations\n"
 	@printf "SYNTHESIS\n"
 	@printf "\t$(_BOLD)make vivado$(_END): run synthesis + place&route in Vivado\n"
 	@printf "\t$(_BOLD)make dc$(_END): run synthesis + place&route in Design Compiler\n"
@@ -105,6 +108,17 @@ check_pipx:
 .PHONY: pipx_install
 pipx_install: check_pipx
 	@$(PIPX_INSTALL_CMD)
+
+########################################################
+# Simulation
+########################################################
+
+.PHONY: sim
+sim: motd sim_only
+
+.PHONY: sim_only
+sim_only: 
+	@python3 $(SIM_SCRIPT)
 
 ########################################################
 # Vivado
