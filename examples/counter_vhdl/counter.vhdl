@@ -7,8 +7,8 @@ entity counter is
     BITS : integer := 8
   );
   port (
-    i_clk      : in  std_logic;
-    i_rst      : in  std_logic;
+    clock      : in  std_logic;
+    reset      : in  std_logic;
     i_init     : in  std_logic;
     i_inc_dec  : in  std_logic;
     o_value    : out std_logic_vector(BITS-1 downto 0)
@@ -16,27 +16,27 @@ entity counter is
 end entity counter;
 
 architecture Behavioral of counter is
-  signal counter : unsigned(BITS-1 downto 0);
+  signal value : unsigned(BITS-1 downto 0);
 begin
-  process(i_clk)
+  process(clock)
   begin
-    if rising_edge(i_clk) then
-      if i_rst = '1' then
-        counter <= (others => '0');
+    if rising_edge(clock) then
+      if reset = '1' then
+        value <= (others => '0');
       else
         if i_init = '1' then
-          counter <= (others => '0');
+          value <= (others => '0');
         else
           if i_inc_dec = '1' then
-            counter <= counter + 1;
+            value <= value + 1;
           else
-            counter <= counter - 1;
+            value <= value - 1;
           end if;
         end if;
       end if;
     end if;
   end process;
 
-  o_value <= std_logic_vector(counter);
+  o_value <= std_logic_vector(value);
 
 end architecture Behavioral;

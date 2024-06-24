@@ -2,31 +2,31 @@
 module counter #(
   parameter BITS = 8
 )(
-  input  wire            i_clk,
-  input  wire            i_rst,
+  input  wire            clock,
+  input  wire            reset,
   input  wire            i_init,
   input  wire            i_inc_dec,
   output wire [BITS-1:0] o_value
 );
 
-  logic [BITS-1:0] counter;
+  logic [BITS-1:0] value;
 
-  always_ff @(posedge i_clk) begin
-    if (i_rst) begin
-      counter <= 0;
+  always_ff @(posedge clock) begin
+    if (reset) begin
+      value <= 0;
     end else begin
       if (i_init) begin
-        counter <= 0;
+        value <= 0;
       end else begin
         if (i_inc_dec) begin
-          counter <= counter + 1;
+          value <= value + 1;
         end else begin
-          counter <= counter - 1;
+          value <= value - 1;
         end
       end
     end
   end
 
-  assign o_value = counter;
+  assign o_value = value;
 
 endmodule

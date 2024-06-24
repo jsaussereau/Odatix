@@ -5,29 +5,26 @@ import chisel3.util._
 import _root_.circt.stage.{ChiselStage}
 
 class Counter(BITS: Int) extends Module {
-  val io = IO(new Bundle {
-    val i_clk     = Input(Clock())
-    val i_rst     = Input(Bool())
-    val i_init    = Input(Bool())
-    val i_inc_dec = Input(Bool())
-    val o_value   = Output(UInt(BITS.W))
-  })
+  override val desiredName = s"counter"
 
-  val counter = RegInit(0.U(BITS.W))
+  val i_init    = IO(Input(Bool()))
+  val i_inc_dec = IO(Input(Bool()))
+  val o_value   = IO(Output(UInt(BITS.W)))
 
-  when (io.i_rst) {
-    counter := 0.U
-  } .elsewhen (io.i_init) {
-    counter := 0.U
+  val value = RegInit(0.U(BITS.W))
+
+  when (i_init) {
+    value := 0.U
   } .otherwise {
-    when (io.i_inc_dec) {
-      counter := counter + 1.U
+    when (i_inc_dec) {
+      value := value + 1.U
     } .otherwise {
-      counter := counter - 1.U
+      value := value - 1.U
     }
   }
 
-  io.o_value := counter
+  o_value := value
+
 }
 
 object Counter extends App {

@@ -13,8 +13,8 @@ design_path: "examples/counter_chisel"
 rtl_path: "examples/counter_chisel/rtl"
 
 # generated design settings
-top_level_file: "Counter.sv"
-top_level_module: "Counter"
+top_level_file: "counter.sv"
+top_level_module: "counter"
 clock_signal: "clock"
 reset_signal: "reset"
 
