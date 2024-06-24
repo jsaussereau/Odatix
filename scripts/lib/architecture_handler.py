@@ -90,8 +90,9 @@ class ArchitectureHandler:
 
     self.target_settings = target_settings
     self.overwrite = overwrite
+    self.reset_lists()
 
-  def get_architectures(self, architectures, targets):
+  def reset_lists(self):
     self.banned_arch_param = []
     self.valid_archs = []
     self.cached_archs = []
@@ -100,7 +101,12 @@ class ArchitectureHandler:
     self.incomplete_archs = []
     self.new_archs = []
 
+  def get_architectures(self, architectures, targets):
+
+    self.reset_lists()
     self.architecture_instances = []
+
+    only_one_target = len(targets) == 1
 
     for target in targets:
       try:
@@ -119,325 +125,340 @@ class ArchitectureHandler:
         script_copy_source = "/dev/null"
         
       for arch in architectures:
-        if len(targets) == 1:
-          arch_display_name = arch
-        else:
-          arch_display_name = arch + " (" + target + ")"
-
-        tmp_dir = self.work_path + '/' + target + '/' + arch
-        fmax_status_file = tmp_dir + '/' + self.log_path + '/' + self.fmax_status_filename
-        frequency_search_file = tmp_dir + '/' + self.log_path + '/' + self.frequency_search_filename
-
-        # get param dir (arch name before '/')
-        arch_param_dir = re.sub('/.*', '', arch)
-
-        # get param dir (arch name after '/')
-        arch_suffix = re.sub('.*/', '', arch)
-
-        # check if arch_param has been banned
-        if arch_param_dir in self.banned_arch_param:
-          self.error_archs.append(arch_display_name)
-          continue
-
-        # check if parameter dir exists
-        arch_param = self.arch_path + '/' + arch_param_dir
-        if not isdir(arch_param):
-          printc.error("There is no directory \"" + arch_param_dir + "\" in directory \"" + self.arch_path + "\"", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-          continue
-        
-        # check if settings file exists
-        if not isfile(arch_param + '/' + self.param_settings_filename):
-          printc.error("There is no setting file \"" + self.param_settings_filename + "\" in directory \"" + arch_param + "\"", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-          continue
-
-        # get settings variables
-        settings_filename = self.arch_path + '/' + arch_param_dir + '/' + self.param_settings_filename
-        with open(settings_filename, 'r') as f:
-          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-          try:
-            rtl_path           = read_from_list('rtl_path', settings_data, settings_filename, script_name=script_name)
-            top_level_filename = read_from_list('top_level_file', settings_data, settings_filename, script_name=script_name)
-            top_level_module   = read_from_list('top_level_module', settings_data, settings_filename, script_name=script_name)
-            clock_signal       = read_from_list('clock_signal', settings_data, settings_filename, script_name=script_name)
-            reset_signal       = read_from_list('reset_signal', settings_data, settings_filename, script_name=script_name)
-            file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename, script_name=script_name)
-            file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename, script_name=script_name)
-            file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename, script_name=script_name)
-            use_parameters     = read_from_list('use_parameters', settings_data, settings_filename, script_name=script_name)
-            start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename, script_name=script_name)
-            stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename, script_name=script_name)
-          except:
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
-            continue # if an identifier is missing
-
-          param_filename = arch + ".txt"
-          use_parameters = use_parameters.lower()
-          if use_parameters in tcl_bool_true:
-            use_parameters = True
-            # check if parameter file exists
-            if not isfile(self.arch_path + '/' + param_filename):
-              printc.error("There is no parameter file \"" + self.arch_path + param_filename + "\", while use_parameters=true", script_name)
-              self.banned_arch_param.append(arch_param_dir)
-              self.error_archs.append(arch_display_name)
-              continue
-          elif use_parameters in tcl_bool_false:
-              use_parameters = False
-          else:
-            printc.error("Value for identifier \"use_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
-            continue
-
-          generate_command = ""
-          try:
-            generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
-            # check if generate_rtl is a boolean
-            generate_rtl = generate_rtl.lower()
-            if generate_rtl in tcl_bool_true:
-              generate_rtl = True
-            elif generate_rtl in tcl_bool_false:
-              generate_rtl = False
-            else:
-              printc.error("Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-              self.banned_arch_param.append(arch_param_dir)
-              self.error_archs.append(arch_display_name)
-              generate_rtl = False
-              continue
-          except:
-            generate_rtl = False
-
-          if generate_rtl:
-            try:
-              generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False, script_name=script_name)
-              generate_rtl = True
-            except:
-              printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-              self.banned_arch_param.append(arch_param_dir)
-              self.error_archs.append(arch_display_name)
-              generate_rtl = False
-              continue
-
-          try:
-            design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
-          except:
-            design_path = -1
-            if generate_rtl:
-              printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-              self.banned_arch_param.append(arch_param_dir)
-              continue
-          
-          try:
-            param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
-            if design_path == -1:
-              printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while param_target_file is defined", script_name)
-              self.banned_arch_param.append(arch_param_dir)
-              continue
-            # check if param target file path exists
-            param_target_file = design_path + '/' + param_target_filename
-            if not isfile(param_target_file): 
-              printc.error("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
-              self.banned_arch_param.append(arch_param_dir)
-              continue
-          except:
-            param_target_filename = 'rtl/' + top_level_filename
-
-        # check if file_copy_enable is a boolean
-        file_copy_enable = file_copy_enable.lower()
-        if file_copy_enable in tcl_bool_true:
-          file_copy_enable = True
-        elif file_copy_enable in tcl_bool_false:
-          file_copy_enable = False
-        else:
-          printc.error("Value for identifier \"file_copy_enable\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-          continue
-
-        if not generate_rtl:
-          # check if rtl path exists
-          if not isdir(rtl_path):
-            printc.error("The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
-            continue
-
-          # check if top level file path exists
-          top_level = rtl_path + '/' + top_level_filename
-          if not isfile(top_level):
-            printc.error("The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
-            continue
-
-          # check if the top level module name exists in the top level file, at least
-          f = open(top_level, "r")
-          if not top_level_module in f.read():
-            printc.error("There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"", script_name)
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
-            f.close()
-            continue
-          f.close()
-          
-          # check if the top clock name exists in the top level file, at least
-          f = open(top_level, "r")
-          if not clock_signal in f.read():
-            printc.error("There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"", script_name)
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
-            f.close()
-            continue
-          f.close()
-          
-          # check if the top reset name exists in the top level file, at least
-          f = open(top_level, "r")
-          if not clock_signal in f.read():
-            printc.error("There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"", script_name)
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
-            f.close()
-            continue
-          f.close()
-
-        # check if param file exists
-        if not isfile(self.arch_path + '/' + arch + '.txt'):
-          printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + self.arch_path + "/" + arch_param_dir + "\"", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-          continue
-
-        # check file copy
-        if file_copy_enable:
-          if not isfile(file_copy_source):
-            printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
-            continue
-
-        # optional settings
-        fmax_lower_bound_ok = False
-        fmax_upper_bound_ok = False
-        target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-        if target_options == False:
-          printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
-          fmax_lower_bound = self.default_fmax_lower_bound
-          fmax_upper_bound = self.default_fmax_upper_bound
-        else:
-          architectures_bounds = read_from_list('architectures', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-          if architectures_bounds:
-            this_architecture_bounds = read_from_list(arch_suffix, architectures_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-            if this_architecture_bounds:
-              fmax_lower_bound = read_from_list('fmax_lower_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-              if fmax_lower_bound:
-                fmax_lower_bound_ok = True
-              
-              fmax_upper_bound = read_from_list('fmax_upper_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-              if fmax_upper_bound:
-                fmax_upper_bound_ok = True
-
-              # check if bounds are valid
-              if (fmax_upper_bound <= fmax_lower_bound) : 
-                printc.error("The upper bound (" + fmax_upper_bound + ") must be strictly superior to the lower bound (" + fmax_lower_bound + ")", script_name)
-                self.error_archs.append(arch_display_name)
-                continue
-
-          if fmax_lower_bound_ok == False:
-            fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
-            if fmax_lower_bound == False:
-              printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
-              fmax_lower_bound = self.default_fmax_lower_bound
-            #else:
-              #printc.note("Cannot find optional key \"fmax_lower_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
-
-          if fmax_upper_bound_ok == False:
-            fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
-            if fmax_upper_bound == False:
-              printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
-              fmax_upper_bound = self.default_fmax_upper_bound
-           #else:
-              #printc.note("Cannot find optional key \"fmax_upper_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
-              
-        # check if bounds are valid
-        if (fmax_upper_bound <= fmax_lower_bound) : 
-          printc.error("The upper bound (" + fmax_upper_bound + ") must be strictly superior to the lower bound (" + fmax_lower_bound + ")", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-          continue
-
-        fmax_lower_bound = str(fmax_lower_bound)
-        fmax_upper_bound = str(fmax_upper_bound)
-
-        formatted_bound = " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC)
-
-        # check if the architecture is in cache and has a status file
-        if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
-          # check if the previous synth_fmax has completed
-          sf = open(fmax_status_file, "r")
-          if self.valid_status in sf.read():
-            ff = open(frequency_search_file, "r")
-            if self.valid_frequency_search in ff.read():
-              if self.overwrite:
-                printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
-                self.overwrite_archs.append(arch_display_name + formatted_bound)
-              else:
-                printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
-                self.cached_archs.append(arch_display_name)
-                continue
-            else:
-              printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
-              self.incomplete_archs.append(arch_display_name + formatted_bound)
-            ff.close()
-          else: 
-            printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
-            self.incomplete_archs.append(arch_display_name + formatted_bound)
-          sf.close()
-        else:
-          self.new_archs.append(arch_display_name + formatted_bound)
-
-        # passed all check: added to the list
-        self.valid_archs.append(arch_display_name)
-
-        lib_name = "LIB_" + target + "_" + arch.replace("/", "_")
-
-        tmp_script_path = tmp_dir + '/' + self.work_script_path
-
-        arch_instance = Architecture(
-          arch_name = arch,
-          arch_display_name = arch_display_name,
-          lib_name = lib_name,
-          target = target,
-          tmp_script_path=tmp_script_path,
-          tmp_dir=tmp_dir,
-          design_path=design_path,
-          rtl_path=rtl_path,
-          arch_path=self.arch_path,
-          clock_signal=clock_signal,
-          reset_signal=reset_signal,
-          top_level_module=top_level_module,
-          top_level_filename=top_level_filename,
-          file_copy_enable=file_copy_enable,
-          file_copy_source=file_copy_source,
-          file_copy_dest=file_copy_dest,
-          script_copy_enable = script_copy_enable,
+        architecture_instance = self.get_architecture(
+          arch = arch,
+          target = target, 
+          only_one_target = only_one_target, 
+          script_copy_enable = script_copy_enable, 
           script_copy_source = script_copy_source,
-          fmax_lower_bound=fmax_lower_bound,
-          fmax_upper_bound=fmax_upper_bound,
-          param_target_filename=param_target_filename,
-          generate_rtl=generate_rtl,
-          use_parameters=use_parameters,
-          start_delimiter=start_delimiter,
-          stop_delimiter=stop_delimiter,
-          generate_command=generate_command
+          synthesis = True
         )
-      
-        self.architecture_instances.append(arch_instance)
+        if architecture_instance is not None:
+          self.architecture_instances.append(architecture_instance)
+
     return self.architecture_instances
+  
+  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False):
+    if only_one_target:
+      arch_display_name = arch
+    else:
+      arch_display_name = arch + " (" + target + ")"
+
+    tmp_dir = self.work_path + '/' + target + '/' + arch
+    fmax_status_file = tmp_dir + '/' + self.log_path + '/' + self.fmax_status_filename
+    frequency_search_file = tmp_dir + '/' + self.log_path + '/' + self.frequency_search_filename
+
+    # get param dir (arch name before '/')
+    arch_param_dir = re.sub('/.*', '', arch)
+
+    # get param dir (arch name after '/')
+    arch_suffix = re.sub('.*/', '', arch)
+
+    # check if arch_param has been banned
+    if arch_param_dir in self.banned_arch_param:
+      self.error_archs.append(arch_display_name)
+      return None
+
+    # check if parameter dir exists
+    arch_param = self.arch_path + '/' + arch_param_dir
+    if not isdir(arch_param):
+      printc.error("There is no directory \"" + arch_param_dir + "\" in directory \"" + self.arch_path + "\"", script_name)
+      self.banned_arch_param.append(arch_param_dir)
+      self.error_archs.append(arch_display_name)
+      return None
     
+    # check if settings file exists
+    if not isfile(arch_param + '/' + self.param_settings_filename):
+      printc.error("There is no setting file \"" + self.param_settings_filename + "\" in directory \"" + arch_param + "\"", script_name)
+      self.banned_arch_param.append(arch_param_dir)
+      self.error_archs.append(arch_display_name)
+      return None
+
+    # get settings variables
+    settings_filename = self.arch_path + '/' + arch_param_dir + '/' + self.param_settings_filename
+    with open(settings_filename, 'r') as f:
+      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      try:
+        rtl_path           = read_from_list('rtl_path', settings_data, settings_filename, script_name=script_name)
+        top_level_filename = read_from_list('top_level_file', settings_data, settings_filename, script_name=script_name)
+        top_level_module   = read_from_list('top_level_module', settings_data, settings_filename, script_name=script_name)
+        clock_signal       = read_from_list('clock_signal', settings_data, settings_filename, script_name=script_name)
+        reset_signal       = read_from_list('reset_signal', settings_data, settings_filename, script_name=script_name)
+        file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename, script_name=script_name)
+        file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename, script_name=script_name)
+        file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename, script_name=script_name)
+        use_parameters     = read_from_list('use_parameters', settings_data, settings_filename, script_name=script_name)
+        start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename, script_name=script_name)
+        stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename, script_name=script_name)
+      except:
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None # if an identifier is missing
+
+      param_filename = arch + ".txt"
+      use_parameters = use_parameters.lower()
+      if use_parameters in tcl_bool_true:
+        use_parameters = True
+        # check if parameter file exists
+        if not isfile(self.arch_path + '/' + param_filename):
+          printc.error("There is no parameter file \"" + self.arch_path + '/' + param_filename + "\", while use_parameters=true", script_name)
+          self.error_archs.append(arch_display_name)
+          return None
+      elif use_parameters in tcl_bool_false:
+          use_parameters = False
+      else:
+        printc.error("Value for identifier \"use_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None
+
+      generate_command = ""
+      try:
+        generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
+        # check if generate_rtl is a boolean
+        generate_rtl = generate_rtl.lower()
+        if generate_rtl in tcl_bool_true:
+          generate_rtl = True
+        elif generate_rtl in tcl_bool_false:
+          generate_rtl = False
+        else:
+          printc.error("Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+          generate_rtl = False
+          return None
+      except:
+        generate_rtl = False
+
+      if generate_rtl:
+        try:
+          generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False, script_name=script_name)
+          generate_rtl = True
+        except:
+          printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+          generate_rtl = False
+          return None
+
+      try:
+        design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
+      except:
+        design_path = -1
+        if generate_rtl:
+          printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
+          self.banned_arch_param.append(arch_param_dir)
+          return None
+      
+      try:
+        param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
+        if design_path == -1:
+          printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while param_target_file is defined", script_name)
+          self.banned_arch_param.append(arch_param_dir)
+          return None
+        # check if param target file path exists
+        param_target_file = design_path + '/' + param_target_filename
+        if not isfile(param_target_file): 
+          printc.error("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
+          self.banned_arch_param.append(arch_param_dir)
+          return None
+      except:
+        param_target_filename = 'rtl/' + top_level_filename
+
+    # check if file_copy_enable is a boolean
+    file_copy_enable = file_copy_enable.lower()
+    if file_copy_enable in tcl_bool_true:
+      file_copy_enable = True
+    elif file_copy_enable in tcl_bool_false:
+      file_copy_enable = False
+    else:
+      printc.error("Value for identifier \"file_copy_enable\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
+      self.banned_arch_param.append(arch_param_dir)
+      self.error_archs.append(arch_display_name)
+      return None
+
+    if not generate_rtl:
+      # check if rtl path exists
+      if not isdir(rtl_path):
+        printc.error("The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None
+
+      # check if top level file path exists
+      top_level = rtl_path + '/' + top_level_filename
+      if not isfile(top_level):
+        printc.error("The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None
+
+      # check if the top level module name exists in the top level file, at least
+      f = open(top_level, "r")
+      if not top_level_module in f.read():
+        printc.error("There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        f.close()
+        return None
+      f.close()
+      
+      # check if the top clock name exists in the top level file, at least
+      f = open(top_level, "r")
+      if not clock_signal in f.read():
+        printc.error("There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        f.close()
+        return None
+      f.close()
+      
+      # check if the top reset name exists in the top level file, at least
+      f = open(top_level, "r")
+      if not clock_signal in f.read():
+        printc.error("There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        f.close()
+        return None
+      f.close()
+
+    # check if param file exists
+    if not isfile(self.arch_path + '/' + arch + '.txt'):
+      printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + self.arch_path + "/" + arch_param_dir + "\"", script_name)
+      self.banned_arch_param.append(arch_param_dir)
+      self.error_archs.append(arch_display_name)
+      return None
+
+    # check file copy
+    if file_copy_enable:
+      if not isfile(file_copy_source):
+        printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None
+
+    # optional settings
+    formatted_bound = ""
+    fmax_lower_bound_ok = False
+    fmax_upper_bound_ok = False
+    fmax_lower_bound = 0
+    fmax_upper_bound = 0
+    if synthesis:
+      target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+      if target_options == False:
+        printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
+        fmax_lower_bound = self.default_fmax_lower_bound
+        fmax_upper_bound = self.default_fmax_upper_bound
+      else:
+        architectures_bounds = read_from_list('architectures', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+        if architectures_bounds:
+          this_architecture_bounds = read_from_list(arch_suffix, architectures_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          if this_architecture_bounds:
+            fmax_lower_bound = read_from_list('fmax_lower_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+            if fmax_lower_bound:
+              fmax_lower_bound_ok = True
+            
+            fmax_upper_bound = read_from_list('fmax_upper_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+            if fmax_upper_bound:
+              fmax_upper_bound_ok = True
+
+            # check if bounds are valid
+            if (fmax_upper_bound <= fmax_lower_bound) : 
+              printc.error("The upper bound (" + fmax_upper_bound + ") must be strictly superior to the lower bound (" + fmax_lower_bound + ")", script_name)
+              self.error_archs.append(arch_display_name)
+              return None
+
+        if fmax_lower_bound_ok == False:
+          fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
+          if fmax_lower_bound == False:
+            printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
+            fmax_lower_bound = self.default_fmax_lower_bound
+          #else:
+            #printc.note("Cannot find optional key \"fmax_lower_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
+
+        if fmax_upper_bound_ok == False:
+          fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
+          if fmax_upper_bound == False:
+            printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
+            fmax_upper_bound = self.default_fmax_upper_bound
+          #else:
+            #printc.note("Cannot find optional key \"fmax_upper_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
+            
+      # check if bounds are valid
+      if (fmax_upper_bound <= fmax_lower_bound) : 
+        printc.error("The upper bound (" + fmax_upper_bound + ") must be strictly superior to the lower bound (" + fmax_lower_bound + ")", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None
+
+      fmax_lower_bound = str(fmax_lower_bound)
+      fmax_upper_bound = str(fmax_upper_bound)
+
+      formatted_bound = " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC)
+
+      # check if the architecture is in cache and has a status file
+      if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
+        # check if the previous synth_fmax has completed
+        sf = open(fmax_status_file, "r")
+        if self.valid_status in sf.read():
+          ff = open(frequency_search_file, "r")
+          if self.valid_frequency_search in ff.read():
+            if self.overwrite:
+              printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
+              self.overwrite_archs.append(arch_display_name + formatted_bound)
+            else:
+              printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
+              self.cached_archs.append(arch_display_name)
+              return None
+          else:
+            printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
+            self.incomplete_archs.append(arch_display_name + formatted_bound)
+          ff.close()
+        else: 
+          printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
+          self.incomplete_archs.append(arch_display_name + formatted_bound)
+        sf.close()
+
+    # passed all check: added to the list
+    self.new_archs.append(arch_display_name + formatted_bound)
+    self.valid_archs.append(arch_display_name)
+
+    lib_name = "LIB_" + target + "_" + arch.replace("/", "_")
+
+    tmp_script_path = tmp_dir + '/' + self.work_script_path
+
+    arch_instance = Architecture(
+      arch_name = arch,
+      arch_display_name = arch_display_name,
+      lib_name = lib_name,
+      target = target,
+      tmp_script_path=tmp_script_path,
+      tmp_dir=tmp_dir,
+      design_path=design_path,
+      rtl_path=rtl_path,
+      arch_path=self.arch_path,
+      clock_signal=clock_signal,
+      reset_signal=reset_signal,
+      top_level_module=top_level_module,
+      top_level_filename=top_level_filename,
+      file_copy_enable=file_copy_enable,
+      file_copy_source=file_copy_source,
+      file_copy_dest=file_copy_dest,
+      script_copy_enable = script_copy_enable,
+      script_copy_source = script_copy_source,
+      fmax_lower_bound=fmax_lower_bound,
+      fmax_upper_bound=fmax_upper_bound,
+      param_target_filename=param_target_filename,
+      generate_rtl=generate_rtl,
+      use_parameters=use_parameters,
+      start_delimiter=start_delimiter,
+      stop_delimiter=stop_delimiter,
+      generate_command=generate_command
+    )
+
+    return arch_instance
+
   def print_summary(self):
     ArchitectureHandler.print_arch_list(self.new_archs, "New architectures", printc.colors.ENDC)
     ArchitectureHandler.print_arch_list(self.incomplete_archs, "Incomplete results (will be overwritten)", printc.colors.YELLOW)
