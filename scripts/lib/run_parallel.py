@@ -19,6 +19,7 @@
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
 import re
 import copy
 import time
@@ -65,11 +66,14 @@ def check_tool(tool, script_path, makefile, rule):
     sys.exit(-1)
   print()
 
-def run_parallel(command, nb_process=1, show_log_if_one=True):
+def run_parallel(command, nb_process=1, show_log_if_one=True, directory=None):
+  if directory is None:
+    directory = "."
+
   if nb_process == 1 and show_log_if_one:
-    process = subprocess.Popen(command)
+    process = subprocess.Popen(command, cwd=directory, shell=True)
   else:
-    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, cwd=directory, shell=True)
   return process
 
 def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True, mode="synthesis"):
