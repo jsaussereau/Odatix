@@ -23,7 +23,7 @@ use_parameters: "true"
 start_delimiter: "#("
 stop_delimiter: ")("
 
-# optionnal target-specific bounds (in MHz) to speed up fmax search
+# optional target-specific bounds (in MHz) to speed up fmax search
 xc7a100t-csg324-1:
   fmax_lower_bound: 650
   fmax_upper_bound: 1000
