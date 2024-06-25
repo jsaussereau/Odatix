@@ -2,21 +2,31 @@
 /* Misc */
 
 h1 {
-    font-size: 2em !important;
+    text-align: center;
+    padding-left: 3em;
+    font-size: 2.15em !important;
     font-weight: 700 !important;
+    margin-bottom: 20px !important;
 }
 
 h2 {
+    font-size: 1.8em !important;
+    font-weight: 625 !important;
+    margin-bottom: 20px !important;
+}
+
+h3 {
     font-size: 1.5em !important;
     font-weight: 600 !important;
     margin-bottom: 20px !important;
 }
 
-h3 {
+h4 {
     font-size: 1.25em !important;
-    font-weight: 500 !important;
+    font-weight: 550 !important;
     margin-bottom: 15px !important;
 }
+
 
 .notranslate {
     margin: 0px !important;
