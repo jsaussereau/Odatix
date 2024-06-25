@@ -132,7 +132,7 @@ run_vivado: motd run_vivado_only
 
 .PHONY: run_vivado_only
 run_vivado_only:
-	python3 $(RUN_SCRIPT) --tool vivado $(OPTIONS) || { rm -f $(VIVADO_SUCCESS_FILE); exit 0; }; \
+	@python3 $(RUN_SCRIPT) --tool vivado $(OPTIONS) || { rm -f $(VIVADO_SUCCESS_FILE); exit 0; }; \
 	touch $(VIVADO_SUCCESS_FILE)
 
 .PHONY: results_vivado
@@ -141,7 +141,7 @@ results_vivado: motd results_vivado_only
 .PHONY: results_vivado_only
 results_vivado_only:
 	@if [ -f $(VIVADO_SUCCESS_FILE) ]; then \
-		python3 ./$(EXPORT_SCRIPT) --tool vivado --benchmark; \
+		python3 $(EXPORT_SCRIPT) --tool vivado --benchmark; \
 	fi
 
 .PHONY: clean_vivado
@@ -163,14 +163,14 @@ run_dc: motd run_dc_only
 
 .PHONY: run_dc_only
 run_dc_only:
-	@python3 $(SCRIPT_DIR)/run_config.py --tool design_compiler
+	@python3 $(RUN_SCRIPT) --tool design_compiler $(OPTIONS) 
 
 .PHONY: results_dc
 results_dc: motd results_dc_only
 
 .PHONY: results_dc_only
 results_dc_only:
-	@python3 ./$(SCRIPT_DIR)/export_results.py --tool design_compiler --benchmark
+	@python3 $(EXPORT_SCRIPT) --tool design_compiler --benchmark
 
 .PHONY: clean_dc
 clean_dc: clean_dc_work
