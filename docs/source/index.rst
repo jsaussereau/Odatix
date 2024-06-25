@@ -1,5 +1,5 @@
-Welcome to Asterism's documentation!
-====================================
+Asterism
+========
 
 **Asterism** is a toolbox designed to facilitate logical synthesis on various FPGA and ASIC tools such as Vivado and Design Compiler. 
 It allows to easily find the maximum operating frequency of any digital architecture described with an HDL (VHDL, Verilog, SystemVerilog). RTL generation is also supported, using Chisel for example.
@@ -23,6 +23,9 @@ Key Features
 Supported EDA tools
 -------------------
 
+Synthesis
+~~~~~~~~~
+
 .. list-table::
    :header-rows: 1
 
@@ -35,6 +38,10 @@ Supported EDA tools
    * - Intel Quartus Prime
      - 📅 planned
 
+Simulation
+~~~~~~~~~~
+
+Virtually any simulator! Check out the section :doc:`/userguide/add_simulation` for more information.
 
 Contents
 --------
@@ -45,9 +52,10 @@ Contents
   userguide/installation
   userguide/quick_start
   userguide/add_design
+  userguide/add_simulation
 
 .. toctree::
   :caption: Documentation
 
-  documentation/makefile_rules
-  documentation/architecture_settings
+  documentation/commands
+  documentation/settings

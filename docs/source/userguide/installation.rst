@@ -1,5 +1,9 @@
+************
 Installation
-============
+************
+
+Install Asterism
+================
 
 Step 1: Clone the repository
 ----------------------------
