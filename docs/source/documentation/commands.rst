@@ -26,9 +26,9 @@ Makefile Rules
 | Others            | ``make help``             | Display a list of useful commands                  |
 +-------------------+---------------------------+----------------------------------------------------+
 
-Options can be passed to the underlying scripts through the variable ``OPT``. 
+Options can be passed to the underlying scripts through the variable ``OPTIONS``. 
 Example:
 
 .. code-block:: console
 
-    make vivado OPT="--noask --overwrite"
+    make vivado OPTIONS="--noask --overwrite"

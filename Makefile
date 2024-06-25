@@ -118,7 +118,7 @@ sim: motd sim_only
 
 .PHONY: sim_only
 sim_only: 
-	@python3 $(SIM_SCRIPT)
+	@python3 $(SIM_SCRIPT) $(OPTIONS)
 
 ########################################################
 # Vivado
@@ -132,7 +132,7 @@ run_vivado: motd run_vivado_only
 
 .PHONY: run_vivado_only
 run_vivado_only:
-	@python3 $(RUN_SCRIPT) --tool vivado || { rm -f $(VIVADO_SUCCESS_FILE); exit 0; }; \
+	python3 $(RUN_SCRIPT) --tool vivado $(OPTIONS) || { rm -f $(VIVADO_SUCCESS_FILE); exit 0; }; \
 	touch $(VIVADO_SUCCESS_FILE)
 
 .PHONY: results_vivado
