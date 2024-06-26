@@ -40,17 +40,17 @@ def say(message="", script_name="", color=colors.ENDC, end='\n'):
 def error(message, script_name="", end='\n'):
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
-  print(script_name + colors.BOLD + colors.RED + "error" + colors.ENDC + colors.RED + ": " + message + colors.ENDC)
+  print(script_name + colors.BOLD + colors.RED + "error" + colors.ENDC + colors.RED + ": " + message + colors.ENDC, end=end)
 
 def warning(message, script_name="", end='\n'):
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
-  print(script_name + colors.YELLOW + "warning: " + message + colors.ENDC)
+  print(script_name + colors.YELLOW + "warning: " + message + colors.ENDC, end=end)
 
 def note(message, script_name="", end='\n'):
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
-  print(script_name + colors.CYAN + "note: " + message + colors.ENDC)
+  print(script_name + colors.CYAN + "note: " + message + colors.ENDC, end=end)
 
 def header(message):
   print(colors.BOLD + colors.CYAN + message + colors.ENDC)
@@ -58,8 +58,8 @@ def header(message):
 def subheader(message):
   print(colors.CYAN + message + colors.ENDC)
 
-def bold(message):
-  print(colors.BOLD + message + colors.ENDC)
+def bold(message, end='\n'):
+  print(colors.BOLD + message + colors.ENDC, end=end)
 
 def grey(message, script_name="", end='\n'):
   say(message=message, script_name=script_name, color=colors.GREY, end=end)
@@ -85,5 +85,5 @@ def cyan(message, script_name="", end='\n'):
 def color(color=colors.ENDC):
   print(color, end='')
 
-def endc():
-  print(colors.ENDC, end='')
+def endc(message="", script_name="", end=''):
+  say(message=message, script_name=script_name, color=colors.ENDC, end=end)
