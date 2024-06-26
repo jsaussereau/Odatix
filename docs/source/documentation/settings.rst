@@ -9,7 +9,7 @@ Architecture Settings
 These are the YAML key for architecture settings files ``_settings.yml``
 
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
-| 🔑 key name            | 💡 Role                                               | 💬 Comment                                                 | ➕ Status                                 |
+| 🔑 Key name            | 💡 Role                                               | 💬 Comment                                                 | ➕ Status                                 |
 +========================+=======================================================+============================================================+===========================================+
 | ``rtl_path``           | Path of the RTL files                                 | The path is relative to Asterism root directory            | Mandatory                                 |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
@@ -36,7 +36,7 @@ These are the YAML key for architecture settings files ``_settings.yml``
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
 | ``file_copy_dest``     | Destination path of the copied file                   | The path is relative to ``rtl_path``                       | Mandatory                                 |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
-| ``use_parameters``     | Enable the replacement of parameters                  | Architecture parameter files are useless if                | Mandatory                                 |
+| ``use_parameters``     | Enable the replacement of parameters                  | Architecture parameter files are not used if               | Mandatory                                 |
 |                        |                                                       | ``use_parameters`` is false                                |                                           |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
 | ``param_target_file``  | Path of the file in which the parameters will be      | The path is relative to ``design_path``                    | Optional unless ``design_path`` is used.  |
@@ -52,6 +52,27 @@ These are the YAML key for architecture settings files ``_settings.yml``
 | ``fmax_upper_bound``   | Upper bound for fmax binary search (in MHz)           | This must be linked to a target                            | Optional                                  |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
 
+Simualtion Settings
+--------------------
+
+These are the YAML key for the optional simulation settings files ``_settings.yml``
+
++------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
+| 🔑 Key name            | 💡 Role                                               | 💬 Comment                                                 | ➕ Status                                 |
++========================+=======================================================+============================================================+===========================================+
+| ``use_parameters``     | Enable the replacement of parameters                  | Architecture parameter files are not used if               | Mandatory                                 |
+|                        |                                                       | ``use_parameters`` is false                                |                                           |
++------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
+| ``param_target_file``  | Path of the file in which the parameters will be      | The path is relative to the simulation path. It can        | Optional unless ``use_parameters``        |
+|                        | replaced                                              | lead to a file from either the rtl or simulation folder    | is true.                                  |
++------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
+| ``start_delimiter``    | Start delimiter for the parameter replacement         | This mainly depends on the source language                 | Optional unless ``use_parameters``        |
+|                        |                                                       |                                                            | is true.                                  |
++------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
+| ``stop_delimiter``     | Stop delimiter for the parameter replacement          | This mainly depends on the source language                 | Optional unless ``use_parameters``        |
+|                        |                                                       |                                                            | is true.                                  |
++------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
+
 
 Synthesis Settings
 ------------------
@@ -59,7 +80,7 @@ Synthesis Settings
 These are the YAML key for the fmax synthesis settings file ``_run_fmax_synthesis_settings.yml``
 
 +------------------------+----------------------------------------+-------------------------------------------+--------------+
-| 🔑 key name            | 💡 Role                                | 💬 Comment                                | ➕ Status    |
+| 🔑 Key name            | 💡 Role                                | 💬 Comment                                | ➕ Status    |
 +========================+========================================+===========================================+==============+
 | ``overwrite``          | Overwrite existing results             | ``--overwrite`` option overrides this key | Mandatory    |
 +------------------------+----------------------------------------+-------------------------------------------+--------------+
@@ -79,7 +100,7 @@ Simulation Settings
 These are the YAML key for the simulation settings file ``_run_simulations_settings.yml``
 
 +------------------------+----------------------------------------+-------------------------------------------+--------------+
-| 🔑 key name            | 💡 Role                                | 💬 Comment                                | ➕ Status    |
+| 🔑 Key name            | 💡 Role                                | 💬 Comment                                | ➕ Status    |
 +========================+========================================+===========================================+==============+
 | ``overwrite``          | Overwrite existing results             | ``--overwrite`` option overrides this key | Mandatory    |
 +------------------------+----------------------------------------+-------------------------------------------+--------------+
