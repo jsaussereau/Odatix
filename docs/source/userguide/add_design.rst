@@ -38,7 +38,7 @@ Step 2: Setting file
          start_delimiter: "#("
          stop_delimiter: ")("
 
-         # optionnal target-specific bounds (in MHz) to speed up fmax search
+         # optional target-specific bounds (in MHz) to speed up fmax search
          xc7s25-csga225-1:
             fmax_lower_bound: 100
             fmax_upper_bound: 450

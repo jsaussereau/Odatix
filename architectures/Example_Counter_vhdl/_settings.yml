@@ -30,7 +30,7 @@ xc7s25-csga225-1:
 xc7a100t-csg324-1:
   fmax_lower_bound: 250
   fmax_upper_bound: 900
-  architectures: # optionnal architecture-specific bounds
+  architectures: # optional architecture-specific bounds
     04bits:
       fmax_lower_bound: 840
       fmax_upper_bound: 860
