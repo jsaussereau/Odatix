@@ -187,29 +187,13 @@ class ArchitectureHandler:
         file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename, script_name=script_name)
         file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename, script_name=script_name)
         file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename, script_name=script_name)
-        use_parameters     = read_from_list('use_parameters', settings_data, settings_filename, script_name=script_name)
-        start_delimiter    = read_from_list('start_delimiter', settings_data, settings_filename, script_name=script_name)
-        stop_delimiter     = read_from_list('stop_delimiter', settings_data, settings_filename, script_name=script_name)
       except:
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
         return None # if an identifier is missing
 
-      param_filename = arch + ".txt"
-      use_parameters = use_parameters.lower()
-      if use_parameters in tcl_bool_true:
-        use_parameters = True
-        # check if parameter file exists
-        if not isfile(self.arch_path + '/' + param_filename):
-          printc.error("There is no parameter file \"" + self.arch_path + '/' + param_filename + "\", while use_parameters=true", script_name)
-          self.error_archs.append(arch_display_name)
-          return None
-      elif use_parameters in tcl_bool_false:
-          use_parameters = False
-      else:
-        printc.error("Value for identifier \"use_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-        self.banned_arch_param.append(arch_param_dir)
-        self.error_archs.append(arch_display_name)
+      use_parameters, start_delimiter, stop_delimiter = self.get_use_parameters(arch, settings_data, settings_filename)
+      if use_parameters is None or start_delimiter is None or stop_delimiter is None:
         return None
 
       generate_command = ""
@@ -458,6 +442,61 @@ class ArchitectureHandler:
     )
 
     return arch_instance
+
+  def get_use_parameters(self, arch, settings_data, settings_filename, add_to_error_list=True):
+    # get use_parameters
+    try:
+      use_parameters = read_from_list('use_parameters', settings_data, settings_filename, script_name=script_name)
+    except:
+      if add_to_error_list:
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+      return None, None, None
+
+    param_filename = arch + ".txt"
+    use_parameters = use_parameters.lower()
+    if use_parameters in tcl_bool_true:
+      use_parameters = True
+      # check if parameter file exists
+      if not isfile(self.arch_path + '/' + param_filename):
+        printc.error("There is no parameter file \"" + self.arch_path + '/' + param_filename + "\", while use_parameters=true", script_name)
+        if add_to_error_list:
+          self.error_archs.append(arch_display_name)
+        return True, None, None
+    elif use_parameters in tcl_bool_false:
+        use_parameters = False
+    else:
+      printc.error("Value for identifier \"use_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
+      if add_to_error_list:
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+      return None, None, None
+    
+    if use_parameters:
+      # get start delimiter
+      try:
+        start_delimiter = read_from_list('start_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
+      except:
+        printc.error("Cannot find key \"start_delimiter\" in \"" + settings_filename + "\", while \"use_parameters\" is true", script_name)
+        if add_to_error_list:
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+        return None, None, None
+
+      # get stop delimiter
+      try:
+        stop_delimiter = read_from_list('stop_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
+      except:
+        printc.error("Cannot find key \"stop_delimiter\" in \"" + settings_filename + "\", while \"use_parameters\" is true", script_name)
+        if add_to_error_list:
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+        return None, None, None
+    else:
+      start_delimiter = ""
+      stop_delimiter = ""
+
+    return use_parameters, start_delimiter, stop_delimiter
 
   def print_summary(self):
     ArchitectureHandler.print_arch_list(self.new_archs, "New architectures", printc.colors.ENDC)

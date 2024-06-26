@@ -24,6 +24,7 @@ import re
 import sys
 import math
 import yaml
+import inspect
 
 from architecture_handler import ArchitectureHandler
 
@@ -50,7 +51,7 @@ class Simulation:
 
 class SimulationHandler:
 
-  def __init__(self, work_path, arch_path, sim_path, script_path, work_script_path, log_path, param_settings_filename, overwrite):
+  def __init__(self, work_path, arch_path, sim_path, script_path, work_script_path, log_path, param_settings_filename, sim_settings_filename, sim_makefile_filename, overwrite):
     self.work_path = work_path
     self.arch_path = arch_path
     self.sim_path = sim_path
@@ -59,8 +60,12 @@ class SimulationHandler:
     self.log_path = log_path
     self.overwrite = overwrite
     self.param_settings_filename = param_settings_filename
+    self.sim_settings_filename = sim_settings_filename
+    self.sim_makefile_filename = sim_makefile_filename
+    self.reset_lists()
 
-  def get_simulations(self, simulations):
+  def reset_lists(self):
+    self.no_settings_sims = []
     self.banned_sim_param = []
     self.valid_sims = []
     self.cached_sims = []
@@ -69,6 +74,9 @@ class SimulationHandler:
     self.incomplete_sims = []
     self.new_sims = []
 
+  def get_simulations(self, simulations):
+
+    self.reset_lists()
     self.simulation_instances = []
 
     arch_handler = ArchitectureHandler(
@@ -107,14 +115,7 @@ class SimulationHandler:
 
     sim_name = sim
     sim_display_name = sim + " (" + arch + ")"
-    tmp_dir = tmp_dir
     simulation_command = None
-    use_parameters = None
-    start_delimiter = None
-    stop_delimiter = None
-    design_path = None
-    generate_rtl = None
-    generate_command = None
 
     # check if sim has been banned
     if sim in self.banned_sim_param:
@@ -143,6 +144,58 @@ class SimulationHandler:
       self.error_sims.append(sim_display_name)
       return None
 
+    # check if makefile exists
+    makefile_filename = source_sim_dir + '/' + self.sim_makefile_filename
+    if not isfile(makefile_filename):
+      printc.error("There is no setting \"Makefile\" in directory \"" + source_sim_dir + "\"", script_name)
+      printc.note("A Makefile with a rule \"sim\" is mandatory", script_name)
+      self.banned_sim_param.append(sim)
+      self.error_sims.append(sim_display_name)
+      return None
+
+    # check if settings file exists
+    if sim not in self.no_settings_sims:
+      settings_filename = source_sim_dir + '/' + self.sim_settings_filename
+      if not isfile(settings_filename):
+        printc.note("There is no setting file \"" + self.sim_settings_filename + "\" in directory \"" + source_sim_dir + "\"", script_name)
+        self.no_settings_sims.append(sim)
+      else:
+        with open(settings_filename, 'r') as f:
+          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+
+          # get use_parameters, start_delimiter and stop_delimiter
+          use_parameters, start_delimiter, stop_delimiter = arch_handler.get_use_parameters(arch, settings_data, settings_filename, add_to_error_list=False)
+          if use_parameters is None:
+            self.banned_sim_param.append(sim)
+            self.error_sims.append(sim_display_name)
+            return None
+          elif start_delimiter is None or stop_delimiter is None:
+            self.error_sims.append(sim_display_name)
+            return None
+
+          # overwrite architecture settings
+          architecture.use_parameters = use_parameters
+          architecture.start_delimiter = start_delimiter
+          architecture.stop_delimiter = stop_delimiter
+
+          # get param_target_file
+          if use_parameters:
+            try:
+              param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, script_name=script_name)
+              # check if param target file path exists
+              param_target_file_rtl = architecture.rtl_path + '/' + param_target_filename
+              param_target_file_sim = source_sim_dir + '/' + param_target_filename
+              if not isfile(param_target_file_rtl) and not isfile(param_target_file_sim): 
+                printc.error("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
+                self.banned_sim_param.append(sim)
+                self.error_sims.append(sim_display_name)
+                return None
+              # overwrite architecture settings
+              architecture.param_target_filename = param_target_filename
+            except:
+              self.banned_sim_param.append(sim)
+              self.error_sims.append(sim_display_name)
+              return None
 
     # passed all check: added to the list
     self.new_sims.append(sim_display_name)

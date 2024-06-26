@@ -66,6 +66,7 @@ rtl_path = "rtl"
 nb_jobs = 4
 
 param_settings_filename = "_settings.yml"
+sim_settings_filename = "_settings.yml"
 sim_makefile_filename = "Makefile"
 sim_rule = "sim"
 
@@ -124,7 +125,9 @@ if __name__ == "__main__":
     work_script_path = work_script_path,
     log_path = log_path,
     overwrite = overwrite,
-    param_settings_filename = param_settings_filename
+    param_settings_filename = param_settings_filename,
+    sim_settings_filename = sim_settings_filename,
+    sim_makefile_filename = sim_makefile_filename
   )
 
   if simulations is None:
@@ -133,9 +136,11 @@ if __name__ == "__main__":
     
   try:
     simulation_instances = sim_handler.get_simulations(simulations)
-  except:
-    printc.error("Could not get list \"simulations\" from \"" + run_config_settings_filename + "\"." )
-    printc.note("Is the YAML file valid? Are you missing a ':'? Is the indentation correct?" )
+  except Exception as e:
+    printc.error("Could not get list \"simulations\" from \"" + run_config_settings_filename + "\".", script_name=script_name)
+    printc.note("Is the YAML file valid? Are you missing a ':'? Is the indentation correct?", script_name=script_name)
+    printc.cyan("detail:", script_name=script_name)
+    print(e)
     sys.exit(-1)
 
   # print checklist summary
