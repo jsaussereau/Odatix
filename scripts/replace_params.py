@@ -73,7 +73,11 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
     write_file(output_file, new_text)
 
     if not match_found:
-        printc.warning("could not find pattern \"" + start_delimiter + " [...] " + stop_delimiter + "\" in \"" + base_text_file + "\"", script_name)
+        printc.warning("could not find pattern \"", script_name=script_name, end="")
+        printc.red(start_delimiter, end="")
+        printc.grey("[…]", end="")
+        printc.red(stop_delimiter, end="")
+        printc.yellow("\" in \"" + base_text_file + "\"")
 
     if not silent and match_found:
         if new_text != base_text:
