@@ -1,0 +1,11 @@
+
+##############################################
+# Settings for counter testbench
+##############################################
+---
+
+# delimiters for parameter files
+use_parameters: "true"
+param_target_file: "tb/tb_counter.vhdl"
+start_delimiter: "generic ("
+stop_delimiter: ");"
