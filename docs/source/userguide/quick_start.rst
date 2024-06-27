@@ -1,4 +1,4 @@
-Quick Start
+Quick start
 ===========
 
 Fmax synthesis
@@ -38,7 +38,7 @@ Example:
 Step 2: Choose your target device/technology
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Select the target devide or technology in the yaml file corresponding to your EDA tool.
+Select the target device or technology in the yaml file corresponding to your EDA tool.
 
 .. list-table::
    :header-rows: 1

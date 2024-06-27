@@ -1,4 +1,4 @@
-Useful Commands
+Useful commands
 ===============
 
 Makefile Rules
