@@ -32,19 +32,19 @@ xc7a100t-csg324-1:
   fmax_upper_bound: 900
   architectures: # optional architecture-specific bounds
     04bits:
-      fmax_lower_bound: 840
+      fmax_lower_bound: 560
       fmax_upper_bound: 860
     08bits:
       fmax_lower_bound: 490
       fmax_upper_bound: 510
     16bits:
-      fmax_lower_bound: 475
+      fmax_lower_bound: 455
       fmax_upper_bound: 495
     24bits:
       fmax_lower_bound: 410
       fmax_upper_bound: 430
     32bits:
-      fmax_lower_bound: 385
+      fmax_lower_bound: 365
       fmax_upper_bound: 405
     48bits:
       fmax_lower_bound: 325
