@@ -63,51 +63,43 @@ h4 {
 }
 
 @media (prefers-color-scheme: dark) {
-    body[data-theme="dark"] .hll,
-    body[data-theme="auto"] .hll {
+    body:not([data-theme="light"]) .hll {
         background-color: #343942 !important;
     }
-
-    body[data-theme="dark"] .admonition,
-    body[data-theme="auto"] .admonition {
+    
+    body:not([data-theme="light"]) .admonition {
         background-color: #161b22 !important;
     }
-
-    body[data-theme="dark"] .code-block-caption,
-    body[data-theme="auto"] .code-block-caption {
+    
+    body:not([data-theme="light"]) .code-block-caption {
         background-color: #161b22 !important;
     }
-
-    body[data-theme="dark"] .sphinx-tabs-panel,
-    body[data-theme="auto"] .sphinx-tabs-panel {
+    
+    body:not([data-theme="light"]) .sphinx-tabs-panel {
         background-color: #21262d !important;
     }
-
-    body[data-theme="dark"] .sphinx-tabs-tab[aria-selected="true"],
-    body[data-theme="auto"] .sphinx-tabs-tab[aria-selected="true"] {
+    
+    body:not([data-theme="light"]) .sphinx-tabs-tab[aria-selected="true"] {
         background-color: #21262d !important;
         border-bottom: 1px solid #21262d;
     }
-
-    body[data-theme="dark"] .highlight,
-    body[data-theme="auto"] .highlight {
+    
+    body:not([data-theme="light"]) .highlight {
         background-color: #161b22 !important;
     }
-
-    body[data-theme="dark"] .head,
-    body[data-theme="auto"] .head {
+    
+    body:not([data-theme="light"]) .head {
         background-color: #161b22 !important;
     }
-
-    body[data-theme="dark"] .literal,
-    body[data-theme="auto"] .literal {
+    
+    body:not([data-theme="light"]) .literal {
         border-radius: 0.35rem;
         background-color: #343942 !important;
     }
-
-    body[data-theme="dark"],
-    body[data-theme="auto"] {
+    
+    body:not([data-theme="light"]) {
         --color-background-primary: #0d1117;
         --color-background-secondary: #010409;
+        --color-highlight-on-target: #343942;
     }
 }
