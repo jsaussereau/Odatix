@@ -87,8 +87,8 @@ Step 2: Setting file
             fmax_upper_bound: 800
          ...
 
-- Edit the file so it matches your design source files directory, top level filename, module name, and clock signal name.
-- Set ``start_delimiter`` and ``stop_delimiter`` so it matches the delimiters of the parameter section in your top level source file.
+- Edit the file, so it matches your design source files directory, top level filename, module name, and clock signal name.
+- Set ``start_delimiter`` and ``stop_delimiter``, so it matches the delimiters of the parameter section in your top level source file.
 - Add target-specific bounds for the binary search.
 - A documentation of the keys for ``_settings.yml`` files can be found in section :doc:`/documentation/settings`
 
@@ -136,3 +136,12 @@ Another parameter file could contain:
 You can create as many parameter files as you wish, with different parameter values.
 There is no limit to the number of parameters in parameter files.
 The only constraint is the strict correspondence between the contents of the parameter files and the parameter section of the top-level in terms of numbers and names.
+
+Step 4: Run your design configurations!
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow the same steps as in section :doc:`/userguide/quick_start` :
+   - Edit ``_run_fmax_synthesis_settings.yml`` to add your design's configurations
+   - Select the target device or technology in the yaml file corresponding to your EDA tool.
+   - Run the selected designs
+   - Visualize and explore the results
