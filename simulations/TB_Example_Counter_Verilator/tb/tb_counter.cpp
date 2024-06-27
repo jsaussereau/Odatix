@@ -49,6 +49,11 @@ int main(int argc, char** argv) {
     top->i_init = 0;
     top->i_inc_dec = 1;
 
+    bool reset_ok = true;
+    bool increment_ok = true;
+    bool decrement_ok = true;
+    bool init_ok = true;
+
     // Simulation loop
     while (!Verilated::gotFinish() && cycle < 100) {
 
@@ -69,12 +74,74 @@ int main(int argc, char** argv) {
         // Dump VCD trace
         tfp->dump(main_time);
 
-        // Print the current state (optional)
+        // Apply stimulus based on cycle
         if (top->clock) {
-            std::cout << "Cycle: " << cycle << ", clk: " << int(top->clock)
-                      << ", rst: " << int(top->reset) << ", init: " << int(top->i_init)
-                      << ", inc_dec: " << int(top->i_inc_dec) << ", value: " << int(top->o_value)
-                      << std::endl;
+            if (cycle == 4) {
+                if (top->o_value != 0) {
+                    reset_ok = false;
+                    std::cout << "Reset KO: Expected = 0, Received = " << int(top->o_value) << std::endl;
+                } else {
+                    std::cout << "Reset OK" << std::endl;
+                }
+            } else if (cycle == 5) {
+                if (top->o_value != 1) {
+                    increment_ok = false;
+                    std::cout << "Increment KO: Expected = 1, Received = " << int(top->o_value) << std::endl;
+                }
+            } else if (cycle == 6) {
+                if (top->o_value != 2) {
+                    increment_ok = false;
+                    std::cout << "Increment KO: Expected = 2, Received = " << int(top->o_value) << std::endl;
+                }
+            } else if (cycle == 7) {
+                if (top->o_value != 3) {
+                    increment_ok = false;
+                    std::cout << "Increment KO: Expected = 3, Received = " << int(top->o_value) << std::endl;
+                }
+                if (increment_ok) {
+                    std::cout << "Increment OK" << std::endl;
+                }
+                top->i_inc_dec = 0; // Start decrementing
+            } else if (cycle == 8) {
+                if (top->o_value != 2) {
+                    decrement_ok = false;
+                    std::cout << "Decrement KO: Expected = 2, Received = " << int(top->o_value) << std::endl;
+                }
+            } else if (cycle == 9) {
+                if (top->o_value != 1) {
+                    decrement_ok = false;
+                    std::cout << "Decrement KO: Expected = 1, Received = " << int(top->o_value) << std::endl;
+                }
+            } else if (cycle == 10) {
+                if (top->o_value != 0) {
+                    decrement_ok = false;
+                    std::cout << "Decrement KO: Expected = 0, Received = " << int(top->o_value) << std::endl;
+                }
+                if (decrement_ok) {
+                    std::cout << "Decrement OK" << std::endl;
+                }
+                top->i_inc_dec = 1; // Stop decrementing
+                top->i_init = 1;    // Start initialization
+            } else if (cycle == 13) {
+                if (top->o_value != 0) {
+                    init_ok = false;
+                    std::cout << "Initialization KO: Expected = 0, Received = " << int(top->o_value) << std::endl;
+                }
+            } else if (cycle == 14) {
+                if (top->o_value != 0) {
+                    init_ok = false;
+                    std::cout << "Initialization KO: Expected = 0, Received = " << int(top->o_value) << std::endl;
+                }
+            } else if (cycle == 15) {
+                if (top->o_value != 0) {
+                    init_ok = false;
+                    std::cout << "Initialization KO: Expected = 0, Received = " << int(top->o_value) << std::endl;
+                }
+                if (init_ok) {
+                    std::cout << "Initialization OK" << std::endl;
+                }
+                top->i_init = 0;    // Stop initialization
+            }
         }
 
         main_time++;
