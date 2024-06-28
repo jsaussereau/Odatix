@@ -23,9 +23,9 @@
 # Paths
 ########################################################
 
-SCRIPT_DIR              = ./scripts
-WORK_DIR                = ./work
-LOG_DIR                 = $(WORK_DIR)/log
+SCRIPT_DIR              = scripts
+CURRENT_DIR             = .
+WORK_DIR                = $(CURRENT_DIR)/work
 
 ########################################################
 # Files
@@ -146,10 +146,10 @@ results_vivado_only:
 
 .PHONY: clean_vivado
 clean_vivado:
-	@rm -rf .Xil
-	@rm -f *.jou
-	@rm -f vivado*.log
-	@rm -f tight_setup_hold_pins.txt
+	@rm -rf $(CURRENT_DIR)/.Xil
+	@rm -f  $(CURRENT_DIR)/*.jou
+	@rm -f  $(CURRENT_DIR)/vivado*.log
+	@rm -f  $(CURRENT_DIR)/tight_setup_hold_pins.txt
 
 ########################################################
 # Design Compiler
@@ -174,16 +174,16 @@ results_dc_only:
 
 .PHONY: clean_dc
 clean_dc: clean_dc_work
-	@rm -f command.log
-	@rm -f default.svf
-	@rm -f filenames*.log
-	@rm -rf DC_WORK_*_autoread
-	@rm -rf work/ARCH
-	@rm -rf WORK_autoread
-	@rm -rf work/ENTI
-	@rm -f work/*.syn
-	@rm -f work/*.mr
-	@rm -f change_names_verilog
+	@rm -f  $(CURRENT_DIR)/command.log
+	@rm -f  $(CURRENT_DIR)/default.svf
+	@rm -f  $(CURRENT_DIR)/change_names_verilog
+	@rm -f  $(CURRENT_DIR)/filenames*.log
+	@rm -rf $(CURRENT_DIR)/DC_WORK_*_autoread
+	@rm -rf $(CURRENT_DIR)/WORK_autoread
+	@rm -rf $(WORK_DIR)/ARCH
+	@rm -rf $(WORK_DIR)/ENTI
+	@rm -f  $(WORK_DIR)/*.syn
+	@rm -f  $(WORK_DIR)/*.mr
 
 .PHONY: clean_dc_work
 clean_dc_work:
