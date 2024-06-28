@@ -221,7 +221,7 @@ if __name__ == "__main__":
       # run simulation command
       sim_makefile_file = i_sim.tmp_dir + "/" + sim_makefile_filename
       process = run_parallel(
-        command = "make " + sim_rule + " RTL_DIR=\"" + rtl_path + "\" --no-print-directory",
+        command = "make " + sim_rule + " RTL_DIR=\"" + rtl_path + "\" ASTERISM_DIR=\"" + current_dir + "/.." + "\" --no-print-directory",
         nb_process = len(simulation_instances_chunk),
         show_log_if_one = show_log_if_one,
         directory = i_sim.tmp_dir
