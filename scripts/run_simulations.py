@@ -218,10 +218,28 @@ if __name__ == "__main__":
           print()
           continue
 
+      # replace parameters again (override)
+      if i_sim.override_parameters:
+        #printc.subheader("Replace parameters")
+        param_target_file = i_sim.tmp_dir + '/' + i_sim.override_param_target_filename
+        param_file = i_sim.tmp_dir + '/' + i_sim.override_param_filename
+        replace_params(
+          base_text_file=param_target_file, 
+          replacement_text_file=param_file, 
+          output_file=param_target_file, 
+          start_delimiter=i_sim.override_start_delimiter, 
+          stop_delimiter=i_sim.override_stop_delimiter, 
+          replace_all_occurrences=False,
+          silent=True
+        )
+
       # run simulation command
       sim_makefile_file = i_sim.tmp_dir + "/" + sim_makefile_filename
+      command = "make " + sim_rule + " RTL_DIR=\"" + rtl_path + "\" ASTERISM_DIR=\"" + current_dir + "/.." + "\" --no-print-directory"
+      #printc.subheader("Run simulation command for " + i_sim.sim_display_name)
+      #printc.bold(" > " + command)
       process = run_parallel(
-        command = "make " + sim_rule + " RTL_DIR=\"" + rtl_path + "\" ASTERISM_DIR=\"" + current_dir + "/.." + "\" --no-print-directory",
+        command = command,
         nb_process = len(simulation_instances_chunk),
         show_log_if_one = show_log_if_one,
         directory = i_sim.tmp_dir
