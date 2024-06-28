@@ -89,9 +89,13 @@ def parse_arguments():
   parser = argparse.ArgumentParser(description='Run fmax synthesis on selected architectures')
   parser.add_argument('-i', '--input', default='_run_fmax_synthesis_settings.yml',
                       help='input settings file (default: _run_fmax_synthesis_settings.yml)')
+  parser.add_argument('-a', '--archpath', default=arch_path,
+                      help='architecture directory (default: ' + arch_path + ')')
+  parser.add_argument('-w', '--work', default=work_path,
+                      help='work directory (default: ' + work_path + ')')
   parser.add_argument('-t', '--tool', default='vivado',
                       help='eda tool in use (default: vivado)')
-  parser.add_argument('-w', '--overwrite', action='store_true',
+  parser.add_argument('-o', '--overwrite', action='store_true',
                       help='overwrite existing results')
   parser.add_argument('-y', '--noask', action='store_true',
                       help='do not ask to continue')
@@ -106,10 +110,12 @@ if __name__ == "__main__":
 
   args = parse_arguments()
   
+  run_config_settings_filename = args.input
+  arch_path = args.archpath
   tool = args.tool
+  work_path = args.work
   work_path += "/" + tool 
 
-  run_config_settings_filename = args.input
   overwrite, ask_continue, show_log_if_one, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   eda_target_filename = "target_" + tool + ".yml"

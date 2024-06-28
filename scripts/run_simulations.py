@@ -9,17 +9,6 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# #**********************************************************************#
-#                               Asterism                               #
-#**********************************************************************#
-#
-# Copyright (C) 2022 Jonathan Saussereau
-#
-# This file is part of Asterism.
-# Asterism is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
 # 
 # Asterism is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -90,7 +79,13 @@ def parse_arguments():
   parser = argparse.ArgumentParser(description='Run parallel simulations')
   parser.add_argument('-i', '--input', default='_run_simulations_settings.yml',
                       help='input settings file (default: _run_simulations_settings.yml)')
-  parser.add_argument('-w', '--overwrite', action='store_true',
+  parser.add_argument('-a', '--archpath', default=arch_path,
+                      help='architecture directory (default: ' + arch_path + ')')
+  parser.add_argument('-s', '--simpath', default=sim_path,
+                      help='simulation directory (default: ' + sim_path + ')')
+  parser.add_argument('-w', '--work', default=work_path,
+                      help='work directory (default: ' + work_path + ')')
+  parser.add_argument('-o', '--overwrite', action='store_true',
                       help='overwrite existing results')
   parser.add_argument('-y', '--noask', action='store_true',
                       help='do not ask to continue')
@@ -106,6 +101,10 @@ if __name__ == "__main__":
   args = parse_arguments()
 
   run_config_settings_filename = args.input
+  arch_path = args.archpath
+  sim_path = args.simpath
+  work_path = args.work
+
   overwrite, ask_continue, show_log_if_one, nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
 
   if args.overwrite:
