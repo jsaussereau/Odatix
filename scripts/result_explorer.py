@@ -64,7 +64,7 @@ class ResultExplorer:
         self.load_yaml_files()
         
         if not self.valid_yaml_files:
-            printc.error(f"Could not find any valid YAML file in '{self.result_path}', exiting.", script_name=script_name)
+            printc.error("Could not find any valid YAML file in \"" + self.result_path + "\", exiting.", script_name=script_name)
             sys.exit(-1)
         
         self.all_architectures = sorted(set(architecture for df in self.dfs.values() for architecture in df['Architecture'].unique()))
@@ -87,14 +87,14 @@ class ResultExplorer:
                 data = self.get_yaml_data(file_path)
                 df = self.update_dataframe(data)
                 if df is None:
-                    printc.warning(f"YAML file '{yaml_file}' is empty or corrupted, skipping...", script_name=script_name)
-                    printc.note(f"Run fmax synthesis with the correct settings to generate '{yaml_file}'", script_name=script_name)
+                    printc.warning("YAML file  \"" + yaml_file + "\" is empty or corrupted, skipping...", script_name=script_name)
+                    printc.note("Run fmax synthesis with the correct settings to generate  \"" + yaml_file + "\"", script_name=script_name)
                 else:
                     self.all_data[yaml_file] = data
                     self.valid_yaml_files.append(yaml_file)
                     self.dfs[yaml_file] = df
             except:
-                printc.warning(f"YAML file '{yaml_file}' is not a valid result file, skipping...", script_name=script_name)
+                printc.warning("YAML file  \"" + yaml_file + "\" is not a valid result file, skipping...", script_name=script_name)
 
     def get_yaml_data(self, file_path):
         """
