@@ -25,10 +25,11 @@ import webbrowser
 from threading import Thread
 import tty
 import termios
-import result_explorer
+from result_explorer import ResultExplorer
 import select
 import socket
 import logging 
+import argparse
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,11 +40,17 @@ import printc
 
 script_name = "result_explorer.py"
 
+# Argument parser setup
+parser = argparse.ArgumentParser(description='Asterism - Start Result Explorer')
+parser.add_argument('-i', '--input', type=str, default='results', help='Directory of the result YAML files')
+parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
+args = parser.parse_args()
+
 # Default ip address: local
 host_address = '127.0.0.1'
 ip_address = host_address
 port = 8052
-network = False
+network = args.network
 
 def open_browser():
     webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
@@ -69,10 +76,6 @@ if __name__ == "__main__":
 
     logging.getLogger('waitress').setLevel(logging.ERROR)
 
-    # Check options
-    if "-n" in sys.argv or "--network" in sys.argv:
-        network = True
-
     if network:
         host_address = '0.0.0.0'
         ip_address = socket.gethostbyname(socket.gethostname())
@@ -86,6 +89,10 @@ if __name__ == "__main__":
 
     # Open the web page
     process = Thread(target=open_browser).start()
+
+    result_explorer = ResultExplorer(
+        result_path=args.input
+    )
 
     # Start the server
     serve_thread = Thread(target=serve, args=(result_explorer.app.server,), kwargs={'host': host_address, 'port': port})
