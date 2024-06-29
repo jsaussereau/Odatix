@@ -158,11 +158,11 @@ class SimulationHandler:
       self.error_sims.append(sim_display_name)
       return None
 
-    override_parameters = "false",
-    override_param_target_filename = "",
-    override_param_file = "",
-    override_start_delimiter = "",
-    override_stop_delimiter = "",
+    override_parameters = False
+    override_param_target_filename = ""
+    override_param_file = ""
+    override_start_delimiter = ""
+    override_stop_delimiter = ""
 
     # check if settings file exists
     if sim not in self.no_settings_sims:
