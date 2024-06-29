@@ -158,6 +158,12 @@ class SimulationHandler:
       self.error_sims.append(sim_display_name)
       return None
 
+    override_parameters = "false",
+    override_param_target_filename = "",
+    override_param_file = "",
+    override_start_delimiter = "",
+    override_stop_delimiter = "",
+
     # check if settings file exists
     if sim not in self.no_settings_sims:
       settings_filename = source_sim_dir + '/' + self.sim_settings_filename
@@ -190,8 +196,8 @@ class SimulationHandler:
               # check if param target file path exists
               param_target_file_rtl = architecture.rtl_path + '/' + param_target_filename
               param_target_file_sim = source_sim_dir + '/' + param_target_filename
-              if not isfile(param_target_file_rtl) and not isfile(param_target_file_sim): 
-                printc.warning("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
+              #if not isfile(param_target_file_rtl) and not isfile(param_target_file_sim): 
+                #printc.warning("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
               # overwrite architecture settings
               architecture.param_target_filename = param_target_filename
             except:
@@ -265,8 +271,8 @@ class SimulationHandler:
               # check if param target file path exists
               override_param_target_file_rtl = architecture.rtl_path + '/' + override_param_target_filename
               override_param_target_file_sim = source_sim_dir + '/' + override_param_target_filename
-              if not isfile(override_param_target_file_rtl) and not isfile(override_param_target_file_sim): 
-                printc.warning("The override parameter target file \"" + override_param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
+              #if not isfile(override_param_target_file_rtl) and not isfile(override_param_target_file_sim): 
+                #printc.warning("The override parameter target file \"" + override_param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
             except:
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
