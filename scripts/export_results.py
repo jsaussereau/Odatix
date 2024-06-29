@@ -48,8 +48,6 @@ from os.path import exists
 fieldnames_fpga = ['', 'architecture', 'variant', '', 'Fmax', '', 'LUTs', 'Regs', 'Tot Ut', '', 'DynP', 'StaP', 'TotP']
 fieldnames_asic = ['', 'architecture', 'variant', '', 'Fmax', '', 'Cells', 'Area', 'Tot Area', '', 'DynP', 'StaP', 'TotP']
 
-benchmark_file = 'benchmark/benchmark.yml'
-
 status_done = 'Done: 100%'
 
 bad_value = ' /   '
@@ -84,6 +82,8 @@ def parse_arguments():
                       help='Output format: csv, yml, or all (default: yml)')
   parser.add_argument('-b', '--benchmark', action='store_true',
                       help='Use benchmark values in yaml file')
+  parser.add_argument('-B', '--benchmark_file', default='results/benchmark.yml',
+                      help='Benchmark file (default: results/benchmark.yml')
   return parser.parse_args()
 
 def import_result_parser(tool):
@@ -117,7 +117,7 @@ def check_parser(parser, format_mode, tool):
 # Parsing functions
 ######################################
 
-def get_dmips_per_mhz(architecture, variant, benchmark_data):
+def get_dmips_per_mhz(architecture, variant, benchmark_data, benchmark_file):
   try:
     dmips_value = benchmark_data[architecture][variant]['dmips_per_MHz']
     return dmips_value
@@ -212,7 +212,7 @@ def write_to_yaml(args, output_file, parser, benchmark_data):
 
         # benchmark
         if args.benchmark:
-          dmips_per_mhz = get_dmips_per_mhz(arch, variant, benchmark_data)
+          dmips_per_mhz = get_dmips_per_mhz(arch, variant, benchmark_data, args.benchmark_file)
           if dmips_per_mhz != None:
             dmips = safe_cast(fmax, float, 0.0) * safe_cast(dmips_per_mhz, float, 0.0)
 
@@ -223,6 +223,7 @@ def write_to_yaml(args, output_file, parser, benchmark_data):
 
   with open(output_file, 'w') as file:
     yaml.dump(yaml_data, file, default_flow_style=False, sort_keys=False)
+    printc.say("Results written to \"" + output_file + "\"", script_name=script_name)
 
 def write_to_csv(args, output_file, parser, fieldnames):
   with open(output_file, 'w', newline='') as csvfile:
@@ -269,6 +270,7 @@ def write_to_csv(args, output_file, parser, fieldnames):
           elif format_mode == 'asic':
             writer.writerow(['', arch, variant, '', fmax+'  ', '', cell_count, '            ', '' + area, '', '', '', ''])
         writer.writerow([])
+  printc.say("Results written to \"" + output_file + "\"", script_name=script_name)
 
 ######################################
 # Main
@@ -307,11 +309,12 @@ if __name__ == "__main__":
 
   benchmark_data = None
   if args.benchmark:
-    if not exists(benchmark_file):
+    if not exists(args.benchmark_file):
       args.benchmark = False
-      printc.error("cannot find benchmark file \"" + benchmark_file + "\", benchmark export disabled", script_name)
-    with open(benchmark_file, 'r') as file:
-      benchmark_data = yaml.safe_load(file)
+      printc.warning("cannot find benchmark file \"" + args.benchmark_file + "\", benchmark export disabled", script_name)
+    else:
+      with open(args.benchmark_file, 'r') as file:
+        benchmark_data = yaml.safe_load(file)
 
   if args.format in ['csv', 'all']:
     csv_file = args.output + "/results_" + args.tool + ".csv"
