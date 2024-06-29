@@ -34,6 +34,9 @@ import webbrowser
 from threading import Timer
 from itertools import product
 
+result_path = 'results'
+yaml_prefix = 'results_'
+
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, 'lib')
@@ -91,20 +94,29 @@ def get_complete_df(df):
 plot_colors = px.colors.qualitative.Plotly
 
 # Get the list of YAML files in the results folder
-yaml_files = [file for file in os.listdir('results') if file.endswith('.yml')]
+yaml_files = [file for file in os.listdir(result_path) if file.endswith('.yml') and file.startswith(yaml_prefix)]
 valid_yaml_files = []
 
 # Load data from all YAML files
 all_data = {}
 for yaml_file in yaml_files:
-    file_path = os.path.join('results', yaml_file)
-    data = get_yaml_data(file_path)
-    df = update_dataframe(data)   
-    if df is None:
-        printc.warning("yaml file \"" + yaml_file + "\" is empty or corrupted, skipping...", script_name)
-    else:
-        all_data[yaml_file] = data
-        valid_yaml_files.append(yaml_file)
+    file_path = os.path.join(result_path, yaml_file)
+    try:
+        data = get_yaml_data(file_path)
+        df = update_dataframe(data)   
+        if df is None:
+            printc.warning("YAML file \"" + yaml_file + "\" is empty or corrupted, skipping...", script_name)
+            printc.note("Run fmax synthesis with the correct settings to generate \"" + yaml_file + "\"", script_name)
+        else:
+            all_data[yaml_file] = data
+            valid_yaml_files.append(yaml_file)
+    except:
+        printc.warning("YAML file \"" + yaml_file + "\" is not a valid result file, skipping...", script_name)
+        continue
+
+if not valid_yaml_files:
+    printc.error("Could not find any valid YAML file in \"" + result_path + "\", exiting.", script_name)
+    sys.exit()
 
 # Prepare data for the dataframe
 dfs = {yaml_file: update_dataframe(data) for yaml_file, data in all_data.items()}
