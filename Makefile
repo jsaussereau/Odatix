@@ -32,6 +32,7 @@ WORK_DIR                = $(CURRENT_DIR)/work
 ########################################################
 
 EXPORT_SCRIPT           = $(SCRIPT_DIR)/export_results.py
+BENCHMARKS_SCRIPT		= $(SCRIPT_DIR)/export_benchmark.py
 EXPLORE_SCRIPT          = $(SCRIPT_DIR)/start_result_explorer.py
 RUN_SCRIPT              = $(SCRIPT_DIR)/run_fmax_synthesis.py
 SIM_SCRIPT              = $(SCRIPT_DIR)/run_simulations.py
@@ -120,6 +121,12 @@ sim: motd sim_only
 sim_only: 
 	@python3 $(SIM_SCRIPT) $(OPTIONS)
 
+.PHONY: results_benchmarks
+results_benchmarks: motd results_benchmarks_only
+
+.PHONY: results_benchmarks_only
+results_benchmarks_only: 
+	@python3 $(BENCHMARKS_SCRIPT) $(OPTIONS)
 ########################################################
 # Vivado
 ########################################################
@@ -138,11 +145,14 @@ run_vivado_only:
 .PHONY: results_vivado
 results_vivado: motd results_vivado_only
 
-.PHONY: results_vivado_only
-results_vivado_only:
+.PHONY: results_vivado_cond
+results_vivado_cond:
 	@if [ -f $(VIVADO_SUCCESS_FILE) ]; then \
 		python3 $(EXPORT_SCRIPT) --tool vivado --benchmark; \
 	fi
+.PHONY: results_vivado_only
+results_vivado_only:
+	@python3 $(EXPORT_SCRIPT) --tool vivado --benchmark $(OPTIONS)
 
 .PHONY: clean_vivado
 clean_vivado:
@@ -170,7 +180,7 @@ results_dc: motd results_dc_only
 
 .PHONY: results_dc_only
 results_dc_only:
-	@python3 $(EXPORT_SCRIPT) --tool design_compiler --benchmark
+	@python3 $(EXPORT_SCRIPT) --tool design_compiler --benchmark $(OPTIONS)
 
 .PHONY: clean_dc
 clean_dc: clean_dc_work
@@ -210,11 +220,11 @@ explore: motd explore_only
 
 .PHONY: explore_only
 explore_only:
-	@/bin/bash -c '$(ACTIVATE_VENV); python3 ./$(EXPLORE_SCRIPT)'
+	@/bin/bash -c '$(ACTIVATE_VENV); python3 ./$(EXPLORE_SCRIPT) $(OPTIONS)'
 
 .PHONY: explore_network
 explore_network: motd explore_network_only
 
 .PHONY: explore_network_only
 explore_network_only:
-	@/bin/bash -c '$(ACTIVATE_VENV); python3 ./$(EXPLORE_SCRIPT) --network'
+	@/bin/bash -c '$(ACTIVATE_VENV); python3 ./$(EXPLORE_SCRIPT) --network $(OPTIONS)'
