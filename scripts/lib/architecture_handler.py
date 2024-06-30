@@ -403,9 +403,10 @@ class ArchitectureHandler:
           printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
           self.incomplete_archs.append(arch_display_name + formatted_bound)
         sf.close()
+      else:
+        self.new_archs.append(arch_display_name + formatted_bound)
 
     # passed all check: added to the list
-    self.new_archs.append(arch_display_name + formatted_bound)
     self.valid_archs.append(arch_display_name)
 
     lib_name = "LIB_" + target + "_" + arch.replace("/", "_")

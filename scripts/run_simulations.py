@@ -138,7 +138,7 @@ if __name__ == "__main__":
   except Exception as e:
     printc.error("Could not get list \"simulations\" from \"" + run_config_settings_filename + "\".", script_name=script_name)
     printc.note("Is the YAML file valid? Are you missing a ':'? Is the indentation correct?", script_name=script_name)
-    printc.cyan("detail:", script_name=script_name)
+    printc.cyan("error details: ", end="", script_name=script_name)
     print(e)
     sys.exit(-1)
 

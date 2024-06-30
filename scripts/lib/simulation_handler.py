@@ -279,9 +279,20 @@ class SimulationHandler:
               return None
           else:
             override_param_target_filename = "/dev/null"
+      
+      # check if the architecture is in cache and has a status file
+      if isdir(tmp_dir):
+        if self.overwrite:
+          printc.warning("Found cached results for \"" + sim_display_name +"\".", script_name)
+          self.overwrite_sims.append(sim_display_name)
+        else:
+          printc.note("Found cached results for \"" + sim_display_name + "\". Skipping.", script_name)
+          self.cached_sims.append(sim_display_name)
+          return None
+      else:
+        self.new_sims.append(sim_display_name)
 
     # passed all check: added to the list
-    self.new_sims.append(sim_display_name)
     self.valid_sims.append(sim_display_name)
 
     sim_instance = Simulation(
