@@ -118,9 +118,17 @@ def write_to_yaml(args, output_file):
         'DMIPS_per_MHz': dmips_per_mhz,
       }
 
-  with open(output_file, 'w') as file:
-    yaml.dump(yaml_data, file, default_flow_style=False, sort_keys=False)
-    printc.say("Results written to \"" + output_file + "\"", script_name=script_name)
+  output_path = os.path.dirname(output_file)
+  if not os.path.exists(output_path):
+    os.makedirs(output_path, exist_ok=True)
+  try:
+    with open(output_file, 'w') as file:
+      yaml.dump(yaml_data, file, default_flow_style=False, sort_keys=False)
+      printc.say("Results written to \"" + output_file + "\"", script_name=script_name)
+  except Exception as e:
+    printc.error("Could not write results to \"" + output_file + "\"", script_name=script_name)
+    printc.cyan("error details: ", end="", script_name=script_name)
+    print(e)
 
 ######################################
 # Main
