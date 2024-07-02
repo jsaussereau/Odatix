@@ -197,7 +197,7 @@ class ArchitectureHandler:
         self.error_archs.append(arch_display_name)
         return None # if an identifier is missing
 
-      use_parameters, start_delimiter, stop_delimiter = self.get_use_parameters(arch, settings_data, settings_filename)
+      use_parameters, start_delimiter, stop_delimiter = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename)
       if use_parameters is None or start_delimiter is None or stop_delimiter is None:
         return None
 
@@ -449,7 +449,7 @@ class ArchitectureHandler:
 
     return arch_instance
 
-  def get_use_parameters(self, arch, settings_data, settings_filename, add_to_error_list=True):
+  def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, add_to_error_list=True):
     # get use_parameters
     try:
       use_parameters = read_from_list('use_parameters', settings_data, settings_filename, script_name=script_name)

@@ -175,7 +175,7 @@ class SimulationHandler:
           settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
 
           # get use_parameters, start_delimiter and stop_delimiter
-          use_parameters, start_delimiter, stop_delimiter = arch_handler.get_use_parameters(arch, settings_data, settings_filename, add_to_error_list=False)
+          use_parameters, start_delimiter, stop_delimiter = arch_handler.get_use_parameters(arch, arch, settings_data, settings_filename, add_to_error_list=False)
           if use_parameters is None:
             self.banned_sim_param.append(sim)
             self.error_sims.append(sim_display_name)
