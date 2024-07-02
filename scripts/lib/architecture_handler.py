@@ -139,6 +139,11 @@ class ArchitectureHandler:
     return self.architecture_instances
   
   def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False):
+
+    if arch.endswith(".txt"):
+      arch = arch[:-4] 
+      printc.note("'.txt' after the configuration name is not needed. Just use \"" + arch + "\"", script_name)
+
     if only_one_target:
       arch_display_name = arch
     else:
