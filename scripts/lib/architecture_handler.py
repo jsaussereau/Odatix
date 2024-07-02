@@ -144,20 +144,31 @@ class ArchitectureHandler:
       arch = arch[:-4] 
       printc.note("'.txt' after the configuration name is not needed. Just use \"" + arch + "\"", script_name)
 
+    if arch.endswith("/"):
+      arch = arch[:-1] 
+
     if only_one_target:
       arch_display_name = arch
     else:
       arch_display_name = arch + " (" + target + ")"
-
-    tmp_dir = self.work_path + '/' + target + '/' + arch
-    fmax_status_file = tmp_dir + '/' + self.log_path + '/' + self.fmax_status_filename
-    frequency_search_file = tmp_dir + '/' + self.log_path + '/' + self.frequency_search_filename
 
     # get param dir (arch name before '/')
     arch_param_dir = re.sub('/.*', '', arch)
 
     # get param dir (arch name after '/')
     arch_suffix = re.sub('.*/', '', arch)
+
+    # check if there is a configuration specified
+    if arch_suffix == arch_param_dir:
+      printc.note("No architecture configuration selected for \"" + arch +  "\". Using default parameters", script_name)
+      arch = arch + "/" + arch
+      no_configuration = True
+    else:
+      no_configuration = False
+
+    tmp_dir = self.work_path + '/' + target + '/' + arch
+    fmax_status_file = tmp_dir + '/' + self.log_path + '/' + self.fmax_status_filename
+    frequency_search_file = tmp_dir + '/' + self.log_path + '/' + self.frequency_search_filename
 
     # check if arch_param has been banned
     if arch_param_dir in self.banned_arch_param:
@@ -197,7 +208,7 @@ class ArchitectureHandler:
         self.error_archs.append(arch_display_name)
         return None # if an identifier is missing
 
-      use_parameters, start_delimiter, stop_delimiter = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename)
+      use_parameters, start_delimiter, stop_delimiter = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, no_configuration)
       if use_parameters is None or start_delimiter is None or stop_delimiter is None:
         return None
 
@@ -313,11 +324,12 @@ class ArchitectureHandler:
       f.close()
 
     # check if param file exists
-    if not isfile(self.arch_path + '/' + arch + '.txt'):
-      printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + self.arch_path + "/" + arch_param_dir + "\"", script_name)
-      self.banned_arch_param.append(arch_param_dir)
-      self.error_archs.append(arch_display_name)
-      return None
+    if not no_configuration:
+      if not isfile(self.arch_path + '/' + arch + '.txt'):
+        printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + self.arch_path + "/" + arch_param_dir + "\"", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None
 
     # check file copy
     if file_copy_enable:
@@ -449,7 +461,7 @@ class ArchitectureHandler:
 
     return arch_instance
 
-  def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, add_to_error_list=True):
+  def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, no_configuration=False, add_to_error_list=True):
     # get use_parameters
     try:
       use_parameters = read_from_list('use_parameters', settings_data, settings_filename, script_name=script_name)
@@ -461,22 +473,25 @@ class ArchitectureHandler:
 
     param_filename = arch + ".txt"
     use_parameters = use_parameters.lower()
-    if use_parameters in tcl_bool_true:
-      use_parameters = True
-      # check if parameter file exists
-      if not isfile(self.arch_path + '/' + param_filename):
-        printc.error("There is no parameter file \"" + self.arch_path + '/' + param_filename + "\", while use_parameters=true", script_name)
-        if add_to_error_list:
-          self.error_archs.append(arch_display_name)
-        return True, None, None
-    elif use_parameters in tcl_bool_false:
-        use_parameters = False
+    if no_configuration:
+      use_parameters = False
     else:
-      printc.error("Value for identifier \"use_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-      if add_to_error_list:
-        self.banned_arch_param.append(arch_param_dir)
-        self.error_archs.append(arch_display_name)
-      return None, None, None
+      if use_parameters in tcl_bool_true:
+        use_parameters = True
+        # check if parameter file exists
+        if not isfile(self.arch_path + '/' + param_filename):
+          printc.error("There is no parameter file \"" + self.arch_path + '/' + param_filename + "\", while use_parameters=true", script_name)
+          if add_to_error_list:
+            self.error_archs.append(arch_display_name)
+          return True, None, None
+      elif use_parameters in tcl_bool_false:
+          use_parameters = False
+      else:
+        printc.error("Value for identifier \"use_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
+        if add_to_error_list:
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+        return None, None, None
     
     if use_parameters:
       # get start delimiter
