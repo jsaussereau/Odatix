@@ -49,10 +49,11 @@ class Running_arch:
     Running_arch.progress_file_pattern = progress_file_pattern
 
 
-def check_tool(tool, script_path, makefile, rule):
+def check_tool(tool, script_path, makefile, rule, supported_tools):
   print("checking the selected eda tool \"" + tool + "\" ..", end='')
   sys.stdout.flush()
-  test_process = subprocess.Popen(["make", "-f", script_path + "/" + tool + "/" + makefile, rule, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+  tool_makefile_file = script_path + "/" + tool + "/" + makefile
+  test_process = subprocess.Popen(["make", "-f", tool_makefile_file, rule, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
   while test_process.poll() is None:
     print('.', end='', flush=True)
     time.sleep(0.5)
@@ -60,9 +61,15 @@ def check_tool(tool, script_path, makefile, rule):
       printc.green(" success!")
   else:
     printc.red(" failed!")
+    error_message = test_process.stderr.read().decode()
     printc.error("Could not launch eda tool \"" + tool + "\"", script_name)
-    printc.note("did you add the tool path to your PATH environment variable?", script_name)
-    printc.note("example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin", script_name)
+    printc.cyan("error details: ", script_name, end="")
+    printc.red(error_message, end="")
+    printc.note("Did you add the tool path to your PATH environment variable?", script_name)
+    printc.note("Example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin", script_name)
+    if not tool in supported_tools:
+      printc.note("The selected eda tool \"" + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
+      printc.note("Make sure there is a valid rule \"" + rule + "\" in \"" + tool_makefile_file + "\"", script_name)
     sys.exit(-1)
   print()
 

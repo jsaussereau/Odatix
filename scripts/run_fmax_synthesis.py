@@ -78,6 +78,8 @@ default_fmax_upper_bound = 500
 fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
 synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 
+default_supported_tools = ["vivado", "design_compiler"]
+
 script_name = os.path.basename(__file__)
 
 
@@ -120,12 +122,29 @@ if __name__ == "__main__":
 
   eda_target_filename = "target_" + tool + ".yml"
 
+  # check if the target file exists
   if not os.path.isfile(eda_target_filename):
     printc.error("Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
     sys.exit(-1)
 
+  # check if the tool has a dedicated directory in script_path
+  eda_tool_dir = script_path + "/" + tool
+  if not os.path.isdir(eda_tool_dir):
+    printc.error("The directory \"" + eda_tool_dir + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
+    if not tool in default_supported_tools:
+      printc.note("The selected eda tool \"" + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
+    sys.exit(-1)
+    
+  # check if the tool makefile exists
+  tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
+  if not os.path.isfile(tool_makefile_file):
+    printc.error("Makefile \"" + tool_makefile_file + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
+    if not tool in default_supported_tools:
+      printc.note("The selected eda tool \"" + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
+    sys.exit(-1)
+
   # try launching eda tool 
-  check_tool(tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule)
+  check_tool(tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools)
 
   with open(eda_target_filename, 'r') as f:
     settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
