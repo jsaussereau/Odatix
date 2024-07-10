@@ -29,12 +29,38 @@ sys.path.append(lib_path)
 
 import printc
 
+version_file = "version.txt"
+
 def motd():
   print(printc.colors.BOLD, end="")
   print("********************************************************************")
   print("*                             Asterism                             *")
   print("********************************************************************")
   print(printc.colors.ENDC)
+
+def read_version():
+  try:
+    with open(version_file, 'r') as file:
+      return file.read().strip()
+  except:
+    #printc.warning("Could not read version file \"" + version_file + "\"")
+    return "Unknown"
+
+def print_version():
+  version = read_version()
+  print("Asterism " + str(version))
+
+def print_copyright():
+  print("Copyright (C) 2022-2024 Jonathan Saussereau")
+
+def full_header(description=""):
+  motd()
+  if description != "":
+    print(description)
+  print_copyright()
+  print()
+  print("version: " + str(read_version()))
+  print()
 
 if __name__ == "__main__":
   motd()
