@@ -29,8 +29,12 @@ sys.path.append(lib_path)
 
 import printc
 
-print(printc.colors.BOLD, end="")
-print("********************************************************************")
-print("*                             Asterism                             *")
-print("********************************************************************")
-print(printc.colors.ENDC)
+def motd():
+  print(printc.colors.BOLD, end="")
+  print("********************************************************************")
+  print("*                             Asterism                             *")
+  print("********************************************************************")
+  print(printc.colors.ENDC)
+
+if __name__ == "__main__":
+  motd()
