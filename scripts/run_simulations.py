@@ -70,13 +70,11 @@ synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 
 script_name = os.path.basename(__file__)
 
-
 ######################################
-# Misc functions
+# Parse Arguments
 ######################################
 
-def parse_arguments():
-  parser = argparse.ArgumentParser(description='Run parallel simulations')
+def add_arguments(parser):
   parser.add_argument('-i', '--input', default='_run_simulations_settings.yml',
                       help='input settings file (default: _run_simulations_settings.yml)')
   parser.add_argument('-a', '--archpath', default=arch_path,
@@ -89,32 +87,29 @@ def parse_arguments():
                       help='overwrite existing results')
   parser.add_argument('-y', '--noask', action='store_true',
                       help='do not ask to continue')
+
+def parse_arguments():
+  parser = argparse.ArgumentParser(description='Run parallel simulations')
+  add_arguments(parser)
   return parser.parse_args()
 
 
 ######################################
-# Main
+# Run Simulations
 ######################################
 
-if __name__ == "__main__":
+def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask):
+  _overwrite, ask_continue, show_log_if_one, nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
 
-  args = parse_arguments()
-
-  run_config_settings_filename = args.input
-  arch_path = args.archpath
-  sim_path = args.simpath
-  work_path = args.work
-
-  overwrite, ask_continue, show_log_if_one, nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
-
-  if args.overwrite:
+  if overwrite:
     overwrite = True
+  else:
+    overwrite = _overwrite
   
-  if args.noask:
+  if noask:
     ask_continue = False
 
   Running_arch.set_patterns(fmax_status_pattern, synth_status_pattern)
- 
 
   sim_handler = SimulationHandler(
     work_path = work_path,
@@ -259,3 +254,21 @@ if __name__ == "__main__":
       printc.say("started job for simulation \"{}\" with pid {}".format(i_sim.sim_display_name, process.pid), script_name)
 
     show_progress(running_arch_list, refresh_time, show_log_if_one, mode="simulation")
+
+######################################
+# Main
+######################################
+
+def main(args):
+  run_config_settings_filename = args.input
+  arch_path = args.archpath
+  sim_path = args.simpath
+  work_path = args.work
+  overwrite = args.overwrite
+  noask = args.noask
+
+  run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask)
+
+if __name__ == "__main__":
+  args = parse_arguments()
+  main(args)
