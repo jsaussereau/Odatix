@@ -56,6 +56,31 @@ format_mode = 'fpga'
 script_name = os.path.basename(__file__)
 
 ######################################
+# Parse Arguments
+######################################
+
+def add_arguments(parser):
+  parser.add_argument('-i', '--input', default='work',
+                      help='Input path (default: work/<tool>)')
+  parser.add_argument('-o', '--output', default='results',
+                      help='Output path (default: results')
+  #parser.add_argument('-m', '--mode', choices=['fpga', 'asic'], default='fpga',
+  #                    help='Select the mode (fpga or asic, default: fpga)')
+  parser.add_argument('-t', '--tool', default='vivado',
+                      help='eda tool in use (default: vivado)')
+  parser.add_argument('-f', '--format', choices=['csv', 'yml', 'all'], default='yml',
+                      help='Output format: csv, yml, or all (default: yml)')
+  parser.add_argument('-u', '--use_benchmark', action='store_true',
+                      help='Use benchmark values in yaml file')
+  parser.add_argument('-B', '--benchmark_file', default='results/benchmark.yml',
+                      help='Benchmark file (default: results/benchmark.yml')
+
+def parse_arguments():
+  parser = argparse.ArgumentParser(description='Process FPGA or ASIC results')
+  add_arguments(parser)
+  return parser.parse_args()
+
+######################################
 # Misc functions
 ######################################
 
@@ -67,24 +92,6 @@ def safe_cast(val, to_type, default=None):
       return to_type(val)
   except (ValueError, TypeError):
       return default
-
-def parse_arguments():
-  parser = argparse.ArgumentParser(description='Process FPGA or ASIC results')
-  parser.add_argument('-i', '--input', default='work',
-                      help='Input path (default: work/<tool>)')
-  parser.add_argument('-o', '--output', default='results',
-                      help='Output path (default: results')
-  #parser.add_argument('-m', '--mode', choices=['fpga', 'asic'], default='fpga',
-  #                    help='Select the mode (fpga or asic, default: fpga)')
-  parser.add_argument('-t', '--tool', choices=['vivado', 'design_compiler'], default='vivado',
-                      help='eda tool in use (default: vivado)')
-  parser.add_argument('-f', '--format', choices=['csv', 'yml', 'all'], default='yml',
-                      help='Output format: csv, yml, or all (default: yml)')
-  parser.add_argument('-b', '--benchmark', action='store_true',
-                      help='Use benchmark values in yaml file')
-  parser.add_argument('-B', '--benchmark_file', default='results/benchmark.yml',
-                      help='Benchmark file (default: results/benchmark.yml')
-  return parser.parse_args()
 
 def import_result_parser(tool):
   try:
@@ -144,15 +151,15 @@ def cast_to_float(input):
   else:
     return safe_cast(input, float, 0.0)
 
-def write_to_yaml(args, output_file, parser, benchmark_data):
+def write_to_yaml(input, output_file, format_mode, parser, use_benchmark, benchmark_file, benchmark_data):
   yaml_data = {}
 
-  for target in sorted(next(os.walk(args.input))[1]):
+  for target in sorted(next(os.walk(input))[1]):
     yaml_data[target] = {}
-    for arch in sorted(next(os.walk(os.path.join(args.input, target)))[1]):
+    for arch in sorted(next(os.walk(os.path.join(input, target)))[1]):
       yaml_data[target][arch] = {}
-      for variant in sorted(next(os.walk(os.path.join(args.input, target, arch)))[1]):
-        cur_path = os.path.join(args.input, target, arch, variant)
+      for variant in sorted(next(os.walk(os.path.join(input, target, arch)))[1]):
+        cur_path = os.path.join(input, target, arch, variant)
 
         # Vérification de la complétion de la synthèse
         if not exists(os.path.join(cur_path, 'log/status.log')):
@@ -211,8 +218,8 @@ def write_to_yaml(args, output_file, parser, benchmark_data):
           }
 
         # benchmark
-        if args.benchmark:
-          dmips_per_mhz = get_dmips_per_mhz(arch, variant, benchmark_data, args.benchmark_file)
+        if use_benchmark:
+          dmips_per_mhz = get_dmips_per_mhz(arch, variant, benchmark_data, benchmark_file)
           if dmips_per_mhz != None:
             dmips = safe_cast(fmax, float, 0.0) * safe_cast(dmips_per_mhz, float, 0.0)
 
@@ -225,17 +232,17 @@ def write_to_yaml(args, output_file, parser, benchmark_data):
     yaml.dump(yaml_data, file, default_flow_style=False, sort_keys=False)
     printc.say("Results written to \"" + output_file + "\"", script_name=script_name)
 
-def write_to_csv(args, output_file, parser, fieldnames):
+def write_to_csv(input, output_file, format_mode, parser, fieldnames):
   with open(output_file, 'w', newline='') as csvfile:
     writer = csv.writer(csvfile, delimiter='\t')
 
-    for target in sorted(next(os.walk(args.input))[1]):
+    for target in sorted(next(os.walk(input))[1]):
       writer.writerow([])
       writer.writerow([target])
-      for arch in sorted(next(os.walk(args.input+'/'+target))[1]):
+      for arch in sorted(next(os.walk(input+'/'+target))[1]):
         writer.writerow(fieldnames)
-        for variant in sorted(next(os.walk(args.input+'/'+target+'/'+arch))[1]):
-          cur_path=args.input+'/'+target+'/'+arch+'/'+variant
+        for variant in sorted(next(os.walk(input+'/'+target+'/'+arch))[1]):
+          cur_path=input+'/'+target+'/'+arch+'/'+variant
 
           # check if synthesis is complete
           if not exists(cur_path+'/log/status.log'):
@@ -272,56 +279,85 @@ def write_to_csv(args, output_file, parser, fieldnames):
         writer.writerow([])
   printc.say("Results written to \"" + output_file + "\"", script_name=script_name)
 
+
 ######################################
-# Main
+# Export Results
 ######################################
 
-if __name__ == "__main__":
-  args = parse_arguments()
+def export_results(input, output, tool, format, use_benchmark, benchmark_file):
+  print(printc.colors.CYAN + "Export " +  tool + " results" + printc.colors.ENDC)
 
-  if args.tool == 'vivado':
-    format_mode = 'fpga'
-  elif args.tool == 'design_compiler':
-    format_mode = 'asic'
-  else:
-    printc.error("unsupported tool (" + args.tool + " ) selected, please choose 'vivado' or 'design_compiler'", script_name)
+  parser = import_result_parser(tool)
+
+  try:
+    format_mode = parser.format_mode
+  except:
+    printc.error("Invalid parser. Cannot find \"format_mode\" in parser for " + tool, script_name)
     sys.exit(1)
 
-  print(printc.colors.CYAN + "Export " +  args.tool + " results" + printc.colors.ENDC)
-
-  parser = import_result_parser(args.tool)
-  check_parser (parser, format_mode, args.tool)
+  check_parser (parser, format_mode, tool)
 
   if format_mode == 'fpga':
     fieldnames = fieldnames_fpga
   elif format_mode == 'asic':
     fieldnames = fieldnames_asic
   else:
-    printc.error("invalid format mode (" + format_mode + ") selected. Please choose 'fpga' or 'asic'", script_name)
+    printc.error("Invalid format mode (" + format_mode + ") selected in parser file. Please choose 'fpga' or 'asic'", script_name)
     sys.exit(1)
 
-  if not args.input.endswith(('/vivado', '/design_compiler')):
-    args.input = args.input + "/" + args.tool
+  if not input.endswith(('/vivado', '/design_compiler')):
+    input = input + "/" + tool
 
-  if not os.path.isdir(args.input):
-    printc.error("input directory \"" + args.input + "\" does not exist", script_name)
+  if not os.path.isdir(input):
+    printc.error("Input directory \"" + input + "\" does not exist", script_name)
     sys.exit(1)
 
   benchmark_data = None
-  if args.benchmark:
-    if not exists(args.benchmark_file):
-      args.benchmark = False
-      printc.warning("cannot find benchmark file \"" + args.benchmark_file + "\", benchmark export disabled", script_name)
+  if use_benchmark:
+    if not exists(benchmark_file):
+      use_benchmark = False
+      printc.warning("Cannot find benchmark file \"" + benchmark_file + "\", benchmark export disabled", script_name)
     else:
-      with open(args.benchmark_file, 'r') as file:
+      with open(benchmark_file, 'r') as file:
         benchmark_data = yaml.safe_load(file)
 
-  if args.format in ['csv', 'all']:
-    csv_file = args.output + "/results_" + args.tool + ".csv"
-    write_to_csv(args, csv_file, parser, fieldnames)
+  if not os.path.exists(output):
+    os.makedirs(output)
 
-  if args.format in ['yml', 'all']:
-    yaml_file = args.output + "/results_" + args.tool + ".yml"
-    write_to_yaml(args, yaml_file, parser, benchmark_data)
+  if format in ['csv', 'all']:
+    csv_file = output + "/results_" + tool + ".csv"
+    try:
+      write_to_csv(input, csv_file, format_mode, parser, fieldnames)
+    except Exception as e:
+      printc.error("Could not write \"" + csv_file + "\"", script_name=script_name)
+      printc.cyan("error details: ", script_name=script_name, end="")
+      printc.red(str(e))
+
+  if format in ['yml', 'all']:
+    yaml_file = output + "/results_" + tool + ".yml"
+    try:
+      write_to_yaml(input, yaml_file, format_mode, parser, use_benchmark, benchmark_file, benchmark_data)
+    except Exception as e:
+      printc.error("Could not write \"" + yaml_file + "\"", script_name=script_name)
+      printc.cyan("error details: ", script_name=script_name, end="")
+      printc.red(str(e))
 
   print()
+
+######################################
+# Main
+######################################
+  
+def main(args):
+  export_results(
+    input=args.input,
+    output=args.output,
+    tool=args.tool,
+    format=args.format,
+    use_benchmark=args.use_benchmark, 
+    benchmark_file=args.benchmark_file
+  )
+
+if __name__ == "__main__":
+  args = parse_arguments()
+  main(args)
