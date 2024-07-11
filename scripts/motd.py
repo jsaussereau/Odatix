@@ -21,6 +21,7 @@
 
 import os
 import sys
+import argparse
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +30,27 @@ sys.path.append(lib_path)
 
 import printc
 
+######################################
+# Settings
+######################################
+
 version_file = "version.txt"
+
+######################################
+# Parse Arguments
+######################################
+
+def add_arguments(parser):
+  parser.add_argument('-f', '--full', action='store_true', help='show full motd')
+
+def parse_arguments():
+  parser = argparse.ArgumentParser(description="Asterism's message of the day")
+  add_arguments(parser)
+  return parser.parse_args()
+
+######################################
+# Message of the day
+######################################
 
 def motd():
   printc.grey("════════════════════════════════════════════════════════════════")
@@ -40,6 +61,22 @@ def motd():
   print(" ██   ██      ██    ██    ██      ██   ██ ██      ██ ██  ▜▛  ██")
   print(" ██   ██ ██████▛    ██    ███████ ██   ██ ██ ██████▛ ██      ██")
   printc.grey("════════════════════════════════════════════════════════════════")
+
+def full_header(description=True):
+  motd()
+  if description:
+    print("Asterism - a FPGA/ASIC toolbox for design space exploration")
+  print_copyright()
+  print()
+  print("version: " + str(read_version()))
+  print()
+
+def print_copyright():
+  print("Copyright (C) 2022-2024 Jonathan Saussereau")
+
+######################################
+# Version
+######################################
 
 def read_version():
   try:
@@ -53,17 +90,14 @@ def print_version():
   version = read_version()
   print("Asterism " + str(version))
 
-def print_copyright():
-  print("Copyright (C) 2022-2024 Jonathan Saussereau")
-
-def full_header(description=""):
-  motd()
-  if description != "":
-    print(description)
-  print_copyright()
-  print()
-  print("version: " + str(read_version()))
-  print()
+######################################
+# Main
+######################################
 
 if __name__ == "__main__":
-  motd()
+  args = parse_arguments()
+  
+  if args.full:
+    full_header()
+  else:
+    motd()
