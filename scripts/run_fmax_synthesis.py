@@ -82,13 +82,11 @@ default_supported_tools = ["vivado", "design_compiler"]
 
 script_name = os.path.basename(__file__)
 
-
 ######################################
-# Misc functions
+# Parse Arguments
 ######################################
 
-def parse_arguments():
-  parser = argparse.ArgumentParser(description='Run fmax synthesis on selected architectures')
+def add_arguments(parser):
   parser.add_argument('-i', '--input', default='_run_fmax_synthesis_settings.yml',
                       help='input settings file (default: _run_fmax_synthesis_settings.yml)')
   parser.add_argument('-a', '--archpath', default=arch_path,
@@ -101,24 +99,28 @@ def parse_arguments():
                       help='overwrite existing results')
   parser.add_argument('-y', '--noask', action='store_true',
                       help='do not ask to continue')
+
+def parse_arguments():
+  parser = argparse.ArgumentParser(description='Run fmax synthesis on selected architectures')
+  add_arguments(parser)
   return parser.parse_args()
 
-
 ######################################
-# Main
+# Run Synthesis
 ######################################
 
-if __name__ == "__main__":
-
-  args = parse_arguments()
+def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, overwrite, noask):
+  _overwrite, ask_continue, show_log_if_one, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
   
-  run_config_settings_filename = args.input
-  arch_path = args.archpath
-  tool = args.tool
-  work_path = args.work
   work_path += "/" + tool 
-
-  overwrite, ask_continue, show_log_if_one, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
+  
+  if overwrite:
+    overwrite = True
+  else:
+    overwrite = _overwrite
+  
+  if noask:
+    ask_continue = False
 
   eda_target_filename = "target_" + tool + ".yml"
 
@@ -163,11 +165,6 @@ if __name__ == "__main__":
       print()
       pass # if a key is missing
 
-  if args.overwrite:
-    overwrite = True
-  
-  if args.noask:
-    ask_continue = False
 
   Running_arch.set_patterns(fmax_status_pattern, synth_status_pattern)
 
@@ -354,3 +351,21 @@ if __name__ == "__main__":
       #  print(f"frequency_search_file '{frequency_search_file}' does not exist")
         pass
     print()
+    
+######################################
+# Main
+######################################
+
+def main(args):
+  run_config_settings_filename = args.input
+  arch_path = args.archpath
+  tool = args.tool
+  work_path = args.work
+  overwrite = args.overwrite
+  noask = args.noask
+
+  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, overwrite, noask)
+
+if __name__ == "__main__":
+  args = parse_arguments()
+  main(args)
