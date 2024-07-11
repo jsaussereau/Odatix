@@ -33,7 +33,7 @@ WORK_DIR                = $(CURRENT_DIR)/work
 
 EXPORT_SCRIPT           = $(SCRIPT_DIR)/export_results.py
 BENCHMARKS_SCRIPT		= $(SCRIPT_DIR)/export_benchmark.py
-EXPLORE_SCRIPT          = $(SCRIPT_DIR)/start_result_explorer.py
+EXPLORE_SCRIPT          = $(SCRIPT_DIR)/asterism-explorer.py
 RUN_SCRIPT              = $(SCRIPT_DIR)/run_fmax_synthesis.py
 SIM_SCRIPT              = $(SCRIPT_DIR)/run_simulations.py
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
