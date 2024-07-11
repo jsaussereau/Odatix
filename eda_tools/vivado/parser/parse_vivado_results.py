@@ -24,6 +24,8 @@ sys.path.append('scripts/lib/')
 import re_helper as rh
 import re
 
+format_mode = 'fpga'
+
 frequency_search_log = 'log/frequency_search.log'
 utilization_report = 'report/utilization.rep'
 area_report = 'report/area.rep'

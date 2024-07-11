@@ -24,6 +24,8 @@ sys.path.append('scripts/lib/')
 import re_helper as rh
 import re
 
+format_mode = 'asic'
+
 frequency_search_log = 'log/frequency_search.log'
 area_report = 'report/area.rep'
 cell_count_report = 'report/utilization.rep'
