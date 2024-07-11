@@ -58,8 +58,8 @@ def header(message):
 def subheader(message):
   print(colors.CYAN + message + colors.ENDC)
 
-def bold(message, end='\n'):
-  print(colors.BOLD + message + colors.ENDC, end=end)
+def bold(message, color=colors.ENDC, end='\n'):
+  print(color + colors.BOLD + message + colors.ENDC, end=end)
 
 def grey(message, script_name="", end='\n'):
   say(message=message, script_name=script_name, color=colors.GREY, end=end)
