@@ -29,6 +29,11 @@ from utils import *
 script_name = os.path.basename(__file__)
 
 def get_synth_settings(settings_filename):
+  # failsafe
+  if settings_filename is None:
+    printc.error("No settings file specified: get_synth_settings(settings_filename) -> settings_filename is None", script_name)
+    sys.exit(-1)
+
   # get synth settings from yaml file
   if not os.path.isfile(settings_filename):
     printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
@@ -54,6 +59,11 @@ def get_synth_settings(settings_filename):
 
 
 def get_sim_settings(settings_filename):
+  # failsafe
+  if settings_filename is None:
+    printc.error("No settings file specified: get_sim_settings(settings_filename) -> settings_filename is None", script_name)
+    sys.exit(-1)
+
   # get sim settings from yaml file
   if not os.path.isfile(settings_filename):
     printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
