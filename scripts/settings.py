@@ -40,8 +40,22 @@ script_name = os.path.basename(__file__)
 class AsterismSettings:
   DEFAULT_SETTINGS_FILE = "asterism.yml"
 
+  DEFAULT_WORK_PATH = "work"
+  DEFAULT_RESULT_PATH = "results"
+  DEFAULT_ARCH_PATH = "architectures"
+  DEFAULT_SIM_PATH = "simulations"
+  DEFAULT_USE_BENCHMARK = True
+  DEFAULT_BENCHMARK_FILE = "results/benchmark.yml"
+  DEFAULT_SIMULATION_SETTINGS_FILE = "_run_simulations_settings.yml"
+  DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = "_run_fmax_synthesis_settings.yml"
+  DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = "_run_range_synthesis_settings.yml"
+
   def __init__(self, settings_filename=DEFAULT_SETTINGS_FILE):
-    success = self.read_settings_file(settings_filename)
+    self.settings_file_exists = self.generate_settings_file()
+    if self.settings_file_exists:
+      success = self.read_settings_file(settings_filename)
+    else:
+      self.valid = False
 
   def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
     if not os.path.isfile(settings_filename):
@@ -68,3 +82,31 @@ class AsterismSettings:
     self.valid = True
     return True
     
+  def generate_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
+    if os.path.isfile(settings_filename):
+      return True
+    else:
+      printc.say("This directory does not contain an Asterism settings file \"" + settings_filename + "\".", script_name=script_name)
+      printc.say("This file is mandatory. Would you like to create one? ", end="", script_name=script_name)
+      answer = ask_yes_no()
+      if answer is False:
+        return False
+      else:
+        settings_data = {
+          'work_path': input("  Enter work path [default: " + AsterismSettings.DEFAULT_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_WORK_PATH,
+          'result_path': input("  Enter result path [default: " + AsterismSettings.DEFAULT_RESULT_PATH + "]: ") or AsterismSettings.DEFAULT_RESULT_PATH,
+          'arch_path': input("  Enter architecture path [default: " + AsterismSettings.DEFAULT_ARCH_PATH + "]: ") or AsterismSettings.DEFAULT_ARCH_PATH,
+          'sim_path': input("  Enter simulation path [default: " + AsterismSettings.DEFAULT_SIM_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_PATH,
+          'use_benchmark': input("  Use benchmark (True/False) [default: " + str(AsterismSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in AsterismSettings.YAML_BOOL or AsterismSettings.DEFAULT_USE_BENCHMARK,
+          'benchmark_file': input("  Enter benchmark file path [default: " + AsterismSettings.DEFAULT_BENCHMARK_FILE + "]: ") or AsterismSettings.DEFAULT_BENCHMARK_FILE,
+          'simulation_settings_file': input("  Enter simulation settings file [default: " + AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
+          'fmax_synthesis_settings_file': input("  Enter fmax synthesis settings file [default: " + AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+          'range_synthesis_settings_file': input("  Enter range synthesis settings file [default: " + AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
+        }
+
+        with open(settings_filename, 'w') as f:
+          yaml.dump(settings_data, f, sort_keys=False)
+
+        printc.say("Asterism settings file \"" + settings_filename + "\" has been generated.", script_name=script_name)
+        print()
+        return True
