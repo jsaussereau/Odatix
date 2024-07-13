@@ -23,7 +23,7 @@ simulations:
 # Add your own designs!
 #--------------------------------------------#
 
-  #- Your_Simulation
+  #- Your_Simulation:
   #  - Your_Design/Your_1st_Configuration
   #  - Your_Design/Your_2nd_Configuration
   #  - Your_Design/Your_3rd_Configuration
