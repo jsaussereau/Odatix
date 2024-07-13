@@ -24,6 +24,8 @@ import sys
 import shutil
 import printc
 
+YAML_BOOL = ('true', 'false', 'yes', 'no', 'on', 'off')
+
 # python 3.8+ like copytree
 def copytree(src, dst, dirs_exist_ok=False, **kwargs):
   if not os.path.exists(dst):
@@ -97,11 +99,17 @@ def progress_bar(progress, title, title_size=50, bar_size=50, endstr='', progres
     print()
 
 def ask_to_continue(exit_code=-1):
+  print("Continue? ", end="")
+  answer = ask_yes_no()
+  if answer is False:
+    sys.exit(exit_code)
+    
+def ask_yes_no():
   while True:
-    answer = input("Continue? (Y/n) ")
+    answer = input("(Y/n) ")
     if answer.lower() in ['yes', 'ye', 'y', '1', '']:
-      break
+      return True
     elif answer.lower() in ['no', 'n', '0']:
-      sys.exit(exit_code)
+      return False
     else:
       print("Please enter yes or no")
