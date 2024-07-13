@@ -56,11 +56,10 @@ class Simulation:
 
 class SimulationHandler:
 
-  def __init__(self, work_path, arch_path, sim_path, script_path, work_script_path, log_path, param_settings_filename, sim_settings_filename, sim_makefile_filename, overwrite):
+  def __init__(self, work_path, arch_path, sim_path, work_script_path, log_path, param_settings_filename, sim_settings_filename, sim_makefile_filename, overwrite):
     self.work_path = work_path
     self.arch_path = arch_path
     self.sim_path = sim_path
-    self.script_path = script_path
     self.work_script_path = work_script_path
     self.log_path = log_path
     self.overwrite = overwrite
@@ -87,7 +86,7 @@ class SimulationHandler:
     arch_handler = ArchitectureHandler(
       work_path = self.work_path,
       arch_path = self.arch_path,
-      script_path = self.script_path,
+      script_path = "",
       work_script_path = self.work_script_path,
       log_path = self.log_path,
       eda_target_filename = "",

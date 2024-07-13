@@ -115,7 +115,6 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
     work_path = work_path,
     arch_path = arch_path,
     sim_path = sim_path,
-    script_path = script_path,
     work_script_path = work_script_path,
     log_path = log_path,
     overwrite = overwrite,
