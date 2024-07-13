@@ -28,13 +28,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, 'lib')
 sys.path.append(lib_path)
 
+# get eda_tools folder
+if getattr(sys, 'frozen', False):
+  base_path = os.path.dirname(sys.executable)
+else:
+  base_path = current_dir
+
 import printc
 
 ######################################
 # Settings
 ######################################
 
-version_file = "version.txt"
+version_file = os.path.realpath(os.path.join(base_path, "../version.txt"))
 
 ######################################
 # Parse Arguments
@@ -53,14 +59,14 @@ def parse_arguments():
 ######################################
 
 def motd():
-  printc.grey("════════════════════════════════════════════════════════════════")
+  printc.grey("═════════════════════════════════════════════════════════════════")
   print(" ▄█████▄                                                       ")
-  print(" ██   ██ ▟██████ ████████ ███████ ██████▄ ██ ▟██████ ███▖  ▗███")
-  print(" ██   ██ ██         ██    ██      ██   ██ ██ ██      ████▖▗████")
-  print(" ███████ ▜█████▙    ██    █████   ██████▌ ██ ▜█████▙ ██ ▜██▛ ██")
-  print(" ██   ██      ██    ██    ██      ██   ██ ██      ██ ██  ▜▛  ██")
-  print(" ██   ██ ██████▛    ██    ███████ ██   ██ ██ ██████▛ ██      ██")
-  printc.grey("════════════════════════════════════════════════════════════════")
+  print(" ██   ██ ▟██████ ████████ ███████ ███████▄ ██ ▟██████ ███▖  ▗███")
+  print(" ██   ██ ██         ██    ██      ██    ██ ██ ██      ████▖▗████")
+  print(" ███████ ▜█████▙    ██    █████   ███████▌ ██ ▜█████▙ ██ ▜██▛ ██")
+  print(" ██   ██      ██    ██    ██      ██    ██ ██      ██ ██  ▜▛  ██")
+  print(" ██   ██ ██████▛    ██    ███████ ██    ██ ██ ██████▛ ██      ██")
+  printc.grey("═════════════════════════════════════════════════════════════════")
 
 def full_header(description=True):
   motd()
