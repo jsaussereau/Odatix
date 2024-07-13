@@ -34,6 +34,7 @@ import printc
 from replace_params import replace_params
 
 from simulation_handler import SimulationHandler
+from settings import AsterismSettings
 from utils import *
 from prepare_work import *
 from run_parallel import *
@@ -44,7 +45,6 @@ from run_settings import *
 ######################################
 
 work_path = "work/simulation"
-script_path = "eda_tools"
 work_script_path = "scripts"
 common_script_path = "_common"
 log_path = "log"
@@ -75,18 +75,13 @@ script_name = os.path.basename(__file__)
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument('-i', '--input', default='_run_simulations_settings.yml',
-                      help='input settings file (default: _run_simulations_settings.yml)')
-  parser.add_argument('-a', '--archpath', default=arch_path,
-                      help='architecture directory (default: ' + arch_path + ')')
-  parser.add_argument('-s', '--simpath', default=sim_path,
-                      help='simulation directory (default: ' + sim_path + ')')
-  parser.add_argument('-w', '--work', default=work_path,
-                      help='work directory (default: ' + work_path + ')')
-  parser.add_argument('-o', '--overwrite', action='store_true',
-                      help='overwrite existing results')
-  parser.add_argument('-y', '--noask', action='store_true',
-                      help='do not ask to continue')
+  parser.add_argument('-o', '--overwrite', action='store_true', help='overwrite existing results')
+  parser.add_argument('-y', '--noask', action='store_true', help='do not ask to continue')
+  parser.add_argument('-i', '--input', help='input settings file')
+  parser.add_argument('-a', '--archpath', help='architecture directory')
+  parser.add_argument('-s', '--simpath', help='simulation directory')
+  parser.add_argument('-w', '--work', help='work directory')
+  parser.add_argument('-c', '--config', default=AsterismSettings.DEFAULT_SETTINGS_FILE, help='global settings file for asterism (default: ' + AsterismSettings.DEFAULT_SETTINGS_FILE + ')')
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Run parallel simulations')
@@ -258,11 +253,35 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
 # Main
 ######################################
 
-def main(args):
-  run_config_settings_filename = args.input
-  arch_path = args.archpath
-  sim_path = args.simpath
-  work_path = args.work
+def main(args, settings=None):
+
+
+  # Get settings
+  if settings is None:
+    settings = AsterismSettings(args.config)
+    if not settings.valid:
+      sys.exit(-1)
+
+  if args.input is not None:
+    run_config_settings_filename  = args.input
+  else:
+    run_config_settings_filename = settings.simulation_settings_file
+
+  if args.archpath is not None:
+    arch_path = args.archpath
+  else:
+    arch_path = settings.arch_path
+
+  if args.simpath is not None:
+    sim_path = args.simpath
+  else:
+    sim_path = settings.sim_path
+
+  if args.work is not None:
+    work_path = args.work
+  else:
+    work_path = settings.work_path
+
   overwrite = args.overwrite
   noask = args.noask
 
