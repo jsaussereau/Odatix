@@ -1,0 +1,20 @@
+
+##############################################
+# Asterism Workspace Settings
+##############################################
+---
+
+work_path: work
+result_path: results
+arch_path: architectures
+sim_path: simulations
+tools_path: eda_tools
+
+use_benchmark: True
+benchmark_file: results/benchmark.yml
+
+simulation_settings_file: _run_simulations_settings.yml
+fmax_synthesis_settings_file: _run_fmax_synthesis_settings.yml
+range_synthesis_settings_file: _run_range_synthesis_settings.yml
+
+...
