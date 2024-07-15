@@ -34,14 +34,13 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, 'lib')
 sys.path.append(lib_path)
 
+from settings import AsterismSettings
 import re_helper as rh
 import printc
 
 ######################################
 # Settings
 ######################################
-
-benchmark_file = 'benchmark/benchmark.yml'
 
 status_done = 'Done: 100%'
 
@@ -52,16 +51,11 @@ script_name = os.path.basename(__file__)
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument('-i', '--input', default='work/simulation',
-                      help='Input path (default: work/simulation)')
-  parser.add_argument('-o', '--output', default='results/benchmark.yml',
-                      help='Output file (default: results/benchmark.yml')
-  parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default='dhrystone',
-                      help='benchmark to parse (default: dhrystone)')
-  parser.add_argument('-s', '--sim_file', default='log/sim.log',
-                      help='simulation log file (default: log/sim.log)')
-  #parser.add_argument('-f', '--format', choices=['yml'], default='yml',
-  #                    help='Output formats: yml (default: yml)')
+  parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default='dhrystone', help='benchmark to parse (default: dhrystone)')
+  parser.add_argument('-S', '--sim_file', default='log/sim.log', help='simulation log file (default: log/sim.log)')
+  parser.add_argument('-B', '--benchmark_file', help='output benchmark file')
+  parser.add_argument('-w', '--work', help='simulation work directory')
+  parser.add_argument('-c', '--config', default=AsterismSettings.DEFAULT_SETTINGS_FILE, help='global settings file for asterism (default: ' + AsterismSettings.DEFAULT_SETTINGS_FILE + ')')
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Process benchmark results')
@@ -155,10 +149,27 @@ def export_benchmark(input, output, benchmark, sim_file):
 # Main
 ######################################
 
-def main(args):
+def main(args, settings=None):
+
+  # Get settings
+  if settings is None:
+    settings = AsterismSettings(args.config)
+    if not settings.valid:
+      sys.exit(-1)
+
+  if args.benchmark_file is not None:
+    benchmark_file  = args.benchmark_file
+  else:
+    benchmark_file = settings.benchmark_file
+
+  if args.work is not None:
+    work = args.work
+  else:
+    work = settings.sim_work_path
+
   export_benchmark(
-    input=args.input,
-    output=args.output,
+    input=work,
+    output=benchmark_file,
     benchmark=args.benchmark,
     sim_file=args.sim_file
   )
