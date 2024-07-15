@@ -46,6 +46,9 @@ def chunk_list(lst, n):
   for i in range(0, len(lst), n):
     yield lst[i:i + n]
 
+class KeyNotInListError(Exception):
+  pass
+
 def read_from_list(key, input_list, filename, raise_if_missing=True, optional=False, print_error=True, parent=None, script_name=""):
   if key in input_list:
     return input_list[key]
@@ -57,7 +60,7 @@ def read_from_list(key, input_list, filename, raise_if_missing=True, optional=Fa
       else:
         printc.error("Cannot find key \"" + key + "\"" + parent_string + " in \"" + filename + "\".", script_name)
     if raise_if_missing:
-      raise
+      raise KeyNotInListError
     return False
 
 def read_from_config(identifier, config, filename, script_name=""):
