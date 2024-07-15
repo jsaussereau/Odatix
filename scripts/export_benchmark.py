@@ -42,6 +42,9 @@ import printc
 # Settings
 ######################################
 
+DEFAULT_BENCHMARK = "dhrystone"
+DEFAULT_SIM_FILE = "log/sim.log"
+
 status_done = 'Done: 100%'
 
 script_name = os.path.basename(__file__)
@@ -51,8 +54,8 @@ script_name = os.path.basename(__file__)
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default='dhrystone', help='benchmark to parse (default: dhrystone)')
-  parser.add_argument('-S', '--sim_file', default='log/sim.log', help='simulation log file (default: log/sim.log)')
+  parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default=DEFAULT_BENCHMARK, help='benchmark to parse (default: ' + DEFAULT_BENCHMARK + ')')
+  parser.add_argument('-S', '--sim_file', default=DEFAULT_SIM_FILE, help='simulation log file (default: ' + DEFAULT_SIM_FILE + ')')
   parser.add_argument('-B', '--benchmark_file', help='output benchmark file')
   parser.add_argument('-w', '--work', help='simulation work directory')
   parser.add_argument('-c', '--config', default=AsterismSettings.DEFAULT_SETTINGS_FILE, help='global settings file for asterism (default: ' + AsterismSettings.DEFAULT_SETTINGS_FILE + ')')

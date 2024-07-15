@@ -40,6 +40,8 @@ import printc
 # Settings
 ######################################
 
+DEFAULT_FORMAT = "yml"
+
 # get eda_tools folder
 if getattr(sys, 'frozen', False):
   base_path = os.path.dirname(sys.executable)
@@ -65,7 +67,7 @@ script_name = os.path.basename(__file__)
 
 def add_arguments(parser):
   parser.add_argument('-t', '--tool', default='vivado', help='eda tool in use (default: vivado)')
-  parser.add_argument('-f', '--format', choices=['csv', 'yml', 'all'], default='yml', help='Output format: csv, yml, or all (default: yml)')
+  parser.add_argument('-f', '--format', choices=['csv', 'yml', 'all'], default=DEFAULT_FORMAT, help='Output format: csv, yml, or all (default: ' + DEFAULT_FORMAT  + ')')
   parser.add_argument('-u', '--use_benchmark', action='store_true', help='Use benchmark values in yaml file')
   parser.add_argument('-B', '--benchmark_file', help='Benchmark file')
   parser.add_argument('-w', '--work', help='work directory')
