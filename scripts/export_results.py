@@ -117,7 +117,13 @@ class ResultParser:
       printc.error("There is no parser settings file \"" + yaml_file + "\".", script_name=script_name)
       return
     with open(yaml_file, "r") as f:
-      yaml_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      try:
+        yaml_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      except Exception as e:
+        printc.error("Invalid yaml file \"" +  yaml_file + "\" for parser settings.", script_name=script_name)
+        printc.cyan("error details: ", script_name=script_name, end="")
+        printc.red(str(e))
+        return
 
       try:
         self.format_mode = read_from_list("format_mode", yaml_data, yaml_file, script_name=script_name)
