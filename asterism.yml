@@ -9,7 +9,6 @@ sim_work_path: work/simulations
 result_path: results
 arch_path: architectures
 sim_path: simulations
-tools_path: eda_tools
 
 use_benchmark: True
 benchmark_file: results/benchmark.yml
