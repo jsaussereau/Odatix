@@ -80,7 +80,7 @@ def add_arguments(parser):
   parser.add_argument('-i', '--input', help='input settings file')
   parser.add_argument('-a', '--archpath', help='architecture directory')
   parser.add_argument('-s', '--simpath', help='simulation directory')
-  parser.add_argument('-w', '--work', help='work directory')
+  parser.add_argument('-w', '--work', help='simulation work directory')
   parser.add_argument('-c', '--config', default=AsterismSettings.DEFAULT_SETTINGS_FILE, help='global settings file for asterism (default: ' + AsterismSettings.DEFAULT_SETTINGS_FILE + ')')
 
 def parse_arguments():
@@ -255,7 +255,6 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
 
 def main(args, settings=None):
 
-
   # Get settings
   if settings is None:
     settings = AsterismSettings(args.config)
@@ -280,7 +279,7 @@ def main(args, settings=None):
   if args.work is not None:
     work_path = args.work
   else:
-    work_path = settings.work_path
+    work_path = settings.sim_work_path
 
   overwrite = args.overwrite
   noask = args.noask
