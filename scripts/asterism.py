@@ -162,6 +162,16 @@ def run_simulations(args):
   except Exception as e:
     printc.error(str(e), script_name=run_sim.script_name)
     success = False
+  if success and not args.noexport:
+    newargs = argparse.Namespace(
+      benchmark = exp_bench.DEFAULT_BENCHMARK,
+      sim_file = exp_bench.DEFAULT_SIM_FILE,
+      benchmark_file = None,
+      work = args.work,
+      config = args.config,
+    )
+    print()
+    export_benchmark(newargs)
   return success
 
 def run_synthesis(args):
@@ -174,6 +184,18 @@ def run_synthesis(args):
   except Exception as e:
     printc.error(str(e), script_name=run_synth.script_name)
     success = False
+  if success and not args.noexport:
+    newargs = argparse.Namespace(
+      tool = args.tool,
+      format = exp_res.DEFAULT_FORMAT,
+      use_benchmark = None,
+      benchmark_file = None,
+      work = args.work,
+      respath = None,
+      config = args.config,
+    )
+    print()
+    export_results(newargs)
   return success
 
 def export_benchmark(args):
