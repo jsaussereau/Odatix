@@ -5,6 +5,7 @@
 ---
 
 work_path: work
+sim_work_path: work/simulations
 result_path: results
 arch_path: architectures
 sim_path: simulations

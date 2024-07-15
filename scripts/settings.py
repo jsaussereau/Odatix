@@ -41,6 +41,7 @@ class AsterismSettings:
   DEFAULT_SETTINGS_FILE = "asterism.yml"
 
   DEFAULT_WORK_PATH = "work"
+  DEFAULT_SIM_WORK_PATH = "work/simulations"
   DEFAULT_RESULT_PATH = "results"
   DEFAULT_ARCH_PATH = "architectures"
   DEFAULT_SIM_PATH = "simulations"
@@ -68,6 +69,7 @@ class AsterismSettings:
       settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
       try:
         self.work_path = read_from_list('work_path', settings_data, settings_filename, script_name=script_name)
+        self.sim_work_path = read_from_list('sim_work_path', settings_data, settings_filename, script_name=script_name)
         self.result_path = read_from_list('result_path', settings_data, settings_filename , script_name=script_name)
         self.arch_path = read_from_list('arch_path', settings_data, settings_filename , script_name=script_name)
         self.sim_path = read_from_list('sim_path', settings_data, settings_filename , script_name=script_name)
@@ -94,6 +96,7 @@ class AsterismSettings:
       else:
         settings_data = {
           'work_path': input("  Enter work path [default: " + AsterismSettings.DEFAULT_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_WORK_PATH,
+          'sim_work_path': input("  Enter simulation work path [default: " + AsterismSettings.DEFAULT_SIM_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_WORK_PATH,
           'result_path': input("  Enter result path [default: " + AsterismSettings.DEFAULT_RESULT_PATH + "]: ") or AsterismSettings.DEFAULT_RESULT_PATH,
           'arch_path': input("  Enter architecture path [default: " + AsterismSettings.DEFAULT_ARCH_PATH + "]: ") or AsterismSettings.DEFAULT_ARCH_PATH,
           'sim_path': input("  Enter simulation path [default: " + AsterismSettings.DEFAULT_SIM_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_PATH,
