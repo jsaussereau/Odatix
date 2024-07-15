@@ -1,13 +1,13 @@
 
 ##############################################
-# Settings for fmax synthesis
+# Asterism settings for fmax synthesis
 ##############################################
 ---
 
 # overwrite existing results
 overwrite:        No
 
-# prompt 'continue? (y/n)' after settings checks
+# prompt 'Continue? (Y/n)' after settings checks
 ask_continue:     Yes
 
 # show synthesis log if there is only one architecture selected
@@ -16,7 +16,7 @@ show_log_if_one:  Yes
 # maximum number of parallel synthesis
 nb_jobs:          8
 
-# architectures targeted
+# targeted architectures
 architectures: 
 
 #--------------------------------------------#
