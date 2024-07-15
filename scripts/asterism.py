@@ -53,6 +53,9 @@ script_name = os.path.basename(__file__)
 
 class ArgParser:
 
+  def add_nobanner(parser):
+    parser.add_argument('-Q', '--nobanner', action='store_true', help='suppress printing of banner')
+
   def parse_arguments():
     formatter = AsterismHelpFormatter
     ArgParser.parser = argparse.ArgumentParser(
@@ -72,11 +75,13 @@ class ArgParser:
     ArgParser.synth_parser = subparsers.add_parser("synth", help="run synthesis", formatter_class=formatter)
     run_synth.add_arguments(ArgParser.synth_parser)
     ArgParser.synth_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
+    ArgParser.add_nobanner(ArgParser.synth_parser)
 
     # Define parser for the 'sim' command
     ArgParser.sim_parser = subparsers.add_parser("sim", help="run simulations", formatter_class=formatter)
     run_sim.add_arguments(ArgParser.sim_parser)
     ArgParser.sim_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after simulation')
+    ArgParser.add_nobanner(ArgParser.sim_parser)
 
     # Define parser for the 'results' command
     ArgParser.res_parser = subparsers.add_parser("results", help="export benchmark results", formatter_class=formatter)
@@ -88,14 +93,17 @@ class ArgParser:
     ArgParser.res_parser.add_argument('-u', '--use_benchmark', action='store_true', help='Use benchmark values in yaml file')
     ArgParser.res_parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default='dhrystone', help='benchmark to parse (default: dhrystone)')
     ArgParser.res_parser.add_argument('-B', '--benchmark_file', default='results/benchmark.yml', help='Benchmark file (default: results/benchmark.yml')
+    ArgParser.add_nobanner(ArgParser.res_parser)
 
     # Define parser for the 'res_benchmark' command
     ArgParser.bm_res_parser = subparsers.add_parser("res_benchmark", help="export benchmark results", formatter_class=formatter)
     exp_bench.add_arguments(ArgParser.bm_res_parser)
+    ArgParser.add_nobanner(ArgParser.bm_res_parser)
 
     # Define parser for the 'res_synth' command
     ArgParser.exp_res_parser = subparsers.add_parser("res_synth", help="export synthesis results")
     exp_res.add_arguments(ArgParser.exp_res_parser)
+    ArgParser.add_nobanner(ArgParser.exp_res_parser)
 
     # Parse arguments
     return ArgParser.parser.parse_args()
@@ -241,14 +249,15 @@ def main(args):
     print(" to get a list of useful commands")
     sys.exit(0)
 
-  # Display the message of the day
-  motd()
-  print()
+  # Display the banner
+  if not args.nobanner:
+    motd()
+    print()
   
   # Dispatch the command to the appropriate function
-  if args.command in ["sim", "sims", "simu", "simulation"]:
+  if args.command == "sim":
     success = run_simulations(args)
-  elif args.command in ["syn", "synth", "synthesis"]:
+  elif args.command == "synth":
     success = run_synthesis(args)
   elif args.command == "results":
     success = export_all_results(args)
