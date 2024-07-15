@@ -26,6 +26,10 @@
 SCRIPT_DIR              = scripts
 CURRENT_DIR             = .
 WORK_DIR                = $(CURRENT_DIR)/work
+BUILD_DIR               = build
+DIST_DIR                = dist
+RELEASE_DIR             = release
+TOOLS_DIR               = eda_tools
 
 ########################################################
 # Files
@@ -38,6 +42,9 @@ RUN_SCRIPT              = $(SCRIPT_DIR)/run_fmax_synthesis.py
 SIM_SCRIPT              = $(SCRIPT_DIR)/run_simulations.py
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 VIVADO_SUCCESS_FILE     = $(WORK_DIR)/.run_vivado_success
+VERSION_FILE            = version.txt
+DIST_ASTERISM           = $(DIST_DIR)/asterism
+DIST_ASTERISM_EXPLORER  = $(DIST_DIR)/asterism-explorer
 
 ########################################################
 # Text formatting
@@ -66,12 +73,15 @@ PIPX_VENV_PATH          = $(shell $(PIPX_CHECK) && pipx list | sed -n "s/venvs a
 PIPX_ACTIVATE_SCRIPT    = $(PIPX_VENV_PATH)/asterism/bin/activate
 ACTIVATE_VENV           = [[ -f $(PIPX_ACTIVATE_SCRIPT) ]] && source $(PIPX_ACTIVATE_SCRIPT) && printf "$(_GREY)[Makefile]$(_END) activated asterism virtual environment\n"
 
+VERSION                 := $(shell cat $(VERSION_FILE))
+RELEASE_NAME            := asterism-$(VERSION)
+
 ########################################################
 # General rules
 ########################################################
 
 .PHONY: help
-help: motd
+help: full_motd
 	@printf "SIMULATION\n"
 	@printf "\t$(_BOLD)make sim$(_END): run simulations\n"
 	@printf "SYNTHESIS\n"
@@ -87,6 +97,9 @@ help: motd
 	@printf "OTHERS\n"
 	@printf "\t$(_BOLD)make help$(_END): display a list of useful commands\n"
 
+.PHONY: full_motd
+full_motd:
+	@python3 $(MOTD_SCRIPT) -f
 .PHONY: motd
 motd:
 	@python3 $(MOTD_SCRIPT)
@@ -111,6 +124,42 @@ pipx_install: check_pipx
 	@$(PIPX_INSTALL_CMD)
 
 ########################################################
+# Build
+########################################################$
+
+SOURCE_FILES = $(wildcard $(SCRIPT_DIR)/*.py) $(wildcard $(SCRIPT_DIR)/**/*.py)
+
+.PHONY: build
+build: $(DIST_DIR)/asterism $(DIST_DIR)/asterism-explorer
+
+$(DIST_DIR)/asterism: $(SOURCE_FILES)
+	@pyinstaller $(SCRIPT_DIR)/asterism.py --onefile --path $(SCRIPT_DIR)/lib
+
+$(DIST_DIR)/asterism-explorer: $(SOURCE_FILES)
+	@pyinstaller asterism-explorer.spec
+
+.PHONY: clean_build
+clean_build:
+	@rm -rf $(BUILD_DIR)
+	@rm -rf $(DIST_DIR)
+
+.PHONY: release
+release: $(DIST_DIR)/asterism $(DIST_DIR)/asterism-explorer release_only
+
+.PHONY: release_only
+release_only:
+	@mkdir -p $(RELEASE_DIR)/$(RELEASE_NAME)/bin
+	@cp -r $(DIST_DIR)/* $(RELEASE_DIR)/$(RELEASE_NAME)/bin
+	@cp -r  $(TOOLS_DIR) $(RELEASE_DIR)/$(RELEASE_NAME)
+	@cp $(VERSION_FILE) $(RELEASE_DIR)/$(RELEASE_NAME)
+	@find $(TOOLS_DIR) -type d -name __pycache__ -prune -exec rm -rf {} \;
+	@bash -c "cd $(RELEASE_DIR); zip -FSr $(RELEASE_NAME).zip $(RELEASE_NAME)"
+
+.PHONY: clean_release
+clean_release:
+	@rm -rf $(RELEASE_DIR)
+
+########################################################
 # Simulation
 ########################################################
 
@@ -127,6 +176,7 @@ results_benchmarks: motd results_benchmarks_only
 .PHONY: results_benchmarks_only
 results_benchmarks_only: 
 	@python3 $(BENCHMARKS_SCRIPT) $(OPTIONS)
+
 ########################################################
 # Vivado
 ########################################################
