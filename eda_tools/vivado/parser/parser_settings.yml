@@ -1,0 +1,44 @@
+
+##############################################
+# Parser Settings for Vivado
+##############################################
+---
+
+format_mode: fpga
+
+fmax:
+  file: log/frequency_search.log
+  pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+  group_id: 2
+
+slice_lut:
+  file: report/utilization.rep
+  pattern: "\\| Slice LUTs (\\s*)\\|(\\s*)([0-9]+)(.*)"
+  group_id: 3
+
+slice_reg:
+  file: report/utilization.rep
+  pattern: "\\| Slice Registers (\\s*)\\|(\\s*)([0-9]+)(.*)"
+  group_id: 3
+
+bram:
+  file: report/utilization.rep
+  pattern: "\\| Block RAM Tile (\\s*)\\|(\\s*)([0-9]+)(.*)"
+  group_id: 3
+
+dsp:
+  file: report/utilization.rep
+  pattern: "\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)"
+  group_id: 3
+
+dynamic_pow:
+  file: report/power.rep
+  pattern: "\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+  group_id: 3
+
+static_pow:
+  file: report/power.rep
+  pattern: "\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+  group_id: 3
+
+...
