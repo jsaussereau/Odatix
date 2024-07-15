@@ -35,11 +35,12 @@ TOOLS_DIR               = eda_tools
 # Files
 ########################################################
 
-EXPORT_SCRIPT           = $(SCRIPT_DIR)/export_results.py
-BENCHMARKS_SCRIPT		= $(SCRIPT_DIR)/export_benchmark.py
+ASTERISM_SCRIPT         = $(SCRIPT_DIR)/asterism.py
 EXPLORE_SCRIPT          = $(SCRIPT_DIR)/asterism-explorer.py
-RUN_SCRIPT              = $(SCRIPT_DIR)/run_fmax_synthesis.py
-SIM_SCRIPT              = $(SCRIPT_DIR)/run_simulations.py
+EXPORT_SCRIPT           = $(ASTERISM_SCRIPT) res_synth --nobanner
+BENCHMARKS_SCRIPT		= $(ASTERISM_SCRIPT) res_benchmark --nobanner
+SYNTH_SCRIPT            = $(ASTERISM_SCRIPT) synth --nobanner
+SIM_SCRIPT              = $(ASTERISM_SCRIPT) sim --nobanner
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 VIVADO_SUCCESS_FILE     = $(WORK_DIR)/.run_vivado_success
 VERSION_FILE            = version.txt
@@ -182,27 +183,21 @@ results_benchmarks_only:
 ########################################################
 
 .PHONY: vivado
-vivado: motd run_vivado_only clean_vivado results_vivado_only
+vivado: motd run_vivado_only clean_vivado
 
 .PHONY: run_vivado
 run_vivado: motd run_vivado_only
 
 .PHONY: run_vivado_only
 run_vivado_only:
-	@python3 $(RUN_SCRIPT) --tool vivado $(OPTIONS) || { rm -f $(VIVADO_SUCCESS_FILE); exit 0; }; \
-	touch $(VIVADO_SUCCESS_FILE)
+	@python3 $(SYNTH_SCRIPT) --tool vivado $(OPTIONS)
 
 .PHONY: results_vivado
 results_vivado: motd results_vivado_only
 
-.PHONY: results_vivado_cond
-results_vivado_cond:
-	@if [ -f $(VIVADO_SUCCESS_FILE) ]; then \
-		python3 $(EXPORT_SCRIPT) --tool vivado --benchmark; \
-	fi
 .PHONY: results_vivado_only
 results_vivado_only:
-	@python3 $(EXPORT_SCRIPT) --tool vivado --benchmark $(OPTIONS)
+	@python3 $(EXPORT_SCRIPT) --tool vivado --use_benchmark $(OPTIONS)
 
 .PHONY: clean_vivado
 clean_vivado:
@@ -216,21 +211,21 @@ clean_vivado:
 ########################################################
 
 .PHONY: dc
-dc: motd run_dc_only results_dc_only clean_dc_work
+dc: motd run_dc_only clean_dc_work
 
 .PHONY: run_dc
 run_dc: motd run_dc_only
 
 .PHONY: run_dc_only
 run_dc_only:
-	@python3 $(RUN_SCRIPT) --tool design_compiler $(OPTIONS) 
+	@python3 $(SYNTH_SCRIPT) --tool design_compiler $(OPTIONS) 
 
 .PHONY: results_dc
 results_dc: motd results_dc_only
 
 .PHONY: results_dc_only
 results_dc_only:
-	@python3 $(EXPORT_SCRIPT) --tool design_compiler --benchmark $(OPTIONS)
+	@python3 $(EXPORT_SCRIPT) --tool design_compiler --use_benchmark $(OPTIONS)
 
 .PHONY: clean_dc
 clean_dc: clean_dc_work
