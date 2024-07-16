@@ -53,7 +53,7 @@ def get_synth_settings(settings_filename):
       show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, script_name=script_name)
       nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, script_name=script_name)
       architectures   = read_from_list("architectures", settings_data, settings_filename, script_name=script_name)
-    except:
+    except (KeyNotInListError, BadValueInListError) as e:
       sys.exit(-1) # if a key is missing
   return overwrite, ask_continue, show_log_if_one, nb_jobs, architectures
 
@@ -77,6 +77,6 @@ def get_sim_settings(settings_filename):
       show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, script_name=script_name)
       nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, script_name=script_name)
       simulations     = read_from_list("simulations", settings_data, settings_filename, script_name=script_name)
-    except:
+    except (KeyNotInListError, BadValueInListError) as e:
       sys.exit(-1) # if a key is missing
   return overwrite, ask_continue, show_log_if_one, nb_jobs, simulations
