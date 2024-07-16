@@ -48,10 +48,10 @@ def get_synth_settings(settings_filename):
       print(e)
       sys.exit(-1)
     try:
-      overwrite       = read_from_list("overwrite", settings_data, settings_filename, script_name=script_name)
-      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, script_name=script_name)
-      show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, script_name=script_name)
-      nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, script_name=script_name)
+      overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
+      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
+      show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, type=bool, script_name=script_name)
+      nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, type=int, script_name=script_name)
       architectures   = read_from_list("architectures", settings_data, settings_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError) as e:
       sys.exit(-1) # if a key is missing
@@ -72,10 +72,10 @@ def get_sim_settings(settings_filename):
   with open(settings_filename, 'r') as f:
     settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     try:
-      overwrite       = read_from_list("overwrite", settings_data, settings_filename, script_name=script_name)
-      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, script_name=script_name)
-      show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, script_name=script_name)
-      nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, script_name=script_name)
+      overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
+      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
+      show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, type=bool, script_name=script_name)
+      nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, type=int, script_name=script_name)
       simulations     = read_from_list("simulations", settings_data, settings_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError) as e:
       sys.exit(-1) # if a key is missing

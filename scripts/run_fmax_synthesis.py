@@ -157,13 +157,13 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     try:
       targets            = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
       constraint_file    = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
-    except:
+    except (KeyNotInListError, BadValueInListError) as e:
       sys.exit(-1) # if a key is missing
       
     # optional keys
     try:
       target_settings    = read_from_list("target_settings", settings_data, eda_target_filename, optional=True, script_name=script_name)
-    except:
+    except (KeyNotInListError, BadValueInListError) as e:
       target_settings    = {}
       print()
       pass # if a key is missing
