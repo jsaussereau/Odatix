@@ -66,13 +66,6 @@ set fmax_safezone      5
 
 set rtl_file_format    .sv
 
-set file_copy_enable   false
-set file_copy_source   /dev/null
-set file_copy_dest     /dev/null
-
-set script_copy_enable false
-set script_copy_source /dev/null
-
 set lib_name           WORK
 
 ######################################

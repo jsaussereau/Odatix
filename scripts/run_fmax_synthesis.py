@@ -23,6 +23,7 @@ import os
 import re
 import sys
 import yaml
+import shutil
 import argparse
 
 # add local libs to path
@@ -279,23 +280,26 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
       print(i_arch.arch_name, file = f)
       f.close()
 
-      # set source and dest to null if copy is disabled
-      try:
-        if not i_arch.file_copy_enable:
-          raise
-        if not os.path.exists(i_arch.file_copy_source):
-          printc.note("the file \"" + i_arch.file_copy_source + "\"specified in \"" + settings_filename + "\" does not exist. File copy disabled.", script_name)
-          raise
-        i_arch.file_copy_enable = "true"
-      except:
-        i_arch.file_copy_enable = "false"
-        i_arch.file_copy_source = "/dev/null"
-        i_arch.file_copy_dest = "/dev/null"
-      
+      # file copy
+      if i_arch.file_copy_enable:
+        file_copy_dest = os.path.join(i_arch.tmp_dir, i_arch.file_copy_dest)
+        try:
+          shutil.copy2(i_arch.file_copy_source, file_copy_dest)
+        except Exception as e:
+          printc.error("Could not copy \"" + i_arch.script_copy_source + "\" to \"" + os.path.realpath(file_copy_dest) + "\"", script_name)
+          printc.cyan("error details: ", end="", script_name=script_name)
+          print(e)
+          continue
+
+      # script copy
       if i_arch.script_copy_enable:
-        i_arch.script_copy_enable = "true"
-      else: 
-        i_arch.script_copy_enable = "false"
+        try:
+          shutil.copy2(i_arch.script_copy_source, i_arch.tmp_script_path)
+        except Exception as e:
+          printc.error("Could not copy \"" + i_arch.script_copy_source + "\" to \"" + os.path.realpath(i_arch.tmp_script_path) + "\"", script_name)
+          printc.cyan("error details: ", end="", script_name=script_name)
+          print(e)
+          continue
 
       # edit config script
       config_file = i_arch.tmp_script_path + '/' + config_filename 
