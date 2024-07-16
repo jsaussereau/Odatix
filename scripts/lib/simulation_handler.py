@@ -36,9 +36,6 @@ from utils import *
 
 script_name = os.path.basename(__file__)
 
-tcl_bool_true = ['true', 'yes', 'on', '1']
-tcl_bool_false = ['false', 'no', 'off', '0']
-
 class Simulation:
   def __init__(self, sim_name, sim_display_name, architecture, tmp_dir, source_sim_dir, override_parameters, override_param_target_filename, override_param_filename, override_start_delimiter, override_stop_delimiter, simulation_command):
     self.sim_name = sim_name
@@ -171,7 +168,14 @@ class SimulationHandler:
         self.no_settings_sims.append(sim)
       else:
         with open(settings_filename, 'r') as f:
-          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+          try:
+            settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+          except Exception as e:
+            printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
+            printc.cyan("error details: ", end="", script_name=script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.error_archs.append(arch_display_name)
+            return None # if an identifier is missing
 
           # get use_parameters, start_delimiter and stop_delimiter
           use_parameters, start_delimiter, stop_delimiter = arch_handler.get_use_parameters(arch, arch, settings_data, settings_filename, add_to_error_list=False)
@@ -199,28 +203,25 @@ class SimulationHandler:
                 #printc.warning("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
               # overwrite architecture settings
               architecture.param_target_filename = param_target_filename
-            except:
+            except (KeyNotInListError, BadValueInListError) as e:
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
               return None
 
           # get override_parameters
           try:
-            override_parameters = read_from_list('override_parameters', settings_data, settings_filename, script_name=script_name)
-          except:
+            override_parameters = read_from_list('override_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
+          except (KeyNotInListError, BadValueInListError) as e:
             if add_to_error_list:
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
             return None
 
-          override_parameters = override_parameters.lower()
-          if override_parameters in tcl_bool_true:
-            override_parameters = True
-            
+          if override_parameters:
             # get override_param_target_file
             try:
               override_param_file = read_from_list('override_param_file', settings_data, settings_filename, print_error=False, script_name=script_name)
-            except:
+            except (KeyNotInListError, BadValueInListError) as e:
               printc.error("Cannot find key \"override_param_file\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
@@ -232,20 +233,12 @@ class SimulationHandler:
               if add_to_error_list:
                 self.error_sims.append(sim_display_name)
               return True
-          elif override_parameters in tcl_bool_false:
-              override_parameters = False
-              override_param_file = "/dev/null"
-          else:
-            printc.error("Value for identifier \"override_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-            self.banned_sim_param.append(sim)
-            self.error_sims.append(sim_display_name)
-            return None
           
           if override_parameters:
             # get start delimiter
             try:
               override_start_delimiter = read_from_list('override_start_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-            except:
+            except (KeyNotInListError, BadValueInListError) as e:
               printc.error("Cannot find key \"override_start_delimiter\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
@@ -254,7 +247,7 @@ class SimulationHandler:
             # get stop delimiter
             try:
               override_stop_delimiter = read_from_list('override_stop_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-            except:
+            except (KeyNotInListError, BadValueInListError) as e:
               printc.error("Cannot find key \"override_stop_delimiter\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
@@ -272,7 +265,7 @@ class SimulationHandler:
               override_param_target_file_sim = source_sim_dir + '/' + override_param_target_filename
               #if not isfile(override_param_target_file_rtl) and not isfile(override_param_target_file_sim): 
                 #printc.warning("The override parameter target file \"" + override_param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
-            except:
+            except (KeyNotInListError, BadValueInListError) as e:
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
               return None

@@ -47,13 +47,8 @@ def edit_config_file(arch, config_file, constraint_file):
     cf_content = re.sub("(set reset_signal.*)",       "set reset_signal       " + arch.reset_signal, cf_content)
     cf_content = re.sub("(set top_level_module.*)",   "set top_level_module   " + arch.top_level_module, cf_content)
     cf_content = re.sub("(set top_level_file.*)",     "set top_level_file     " + arch.top_level_filename, cf_content)
-    cf_content = re.sub("(set file_copy_enable.*)",   "set file_copy_enable   " + arch.file_copy_enable, cf_content)
-    cf_content = re.sub("(set file_copy_source.*)",   "set file_copy_source   " + arch.file_copy_source, cf_content)
-    cf_content = re.sub("(set file_copy_dest.*)",     "set file_copy_dest     " + arch.file_copy_dest, cf_content)
     cf_content = re.sub("(set fmax_lower_bound.*)",   "set fmax_lower_bound   " + arch.fmax_lower_bound, cf_content)
     cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + arch.fmax_upper_bound, cf_content)
-    cf_content = re.sub("(set script_copy_enable.*)", "set script_copy_enable " + arch.script_copy_enable, cf_content)
-    cf_content = re.sub("(set script_copy_source.*)", "set script_copy_source " + arch.script_copy_source, cf_content)
     cf_content = re.sub("(set lib_name.*)",           "set lib_name           " + arch.lib_name, cf_content)
     cf_content = re.sub("(set constraints_file.*)",   "set constraints_file   $tmp_path/" + constraint_file, cf_content)
  

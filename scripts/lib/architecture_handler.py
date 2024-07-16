@@ -33,8 +33,7 @@ from utils import *
 
 script_name = os.path.basename(__file__)
 
-tcl_bool_true = ['true', 'yes', 'on', '1']
-tcl_bool_false = ['false', 'no', 'off', '0']
+asterism_dir_pattern = re.compile(r"\$asterism")
 
 class Architecture:
   def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, arch_path,
@@ -92,6 +91,8 @@ class ArchitectureHandler:
     self.overwrite = overwrite
     self.reset_lists()
 
+    self.asterism_path = os.path.realpath(os.path.join(self.script_path, ".."))
+
   def reset_lists(self):
     self.banned_arch_param = []
     self.valid_archs = []
@@ -109,21 +110,23 @@ class ArchitectureHandler:
     only_one_target = len(targets) == 1
 
     for target in targets:
-      try:
-        if target_settings == {}:
-          raise
-        this_target_settings = read_from_list(target, target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
-        script_copy_enable = read_from_list('script_copy_enable', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)
-        script_copy_source = read_from_list('script_copy_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)
-        if not script_copy_enable in tcl_bool_true:
-          raise
-        if not os.path.exists(script_copy_source):
-          printc.note("the script source file \"" + script_copy_source + "\"specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
-          raise
-      except:
-        script_copy_enable = "false"
-        script_copy_source = "/dev/null"
-        
+
+      # Overwrite existing script copy settings if there are target specific settings
+      if self.target_settings != {}:
+        try:
+          this_target_settings = read_from_list(target, self.target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
+          script_copy_enable = read_from_list('script_copy_enable', this_target_settings, self.eda_target_filename, type=bool, optional=True, parent="target_settings/" + target, script_name=script_name)
+          script_copy_source = read_from_list('script_copy_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)        
+          
+          script_copy_source = os.path.realpath(re.sub(asterism_dir_pattern, self.asterism_path, script_copy_source))
+
+          if not os.path.isfile(script_copy_source):
+            printc.note("The script source file \"" + script_copy_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
+            raise BadValueInListError
+        except (KeyNotInListError, BadValueInListError) as e:
+          script_copy_enable = False
+          script_copy_source = "/dev/null"
+
       for arch in architectures:
         architecture_instance = self.get_architecture(
           arch = arch,
@@ -193,48 +196,43 @@ class ArchitectureHandler:
     # get settings variables
     settings_filename = self.arch_path + '/' + arch_param_dir + '/' + self.param_settings_filename
     with open(settings_filename, 'r') as f:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      try:
+        settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      except Exception as e:
+        printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
+        printc.cyan("error details: ", end="", script_name=script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None # if an identifier is missing
       try:
         rtl_path           = read_from_list('rtl_path', settings_data, settings_filename, script_name=script_name)
         top_level_filename = read_from_list('top_level_file', settings_data, settings_filename, script_name=script_name)
         top_level_module   = read_from_list('top_level_module', settings_data, settings_filename, script_name=script_name)
         clock_signal       = read_from_list('clock_signal', settings_data, settings_filename, script_name=script_name)
         reset_signal       = read_from_list('reset_signal', settings_data, settings_filename, script_name=script_name)
-        file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename, script_name=script_name)
+        file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename, type=bool, script_name=script_name)
         file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename, script_name=script_name)
         file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename, script_name=script_name)
-      except:
+      except (KeyNotInListError, BadValueInListError) as e:
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
         return None # if an identifier is missing
 
-      use_parameters, start_delimiter, stop_delimiter = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, no_configuration)
+      use_parameters, start_delimiter, stop_delimiter = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, no_configuration, arch_param_dir=arch_param_dir)
       if use_parameters is None or start_delimiter is None or stop_delimiter is None:
         return None
 
       generate_command = ""
       try:
-        generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
-        # check if generate_rtl is a boolean
-        generate_rtl = generate_rtl.lower()
-        if generate_rtl in tcl_bool_true:
-          generate_rtl = True
-        elif generate_rtl in tcl_bool_false:
-          generate_rtl = False
-        else:
-          printc.error("Value for identifier \"generate_rtl\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-          generate_rtl = False
-          return None
-      except:
+        generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, type=bool, optional=True, print_error=False, script_name=script_name)
+      except (KeyNotInListError, BadValueInListError) as e:
         generate_rtl = False
 
       if generate_rtl:
         try:
           generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False, script_name=script_name)
           generate_rtl = True
-        except:
+        except (KeyNotInListError, BadValueInListError) as e:
           printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
           self.banned_arch_param.append(arch_param_dir)
           self.error_archs.append(arch_display_name)
@@ -243,7 +241,7 @@ class ArchitectureHandler:
 
       try:
         design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
-      except:
+      except (KeyNotInListError, BadValueInListError) as e:
         design_path = -1
         if generate_rtl:
           printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
@@ -262,20 +260,8 @@ class ArchitectureHandler:
           printc.error("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
           self.banned_arch_param.append(arch_param_dir)
           return None
-      except:
+      except (KeyNotInListError, BadValueInListError) as e:
         param_target_filename = 'rtl/' + top_level_filename
-
-    # check if file_copy_enable is a boolean
-    file_copy_enable = file_copy_enable.lower()
-    if file_copy_enable in tcl_bool_true:
-      file_copy_enable = True
-    elif file_copy_enable in tcl_bool_false:
-      file_copy_enable = False
-    else:
-      printc.error("Value for identifier \"file_copy_enable\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-      self.banned_arch_param.append(arch_param_dir)
-      self.error_archs.append(arch_display_name)
-      return None
 
     if not generate_rtl:
       # check if rtl path exists
@@ -327,14 +313,6 @@ class ArchitectureHandler:
     if not no_configuration:
       if not isfile(self.arch_path + '/' + arch + '.txt'):
         printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + self.arch_path + "/" + arch_param_dir + "\"", script_name)
-        self.banned_arch_param.append(arch_param_dir)
-        self.error_archs.append(arch_display_name)
-        return None
-
-    # check file copy
-    if file_copy_enable:
-      if not isfile(file_copy_source):
-        printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
         return None
@@ -423,6 +401,32 @@ class ArchitectureHandler:
       else:
         self.new_archs.append(arch_display_name + formatted_bound)
 
+    # target specific file copy
+    if target_options:
+      try:
+        _file_copy_enable = read_from_list('file_copy_enable', target_options, self.eda_target_filename, optional=True, print_error=False, type=bool, script_name=script_name)
+        try:
+          _file_copy_source = read_from_list('file_copy_source', target_options, self.eda_target_filename, optional=True, script_name=script_name)
+          _file_copy_dest = read_from_list('file_copy_dest', target_options, self.eda_target_filename, optional=True, script_name=script_name)
+          file_copy_enable = _file_copy_enable
+          file_copy_source = _file_copy_source
+          file_copy_dest = _file_copy_dest
+        except (KeyNotInListError, BadValueInListError) as e:
+          pass
+      except KeyNotInListError as e:
+        pass
+      except BadValueInListError as e:
+        printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + "target_settings/" + target + "\"," + " in \"" + self.eda_target_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
+
+    # check file copy
+    file_copy_source = os.path.realpath(re.sub(asterism_dir_pattern, self.asterism_path, file_copy_source))
+    if file_copy_enable:
+      if not isfile(file_copy_source):
+        printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None
+
     # passed all check: added to the list
     self.valid_archs.append(arch_display_name)
 
@@ -461,43 +465,33 @@ class ArchitectureHandler:
 
     return arch_instance
 
-  def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, no_configuration=False, add_to_error_list=True):
+  def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, no_configuration=False, add_to_error_list=True, arch_param_dir=""):
     # get use_parameters
     try:
-      use_parameters = read_from_list('use_parameters', settings_data, settings_filename, script_name=script_name)
-    except:
+      use_parameters = read_from_list('use_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError) as e:
       if add_to_error_list:
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
       return None, None, None
 
     param_filename = arch + ".txt"
-    use_parameters = use_parameters.lower()
     if no_configuration:
       use_parameters = False
     else:
-      if use_parameters in tcl_bool_true:
-        use_parameters = True
+      if use_parameters:
         # check if parameter file exists
         if not isfile(self.arch_path + '/' + param_filename):
           printc.error("There is no parameter file \"" + self.arch_path + '/' + param_filename + "\", while use_parameters=true", script_name)
           if add_to_error_list:
             self.error_archs.append(arch_display_name)
           return True, None, None
-      elif use_parameters in tcl_bool_false:
-          use_parameters = False
-      else:
-        printc.error("Value for identifier \"use_parameters\" is not one of the boolean value supported by tcl (\"true\", \"false\", \"yes\", \"no\", \"on\", \"off\", \"1\", \"0\")", script_name)
-        if add_to_error_list:
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-        return None, None, None
     
     if use_parameters:
       # get start delimiter
       try:
         start_delimiter = read_from_list('start_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-      except:
+      except (KeyNotInListError, BadValueInListError) as e:
         printc.error("Cannot find key \"start_delimiter\" in \"" + settings_filename + "\", while \"use_parameters\" is true", script_name)
         if add_to_error_list:
           self.banned_arch_param.append(arch_param_dir)
@@ -507,7 +501,7 @@ class ArchitectureHandler:
       # get stop delimiter
       try:
         stop_delimiter = read_from_list('stop_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-      except:
+      except (KeyNotInListError, BadValueInListError) as e:
         printc.error("Cannot find key \"stop_delimiter\" in \"" + settings_filename + "\", while \"use_parameters\" is true", script_name)
         if add_to_error_list:
           self.banned_arch_param.append(arch_param_dir)

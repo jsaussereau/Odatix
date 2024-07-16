@@ -22,9 +22,9 @@
 import os
 import re
 
-bad_value = ' /   '
+BAD_VALUE = ' /   '
 
-def get_re_group_from_file(file, pattern, group_id):
+def get_re_group_from_file(file, pattern, group_id, bad_value=BAD_VALUE):
   if os.path.exists(file):
     for i, line in enumerate(open(file)):
       for match in re.finditer(pattern, line):

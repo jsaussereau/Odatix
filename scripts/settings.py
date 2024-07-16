@@ -66,19 +66,26 @@ class AsterismSettings:
       return False
 
     with open(settings_filename, 'r') as f:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      try:
+        settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      except Exception as e:
+        printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
+        printc.cyan("error details: ", end="", script_name=script_name)
+        print(e)
+        self.valid = False
+        return False
       try:
         self.work_path = read_from_list('work_path', settings_data, settings_filename, script_name=script_name)
         self.sim_work_path = read_from_list('sim_work_path', settings_data, settings_filename, script_name=script_name)
-        self.result_path = read_from_list('result_path', settings_data, settings_filename , script_name=script_name)
-        self.arch_path = read_from_list('arch_path', settings_data, settings_filename , script_name=script_name)
-        self.sim_path = read_from_list('sim_path', settings_data, settings_filename , script_name=script_name)
-        self.use_benchmark = read_from_list('use_benchmark', settings_data, settings_filename, script_name=script_name)
+        self.result_path = read_from_list('result_path', settings_data, settings_filename, script_name=script_name)
+        self.arch_path = read_from_list('arch_path', settings_data, settings_filename, script_name=script_name)
+        self.sim_path = read_from_list('sim_path', settings_data, settings_filename, script_name=script_name)
+        self.use_benchmark = read_from_list('use_benchmark', settings_data, settings_filename, type=bool, script_name=script_name)
         self.benchmark_file = read_from_list('benchmark_file', settings_data, settings_filename , script_name=script_name)
         self.simulation_settings_file = read_from_list('simulation_settings_file', settings_data, settings_filename , script_name=script_name)
         self.fmax_synthesis_settings_file = read_from_list('fmax_synthesis_settings_file', settings_data, settings_filename , script_name=script_name)
         self.range_synthesis_settings_file = read_from_list('range_synthesis_settings_file', settings_data, settings_filename , script_name=script_name)
-      except Exception as e:
+      except (KeyNotInListError, BadValueInListError) as e:
         self.valid = False
         return False
     self.valid = True
