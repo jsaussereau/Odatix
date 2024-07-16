@@ -5,7 +5,7 @@
 ---
 
 # generate the rtl (from chisel for example)
-generate_rtl: "true"
+generate_rtl: Yes
 generate_command: "sbt 'runMain ShiftRegister --o=rtl'" # this requires sbt and firtool
 
 # design path, relative to Asterism root directory, not this directory
@@ -19,12 +19,12 @@ clock_signal: "clock"
 reset_signal: "reset"
 
 # copy a file into synthesis directory?
-file_copy_enable: "false"
+file_copy_enable: No
 file_copy_source: "/dev/null"
 file_copy_dest: "/dev/null"
 
 # delimiters for parameter files
-use_parameters: "true"
+use_parameters: Yes
 param_target_file: "src/main/scala/ShiftRegister.scala"
 start_delimiter: "new ShiftRegister("
 stop_delimiter: ")"
