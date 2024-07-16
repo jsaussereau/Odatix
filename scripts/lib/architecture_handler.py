@@ -317,15 +317,6 @@ class ArchitectureHandler:
         self.error_archs.append(arch_display_name)
         return None
 
-    # check file copy
-    file_copy_source = os.path.realpath(re.sub(asterism_dir_pattern, self.asterism_path, file_copy_source))
-    if file_copy_enable:
-      if not isfile(file_copy_source):
-        printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
-        self.banned_arch_param.append(arch_param_dir)
-        self.error_archs.append(arch_display_name)
-        return None
-
     # optional settings
     formatted_bound = ""
     fmax_lower_bound_ok = False
@@ -409,6 +400,32 @@ class ArchitectureHandler:
         sf.close()
       else:
         self.new_archs.append(arch_display_name + formatted_bound)
+
+    # target specific file copy
+    if target_options:
+      try:
+        _file_copy_enable = read_from_list('file_copy_enable', target_options, self.eda_target_filename, optional=True, print_error=False, type=bool, script_name=script_name)
+        try:
+          _file_copy_source = read_from_list('file_copy_source', target_options, self.eda_target_filename, optional=True, script_name=script_name)
+          _file_copy_dest = read_from_list('file_copy_dest', target_options, self.eda_target_filename, optional=True, script_name=script_name)
+          file_copy_enable = _file_copy_enable
+          file_copy_source = _file_copy_source
+          file_copy_dest = _file_copy_dest
+        except (KeyNotInListError, BadValueInListError) as e:
+          pass
+      except KeyNotInListError as e:
+        pass
+      except BadValueInListError as e:
+        printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + "target_settings/" + target + "\"," + " in \"" + self.eda_target_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
+
+    # check file copy
+    file_copy_source = os.path.realpath(re.sub(asterism_dir_pattern, self.asterism_path, file_copy_source))
+    if file_copy_enable:
+      if not isfile(file_copy_source):
+        printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+        return None
 
     # passed all check: added to the list
     self.valid_archs.append(arch_display_name)
