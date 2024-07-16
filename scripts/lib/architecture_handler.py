@@ -33,6 +33,7 @@ from utils import *
 
 script_name = os.path.basename(__file__)
 
+asterism_dir_pattern = re.compile(r"\$asterism")
 
 class Architecture:
   def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, arch_path,
@@ -90,6 +91,8 @@ class ArchitectureHandler:
     self.overwrite = overwrite
     self.reset_lists()
 
+    self.asterism_path = os.path.realpath(os.path.join(self.script_path, ".."))
+
   def reset_lists(self):
     self.banned_arch_param = []
     self.valid_archs = []
@@ -108,12 +111,15 @@ class ArchitectureHandler:
 
     for target in targets:
 
+      # Overwrite existing script copy settings if there are target specific settings
       if self.target_settings != {}:
         try:
           this_target_settings = read_from_list(target, self.target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
           script_copy_enable = read_from_list('script_copy_enable', this_target_settings, self.eda_target_filename, type=bool, optional=True, parent="target_settings/" + target, script_name=script_name)
           script_copy_source = read_from_list('script_copy_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)        
           
+          script_copy_source = os.path.realpath(re.sub(asterism_dir_pattern, self.asterism_path, script_copy_source))
+
           if not os.path.isfile(script_copy_source):
             printc.note("The script source file \"" + script_copy_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
             raise BadValueInListError
@@ -312,6 +318,7 @@ class ArchitectureHandler:
         return None
 
     # check file copy
+    file_copy_source = os.path.realpath(re.sub(asterism_dir_pattern, self.asterism_path, file_copy_source))
     if file_copy_enable:
       if not isfile(file_copy_source):
         printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
