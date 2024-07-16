@@ -49,11 +49,28 @@ def chunk_list(lst, n):
 class KeyNotInListError(Exception):
   pass
 
-def read_from_list(key, input_list, filename, raise_if_missing=True, optional=False, print_error=True, parent=None, script_name=""):
+class BadValueInListError(Exception):
+  pass
+
+def read_from_list(key, input_list, filename, raise_if_missing=True, optional=False, print_error=True, parent=None, type=None, script_name=""):
+  parent_string = "" if parent == None else ", inside list \"" + parent + "\","
   if key in input_list:
-    return input_list[key]
+    value = input_list[key]
+    if type is None:
+      return value
+    else:
+      if isinstance(value, type):
+        return value
+      else:
+        if print_error:
+          if optional:
+            printc.note("Value \"" + str(value) + "\" for key \"" + key + "\"" + parent_string + " in \"" + filename + "\" is of type \"" + value.__class__.__name__ + "\" while it should be of type \"" + type.__name__ + "\". Using default values instead.", script_name)
+          else:
+            printc.error("Value \"" + str(value) + "\" for key \"" + key + "\"" + parent_string + " in \"" + filename + "\" is of type \"" + value.__class__.__name__ + "\" while it should be of type \"" + type.__name__ + "\".", script_name)
+        if raise_if_missing:
+          raise BadValueInListError
+        return False
   else:
-    parent_string = "" if parent == None else ", inside list \"" + parent + "\","
     if print_error:
       if optional:
         printc.note("Cannot find optional key \"" + key + "\"" + parent_string + " in \"" + filename + "\". Using default values instead.", script_name)
