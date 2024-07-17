@@ -130,7 +130,7 @@ def write_to_yaml(input, sim_file, output_file):
   except Exception as e:
     printc.error("Could not write results to \"" + output_file + "\"", script_name=script_name)
     printc.cyan("error details: ", end="", script_name=script_name)
-    print(e)
+    print(str(e))
 
 ######################################
 # Export Results

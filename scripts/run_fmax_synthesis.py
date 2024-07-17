@@ -288,7 +288,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
         except Exception as e:
           printc.error("Could not copy \"" + i_arch.script_copy_source + "\" to \"" + os.path.realpath(file_copy_dest) + "\"", script_name)
           printc.cyan("error details: ", end="", script_name=script_name)
-          print(e)
+          print(str(e))
           continue
 
       # script copy
@@ -298,7 +298,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
         except Exception as e:
           printc.error("Could not copy \"" + i_arch.script_copy_source + "\" to \"" + os.path.realpath(i_arch.tmp_script_path) + "\"", script_name)
           printc.cyan("error details: ", end="", script_name=script_name)
-          print(e)
+          print(str(e))
           continue
 
       # edit config script

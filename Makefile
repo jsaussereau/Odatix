@@ -41,6 +41,7 @@ EXPORT_SCRIPT           = $(ASTERISM_SCRIPT) res_synth --nobanner
 BENCHMARKS_SCRIPT		= $(ASTERISM_SCRIPT) res_benchmark --nobanner
 SYNTH_SCRIPT            = $(ASTERISM_SCRIPT) synth --nobanner
 SIM_SCRIPT              = $(ASTERISM_SCRIPT) sim --nobanner
+CLEAN_SCRIPT            = $(ASTERISM_SCRIPT) clean --nobanner
 MOTD_SCRIPT             = $(SCRIPT_DIR)/motd.py
 VIVADO_SUCCESS_FILE     = $(WORK_DIR)/.run_vivado_success
 VERSION_FILE            = version.txt
@@ -106,7 +107,11 @@ motd:
 	@python3 $(MOTD_SCRIPT)
 
 .PHONY: clean
-clean: clean_vivado clean_dc
+clean: clean_build clean_release clean_synth
+
+.PHONY: clean_synth
+clean_synth:
+	@python3 $(CLEAN_SCRIPT) $(OPTIONS)
 
 ########################################################
 # Installation
@@ -183,7 +188,7 @@ results_benchmarks_only:
 ########################################################
 
 .PHONY: vivado
-vivado: motd run_vivado_only clean_vivado
+vivado: motd run_vivado_only clean_synth
 
 .PHONY: run_vivado
 run_vivado: motd run_vivado_only
@@ -199,19 +204,12 @@ results_vivado: motd results_vivado_only
 results_vivado_only:
 	@python3 $(EXPORT_SCRIPT) --tool vivado --use_benchmark $(OPTIONS)
 
-.PHONY: clean_vivado
-clean_vivado:
-	@rm -rf $(CURRENT_DIR)/.Xil
-	@rm -f  $(CURRENT_DIR)/*.jou
-	@rm -f  $(CURRENT_DIR)/vivado*.log
-	@rm -f  $(CURRENT_DIR)/tight_setup_hold_pins.txt
-
 ########################################################
 # Design Compiler
 ########################################################
 
 .PHONY: dc
-dc: motd run_dc_only clean_dc_work
+dc: motd run_dc_only clean_synth
 
 .PHONY: run_dc
 run_dc: motd run_dc_only
@@ -227,23 +225,6 @@ results_dc: motd results_dc_only
 results_dc_only:
 	@python3 $(EXPORT_SCRIPT) --tool design_compiler --use_benchmark $(OPTIONS)
 
-.PHONY: clean_dc
-clean_dc: clean_dc_work
-	@rm -f  $(CURRENT_DIR)/command.log
-	@rm -f  $(CURRENT_DIR)/default.svf
-	@rm -f  $(CURRENT_DIR)/change_names_verilog
-	@rm -f  $(CURRENT_DIR)/filenames*.log
-	@rm -rf $(CURRENT_DIR)/DC_WORK_*_autoread
-	@rm -rf $(CURRENT_DIR)/WORK_autoread
-	@rm -rf $(WORK_DIR)/ARCH
-	@rm -rf $(WORK_DIR)/ENTI
-	@rm -f  $(WORK_DIR)/*.syn
-	@rm -f  $(WORK_DIR)/*.mr
-
-.PHONY: clean_dc_work
-clean_dc_work:
-	@rm -rf alib-*
-	@rm -rf DC_WORK_*_autoread
 
 ########################################################
 # Generic

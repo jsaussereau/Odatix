@@ -128,7 +128,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
     printc.error("Could not get list \"simulations\" from \"" + run_config_settings_filename + "\".", script_name=script_name)
     printc.note("Is the YAML file valid? Are you missing a ':'? Is the indentation correct?", script_name=script_name)
     printc.cyan("error details: ", end="", script_name=script_name)
-    print(e)
+    print(str(e))
     sys.exit(-1)
 
   # print checklist summary
