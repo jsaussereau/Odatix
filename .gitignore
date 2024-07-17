@@ -30,7 +30,7 @@ command.log
 change_names_verilog
 default.svf
 filenames*.log
-DC_WORK_*_autoread
+LIB_*_autoread
 
 # Results
 results/*
