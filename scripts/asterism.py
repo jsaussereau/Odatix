@@ -30,6 +30,7 @@ import run_simulations as run_sim
 import run_fmax_synthesis as run_synth
 import export_results as exp_res
 import export_benchmark as exp_bench
+import clean as cln
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -105,6 +106,11 @@ class ArgParser:
     exp_res.add_arguments(ArgParser.exp_res_parser)
     ArgParser.add_nobanner(ArgParser.exp_res_parser)
 
+    # Define parser for the 'clean' command
+    ArgParser.clean_parser = subparsers.add_parser("clean", help="clean directory", formatter_class=formatter)
+    cln.add_arguments(ArgParser.clean_parser)
+    ArgParser.add_nobanner(ArgParser.clean_parser)
+
     # Parse arguments
     return ArgParser.parser.parse_args()
 
@@ -134,6 +140,10 @@ class ArgParser:
     print("  run ", end="")
     printc.bold(prog + " res_synth -h", end="")
     print(" for more details")
+    print()
+    printc.bold("Clean:\n  ", printc.colors.CYAN, end="")
+    ArgParser.clean_parser.print_help()
+    print()
 
 class AsterismHelpFormatter(argparse.HelpFormatter):
   def __init__(self, prog):
@@ -247,6 +257,17 @@ def export_all_results(args):
     success = False
   return success
 
+def clean(args):
+  success = True
+  try:
+    cln.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    printc.error(str(e))
+    success = False
+
 ######################################
 # Main
 ######################################
@@ -287,6 +308,8 @@ def main(args):
     success = export_benchmark(args)
   elif args.command in "res_synth":
     success = export_results(args)
+  elif args.command in "clean":
+    success = clean(args)
 
 if __name__ == "__main__":
   args = ArgParser.parse_arguments()
