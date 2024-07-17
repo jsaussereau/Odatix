@@ -173,6 +173,7 @@ class SimulationHandler:
           except Exception as e:
             printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
             printc.cyan("error details: ", end="", script_name=script_name)
+            print(str(e))
             self.banned_arch_param.append(arch_param_dir)
             self.error_archs.append(arch_display_name)
             return None # if an identifier is missing

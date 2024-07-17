@@ -71,7 +71,7 @@ class AsterismSettings:
       except Exception as e:
         printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
         printc.cyan("error details: ", end="", script_name=script_name)
-        print(e)
+        print(str(e))
         self.valid = False
         return False
       try:

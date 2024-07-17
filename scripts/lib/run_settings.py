@@ -45,7 +45,7 @@ def get_synth_settings(settings_filename):
     except Exception as e:
       printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
       printc.cyan("error details: ", end="", script_name=script_name)
-      print(e)
+      print(str(e))
       sys.exit(-1)
     try:
       overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)

@@ -124,7 +124,7 @@ class ResultParser:
       except Exception as e:
         printc.error("Invalid yaml file \"" +  yaml_file + "\" for parser settings.", script_name=script_name)
         printc.cyan("error details: ", script_name=script_name, end="")
-        printc.red(str(e))
+        print(str(e))
         return
 
       try:
@@ -159,7 +159,7 @@ class ResultParser:
     except Exception as e:
       printc.error("Parser settings values for \"" +  parent + "\" are not valid.", script_name=script_name)
       printc.cyan("error details: ", script_name=script_name, end="")
-      printc.red(str(e))
+      print(str(e))
       raise
     return regex
 
@@ -509,16 +509,16 @@ def export_results(input, output, tool, format, use_benchmark, benchmark_file):
     except Exception as e:
       printc.error("Could not write \"" + csv_file + "\"", script_name=script_name)
       printc.cyan("error details: ", script_name=script_name, end="")
-      printc.red(str(e))
+      print(str(e))
 
   if format in ['yml', 'all']:
     yaml_file = output + "/results_" + tool + ".yml"
-    #try:
-    write_to_yaml(input, yaml_file, format_mode, parser, use_benchmark, benchmark_file, benchmark_data)
-    #except Exception as e:
-    #  printc.error("Could not write \"" + yaml_file + "\"", script_name=script_name)
-    #  printc.cyan("error details: ", script_name=script_name, end="")
-    #  printc.red(str(e))
+    try:
+      write_to_yaml(input, yaml_file, format_mode, parser, use_benchmark, benchmark_file, benchmark_data)
+    except Exception as e:
+      printc.error("Could not write \"" + yaml_file + "\"", script_name=script_name)
+      printc.cyan("error details: ", script_name=script_name, end="")
+      print(str(e))
 
   print()
 
