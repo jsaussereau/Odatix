@@ -69,7 +69,7 @@ class Architecture:
 
 class ArchitectureHandler:
 
-  def __init__(self, work_path, arch_path, script_path, work_script_path, log_path, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, target_settings, overwrite):
+  def __init__(self, work_path, arch_path, script_path, work_script_path, log_path, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
     self.work_path = work_path
     self.arch_path = arch_path
     self.script_path = script_path
@@ -87,7 +87,6 @@ class ArchitectureHandler:
     self.default_fmax_lower_bound = default_fmax_lower_bound
     self.default_fmax_upper_bound = default_fmax_upper_bound
 
-    self.target_settings = target_settings
     self.overwrite = overwrite
     self.reset_lists()
 
@@ -108,24 +107,56 @@ class ArchitectureHandler:
     self.architecture_instances = []
 
     only_one_target = len(targets) == 1
-
-    for target in targets:
-
-      # Overwrite existing script copy settings if there are target specific settings
-      if self.target_settings != {}:
-        try:
-          this_target_settings = read_from_list(target, self.target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
-          script_copy_enable = read_from_list('script_copy_enable', this_target_settings, self.eda_target_filename, type=bool, optional=True, parent="target_settings/" + target, script_name=script_name)
-          script_copy_source = read_from_list('script_copy_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)        
-          
+      
+    with open(self.eda_target_filename, 'r') as f:
+      try:
+        settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      except Exception as e:
+        printc.error("Settings file \"" + self.eda_target_filename + "\" is not a valid YAML file", script_name)
+        printc.cyan("error details: ", end="", script_name=script_name)
+        print(str(e))
+        sys.exit(-1)
+      
+      try:
+        script_copy_enable = read_from_list('script_copy_enable', settings_data, self.eda_target_filename, type=bool, optional=True, script_name=script_name)
+        if script_copy_enable:
+          script_copy_source = read_from_list('script_copy_source', settings_data, self.eda_target_filename, optional=True, script_name=script_name)        
           script_copy_source = os.path.realpath(re.sub(asterism_dir_pattern, self.asterism_path, script_copy_source))
-
           if not os.path.isfile(script_copy_source):
             printc.note("The script source file \"" + script_copy_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
             raise BadValueInListError
-        except (KeyNotInListError, BadValueInListError) as e:
-          script_copy_enable = False
-          script_copy_source = "/dev/null"
+        else:
+          raise BadValueInListError
+      except (KeyNotInListError, BadValueInListError) as e:
+        script_copy_enable = False
+        script_copy_source = "/dev/null"
+
+      try:
+        target_settings = read_from_list("target_settings", settings_data, self.eda_target_filename, optional=True, print_error=False, script_name=script_name)
+      except (KeyNotInListError, BadValueInListError) as e:
+        target_settings = {}
+
+      for target in targets:
+        # Overwrite existing script copy settings if there are target specific settings
+        if target_settings != {}:
+          try:
+            this_target_settings = read_from_list(target, target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
+          except (KeyNotInListError, BadValueInListError) as e:
+            this_target_settings = {}
+            pass
+          if this_target_settings != {}:
+            try:
+              script_copy_enable = read_from_list('script_copy_enable', this_target_settings, self.eda_target_filename, type=bool, optional=True, parent="target_settings/" + target, script_name=script_name)
+              if script_copy_enable:
+                script_copy_source = read_from_list('script_copy_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)        
+                script_copy_source = os.path.realpath(re.sub(asterism_dir_pattern, self.asterism_path, script_copy_source))
+
+                if not os.path.isfile(script_copy_source):
+                  printc.note("The script source file \"" + script_copy_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
+                  raise BadValueInListError
+            except (KeyNotInListError, BadValueInListError) as e:
+              script_copy_enable = False
+              script_copy_source = "/dev/null"
 
       for arch in architectures:
         architecture_instance = self.get_architecture(
