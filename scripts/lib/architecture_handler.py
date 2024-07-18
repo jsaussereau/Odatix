@@ -355,8 +355,10 @@ class ArchitectureHandler:
     fmax_upper_bound_ok = False
     fmax_lower_bound = 0
     fmax_upper_bound = 0
+
+    target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+    
     if synthesis:
-      target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
       if target_options == False:
         printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
         fmax_lower_bound = self.default_fmax_lower_bound
