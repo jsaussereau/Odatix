@@ -81,7 +81,6 @@ class ArgParser:
     # Define parser for the 'sim' command
     ArgParser.sim_parser = subparsers.add_parser("sim", help="run simulations", formatter_class=formatter)
     run_sim.add_arguments(ArgParser.sim_parser)
-    ArgParser.sim_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after simulation')
     ArgParser.add_nobanner(ArgParser.sim_parser)
 
     # Define parser for the 'results' command
@@ -172,16 +171,6 @@ def run_simulations(args):
   except Exception as e:
     printc.error(str(e), script_name=run_sim.script_name)
     success = False
-  if success and not args.noexport:
-    newargs = argparse.Namespace(
-      benchmark = exp_bench.DEFAULT_BENCHMARK,
-      sim_file = exp_bench.DEFAULT_SIM_FILE,
-      benchmark_file = None,
-      work = args.work,
-      config = args.config,
-    )
-    print()
-    export_benchmark(newargs)
   return success
 
 def run_synthesis(args):
