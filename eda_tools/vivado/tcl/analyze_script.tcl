@@ -31,6 +31,9 @@ if {[catch {
     #set filenames [split [exec find $rtl_path/ -type f ( -name *.sv -o -name *.v )] \n]
     #set filenames [split [exec find $rtl_path/core $rtl_path/soc -type f -name *.sv ! -name soc_config.sv ] \n]
 
+    set verilog_error 0
+    set sverilog_error 0
+
     # read verilog source files
     set verilog_filenames [split [exec find $tmp_path/rtl/ -type f ( -name *.v -o -name *.sv )] \n]
     if {[catch {read_verilog $verilog_filenames} errmsg]} {
