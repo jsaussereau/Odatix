@@ -5,10 +5,10 @@
 ---
 
 # delimiters for parameter files
-use_parameters: "true"
+use_parameters: Yes
 param_target_file: "tb/tb_counter.vhdl"
 start_delimiter: "generic ("
 stop_delimiter: ");"
 
 # override part of the parameters
-override_parameters: "false"
+override_parameters: No
