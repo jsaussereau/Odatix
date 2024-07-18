@@ -6,10 +6,10 @@
 
 constraint_file: constraints.xdc
 
-script_copy_enable: False
+script_copy_enable: No
 script_copy_source: "/dev/null"
 
-# FPGA/ASIC targeted
+# FPGA target
 targets:
   #- xc7s6-cpga196-1
   #- xc7s25-csga225-1
@@ -31,10 +31,5 @@ targets:
   #- xcku3p-ffva676-3-e
   #- xcvu3p-ffvc1517-2-e
   #- xcvu3p-ffvc1517-3-e
-
-target_settings:
-  xc7a100t-csg324-1:
-    script_copy_enable: Yes
-    script_copy_source: $asterism/eda_tools/design_compiler/technology/ST_28nm_CMOS_FDSOI/synopsys_dc_setup.tcl
 
 ...
