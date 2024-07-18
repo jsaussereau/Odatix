@@ -37,6 +37,12 @@ script_name = os.path.basename(__file__)
 # Settings
 ######################################
 
+# get eda_tools folder
+if getattr(sys, 'frozen', False):
+  base_path = os.path.dirname(sys.executable)
+else:
+  base_path = current_dir
+
 class AsterismSettings:
   DEFAULT_SETTINGS_FILE = "asterism.yml"
 
@@ -50,6 +56,8 @@ class AsterismSettings:
   DEFAULT_SIMULATION_SETTINGS_FILE = "_run_simulations_settings.yml"
   DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = "_run_fmax_synthesis_settings.yml"
   DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = "_run_range_synthesis_settings.yml"
+  
+  asterism_dir = os.path.realpath(os.path.join(base_path, ".."))
 
   def __init__(self, settings_filename=DEFAULT_SETTINGS_FILE):
     self.settings_file_exists = self.generate_settings_file()
