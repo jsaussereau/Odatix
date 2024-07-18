@@ -94,7 +94,6 @@ class SimulationHandler:
       valid_frequency_search = "",
       default_fmax_lower_bound = 0,
       default_fmax_upper_bound = 1000,
-      target_settings = None,
       overwrite = self.overwrite
     )
 
@@ -213,9 +212,8 @@ class SimulationHandler:
           try:
             override_parameters = read_from_list('override_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
           except (KeyNotInListError, BadValueInListError) as e:
-            if add_to_error_list:
-              self.banned_sim_param.append(sim)
-              self.error_sims.append(sim_display_name)
+            self.banned_sim_param.append(sim)
+            self.error_sims.append(sim_display_name)
             return None
 
           if override_parameters:
@@ -231,8 +229,7 @@ class SimulationHandler:
             # check if parameter file exists
             if not isfile(source_sim_dir + '/' + override_param_file):
               printc.error("There is no parameter file \"" + source_sim_dir + '/' + override_param_file + "\", while override_parameters=true", script_name)
-              if add_to_error_list:
-                self.error_sims.append(sim_display_name)
+              self.error_sims.append(sim_display_name)
               return True
           
           if override_parameters:
