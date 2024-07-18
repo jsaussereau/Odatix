@@ -34,6 +34,8 @@ sys.path.append(lib_path)
 import printc
 from utils import *
 
+from settings import AsterismSettings
+
 script_name = os.path.basename(__file__)
 
 DEFAULT_YML = "clean.yml"
@@ -84,11 +86,11 @@ def remove_path(path, force=False, verbose=False, quiet=False):
       if os.path.isfile(p) or os.path.islink(p):
         os.remove(p)
         if not quiet:
-          printc.note("Removed \"" + p + "\" (file)", script_name=script_name)
+          printc.say("Removed \"" + p + "\" (file)", script_name=script_name)
       elif os.path.isdir(p):
         shutil.rmtree(p)
         if not quiet:
-          printc.note("Removed \"" + p + "\" (directory)", script_name=script_name)
+          printc.say("Removed \"" + p + "\" (directory)", script_name=script_name)
       else:
         if verbose:
           printc.warning("Path \"" + p + "\" does not exist or is not accessible.", script_name=script_name)
@@ -103,8 +105,12 @@ def remove_path(path, force=False, verbose=False, quiet=False):
 
 def clean(settings_filename, force=False, verbose=False, quiet=False):
   if not os.path.isfile(settings_filename):
-    printc.error("There is no clean settings file \"" + settings_filename + "\"", script_name)
-    sys.exit(-1)
+    if not quiet:
+      printc.note("There is no clean settings file \"" + settings_filename + "\" in \"" + os.path.realpath(".") + "\". Using default Asterism clean settings file", script_name)
+    settings_filename = os.path.join(AsterismSettings.asterism_dir, DEFAULT_YML)
+    if not os.path.isfile(settings_filename):
+      printc.error("There is no default Asterism clean settings file \"" + settings_filename, script_name)
+      sys.exit(-1)
   with open(settings_filename, 'r') as f:
     try:
       settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
