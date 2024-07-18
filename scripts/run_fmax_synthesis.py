@@ -126,7 +126,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
   if noask:
     ask_continue = False
 
-  eda_target_filename = "target_" + tool + ".yml"
+  eda_target_filename = os.path.realpath("target_" + tool + ".yml")
 
   # check if the target file exists
   if not os.path.isfile(eda_target_filename):
@@ -153,22 +153,20 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
   check_tool(tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools)
 
   with open(eda_target_filename, 'r') as f:
-    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    try:
+      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    except Exception as e:
+      printc.error("Settings file \"" + eda_target_filename + "\" is not a valid YAML file", script_name)
+      printc.cyan("error details: ", end="", script_name=script_name)
+      print(str(e))
+      sys.exit(-1) 
+    
     # mandatory keys
     try:
-      targets            = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
-      constraint_file    = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
+      targets = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
+      constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError) as e:
       sys.exit(-1) # if a key is missing
-      
-    # optional keys
-    try:
-      target_settings    = read_from_list("target_settings", settings_data, eda_target_filename, optional=True, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError) as e:
-      target_settings    = {}
-      print()
-      pass # if a key is missing
-
 
   Running_arch.set_patterns(fmax_status_pattern, synth_status_pattern)
 
@@ -186,7 +184,6 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     valid_frequency_search = valid_frequency_search,
     default_fmax_lower_bound = default_fmax_lower_bound,
     default_fmax_upper_bound = default_fmax_upper_bound,
-    target_settings = target_settings,
     overwrite = overwrite
   )
 
