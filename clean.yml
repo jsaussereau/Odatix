@@ -20,5 +20,6 @@ remove_list:
   # Vivado
   - .Xil
   - "*.jou"
+  - hs_err_*.log
   - vivado*.log
   - tight_setup_hold_pins.txt
