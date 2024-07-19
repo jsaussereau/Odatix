@@ -67,6 +67,81 @@ class Architecture:
     self.generate_rtl = generate_rtl
     self.generate_command = generate_command
 
+  def write_yaml(arch, config_file, constraint_file): 
+    yaml_data = {
+      'arch_name': arch.arch_name,
+      'arch_display_name': arch.arch_display_name,
+      'lib_name': arch.lib_name,
+      'target': arch.target,
+      'script_path': arch.tmp_script_path,
+      'tmp_path': arch.tmp_dir,
+      'design_path': arch.design_path,
+      'rtl_path': arch.rtl_path,
+      'arch_path': arch.arch_path,
+      'clock_signal': arch.clock_signal,
+      'reset_signal': arch.reset_signal,
+      'top_level_module': arch.top_level_module,
+      'top_level_file': arch.top_level_filename,
+      'use_parameters': arch.use_parameters,
+      'start_delimiter': arch.start_delimiter,
+      'stop_delimiter': arch.stop_delimiter,
+      'file_copy_enable': arch.file_copy_enable,
+      'file_copy_source': arch.file_copy_source,
+      'file_copy_dest': arch.file_copy_dest,
+      'script_copy_enable': arch.script_copy_enable,
+      'script_copy_source': arch.script_copy_source,
+      'fmax_lower_bound': arch.fmax_lower_bound,
+      'fmax_upper_bound': arch.fmax_upper_bound,
+      'param_target_filename': arch.param_target_filename,
+      'generate_rtl': arch.generate_rtl,
+      'generate_command': arch.generate_command,
+      'constraints_file': arch.tmp_dir + "/" + constraint_file
+    }
+      
+    with open(config_file, 'w') as f:
+      yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
+
+  def read_yaml(config_file):
+    if not os.path.isfile(config_file):
+      printc.error("Settings file \"" + config_file + "\" does not exist", script_name)
+      return None
+
+    with open(config_file, 'r') as f:
+      yaml_data = yaml.safe_load(f)
+    
+    try:
+      arch = Architecture(
+        arch_name             = read_from_list("arch_name", yaml_data, config_file, script_name=script_name),
+        arch_display_name     = read_from_list("arch_display_name", yaml_data, config_file, script_name=script_name),
+        lib_name              = read_from_list("lib_name", yaml_data, config_file, script_name=script_name),
+        target                = read_from_list("target", yaml_data, config_file, script_name=script_name),
+        tmp_script_path       = read_from_list("script_path", yaml_data, config_file, script_name=script_name),
+        tmp_dir               = read_from_list("tmp_path", yaml_data, config_file, script_name=script_name),
+        design_path           = read_from_list("design_path", yaml_data, config_file, script_name=script_name),
+        rtl_path              = read_from_list("rtl_path", yaml_data, config_file, script_name=script_name),
+        arch_path             = read_from_list("arch_path", yaml_data, config_file, script_name=script_name),
+        clock_signal          = read_from_list("clock_signal", yaml_data, config_file, script_name=script_name),
+        reset_signal          = read_from_list("reset_signal", yaml_data, config_file, script_name=script_name),
+        top_level_module      = read_from_list("top_level_module", yaml_data, config_file, script_name=script_name),
+        top_level_filename    = read_from_list("top_level_file", yaml_data, config_file, script_name=script_name),
+        use_parameters        = read_from_list("use_parameters", yaml_data, config_file, script_name=script_name),
+        start_delimiter       = read_from_list("start_delimiter", yaml_data, config_file, script_name=script_name),
+        stop_delimiter        = read_from_list("stop_delimiter", yaml_data, config_file, script_name=script_name),
+        file_copy_enable      = read_from_list("file_copy_enable", yaml_data, config_file, script_name=script_name),
+        file_copy_source      = read_from_list("file_copy_source", yaml_data, config_file, script_name=script_name),
+        file_copy_dest        = read_from_list("file_copy_dest", yaml_data, config_file, script_name=script_name),
+        script_copy_enable    = read_from_list("script_copy_enable", yaml_data, config_file, script_name=script_name),
+        script_copy_source    = read_from_list("script_copy_source", yaml_data, config_file, script_name=script_name),
+        fmax_lower_bound      = read_from_list("fmax_lower_bound", yaml_data, config_file, script_name=script_name),
+        fmax_upper_bound      = read_from_list("fmax_upper_bound", yaml_data, config_file, script_name=script_name),
+        param_target_filename = read_from_list("param_target_filename", yaml_data, config_file, script_name=script_name),
+        generate_rtl          = read_from_list("generate_rtl", yaml_data, config_file, script_name=script_name),
+        generate_command      = read_from_list("generate_command", yaml_data, config_file, script_name=script_name)
+      )
+    except (KeyNotInListError, BadValueInListError) as e:
+      return None
+    return arch
+
 class ArchitectureHandler:
 
   def __init__(self, work_path, arch_path, script_path, work_script_path, log_path, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
