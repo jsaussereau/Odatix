@@ -34,7 +34,7 @@ sys.path.append(lib_path)
 import printc
 from replace_params import replace_params
 
-from architecture_handler import ArchitectureHandler
+from architecture_handler import ArchitectureHandler, Architecture
 from settings import AsterismSettings
 from utils import *
 from prepare_work import *
@@ -64,7 +64,8 @@ nb_jobs = 4
 param_settings_filename = "_settings.yml"
 arch_filename = "architecture.txt"
 target_filename = "target.txt"
-config_filename = "settings.tcl"
+tcl_config_filename = "settings.tcl"
+yaml_config_filename = "settings.yml"
 fmax_status_filename = "status.log"
 synth_status_filename = "synth_status.log"
 frequency_search_filename = "frequency_search.log"
@@ -298,9 +299,13 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
           print(str(e))
           continue
 
-      # edit config script
-      config_file = i_arch.tmp_script_path + '/' + config_filename 
-      edit_config_file(i_arch, config_file, constraint_file)
+      # edit tcl config script
+      tcl_config_file = os.path.join(i_arch.tmp_script_path, tcl_config_filename)
+      edit_config_file(i_arch, tcl_config_file, constraint_file)
+
+      # write yaml config script
+      yaml_config_file = os.path.join(i_arch.tmp_dir, yaml_config_filename)
+      Architecture.write_yaml(i_arch, yaml_config_file, constraint_file)
 
       # link all scripts to config script
       for filename in os.listdir(i_arch.tmp_script_path):
