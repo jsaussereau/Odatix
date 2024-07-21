@@ -230,7 +230,9 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
       except: 
         printc.error("\"" + i_arch.tmp_script_path + "\" exists while it should not" , script_name)
 
-      copytree(script_path + '/' + tool + '/tcl', i_arch.tmp_script_path, dirs_exist_ok = True)
+      tool_tcl_path = os.path.join(script_path, tool, "tcl")
+      if os.path.isdir(tool_tcl_path):
+        copytree(tool_tcl_path, i_arch.tmp_script_path, dirs_exist_ok = True)
 
       # copy design 
       if i_arch.design_path != -1:
