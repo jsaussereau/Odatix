@@ -36,10 +36,10 @@ script_name = os.path.basename(__file__)
 asterism_dir_pattern = re.compile(r"\$asterism")
 
 class Architecture:
-  def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, arch_path,
+  def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, log_path, arch_path,
                clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
-               fmax_lower_bound, fmax_upper_bound, param_target_filename, generate_rtl, generate_command):
+               fmax_lower_bound, fmax_upper_bound, param_target_filename, generate_rtl, generate_command, constraint_filename):
     self.arch_name = arch_name
     self.arch_display_name = arch_display_name
     self.lib_name = lib_name
@@ -48,6 +48,7 @@ class Architecture:
     self.tmp_dir = tmp_dir
     self.design_path = design_path
     self.rtl_path = rtl_path
+    self.log_path = log_path
     self.arch_path = arch_path
     self.clock_signal = clock_signal
     self.reset_signal = reset_signal
@@ -66,8 +67,9 @@ class Architecture:
     self.stop_delimiter = stop_delimiter
     self.generate_rtl = generate_rtl
     self.generate_command = generate_command
+    self.constraint_filename = constraint_filename
 
-  def write_yaml(arch, config_file, constraint_file): 
+  def write_yaml(arch, config_file): 
     yaml_data = {
       'arch_name': arch.arch_name,
       'arch_display_name': arch.arch_display_name,
@@ -77,6 +79,7 @@ class Architecture:
       'tmp_path': arch.tmp_dir,
       'design_path': arch.design_path,
       'rtl_path': arch.rtl_path,
+      'log_path': arch.log_path,
       'arch_path': arch.arch_path,
       'clock_signal': arch.clock_signal,
       'reset_signal': arch.reset_signal,
@@ -95,7 +98,7 @@ class Architecture:
       'param_target_filename': arch.param_target_filename,
       'generate_rtl': arch.generate_rtl,
       'generate_command': arch.generate_command,
-      'constraints_file': arch.tmp_dir + "/" + constraint_file
+      'constraint_filename': arch.constraint_filename
     }
       
     with open(config_file, 'w') as f:
@@ -119,6 +122,7 @@ class Architecture:
         tmp_dir               = read_from_list("tmp_path", yaml_data, config_file, script_name=script_name),
         design_path           = read_from_list("design_path", yaml_data, config_file, script_name=script_name),
         rtl_path              = read_from_list("rtl_path", yaml_data, config_file, script_name=script_name),
+        log_path              = read_from_list("log_path", yaml_data, config_file, script_name=script_name),
         arch_path             = read_from_list("arch_path", yaml_data, config_file, script_name=script_name),
         clock_signal          = read_from_list("clock_signal", yaml_data, config_file, script_name=script_name),
         reset_signal          = read_from_list("reset_signal", yaml_data, config_file, script_name=script_name),
@@ -136,7 +140,8 @@ class Architecture:
         fmax_upper_bound      = read_from_list("fmax_upper_bound", yaml_data, config_file, script_name=script_name),
         param_target_filename = read_from_list("param_target_filename", yaml_data, config_file, script_name=script_name),
         generate_rtl          = read_from_list("generate_rtl", yaml_data, config_file, script_name=script_name),
-        generate_command      = read_from_list("generate_command", yaml_data, config_file, script_name=script_name)
+        generate_command      = read_from_list("generate_command", yaml_data, config_file, script_name=script_name),
+        constraint_filename   = read_from_list("constraint_filename", yaml_data, config_file, script_name=script_name)
       )
     except (KeyNotInListError, BadValueInListError) as e:
       return None
@@ -176,7 +181,7 @@ class ArchitectureHandler:
     self.incomplete_archs = []
     self.new_archs = []
 
-  def get_architectures(self, architectures, targets):
+  def get_architectures(self, architectures, targets, constraint_filename=""):
 
     self.reset_lists()
     self.architecture_instances = []
@@ -240,14 +245,15 @@ class ArchitectureHandler:
           only_one_target = only_one_target, 
           script_copy_enable = script_copy_enable, 
           script_copy_source = script_copy_source,
-          synthesis = True
+          synthesis = True,
+          constraint_filename = constraint_filename
         )
         if architecture_instance is not None:
           self.architecture_instances.append(architecture_instance)
 
     return self.architecture_instances
   
-  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False):
+  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename=""):
 
     if arch.endswith(".txt"):
       arch = arch[:-4] 
@@ -552,6 +558,7 @@ class ArchitectureHandler:
       tmp_dir=tmp_dir,
       design_path=design_path,
       rtl_path=rtl_path,
+      log_path=self.log_path,
       arch_path=self.arch_path,
       clock_signal=clock_signal,
       reset_signal=reset_signal,
@@ -569,7 +576,8 @@ class ArchitectureHandler:
       use_parameters=use_parameters,
       start_delimiter=start_delimiter,
       stop_delimiter=stop_delimiter,
-      generate_command=generate_command
+      generate_command=generate_command,
+      constraint_filename=constraint_filename
     )
 
     return arch_instance

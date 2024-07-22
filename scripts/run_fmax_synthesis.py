@@ -70,7 +70,7 @@ fmax_status_filename = "status.log"
 synth_status_filename = "synth_status.log"
 frequency_search_filename = "frequency_search.log"
 tool_makefile_filename = "makefile.mk"
-constraint_file = "constraints.txt"
+constraint_filename = "constraints.txt"
 source_tcl = "source scripts/"
 synth_fmax_rule = "synth_fmax_only"
 test_tool_rule = "test_tool"
@@ -165,7 +165,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     # mandatory keys
     try:
       targets = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
-      constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
+      constraint_filename = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError) as e:
       sys.exit(-1) # if a key is missing
 
@@ -188,7 +188,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     overwrite = overwrite
   )
 
-  architecture_instances = arch_handler.get_architectures(architectures, targets)
+  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_filename)
 
   # print checklist summary
   arch_handler.print_summary()
@@ -303,11 +303,11 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
 
       # edit tcl config script
       tcl_config_file = os.path.join(i_arch.tmp_script_path, tcl_config_filename)
-      edit_config_file(i_arch, tcl_config_file, constraint_file)
+      edit_config_file(i_arch, tcl_config_file)
 
       # write yaml config script
       yaml_config_file = os.path.join(i_arch.tmp_dir, yaml_config_filename)
-      Architecture.write_yaml(i_arch, yaml_config_file, constraint_file)
+      Architecture.write_yaml(i_arch, yaml_config_file)
 
       # link all scripts to config script
       for filename in os.listdir(i_arch.tmp_script_path):
