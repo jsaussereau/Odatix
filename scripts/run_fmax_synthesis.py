@@ -55,6 +55,9 @@ else:
 script_path = os.path.realpath(os.path.join(base_path, "../eda_tools"))
 
 work_script_path = "scripts"
+work_report_path = "report"
+work_result_path = "result"
+work_log_path = "log"
 common_script_path = "_common"
 log_path = "log"
 arch_path = "architectures"
@@ -221,8 +224,11 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
       # get param dir (arch name before '/')
       arch_param_dir = re.sub('/.*', '', i_arch.arch_name)
 
-      # create directory
+      # create directories
       create_dir(i_arch.tmp_dir)
+      create_dir(os.path.join(i_arch.tmp_dir, work_report_path))
+      create_dir(os.path.join(i_arch.tmp_dir, work_result_path))
+      create_dir(os.path.join(i_arch.tmp_dir, work_log_path))
 
       # copy scripts
       try:
@@ -324,7 +330,14 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
       # run binary search script
       tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
       process = run_parallel(
-        command = "make -f " + tool_makefile_file + " " + synth_fmax_rule + " WORK_DIR=\"" + i_arch.tmp_dir + "\" SCRIPT_DIR=\"" + i_arch.tmp_dir + '/' + work_script_path + "\" LOG_DIR=\"" + i_arch.tmp_dir + '/' + log_path + "\" --no-print-directory",
+        command = "make -f " + tool_makefile_file + " " + synth_fmax_rule 
+        + " WORK_DIR=\"" + os.path.realpath(i_arch.tmp_dir)
+        + "\" SCRIPT_DIR=\"" + os.path.realpath(os.path.join(i_arch.tmp_dir, work_script_path))
+        + "\" LOG_DIR=\"" + os.path.realpath(os.path.join(i_arch.tmp_dir, log_path ))
+        + "\" CLOCK_SIGNAL=\"" + i_arch.clock_signal 
+        + "\" TOP_LEVEL_MODULE=\"" + i_arch.top_level_module 
+        + "\" LIB_NAME=\"" + i_arch.lib_name 
+        + "\" --no-print-directory",
         nb_process = len(architecture_instances_chunk),
         show_log_if_one = show_log_if_one
       )
