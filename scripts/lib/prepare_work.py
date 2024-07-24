@@ -31,12 +31,7 @@ from os import makedirs
 
 from utils import *
 
-def create_dir(dir):
-  if isdir(dir):
-    rmtree(dir)
-  makedirs(dir)
-
-def edit_config_file(arch, config_file, constraint_file): 
+def edit_config_file(arch, config_file): 
   with open(config_file, 'r') as f:
     cf_content = f.read()
     cf_content = re.sub("(set script_path.*)",        "set script_path        " + arch.tmp_script_path, cf_content)
@@ -50,7 +45,7 @@ def edit_config_file(arch, config_file, constraint_file):
     cf_content = re.sub("(set fmax_lower_bound.*)",   "set fmax_lower_bound   " + arch.fmax_lower_bound, cf_content)
     cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + arch.fmax_upper_bound, cf_content)
     cf_content = re.sub("(set lib_name.*)",           "set lib_name           " + arch.lib_name, cf_content)
-    cf_content = re.sub("(set constraints_file.*)",   "set constraints_file   $tmp_path/" + constraint_file, cf_content)
+    cf_content = re.sub("(set constraints_file.*)",   "set constraints_file   $tmp_path/" + arch.constraint_filename, cf_content)
  
   with open(config_file, 'w') as f:
     f.write(cf_content)

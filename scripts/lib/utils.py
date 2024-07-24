@@ -133,3 +133,8 @@ def ask_yes_no():
       return False
     else:
       print("Please enter yes or no")
+
+def create_dir(dir):
+  if os.path.isdir(dir):
+    shutil.rmtree(dir)
+  os.makedirs(dir)
