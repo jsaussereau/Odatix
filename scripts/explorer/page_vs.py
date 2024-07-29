@@ -28,6 +28,7 @@ import plotly.graph_objs as go
 import pandas as pd
 import yaml
 import legend
+import navigation
 
 page_name = 'vs'
 
@@ -42,70 +43,87 @@ def layout(explorer):
     legend_items = legend.create_legend_items(explorer, page_name)
 
     return html.Div([
-        html.Div(
-            className='title-dropdown',
-            children=[
-                html.Div(
-                    className='dropdown-label',
-                    children=[html.Label("YAML File")]
-                ),
-                dcc.Dropdown(
-                    id='yaml-dropdown',
-                    options=[{'label': yaml_file, 'value': yaml_file} for yaml_file in explorer.valid_yaml_files],
-                    value=explorer.valid_yaml_files[0] if explorer.valid_yaml_files else None
-                ),
-            ]
+        navigation.top_bar(page_name),
+        navigation.side_bar(
+            content=html.Div(
+                id=f'sidebar-content-{page_name}',
+                children=[
+                    html.H2('Architectures'),
+                    html.Div([
+                        html.Div([
+                            html.Button("Show All", id="show-all", n_clicks=0),
+                            html.Button("Hide All", id="hide-all", n_clicks=0),
+                        ]),
+                        html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),
+                    ], style={'display': 'inline-block', 'margin-left': '20px', 'margin-bottom': '-50px'}),
+                ]
+            ),
+            page_name=page_name
         ),
         html.Div(
-            className='title-dropdown',
+            id=f'content-{page_name}',
             children=[
                 html.Div(
-                    className='dropdown-label',
-                    children=[html.Label("Target")]
+                    className='title-dropdown',
+                    children=[
+                        html.Div(
+                            className='dropdown-label',
+                            children=[html.Label("YAML File")]
+                        ),
+                        dcc.Dropdown(
+                            id='yaml-dropdown',
+                            options=[{'label': yaml_file, 'value': yaml_file} for yaml_file in explorer.valid_yaml_files],
+                            value=explorer.valid_yaml_files[0] if explorer.valid_yaml_files else None
+                        ),
+                    ]
                 ),
-                dcc.Dropdown(
-                    id=f'target-dropdown-{page_name}',
-                    value=explorer.dfs[explorer.valid_yaml_files[0]]['Target'].iloc[0] if explorer.valid_yaml_files else None
-                ),
-            ]
-        ),
-        html.Div(
-            className='title-dropdown',
-            children=[
                 html.Div(
-                    className='dropdown-label',
-                    children=[html.Label("Metric X")]
+                    className='title-dropdown',
+                    children=[
+                        html.Div(
+                            className='dropdown-label',
+                            children=[html.Label("Target")]
+                        ),
+                        dcc.Dropdown(
+                            id=f'target-dropdown-{page_name}',
+                            value=explorer.dfs[explorer.valid_yaml_files[0]]['Target'].iloc[0] if explorer.valid_yaml_files else None
+                        ),
+                    ]
                 ),
-                dcc.Dropdown(
-                    id='metric-x-dropdown',
-                    value='Fmax_MHz'
-                ),
-            ]
-        ),
-        html.Div(
-            className='title-dropdown',
-            children=[
                 html.Div(
-                    className='dropdown-label',
-                    children=[html.Label("Metric Y")]
+                    className='title-dropdown',
+                    children=[
+                        html.Div(
+                            className='dropdown-label',
+                            children=[html.Label("Metric X")]
+                        ),
+                        dcc.Dropdown(
+                            id='metric-x-dropdown',
+                            value='Fmax_MHz'
+                        ),
+                    ]
                 ),
-                dcc.Dropdown(
-                    id='metric-y-dropdown',
-                    value='Fmax_MHz'
+                html.Div(
+                    className='title-dropdown',
+                    children=[
+                        html.Div(
+                            className='dropdown-label',
+                            children=[html.Label("Metric Y")]
+                        ),
+                        dcc.Dropdown(
+                            id='metric-y-dropdown',
+                            value='Fmax_MHz'
+                        ),
+                    ]
                 ),
-            ]
-        ),
-        html.Div([
-            html.Div(id=f'graph-{page_name}'),
-            html.Div([
                 html.Div([
-                    html.Button("Show All", id="show-all", n_clicks=0, style={'margin-top': '100px'}),
-                    html.Button("Hide All", id="hide-all", n_clicks=0),
+                    html.Div(id=f'graph-{page_name}'),
                 ]),
-                html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),
-            ], style={'display': 'inline-block', 'margin-left': '20px', 'margin-bottom': '-50px'}),
-        ]),
-        html.Div(id='checklist-states', style={'display': 'none'})
+                html.Div(id='checklist-states', style={'display': 'none'})
+            ],
+            className='content',
+            style={'marginLeft': '0'}
+        )
     ])
 
 def setup_callbacks(explorer):
@@ -199,3 +217,4 @@ def setup_callbacks(explorer):
         )
 
     legend.setup_callbacks(explorer, page_name)
+    navigation.setup_sidebar_callbacks(explorer, page_name)

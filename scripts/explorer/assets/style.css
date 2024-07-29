@@ -36,14 +36,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.navbar .title {
-  color: white;
-  text-decoration: none;
-  font-size: 24px;
-  font-weight: bold;
-  margin-left: 20px;
+  margin-bottom: 20px;
+  height: 30px;
 }
 
 .navbar .nav-links {
@@ -62,8 +56,65 @@ body {
   text-decoration: underline;
 }
 
-.container {
-  margin-top: 20px;
+.navbar .title {
+  position: relative;
+  z-index: 2;
+  color: white;
+  text-decoration: none;
+  font-size: 24px;
+  font-weight: bold;
+  margin-left: 60px;
+  margin-top: 25px;
+}
+
+.sidebar {
+  position: relative;
+  color: white;
+  position: fixed;
+  top: 0;
+  height: 100%;
+  padding-top: 10px;
+  overflow-x: hidden;
+  transition: left 0.25s;
+}
+
+.sidebar-content {
+  width: 400px;
+  margin-top: 50px;
+  margin-bottom: -50px;
+  background-color: #24292e;
+  position: relative;
+  color: white;
+  position: fixed;
+  top: 0;
+  height: 100%;
+  padding-top: 10px;
+  overflow-x: hidden;
+  transition: left 0.25s;
+}
+
+.sidebar-back{
+  position: fixed;
+  z-index: -2;
+  top: 0px;
+  background-color: #24292e;
+  width: 400px;
+  height: 50px;
+}
+
+.sidebar .title {
+  display: flex;
+  color: white;
+  text-decoration: none;
+  font-size: 24px;
+  font-weight: bold;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.sidebar h2 {
+  margin-left: 25px;
 }
 
 button {
@@ -133,4 +184,8 @@ button:focus {
   margin-right: 20px;
   padding: 10px;
   box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); 
+}
+
+.content {
+  transition: margin-left 0.25s
 }

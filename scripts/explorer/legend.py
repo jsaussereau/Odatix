@@ -47,7 +47,7 @@ def create_legend_item(architecture, line_style, color, page_name=""):
             options=[{'label': '', 'value': architecture}],
             value=[architecture],
             inline=True,
-            style={'display': 'inline-block', 'margin-right': '10px'}
+            style={'display': 'inline-block', 'margin-right': '10px', 'text-wrap': 'wrap'}
         ),
         html.Div(style={
             'display': 'inline-block',

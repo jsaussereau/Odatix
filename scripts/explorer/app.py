@@ -8,7 +8,6 @@ import yaml
 import page_xy
 import page_vs
 import page_radar
-from navigation import navigation_bar 
 import legend
 
 # Add local libs to path
@@ -116,7 +115,6 @@ class ResultExplorer:
         self.app.layout = html.Div([
             dcc.Location(id='url', refresh=False),
             html.Div([
-                navigation_bar(),  # Ajouter la barre de navigation ici
                 html.Div(id='page-content', className='container')
             ])
         ])

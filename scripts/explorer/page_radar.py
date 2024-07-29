@@ -26,9 +26,68 @@ import plotly.express as px
 import pandas as pd
 import plotly.graph_objs as go
 import legend
+import navigation
 
 page_name = 'radar'
 
+def layout(explorer):
+    legend_items = legend.create_legend_items(explorer, page_name)
+
+    return html.Div([
+        navigation.top_bar(page_name),
+        navigation.side_bar(
+            content=html.Div(
+                id=f'sidebar-content-{page_name}',
+                children=[
+                    html.H2('Architectures'),
+                    html.Div([
+                        html.Div([
+                            html.Button("Show All", id="show-all", n_clicks=0),
+                            html.Button("Hide All", id="hide-all", n_clicks=0),
+                        ]),
+                        html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),
+                    ], style={'display': 'inline-block', 'margin-left': '20px', 'margin-bottom': '-50px'}),
+                ]
+            ),
+            page_name=page_name
+        ),
+        html.Div(
+            id=f'content-{page_name}',
+            children=[
+                html.Div(
+                    className='title-dropdown',
+                    children=[
+                        html.Div(
+                            className='dropdown-label',
+                            children=[ html.Label("YAML File") ]
+                        ),
+                        dcc.Dropdown(
+                            id='yaml-dropdown',
+                            options=[{'label': yaml_file, 'value': yaml_file} for yaml_file in explorer.valid_yaml_files],
+                            value=explorer.valid_yaml_files[0] if explorer.valid_yaml_files else None
+                        ),
+                    ]
+                ),
+                html.Div(
+                    className='title-dropdown',
+                    children=[
+                        html.Div(
+                            className='dropdown-label',
+                            children=[ html.Label("Target") ]
+                        ),
+                        dcc.Dropdown(
+                            id=f'target-dropdown-{page_name}',
+                            value=explorer.dfs[explorer.valid_yaml_files[0]]['Target'].iloc[0] if explorer.valid_yaml_files else None
+                        ),
+                    ]
+                ),
+                html.Div(id='radar-graphs'),
+            ],
+            className='content',
+            style={'marginLeft': '0'}
+        )
+    ])
+    
 def make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, close=False):
     df[metric] = pd.to_numeric(df[metric], errors='coerce')
     df = df.dropna(subset=[metric])
@@ -104,52 +163,10 @@ def make_all_radar_charts(df, metrics, all_configurations, all_architectures, vi
                         },
                     }
                 )
-            ], style={'flex': '1 0 21%', 'margin': '5px'})
+            ], style={'flex': '0 0 19%', 'margin': '0px'})
         )
     
     return radar_charts
-
-def layout(explorer):
-    legend_items = legend.create_legend_items(explorer, page_name)
-
-    return html.Div([
-        html.Div(
-            className='title-dropdown',
-            children=[
-                html.Div(
-                    className='dropdown-label',
-                    children=[ html.Label("YAML File") ]
-                ),
-                dcc.Dropdown(
-                    id='yaml-dropdown',
-                    options=[{'label': yaml_file, 'value': yaml_file} for yaml_file in explorer.valid_yaml_files],
-                    value=explorer.valid_yaml_files[0] if explorer.valid_yaml_files else None
-                ),
-            ]
-        ),
-        html.Div(
-            className='title-dropdown',
-            children=[
-                html.Div(
-                    className='dropdown-label',
-                    children=[ html.Label("Target") ]
-                ),
-                dcc.Dropdown(
-                    id=f'target-dropdown-{page_name}',
-                    value=explorer.dfs[explorer.valid_yaml_files[0]]['Target'].iloc[0] if explorer.valid_yaml_files else None
-                ),
-            ]
-        ),
-        html.Div(id='radar-graphs'),
-        html.Div([
-                html.Div([
-                    html.Button("Show All", id="show-all", n_clicks=0, style={'margin-top': '10px'}),
-                    html.Button("Hide All", id="hide-all", n_clicks=0),
-                ]),
-                html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),
-            ], style={'display': 'inline-block', 'margin-left': '20px', 'margin-bottom': '-50px'}
-        ),
-    ])
 
 def setup_callbacks(explorer):
     @explorer.app.callback(
@@ -188,7 +205,7 @@ def setup_callbacks(explorer):
         all_architectures = explorer.all_architectures
         radar_charts = make_all_radar_charts(filtered_df, metrics, unique_configurations, all_architectures, visible_architectures)
         
-        return html.Div(radar_charts, style={'display': 'flex', 'flex-wrap': 'wrap', 'justify-content': 'space-between'})
+        return html.Div(radar_charts, style={'display': 'flex', 'flex-wrap': 'wrap', 'justify-content': 'left'})
 
     @explorer.app.callback(
         Output(f'target-dropdown-{page_name}', 'options'),
@@ -204,3 +221,4 @@ def setup_callbacks(explorer):
         return available_targets
 
     legend.setup_callbacks(explorer, page_name)
+    navigation.setup_sidebar_callbacks(explorer, page_name)
