@@ -1,0 +1,136 @@
+/**********************************************************************\
+*                               Asterism                               *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Asterism.
+* Asterism is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Asterism is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Asterism. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: white;
+  color: black;
+}
+
+.navbar {
+  background-color: #24292f;
+  color: white;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.navbar .title {
+  color: white;
+  text-decoration: none;
+  font-size: 24px;
+  font-weight: bold;
+  margin-left: 20px;
+}
+
+.navbar .nav-links {
+  display: flex;
+  margin-right: 20px;
+}
+
+.navbar .nav-links a {
+  color: white;
+  margin: 0 15px;
+  text-decoration: none;
+  font-size: 18px;
+}
+
+.navbar .nav-links a:hover {
+  text-decoration: underline;
+}
+
+.container {
+  margin-top: 20px;
+}
+
+button {
+  background-color: #f6f8fa; /* Couleur de fond */
+  border: 1px solid #d1d5da; /* Bordure */
+  border-radius: 6px; /* Bords légèrement arrondis */
+  color: #24292e; /* Couleur du texte */
+  padding: 10px 15px; /* Espacement intérieur */
+  margin-right: 5px;    font-size: 14px; /* Taille de la police */
+  font-weight: 500; /* Poids de la police */
+  cursor: pointer; /* Curseur pointeur */
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s; /* Transition pour les effets */
+  box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); /* Légère ombre */
+}
+
+button:hover {
+  background-color: #f3f4f6; /* Couleur de fond au survol */
+  border-color: #c6cbd1; /* Couleur de la bordure au survol */
+}
+
+button:active {
+  background-color: #edeff2; /* Couleur de fond au clic */
+  box-shadow: inset 0 1px 0 rgba(27, 31, 35, 0.15); /* Ombre interne au clic */
+}
+
+button:focus {
+  outline: none; /* Retire le contour de focus */
+  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.3); /* Ombre pour le focus */
+}
+
+.title-dropdown{
+  display: flex;
+  vertical-align: middle;
+  align-items: center;
+  margin-left: 75px;
+  margin-right: 75px;
+}
+
+.dropdown-label{
+  width:100px;
+  font-weight: 550;
+}
+
+.dash-dropdown{
+  margin-bottom: 5px;
+  width: 500px;
+  background-color: #f6f8fa;
+  border: 1px solid #d1d5da;
+  border-radius: 6px; 
+  color: #24292e;
+  font-size: 14px; 
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s; 
+  box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); 
+  appearance: none;   
+}
+
+.error {
+  background-color: #f6f8fa;
+  color: #ef553b;
+  border: 1px solid #d1d5da;
+  border-radius: 6px; 
+  font-weight: 600;
+  margin: 10px;
+  margin-left: 20px;
+  margin-right: 20px;
+  padding: 10px;
+  box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); 
+}
