@@ -29,7 +29,7 @@ def navigation_bar():
         dcc.Link('Asterism Explorer', href='/', className='title'),
         html.Div([
             dcc.Link('XY', href='/xy', className='nav-link'),
-            # dcc.Link('VS', href='/vs', className='nav-link'),
+            dcc.Link('VS', href='/vs', className='nav-link'),
             dcc.Link('Radar', href='/radar', className='nav-link'),
             # dcc.Link('Help', href='/help', className='nav-link')
         ], className='nav-links')
