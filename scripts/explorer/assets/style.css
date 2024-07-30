@@ -79,7 +79,6 @@ body {
 }
 
 .sidebar-content {
-  width: 400px;
   margin-top: 50px;
   margin-bottom: -50px;
   background-color: #24292e;
@@ -93,12 +92,12 @@ body {
   transition: left 0.25s;
 }
 
-.sidebar-back{
+.sidebar-top{
   position: fixed;
   z-index: -2;
   top: 0px;
+  left: 0px;
   background-color: #24292e;
-  width: 400px;
   height: 50px;
 }
 

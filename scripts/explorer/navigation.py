@@ -25,6 +25,8 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 
+side_bar_width = '400px'
+
 def top_bar(page_name=""):
     return html.Div(
         [
@@ -50,9 +52,9 @@ def top_bar(page_name=""):
 def side_bar(content, page_name=""):
     return html.Div([
         html.Div(
-            id=f'sidebar-back-{page_name}',
-            className='sidebar-back',
-            style={'display': 'none'}
+            id=f'sidebar-top-{page_name}',
+            className='sidebar-top',
+            style={'left': '-'+side_bar_width, 'width': side_bar_width}
         ),
         html.Img(
             id=f'toggle-button-{page_name}', 
@@ -81,10 +83,11 @@ def side_bar(content, page_name=""):
                         content
                     ], 
                     className='sidebar-content',
+                    style={'width': side_bar_width}
                 )
             ],
             className='sidebar',
-            style={'left': '-450px', 'width': '450px'}
+            style={'left': '-'+side_bar_width, 'width': side_bar_width}
         ),
     ])
 
@@ -94,17 +97,17 @@ def setup_sidebar_callbacks(explorer, page_name=""):
         [Output(f'sidebar-{page_name}', 'style'),
         Output(f'content-{page_name}', 'style'),
         Output(f'navbar-title-{page_name}', 'style'),
-        Output(f'sidebar-back-{page_name}', 'style'),
+        Output(f'sidebar-top-{page_name}', 'style'),
         Output(f'toggle-button-{page_name}', 'style')],
         [Input(f'toggle-button-{page_name}', 'n_clicks'),
         Input(f'close-button-{page_name}', 'n_clicks')],
         [State(f'sidebar-{page_name}', 'style'),
         State(f'content-{page_name}', 'style'),
         State(f'navbar-title-{page_name}', 'style'),
-        State(f'sidebar-back-{page_name}', 'style'),
+        State(f'sidebar-top-{page_name}', 'style'),
         State(f'toggle-button-{page_name}', 'style')]
     )
-    def toggle_sidebar(toggle_n_clicks, close_n_clicks, sidebar_style, content_style, navbar_style, sidebar_back, toggle_style):
+    def toggle_sidebar(toggle_n_clicks, close_n_clicks, sidebar_style, content_style, navbar_style, sidebar_top, toggle_style):
         ctx = dash.callback_context
         if not ctx.triggered:
             return sidebar_style, content_style, navbar_style, toggle_style
@@ -112,26 +115,26 @@ def setup_sidebar_callbacks(explorer, page_name=""):
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
         if button_id == f'toggle-button-{page_name}':
-            if sidebar_style['left'] == '-450px':
+            if sidebar_style['left'] == '-'+side_bar_width:
                 sidebar_style['left'] = '0'
-                content_style['marginLeft'] = '450px'
+                sidebar_top['left'] = '0'
+                content_style['marginLeft'] = side_bar_width
                 navbar_style['marginLeft'] = '30px'
                 navbar_style['position'] = 'fixed'
-                sidebar_back['display'] = 'block'
                 toggle_style['display'] = 'none'
             else:
-                sidebar_style['left'] = '-450px'
+                sidebar_style['left'] = '-'+side_bar_width
+                sidebar_top['left'] = '-'+side_bar_width
                 content_style['marginLeft'] = '0'
                 navbar_style['marginLeft'] = '0'
                 navbar_style['position'] = 'relative'
-                sidebar_back['display'] = 'none'
                 toggle_style['display'] = 'block'
         elif button_id == f'close-button-{page_name}':
-            sidebar_style['left'] = '-450px'
+            sidebar_style['left'] = '-'+side_bar_width
+            sidebar_top['left'] = '-'+side_bar_width
             content_style['marginLeft'] = '0'
             navbar_style['marginLeft'] = '0'
             navbar_style['position'] = 'relative'
-            sidebar_back['display'] = 'none'
             toggle_style['display'] = 'block'
 
-        return sidebar_style, content_style, navbar_style, sidebar_back, toggle_style
+        return sidebar_style, content_style, navbar_style, sidebar_top, toggle_style
