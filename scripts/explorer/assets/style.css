@@ -87,7 +87,6 @@ body {
   position: fixed;
   top: 0;
   height: 100%;
-  padding-top: 10px;
   overflow-x: hidden;
   transition: left 0.25s;
 }
@@ -113,7 +112,9 @@ body {
 }
 
 .sidebar h2 {
-  margin-left: 25px;
+  margin-left: 20px;
+  margin-top: 30px;
+  margin-bottom: 15px;
 }
 
 button {
@@ -152,14 +153,22 @@ button:focus {
   margin-right: 75px;
 }
 
+.sidebar .title-dropdown{
+  display: flex;
+  vertical-align: middle;
+  align-items: center;
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
 .dropdown-label{
   width:100px;
-  font-weight: 550;
+  font-weight: 525;
 }
 
 .dash-dropdown{
   margin-bottom: 5px;
-  width: 500px;
+  width: 300px;
   background-color: #f6f8fa;
   border: 1px solid #d1d5da;
   border-radius: 6px; 
@@ -187,4 +196,9 @@ button:focus {
 
 .content {
   transition: margin-left 0.25s
+}
+
+#graph-vs {
+  width: 100vw;
+  height: 100vh;
 }

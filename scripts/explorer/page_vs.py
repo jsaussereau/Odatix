@@ -48,6 +48,60 @@ def layout(explorer):
             content=html.Div(
                 id=f'sidebar-content-{page_name}',
                 children=[
+                    html.H2('Data'),
+                    html.Div(
+                        className='title-dropdown',
+                        children=[
+                            html.Div(
+                                className='dropdown-label',
+                                children=[html.Label("YAML File")]
+                            ),
+                            dcc.Dropdown(
+                                id='yaml-dropdown',
+                                options=[{'label': yaml_file, 'value': yaml_file} for yaml_file in explorer.valid_yaml_files],
+                                value=explorer.valid_yaml_files[0] if explorer.valid_yaml_files else None
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        className='title-dropdown',
+                        children=[
+                            html.Div(
+                                className='dropdown-label',
+                                children=[html.Label("Target")]
+                            ),
+                            dcc.Dropdown(
+                                id=f'target-dropdown-{page_name}',
+                                value=explorer.dfs[explorer.valid_yaml_files[0]]['Target'].iloc[0] if explorer.valid_yaml_files else None
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        className='title-dropdown',
+                        children=[
+                            html.Div(
+                                className='dropdown-label',
+                                children=[html.Label("Metric X")]
+                            ),
+                            dcc.Dropdown(
+                                id='metric-x-dropdown',
+                                value='Fmax_MHz'
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        className='title-dropdown',
+                        children=[
+                            html.Div(
+                                className='dropdown-label',
+                                children=[html.Label("Metric Y")]
+                            ),
+                            dcc.Dropdown(
+                                id='metric-y-dropdown',
+                                value='Fmax_MHz'
+                            ),
+                        ]
+                    ),
                     html.H2('Architectures'),
                     html.Div([
                         html.Div([
@@ -55,7 +109,7 @@ def layout(explorer):
                             html.Button("Hide All", id="hide-all", n_clicks=0),
                         ]),
                         html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),
-                    ], style={'display': 'inline-block', 'margin-left': '20px', 'margin-bottom': '-50px'}),
+                    ], style={'display': 'inline-block', 'margin-left': '20px'}),
                 ]
             ),
             page_name=page_name
@@ -63,59 +117,6 @@ def layout(explorer):
         html.Div(
             id=f'content-{page_name}',
             children=[
-                html.Div(
-                    className='title-dropdown',
-                    children=[
-                        html.Div(
-                            className='dropdown-label',
-                            children=[html.Label("YAML File")]
-                        ),
-                        dcc.Dropdown(
-                            id='yaml-dropdown',
-                            options=[{'label': yaml_file, 'value': yaml_file} for yaml_file in explorer.valid_yaml_files],
-                            value=explorer.valid_yaml_files[0] if explorer.valid_yaml_files else None
-                        ),
-                    ]
-                ),
-                html.Div(
-                    className='title-dropdown',
-                    children=[
-                        html.Div(
-                            className='dropdown-label',
-                            children=[html.Label("Target")]
-                        ),
-                        dcc.Dropdown(
-                            id=f'target-dropdown-{page_name}',
-                            value=explorer.dfs[explorer.valid_yaml_files[0]]['Target'].iloc[0] if explorer.valid_yaml_files else None
-                        ),
-                    ]
-                ),
-                html.Div(
-                    className='title-dropdown',
-                    children=[
-                        html.Div(
-                            className='dropdown-label',
-                            children=[html.Label("Metric X")]
-                        ),
-                        dcc.Dropdown(
-                            id='metric-x-dropdown',
-                            value='Fmax_MHz'
-                        ),
-                    ]
-                ),
-                html.Div(
-                    className='title-dropdown',
-                    children=[
-                        html.Div(
-                            className='dropdown-label',
-                            children=[html.Label("Metric Y")]
-                        ),
-                        dcc.Dropdown(
-                            id='metric-y-dropdown',
-                            value='Fmax_MHz'
-                        ),
-                    ]
-                ),
                 html.Div([
                     html.Div(id=f'graph-{page_name}'),
                 ]),

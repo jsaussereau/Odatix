@@ -73,13 +73,6 @@ def side_bar(content, page_name=""):
                 ),
                 html.Div(
                     children=[
-                        
-                        html.Div(
-                            children=[
-                                html.H1('')
-                            ],
-                            style={'margin-bottom': '30px'}
-                        ),
                         content
                     ], 
                     className='sidebar-content',
