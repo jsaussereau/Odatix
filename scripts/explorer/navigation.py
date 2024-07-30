@@ -35,7 +35,7 @@ def top_bar(page_name=""):
                 children=[
                     dcc.Link('Asterism Explorer', href='/', className='title'),
                 ],
-                style={'marginLeft': '0', 'transition': 'margin-left 0.25s'}
+                style={'marginLeft': '30px', 'transition': 'margin-left 0.25s'}
             ),
             html.Div(),
             html.Div([
