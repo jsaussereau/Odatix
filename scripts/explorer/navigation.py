@@ -54,13 +54,13 @@ def side_bar(content, page_name=""):
         html.Div(
             id=f'sidebar-top-{page_name}',
             className='sidebar-top',
-            style={'left': '-'+side_bar_width, 'width': side_bar_width}
+            style={'left': '0', 'width': side_bar_width}
         ),
         html.Img(
             id=f'toggle-button-{page_name}', 
             src='/assets/icons/sidebar-panel-expand-icon.svg', 
             n_clicks=0,
-            style={'cursor': 'pointer', 'position': 'absolute', 'top': '10px', 'left': '20px', 'width': '30px'}
+            style={'display':'none', 'cursor': 'pointer', 'position': 'absolute', 'top': '10px', 'left': '20px', 'width': '30px'}
         ),
         html.Div(
             id=f'sidebar-{page_name}',
@@ -80,7 +80,7 @@ def side_bar(content, page_name=""):
                 )
             ],
             className='sidebar',
-            style={'left': '-'+side_bar_width, 'width': side_bar_width}
+            style={'left': '0', 'width': side_bar_width}
         ),
     ])
 

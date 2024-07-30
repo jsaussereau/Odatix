@@ -106,14 +106,14 @@ def layout(explorer):
             id=f'content-{page_name}',
             children=[
                 html.Div([
-                    html.Div(id=f'graph-{page_name}'),
-                ]),
+                    html.Div(id=f'graph-{page_name}', style={'width': '100%', 'height': '100%'}, className='graph-container')
+                ], style={'width': '100%', 'height': '100%'}),
                 html.Div(id='checklist-states', style={'display': 'none'})
             ],
             className='content',
-            style={'marginLeft': '0'}
-        )
-    ])
+            style={'marginLeft': navigation.side_bar_width, 'width': 'calc(100%-'+navigation.side_bar_width+")", 'height': '100%'}
+        ),
+    ], style={'width': '100%', 'height': '100vh', 'display': 'flex', 'flexDirection': 'column'})
 
 def setup_callbacks(explorer):
     @explorer.app.callback(
@@ -186,13 +186,12 @@ def setup_callbacks(explorer):
             yaxis=dict(range=[0, None]),
             title=selected_metric.replace('_', ' ') if selected_metric is not None else "", 
             title_x=0.5,
-            width=1450,
-            height=720
+            autosize=True,
         )    
         return html.Div([
             dcc.Graph(
                 figure=fig,
-                style={'width': '100%'},
+                style={'width': '100%', 'height': '100%'},
                 config = {
                         'displaylogo': False,
                         'modeBarButtonsToRemove': ['lasso', 'select'],
@@ -201,7 +200,7 @@ def setup_callbacks(explorer):
                             'filename': 'Asterism-' + str(os.path.splitext(selected_yaml)[0]) + "-" + str(selected_target) + "-" + str(selected_metric) + "-" + str(page_name) 
                         }
                     }
-            )], style={'display': 'inline-block', 'vertical-align': 'top'}
+            )], style={'width': '100%', 'height': '100%', 'display': 'inline-block', 'vertical-align': 'top'}
         )
 
     legend.setup_callbacks(explorer, page_name)

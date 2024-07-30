@@ -88,7 +88,7 @@ def layout(explorer):
                 html.Div(id='radar-graphs'),
             ],
             className='content',
-            style={'marginLeft': '0'}
+            style={'marginLeft': navigation.side_bar_width, 'width': 'calc(100%-'+navigation.side_bar_width+")", 'height': '100%', 'justify-content': 'center'}
         )
     ])
     
@@ -143,7 +143,9 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
         ),
         showlegend=False,
         title=metric.replace('_', ' '), 
-        title_x=0.5
+        title_x=0.5,
+        width=475,
+        height=475,
     )
     
     return fig
@@ -167,7 +169,7 @@ def make_all_radar_charts(df, metrics, all_configurations, all_architectures, vi
                         },
                     }
                 )
-            ], style={'flex': '0 0 19%', 'margin': '0px'})
+            ], style={'flex': '0 0 auto', 'margin': '0px'})
         )
     
     return radar_charts
@@ -209,7 +211,7 @@ def setup_callbacks(explorer):
         all_architectures = explorer.all_architectures
         radar_charts = make_all_radar_charts(filtered_df, metrics, unique_configurations, all_architectures, visible_architectures)
         
-        return html.Div(radar_charts, style={'display': 'flex', 'flex-wrap': 'wrap', 'justify-content': 'left'})
+        return html.Div(radar_charts, style={'display': 'flex', 'flex-wrap': 'wrap', 'justify-content': 'space-evenly'})
 
     @explorer.app.callback(
         Output(f'target-dropdown-{page_name}', 'options'),
