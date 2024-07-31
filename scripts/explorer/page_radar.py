@@ -87,25 +87,25 @@ def layout(explorer):
                                 children=[ html.Label("Legend Mode") ]
                             ),
                             dcc.Dropdown(
-                                id='toggle-legend',
+                                id='legend-dropdown',
                                 options=[
                                     {'label': 'Hide', 'value': 'hide_legend'},
                                     {'label': 'Show', 'value': 'show_legend'},
                                     {'label': 'Separate', 'value': 'separate_legend'}
                                 ],
-                                value='separate_legend',
+                                value='hide_legend',
                             )
                         ], style={'margin-bottom': '5px'}
                     ),
                     html.Div(
                         className='toggle-container',
                         children=[
-                            # dcc.Checklist(
-                            #     id='toggle-legend',
-                            #     options=[{'label': ' Show Legend', 'value': 'show_legend'}],
-                            #     value=[''],
-                            #     labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
-                            # ),
+                            dcc.Checklist(
+                                id='toggle-title',
+                                options=[{'label': ' Show Title', 'value': 'show_title'}],
+                                value=['show_title'],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
                             dcc.Checklist(
                                 id='toggle-lines',
                                 options=[{'label': ' Show Lines', 'value': 'show_lines'}],
@@ -135,7 +135,7 @@ def layout(explorer):
         )
     ])
 
-def make_legend_chart(df, all_architectures, visible_architectures, mode):
+def make_legend_chart(df, all_architectures, visible_architectures, toggle_title, mode):
     fig = go.Figure()
 
     if not visible_architectures:
@@ -153,9 +153,11 @@ def make_legend_chart(df, all_architectures, visible_architectures, mode):
             ))
 
     fig.update_layout(
-        polar_bgcolor='rgba(0, 0, 0, 0)',
+        polar_bgcolor='rgba(255, 255, 255, 0)',
+        paper_bgcolor='rgba(255, 255, 255, 0)',
         showlegend=True,
-        title="Legend",
+        margin=dict(l=60, r=60, t=60, b=60) if 'show_title' in toggle_title else dict(l=0, r=0, t=0, b=0),
+        title="Legend" if 'show_title' in toggle_title else '',
         title_x=0.5,
         polar=dict(
             radialaxis=dict(visible=False),
@@ -170,7 +172,7 @@ def make_legend_chart(df, all_architectures, visible_architectures, mode):
 
     return fig
     
-def make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, toggle_legend, mode, toggle_close=False):
+def make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, legend_dropdown, toggle_title, mode, toggle_close=False):
     df[metric] = pd.to_numeric(df[metric], errors='coerce')
     df = df.dropna(subset=[metric])
 
@@ -215,16 +217,18 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
 
     fig.update_layout(
         # template='plotly_dark',
+        paper_bgcolor='rgba(255, 255, 255, 0)',
         polar=dict(
             radialaxis=dict(
                 visible=True,
                 range=[0, df[metric].max() if not df[metric].empty else 1]
             )
         ),
-        showlegend='show_legend' in toggle_legend,
-        title=metric.replace('_', ' '), 
+        showlegend='show_legend' in legend_dropdown,
+        margin=dict(l=60, r=60, t=60, b=60),
+        title=metric.replace('_', ' ') if 'show_title' in toggle_title else None, 
         title_x=0.5,
-        width=840 if 'show_legend' in toggle_legend else 475,
+        width=840 if 'show_legend' in legend_dropdown else 475,
         height=475,
     )
     
@@ -240,6 +244,7 @@ def make_figure_div(fig, filename, remove_zoom=False):
                 figure=fig,
                 style={'width': '100%'},
                 config = {
+                    'displayModeBar' : True,
                     'displaylogo': False,
                     'modeBarButtonsToRemove': to_remove,
                     'toImageButtonOptions': {
@@ -255,20 +260,20 @@ def make_figure_div(fig, filename, remove_zoom=False):
             ], style={'width': '475px'})
         ], style={'flex': '0 0 auto', 'margin': '0px'})
 
-def make_all_radar_charts(df, metrics, all_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close):
+def make_all_radar_charts(df, metrics, all_configurations, all_architectures, visible_architectures, legend_dropdown, toggle_title, toggle_lines, toggle_close):
     radar_charts = []
 
     mode = 'lines+markers' if 'show_lines' in toggle_lines else 'markers'
     
     for metric in metrics:
-        fig = make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, toggle_legend, mode, toggle_close)
+        fig = make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, legend_dropdown, toggle_title, mode, toggle_close)
         radar_charts.append(
             make_figure_div(fig, 'Asterism-' + str(page_name) + "-" + str(metric))
         )
     
     # Add legend chart
-    if 'separate_legend' in toggle_legend:
-        legend_fig = make_legend_chart(df, all_architectures, visible_architectures, mode)
+    if 'separate_legend' in legend_dropdown:
+        legend_fig = make_legend_chart(df, all_architectures, visible_architectures, toggle_title, mode)
         radar_charts.append(
             make_figure_div(legend_fig, 'Asterism-' + str(page_name) + '-legend', remove_zoom=True)
         )
@@ -282,12 +287,13 @@ def setup_callbacks(explorer):
          Input(f'target-dropdown-{page_name}', 'value'), 
          Input('show-all', 'n_clicks'),
          Input('hide-all', 'n_clicks'),
-         Input('toggle-legend', 'value'),
+         Input('legend-dropdown', 'value'),
+         Input('toggle-title', 'value'),
          Input('toggle-lines', 'value'),
          Input('toggle-close-line', 'value')] + 
         [Input(f'checklist-{architecture}-{page_name}', 'value') for architecture in explorer.all_architectures],
     )
-    def update_radar_charts(selected_yaml, selected_target, show_all, hide_all, toggle_legend, toggle_lines, toggle_close, *checklist_values):
+    def update_radar_charts(selected_yaml, selected_target, show_all, hide_all, legend_dropdown, toggle_title, toggle_lines, toggle_close, *checklist_values):
         if not selected_yaml or selected_yaml not in explorer.dfs:
             return html.Div(
                 className='error',
@@ -316,7 +322,7 @@ def setup_callbacks(explorer):
         metrics = [col for col in filtered_df.columns if col not in ['Target', 'Architecture', 'Configuration']]
         all_configurations = explorer.all_configurations
         all_architectures = explorer.all_architectures
-        radar_charts = make_all_radar_charts(filtered_df, metrics, unique_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close)
+        radar_charts = make_all_radar_charts(filtered_df, metrics, unique_configurations, all_architectures, visible_architectures, legend_dropdown, toggle_title, toggle_lines, toggle_close)
         
         return html.Div(radar_charts, style={'display': 'flex', 'flex-wrap': 'wrap', 'justify-content': 'space-evenly'})
 

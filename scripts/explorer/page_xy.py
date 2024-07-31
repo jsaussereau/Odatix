@@ -128,6 +128,12 @@ def layout(explorer):
                                 labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
                             ),
                             dcc.Checklist(
+                                id='toggle-title',
+                                options=[{'label': ' Show Title', 'value': 'show_title'}],
+                                value=['show_title'],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
+                            dcc.Checklist(
                                 id='toggle-lines',
                                 options=[{'label': ' Show Lines', 'value': 'show_lines'}],
                                 value=['show_lines'],
@@ -177,11 +183,12 @@ def setup_callbacks(explorer):
          Input('show-all', 'n_clicks'),
          Input('hide-all', 'n_clicks'),
          Input('toggle-legend', 'value'),
+         Input('toggle-title', 'value'),
          Input('toggle-lines', 'value'),
          Input('display-mode-dropdown', 'value')] + 
         [Input(f'checklist-{architecture}-{page_name}', 'value') for architecture in explorer.all_architectures],
     )
-    def update_graph(selected_yaml, selected_metric, selected_target, show_all, hide_all, toggle_legend, toggle_lines, display_mode, *checklist_values):
+    def update_graph(selected_yaml, selected_metric, selected_target, show_all, hide_all, toggle_legend, toggle_title, toggle_lines, display_mode, *checklist_values):
         if not selected_yaml or selected_yaml not in explorer.dfs:
             return html.Div(
                 className='error',
@@ -242,11 +249,12 @@ def setup_callbacks(explorer):
                     )
 
         fig.update_layout(
+            paper_bgcolor='rgba(255, 255, 255, 0)',
             showlegend='show_legend' in toggle_legend,
             xaxis_title="Configuration",
             yaxis_title=selected_metric.replace('_', ' ') if selected_metric is not None else "",
             yaxis=dict(range=[0, None]),
-            title=selected_metric.replace('_', ' ') if selected_metric is not None else "", 
+            title=(selected_metric.replace('_', ' ') if selected_metric is not None else "") if 'show_title' in toggle_title else None, 
             title_x=0.5,
             autosize=True,
         )    
@@ -255,6 +263,7 @@ def setup_callbacks(explorer):
                 figure=fig,
                 style={'width': '100%', 'height': '100%'},
                 config = {
+                        'displayModeBar' : True,
                         'displaylogo': False,
                         'modeBarButtonsToRemove': ['lasso', 'select'],
                         'toImageButtonOptions': {
