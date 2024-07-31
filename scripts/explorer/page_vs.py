@@ -230,6 +230,9 @@ def setup_callbacks(explorer):
                 children=[html.Div('Please select a YAML file.')]
             )
 
+        selected_metric_x_display=selected_metric_x.replace('_', ' ') if selected_metric_x is not None else ""
+        selected_metric_y_display=selected_metric_y.replace('_', ' ') if selected_metric_y is not None else ""
+
         ctx = dash.callback_context
         triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -248,6 +251,7 @@ def setup_callbacks(explorer):
 
                 x_values = df_architecture[selected_metric_x].tolist()
                 y_values = df_architecture[selected_metric_y].tolist()
+                config_names = df_architecture['Configuration'].tolist()
 
                 mode = 'lines+markers' if 'show_lines' in toggle_lines else 'markers'
 
@@ -259,18 +263,26 @@ def setup_callbacks(explorer):
                         line=dict(dash='dot') if 'show_lines' in toggle_lines else None,
                         marker=dict(size=10, color=legend.get_color(i)),
                         name=architecture,
-                        connectgaps=True
+                        connectgaps=True,
+                        text=config_names,
+                        hovertemplate="<br>".join([
+                            "Architecture: %{fullData.name}",
+                            "Configuration: %{text}",
+                            selected_metric_x_display+": %{x}",
+                            selected_metric_y_display+": %{y}",
+                            "<extra></extra>"
+                        ]),
                     )
                 )
 
         fig.update_layout(
             paper_bgcolor=background,
             showlegend='show_legend' in toggle_legend,
-            xaxis_title=selected_metric_x.replace('_', ' ') if selected_metric_x is not None else "",
-            yaxis_title=selected_metric_y.replace('_', ' ') if selected_metric_y is not None else "",
+            xaxis_title=selected_metric_x_display,
+            yaxis_title=selected_metric_y_display,
             xaxis=dict(range=[0, None]),
             yaxis=dict(range=[0, None]),
-            title=(selected_metric_y.replace('_', ' ') + " vs " + selected_metric_x.replace('_', ' ')) if 'show_title' in toggle_title else None, 
+            title=selected_metric_y_display + " vs " + selected_metric_x_display if 'show_title' in toggle_title else None, 
             title_x=0.5,
             autosize=True,
         )

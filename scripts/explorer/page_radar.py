@@ -230,11 +230,13 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
         )
         return fig
 
+    metric_display = metric.replace('_', ' ') if 'show_title' in toggle_title else None
+
     fig = go.Figure(data=go.Scatterpolar(
         r=[None for c in all_configurations],
         theta=all_configurations,
         marker_color='rgba(0, 0, 0, 0)',
-        showlegend=False
+        showlegend=False,
     ))
 
     for i, architecture in enumerate(all_architectures):
@@ -249,7 +251,13 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
                 theta=df_architecture['Configuration'],
                 mode=mode,
                 name=architecture,
-                marker_color=legend.get_color(i)
+                marker_color=legend.get_color(i),
+                hovertemplate="<br>".join([
+                    "Architecture: %{fullData.name}",
+                    "Configuration: %{theta}",
+                    metric_display+": %{r}",
+                    "<extra></extra>"
+                ]),
             ))
 
     fig.update_layout(
@@ -263,7 +271,7 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
         ),
         showlegend='show_legend' in legend_dropdown,
         margin=dict(l=60, r=60, t=60, b=60),
-        title=metric.replace('_', ' ') if 'show_title' in toggle_title else None, 
+        title=metric_display, 
         title_x=0.5,
         width=840 if 'show_legend' in legend_dropdown else 475,
         height=475,

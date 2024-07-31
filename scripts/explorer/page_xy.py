@@ -233,6 +233,8 @@ def setup_callbacks(explorer):
                 className='error',
                 children=[ html.Div('Please select a YAML file.') ]
             )
+        
+        selected_metric_display = selected_metric.replace('_', ' ') if selected_metric is not None else ""
 
         ctx = dash.callback_context
         triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
@@ -267,7 +269,13 @@ def setup_callbacks(explorer):
                             line=dict(dash='dot') if 'show_lines' in toggle_lines else None,
                             marker=dict(size=10, color=legend.get_color(i)),
                             name=architecture,
-                            connectgaps=True
+                            connectgaps=True,
+                            hovertemplate="<br>".join([
+                                "Architecture: %{fullData.name}",
+                                "Configuration: %{x}",
+                                selected_metric_display+": %{y}",
+                                "<extra></extra>"
+                            ]),
                         )
                     )
         elif display_mode == 'bars':
@@ -291,9 +299,9 @@ def setup_callbacks(explorer):
             paper_bgcolor=background,
             showlegend='show_legend' in toggle_legend,
             xaxis_title="Configuration",
-            yaxis_title=selected_metric.replace('_', ' ') if selected_metric is not None else "",
+            yaxis_title=selected_metric_display,
             yaxis=dict(range=[0, None]),
-            title=(selected_metric.replace('_', ' ') if selected_metric is not None else "") if 'show_title' in toggle_title else None, 
+            title=selected_metric_display if 'show_title' in toggle_title else None, 
             title_x=0.5,
             autosize=True,
         )    
