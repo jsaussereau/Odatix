@@ -111,7 +111,7 @@ def layout(explorer):
                         ]),
                         html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),
                     ], style={'display': 'inline-block', 'margin-left': '20px'}),
-                    html.H2('Settings'),
+                    html.H2('Display Settings'),
                     html.Div(
                         className='toggle-container',
                         children=[
@@ -133,6 +133,43 @@ def layout(explorer):
                                 value=[''],
                                 labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
                             ),
+                        ]
+                    ),
+                    html.H2('Export Settings'),
+                    html.Div(
+                        className='title-dropdown',
+                        children=[
+                            html.Div(
+                                className='dropdown-label',
+                                children=[ html.Label("Download Format") ]
+                            ),
+                            dcc.Dropdown(
+                                id='dl-format-dropdown',
+                                options=[
+                                    {'label': 'SVG', 'value': 'svg'},
+                                    {'label': 'PNG', 'value': 'png'},
+                                    {'label': 'JPEG', 'value': 'jpeg'},
+                                    {'label': 'WEBP', 'value': 'webp'},
+                                ],
+                                value='svg',
+                            )
+                        ], style={'margin-bottom': '5px'}
+                    ),
+                    html.Div(
+                        className='title-dropdown',
+                        children=[
+                            html.Div(
+                                className='dropdown-label',
+                                children=[ html.Label("Background Color") ]
+                            ),
+                            dcc.Dropdown(
+                                id='background-dropdown',
+                                options=[
+                                    {'label': 'Transparent', 'value': 'rgba(255, 255, 255, 0)'},
+                                    {'label': 'White', 'value': 'rgba(255, 255, 255, 255)'}
+                                ],
+                                value='rgba(255, 255, 255, 0)',
+                            )
                         ]
                     ),
                 ]
@@ -166,7 +203,7 @@ def setup_callbacks(explorer):
 
         df = explorer.dfs[selected_yaml]
         metrics_from_yaml = explorer.update_metrics(explorer.all_data[selected_yaml])
-        available_metrics = [{'label': metric, 'value': metric} for metric in metrics_from_yaml]
+        available_metrics = [{'label': metric.replace('_', ' '), 'value': metric} for metric in metrics_from_yaml]
         available_targets = [{'label': target, 'value': target} for target in df['Target'].unique()]
 
         return available_metrics, available_metrics, available_targets
@@ -181,10 +218,12 @@ def setup_callbacks(explorer):
          Input('hide-all', 'n_clicks'),
          Input('toggle-legend', 'value'),
          Input('toggle-title', 'value'),
-         Input('toggle-lines', 'value')] + 
+         Input('toggle-lines', 'value'),
+         Input('dl-format-dropdown', 'value'),
+         Input('background-dropdown', 'value')] + 
         [Input(f'checklist-{architecture}-{page_name}', 'value') for architecture in explorer.all_architectures],
     )
-    def update_graph(selected_yaml, selected_metric_x, selected_metric_y, selected_target, show_all, hide_all, toggle_legend, toggle_title, toggle_lines, *checklist_values):
+    def update_graph(selected_yaml, selected_metric_x, selected_metric_y, selected_target, show_all, hide_all, toggle_legend, toggle_title, toggle_lines, dl_format, background, *checklist_values):
         if not selected_yaml or selected_yaml not in explorer.dfs:
             return html.Div(
                 className='error',
@@ -225,7 +264,7 @@ def setup_callbacks(explorer):
                 )
 
         fig.update_layout(
-            paper_bgcolor='rgba(255, 255, 255, 0)',
+            paper_bgcolor=background,
             showlegend='show_legend' in toggle_legend,
             xaxis_title=selected_metric_x.replace('_', ' ') if selected_metric_x is not None else "",
             yaxis_title=selected_metric_y.replace('_', ' ') if selected_metric_y is not None else "",
@@ -244,7 +283,8 @@ def setup_callbacks(explorer):
                     'displaylogo': False,
                     'modeBarButtonsToRemove': ['lasso', 'select'],
                     'toImageButtonOptions': {
-                        'format': 'svg',  # one of png, svg, jpeg, webp
+                        'format': dl_format,
+                        'scale': '3',
                         'filename': f'Asterism-{os.path.splitext(selected_yaml)[0]}-{selected_target}-{selected_metric_x}-vs-{selected_metric_y}'
                     }
                 }

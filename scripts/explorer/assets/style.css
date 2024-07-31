@@ -80,7 +80,6 @@ body {
 
 .sidebar-content {
   margin-top: 50px;
-  margin-bottom: -50px;
   background-color: #24292e;
   position: relative;
   color: white;
@@ -92,7 +91,7 @@ body {
 }
 
 .sidebar-content-holder {
-  padding-bottom: 65px;
+  padding-bottom: 150px;
 }
 
 .sidebar-top{
@@ -174,7 +173,7 @@ button:focus {
 
 .dash-dropdown{
   margin-bottom: 5px;
-  width: 300px;
+  width: 250px;
   background-color: #f6f8fa;
   border: 1px solid #d1d5da;
   border-radius: 6px; 
