@@ -221,6 +221,8 @@ def setup_callbacks(explorer):
             showlegend='show_legend' in toggle_legend,
             xaxis_title=selected_metric_x.replace('_', ' ') if selected_metric_x is not None else "",
             yaxis_title=selected_metric_y.replace('_', ' ') if selected_metric_y is not None else "",
+            xaxis=dict(range=[0, None]),
+            yaxis=dict(range=[0, None]),
             title=f"{selected_metric_y.replace('_', ' ')} vs {selected_metric_x.replace('_', ' ')}",
             title_x=0.5,
             autosize=True,
