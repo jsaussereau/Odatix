@@ -80,14 +80,32 @@ def layout(explorer):
                     ], style={'display': 'inline-block', 'margin-left': '20px'}),
                     html.H2('Settings'),
                     html.Div(
+                        className='title-dropdown',
+                        children=[
+                            html.Div(
+                                className='dropdown-label',
+                                children=[ html.Label("Legend Mode") ]
+                            ),
+                            dcc.Dropdown(
+                                id='toggle-legend',
+                                options=[
+                                    {'label': 'Hide', 'value': 'hide_legend'},
+                                    {'label': 'Show', 'value': 'show_legend'},
+                                    {'label': 'Separate', 'value': 'separate_legend'}
+                                ],
+                                value='separate_legend',
+                            )
+                        ], style={'margin-bottom': '5px'}
+                    ),
+                    html.Div(
                         className='toggle-container',
                         children=[
-                            dcc.Checklist(
-                                id='toggle-legend',
-                                options=[{'label': ' Show Legend', 'value': 'show_legend'}],
-                                value=[''],
-                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
-                            ),
+                            # dcc.Checklist(
+                            #     id='toggle-legend',
+                            #     options=[{'label': ' Show Legend', 'value': 'show_legend'}],
+                            #     value=[''],
+                            #     labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            # ),
                             dcc.Checklist(
                                 id='toggle-lines',
                                 options=[{'label': ' Show Lines', 'value': 'show_lines'}],
@@ -116,8 +134,43 @@ def layout(explorer):
             style={'marginLeft': navigation.side_bar_width, 'width': 'calc(100%-'+navigation.side_bar_width+")", 'height': '100%', 'justify-content': 'center'}
         )
     ])
+
+def make_legend_chart(df, all_architectures, visible_architectures, mode):
+    fig = go.Figure()
+
+    if not visible_architectures:
+        return None
+
+    for i, architecture in enumerate(all_architectures):
+        if architecture in visible_architectures:
+            df_architecture = df[df['Architecture'] == architecture]
+            fig.add_trace(go.Scatterpolar(
+                r=[None],
+                theta=df_architecture['Configuration'],
+                mode=mode,
+                name=architecture,
+                marker_color=legend.get_color(i)
+            ))
+
+    fig.update_layout(
+        polar_bgcolor='rgba(0, 0, 0, 0)',
+        showlegend=True,
+        title="Legend",
+        title_x=0.5,
+        polar=dict(
+            radialaxis=dict(visible=False),
+            angularaxis=dict(visible=False)
+        ),
+        autosize=True,
+        legend_x=0,
+        legend_y=1,
+        width=475,
+        height=475
+    )
+
+    return fig
     
-def make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close=False):
+def make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, toggle_legend, mode, toggle_close=False):
     df[metric] = pd.to_numeric(df[metric], errors='coerce')
     df = df.dropna(subset=[metric])
 
@@ -139,7 +192,7 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
         return fig
 
     fig = go.Figure(data=go.Scatterpolar(
-        r=[0 for c in all_configurations],
+        r=[None for c in all_configurations],
         theta=all_configurations,
         marker_color='rgba(0, 0, 0, 0)',
         showlegend=False
@@ -152,7 +205,6 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
                 first_row = df_architecture.iloc[0:1]
                 df_architecture = df_architecture._append(first_row, ignore_index=True)
 
-            mode = 'lines+markers' if 'show_lines' in toggle_lines else 'markers'
             fig.add_trace(go.Scatterpolar(
                 r=df_architecture[metric],
                 theta=df_architecture['Configuration'],
@@ -162,6 +214,7 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
             ))
 
     fig.update_layout(
+        # template='plotly_dark',
         polar=dict(
             radialaxis=dict(
                 visible=True,
@@ -177,28 +230,49 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
     
     return fig
 
+def make_figure_div(fig, filename, remove_zoom=False):
+    if fig is not None:
+        to_remove = ['lasso', 'select']
+        if remove_zoom:
+            to_remove.append('zoom')
+        return html.Div([
+            dcc.Graph(
+                figure=fig,
+                style={'width': '100%'},
+                config = {
+                    'displaylogo': False,
+                    'modeBarButtonsToRemove': to_remove,
+                    'toImageButtonOptions': {
+                        'format': 'svg',
+                        'filename': filename
+                    },
+                }
+            )
+        ], style={'flex': '0 0 auto', 'margin': '0px'})
+    else:
+        return html.Div([
+            html.Div([
+            ], style={'width': '475px'})
+        ], style={'flex': '0 0 auto', 'margin': '0px'})
+
 def make_all_radar_charts(df, metrics, all_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close):
     radar_charts = []
+
+    mode = 'lines+markers' if 'show_lines' in toggle_lines else 'markers'
     
     for metric in metrics:
-        fig = make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close)
+        fig = make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, toggle_legend, mode, toggle_close)
         radar_charts.append(
-            html.Div([
-                dcc.Graph(
-                    figure=fig,
-                    style={'width': '100%'},
-                    config = {
-                        'displaylogo': False,
-                        'modeBarButtonsToRemove': ['lasso', 'select'],
-                        'toImageButtonOptions': {
-                            'format': 'svg',
-                            'filename': 'Asterism-' + str(page_name) + "-" + str(metric)
-                        },
-                    }
-                )
-            ], style={'flex': '0 0 auto', 'margin': '0px'})
+            make_figure_div(fig, 'Asterism-' + str(page_name) + "-" + str(metric))
         )
     
+    # Add legend chart
+    if 'separate_legend' in toggle_legend:
+        legend_fig = make_legend_chart(df, all_architectures, visible_architectures, mode)
+        radar_charts.append(
+            make_figure_div(legend_fig, 'Asterism-' + str(page_name) + '-legend', remove_zoom=True)
+        )
+
     return radar_charts
 
 def setup_callbacks(explorer):
