@@ -57,14 +57,14 @@ body {
 }
 
 .navbar .title {
-  position: relative;
+  position: fixed;
+  top: 10px;
   z-index: 2;
   color: white;
   text-decoration: none;
   font-size: 24px;
   font-weight: bold;
   margin-left: 60px;
-  margin-top: 25px;
 }
 
 .sidebar {
@@ -89,6 +89,10 @@ body {
   height: 100%;
   overflow-x: hidden;
   transition: left 0.25s;
+}
+
+.sidebar-content-holder {
+  padding-bottom: 65px;
 }
 
 .sidebar-top{
@@ -126,7 +130,7 @@ button {
   padding: 10px 15px;
   margin-right: 5px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 515;
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
   box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04);
@@ -198,4 +202,8 @@ button:focus {
 
 .content {
   transition: margin-left 0.25s
+}
+
+.toggle-container {
+  margin-left: 15px;
 }

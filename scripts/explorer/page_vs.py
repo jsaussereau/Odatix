@@ -47,6 +47,7 @@ def layout(explorer):
         navigation.side_bar(
             content=html.Div(
                 id=f'sidebar-content-{page_name}',
+                className='sidebar-content-holder',
                 children=[
                     html.H2('Data'),
                     html.Div(
@@ -110,6 +111,24 @@ def layout(explorer):
                         ]),
                         html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),
                     ], style={'display': 'inline-block', 'margin-left': '20px'}),
+                    html.H2('Settings'),
+                    html.Div(
+                        className='toggle-container',
+                        children=[
+                            dcc.Checklist(
+                                id='toggle-legend',
+                                options=[{'label': ' Show Legend', 'value': 'show_legend'}],
+                                value=[''],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
+                            dcc.Checklist(
+                                id='toggle-lines',
+                                options=[{'label': ' Show Lines', 'value': 'show_lines'}],
+                                value=[''],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
+                        ]
+                    ),
                 ]
             ),
             page_name=page_name
@@ -153,10 +172,12 @@ def setup_callbacks(explorer):
          Input('metric-y-dropdown', 'value'),
          Input(f'target-dropdown-{page_name}', 'value'),
          Input('show-all', 'n_clicks'),
-         Input('hide-all', 'n_clicks')] + 
+         Input('hide-all', 'n_clicks'),
+         Input('toggle-legend', 'value'),
+         Input('toggle-lines', 'value')] + 
         [Input(f'checklist-{architecture}-{page_name}', 'value') for architecture in explorer.all_architectures],
     )
-    def update_graph(selected_yaml, selected_metric_x, selected_metric_y, selected_target, show_all, hide_all, *checklist_values):
+    def update_graph(selected_yaml, selected_metric_x, selected_metric_y, selected_target, show_all, hide_all, toggle_legend, toggle_lines, *checklist_values):
         if not selected_yaml or selected_yaml not in explorer.dfs:
             return html.Div(
                 className='error',
@@ -182,20 +203,22 @@ def setup_callbacks(explorer):
                 x_values = df_architecture[selected_metric_x].tolist()
                 y_values = df_architecture[selected_metric_y].tolist()
 
+                mode = 'lines+markers' if 'show_lines' in toggle_lines else 'markers'
+
                 fig.add_trace(
                     go.Scatter(
                         x=x_values,
                         y=y_values,
-                        mode='lines+markers',
-                        line=dict(dash='dot'),
+                        mode=mode,
+                        line=dict(dash='dot') if 'show_lines' in toggle_lines else None,
                         marker=dict(size=10, color=legend.get_color(i)),
                         name=architecture,
-                        showlegend=False,
                         connectgaps=True
                     )
                 )
 
         fig.update_layout(
+            showlegend='show_legend' in toggle_legend,
             xaxis_title=selected_metric_x.replace('_', ' ') if selected_metric_x is not None else "",
             yaxis_title=selected_metric_y.replace('_', ' ') if selected_metric_y is not None else "",
             title=f"{selected_metric_y.replace('_', ' ')} vs {selected_metric_x.replace('_', ' ')}",

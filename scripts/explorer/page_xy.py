@@ -48,6 +48,7 @@ def layout(explorer):
         navigation.side_bar(
             content=html.Div(
                 id=f'sidebar-content-{page_name}',
+                className='sidebar-content-holder',
                 children=[
                     html.H2('Data'),
                     html.Div(
@@ -98,6 +99,42 @@ def layout(explorer):
                         ]),
                         html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),
                     ], style={'display': 'inline-block', 'margin-left': '20px'}),
+                    html.H2('Settings'),
+                    html.Div(
+                        className='title-dropdown',
+                        children=[
+                            html.Div(
+                                className='dropdown-label',
+                                children=[ html.Label("Display Mode") ]
+                            ),
+                            dcc.Dropdown(
+                                id='display-mode-dropdown',
+                                options=[
+                                    {'label': 'Points', 'value': 'points'},
+                                    {'label': 'Bars', 'value': 'bars'}
+                                ],
+                                value='points',
+                            )
+                        ], style={'margin-bottom': '5px'}
+                    ),
+                    html.Div(
+                        className='toggle-container',
+                        children=[
+                            dcc.Checklist(
+                                id='toggle-legend',
+                                options=[{'label': ' Show Legend', 'value': 'show_legend'}],
+                                value=[''],
+                                className='toggle',
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
+                            dcc.Checklist(
+                                id='toggle-lines',
+                                options=[{'label': ' Show Lines', 'value': 'show_lines'}],
+                                value=['show_lines'],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
+                        ]
+                    ),
                 ]
             ),
             page_name=page_name
@@ -138,10 +175,13 @@ def setup_callbacks(explorer):
          Input('metric-dropdown', 'value'),
          Input(f'target-dropdown-{page_name}', 'value'),
          Input('show-all', 'n_clicks'),
-         Input('hide-all', 'n_clicks')] + 
+         Input('hide-all', 'n_clicks'),
+         Input('toggle-legend', 'value'),
+         Input('toggle-lines', 'value'),
+         Input('display-mode-dropdown', 'value')] + 
         [Input(f'checklist-{architecture}-{page_name}', 'value') for architecture in explorer.all_architectures],
     )
-    def update_graph(selected_yaml, selected_metric, selected_target, show_all, hide_all, *checklist_values):
+    def update_graph(selected_yaml, selected_metric, selected_target, show_all, hide_all, toggle_legend, toggle_lines, display_mode, *checklist_values):
         if not selected_yaml or selected_yaml not in explorer.dfs:
             return html.Div(
                 className='error',
@@ -157,32 +197,54 @@ def setup_callbacks(explorer):
             visible_architectures = set(architecture for i, architecture in enumerate(explorer.all_architectures) if checklist_values[i])
 
         filtered_df = explorer.dfs[selected_yaml][(explorer.dfs[selected_yaml]['Target'] == selected_target) &
-                                          (explorer.dfs[selected_yaml]['Architecture'].isin(visible_architectures))]
+                                                  (explorer.dfs[selected_yaml]['Architecture'].isin(visible_architectures))]
 
         unique_configurations = sorted(filtered_df['Configuration'].unique())
-        
-        fig = go.Figure()
-        for i, architecture in enumerate(explorer.all_architectures):
-            if architecture in visible_architectures:
-                df_architecture = filtered_df[filtered_df['Architecture'] == architecture]
-                y_values = [df_architecture[df_architecture['Configuration'] == config][selected_metric].values[0] 
-                            if config in df_architecture['Configuration'].values else None 
-                            for config in unique_configurations]
 
-                fig.add_trace(
-                    go.Scatter(
-                        x=unique_configurations, 
-                        y=y_values, 
-                        mode='lines+markers',
-                        line=dict(dash='dot'),
-                        marker=dict(size=10, color=legend.get_color(i)),
-                        name=architecture,
-                        showlegend=False,
-                        connectgaps=True
+        fig = go.Figure()
+
+        if display_mode == 'points':
+            for i, architecture in enumerate(explorer.all_architectures):
+                if architecture in visible_architectures:
+                    df_architecture = filtered_df[filtered_df['Architecture'] == architecture]
+                    y_values = [df_architecture[df_architecture['Configuration'] == config][selected_metric].values[0] 
+                                if config in df_architecture['Configuration'].values else None 
+                                for config in unique_configurations]
+
+                    mode = 'lines+markers' if 'show_lines' in toggle_lines else 'markers'
+
+                    fig.add_trace(
+                        go.Scatter(
+                            x=unique_configurations, 
+                            y=y_values, 
+                            mode=mode,
+                            line=dict(dash='dot') if 'show_lines' in toggle_lines else None,
+                            marker=dict(size=10, color=legend.get_color(i)),
+                            name=architecture,
+                            connectgaps=True
+                        )
                     )
-                )
+        elif display_mode == 'bars':
+            for i, architecture in enumerate(explorer.all_architectures):
+                if architecture in visible_architectures:
+                    df_architecture = filtered_df[filtered_df['Architecture'] == architecture]
+                    y_values = [df_architecture[df_architecture['Configuration'] == config][selected_metric].values[0] 
+                                if config in df_architecture['Configuration'].values else None 
+                                for config in unique_configurations]
+
+                    fig.add_trace(
+                        go.Bar(
+                            x=unique_configurations, 
+                            y=y_values,
+                            marker=dict(color=legend.get_color(i)),
+                            name=architecture
+                        )
+                    )
 
         fig.update_layout(
+            showlegend='show_legend' in toggle_legend,
+            xaxis_title="Configuration",
+            yaxis_title=selected_metric.replace('_', ' ') if selected_metric is not None else "",
             yaxis=dict(range=[0, None]),
             title=selected_metric.replace('_', ' ') if selected_metric is not None else "", 
             title_x=0.5,
@@ -205,4 +267,3 @@ def setup_callbacks(explorer):
 
     legend.setup_callbacks(explorer, page_name)
     navigation.setup_sidebar_callbacks(explorer, page_name)
-    

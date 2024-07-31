@@ -38,6 +38,7 @@ def layout(explorer):
         navigation.side_bar(
             content=html.Div(
                 id=f'sidebar-content-{page_name}',
+                className='sidebar-content-holder',
                 children=[
                     html.H2('Data'),
                     html.Div([
@@ -77,6 +78,30 @@ def layout(explorer):
                         ]),
                         html.Div(legend_items, id='custom-legend', style={'margin-top': '15px', 'margin-bottom': '15px'}),                        
                     ], style={'display': 'inline-block', 'margin-left': '20px'}),
+                    html.H2('Settings'),
+                    html.Div(
+                        className='toggle-container',
+                        children=[
+                            dcc.Checklist(
+                                id='toggle-legend',
+                                options=[{'label': ' Show Legend', 'value': 'show_legend'}],
+                                value=[''],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
+                            dcc.Checklist(
+                                id='toggle-lines',
+                                options=[{'label': ' Show Lines', 'value': 'show_lines'}],
+                                value=['show_lines'],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
+                            dcc.Checklist(
+                                id='toggle-close-line',
+                                options=[{'label': ' Close Lines', 'value': 'close_line'}],
+                                value=[''],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
+                        ]
+                    ),
                 ]
             ),
             page_name=page_name
@@ -92,7 +117,7 @@ def layout(explorer):
         )
     ])
     
-def make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, close=False):
+def make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close=False):
     df[metric] = pd.to_numeric(df[metric], errors='coerce')
     df = df.dropna(subset=[metric])
 
@@ -117,21 +142,23 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
         r=[0 for c in all_configurations],
         theta=all_configurations,
         marker_color='rgba(0, 0, 0, 0)',
+        showlegend=False
     ))
 
     for i, architecture in enumerate(all_architectures):
         if architecture in visible_architectures:
             df_architecture = df[df['Architecture'] == architecture]
-            if close:
+            if 'close_line' in toggle_close:
                 first_row = df_architecture.iloc[0:1]
                 df_architecture = df_architecture._append(first_row, ignore_index=True)
+
+            mode = 'lines+markers' if 'show_lines' in toggle_lines else 'markers'
             fig.add_trace(go.Scatterpolar(
                 r=df_architecture[metric],
                 theta=df_architecture['Configuration'],
-                mode='lines+markers',
+                mode=mode,
                 name=architecture,
-                marker_color=legend.get_color(i),
-                showlegend=False
+                marker_color=legend.get_color(i)
             ))
 
     fig.update_layout(
@@ -141,20 +168,20 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
                 range=[0, df[metric].max() if not df[metric].empty else 1]
             )
         ),
-        showlegend=False,
+        showlegend='show_legend' in toggle_legend,
         title=metric.replace('_', ' '), 
         title_x=0.5,
-        width=475,
+        width=840 if 'show_legend' in toggle_legend else 475,
         height=475,
     )
     
     return fig
 
-def make_all_radar_charts(df, metrics, all_configurations, all_architectures, visible_architectures):
+def make_all_radar_charts(df, metrics, all_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close):
     radar_charts = []
     
     for metric in metrics:
-        fig = make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures)
+        fig = make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close)
         radar_charts.append(
             html.Div([
                 dcc.Graph(
@@ -180,10 +207,13 @@ def setup_callbacks(explorer):
         [Input('yaml-dropdown', 'value'),
          Input(f'target-dropdown-{page_name}', 'value'), 
          Input('show-all', 'n_clicks'),
-         Input('hide-all', 'n_clicks')] + 
+         Input('hide-all', 'n_clicks'),
+         Input('toggle-legend', 'value'),
+         Input('toggle-lines', 'value'),
+         Input('toggle-close-line', 'value')] + 
         [Input(f'checklist-{architecture}-{page_name}', 'value') for architecture in explorer.all_architectures],
     )
-    def update_radar_charts(selected_yaml, selected_target, show_all, hide_all, *checklist_values):
+    def update_radar_charts(selected_yaml, selected_target, show_all, hide_all, toggle_legend, toggle_lines, toggle_close, *checklist_values):
         if not selected_yaml or selected_yaml not in explorer.dfs:
             return html.Div(
                 className='error',
@@ -191,7 +221,10 @@ def setup_callbacks(explorer):
             )
 
         if not selected_target:
-            return html.Div('Please select a target.')
+            return html.Div(
+                className='error',
+                children=[ html.Div('Please select a target.') ]
+            )
             
         ctx = dash.callback_context
         triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
@@ -209,7 +242,7 @@ def setup_callbacks(explorer):
         metrics = [col for col in filtered_df.columns if col not in ['Target', 'Architecture', 'Configuration']]
         all_configurations = explorer.all_configurations
         all_architectures = explorer.all_architectures
-        radar_charts = make_all_radar_charts(filtered_df, metrics, unique_configurations, all_architectures, visible_architectures)
+        radar_charts = make_all_radar_charts(filtered_df, metrics, unique_configurations, all_architectures, visible_architectures, toggle_legend, toggle_lines, toggle_close)
         
         return html.Div(radar_charts, style={'display': 'flex', 'flex-wrap': 'wrap', 'justify-content': 'space-evenly'})
 
