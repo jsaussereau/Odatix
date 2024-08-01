@@ -61,7 +61,7 @@ class ResultExplorer:
                 df = self.update_dataframe(data)
                 if df is None:
                     printc.warning("YAML file  \"" + yaml_file + "\" is empty or corrupted, skipping...", script_name=script_name)
-                    printc.note("Run fmax synthesis with the correct settings to generate  \"" + yaml_file + "\"", script_name=script_name)
+                    printc.note("Run fmax synthesis with the correct settings to generate \"" + yaml_file + "\"", script_name=script_name)
                 else:
                     self.all_data[yaml_file] = data
                     self.valid_yaml_files.append(yaml_file)

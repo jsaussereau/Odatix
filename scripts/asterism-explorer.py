@@ -25,7 +25,6 @@ import webbrowser
 from threading import Thread
 import tty
 import termios
-from result_explorer import ResultExplorer
 import select
 import socket
 import logging 
@@ -36,7 +35,14 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, 'lib')
 sys.path.append(lib_path)
 
+# Add explorer to path
+lib_path = os.path.join(current_dir, 'explorer')
+sys.path.append(lib_path)
+
 import printc
+from explorer_app import ResultExplorer
+
+script_name = os.path.basename(__file__)
 
 ######################################
 # Parse Arguments
@@ -78,8 +84,6 @@ def start_result_explorer(input, network=False):
 
   global ip_address
   global port
-
-  script_name = "result_explorer.py"
 
   # Default ip address: local
   host_address = '127.0.0.1'
