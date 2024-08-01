@@ -141,7 +141,11 @@ build: $(DIST_DIR)/asterism $(DIST_DIR)/asterism-explorer
 $(DIST_DIR)/asterism: $(SOURCE_FILES)
 	@pyinstaller $(SCRIPT_DIR)/asterism.py --onefile --path $(SCRIPT_DIR)/lib
 
-$(DIST_DIR)/asterism-explorer: $(SOURCE_FILES)
+asterism-explorer.spec:
+	@pyi-makespec $(SCRIPT_DIR)/asterism-explorer.py --onefile --path $(SCRIPT_DIR)/lib --path $(SCRIPT_DIR)/explorer --exclude-module PySide6 --add-data "$(SCRIPT_DIR)/explorer/assets:assets"
+	@sed -i '3i\import sys\nsys.setrecursionlimit(sys.getrecursionlimit() * 5)\n' asterism-explorer.spec
+
+$(DIST_DIR)/asterism-explorer: $(SOURCE_FILES) asterism-explorer.spec
 	@pyinstaller asterism-explorer.spec
 
 .PHONY: clean_build
