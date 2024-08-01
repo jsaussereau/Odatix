@@ -103,7 +103,7 @@ def setup_sidebar_callbacks(explorer, page_name=""):
     def toggle_sidebar(toggle_n_clicks, close_n_clicks, sidebar_style, content_style, navbar_style, sidebar_top, toggle_style):
         ctx = dash.callback_context
         if not ctx.triggered:
-            return sidebar_style, content_style, navbar_style, toggle_style
+            return sidebar_style, content_style, navbar_style, sidebar_top, toggle_style
         
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
