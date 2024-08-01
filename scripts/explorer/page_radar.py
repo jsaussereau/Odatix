@@ -210,7 +210,7 @@ def make_legend_chart(df, all_architectures, visible_architectures, toggle_title
     return fig
     
 def make_radar_chart(df, metric, all_configurations, all_architectures, visible_architectures, legend_dropdown, toggle_title, toggle_close, background, mode):
-    df[metric] = pd.to_numeric(df[metric], errors='coerce')
+    df.loc[:, metric] = pd.to_numeric(df[metric], errors='coerce')
     df = df.dropna(subset=[metric])
 
     if df.empty:
@@ -230,7 +230,7 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
         )
         return fig
 
-    metric_display = metric.replace('_', ' ') if 'show_title' in toggle_title else None
+    metric_display = metric.replace('_', ' ')
 
     fig = go.Figure(data=go.Scatterpolar(
         r=[None for c in all_configurations],
@@ -255,7 +255,7 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
                 hovertemplate="<br>".join([
                     "Architecture: %{fullData.name}",
                     "Configuration: %{theta}",
-                    metric_display+": %{r}",
+                    str(metric_display)+": %{r}",
                     "<extra></extra>"
                 ]),
             ))
@@ -271,7 +271,7 @@ def make_radar_chart(df, metric, all_configurations, all_architectures, visible_
         ),
         showlegend='show_legend' in legend_dropdown,
         margin=dict(l=60, r=60, t=60, b=60),
-        title=metric_display, 
+        title=metric_display if 'show_title' in toggle_title else None, 
         title_x=0.5,
         width=840 if 'show_legend' in legend_dropdown else 475,
         height=475,
@@ -370,6 +370,10 @@ def setup_callbacks(explorer):
         metrics = [col for col in filtered_df.columns if col not in ['Target', 'Architecture', 'Configuration']]
         all_configurations = explorer.all_configurations
         all_architectures = explorer.all_architectures
+
+        for metric in metrics:
+            filtered_df.loc[:, metric] = pd.to_numeric(filtered_df[metric], errors='coerce')
+        
         radar_charts = make_all_radar_charts(filtered_df, metrics, unique_configurations, all_architectures, visible_architectures, legend_dropdown, toggle_title, toggle_lines, toggle_close, dl_format, background)
         
         return html.Div(radar_charts, style={'display': 'flex', 'flex-wrap': 'wrap', 'justify-content': 'space-evenly'})
