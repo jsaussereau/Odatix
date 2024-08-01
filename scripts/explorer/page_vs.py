@@ -133,6 +133,12 @@ def layout(explorer):
                                 value=[''],
                                 labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
                             ),
+                            dcc.Checklist(
+                                id='toggle-labels',
+                                options=[{'label': ' Show Labels', 'value': 'show_labels'}],
+                                value=['show_labels'],
+                                labelStyle={'display': 'block', 'font-weight': '515', 'margin-bottom': '5px'},
+                            ),
                         ]
                     ),
                     html.H2('Export Settings'),
@@ -219,19 +225,20 @@ def setup_callbacks(explorer):
          Input('toggle-legend', 'value'),
          Input('toggle-title', 'value'),
          Input('toggle-lines', 'value'),
+         Input('toggle-labels', 'value'),
          Input('dl-format-dropdown', 'value'),
          Input('background-dropdown', 'value')] + 
         [Input(f'checklist-{architecture}-{page_name}', 'value') for architecture in explorer.all_architectures],
     )
-    def update_graph(selected_yaml, selected_metric_x, selected_metric_y, selected_target, show_all, hide_all, toggle_legend, toggle_title, toggle_lines, dl_format, background, *checklist_values):
+    def update_graph(selected_yaml, selected_metric_x, selected_metric_y, selected_target, show_all, hide_all, toggle_legend, toggle_title, toggle_lines, toggle_labels, dl_format, background, *checklist_values):
         if not selected_yaml or selected_yaml not in explorer.dfs:
             return html.Div(
                 className='error',
                 children=[html.Div('Please select a YAML file.')]
             )
 
-        selected_metric_x_display=selected_metric_x.replace('_', ' ') if selected_metric_x is not None else ""
-        selected_metric_y_display=selected_metric_y.replace('_', ' ') if selected_metric_y is not None else ""
+        selected_metric_x_display = selected_metric_x.replace('_', ' ') if selected_metric_x is not None else ""
+        selected_metric_y_display = selected_metric_y.replace('_', ' ') if selected_metric_y is not None else ""
 
         ctx = dash.callback_context
         triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
@@ -242,7 +249,7 @@ def setup_callbacks(explorer):
             visible_architectures = set(architecture for i, architecture in enumerate(explorer.all_architectures) if checklist_values[i])
 
         filtered_df = explorer.dfs[selected_yaml][(explorer.dfs[selected_yaml]['Target'] == selected_target) &
-                                                  (explorer.dfs[selected_yaml]['Architecture'].isin(visible_architectures))]
+                                                (explorer.dfs[selected_yaml]['Architecture'].isin(visible_architectures))]
 
         fig = go.Figure()
         for i, architecture in enumerate(explorer.all_architectures):
@@ -254,6 +261,8 @@ def setup_callbacks(explorer):
                 config_names = df_architecture['Configuration'].tolist()
 
                 mode = 'lines+markers' if 'show_lines' in toggle_lines else 'markers'
+                if toggle_labels:
+                    mode += '+text'
 
                 fig.add_trace(
                     go.Scatter(
@@ -265,6 +274,7 @@ def setup_callbacks(explorer):
                         name=architecture,
                         connectgaps=True,
                         text=config_names,
+                        textposition='top center',
                         hovertemplate="<br>".join([
                             "Architecture: %{fullData.name}",
                             "Configuration: %{text}",
