@@ -48,22 +48,6 @@ if {[catch {
     gets stdin
   }
 
-  proc run_synth_script_dummy {timing_rep runs} {
-    # testing only!
-    sleep [expr { rand() * 4}]
-    if {$runs > 1} {
-      set stiming_rep_handler [open $timing_rep w]
-      puts "Dummy synthesis script: Slack (MET)"
-      puts $stiming_rep_handler "Slack (MET)"
-      close $stiming_rep_handler
-    } else {
-      set stiming_rep_handler [open $timing_rep w]
-      puts "Dummy synthesis script: Slack (VIOLATED)"
-      puts $stiming_rep_handler "Slack (VIOLATED)"
-      close $stiming_rep_handler
-    }
-  }
-
   proc run_synth_script {synth_script} {
     source $synth_script
   }
@@ -87,7 +71,7 @@ if {[catch {
   # create logfile
   exec /bin/sh -c "mkdir -p $log_path"
   set logfile_handler [open $logfile w]
-  puts $logfile_handler "Binary search for interval [$lower_bound:$upper_bound] MHz"
+  puts $logfile_handler "Binary search for interval \[$lower_bound:$upper_bound\] MHz"
   puts $logfile_handler ""
   close $logfile_handler
 
@@ -135,7 +119,6 @@ if {[catch {
     puts "<end>"
 
     run_synth_script $synth_script
-    #run_synth_script_dummy $timing_rep $runs
 
     set frequency_handler [open $freq_rep w]
     puts -nonewline $frequency_handler  "Target frequency:         $cur_freq"

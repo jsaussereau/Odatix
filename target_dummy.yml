@@ -1,0 +1,16 @@
+
+##############################################
+# Target settings for dummy test tool
+##############################################
+---
+
+constraint_file: constraints.txt
+
+script_copy_enable: No
+script_copy_source: "/dev/null"
+
+# FPGA target
+targets:
+  - dummy_target
+
+...
