@@ -32,7 +32,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, "lib")
 sys.path.append(lib_path)
 
-from run_parallel import Running_arch
 import ansi_to_curses
 
 STD_BUF = "stdbuf -oL "
@@ -69,7 +68,7 @@ class Parallel_job_handler:
       window.addstr(id, 0, f"{button} {title} [")
       window.addstr(id, len(button) + len(title) + 3, "#" * bar_length, curses.color_pair(1))
       window.addstr(id, len(button) + len(title) + 3 + bar_length, " " * (bar_width - bar_length), curses.color_pair(1))
-      window.addstr(id, len(button) + len(title) + 3 + bar_width + 1, f"] {percentage}")
+      window.addstr(id, len(button) + len(title) + 3 + bar_width, f"] {percentage}")
 
       comment_position = len(button) + len(title) + 3 + bar_width + 9
       if status == "failed":
@@ -210,7 +209,7 @@ class Parallel_job_handler:
 
         if job in self.retired_job_list:
           progress = job.progress
-        elif not job in self.running_job_list or job.process is None:
+        elif job not in self.running_job_list or job.process is None:
           progress = 0
         else:
           progress = job.get_progress()
@@ -275,6 +274,8 @@ class Parallel_job_handler:
 
       stdscr.nodelay(True)
       key = stdscr.getch()
+      curses.flushinp()
+      
       if key == ord("q"):
         break
       elif key == curses.KEY_PPAGE:  # Page Up
