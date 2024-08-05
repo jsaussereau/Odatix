@@ -26,6 +26,7 @@ import queue
 import fcntl
 import curses
 import select
+import signal
 import subprocess
 
 # Add local libs to path
@@ -136,7 +137,7 @@ class ParallelJobHandler:
         window.addstr(id, comment_position, comment, curses.color_pair(2))
       elif status == "running":
         window.addstr(id, comment_position, comment, curses.color_pair(3))
-      elif status == "done":
+      elif status == "success":
         window.addstr(id, comment_position, comment, curses.color_pair(4))
       elif status == "queued":
         window.addstr(id, comment_position, comment, curses.color_pair(5))
@@ -201,7 +202,12 @@ class ParallelJobHandler:
 
   def run_job(self, job):
     process = subprocess.Popen(
-      STD_BUF + job.command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True
+      STD_BUF + job.command,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+      shell=True,
+      text=True,
+      preexec_fn=os.setpgrp  # Set the process group
     )
     self.set_nonblocking(process.stdout)
     self.set_nonblocking(process.stderr)
@@ -218,6 +224,19 @@ class ParallelJobHandler:
     self.running_job_list.remove(job)
     job.progress = progress
     self.retired_job_list.append(job)
+
+  def terminate_all_jobs(self):
+    for job in self.running_job_list:
+      if job.process:
+        try: # Try to terminate the process group
+          os.killpg(os.getpgid(job.process.pid), signal.SIGTERM)
+        except ProcessLookupError:
+          pass # Process already terminated
+
+    # Wait for all processes to finish
+    for job in self.running_job_list:
+      if job.process:
+        job.process.wait()
 
   def curses_main(self, stdscr):
     curses.curs_set(0)  # Hide cursor
@@ -276,7 +295,7 @@ class ParallelJobHandler:
           progress = job.get_progress()
           if job.process.poll() is not None:
             if job.process.returncode == 0:
-              job.status = "done"
+              job.status = "success"
             else:
               job.status = "failed"
               if progress is None:
@@ -338,6 +357,7 @@ class ParallelJobHandler:
       curses.flushinp()
 
       if key == ord("q"):
+        self.terminate_all_jobs()
         break
       elif key == curses.KEY_PPAGE:  # Page Up
         if self.selected_job_index > 0:
