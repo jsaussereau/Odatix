@@ -21,6 +21,7 @@
 
 import os
 import sys
+import re
 import queue
 import fcntl
 import curses
@@ -36,8 +37,68 @@ import ansi_to_curses
 
 STD_BUF = "stdbuf -oL "
 
+class ParallelJob:
+  status_file_pattern = re.compile(r"(.*)")
+  progress_file_pattern = re.compile(r"(.*)")
 
-class Parallel_job_handler:
+  def __init__(
+    self, process, command, target, arch, display_name, status_file, progress_file, tmp_dir, status="not started"
+  ):
+    self.process = process
+    self.command = command
+    self.target = target
+    self.arch = arch
+    self.display_name = display_name
+    self.status_file = status_file
+    self.progress_file = progress_file
+    self.tmp_dir = tmp_dir
+    self.status = status
+
+    self.log_history = []
+    self.log_position = 0
+    self.log_changed = False
+    self.autoscroll = True
+
+  @staticmethod
+  def set_patterns(status_file_pattern, progress_file_pattern):
+    ParallelJob.status_file_pattern = status_file_pattern
+    ParallelJob.progress_file_pattern = progress_file_pattern
+
+  def get_progress(self):
+    # Get progress from status file
+    fmax_progress = 0
+    fmax_step = 1
+    fmax_totalstep = 1
+    if os.path.isfile(self.status_file):
+      with open(self.status_file, "r") as f:
+        content = f.read()
+      for match in re.finditer(ParallelJob.status_file_pattern, content):
+        parts = ParallelJob.status_file_pattern.search(match.group())
+        if len(parts.groups()) >= 4:
+          fmax_progress = int(parts.group(2))
+          fmax_step = int(parts.group(3))
+          fmax_totalstep = int(parts.group(4))
+
+    # Get progress from synth status file
+    synth_progress = 0
+    if os.path.isfile(self.progress_file):
+      with open(self.progress_file, "r") as f:
+        content = f.read()
+      for match in re.finditer(ParallelJob.progress_file_pattern, content):
+        parts = ParallelJob.progress_file_pattern.search(match.group())
+        if len(parts.groups()) >= 2:
+          synth_progress = int(parts.group(2))
+
+    # Compute total progress
+    if fmax_totalstep != 0:
+      progress = fmax_progress + synth_progress / fmax_totalstep
+    else:
+      progress = synth_progress
+
+    return progress
+
+
+class ParallelJobHandler:
   def __init__(self, job_list, nb_jobs, log_size_limit=100):
     self.job_list = job_list
     self.nb_jobs = nb_jobs
@@ -275,7 +336,7 @@ class Parallel_job_handler:
       stdscr.nodelay(True)
       key = stdscr.getch()
       curses.flushinp()
-      
+
       if key == ord("q"):
         break
       elif key == curses.KEY_PPAGE:  # Page Up

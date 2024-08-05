@@ -33,7 +33,7 @@ sys.path.append(lib_path)
 
 import printc
 from replace_params import replace_params
-import parallel_job_handler
+from parallel_job_handler import ParallelJobHandler, ParallelJob
 
 from architecture_handler import ArchitectureHandler, Architecture
 from settings import AsterismSettings
@@ -202,7 +202,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     except (KeyNotInListError, BadValueInListError):
       sys.exit(-1)  # if a key is missing
 
-  Running_arch.set_patterns(fmax_status_pattern, synth_status_pattern)
+  ParallelJob.set_patterns(fmax_status_pattern, synth_status_pattern)
 
   arch_handler = ArchitectureHandler(
     work_path=work_path,
@@ -370,7 +370,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
       fmax_status_file = os.path.join(arch_instance.tmp_dir, log_path, fmax_status_filename)
       synth_status_file = os.path.join(arch_instance.tmp_dir, log_path, synth_status_filename)
 
-      running_arch = Running_arch(
+      running_arch = ParallelJob(
         process=None,
         command=command,
         target=arch_instance.target,
@@ -387,7 +387,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
   for arch_instance in architecture_instances:
     prepare_job(arch_instance)
 
-  parallel_job_handler.run_parallel(job_list, nb_jobs)
+  parallel_jobs = ParallelJobHandler(job_list, nb_jobs)
+  parallel_jobs.run()
 
   # Summary
   print()
