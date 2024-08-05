@@ -37,10 +37,10 @@ from parallel_job_handler import ParallelJobHandler, ParallelJob
 
 from architecture_handler import ArchitectureHandler, Architecture
 from settings import AsterismSettings
-from utils import *
-from prepare_work import *
-from run_parallel import *
-from run_settings import *
+from utils import read_from_list, copytree, create_dir, ask_to_continue
+from prepare_work import edit_config_file
+from check_tool import check_tool
+from run_settings import get_synth_settings
 
 
 ######################################

@@ -30,6 +30,7 @@ from utils import *
 
 script_name = os.path.basename(__file__)
 
+
 def check_tool(tool, script_path, makefile, rule, supported_tools):
   print('checking the selected eda tool "' + tool + '" ..', end="")
   sys.stdout.flush()
@@ -52,12 +53,10 @@ def check_tool(tool, script_path, makefile, rule, supported_tools):
     printc.note("Example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin", script_name)
     if tool not in supported_tools:
       printc.note(
-        'The selected eda tool "'
-        + tool
-        + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool",
+        'The selected eda tool "{}" is not one of the supported tool. '.format(tool)
+        + "Check out Asterism's documentation to add support for your own eda tool",
         script_name,
       )
       printc.note('Make sure there is a valid rule "' + rule + '" in "' + tool_makefile_file + '"', script_name)
     sys.exit(-1)
   print()
-
