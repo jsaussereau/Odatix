@@ -33,6 +33,7 @@ sys.path.append(lib_path)
 
 import printc
 from replace_params import replace_params
+import parallel_job_handler
 
 from architecture_handler import ArchitectureHandler, Architecture
 from settings import AsterismSettings
@@ -109,7 +110,12 @@ def add_arguments(parser):
   parser.add_argument("-i", "--input", help="input settings file")
   parser.add_argument("-a", "--archpath", help="architecture directory")
   parser.add_argument("-w", "--work", help="work directory")
-  parser.add_argument("-c", "--config", default=AsterismSettings.DEFAULT_SETTINGS_FILE, help="global settings file for asterism (default: " + AsterismSettings.DEFAULT_SETTINGS_FILE + ")")
+  parser.add_argument(
+    "-c",
+    "--config",
+    default=AsterismSettings.DEFAULT_SETTINGS_FILE,
+    help="global settings file for asterism (default: " + AsterismSettings.DEFAULT_SETTINGS_FILE + ")",
+  )
 
 
 def parse_arguments():
@@ -126,13 +132,13 @@ def parse_arguments():
 def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, overwrite, noask):
   _overwrite, ask_continue, show_log_if_one, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
-  work_path += "/" + tool
-
+  work_path = os.path.join(work_path, tool) 
+  
   if overwrite:
     overwrite = True
   else:
     overwrite = _overwrite
-
+  
   if noask:
     ask_continue = False
 
@@ -140,72 +146,68 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
 
   # Check if the target file exists
   if not os.path.isfile(eda_target_filename):
-    printc.error('Target file "' + eda_target_filename + '", for the selected eda tool "' + tool + '" does not exist', script_name)
+    printc.error("Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
     sys.exit(-1)
 
   # Check if the tool has a dedicated directory in script_path
   eda_tool_dir = script_path + "/" + tool
   if not os.path.isdir(eda_tool_dir):
-    printc.error('The directory "' + eda_tool_dir + '", for the selected eda tool "' + tool + '" does not exist', script_name)
-    if tool not in default_supported_tools:
-      printc.note('The selected eda tool "' + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
+    printc.error("The directory \"" + eda_tool_dir + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
+    if not tool in default_supported_tools:
+      printc.note("The selected eda tool \"" + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
     sys.exit(-1)
-
+    
   # Check if the tool makefile exists
   tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
   if not os.path.isfile(tool_makefile_file):
-    printc.error('Makefile "' + tool_makefile_file + '", for the selected eda tool "' + tool + '" does not exist', script_name)
-    if tool not in default_supported_tools:
-      printc.note('The selected eda tool "' + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
+    printc.error("Makefile \"" + tool_makefile_file + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
+    if not tool in default_supported_tools:
+      printc.note("The selected eda tool \"" + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
     sys.exit(-1)
 
-  # Try launching eda tool
+  # Try launching eda tool 
   check_tool(tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools)
 
-  with open(eda_target_filename, "r") as f:
+  with open(eda_target_filename, 'r') as f:
     try:
       settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     except Exception as e:
-      printc.error('Settings file "' + eda_target_filename + '" is not a valid YAML file', script_name)
+      printc.error("Settings file \"" + eda_target_filename + "\" is not a valid YAML file", script_name)
       printc.cyan("error details: ", end="", script_name=script_name)
       print(str(e))
-      sys.exit(-1)
-
+      sys.exit(-1) 
+    
     # Mandatory keys
     try:
       targets = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
-      constraint_filename = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      sys.exit(-1)  # if a key is missing
+      constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError) as e:
+      sys.exit(-1) # if a key is missing
 
   Running_arch.set_patterns(fmax_status_pattern, synth_status_pattern)
 
   arch_handler = ArchitectureHandler(
-    work_path=work_path,
-    arch_path=arch_path,
-    script_path=script_path,
-    work_script_path=work_script_path,
-    log_path=log_path,
-    eda_target_filename=eda_target_filename,
-    fmax_status_filename=fmax_status_filename,
-    frequency_search_filename=frequency_search_filename,
-    param_settings_filename=param_settings_filename,
-    valid_status=valid_status,
-    valid_frequency_search=valid_frequency_search,
-    default_fmax_lower_bound=default_fmax_lower_bound,
-    default_fmax_upper_bound=default_fmax_upper_bound,
-    overwrite=overwrite,
+    work_path = work_path,
+    arch_path = arch_path,
+    script_path = script_path,
+    work_script_path = work_script_path,
+    log_path = log_path,
+    eda_target_filename = eda_target_filename,
+    fmax_status_filename = fmax_status_filename,
+    frequency_search_filename = frequency_search_filename,
+    param_settings_filename = param_settings_filename,
+    valid_status = valid_status,
+    valid_frequency_search = valid_frequency_search,
+    default_fmax_lower_bound = default_fmax_lower_bound,
+    default_fmax_upper_bound = default_fmax_upper_bound,
+    overwrite = overwrite
   )
 
-  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_filename)
+  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file)
 
   # Print checklist summary
   arch_handler.print_summary()
 
-  # Split architecture in chunks, depending on the number of jobs
-  architecture_instances_chunks, nb_chunks = arch_handler.get_chuncks(nb_jobs)
-
-  # Ask to quit or continue
   if arch_handler.get_valid_arch_count() > 0:
     if ask_continue:
       print()
@@ -215,155 +217,162 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
 
   print()
 
-  for i_chunk in range(nb_chunks):
-    running_arch_list = []
-    active_running_arch_list = []
+  job_list = []
 
-    if nb_chunks == 1:
-      architecture_instances_chunk = architecture_instances
-    else:
-      architecture_instances_chunk = architecture_instances_chunks[i_chunk]
+  def prepare_job(arch_instance):
+    if True:
 
-    # print("valid_architectures : {}".format(valid_architectures))
-    for i_arch in architecture_instances_chunk:
       # Get param dir (arch name before '/')
-      arch_param_dir = re.sub("/.*", "", i_arch.arch_name)
+      arch_param_dir = re.sub('/.*', '', arch_instance.arch_name)
 
-      # Create directories
-      create_dir(i_arch.tmp_dir)
-      create_dir(os.path.join(i_arch.tmp_dir, work_report_path))
-      create_dir(os.path.join(i_arch.tmp_dir, work_result_path))
-      create_dir(os.path.join(i_arch.tmp_dir, work_log_path))
+      # Create directory
+      create_dir(arch_instance.tmp_dir)
 
       # Copy scripts
       try:
-        copytree(script_path + "/" + common_script_path, i_arch.tmp_script_path)
-      except:
-        printc.error('"' + i_arch.tmp_script_path + '" exists while it should not', script_name)
+        copytree(script_path + '/' + common_script_path, arch_instance.tmp_script_path)
+      except: 
+        printc.error("\"" + arch_instance.tmp_script_path + "\" exists while it should not" , script_name)
 
-      tool_tcl_path = os.path.join(script_path, tool, "tcl")
-      if os.path.isdir(tool_tcl_path):
-        copytree(tool_tcl_path, i_arch.tmp_script_path, dirs_exist_ok=True)
+      copytree(script_path + '/' + tool + '/tcl', arch_instance.tmp_script_path, dirs_exist_ok = True)
 
-      # Copy design
-      if i_arch.design_path != -1:
-        copytree(i_arch.design_path, i_arch.tmp_dir, dirs_exist_ok=True)
+      # Copy design 
+      if arch_instance.design_path != -1:
+        copytree(arch_instance.design_path, arch_instance.tmp_dir, dirs_exist_ok = True)
 
-      # Copy rtl (if exists)
-      if not i_arch.generate_rtl:
-        copytree(i_arch.rtl_path, i_arch.tmp_dir + "/" + "rtl", dirs_exist_ok=True)
+      # Copy rtl (if exists) 
+      if not arch_instance.generate_rtl:
+        copytree(arch_instance.rtl_path, arch_instance.tmp_dir + '/' + 'rtl', dirs_exist_ok = True)
 
       # Replace parameters
-      if i_arch.use_parameters:
-        # printc.subheader("Replace parameters")
-        param_target_file = i_arch.tmp_dir + "/" + i_arch.param_target_filename
-        param_filename = arch_path + "/" + i_arch.arch_name + ".txt"
-        replace_params(base_text_file=param_target_file, replacement_text_file=param_filename, output_file=param_target_file, start_delimiter=i_arch.start_delimiter, stop_delimiter=i_arch.stop_delimiter, replace_all_occurrences=False, silent=True)
-        # print()
+      if arch_instance.use_parameters:
+        #printc.subheader("Replace parameters")
+        param_target_file = arch_instance.tmp_dir + '/' + arch_instance.param_target_filename
+        param_filename = arch_path + '/' + arch_instance.arch_name + '.txt'
+        replace_params(
+          base_text_file=param_target_file, 
+          replacement_text_file=param_filename, 
+          output_file=param_target_file, 
+          start_delimiter=arch_instance.start_delimiter, 
+          stop_delimiter=arch_instance.stop_delimiter, 
+          replace_all_occurrences=False,
+          silent=True
+        )
+        #print()
 
       # Run generate command
-      if i_arch.generate_rtl:
+      if arch_instance.generate_rtl:
         try:
           print()
-          printc.subheader("Run generate command for " + i_arch.arch_display_name)
-          printc.bold(" > " + i_arch.generate_command)
-          result = subprocess.run([i_arch.generate_command], cwd=i_arch.tmp_dir, shell=True, check=True, text=True)
+          printc.subheader("Run generate command for " + arch_instance.arch_display_name)
+          printc.bold(" > " + arch_instance.generate_command)
+          result = subprocess.run([arch_instance.generate_command], cwd=arch_instance.tmp_dir, shell=True, check=True, text=True)
         except subprocess.CalledProcessError:
           print()
           printc.error("rtl generation failed", script_name)
           printc.note("look for earlier error to solve this issue", script_name)
           print()
-          continue
+          return
 
       # Create target and architecture files
-      f = open(i_arch.tmp_dir + "/" + target_filename, "w")
-      print(i_arch.target, file=f)
+      f = open(arch_instance.tmp_dir + '/' + target_filename, 'w')
+      print(arch_instance.target, file = f)
       f.close()
-      f = open(i_arch.tmp_dir + "/" + arch_filename, "w")
-      print(i_arch.arch_name, file=f)
+      f = open(arch_instance.tmp_dir + '/' + arch_filename, 'w')
+      print(arch_instance.arch_name, file = f)
       f.close()
 
       # File copy
-      if i_arch.file_copy_enable:
-        file_copy_dest = os.path.join(i_arch.tmp_dir, i_arch.file_copy_dest)
+      if arch_instance.file_copy_enable:
+        file_copy_dest = os.path.join(arch_instance.tmp_dir, arch_instance.file_copy_dest)
         try:
-          shutil.copy2(i_arch.file_copy_source, file_copy_dest)
+          shutil.copy2(arch_instance.file_copy_source, file_copy_dest)
         except Exception as e:
-          printc.error('Could not copy "' + i_arch.script_copy_source + '" to "' + os.path.realpath(file_copy_dest) + '"', script_name)
+          printc.error("Could not copy \"" + arch_instance.script_copy_source + "\" to \"" + os.path.realpath(file_copy_dest) + "\"", script_name)
           printc.cyan("error details: ", end="", script_name=script_name)
           print(str(e))
-          continue
+          return
 
       # Script copy
-      if i_arch.script_copy_enable:
+      if arch_instance.script_copy_enable:
         try:
-          shutil.copy2(i_arch.script_copy_source, i_arch.tmp_script_path)
+          shutil.copy2(arch_instance.script_copy_source, arch_instance.tmp_script_path)
         except Exception as e:
-          printc.error('Could not copy "' + i_arch.script_copy_source + '" to "' + os.path.realpath(i_arch.tmp_script_path) + '"', script_name)
+          printc.error("Could not copy \"" + arch_instance.script_copy_source + "\" to \"" + os.path.realpath(arch_instance.tmp_script_path) + "\"", script_name)
           printc.cyan("error details: ", end="", script_name=script_name)
           print(str(e))
-          continue
+          return
 
       # Edit tcl config script
-      tcl_config_file = os.path.join(i_arch.tmp_script_path, tcl_config_filename)
-      edit_config_file(i_arch, tcl_config_file)
+      tcl_config_file = os.path.join(arch_instance.tmp_script_path, tcl_config_filename)
+      edit_config_file(arch_instance, tcl_config_file)
 
       # Write yaml config script
-      yaml_config_file = os.path.join(i_arch.tmp_dir, yaml_config_filename)
-      Architecture.write_yaml(i_arch, yaml_config_file)
+      yaml_config_file = os.path.join(arch_instance.tmp_dir, yaml_config_filename)
+      Architecture.write_yaml(arch_instance, yaml_config_file)
 
       # Link all scripts to config script
-      for filename in os.listdir(i_arch.tmp_script_path):
-        if filename.endswith(".tcl"):
-          with open(i_arch.tmp_script_path + "/" + filename, "r") as f:
+      for filename in os.listdir(arch_instance.tmp_script_path):
+        if filename.endswith('.tcl'):
+          with open(arch_instance.tmp_script_path + '/' + filename, 'r') as f:
             tcl_content = f.read()
           pattern = re.escape(source_tcl) + r"(.+?\.tcl)"
-
           def replace_path(match):
-            return "source " + i_arch.tmp_script_path + "/" + match.group(1)
-
+              return "source " + arch_instance.tmp_script_path + "/" + match.group(1)
           tcl_content = re.sub(pattern, replace_path, tcl_content)
-          with open(i_arch.tmp_script_path + "/" + filename, "w") as f:
+          with open(arch_instance.tmp_script_path + '/' + filename, 'w') as f:
             f.write(tcl_content)
 
       # Run binary search script
       tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
-      process = run_parallel(
-        command="make -f {} {}".format(tool_makefile_file, synth_fmax_rule)
-        + ' WORK_DIR="{}"'.format(os.path.realpath(i_arch.tmp_dir))
-        + ' SCRIPT_DIR="{}"'.format(os.path.realpath(os.path.join(i_arch.tmp_dir, work_script_path)))
-        + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(i_arch.tmp_dir, log_path)))
-        + ' CLOCK_SIGNAL="{}"'.format(i_arch.clock_signal)
-        + ' TOP_LEVEL_MODULE="{}"'.format(i_arch.top_level_module)
-        + ' LIB_NAME="{}"'.format(i_arch.lib_name)
-        + " --no-print-directory",
-        nb_process=len(architecture_instances_chunk),
-        show_log_if_one=show_log_if_one,
+      command = (
+        "make -f {} {}".format(tool_makefile_file, synth_fmax_rule)
+        + ' WORK_DIR="{}"'.format(os.path.realpath(arch_instance.tmp_dir))
+        + ' SCRIPT_DIR="{}"'.format(os.path.realpath(os.path.join(arch_instance.tmp_dir, work_script_path)))
+        + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(arch_instance.tmp_dir, log_path)))
+        + ' CLOCK_SIGNAL="{}"'.format(arch_instance.clock_signal)
+        + ' TOP_LEVEL_MODULE="{}"'.format(arch_instance.top_level_module)
+        + ' LIB_NAME="{}"'.format(arch_instance.lib_name)
+        + " --no-print-directory"
       )
 
-      fmax_status_file = i_arch.tmp_dir + "/" + log_path + "/" + fmax_status_filename
-      synth_status_file = i_arch.tmp_dir + "/" + log_path + "/" + synth_status_filename
+      fmax_status_file = os.path.join(arch_instance.tmp_dir, log_path, fmax_status_filename)
+      synth_status_file = os.path.join(arch_instance.tmp_dir, log_path, synth_status_filename)
 
-      running_arch_list.append(Running_arch(process=process, target=i_arch.target, arch=i_arch.arch_name, display_name=i_arch.arch_display_name, status_file=fmax_status_file, progress_file=synth_status_file, tmp_dir=i_arch.tmp_dir))
-      printc.say('started job for architecture "{}" between {} and {} MHz with pid {}'.format(i_arch.arch_name, i_arch.fmax_lower_bound, i_arch.fmax_upper_bound, process.pid), script_name)
+      running_arch = Running_arch(
+        process=None,
+        command=command,
+        target=arch_instance.target,
+        arch=arch_instance.arch_name,
+        display_name=arch_instance.arch_display_name,
+        status_file=fmax_status_file,
+        progress_file=synth_status_file,
+        tmp_dir=arch_instance.tmp_dir,
+        status="idle"
+      )
 
-    show_progress(running_arch_list, refresh_time, show_log_if_one, mode="synthesis")
+      job_list.append(running_arch)
 
-    # Summary
-    print()
-    for running_arch in running_arch_list:
-      tmp_dir = work_path + "/" + running_arch.target + "/" + running_arch.arch
-      frequency_search_file = tmp_dir + "/" + log_path + "/" + frequency_search_filename
-      try:
-        with open(frequency_search_file, "r") as file:
-          lines = file.readlines()
-          if len(lines) >= 1:
-            summary_line = lines[-1]
-            print(running_arch.display_name + ": " + summary_line, end="")
-      except:
-        #  print(f"frequency_search_file '{frequency_search_file}' does not exist")
-        pass
-    print()
+
+  for arch_instance in architecture_instances:
+    prepare_job(arch_instance)
+
+  parallel_job_handler.run_parallel(job_list, nb_jobs)
+
+  # Summary
+  print()
+  for running_arch in job_list:
+    tmp_dir = work_path + "/" + running_arch.target + "/" + running_arch.arch
+    frequency_search_file = tmp_dir + "/" + log_path + "/" + frequency_search_filename
+    try:
+      with open(frequency_search_file, "r") as file:
+        lines = file.readlines()
+        if len(lines) >= 1:
+          summary_line = lines[-1]
+          print(running_arch.display_name + ": " + summary_line, end="")
+    except:
+      pass
+  print()
 
 
 ######################################
