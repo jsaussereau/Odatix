@@ -132,13 +132,13 @@ def parse_arguments():
 def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, overwrite, noask):
   _overwrite, ask_continue, show_log_if_one, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
-  work_path = os.path.join(work_path, tool) 
-  
+  work_path = os.path.join(work_path, tool)
+
   if overwrite:
     overwrite = True
   else:
     overwrite = _overwrite
-  
+
   if noask:
     ask_continue = False
 
@@ -146,61 +146,79 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
 
   # Check if the target file exists
   if not os.path.isfile(eda_target_filename):
-    printc.error("Target file \"" + eda_target_filename + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
+    printc.error(
+      'Target file "' + eda_target_filename + '", for the selected eda tool "' + tool + '" does not exist', script_name
+    )
     sys.exit(-1)
 
   # Check if the tool has a dedicated directory in script_path
   eda_tool_dir = script_path + "/" + tool
   if not os.path.isdir(eda_tool_dir):
-    printc.error("The directory \"" + eda_tool_dir + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
-    if not tool in default_supported_tools:
-      printc.note("The selected eda tool \"" + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
+    printc.error(
+      'The directory "' + eda_tool_dir + '", for the selected eda tool "' + tool + '" does not exist', script_name
+    )
+    if tool not in default_supported_tools:
+      printc.note(
+        'The selected eda tool "'
+        + tool
+        + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool",
+        script_name,
+      )
     sys.exit(-1)
-    
+
   # Check if the tool makefile exists
   tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
   if not os.path.isfile(tool_makefile_file):
-    printc.error("Makefile \"" + tool_makefile_file + "\", for the selected eda tool \"" + tool + "\" does not exist", script_name)
-    if not tool in default_supported_tools:
-      printc.note("The selected eda tool \"" + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
+    printc.error(
+      'Makefile "' + tool_makefile_file + '", for the selected eda tool "' + tool + '" does not exist', script_name
+    )
+    if tool not in default_supported_tools:
+      printc.note(
+        'The selected eda tool "'
+        + tool
+        + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool",
+        script_name,
+      )
     sys.exit(-1)
 
-  # Try launching eda tool 
-  check_tool(tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools)
+  # Try launching eda tool
+  check_tool(
+    tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools
+  )
 
-  with open(eda_target_filename, 'r') as f:
+  with open(eda_target_filename, "r") as f:
     try:
       settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     except Exception as e:
-      printc.error("Settings file \"" + eda_target_filename + "\" is not a valid YAML file", script_name)
+      printc.error('Settings file "' + eda_target_filename + '" is not a valid YAML file', script_name)
       printc.cyan("error details: ", end="", script_name=script_name)
       print(str(e))
-      sys.exit(-1) 
-    
+      sys.exit(-1)
+
     # Mandatory keys
     try:
       targets = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
       constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError) as e:
-      sys.exit(-1) # if a key is missing
+    except (KeyNotInListError, BadValueInListError):
+      sys.exit(-1)  # if a key is missing
 
   Running_arch.set_patterns(fmax_status_pattern, synth_status_pattern)
 
   arch_handler = ArchitectureHandler(
-    work_path = work_path,
-    arch_path = arch_path,
-    script_path = script_path,
-    work_script_path = work_script_path,
-    log_path = log_path,
-    eda_target_filename = eda_target_filename,
-    fmax_status_filename = fmax_status_filename,
-    frequency_search_filename = frequency_search_filename,
-    param_settings_filename = param_settings_filename,
-    valid_status = valid_status,
-    valid_frequency_search = valid_frequency_search,
-    default_fmax_lower_bound = default_fmax_lower_bound,
-    default_fmax_upper_bound = default_fmax_upper_bound,
-    overwrite = overwrite
+    work_path=work_path,
+    arch_path=arch_path,
+    script_path=script_path,
+    work_script_path=work_script_path,
+    log_path=log_path,
+    eda_target_filename=eda_target_filename,
+    fmax_status_filename=fmax_status_filename,
+    frequency_search_filename=frequency_search_filename,
+    param_settings_filename=param_settings_filename,
+    valid_status=valid_status,
+    valid_frequency_search=valid_frequency_search,
+    default_fmax_lower_bound=default_fmax_lower_bound,
+    default_fmax_upper_bound=default_fmax_upper_bound,
+    overwrite=overwrite,
   )
 
   architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file)
@@ -221,44 +239,43 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
 
   def prepare_job(arch_instance):
     if True:
-
       # Get param dir (arch name before '/')
-      arch_param_dir = re.sub('/.*', '', arch_instance.arch_name)
+      arch_param_dir = re.sub("/.*", "", arch_instance.arch_name)
 
       # Create directory
       create_dir(arch_instance.tmp_dir)
 
       # Copy scripts
       try:
-        copytree(script_path + '/' + common_script_path, arch_instance.tmp_script_path)
-      except: 
-        printc.error("\"" + arch_instance.tmp_script_path + "\" exists while it should not" , script_name)
+        copytree(script_path + "/" + common_script_path, arch_instance.tmp_script_path)
+      except:
+        printc.error('"' + arch_instance.tmp_script_path + '" exists while it should not', script_name)
 
-      copytree(script_path + '/' + tool + '/tcl', arch_instance.tmp_script_path, dirs_exist_ok = True)
+      copytree(script_path + "/" + tool + "/tcl", arch_instance.tmp_script_path, dirs_exist_ok=True)
 
-      # Copy design 
+      # Copy design
       if arch_instance.design_path != -1:
-        copytree(arch_instance.design_path, arch_instance.tmp_dir, dirs_exist_ok = True)
+        copytree(arch_instance.design_path, arch_instance.tmp_dir, dirs_exist_ok=True)
 
-      # Copy rtl (if exists) 
+      # Copy rtl (if exists)
       if not arch_instance.generate_rtl:
-        copytree(arch_instance.rtl_path, arch_instance.tmp_dir + '/' + 'rtl', dirs_exist_ok = True)
+        copytree(arch_instance.rtl_path, arch_instance.tmp_dir + "/" + "rtl", dirs_exist_ok=True)
 
       # Replace parameters
       if arch_instance.use_parameters:
-        #printc.subheader("Replace parameters")
-        param_target_file = arch_instance.tmp_dir + '/' + arch_instance.param_target_filename
-        param_filename = arch_path + '/' + arch_instance.arch_name + '.txt'
+        # printc.subheader("Replace parameters")
+        param_target_file = arch_instance.tmp_dir + "/" + arch_instance.param_target_filename
+        param_filename = arch_path + "/" + arch_instance.arch_name + ".txt"
         replace_params(
-          base_text_file=param_target_file, 
-          replacement_text_file=param_filename, 
-          output_file=param_target_file, 
-          start_delimiter=arch_instance.start_delimiter, 
-          stop_delimiter=arch_instance.stop_delimiter, 
+          base_text_file=param_target_file,
+          replacement_text_file=param_filename,
+          output_file=param_target_file,
+          start_delimiter=arch_instance.start_delimiter,
+          stop_delimiter=arch_instance.stop_delimiter,
           replace_all_occurrences=False,
-          silent=True
+          silent=True,
         )
-        #print()
+        # print()
 
       # Run generate command
       if arch_instance.generate_rtl:
@@ -266,7 +283,9 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
           print()
           printc.subheader("Run generate command for " + arch_instance.arch_display_name)
           printc.bold(" > " + arch_instance.generate_command)
-          result = subprocess.run([arch_instance.generate_command], cwd=arch_instance.tmp_dir, shell=True, check=True, text=True)
+          result = subprocess.run(
+            [arch_instance.generate_command], cwd=arch_instance.tmp_dir, shell=True, check=True, text=True
+          )
         except subprocess.CalledProcessError:
           print()
           printc.error("rtl generation failed", script_name)
@@ -275,11 +294,11 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
           return
 
       # Create target and architecture files
-      f = open(arch_instance.tmp_dir + '/' + target_filename, 'w')
-      print(arch_instance.target, file = f)
+      f = open(arch_instance.tmp_dir + "/" + target_filename, "w")
+      print(arch_instance.target, file=f)
       f.close()
-      f = open(arch_instance.tmp_dir + '/' + arch_filename, 'w')
-      print(arch_instance.arch_name, file = f)
+      f = open(arch_instance.tmp_dir + "/" + arch_filename, "w")
+      print(arch_instance.arch_name, file=f)
       f.close()
 
       # File copy
@@ -288,7 +307,10 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
         try:
           shutil.copy2(arch_instance.file_copy_source, file_copy_dest)
         except Exception as e:
-          printc.error("Could not copy \"" + arch_instance.script_copy_source + "\" to \"" + os.path.realpath(file_copy_dest) + "\"", script_name)
+          printc.error(
+            'Could not copy "' + arch_instance.script_copy_source + '" to "' + os.path.realpath(file_copy_dest) + '"',
+            script_name,
+          )
           printc.cyan("error details: ", end="", script_name=script_name)
           print(str(e))
           return
@@ -298,7 +320,14 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
         try:
           shutil.copy2(arch_instance.script_copy_source, arch_instance.tmp_script_path)
         except Exception as e:
-          printc.error("Could not copy \"" + arch_instance.script_copy_source + "\" to \"" + os.path.realpath(arch_instance.tmp_script_path) + "\"", script_name)
+          printc.error(
+            'Could not copy "'
+            + arch_instance.script_copy_source
+            + '" to "'
+            + os.path.realpath(arch_instance.tmp_script_path)
+            + '"',
+            script_name,
+          )
           printc.cyan("error details: ", end="", script_name=script_name)
           print(str(e))
           return
@@ -313,14 +342,16 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
 
       # Link all scripts to config script
       for filename in os.listdir(arch_instance.tmp_script_path):
-        if filename.endswith('.tcl'):
-          with open(arch_instance.tmp_script_path + '/' + filename, 'r') as f:
+        if filename.endswith(".tcl"):
+          with open(arch_instance.tmp_script_path + "/" + filename, "r") as f:
             tcl_content = f.read()
           pattern = re.escape(source_tcl) + r"(.+?\.tcl)"
+
           def replace_path(match):
-              return "source " + arch_instance.tmp_script_path + "/" + match.group(1)
+            return "source " + arch_instance.tmp_script_path + "/" + match.group(1)
+
           tcl_content = re.sub(pattern, replace_path, tcl_content)
-          with open(arch_instance.tmp_script_path + '/' + filename, 'w') as f:
+          with open(arch_instance.tmp_script_path + "/" + filename, "w") as f:
             f.write(tcl_content)
 
       # Run binary search script
@@ -348,11 +379,10 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
         status_file=fmax_status_file,
         progress_file=synth_status_file,
         tmp_dir=arch_instance.tmp_dir,
-        status="idle"
+        status="idle",
       )
 
       job_list.append(running_arch)
-
 
   for arch_instance in architecture_instances:
     prepare_job(arch_instance)
