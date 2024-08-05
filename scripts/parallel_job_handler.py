@@ -157,20 +157,20 @@ class ParallelJobHandler:
       ("Home/End", "Scroll to Top/Bottom"),
     ]
 
-    help_win.attron(curses.color_pair(10))
+    help_win.attron(curses.color_pair(1) | curses.A_REVERSE)
     help_win.addstr(" ")
 
     for i, (key, description) in enumerate(help_text):
       if i > 0:
         help_win.addstr(" | ")
-      help_win.attron(curses.color_pair(10) | curses.A_BOLD)
+      help_win.attron(curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
       help_win.addstr(key)
       help_win.attroff(curses.A_BOLD)  # Remove attributes
       help_win.addstr(": ")
       help_win.addstr(description)
 
     help_win.addstr(" ")
-    help_win.attroff(curses.color_pair(10) | curses.A_BOLD)
+    help_win.attroff(curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
     help_win.refresh()
 
   @staticmethod
@@ -231,7 +231,7 @@ class ParallelJobHandler:
     curses.init_pair(3, curses.COLOR_YELLOW, -1)
     curses.init_pair(4, curses.COLOR_GREEN, -1)
     curses.init_pair(5, curses.COLOR_BLUE, -1)
-    curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_WHITE + ansi_to_curses.LIGHT_OFFSET)
 
     height, width = stdscr.getmaxyx()
 
@@ -240,7 +240,7 @@ class ParallelJobHandler:
     # Adjust window positions
     progress_height = len(self.job_list)
     separator_height = 1
-    help_height = 2  # Height for the help window
+    help_height = 1
     logs_height = height - progress_height - separator_height - help_height - header_height
 
     header_win = curses.newwin(header_height, width, 0, 0)
@@ -258,9 +258,9 @@ class ParallelJobHandler:
         self.queue_job(job)
 
     while True:
-      # Add a separator
-      header_win.erase()
-      header_win.addstr(0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(10) | curses.A_BOLD)
+      # Add a header
+      header_win.hline(0, 0, " ", width, curses.color_pair(1) | curses.A_REVERSE)
+      header_win.addstr(0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(1) | curses.A_REVERSE)
       header_win.hline(1, 0, "-", width)
       header_win.refresh()
 
