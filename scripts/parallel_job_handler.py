@@ -224,24 +224,26 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
         separator_win.hline(0, 0, '-', width)
         separator_win.refresh()
 
-        for job in running_job_list:            
-            try:
-                read_ready, _, _ = select.select([job.process.stdout, job.process.stderr], [], [], 0.1)
-            except:
-                pass
+        # Collect all stdout and stderr pipes
+        pipes = [job.process.stdout for job in running_job_list] + [job.process.stderr for job in running_job_list]
 
-            for pipe in read_ready:
-                while True:
-                    line = pipe.readline()
-                    if line:
-                        job.log_history.append(line)
-                        
-                        # Apply log size limit
-                        if log_size_limit != -1 and len(job.log_history) > log_size_limit:
-                            job.log_history = job.log_history[-log_size_limit:]
-                    else:
-                        break
+        try:
+            read_ready, _, _ = select.select(pipes, [], [], 0.1)
+        except:
+            read_ready = []
 
+        for pipe in read_ready:
+            for job in running_job_list:
+                if pipe in (job.process.stdout, job.process.stderr):
+                    while True:
+                        line = pipe.readline()
+                        if line:
+                            job.log_history.append(line)
+                            # Apply log size limit
+                            if log_size_limit != -1 and len(job.log_history) > log_size_limit:
+                                job.log_history = job.log_history[-log_size_limit:]
+                        else:
+                            break
 
         # Automatically scroll if at the bottom
         if selected_job.autoscroll:
@@ -266,12 +268,12 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
                 update_logs(logs_win, selected_job, logs_height)
         elif key == curses.KEY_UP:  # Scroll Up
             if selected_job.log_position > 0:
-                selected_job.log_position = max(0, selected_job.log_position - 1)
+                selected_job.log_position = max(0, selected_job.log_position - 3)
                 selected_job.autoscroll = False
                 update_logs(logs_win, selected_job, logs_height)
         elif key == curses.KEY_DOWN:  # Scroll Down
             if selected_job.log_position + logs_height < len(selected_job.log_history):
-                selected_job.log_position = min(len(selected_job.log_history) - logs_height, selected_job.log_position + 1)
+                selected_job.log_position = min(len(selected_job.log_history) - logs_height, selected_job.log_position + 3)
                 selected_job.autoscroll = False
                 update_logs(logs_win, selected_job, logs_height)
         elif key == curses.KEY_HOME:  # Home
