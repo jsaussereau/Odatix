@@ -1,6 +1,6 @@
-#**********************************************************************#
-#                               Asterism                               #
-#**********************************************************************#
+# ********************************************************************** #
+#                               Asterism                                 #
+# ********************************************************************** #
 #
 # Copyright (C) 2022 Jonathan Saussereau
 #
@@ -9,12 +9,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # Asterism is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
@@ -30,48 +30,98 @@ from utils import *
 
 script_name = os.path.basename(__file__)
 
+
 class Running_arch:
   status_file_pattern = re.compile(r"(.*)")
   progress_file_pattern = re.compile(r"(.*)")
 
-  def __init__(self, process, target, arch, display_name, status_file, progress_file, tmp_dir):
+  def __init__(
+    self, process, command, target, arch, display_name, status_file, progress_file, tmp_dir, status="not started"
+  ):
     self.process = process
+    self.command = command
     self.target = target
     self.arch = arch
     self.display_name = display_name
     self.status_file = status_file
     self.progress_file = progress_file
     self.tmp_dir = tmp_dir
+    self.status = status
+
+    self.log_history = []
+    self.log_position = 0
+    self.autoscroll = True
 
   @staticmethod
   def set_patterns(status_file_pattern, progress_file_pattern):
     Running_arch.status_file_pattern = status_file_pattern
     Running_arch.progress_file_pattern = progress_file_pattern
 
+  def get_progress(self):
+    # Get progress from status file
+    fmax_progress = 0
+    fmax_step = 1
+    fmax_totalstep = 1
+    if os.path.isfile(self.status_file):
+      with open(self.status_file, "r") as f:
+        content = f.read()
+      for match in re.finditer(Running_arch.status_file_pattern, content):
+        parts = Running_arch.status_file_pattern.search(match.group())
+        if len(parts.groups()) >= 4:
+          fmax_progress = int(parts.group(2))
+          fmax_step = int(parts.group(3))
+          fmax_totalstep = int(parts.group(4))
+
+    # Get progress from synth status file
+    synth_progress = 0
+    if os.path.isfile(self.progress_file):
+      with open(self.progress_file, "r") as f:
+        content = f.read()
+      for match in re.finditer(Running_arch.progress_file_pattern, content):
+        parts = Running_arch.progress_file_pattern.search(match.group())
+        if len(parts.groups()) >= 2:
+          synth_progress = int(parts.group(2))
+
+    # Compute total progress
+    if fmax_totalstep != 0:
+      progress = fmax_progress + synth_progress / fmax_totalstep
+    else:
+      progress = synth_progress
+
+    return progress
+
 
 def check_tool(tool, script_path, makefile, rule, supported_tools):
-  print("checking the selected eda tool \"" + tool + "\" ..", end='')
+  print('checking the selected eda tool "' + tool + '" ..', end="")
   sys.stdout.flush()
   tool_makefile_file = script_path + "/" + tool + "/" + makefile
-  test_process = subprocess.Popen(["make", "-f", tool_makefile_file, rule, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+  test_process = subprocess.Popen(
+    ["make", "-f", tool_makefile_file, rule, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+  )
   while test_process.poll() is None:
-    print('.', end='', flush=True)
+    print(".", end="", flush=True)
     time.sleep(0.5)
   if test_process.returncode == 0:
-      printc.green(" success!")
+    printc.green(" success!")
   else:
     printc.red(" failed!")
     error_message = test_process.stderr.read().decode()
-    printc.error("Could not launch eda tool \"" + tool + "\"", script_name)
+    printc.error('Could not launch eda tool "' + tool + '"', script_name)
     printc.cyan("error details: ", script_name, end="")
     printc.red(error_message, end="")
     printc.note("Did you add the tool path to your PATH environment variable?", script_name)
     printc.note("Example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin", script_name)
-    if not tool in supported_tools:
-      printc.note("The selected eda tool \"" + tool + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool", script_name)
-      printc.note("Make sure there is a valid rule \"" + rule + "\" in \"" + tool_makefile_file + "\"", script_name)
+    if tool not in supported_tools:
+      printc.note(
+        'The selected eda tool "'
+        + tool
+        + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool",
+        script_name,
+      )
+      printc.note('Make sure there is a valid rule "' + rule + '" in "' + tool_makefile_file + '"', script_name)
     sys.exit(-1)
   print()
+
 
 def run_parallel(command, nb_process=1, show_log_if_one=True, directory=None):
   if directory is None:
@@ -83,17 +133,18 @@ def run_parallel(command, nb_process=1, show_log_if_one=True, directory=None):
     process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, cwd=directory, shell=True)
   return process
 
+
 def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True, mode="synthesis"):
-  # prepare output    
+  # prepare output
   print()
   for running_arch in running_arch_list:
-    print() 
+    print()
 
   active_running_arch_list = copy.copy(running_arch_list)
 
   # wait for all processes to finish
   while len(active_running_arch_list) > 0:
-    if not(len(running_arch_list) == 1 and show_log_if_one):
+    if not (len(running_arch_list) == 1 and show_log_if_one):
       # go back to first line
       for running_arch in running_arch_list:
         move_cursor_up()
@@ -101,7 +152,6 @@ def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True, mode=
     max_title_length = max(len(running_arch.display_name) for running_arch in running_arch_list)
 
     for running_arch in running_arch_list:
-
       if mode == "synthesis":
         # get status files full paths
         fmax_status_file = running_arch.status_file
@@ -114,7 +164,7 @@ def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True, mode=
         fmax_step = 1
         fmax_totalstep = 1
         if os.path.isfile(fmax_status_file):
-          with open(fmax_status_file, 'r') as f:
+          with open(fmax_status_file, "r") as f:
             content = f.read()
           for match in re.finditer(fmax_status_pattern, content):
             parts = fmax_status_pattern.search(match.group())
@@ -122,11 +172,11 @@ def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True, mode=
               fmax_progress = int(parts.group(2))
               fmax_step = int(parts.group(3))
               fmax_totalstep = int(parts.group(4))
-        
+
         # get progress from synth status file
         synth_progress = 0
         if os.path.isfile(synth_status_file):
-          with open(synth_status_file, 'r') as f:
+          with open(synth_status_file, "r") as f:
             content = f.read()
           for match in re.finditer(synth_status_pattern, content):
             parts = synth_status_pattern.search(match.group())
@@ -140,14 +190,14 @@ def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True, mode=
           progress = synth_progress
       else:
         progress = None
-        
-      # check if process has finished and print progress 
+
+      # check if process has finished and print progress
       if running_arch.process.poll() is not None:
-        try: 
+        try:
           active_running_arch_list.remove(running_arch)
         except:
           pass
-        
+
         if running_arch.process.returncode == 0:
           comment = " (" + printc.colors.GREEN + "done" + printc.colors.ENDC + ")"
           if progress is None:
@@ -157,7 +207,7 @@ def show_progress(running_arch_list, refresh_time=5, show_log_if_one=True, mode=
           if progress is None:
             progress = 0
         progress_bar(progress, title=running_arch.display_name, title_size=max_title_length, endstr=comment)
-      else: 
+      else:
         progress_bar(progress, title=running_arch.display_name, title_size=max_title_length)
 
     time.sleep(refresh_time)
