@@ -175,7 +175,7 @@ class ParallelJobHandler:
     help_win.refresh()
 
   @staticmethod
-  def update_logs(logs_win, selected_job, logs_height, previous_log_size):
+  def update_logs(logs_win, selected_job, logs_height, previous_log_size, width):
     history = selected_job.log_history
     log_length = len(history)
 
@@ -193,7 +193,7 @@ class ParallelJobHandler:
       try:
         logs_win.move(i, 0)
         logs_win.clrtoeol()
-        ansi_to_curses.add_ansi_str(logs_win, line)
+        ansi_to_curses.add_ansi_str(logs_win, line, width)
       except curses.error:
         pass
 
@@ -350,7 +350,7 @@ class ParallelJobHandler:
       # Automatically scroll if at the bottom
       if selected_job.autoscroll and selected_job.log_changed:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size)
+        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
 
       stdscr.nodelay(True)
       key = stdscr.getch()
@@ -365,32 +365,32 @@ class ParallelJobHandler:
           selected_job = self.job_list[self.selected_job_index]
           selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
           selected_job.autoscroll = True
-          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size)
+          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
       elif key == curses.KEY_NPAGE:  # Page Down
         if self.selected_job_index < len(self.job_list) - 1:
           self.selected_job_index += 1
           selected_job = self.job_list[self.selected_job_index]
           selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
           selected_job.autoscroll = True
-          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size)
+          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
       elif key == curses.KEY_UP:  # Scroll Up
         if selected_job.log_position > 0:
           selected_job.log_position = max(0, selected_job.log_position - 3)
           selected_job.autoscroll = False
-          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size)
+          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
       elif key == curses.KEY_DOWN:  # Scroll Down
         if selected_job.log_position + logs_height < len(selected_job.log_history):
           selected_job.log_position = min(len(selected_job.log_history) - logs_height, selected_job.log_position + 3)
           selected_job.autoscroll = False
-          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size)
+          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
       elif key == curses.KEY_HOME:  # Home
         selected_job.log_position = 0
         selected_job.autoscroll = False
-        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size)
+        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
       elif key == curses.KEY_END:  # End
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         selected_job.autoscroll = True
-        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size)
+        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
 
       self.update_help(help_win)
 
@@ -398,7 +398,7 @@ class ParallelJobHandler:
       selected_job.log_history.append("\nProcess completed. Press any key to exit.")
     except curses.error:
       pass
-    self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size)
+    self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
     logs_win.refresh()
     logs_win.getkey()
 

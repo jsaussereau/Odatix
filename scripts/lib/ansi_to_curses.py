@@ -46,7 +46,7 @@ ANSI_COLORS = {
 }
 
 
-def add_ansi_str(win, text):
+def add_ansi_str(win, text, width=-1):
   # Initialize colors in curses mode
   curses.start_color()
   curses.use_default_colors()
@@ -64,15 +64,23 @@ def add_ansi_str(win, text):
   color = 1  # Default color: white on black
   attr = A_NORMAL  # Default attribute
 
+  line_width = width if width > 0 else float("inf")  # Handle negative width
+
   while True:
     match = ansi_escape.search(text, pos)
     if match is None:
-      win.addstr(text[pos:], attr | curses.color_pair(color))
+      segment = text[pos:]
+      if len(segment) > line_width:
+        segment = segment[:line_width]  # Truncate if needed
+      win.addstr(segment, attr | curses.color_pair(color))
       win.refresh()
       break
 
     # Display text before the next color code
-    win.addstr(text[pos : match.start()], attr | curses.color_pair(color))
+    segment = text[pos : match.start()]
+    if len(segment) > line_width:
+      segment = segment[:line_width]  # Truncate if needed
+    win.addstr(segment, attr | curses.color_pair(color))
     pos = match.end()
 
     # Parse color code
@@ -89,4 +97,7 @@ def add_ansi_str(win, text):
         color = int(code)
 
     # Display text with the specified color
+    if width > 0 and win.getyx()[1] >= width:
+      break  # Exit if width exceeded
+
     win.addstr("", attr | curses.color_pair(color))
