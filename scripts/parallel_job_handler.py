@@ -96,15 +96,31 @@ def update_help(help_win):
     help_win.attroff(curses.color_pair(10) | curses.A_BOLD) 
     help_win.refresh()
 
-def update_logs(logs_win, selected_job, logs_height):
-    logs_win.erase()
+def update_logs(logs_win, selected_job, logs_height, previous_log_size):
     history = selected_job.log_history
-    for line in history[selected_job.log_position:selected_job.log_position + logs_height]:
+    log_length = len(history)
+    
+    # Erase lines extra lines from previous selected job
+    if log_length < previous_log_size:
+        for i in range(log_length, previous_log_size):
+            try:
+                logs_win.move(i, 0)
+                logs_win.clrtoeol()
+            except curses.error:
+                pass
+
+    # Logs from selected job
+    for i, line in enumerate(history[selected_job.log_position:selected_job.log_position + logs_height]):
         try:
-            line = ansi_to_curses.add_ansi_str(logs_win, line)
+            logs_win.move(i, 0)
+            logs_win.clrtoeol()
+            ansi_to_curses.add_ansi_str(logs_win, line)
         except curses.error:
             pass
+    
     logs_win.refresh()
+    return log_length  # Retourner la taille actuelle des journaux pour la prochaine mise à jour
+
 
 def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
     curses.curs_set(0)  # Hide cursor
@@ -139,6 +155,15 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
     running_job_list = []
     retired_job_list = []
 
+    job_queue = queue.Queue()
+
+    selected_job_index = 0
+    selected_job = job_list[0]
+
+    max_title_length = max(len(job.display_name) for job in job_list)
+
+    previous_log_size = 0
+
     def run_job(job):
         process = subprocess.Popen(
             STD_BUF + job.command,
@@ -163,7 +188,13 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
         job.progress = progress
         retired_job_list.append(job)
 
-    job_queue = queue.Queue()
+    def display_next_job():
+        selected_job_index += 1
+        selected_job = job_list[selected_job_index]
+
+    def display_previous_job():
+        selected_job_index -= 1
+        selected_job = job_list[selected_job_index]
 
     for job in job_list:
         if len(running_job_list) < nb_jobs:
@@ -171,13 +202,8 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
         else:
             queue_job(job)
 
-    selected_job_index = 0
-    selected_job = job_list[0]
-
-    max_title_length = max(len(job.display_name) for job in job_list)
 
     while True:
-        selected_job = job_list[selected_job_index]
 
         # Add a separator   
         header_win.erase()
@@ -234,6 +260,7 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
 
         for pipe in read_ready:
             for job in running_job_list:
+                job.log_changed = False
                 if pipe in (job.process.stdout, job.process.stderr):
                     while True:
                         line = pipe.readline()
@@ -242,13 +269,15 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
                             # Apply log size limit
                             if log_size_limit != -1 and len(job.log_history) > log_size_limit:
                                 job.log_history = job.log_history[-log_size_limit:]
+                            job.log_changed = True
                         else:
                             break
 
         # Automatically scroll if at the bottom
-        if selected_job.autoscroll:
+        if selected_job.autoscroll and selected_job.log_changed:
             selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-            update_logs(logs_win, selected_job, logs_height)
+            previous_log_size = update_logs(logs_win, selected_job, logs_height, previous_log_size)
+            
 
         stdscr.nodelay(True)
         key = stdscr.getch()
@@ -256,34 +285,34 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
             break
         elif key == curses.KEY_PPAGE:  # Page Up
             if selected_job_index > 0:
-                selected_job_index -= 1
+                display_previous_job()
                 selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
                 selected_job.autoscroll = True
-                update_logs(logs_win, selected_job, logs_height)
+                previous_log_size = update_logs(logs_win, selected_job, logs_height, previous_log_size)
         elif key == curses.KEY_NPAGE:  # Page Down
             if selected_job_index < len(job_list) - 1:
-                selected_job_index += 1
+                display_next_job()
                 selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
                 selected_job.autoscroll = True
-                update_logs(logs_win, selected_job, logs_height)
+                previous_log_size = update_logs(logs_win, selected_job, logs_height, previous_log_size)
         elif key == curses.KEY_UP:  # Scroll Up
             if selected_job.log_position > 0:
                 selected_job.log_position = max(0, selected_job.log_position - 3)
                 selected_job.autoscroll = False
-                update_logs(logs_win, selected_job, logs_height)
+                previous_log_size = update_logs(logs_win, selected_job, logs_height, previous_log_size)
         elif key == curses.KEY_DOWN:  # Scroll Down
             if selected_job.log_position + logs_height < len(selected_job.log_history):
                 selected_job.log_position = min(len(selected_job.log_history) - logs_height, selected_job.log_position + 3)
                 selected_job.autoscroll = False
-                update_logs(logs_win, selected_job, logs_height)
+                previous_log_size = update_logs(logs_win, selected_job, logs_height, previous_log_size)
         elif key == curses.KEY_HOME:  # Home
             selected_job.log_position = 0
             selected_job.autoscroll = False
-            update_logs(logs_win, selected_job, logs_height)
+            previous_log_size = update_logs(logs_win, selected_job, logs_height, previous_log_size)
         elif key == curses.KEY_END:  # End
             selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
             selected_job.autoscroll = True
-            update_logs(logs_win, selected_job, logs_height)
+            previous_log_size = update_logs(logs_win, selected_job, logs_height, previous_log_size)
 
         update_help(help_win)
 
@@ -291,7 +320,7 @@ def curses_main(stdscr, job_list, nb_jobs, log_size_limit):
         selected_job.log_history.append("\nProcess completed. Press any key to exit.")
     except curses.error:
         pass
-    update_logs(logs_win, selected_job, logs_height)
+    update_logs(logs_win, selected_job, logs_height, previous_log_size)
     logs_win.refresh()
     logs_win.getkey()
 
