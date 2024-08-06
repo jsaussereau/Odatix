@@ -38,6 +38,7 @@ import ansi_to_curses
 
 STD_BUF = "stdbuf -oL "
 
+
 class ParallelJob:
   status_file_pattern = re.compile(r"(.*)")
   progress_file_pattern = re.compile(r"(.*)")
@@ -162,15 +163,21 @@ class ParallelJobHandler:
     help_win.addstr(" ")
 
     for i, (key, description) in enumerate(help_text):
-      if i > 0:
-        help_win.addstr(" | ")
-      help_win.attron(curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
-      help_win.addstr(key)
-      help_win.attroff(curses.A_BOLD)  # Remove attributes
-      help_win.addstr(": ")
-      help_win.addstr(description)
+      try:
+        if i > 0:
+          help_win.addstr(" | ")
+        help_win.attron(curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+        help_win.addstr(key)
+        help_win.attroff(curses.A_BOLD)  # Remove attributes
+        help_win.addstr(": ")
+        help_win.addstr(description)
+      except curses.error:
+        pass
 
-    help_win.addstr(" ")
+    try:
+      help_win.addstr(" ")
+    except curses.error:
+      pass
     help_win.attroff(curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
     help_win.refresh()
 
@@ -207,7 +214,7 @@ class ParallelJobHandler:
       stderr=subprocess.PIPE,
       shell=True,
       text=True,
-      preexec_fn=os.setpgrp  # Set the process group
+      preexec_fn=os.setpgrp,  # Set the process group
     )
     self.set_nonblocking(process.stdout)
     self.set_nonblocking(process.stderr)
@@ -228,10 +235,10 @@ class ParallelJobHandler:
   def terminate_all_jobs(self):
     for job in self.running_job_list:
       if job.process:
-        try: # Try to terminate the process group
+        try:  # Try to terminate the process group
           os.killpg(os.getpgid(job.process.pid), signal.SIGTERM)
         except ProcessLookupError:
-          pass # Process already terminated
+          pass  # Process already terminated
 
     # Wait for all processes to finish
     for job in self.running_job_list:
@@ -279,7 +286,10 @@ class ParallelJobHandler:
     while True:
       # Add a header
       header_win.hline(0, 0, " ", width, curses.color_pair(1) | curses.A_REVERSE)
-      header_win.addstr(0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(1) | curses.A_REVERSE)
+      try:
+        header_win.addstr(0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(1) | curses.A_REVERSE)
+      except curses.error:
+        pass
       header_win.hline(1, 0, "-", width)
       header_win.refresh()
 
