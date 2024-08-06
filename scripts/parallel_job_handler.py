@@ -182,6 +182,31 @@ class ParallelJobHandler:
     help_win.refresh()
 
   @staticmethod
+  def show_exit_confirmation(help_win):
+    help_win.erase()
+    help_win.addstr(" Kill all jobs and exit: Yes (", curses.color_pair(1) | curses.A_REVERSE)
+    help_win.addstr("y", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+    help_win.addstr(") / No (", curses.color_pair(1) | curses.A_REVERSE)
+    help_win.addstr("n", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+    help_win.addstr(")? ", curses.color_pair(1) | curses.A_REVERSE)
+    help_win.refresh()
+
+    key = help_win.getch()
+    curses.flushinp()
+    if key == ord('y'):
+      return True, True
+    elif key == ord('n'):
+      return True, False
+    else:
+      return False, False
+
+  @staticmethod
+  def update_exit(help_win):
+    help_win.erase()
+    help_win.addstr(" Exiting... ", curses.color_pair(1) | curses.A_REVERSE)
+    help_win.refresh()
+
+  @staticmethod
   def update_logs(logs_win, selected_job, logs_height, previous_log_size, width):
     history = selected_job.log_history
     log_length = len(history)
@@ -275,6 +300,8 @@ class ParallelJobHandler:
     logs_win = curses.newwin(logs_height, width, header_height + progress_height + separator_height, 0)
     help_win = curses.newwin(help_height, width, height - help_height, 0)
 
+    exit_asked = False
+
     selected_job = self.job_list[self.selected_job_index]
 
     for job in self.job_list:
@@ -367,8 +394,7 @@ class ParallelJobHandler:
       curses.flushinp()
 
       if key == ord("q"):
-        self.terminate_all_jobs()
-        break
+        exit_asked = True
       elif key == curses.KEY_PPAGE:  # Page Up
         if self.selected_job_index > 0:
           self.selected_job_index -= 1
@@ -402,7 +428,17 @@ class ParallelJobHandler:
         selected_job.autoscroll = True
         self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
 
-      self.update_help(help_win)
+      if exit_asked:
+        user_answered, user_confirmed = self.show_exit_confirmation(help_win)
+        if user_answered:
+          if user_confirmed:
+            self.update_exit(help_win)
+            self.terminate_all_jobs()
+            return False
+          else:
+            exit_asked = False
+      else:
+        self.update_help(help_win)
 
     try:
       selected_job.log_history.append("\nProcess completed. Press any key to exit.")
@@ -411,6 +447,7 @@ class ParallelJobHandler:
     self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
     logs_win.refresh()
     logs_win.getkey()
+    return True
 
   def run(self):
     curses.wrapper(self.curses_main)
