@@ -333,7 +333,7 @@ class ParallelJobHandler:
     help_win = curses.newwin(help_height, width, height - help_height, 0)
 
     finished = False
-    exit_asked = False
+    ask_exit = False
 
     selected_job = self.job_list[self.selected_job_index]
 
@@ -463,14 +463,17 @@ class ParallelJobHandler:
         selected_job.autoscroll = True
         self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
       else:
-        if finished and self.auto_exit:
+        if self.auto_exit and finished:
           return True
         else:
           if key == ord("q"):
-            exit_asked = True
+            if finished:
+              return True
+            else:
+              ask_exit = True
 
       # Handle exit
-      if exit_asked:
+      if ask_exit:
         user_answered, user_confirmed = self.show_exit_confirmation(help_win)
         if user_answered:
           if user_confirmed:
@@ -478,7 +481,7 @@ class ParallelJobHandler:
             self.terminate_all_jobs()
             return False
           else:
-            exit_asked = False
+            ask_exit = False
       else:
         self.update_help(help_win)
 
