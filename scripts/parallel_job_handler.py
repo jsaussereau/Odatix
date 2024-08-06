@@ -35,6 +35,7 @@ lib_path = os.path.join(current_dir, "lib")
 sys.path.append(lib_path)
 
 import ansi_to_curses
+import motd
 
 STD_BUF = "stdbuf -oL "
 
@@ -101,10 +102,13 @@ class ParallelJob:
 
 
 class ParallelJobHandler:
-  def __init__(self, job_list, nb_jobs, log_size_limit=100):
+  def __init__(self, job_list, nb_jobs, auto_exit=False, log_size_limit=100):
     self.job_list = job_list
     self.nb_jobs = nb_jobs
+    self.auto_exit = auto_exit
     self.log_size_limit = log_size_limit
+
+    self.version = motd.read_version()
 
     self.running_job_list = []
     self.retired_job_list = []
@@ -146,6 +150,34 @@ class ParallelJobHandler:
         window.addstr(id, comment_position, comment, curses.color_pair(1))
     except curses.error as e:
       print(f"curses.error: {e}")
+
+  def update_header(self, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width):
+    header_win.hline(0, 0, " ", width, curses.color_pair(1) | curses.A_REVERSE)
+    try:
+      header_win.addstr(0, 1, "v"+str(self.version), curses.color_pair(1) | curses.A_REVERSE)
+    except curses.error:
+      pass
+    if total_jobs_count == 1:
+      if retired_jobs_count == total_jobs_count:
+        text="{}/{} job done!".format(retired_jobs_count, total_jobs_count)
+      else:
+        text="{}/{} job done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
+    else:
+      if retired_jobs_count == total_jobs_count:
+        text="{}/{} jobs done!".format(retired_jobs_count, total_jobs_count)
+      else:
+        text="{}/{} jobs done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
+    try:
+      header_win.addstr(0, width - len(text) - 1, text, curses.color_pair(1) | curses.A_REVERSE)
+    except curses.error:
+      pass
+    
+    try:
+      header_win.addstr(0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+    except curses.error:
+      pass
+    header_win.hline(1, 0, "-", width)
+    header_win.refresh()
 
   @staticmethod
   def update_help(help_win):
@@ -300,6 +332,7 @@ class ParallelJobHandler:
     logs_win = curses.newwin(logs_height, width, header_height + progress_height + separator_height, 0)
     help_win = curses.newwin(help_height, width, height - help_height, 0)
 
+    finished = False
     exit_asked = False
 
     selected_job = self.job_list[self.selected_job_index]
@@ -310,15 +343,18 @@ class ParallelJobHandler:
       else:
         self.queue_job(job)
 
+    total_jobs_count = len(self.job_list)
+
     while True:
+      # Check if all jobs have finished
+      active_jobs_count = len(self.running_job_list)
+      if active_jobs_count == 0:
+        finished = True
+
+      retired_jobs_count = len(self.retired_job_list)
+
       # Add a header
-      header_win.hline(0, 0, " ", width, curses.color_pair(1) | curses.A_REVERSE)
-      try:
-        header_win.addstr(0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(1) | curses.A_REVERSE)
-      except curses.error:
-        pass
-      header_win.hline(1, 0, "-", width)
-      header_win.refresh()
+      self.update_header(header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
 
       progress_win.erase()
       for id, job in enumerate(self.job_list):
@@ -388,14 +424,13 @@ class ParallelJobHandler:
       if selected_job.autoscroll and selected_job.log_changed:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
-
+      
+      # Get inputs
       stdscr.nodelay(True)
       key = stdscr.getch()
       curses.flushinp()
 
-      if key == ord("q"):
-        exit_asked = True
-      elif key == curses.KEY_PPAGE:  # Page Up
+      if key == curses.KEY_PPAGE:  # Page Up
         if self.selected_job_index > 0:
           self.selected_job_index -= 1
           selected_job = self.job_list[self.selected_job_index]
@@ -427,7 +462,14 @@ class ParallelJobHandler:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         selected_job.autoscroll = True
         self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
+      else:
+        if finished and self.auto_exit:
+          return True
+        else:
+          if key == ord("q"):
+            exit_asked = True
 
+      # Handle exit
       if exit_asked:
         user_answered, user_confirmed = self.show_exit_confirmation(help_win)
         if user_answered:
@@ -439,15 +481,6 @@ class ParallelJobHandler:
             exit_asked = False
       else:
         self.update_help(help_win)
-
-    try:
-      selected_job.log_history.append("\nProcess completed. Press any key to exit.")
-    except curses.error:
-      pass
-    self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
-    logs_win.refresh()
-    logs_win.getkey()
-    return True
 
   def run(self):
     curses.wrapper(self.curses_main)
