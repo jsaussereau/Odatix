@@ -31,8 +31,8 @@ xc7a100t-csg324-1:
   fmax_lower_bound: 250
   fmax_upper_bound: 900
 xc7k70t-fbg676-2:
-  fmax_lower_bound: 500
-  fmax_upper_bound: 1650
+  fmax_lower_bound: 200
+  fmax_upper_bound: 1800
 XFAB180CMOS:
   fmax_lower_bound: 400
   fmax_upper_bound: 700
