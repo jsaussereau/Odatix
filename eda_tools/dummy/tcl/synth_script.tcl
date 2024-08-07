@@ -26,14 +26,20 @@ if {[catch {
     set signature "<grey>\[synth_script.tcl\]<end>"
 
     puts "$signature <yellow>warning: this is a dummy script, nothing is being done here!<end>"
+    puts "$signature dummy synthesis script for $lib_name"
 
     report_progress 0 $synth_statusfile
+    
+    set step [expr {rand() * 10}]
+    for { set i 0 } { $i < $step } { incr i } {
 
-    for { set i 0}  {$i < [expr { 2 + rand()*2}]} {incr i} {
-        set duration [expr { rand() * 10}]
-        for { set j 0}  {$j < $duration} {incr j} {
+        set duration [expr { rand() * 5 }]
+        for { set j 0 } { $j < $duration } { incr j } {
             sleep 0.25
-            set progress [expr { 100*$j/$duration + 100*$j/4}]
+            
+            set progress [expr { 100 * ($i + $j / $duration) / $step }]
+            if {$progress > 100} { set progress 100 }
+            
             report_progress $progress $synth_statusfile
         }
     }
