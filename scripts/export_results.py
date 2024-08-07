@@ -114,13 +114,6 @@ def parse_csv(file, key):
   return None
 
 
-def calculate_sum(op1_value, op2_value):
-  try:
-    return float(op1_value) + float(op2_value)
-  except ValueError:
-    return None
-
-
 ######################################
 # Validate Tool Settings
 ######################################
@@ -154,15 +147,9 @@ def extract_metrics(tool_settings, cur_path):
       file = config["settings"]["file"]
       key = config["settings"]["key"]
       value = parse_csv(os.path.join(cur_path, file), key)
-    elif config["type"] == "sum":
-      op1 = config["settings"]["op1"]
-      op2 = config["settings"]["op2"]
-      op1_value = results.get(op1)
-      op2_value = results.get(op2)
-      if op1_value is not None and op2_value is not None:
-        value = calculate_sum(op1_value, op2_value)
-      else:
-        value = None
+    elif config["type"] == "operation":
+      op_str = config["settings"]["op"]
+      value = calculate_operation(op_str, results)
     
     # Apply formatting if specified
     if value is not None and "format" in config:
@@ -194,6 +181,13 @@ def convert_to_numeric(data):
     return int(data)
   except ValueError:
     return data
+
+def calculate_operation(op_str, results):
+  try:
+    return eval(op_str, {}, results)
+  except (NameError, SyntaxError, TypeError, ZeroDivisionError) as e:
+    printc.warning(f"Failed to evaluate operation '{op_str}': {e}", script_name)
+    return None
 
 
 ######################################
