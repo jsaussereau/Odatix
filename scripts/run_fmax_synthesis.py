@@ -25,6 +25,7 @@ import sys
 import yaml
 import shutil
 import argparse
+import subprocess
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -202,7 +203,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     except (KeyNotInListError, BadValueInListError):
       sys.exit(-1)  # if a key is missing
 
-  ParallelJob.set_patterns(fmax_status_pattern, synth_status_pattern)
+  ParallelJob.set_patterns(synth_status_pattern, fmax_status_pattern)
 
   arch_handler = ArchitectureHandler(
     work_path=work_path,
@@ -373,12 +374,14 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
       running_arch = ParallelJob(
         process=None,
         command=command,
+        directory=".",
         target=arch_instance.target,
         arch=arch_instance.arch_name,
         display_name=arch_instance.arch_display_name,
         status_file=fmax_status_file,
         progress_file=synth_status_file,
         tmp_dir=arch_instance.tmp_dir,
+        progress_mode="fmax",
         status="idle",
       )
 
@@ -388,22 +391,23 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     prepare_job(arch_instance)
 
   parallel_jobs = ParallelJobHandler(job_list, nb_jobs)
-  parallel_jobs.run()
+  job_exit_success = parallel_jobs.run()
 
   # Summary
-  print()
-  for running_arch in job_list:
-    tmp_dir = work_path + "/" + running_arch.target + "/" + running_arch.arch
-    frequency_search_file = tmp_dir + "/" + log_path + "/" + frequency_search_filename
-    try:
-      with open(frequency_search_file, "r") as file:
-        lines = file.readlines()
-        if len(lines) >= 1:
-          summary_line = lines[-1]
-          print(running_arch.display_name + ": " + summary_line, end="")
-    except:
-      pass
-  print()
+  if job_exit_success:
+    print()
+    for running_arch in job_list:
+      tmp_dir = work_path + "/" + running_arch.target + "/" + running_arch.arch
+      frequency_search_file = tmp_dir + "/" + log_path + "/" + frequency_search_filename
+      try:
+        with open(frequency_search_file, "r") as file:
+          lines = file.readlines()
+          if len(lines) >= 1:
+            summary_line = lines[-1]
+            print(running_arch.display_name + ": " + summary_line, end="")
+      except:
+        pass
+    print()
 
 
 ######################################

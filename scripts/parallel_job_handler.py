@@ -35,6 +35,7 @@ lib_path = os.path.join(current_dir, "lib")
 sys.path.append(lib_path)
 
 import ansi_to_curses
+import printc
 import motd
 
 STD_BUF = "stdbuf -oL "
@@ -45,16 +46,18 @@ class ParallelJob:
   progress_file_pattern = re.compile(r"(.*)")
 
   def __init__(
-    self, process, command, target, arch, display_name, status_file, progress_file, tmp_dir, status="not started"
+    self, process, command, directory, target, arch, display_name, status_file, progress_file, tmp_dir, progress_mode="default", status="not started"
   ):
     self.process = process
     self.command = command
+    self.directory = directory
     self.target = target
     self.arch = arch
     self.display_name = display_name
     self.status_file = status_file
     self.progress_file = progress_file
     self.tmp_dir = tmp_dir
+    self.progress_mode = progress_mode
     self.status = status
 
     self.log_history = []
@@ -63,11 +66,25 @@ class ParallelJob:
     self.autoscroll = True
 
   @staticmethod
-  def set_patterns(status_file_pattern, progress_file_pattern):
+  def set_patterns(progress_file_pattern, status_file_pattern=None):
     ParallelJob.status_file_pattern = status_file_pattern
     ParallelJob.progress_file_pattern = progress_file_pattern
 
   def get_progress(self):
+    if self.progress_mode == "fmax":
+      return self.get_progress_fmax()
+    else:
+      progress = 0
+      if os.path.isfile(self.progress_file):
+        with open(self.progress_file, "r") as f:
+          content = f.read()
+        for match in re.finditer(ParallelJob.progress_file_pattern, content):
+          parts = ParallelJob.progress_file_pattern.search(match.group())
+          if len(parts.groups()) >= 2:
+            progress = int(parts.group(2))
+      return progress
+
+  def get_progress_fmax(self):
     # Get progress from status file
     fmax_progress = 0
     fmax_step = 1
@@ -265,14 +282,19 @@ class ParallelJobHandler:
     return log_length  # Return the current size of the logs for the next update
 
   def run_job(self, job):
+    job.log_history.append("Running job command: ")
+    job.log_history.append(printc.colors.BOLD + " > " + job.command + printc.colors.ENDC)
+
     process = subprocess.Popen(
       STD_BUF + job.command,
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
+      cwd=job.directory,
       shell=True,
       text=True,
       preexec_fn=os.setpgrp,  # Set the process group
     )
+
     self.set_nonblocking(process.stdout)
     self.set_nonblocking(process.stderr)
 
