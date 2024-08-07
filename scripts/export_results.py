@@ -149,17 +149,23 @@ def extract_metrics(tool_settings, cur_path):
       value = parse_csv(os.path.join(cur_path, file), key)
     elif config["type"] == "operation":
       op_str = config["settings"]["op"]
-      value = calculate_operation(op_str, results)
-    
+      value = calculate_operation(op_str, results, cur_path)
+
     # Apply formatting if specified
     if value is not None and "format" in config:
       try:
         value = convert_to_numeric(config["format"] % float(value))
       except ValueError:
-        pass
-        # printc.warning(f"Failed to format value {value} for metric {metric}", script_name)
-    
-    results[metric] = value
+        pass  # printc.warning(f"Failed to format value {value} for metric {metric}", script_name)
+
+    # Append unit if specified
+    if value is not None:
+      result = {"value": value}
+      if "unit" in config:
+        result["unit"] = config["unit"]
+      results[metric] = result
+    else:
+      results[metric] = {"value": None}
 
   return results
 
@@ -174,19 +180,25 @@ def corrupted_directory(target, architecture):
     target + "/" + architecture + " => synthesis has not finished or directory has been corrupted", script_name
   )
 
+
 def convert_to_numeric(data):
   try:
-    if '.' in data:
+    if "." in data:
       return float(data)
     return int(data)
   except ValueError:
     return data
 
-def calculate_operation(op_str, results):
+
+def calculate_operation(op_str, results, cur_path):
   try:
-    return eval(op_str, {}, results)
+    # Create a local dictionary with only the 'value' parts of the results
+    local_vars = {k: v["value"] for k, v in results.items() if v["value"] is not None}
+    return eval(op_str, {}, local_vars)
   except (NameError, SyntaxError, TypeError, ZeroDivisionError) as e:
-    printc.warning(f"Failed to evaluate operation '{op_str}': {e}", script_name)
+    printc.error('Failed to evaluate operation "' + op_str + '" for ' + cur_path, script_name)
+    printc.cyan("error details: ", script_name=script_name, end="")
+    print(str(e))
     return None
 
 
