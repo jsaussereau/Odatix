@@ -137,6 +137,7 @@ def validate_tool_settings(file_path):
 
 def extract_metrics(tool_settings, cur_path):
   results = {}
+  units = {}
   for metric, config in tool_settings["metrics"].items():
     if config["type"] == "regex":
       file = config["settings"]["file"]
@@ -149,7 +150,7 @@ def extract_metrics(tool_settings, cur_path):
       value = parse_csv(os.path.join(cur_path, file), key)
     elif config["type"] == "operation":
       op_str = config["settings"]["op"]
-      value = calculate_operation(op_str, results, cur_path)
+      value = calculate_operation(op_str, results)
 
     # Apply formatting if specified
     if value is not None and "format" in config:
@@ -160,14 +161,13 @@ def extract_metrics(tool_settings, cur_path):
 
     # Append unit if specified
     if value is not None:
-      result = {"value": value}
+      results[metric] = value
       if "unit" in config:
-        result["unit"] = config["unit"]
-      results[metric] = result
+        units[metric] = config["unit"]
     else:
-      results[metric] = {"value": None}
+      results[metric] = None
 
-  return results
+  return results, units
 
 
 ######################################
@@ -190,15 +190,12 @@ def convert_to_numeric(data):
     return data
 
 
-def calculate_operation(op_str, results, cur_path):
+def calculate_operation(op_str, results):
   try:
-    # Create a local dictionary with only the 'value' parts of the results
-    local_vars = {k: v["value"] for k, v in results.items() if v["value"] is not None}
+    local_vars = {k: v for k, v in results.items() if v is not None}
     return eval(op_str, {}, local_vars)
   except (NameError, SyntaxError, TypeError, ZeroDivisionError) as e:
-    printc.error('Failed to evaluate operation "' + op_str + '" for ' + cur_path, script_name)
-    printc.cyan("error details: ", script_name=script_name, end="")
-    print(str(e))
+    printc.warning(f"Failed to evaluate operation '{op_str}': {e}", script_name)
     return None
 
 
@@ -209,6 +206,7 @@ def calculate_operation(op_str, results, cur_path):
 
 def export_results(input, output, tool, format, use_benchmark, benchmark_file, tool_settings):
   data = {}
+  units = {}
 
   input = os.path.join(input, tool)
 
@@ -232,15 +230,20 @@ def export_results(input, output, tool, format, use_benchmark, benchmark_file, t
             continue
 
         # Get values
-        metrics = extract_metrics(tool_settings, cur_path)
+        metrics, cur_units = extract_metrics(tool_settings, cur_path)
         data[target][architecture][configuration] = metrics
+
+        # Update units
+        units.update(cur_units)
 
   # Export to the desired format
   create_dir(output)
   output_file = os.path.join(output, "results_" + tool + ".yml")
   try:
     with open(output_file, "w") as file:
-      yaml.dump(data, file, default_style=None, default_flow_style=False, sort_keys=False)
+      yaml.dump(
+        {"units": units, "synth_results": data}, file, default_style=None, default_flow_style=False, sort_keys=False
+      )
       printc.say('Results written to "' + output_file + '"', script_name=script_name)
   except Exception as e:
     printc.error('Could not write "' + output_file + '"', script_name=script_name)
