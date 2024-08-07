@@ -42,6 +42,8 @@ from settings import AsterismSettings
 
 DEFAULT_FORMAT = "yml"
 
+simulations_dir = "simulations"
+
 status_done = "Done: 100%"
 
 script_name = os.path.basename(__file__)
@@ -59,7 +61,7 @@ eda_tools_path = os.path.realpath(os.path.join(base_path, "..", "eda_tools"))
 
 
 def add_arguments(parser):
-  parser.add_argument("-t", "--tool", default="vivado", help="eda tool in use (default: vivado)")
+  parser.add_argument("-t", "--tool", default="all", help="eda tool in use, or 'all' (default: all)")
   parser.add_argument(
     "-f",
     "--format",
@@ -119,7 +121,10 @@ def parse_csv(file, key):
 ######################################
 
 
-def validate_tool_settings(file_path):
+def validate_tool_settings(file_path): 
+  if not os.path.isfile(file_path):
+    printc.error('Tool settings file "' + os.path.realpath(file_path) + '" does not exist', script_name)
+    return None
   with open(file_path, "r") as file:
     try:
       tool_settings = yaml.safe_load(file)
@@ -237,7 +242,7 @@ def export_results(input, output, tool, format, use_benchmark, benchmark_file, t
         units.update(cur_units)
 
   # Export to the desired format
-  create_dir(output)
+  os.makedirs(output, exist_ok=True)
   output_file = os.path.join(output, "results_" + tool + ".yml")
   try:
     with open(output_file, "w") as file:
@@ -283,20 +288,32 @@ def main(args, settings=None):
   else:
     output = settings.result_path
 
-  tool_settings_file = os.path.join(eda_tools_path, args.tool, "tool.yml")
-  tool_settings = validate_tool_settings(tool_settings_file)
-  if tool_settings is None:
-    sys.exit(-1)
+  if args.tool == "all":
+    tools = [ item for item in os.listdir(input) if os.path.isdir(os.path.join(input, item)) ]
+  else:
+    tools = [args.tool]
 
-  export_results(
-    input=input,
-    output=output,
-    tool=args.tool,
-    format=args.format,
-    use_benchmark=use_benchmark,
-    benchmark_file=benchmark_file,
-    tool_settings=tool_settings,
-  )
+  for tool in tools:
+    if tool == simulations_dir:
+      continue
+
+    tool_settings_file = os.path.join(eda_tools_path, tool, "tool.yml")
+    tool_settings = validate_tool_settings(tool_settings_file)
+    if tool_settings is None:
+      if len(tools) == 1:
+        sys.exit(-1)
+      else:
+        continue
+
+    export_results(
+      input=input,
+      output=output,
+      tool=tool,
+      format=args.format,
+      use_benchmark=use_benchmark,
+      benchmark_file=benchmark_file,
+      tool_settings=tool_settings,
+    )
 
 
 if __name__ == "__main__":
