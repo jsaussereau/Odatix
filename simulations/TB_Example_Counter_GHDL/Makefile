@@ -39,6 +39,7 @@ TB_MODULE = tb_$(MODULE)
 VCD_FILE = $(VCD_DIR)/$(MODULE).vcd
 EXECUTABLE = $(MODULE)
 TMP_EXECUTABLE = $(MODULE)
+PROGRESS_FILE = $(LOG_DIR)/progress.log
 
 ########################################################
 # Tools Commands
@@ -87,15 +88,20 @@ view: $(VCD_FILE)
 	@$(GTKWAVE) $(VCD_FILE) -a gtkwave_setup.gtkw
 
 $(VCD_FILE): $(RTL_DIR)/* $(TB_DIR)/*
+	@echo "progress: 5%" > $(PROGRESS_FILE)
 	@printf "\n$(_BOLD)$(_CYAN)"
 	@printf "######################################\n"
 	@printf "              Simulating              \n"
 	@printf "######################################\n"
 	@printf "$(_END)\n"
 	@$(GHDL) -a $(GHDL_FLAGS) $(RTL_DIR)/*
+	@echo "progress: 25%" > $(PROGRESS_FILE)
 	@$(GHDL) -a $(GHDL_FLAGS) $(TB_DIR)/*
+	@echo "progress: 50%" > $(PROGRESS_FILE)
 	@$(GHDL) -e $(GHDL_FLAGS) -o $(EXECUTABLE) $(TB_MODULE)
+	@echo "progress: 75%" > $(PROGRESS_FILE)
 	@$(GHDL) -r $(EXECUTABLE) --vcd=$(VCD_FILE) $(GHDL_SIM_OPT) | tee $(LOG_DIR)/sim.log
+	@echo "progress: 100%" > $(PROGRESS_FILE)
 
 .PHONY: clean
 clean:

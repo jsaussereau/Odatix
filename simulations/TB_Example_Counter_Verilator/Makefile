@@ -57,6 +57,8 @@ CPP_FILES := $(wildcard $(TB_DIR)/*.cpp)
 # Définir les cibles pour les fichiers Verilated
 SIM_FILE = $(OBJ_DIR)/V$(MODULE)
 
+PROGRESS_FILE = $(LOG_DIR)/progress.log
+
 # Options Verilator
 VERILATOR_FLAGS = -Wall -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL --trace --x-assign unique --x-initial unique
 
@@ -115,6 +117,7 @@ $(VCD_FILE): $(SIM_FILE)
 	@$(SIM_FILE) --vcd_file "$(VCD_FILE)" \
 	| tee "$(LOG_DIR)/$(SIM_LOGFILE)" | sed "$(VERILATOR_COLOR)"
 #	+verilator+rand+reset+2 
+	@echo "progress: 100%" > $(PROGRESS_FILE)
 
 $(SIM_FILE): .stamp.verilate
 	@printf "\n$(_BOLD)$(_CYAN)"
@@ -123,12 +126,14 @@ $(SIM_FILE): .stamp.verilate
 	@printf "######################################\n"
 	@printf "$(_END)"
 	@make -C $(OBJ_DIR) -f V$(MODULE).mk V$(MODULE) MAKEFLAGS=s --no-print-directory
+	@echo "progress: 75%" > $(PROGRESS_FILE)
 
 
 .PHONY: verilate
 verilate: .stamp.verilate
 
 .stamp.verilate: makedir $(SV_FILES) $(CPP_FILES)
+	@echo "progress: 5%" > $(PROGRESS_FILE)
 	@printf "\n$(_BOLD)$(_CYAN)"
 	@printf "######################################\n"
 	@printf "              Verilating              \n"
@@ -137,6 +142,7 @@ verilate: .stamp.verilate
 	@$(ENV_SET) verilator -Mdir $(OBJ_DIR) --top-module $(MODULE) $(VERILATOR_FLAGS) -cc $(RTL_FILES) --exe $(CPP_FILES) \
 	2>&1 | tee "$(LOG_DIR)/$(VERILATOR_LOGFILE)" | sed "$(VERILATOR_COLOR)"
 	@touch .stamp.verilate
+	@echo "progress: 25%" > $(PROGRESS_FILE)
 
 .PHONY: lint
 lint: $(SV_FILES)
