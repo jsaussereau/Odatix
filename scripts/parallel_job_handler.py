@@ -255,14 +255,13 @@ class ParallelJobHandler:
     help_win.addstr(" Exiting... ", curses.color_pair(1) | curses.A_REVERSE)
     help_win.refresh()
 
-  @staticmethod
-  def update_logs(logs_win, selected_job, logs_height, previous_log_size, width):
+  def update_logs(self, logs_win, selected_job, logs_height, width):
     history = selected_job.log_history
     log_length = len(history)
 
     # Erase lines extra lines from previous selected job
-    if log_length < previous_log_size:
-      for i in range(log_length, previous_log_size):
+    if log_length < self.previous_log_size:
+      for i in range(log_length, self.previous_log_size):
         try:
           logs_win.move(i, 0)
           logs_win.clrtoeol()
@@ -279,7 +278,7 @@ class ParallelJobHandler:
         pass
 
     logs_win.refresh()
-    return log_length  # Return the current size of the logs for the next update
+    self.previous_log_size = log_length
 
   def run_job(self, job):
     job.log_history.append("Running job command: ")
@@ -400,6 +399,10 @@ class ParallelJobHandler:
             if not self.job_queue.empty():
               self.run_job(self.job_queue.get())
 
+            if job == selected_job:
+              selected_job.log_changed = True
+              self.update_logs(logs_win, selected_job, logs_height, width)
+
         self.progress_bar(
           id=id,
           window=progress_win,
@@ -445,7 +448,7 @@ class ParallelJobHandler:
       # Automatically scroll if at the bottom
       if selected_job.autoscroll and selected_job.log_changed:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
+        self.update_logs(logs_win, selected_job, logs_height, width)
       
       # Get inputs
       stdscr.nodelay(True)
@@ -458,32 +461,32 @@ class ParallelJobHandler:
           selected_job = self.job_list[self.selected_job_index]
           selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
           selected_job.autoscroll = True
-          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
+          self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_NPAGE:  # Page Down
         if self.selected_job_index < len(self.job_list) - 1:
           self.selected_job_index += 1
           selected_job = self.job_list[self.selected_job_index]
           selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
           selected_job.autoscroll = True
-          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
+          self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_UP:  # Scroll Up
         if selected_job.log_position > 0:
           selected_job.log_position = max(0, selected_job.log_position - 3)
           selected_job.autoscroll = False
-          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
+          self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_DOWN:  # Scroll Down
         if selected_job.log_position + logs_height < len(selected_job.log_history):
           selected_job.log_position = min(len(selected_job.log_history) - logs_height, selected_job.log_position + 3)
           selected_job.autoscroll = False
-          self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
+          self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_HOME:  # Home
         selected_job.log_position = 0
         selected_job.autoscroll = False
-        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
+        self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_END:  # End
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         selected_job.autoscroll = True
-        self.previous_log_size = self.update_logs(logs_win, selected_job, logs_height, self.previous_log_size, width)
+        self.update_logs(logs_win, selected_job, logs_height, width)
       else:
         if self.auto_exit and finished:
           return True
