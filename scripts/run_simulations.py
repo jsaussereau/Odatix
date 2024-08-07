@@ -22,8 +22,8 @@
 import os
 import re
 import sys
-import yaml
 import argparse
+import subprocess
 
 # add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -32,13 +32,14 @@ sys.path.append(lib_path)
 
 import printc
 from replace_params import replace_params
+from parallel_job_handler import ParallelJobHandler, ParallelJob
 
 from simulation_handler import SimulationHandler
 from settings import AsterismSettings
-from utils import *
-from prepare_work import *
-from run_parallel import *
-from run_settings import *
+from utils import read_from_list, copytree, create_dir, ask_to_continue
+from prepare_work import edit_config_file
+from check_tool import check_tool
+from run_settings import get_sim_settings
 
 ######################################
 # Settings
@@ -58,6 +59,7 @@ param_settings_filename = "_settings.yml"
 sim_settings_filename = "_settings.yml"
 sim_makefile_filename = "Makefile"
 sim_rule = "sim"
+sim_progress_filename = "progress.log"
 
 progress_bar_size = 50
 refresh_time = 5
@@ -65,8 +67,7 @@ refresh_time = 5
 default_fmax_lower_bound = 50
 default_fmax_upper_bound = 500
 
-fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
-synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
+sim_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 
 script_name = os.path.basename(__file__)
 
@@ -104,7 +105,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
   if noask:
     ask_continue = False
 
-  Running_arch.set_patterns(fmax_status_pattern, synth_status_pattern)
+  ParallelJob.set_patterns(sim_status_pattern)
 
   sim_handler = SimulationHandler(
     work_path = work_path,
@@ -134,9 +135,6 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
   # print checklist summary
   sim_handler.print_summary()
 
-  # split architecture in chunks, depending on the number of jobs
-  simulation_instances_chunks, nb_chunks = sim_handler.get_chuncks(nb_jobs)
-
   # ask to quit or continue
   if sim_handler.get_valid_sim_count() > 0:
     if ask_continue:
@@ -147,107 +145,108 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
 
   print()
 
-  for i_chunk in range(nb_chunks):
-    running_arch_list = []
-    active_running_arch_list = []
+  job_list = []
+
+  def prepare_job(sim_instance):
     
-    if nb_chunks == 1:
-      simulation_instances_chunk = simulation_instances
-    else:
-      simulation_instances_chunk = simulation_instances_chunks[i_chunk]
-
-    for i_sim in simulation_instances_chunk:
-
+    if True:
       # create directory
-      create_dir(i_sim.tmp_dir)
+      create_dir(sim_instance.tmp_dir)
 
       # copy simulation sources
-      copytree(i_sim.source_sim_dir, i_sim.tmp_dir, dirs_exist_ok = True)
+      copytree(sim_instance.source_sim_dir, sim_instance.tmp_dir, dirs_exist_ok = True)
      
       # copy design 
-      if i_sim.architecture.design_path != -1:
+      if sim_instance.architecture.design_path != -1:
         try:
-          copytree(i_sim.architecture.design_path, i_sim.tmp_dir, dirs_exist_ok = True)
+          copytree(sim_instance.architecture.design_path, sim_instance.tmp_dir, dirs_exist_ok = True)
         except:
-          printc.error("Could not copy \"" + i_sim.architecture.design_path + "\" into work directory \"" + i_sim.tmp_dir + "\"", script_name)
+          printc.error("Could not copy \"" + sim_instance.architecture.design_path + "\" into work directory \"" + sim_instance.tmp_dir + "\"", script_name)
           printc.note("make sure there are no file or folder named identically in the two directories", script_name)
-          continue
+          return
 
       # copy rtl (if exists) 
-      if not i_sim.architecture.generate_rtl:
-        copytree(i_sim.architecture.rtl_path, i_sim.tmp_dir + '/' + 'rtl', dirs_exist_ok = True)
+      if not sim_instance.architecture.generate_rtl:
+        copytree(sim_instance.architecture.rtl_path, sim_instance.tmp_dir + '/' + 'rtl', dirs_exist_ok = True)
 
       # replace parameters
-      if i_sim.architecture.use_parameters:
+      if sim_instance.architecture.use_parameters:
         #printc.subheader("Replace parameters")
-        param_target_file = i_sim.tmp_dir + '/' + i_sim.architecture.param_target_filename
-        param_filename = arch_path + '/' + i_sim.architecture.arch_name + '.txt'
+        param_target_file = sim_instance.tmp_dir + '/' + sim_instance.architecture.param_target_filename
+        param_filename = arch_path + '/' + sim_instance.architecture.arch_name + '.txt'
         replace_params(
           base_text_file=param_target_file, 
           replacement_text_file=param_filename, 
           output_file=param_target_file, 
-          start_delimiter=i_sim.architecture.start_delimiter, 
-          stop_delimiter=i_sim.architecture.stop_delimiter, 
+          start_delimiter=sim_instance.architecture.start_delimiter, 
+          stop_delimiter=sim_instance.architecture.stop_delimiter, 
           replace_all_occurrences=False,
           silent=True
         )
         #print()
 
       # run generate command
-      if i_sim.architecture.generate_rtl:
+      if sim_instance.architecture.generate_rtl:
         try:
           print()
-          printc.subheader("Run generate command for " + i_sim.architecture.arch_display_name)
-          printc.bold(" > " + i_sim.architecture.generate_command)
-          result = subprocess.run([i_sim.architecture.generate_command], cwd=i_sim.tmp_dir, shell=True, check=True, text=True)
-        except subprocess.CalledProcessError as e:
+          printc.subheader("Run generate command for " + sim_instance.architecture.arch_display_name)
+          printc.bold(" > " + sim_instance.architecture.generate_command)
+          result = subprocess.run([sim_instance.architecture.generate_command], cwd=sim_instance.tmp_dir, shell=True, check=True, text=True)
+        except subprocess.CalledProcessError:
           print()
           printc.error("rtl generation failed", script_name)
           printc.note("look for earlier error to solve this issue", script_name)
           print()
-          continue
+          return
 
       # replace parameters again (override)
-      if i_sim.override_parameters:
+      if sim_instance.override_parameters:
         #printc.subheader("Replace parameters")
-        param_target_file = i_sim.tmp_dir + '/' + i_sim.override_param_target_filename
-        param_file = i_sim.tmp_dir + '/' + i_sim.override_param_filename
+        param_target_file = sim_instance.tmp_dir + '/' + sim_instance.override_param_target_filename
+        param_file = sim_instance.tmp_dir + '/' + sim_instance.override_param_filename
         replace_params(
           base_text_file=param_target_file, 
           replacement_text_file=param_file, 
           output_file=param_target_file, 
-          start_delimiter=i_sim.override_start_delimiter, 
-          stop_delimiter=i_sim.override_stop_delimiter, 
+          start_delimiter=sim_instance.override_start_delimiter, 
+          stop_delimiter=sim_instance.override_stop_delimiter, 
           replace_all_occurrences=False,
           silent=True
         )
 
       # run simulation command
-      sim_makefile_file = i_sim.tmp_dir + "/" + sim_makefile_filename
-      command = "make " + sim_rule + " RTL_DIR=\"" + rtl_path + "\" ASTERISM_DIR=\"" + current_dir + "/.." + "\" --no-print-directory"
-      #printc.subheader("Run simulation command for " + i_sim.sim_display_name)
-      #printc.bold(" > " + command)
-      process = run_parallel(
-        command = command,
-        nb_process = len(simulation_instances_chunk),
-        show_log_if_one = show_log_if_one,
-        directory = i_sim.tmp_dir
+      command = (
+        "make {}".format(sim_rule)
+        + ' RTL_DIR="{}"'.format(rtl_path)
+        + ' ASTERISM_DIR="{}"'.format(os.path.realpath(os.path.join(current_dir, "..")))
+        + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(sim_instance.tmp_dir, log_path)))
+        + ' CLOCK_SIGNAL="{}"'.format(sim_instance.architecture.clock_signal)
+        + ' TOP_LEVEL_MODULE="{}"'.format(sim_instance.architecture.top_level_module)
+        + " --no-print-directory"
       )
 
-      running_arch_list.append(
-        Running_arch(
-          process=process,
-          target="",
-          arch="",
-          display_name=i_sim.sim_display_name,
-          status_file="",
-          progress_file="",
-          tmp_dir=i_sim.tmp_dir
-        )
-      )
-      printc.say("started job for simulation \"{}\" with pid {}".format(i_sim.sim_display_name, process.pid), script_name)
+      sim_progress_file = os.path.join(sim_instance.tmp_dir, log_path, sim_progress_filename)
 
-    show_progress(running_arch_list, refresh_time, show_log_if_one, mode="simulation")
+      running_sim = ParallelJob(
+        process=None,
+        command=command,
+        directory=sim_instance.tmp_dir,
+        target="",
+        arch="",
+        display_name=sim_instance.sim_display_name,
+        status_file="",
+        progress_file=sim_progress_file,
+        tmp_dir=sim_instance.tmp_dir,
+        status="idle",
+      )
+
+      job_list.append(running_sim)
+
+  for sim_instance in simulation_instances:
+    prepare_job(sim_instance)
+
+  parallel_jobs = ParallelJobHandler(job_list, nb_jobs)
+  job_exit_success = parallel_jobs.run()
 
 ######################################
 # Main
