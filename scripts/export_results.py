@@ -1,6 +1,6 @@
-#**********************************************************************#
-#                               Asterism                               #
-#**********************************************************************#
+# ********************************************************************** #
+#                               Asterism                                 #
+# ********************************************************************** #
 #
 # Copyright (C) 2022 Jonathan Saussereau
 #
@@ -9,12 +9,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # Asterism is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
@@ -129,7 +129,7 @@ class ResultParser:
 
       try:
         self.format_mode = read_from_list("format_mode", yaml_data, yaml_file, script_name=script_name)
-      except Exception as e:
+      except Exception:
         return
 
       self.format_mode = self.format_mode.lower()
@@ -171,14 +171,14 @@ class CommonParser:
       fmax_yaml = read_from_list("fmax", yaml_data, yaml_filename, script_name=script_name)
       dynamic_pow_yaml = read_from_list("dynamic_pow", yaml_data, yaml_filename, script_name=script_name)
       static_pow_yaml = read_from_list("static_pow", yaml_data, yaml_filename, script_name=script_name)
-    except KeyNotInListError as e:
+    except KeyNotInListError:
       return
 
     try:
       self.fmax_regex = ResultParser.get_regex(fmax_yaml, yaml_filename, "fmax")
       self.dynamic_pow_regex = ResultParser.get_regex(dynamic_pow_yaml, yaml_filename, "dynamic_pow")
       self.static_pow_regex = ResultParser.get_regex(static_pow_yaml, yaml_filename, "static_pow")
-    except Exception as e:
+    except Exception:
       return
 
     self.valid = True
@@ -205,7 +205,7 @@ class FpgaParser:
       slice_reg_yaml = read_from_list("slice_reg", yaml_data, yaml_filename, script_name=script_name)
       bram_yaml = read_from_list("bram", yaml_data, yaml_filename, script_name=script_name)
       dsp_yaml = read_from_list("dsp", yaml_data, yaml_filename, script_name=script_name)
-    except KeyNotInListError as e:
+    except KeyNotInListError:
       return
 
     try:
@@ -213,7 +213,7 @@ class FpgaParser:
       self.slice_reg_regex = ResultParser.get_regex(slice_reg_yaml, yaml_filename)
       self.bram_regex = ResultParser.get_regex(bram_yaml, yaml_filename)
       self.dsp_regex = ResultParser.get_regex(dsp_yaml, yaml_filename)
-    except Exception as e:
+    except Exception:
       return
 
     self.valid = True
@@ -248,7 +248,7 @@ class AsicParser:
       net_area_yaml = read_from_list("net_area", yaml_data, yaml_filename, script_name=script_name)
       cell_count_yaml = read_from_list("cell_count", yaml_data, yaml_filename, script_name=script_name)
       pass
-    except KeyNotInListError as e:
+    except KeyNotInListError:
       return
 
     try:
@@ -261,7 +261,7 @@ class AsicParser:
       self.net_area_regex = ResultParser.get_regex(net_area_yaml, yaml_filename)
       self.cell_count_regex = ResultParser.get_regex(cell_count_yaml, yaml_filename)
       pass
-    except Exception as e:
+    except Exception:
       return
 
     self.valid = True
@@ -302,7 +302,7 @@ def get_dmips_per_mhz(architecture, variant, benchmark_data, benchmark_file):
   try:
     dmips_value = benchmark_data[architecture][variant]['dmips_per_MHz']
     return dmips_value
-  except KeyError as e:
+  except KeyError:
     #printc.error(f"could not find key in benchmark file: {e}", script_name)
     return None
   except Exception as e:
@@ -341,7 +341,7 @@ def write_to_yaml(input, output_file, format_mode, parser, use_benchmark, benchm
           continue
 
         with open(os.path.join(cur_path, 'log/status.log'), "r") as f:
-          if not status_done in f.read():
+          if status_done not in f.read():
             corrupted_directory(target, arch+'/'+variant)
             continue
 
@@ -358,15 +358,15 @@ def write_to_yaml(input, output_file, format_mode, parser, use_benchmark, benchm
           total_pow = safe_cast(static_pow, float, 0.0) + safe_cast(dynamic_pow, float, 0.0)
 
           yaml_data[target][arch][variant] = {
-            'Fmax_MHz': cast_to_int(fmax),
+            'Fmax_(MHz)': cast_to_int(fmax),
             'LUT_count': cast_to_int(slice_lut),
             'Reg_count': cast_to_int(slice_reg),
             'BRAM_count': cast_to_int(bram),
             'DSP_count': cast_to_int(dsp),
-            'Total_LUT_reg': cast_to_int(total_ut),
-            'Dynamic_Power': cast_to_float(dynamic_pow),
-            'Static_Power': cast_to_float(static_pow),
-            'Total_Power': cast_to_float("%.3f" % total_pow)
+            'LUT+Reg_count': cast_to_int(total_ut),
+            'Dynamic_Power_(W)': cast_to_float(dynamic_pow),
+            'Static_Power_(W)': cast_to_float(static_pow),
+            'Total_Power_(W)': cast_to_float("%.3f" % total_pow)
           }
 
         elif format_mode == 'asic':
@@ -380,21 +380,23 @@ def write_to_yaml(input, output_file, format_mode, parser, use_benchmark, benchm
           cell_count = parser.asic.get_cell_count(cur_path)
 
           yaml_data[target][arch][variant] = {
-            'Fmax_MHz': cast_to_int(fmax),
+            'Fmax_(MHz)': cast_to_int(fmax),
             'Cell_count': cast_to_int(cell_count),
-            'Total_area_um2': cast_to_float(total_area),
-            'Cell_area_um2': cast_to_float(cell_area),
-            'Comb_area_um2': cast_to_float(comb_area),
-            'Non_comb_area_um2': cast_to_float(noncomb_area),
-            'Buf_inv_area_um2': cast_to_float(buf_inv_area),
-            'Macro_area_um2': cast_to_float(macro_area),
-            'Net_area_um2': cast_to_float(net_area)
+            'Total_area_(um2)': cast_to_float(total_area),
+            'Cell_area_(um2)': cast_to_float(cell_area),
+            'Comb_area_(um2)': cast_to_float(comb_area),
+            'Non_comb_area_(um2)': cast_to_float(noncomb_area),
+            'Buf_inv_area_(um2)': cast_to_float(buf_inv_area),
+            'Macro_area_(um2)': cast_to_float(macro_area),
+            'Net_area_(um2)': cast_to_float(net_area)
           }
 
         # benchmark
         if use_benchmark:
           dmips_per_mhz = get_dmips_per_mhz(arch, variant, benchmark_data, benchmark_file)
-          if dmips_per_mhz != None:
+          if dmips_per_mhz == None:
+            printc.warning("Cannot find benchmark values in \"" + benchmark_file + "\" for architecture " + str(arch) + "/" + variant, script_name)
+          else:
             dmips = safe_cast(fmax, float, 0.0) * safe_cast(dmips_per_mhz, float, 0.0)
 
             yaml_data[target][arch][variant].update({
@@ -423,7 +425,7 @@ def write_to_csv(input, output_file, format_mode, parser, fieldnames):
             corrupted_directory(target, arch+'/'+variant)
           else:
             f = open(cur_path+'/log/status.log', "r")
-            if not status_done in f.read():
+            if status_done not in f.read():
               corrupted_directory(target, arch+'/'+variant)
 
           # get values
