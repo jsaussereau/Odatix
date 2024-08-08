@@ -245,8 +245,8 @@ def setup_callbacks(explorer):
     selected_metric_x_display = selected_metric_x.replace("_", " ") if selected_metric_x is not None else ""
     selected_metric_y_display = selected_metric_y.replace("_", " ") if selected_metric_y is not None else ""
 
-    unit_x = explorer.units[selected_yaml].get(selected_metric_x, "")
-    unit_y = explorer.units[selected_yaml].get(selected_metric_y, "")
+    unit_x = legend.unit_to_html(explorer.units[selected_yaml].get(selected_metric_x, ""))
+    unit_y = legend.unit_to_html(explorer.units[selected_yaml].get(selected_metric_y, ""))
 
     selected_metric_x_display_unit = (
       selected_metric_x_display + " (" + unit_x + ")" if unit_x else selected_metric_x_display

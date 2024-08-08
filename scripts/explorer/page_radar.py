@@ -241,7 +241,7 @@ def make_radar_chart(
     return fig
 
   metric_display = metric.replace("_", " ")
-  unit = units.get(metric, "")
+  unit = legend.unit_to_html(units.get(metric, ""))
 
   fig = go.Figure(
     data=go.Scatterpolar(

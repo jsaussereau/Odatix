@@ -238,7 +238,7 @@ def setup_callbacks(explorer):
 
     selected_metric_display = selected_metric.replace("_", " ") if selected_metric is not None else ""
 
-    unit = explorer.units[selected_yaml].get(selected_metric, "")
+    unit = legend.unit_to_html(explorer.units[selected_yaml].get(selected_metric, ""))
     selected_metric_display_unit = selected_metric_display + " (" + unit + ")" if unit else selected_metric_display
 
     ctx = dash.callback_context

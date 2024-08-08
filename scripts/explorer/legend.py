@@ -24,6 +24,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 import legend
+import re
 
 plot_colors = px.colors.qualitative.Plotly
 
@@ -114,3 +115,14 @@ def setup_callbacks(explorer, page_name):
 
 def get_color(i):
   return plot_colors[i % len(plot_colors)]
+
+def unit_to_html(unit):
+  # Regex pattern to match ^(-?\d+) for positive/negative exponents
+  pattern = r'\^(-?\d+)'
+  html_unit = re.sub(pattern, r'<sup>\1</sup>', unit)
+
+  # Regex pattern to match _(-?\d+) for positive/negative subscripts
+  pattern_sub = r'\_(-?\d+)'
+  unit_with_sub = re.sub(pattern_sub, r'<sub>\1</sub>', html_unit)
+
+  return unit_with_sub
