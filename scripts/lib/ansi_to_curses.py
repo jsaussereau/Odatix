@@ -22,82 +22,110 @@
 import curses
 import re
 
-LIGHT_OFFSET = 8
 
-# Define ANSI codes for colors and attributes
-ANSI_COLORS = {
-  "0": -1,  # Reset
-  "30": curses.COLOR_BLACK,
-  "31": curses.COLOR_RED,
-  "32": curses.COLOR_GREEN,
-  "33": curses.COLOR_YELLOW,
-  "34": curses.COLOR_BLUE,
-  "35": curses.COLOR_MAGENTA,
-  "36": curses.COLOR_CYAN,
-  "37": curses.COLOR_WHITE,
-  "90": curses.COLOR_BLACK + LIGHT_OFFSET,  # Light black (grey)
-  "91": curses.COLOR_RED + LIGHT_OFFSET,  # Light red
-  "92": curses.COLOR_GREEN + LIGHT_OFFSET,  # Light green
-  "93": curses.COLOR_YELLOW + LIGHT_OFFSET,  # Light yellow
-  "94": curses.COLOR_BLUE + LIGHT_OFFSET,  # Light blue
-  "95": curses.COLOR_MAGENTA + LIGHT_OFFSET,  # Light magenta
-  "96": curses.COLOR_CYAN + LIGHT_OFFSET,  # Light cyan
-  "97": curses.COLOR_WHITE + LIGHT_OFFSET,  # Light white
-}
+A_NORMAL = 0
 
 
-def add_ansi_str(win, text, width=-1):
-  # Initialize colors in curses mode
-  curses.start_color()
-  curses.use_default_colors()
-  curses.init_pair(1, -1, -1)
-  for code, color in ANSI_COLORS.items():
-    curses.init_pair(int(code), color, -1)
+class AnsiToCursesConverter:
+  LIGHT_OFFSET = 8
 
-  # Attributes for text
-  A_NORMAL = 0
-  A_BOLD = curses.A_BOLD
+  # Define ANSI codes for colors and attributes
+  ANSI_COLORS = {
+    "30": curses.COLOR_BLACK,
+    "31": curses.COLOR_RED,
+    "32": curses.COLOR_GREEN,
+    "33": curses.COLOR_YELLOW,
+    "34": curses.COLOR_BLUE,
+    "35": curses.COLOR_MAGENTA,
+    "36": curses.COLOR_CYAN,
+    "37": curses.COLOR_WHITE,
+    "90": curses.COLOR_BLACK + LIGHT_OFFSET,  # Light black (grey)
+    "91": curses.COLOR_RED + LIGHT_OFFSET,  # Light red
+    "92": curses.COLOR_GREEN + LIGHT_OFFSET,  # Light green
+    "93": curses.COLOR_YELLOW + LIGHT_OFFSET,  # Light yellow
+    "94": curses.COLOR_BLUE + LIGHT_OFFSET,  # Light blue
+    "95": curses.COLOR_MAGENTA + LIGHT_OFFSET,  # Light magenta
+    "96": curses.COLOR_CYAN + LIGHT_OFFSET,  # Light cyan
+    "97": curses.COLOR_WHITE + LIGHT_OFFSET,  # Light white
+  }
 
-  # Regular expression to find ANSI codes
-  ansi_escape = re.compile(r"\x1b\[([0-9;]*)m")
-  pos = 0
-  color = 1  # Default color: white on black
-  attr = A_NORMAL  # Default attribute
+  def __init__(self):
+    self.current_color = None
+    self.current_intensity = 0
+    self.initialized = False
 
-  line_width = width if width > 0 else float("inf")  # Handle negative width
+  def initialize_colors(self):
+    if not self.initialized:
+      curses.start_color()
+      curses.use_default_colors()
+      for code, color in AnsiToCursesConverter.ANSI_COLORS.items():
+        if color != -1:
+          curses.init_pair(int(code), color, -1)
+      self.current_color = curses.color_pair(0)
+      self.initialized = True
 
-  while True:
-    match = ansi_escape.search(text, pos)
-    if match is None:
-      segment = text[pos:]
-      if len(segment) > line_width:
-        segment = segment[:line_width]  # Truncate if needed
-      win.addstr(segment, attr | curses.color_pair(color))
-      win.refresh()
-      break
+  def add_ansi_str(self, win, text, debug_win=None, width=-1):
+    self.initialize_colors()
 
-    # Display text before the next color code
-    segment = text[pos : match.start()]
-    if len(segment) > line_width:
-      segment = segment[:line_width]  # Truncate if needed
-    win.addstr(segment, attr | curses.color_pair(color))
-    pos = match.end()
+    # Regular expression to find ANSI escape sequences
+    ansi_escape = re.compile(r"\x1b\[([0-9;]*)m")
 
-    # Parse color code
-    codes = match.group(1).split(";")
-    for code in codes:
-      if code == "1":
-        attr |= A_BOLD
-      elif code == "22":
-        attr &= ~A_BOLD
-      elif code == "0":
-        attr = A_NORMAL
-        color = 1
-      elif code in ANSI_COLORS:
-        color = int(code)
+    # Find all ANSI codes and normal text
+    segments = ansi_escape.split(text)
 
-    # Display text with the specified color
-    if width > 0 and win.getyx()[1] >= width:
-      break  # Exit if width exceeded
+    current_width = 0
+    truncated = False
 
-    win.addstr("", attr | curses.color_pair(color))
+    for i, segment in enumerate(segments):
+      if i % 2 == 0:
+        # Normal text segment
+        if width > 0:
+          remaining_width = width - current_width
+          if remaining_width > 0:
+            if len(segment) > remaining_width:
+              segment = segment[:remaining_width-3]
+              truncated = True
+            current_width += len(segment)
+            win.addstr(segment, self.current_color | self.current_intensity)
+          if truncated:
+            win.addstr("...", self.current_color | self.current_intensity)
+            break
+        else:
+          win.addstr(segment, self.current_color | self.current_intensity)
+      else:
+        # ANSI code segment
+        codes = segment.split(";")
+        for code in codes:
+          if code in AnsiToCursesConverter.ANSI_COLORS:
+            color_pair = curses.color_pair(int(code))
+            self.current_color = color_pair  # Use the new color
+          elif code == "0":  # Reset code
+            self.current_color = curses.color_pair(0)  # Reset to default color and attributes
+            self.current_intensity = A_NORMAL
+          elif code == "1":  # Bold code
+            self.current_intensity = curses.A_BOLD
+          elif code == "22":  # Normal intensity
+            self.current_intensity = A_NORMAL
+          else:
+            if debug_win is not None:
+              debug_win.addstr("{Unsupported ANSI escape code:" + code + "}", curses.color_pair(31))
+
+    win.refresh()
+    if debug_win is not None:
+      debug_win.refresh()
+
+  def test(self, stdscr):
+    stdscr.clear()
+    text = " default_text\n \x1b[1m\x1b[31mbold_red_text\x1b[0m\n \x1b[34mblue_and_\x1b[32mgreen_text\n \x1b[31mred_text\n \x1b[0mdefault_text\n \x1b[52merror_text"
+    height, width = stdscr.getmaxyx()
+
+    # Ensure the text fits within the window width
+    self.add_ansi_str(stdscr, text, width=width)
+
+    # Wait for a key press to exit
+    stdscr.getch()
+
+
+if __name__ == "__main__":
+  conv = AnsiToCursesConverter()
+  curses.wrapper(conv.test)

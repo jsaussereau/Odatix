@@ -134,6 +134,8 @@ class ParallelJobHandler:
     self.previous_log_size = 0
     self.max_title_length = max(len(job.display_name) for job in job_list)
 
+    self.converter = AnsiToCursesConverter()
+
   @staticmethod
   def set_nonblocking(fd):
     fl = fcntl.fcntl(fd, fcntl.F_GETFL)
@@ -242,9 +244,9 @@ class ParallelJobHandler:
 
     key = help_win.getch()
     curses.flushinp()
-    if key == ord('y'):
+    if key == ord("y"):
       return True, True
-    elif key == ord('n'):
+    elif key == ord("n"):
       return True, False
     else:
       return False, False
@@ -273,7 +275,7 @@ class ParallelJobHandler:
       try:
         logs_win.move(i, 0)
         logs_win.clrtoeol()
-        ansi_to_curses.add_ansi_str(logs_win, line, width)
+        self.converter.add_ansi_str(logs_win, line, width=width)
       except curses.error:
         pass
 
