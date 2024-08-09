@@ -142,9 +142,21 @@ class ParallelJobHandler:
     fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
   @staticmethod
-  def progress_bar(window, id, progress, bar_width, title, title_size, status="", selected=False):
-    title = title.ljust(title_size)
-    bar_width = bar_width - 2 - title_size
+  def progress_bar(window, id, progress, bar_width, title, title_size, width, status="", selected=False):
+    bar_width = bar_width - title_size
+    if bar_width < 4:
+      bar_width = 4
+      title_size = width - bar_width - 25
+      if title_size < 0:
+        title_size = 0
+
+      if len(title) > title_size:
+        title = title[: title_size - 3] + "..."
+      else:
+        title = title.ljust(title_size)
+    else:
+      title = title.ljust(title_size)
+
     bar_length = int(bar_width * progress / 100.0)
     percentage = f"{progress:.0f}%"
     comment = f"({status})"
@@ -412,6 +424,7 @@ class ParallelJobHandler:
           bar_width=(width - 25),
           title=job.display_name,
           title_size=self.max_title_length,
+          width=width,
           status=job.status,
           selected=(id == self.selected_job_index),
         )
