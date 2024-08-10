@@ -27,22 +27,27 @@
 OPENLANE_DIR            = ~/Documents/ASIC/OpenLane
 SCRIPT_DIR              = ./scripts
 LOG_DIR                 = ./log
+REPORT_DIR              = ./report
 WORK_DIR                = ./tmp
 
 ########################################################
 # Files
 ########################################################
 
-LOG_FILE                = $(LOG_DIR)/find_fmax.log
-LOG_FILE                = $(LOG_DIR)/synth.log
+SYNTH_FREQ_SCRIPT       = find_fmax.tcl
+LOG_FILE                = $(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log
 GEN_CONFIG_SCRIPT       = eda_tools/openlane/scripts/gen_config.py
-SYNTH_FMAX_SCRIPT       = eda_tools/openlane/scripts/synth_fmax.py
 
 ########################################################
 # Tool specific
 ########################################################
 
-YOSYS                   = yosys
+LIB_NAME                = openlane_test
+
+MOUNT_CMD               = cd $(OPENLANE_DIR); make mount ENV_MOUNT='-d -v $(OPENLANE_DIR):/openlane --name $(LIB_NAME)'
+FLOW_CMD                = docker exec -it $(LIB_NAME) /bin/sh -c 'cd $(WORK_DIR); tclsh scripts/$(SYNTH_FREQ_SCRIPT)'
+GEN_CONFIG_CMD          = python3 $(GEN_CONFIG_SCRIPT) --basepath $(WORK_DIR)
+TEST_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'exit'
 
 CLOCK_SIGNAL            = clock
 TOP_LEVEL_MODULE        = module
@@ -66,55 +71,65 @@ _CYAN                   =\x1b[36m
 _WHITE                  =\x1b[37m
 _GREY                   =\x1b[90m
 
-YOSYS_COLOR             = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNING$(_END)/;s/ERROR/$(_RED)$(_BOLD)ERROR$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<yellow>/$(_YELLOW)/;s/<cyan>/$(_CYAN)/;s/<blue>/$(_BLUE)/;s/<magenta>/$(_MAGENTA)/;s/<grey>/$(_GREY)/;s/<bold>/$(_BOLD)/;s/<end>/$(_END)/g"
+OPENLANE_COLOR          = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNING$(_END)/;s/ERROR/$(_RED)$(_BOLD)ERROR$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<yellow>/$(_YELLOW)/;s/<cyan>/$(_CYAN)/;s/<blue>/$(_BLUE)/;s/<magenta>/$(_MAGENTA)/;s/<grey>/$(_GREY)/;s/<bold>/$(_BOLD)/;s/<end>/$(_END)/g"
 
 SIGNATURE               = $(_GREY)[eda_tools/openlane/makefile.mk]$(_END)
 
 ########################################################
 # Rules
 ########################################################
-
 .PHONY: synth_fmax_only
-synth_fmax_only: 
-	@printf "$(SIGNATURE) Stoping existing Docker container...\n"
-	@docker stop $(LIB_NAME) 2>/dev/null || true
-	@printf "$(SIGNATURE) Starting a new OpenLane Docker container...\n"
-	@printf "$(_BOLD) > "
-	@rm -rf $(WORK_DIR)/scripts $(WORK_DIR)/result $(WORK_DIR)/src | tee $(LOG_FILE)
-	@bash -c "cd $(OPENLANE_DIR); make mount ENV_MOUNT='-d -v $(OPENLANE_DIR):/openlane --name $(LIB_NAME)'" | tee -a $(LOG_FILE)
-	@printf "$(_END)"
-	@printf "$(SIGNATURE) Waiting for Docker container... "
+synth_fmax_only: dirs 
+	@printf "\n$(SIGNATURE) $(_CYAN)Kill existing Docker container$(_END)\n"
+	@docker kill $(LIB_NAME) 2>/dev/null || true
+	@printf "$(SIGNATURE) $(_CYAN)Start a new OpenLane Docker container$(_END)\n"
+	@rm -rf $(WORK_DIR)/result $(WORK_DIR)/src
+	@printf "$(_BOLD) > $(MOUNT_CMD)$(_END)"
+	@bash -c "$(MOUNT_CMD)"
+	@printf "$(SIGNATURE) $(_CYAN)Wait for Docker container$(_END)"
 	@start_time=$$(date +%s); \
 	end_time=$$((start_time + $(WAIT_TIME))); \
 	while [ $$(date +%s) -lt $$end_time ]; do \
 		if [ $$(docker inspect -f '{{.State.Running}}' $(LIB_NAME) 2>/dev/null) = "true" ]; then \
-			printf "ready!\n" | tee -a $(LOG_FILE); \
+			printf "ready!\n"; \
 			ready=true; \
 			break; \
 		fi; \
 		sleep $(INTERVAL); \
 	done; \
 	if [ "$$ready" != "true" ]; then \
-		printf "\n$(SIGNATURE) $(_BOLD)$(_RED)error:$(_END) $(_RED) Docker container not ready after $(WAIT_TIME) seconds\n" | tee -a $(LOG_FILE); \
+		printf "\n$(SIGNATURE) $(_BOLD)$(_RED)error:$(_END) $(_RED) Docker container not ready after $(WAIT_TIME) seconds\n"; \
 		exit 1; \
 	fi
-		
-	@python3 $(SYNTH_FMAX_SCRIPT) \
-		--basepath $(WORK_DIR) \
-		--command "docker exec -it $(LIB_NAME) /bin/sh -c 'cd $(WORK_DIR); /openlane/flow.tcl -tag asterism -overwrite' | tee -a $(SYNTH_LOG_FILE)" \
-		| tee -a $(SYNTH_LOG_FILE)
-	@docker stop $(LIB_NAME)
+	@$(GEN_CONFIG_CMD)
+	@printf "$(SIGNATURE) $(_CYAN)Run Fmax synthesis flow$(_END)"
+	@printf "$(_BOLD) > $(FLOW_CMD)$(_END)"
+	@$(FLOW_CMD) | tee $(LOG_FILE) | sed $(OPENLANE_COLOR)
+	@printf "\n$(SIGNATURE) $(_CYAN)Stop Docker container$(_END)\n"
+	@docker stop $(LIB_NAME) 2>/dev/null || true
+	@printf "\n$(SIGNATURE) $(_GREEN)Done!$(_END)\n"
 
-.PHONY: synth_
-synth_:
-	@rm -rf $(WORK_DIR)/scripts $(WORK_DIR)/result $(WORK_DIR)/src | tee $(LOG_FILE)
-	@screen -dm bash -c "cd $(OPENLANE_DIR); make mount" | tee -a $(LOG_FILE)
-	@$(eval DOCKER_ID := $(shell docker ps -lq))
-	@printf "DOCKER_ID = $(DOCKER_ID)\n" | tee -a $(LOG_FILE)
-	@sleep 2
-	@python3 $(GEN_CONFIG_SCRIPT) --docker $(DOCKER_ID) --basepath $(WORK_DIR) | tee -a $(LOG_FILE)
-	@docker exec -it $(DOCKER_ID) /bin/sh -c 'cd $(WORK_DIR); /openlane/flow.tcl -tag asterism' | tee -a $(LOG_FILE)
 
 .PHONY: test_tool
 test_tool:
-	@$(YOSYS) --version
+	@docker kill $(LIB_NAME) 2>/dev/null || true
+	@$(MOUNT_CMD)
+	@start_time=$$(date +%s); \
+	end_time=$$((start_time + $(WAIT_TIME))); \
+	while [ $$(date +%s) -lt $$end_time ]; do \
+		if [ $$(docker inspect -f '{{.State.Running}}' $(LIB_NAME) 2>/dev/null) = "true" ]; then \
+			ready=true; \
+			break; \
+		fi; \
+		sleep $(INTERVAL); \
+	done; \
+	if [ "$$ready" != "true" ]; then \
+		exit 1; \
+	fi
+	@$(TEST_CMD)
+	@docker kill $(LIB_NAME) 2>/dev/null || true
+
+.PHONY: dirs
+dirs:
+	@mkdir -p $(LOG_DIR)
+	@mkdir -p $(REPORT_DIR)
