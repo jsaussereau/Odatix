@@ -43,3 +43,7 @@ proc is_slack_met {timing_rep} {
       return 0
   }
 }
+
+proc is_slack_inf {timing_rep} {
+  return 0
+}

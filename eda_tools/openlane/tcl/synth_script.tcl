@@ -19,17 +19,36 @@
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
 
+if {[catch {
 
-source scripts/settings.tcl
+    source scripts/settings.tcl
 
-set signature "<grey>\[synth_script.tcl\]<end>"
+    set signature "<grey>\[synth_script.tcl\]<end>"
 
-# report_progress 0 $synth_statusfile
+    report_progress 5 $synth_statusfile
 
-set chan [open "|/bin/sh -c \"/openlane/flow.tcl -tag asterism -overwrite\"" r]
-while {[gets $chan line] >= 0} {
-    puts $line
+    if {[catch {
+        set chan [open "|/bin/sh -c \"/openlane/flow.tcl -tag asterism -overwrite\"" r]
+        while {[gets $chan line] >= 0} {
+            puts $line
+        }
+        close $chan
+    } errmsg]} {
+        puts "$signature <bold><red>error: openlane flow failed, exiting<end>"
+        puts "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+        exit -1
+    }
+
+    report_progress 98 $synth_statusfile
+
+} gblerrmsg ]} {
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    catch {
+        puts "$signature <cyan>tcl error detail:<red>"
+        puts "$gblerrmsg"
+    }
+    puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
+    exit -1
 }
-close $chan
-
-# report_progress 98 $synth_statusfile
