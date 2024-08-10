@@ -88,7 +88,7 @@ class AnsiToCursesConverter:
             current_width += len(segment)
             win.addstr(segment, self.current_color | self.current_intensity)
           if truncated:
-            win.addstr("...", self.current_color | self.current_intensity)
+            win.addstr("...", curses.color_pair(90))
         else:
           win.addstr(segment, self.current_color | self.current_intensity)
       else:
