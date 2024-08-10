@@ -143,9 +143,10 @@ class ParallelJob:
 ######################################
 
 class ParallelJobHandler:
-  def __init__(self, job_list, nb_jobs, auto_exit=False, log_size_limit=100):
+  def __init__(self, job_list, nb_jobs=4, process_group=True, auto_exit=False, log_size_limit=100):
     self.job_list = job_list
     self.nb_jobs = nb_jobs
+    self.process_group = process_group
     self.auto_exit = auto_exit
     self.log_size_limit = log_size_limit
 
@@ -335,7 +336,7 @@ class ParallelJobHandler:
       shell=True,
       text=True,
       bufsize=1,
-      # preexec_fn=os.setpgrp,  # Set the process group
+      preexec_fn=os.setpgrp if self.process_group else None, 
     )
 
     self.set_nonblocking(process.stdout)

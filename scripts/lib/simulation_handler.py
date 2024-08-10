@@ -20,18 +20,14 @@
 #
 
 import os
-import re
-import sys
 import math
 import yaml
-import inspect
 
 from architecture_handler import ArchitectureHandler
 
 from os.path import isfile
 from os.path import isdir
 
-import utils
 from utils import *
 
 script_name = os.path.basename(__file__)
@@ -85,7 +81,9 @@ class SimulationHandler:
       arch_path = self.arch_path,
       script_path = "",
       work_script_path = self.work_script_path,
+      work_report_path = "",
       log_path = self.log_path,
+      process_group=True,
       eda_target_filename = "",
       fmax_status_filename = "",
       frequency_search_filename = "",
@@ -203,7 +201,7 @@ class SimulationHandler:
                 #printc.warning("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
               # overwrite architecture settings
               architecture.param_target_filename = param_target_filename
-            except (KeyNotInListError, BadValueInListError) as e:
+            except (KeyNotInListError, BadValueInListError):
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
               return None
@@ -211,7 +209,7 @@ class SimulationHandler:
           # get override_parameters
           try:
             override_parameters = read_from_list('override_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
-          except (KeyNotInListError, BadValueInListError) as e:
+          except (KeyNotInListError, BadValueInListError):
             self.banned_sim_param.append(sim)
             self.error_sims.append(sim_display_name)
             return None
@@ -220,7 +218,7 @@ class SimulationHandler:
             # get override_param_target_file
             try:
               override_param_file = read_from_list('override_param_file', settings_data, settings_filename, print_error=False, script_name=script_name)
-            except (KeyNotInListError, BadValueInListError) as e:
+            except (KeyNotInListError, BadValueInListError):
               printc.error("Cannot find key \"override_param_file\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
@@ -236,7 +234,7 @@ class SimulationHandler:
             # get start delimiter
             try:
               override_start_delimiter = read_from_list('override_start_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-            except (KeyNotInListError, BadValueInListError) as e:
+            except (KeyNotInListError, BadValueInListError):
               printc.error("Cannot find key \"override_start_delimiter\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
@@ -245,7 +243,7 @@ class SimulationHandler:
             # get stop delimiter
             try:
               override_stop_delimiter = read_from_list('override_stop_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-            except (KeyNotInListError, BadValueInListError) as e:
+            except (KeyNotInListError, BadValueInListError):
               printc.error("Cannot find key \"override_stop_delimiter\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
@@ -263,7 +261,7 @@ class SimulationHandler:
               override_param_target_file_sim = source_sim_dir + '/' + override_param_target_filename
               #if not isfile(override_param_target_file_rtl) and not isfile(override_param_target_file_sim): 
                 #printc.warning("The override parameter target file \"" + override_param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
-            except (KeyNotInListError, BadValueInListError) as e:
+            except (KeyNotInListError, BadValueInListError):
               self.banned_sim_param.append(sim)
               self.error_sims.append(sim_display_name)
               return None

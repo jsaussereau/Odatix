@@ -201,11 +201,17 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
       sys.exit(-1)
 
     # Mandatory keys
+    try:
+      process_group = read_from_list("process_group", settings_data, tool_settings_filename, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      pass
+
     global work_report_path
     try:
       work_report_path = read_from_list("report_path", settings_data, tool_settings_filename, optional=True, print_error=False, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
-      pass
+      sys.exit(-1)
+
   # Try launching eda tool
   check_tool(
     tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools
@@ -236,6 +242,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     work_script_path=work_script_path,
     work_report_path=work_report_path,
     log_path=log_path,
+    process_group=process_group,
     eda_target_filename=eda_target_filename,
     fmax_status_filename=fmax_status_filename,
     frequency_search_filename=frequency_search_filename,
@@ -416,7 +423,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
   for arch_instance in architecture_instances:
     prepare_job(arch_instance)
 
-  parallel_jobs = ParallelJobHandler(job_list, nb_jobs)
+  parallel_jobs = ParallelJobHandler(job_list, nb_jobs, arch_handler.process_group)
   job_exit_success = parallel_jobs.run()
 
   # Summary

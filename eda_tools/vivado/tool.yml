@@ -3,6 +3,8 @@
 ##############################################
 ---
 
+process_group: True
+
 metrics:
   Fmax:
     type: regex

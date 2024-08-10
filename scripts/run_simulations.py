@@ -245,7 +245,11 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
   for sim_instance in simulation_instances:
     prepare_job(sim_instance)
 
-  parallel_jobs = ParallelJobHandler(job_list, nb_jobs)
+  parallel_jobs = ParallelJobHandler(
+    job_list=job_list,
+    nb_jobs=nb_jobs,
+    process_group=True,
+  )
   job_exit_success = parallel_jobs.run()
 
 ######################################

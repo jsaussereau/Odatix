@@ -3,9 +3,8 @@
 ##############################################
 ---
 
+process_group: False
 report_path: runs/asterism/reports
-import_common_tcl: No
-create_dirs: No
 
 metrics:
   Fmax:
