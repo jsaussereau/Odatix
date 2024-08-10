@@ -1,0 +1,96 @@
+##############################################
+# Settings for OpenLane
+##############################################
+---
+
+report_path: runs/asterism/reports
+import_common_tcl: No
+create_dirs: No
+
+metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: log/frequency_search.log
+      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 2
+    format: "%d"
+    unit: MHz
+
+  Cell_Area:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: CoreArea_um^2
+    format: "%.3f"
+    unit: um^2
+
+  Synth_Cell_Count:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: synth_cell_count
+    format: "%d"
+
+  WNS:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: wns
+    format: "%.2f"
+    unit: "ns"
+
+  TNS:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: tns
+    format: "%.2f"
+    unit: "ns"
+
+  Wire_Length:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: wire_length
+    format: "%d"
+    unit: "um"
+
+  Vias:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: vias
+    format: "%d"
+
+  Clock_Period:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: CLOCK_PERIOD
+    format: "%.2f"
+    unit: "ns"
+
+  Power_Slowest_Internal:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: power_slowest_internal_uW
+    format: "%.6f"
+    unit: "W"
+
+  Power_Typical_Switching:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: power_typical_switching_uW
+    format: "%.6f"
+    unit: "W"
+
+  Power_Fastest_Leakage:
+    type: csv
+    settings:
+      file: runs/asterism/reports/metrics.csv
+      key: power_fastest_leakage_uW
+    format: "%.9f"
+    unit: "W"
