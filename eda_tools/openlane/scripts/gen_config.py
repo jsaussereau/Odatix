@@ -43,7 +43,7 @@ config_filename = "config.json"
 yaml_config_filename = "settings.yml"
 generate_command = "/openlane/flow.tcl -init_design_config"
 
-script_name = os.path.basename(__file__)
+script_name = "eda_tools/openlane/scripts/" + os.path.basename(__file__)
 
 ######################################
 # Parse Arguments
@@ -73,10 +73,11 @@ def main(base_path, clock_signal, docker_id, design_name):
       #command = "docker exec -it " + docker_id + " /bin/sh -c ' cd " + base_path + "; " + generate_command + " --design-dir " + base_path + "'"
       command = "docker exec -it " + docker_id + " /bin/sh -c ' python3 /openlane/scripts/config/init.py --design-dir " + base_path + " --design-name " + design_name + " --add-to-designs" + "'"
       printc.cyan("Run config generation command", script_name=script_name)
-      printc.bold(" > " + command)      
+      printc.bold(" > " + command)
+      print("", end="", flush=True)
       process = subprocess.Popen(command, shell=True)
       while process.poll() is None:
-        print('.', end='', flush=True)
+        # print('.', end='', flush=True)
         time.sleep(0.5)
       print()
     except Exception as e:
@@ -117,8 +118,11 @@ if __name__ == "__main__":
     if args.clock is None:
       args.clock = arch.clock_signal
 
+    if args.docker is None:
+      args.docker = arch.lib_name 
+
     if args.name is None:
-      args.name = arch.arch_name 
+      args.name = arch.top_level_module 
 
   if args.clock is None:
     printc.error("Missing --clock option", script_name=script_name)
