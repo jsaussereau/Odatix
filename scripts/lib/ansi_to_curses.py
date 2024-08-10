@@ -89,7 +89,6 @@ class AnsiToCursesConverter:
             win.addstr(segment, self.current_color | self.current_intensity)
           if truncated:
             win.addstr("...", self.current_color | self.current_intensity)
-            break
         else:
           win.addstr(segment, self.current_color | self.current_intensity)
       else:
