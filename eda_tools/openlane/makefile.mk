@@ -104,11 +104,12 @@ synth_fmax_only: dirs
 	@$(GEN_CONFIG_CMD)
 	@printf "$(SIGNATURE) $(_CYAN)Run Fmax synthesis flow$(_END)"
 	@printf "$(_BOLD) > $(FLOW_CMD)$(_END)"
-	@$(FLOW_CMD) | tee $(LOG_FILE) | sed $(OPENLANE_COLOR)
+	@$(FLOW_CMD) | tee $(LOG_FILE) | sed $(OPENLANE_COLOR) ; \
+	EXIT_CODE=$${PIPESTATUS[0]}; \
+	[ $$EXIT_CODE -eq 0 ] || exit $$EXIT_CODE
 	@printf "\n$(SIGNATURE) $(_CYAN)Stop Docker container$(_END)\n"
-	@docker stop $(LIB_NAME) 2>/dev/null || true
+	@docker kill $(LIB_NAME) 2>/dev/null || true
 	@printf "\n$(SIGNATURE) $(_GREEN)Done!$(_END)\n"
-
 
 .PHONY: test_tool
 test_tool:
