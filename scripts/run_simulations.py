@@ -185,20 +185,6 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
         )
         #print()
 
-      # run generate command
-      if sim_instance.architecture.generate_rtl:
-        try:
-          print()
-          printc.subheader("Run generate command for " + sim_instance.architecture.arch_display_name)
-          printc.bold(" > " + sim_instance.architecture.generate_command)
-          result = subprocess.run([sim_instance.architecture.generate_command], cwd=sim_instance.tmp_dir, shell=True, check=True, text=True)
-        except subprocess.CalledProcessError:
-          print()
-          printc.error("rtl generation failed", script_name)
-          printc.note("look for earlier error to solve this issue", script_name)
-          print()
-          return
-
       # replace parameters again (override)
       if sim_instance.override_parameters:
         #printc.subheader("Replace parameters")
@@ -231,6 +217,8 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
         process=None,
         command=command,
         directory=sim_instance.tmp_dir,
+        generate_rtl=sim_instance.architecture.generate_rtl,
+        generate_command=sim_instance.architecture.generate_command,
         target="",
         arch="",
         display_name=sim_instance.sim_display_name,

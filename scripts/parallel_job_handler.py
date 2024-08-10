@@ -59,6 +59,8 @@ class ParallelJob:
     process,
     command,
     directory,
+    generate_rtl,
+    generate_command,
     target,
     arch,
     display_name,
@@ -71,6 +73,8 @@ class ParallelJob:
     self.process = process
     self.command = command
     self.directory = directory
+    self.generate_rtl = generate_rtl
+    self.generate_command = generate_command
     self.target = target
     self.arch = arch
     self.display_name = display_name
@@ -205,6 +209,8 @@ class ParallelJobHandler:
         window.addstr(id, comment_position, comment, curses.color_pair(4))
       elif status == "queued":
         window.addstr(id, comment_position, comment, curses.color_pair(5))
+      elif status == "starting":
+        window.addstr(id, comment_position, comment, curses.color_pair(6))
       else:
         window.addstr(id, comment_position, comment, curses.color_pair(1))
     except curses.error as e:
@@ -324,6 +330,39 @@ class ParallelJobHandler:
     logs_win.refresh()
     self.previous_log_size = log_length
 
+  def start_job(self, job):
+    # Run generate command
+    if not job.generate_rtl:
+      self.run_job(job)
+      self.running_job_list.append(job)
+      return
+
+    try:
+      job.log_history.append(printc.colors.CYAN + "Run generate command for " + job.display_name + printc.colors.ENDC)
+      job.log_history.append(printc.colors.BOLD + " > " + job.generate_command + printc.colors.ENDC)
+
+      process = subprocess.Popen(
+        job.generate_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=job.tmp_dir,
+        shell=True,
+        text=True
+      )
+
+      self.set_nonblocking(process.stdout)
+      self.set_nonblocking(process.stderr)
+
+      job.process = process
+      job.status = "starting"
+      self.running_job_list.append(job)
+    except subprocess.CalledProcessError:
+      job.status = "failed"
+      self.retire_job(job, progress=0)
+      job.log_history.append(printc.colors.RED + "error: rtl generation failed" + printc.colors.ENDC)
+      job.log_history.append(printc.colors.CYAN + "note: look for earlier error to solve this issue" + printc.colors.ENDC)
+      return
+
   def run_job(self, job):
     job.log_history.append(printc.colors.CYAN + "Run job command" + printc.colors.ENDC)
     job.log_history.append(printc.colors.BOLD + " > " + job.command + printc.colors.ENDC)
@@ -344,7 +383,6 @@ class ParallelJobHandler:
 
     job.process = process
     job.status = "running"
-    self.running_job_list.append(job)
 
   def queue_job(self, job):
     job.status = "queued"
@@ -415,7 +453,7 @@ class ParallelJobHandler:
 
     for job in self.job_list:
       if len(self.running_job_list) < self.nb_jobs:
-        self.run_job(job)
+        self.start_job(job)
       else:
         self.queue_job(job)
 
@@ -446,7 +484,12 @@ class ParallelJobHandler:
           progress = job.get_progress()
           if job.process.poll() is not None:
             if job.process.returncode == 0:
-              job.status = "success"
+              if job.status == "starting":
+                job.log_history.append("")
+                self.run_job(job)
+                continue
+              else:
+                job.status = "success"
             else:
               job.status = "failed"
               if progress is None:
@@ -454,8 +497,8 @@ class ParallelJobHandler:
 
             self.retire_job(job, progress)
             if not self.job_queue.empty():
-              self.run_job(self.job_queue.get())
-
+              self.start_job(self.job_queue.get())
+              
             if job == selected_job:
               selected_job.log_changed = True
               self.update_logs(logs_win, selected_job, logs_height, width)

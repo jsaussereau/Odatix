@@ -310,22 +310,6 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
         )
         # print()
 
-      # Run generate command
-      if arch_instance.generate_rtl:
-        try:
-          print()
-          printc.subheader("Run generate command for " + arch_instance.arch_display_name)
-          printc.bold(" > " + arch_instance.generate_command)
-          result = subprocess.run(
-            [arch_instance.generate_command], cwd=arch_instance.tmp_dir, shell=True, check=True, text=True
-          )
-        except subprocess.CalledProcessError:
-          print()
-          printc.error("rtl generation failed", script_name)
-          printc.note("look for earlier error to solve this issue", script_name)
-          print()
-          return
-
       # Create target and architecture files
       f = open(arch_instance.tmp_dir + "/" + target_filename, "w")
       print(arch_instance.target, file=f)
@@ -408,6 +392,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
         process=None,
         command=command,
         directory=".",
+        generate_rtl=arch_instance.generate_rtl,
+        generate_command=arch_instance.generate_command,
         target=arch_instance.target,
         arch=arch_instance.arch_name,
         display_name=arch_instance.arch_display_name,
