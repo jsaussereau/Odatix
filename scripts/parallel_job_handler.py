@@ -352,6 +352,7 @@ class ParallelJobHandler:
     curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_WHITE + ansi_to_curses.LIGHT_OFFSET)
 
     height, width = stdscr.getmaxyx()
+    old_width = width
 
     header_height = 2
 
@@ -464,7 +465,12 @@ class ParallelJobHandler:
       if selected_job.autoscroll and selected_job.log_changed:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         self.update_logs(logs_win, selected_job, logs_height, width)
-      
+
+      # Handle resize
+      if width != old_width:
+          self.update_logs(logs_win, selected_job, logs_height, width)
+      old_width = width
+
       # Get inputs
       stdscr.nodelay(True)
       key = stdscr.getch()
