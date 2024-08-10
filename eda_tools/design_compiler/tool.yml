@@ -21,7 +21,7 @@ metrics:
       pattern: "Total cell area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
-    unit: µm^2
+    unit: um^2
 
   Total_Area:
     type: regex
@@ -30,7 +30,7 @@ metrics:
       pattern: "Total area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
-    unit: µm^2
+    unit: um^2
 
   Comb_Area:
     type: regex
@@ -39,7 +39,7 @@ metrics:
       pattern: "Combinational area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
-    unit: µm^2
+    unit: um^2
 
   Noncomb_Area:
     type: regex
@@ -48,7 +48,7 @@ metrics:
       pattern: "Noncombinational area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
-    unit: µm^2
+    unit: um^2
 
   Buf_Inv_Area:
     type: regex
@@ -57,7 +57,7 @@ metrics:
       pattern: "Buf/Inv area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
-    unit: µm^2
+    unit: um^2
 
   Macro_Area:
     type: regex
@@ -66,7 +66,7 @@ metrics:
       pattern: "Macro/Black Box area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
-    unit: µm^2
+    unit: um^2
 
   Net_Area:
     type: regex
@@ -75,7 +75,7 @@ metrics:
       pattern: "Net Interconnect area:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.3f"
-    unit: µm^2
+    unit: um^2
 
   Cell_count:
     type: regex
