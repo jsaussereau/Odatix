@@ -28,7 +28,6 @@ import yaml
 from os.path import isfile
 from os.path import isdir
 
-import utils
 from utils import *
 
 script_name = os.path.basename(__file__)
@@ -36,7 +35,7 @@ script_name = os.path.basename(__file__)
 asterism_dir_pattern = re.compile(r"\$asterism")
 
 class Architecture:
-  def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_dir, design_path, rtl_path, log_path, arch_path,
+  def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_report_path, tmp_dir, design_path, rtl_path, log_path, arch_path,
                clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
                fmax_lower_bound, fmax_upper_bound, param_target_filename, generate_rtl, generate_command, constraint_filename):
@@ -45,6 +44,7 @@ class Architecture:
     self.lib_name = lib_name
     self.target = target
     self.tmp_script_path = tmp_script_path
+    self.tmp_report_path = tmp_report_path
     self.tmp_dir = tmp_dir
     self.design_path = design_path
     self.rtl_path = rtl_path
@@ -76,6 +76,7 @@ class Architecture:
       'lib_name': arch.lib_name,
       'target': arch.target,
       'script_path': arch.tmp_script_path,
+      'report_path': arch.tmp_report_path,
       'tmp_path': arch.tmp_dir,
       'design_path': arch.design_path,
       'rtl_path': arch.rtl_path,
@@ -119,6 +120,7 @@ class Architecture:
         lib_name              = read_from_list("lib_name", yaml_data, config_file, script_name=script_name),
         target                = read_from_list("target", yaml_data, config_file, script_name=script_name),
         tmp_script_path       = read_from_list("script_path", yaml_data, config_file, script_name=script_name),
+        tmp_report_path       = read_from_list("report_path", yaml_data, config_file, script_name=script_name),
         tmp_dir               = read_from_list("tmp_path", yaml_data, config_file, script_name=script_name),
         design_path           = read_from_list("design_path", yaml_data, config_file, script_name=script_name),
         rtl_path              = read_from_list("rtl_path", yaml_data, config_file, script_name=script_name),
@@ -143,17 +145,18 @@ class Architecture:
         generate_command      = read_from_list("generate_command", yaml_data, config_file, script_name=script_name),
         constraint_filename   = read_from_list("constraint_filename", yaml_data, config_file, script_name=script_name)
       )
-    except (KeyNotInListError, BadValueInListError) as e:
+    except (KeyNotInListError, BadValueInListError):
       return None
     return arch
 
 class ArchitectureHandler:
 
-  def __init__(self, work_path, arch_path, script_path, work_script_path, log_path, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
+  def __init__(self, work_path, arch_path, script_path, work_script_path, work_report_path, log_path, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
     self.work_path = work_path
     self.arch_path = arch_path
     self.script_path = script_path
     self.work_script_path = work_script_path
+    self.work_report_path = work_report_path
     self.log_path = log_path
 
     self.eda_target_filename = eda_target_filename
@@ -207,13 +210,13 @@ class ArchitectureHandler:
             raise BadValueInListError
         else:
           raise BadValueInListError
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         script_copy_enable = False
         script_copy_source = "/dev/null"
 
       try:
         target_settings = read_from_list("target_settings", settings_data, self.eda_target_filename, optional=True, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         target_settings = {}
 
       for target in targets:
@@ -221,7 +224,7 @@ class ArchitectureHandler:
         if target_settings != {}:
           try:
             this_target_settings = read_from_list(target, target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
-          except (KeyNotInListError, BadValueInListError) as e:
+          except (KeyNotInListError, BadValueInListError):
             this_target_settings = {}
             pass
           if this_target_settings != {}:
@@ -234,7 +237,7 @@ class ArchitectureHandler:
                 if not os.path.isfile(script_copy_source):
                   printc.note("The script source file \"" + script_copy_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
                   raise BadValueInListError
-            except (KeyNotInListError, BadValueInListError) as e:
+            except (KeyNotInListError, BadValueInListError):
               script_copy_enable = False
               script_copy_source = "/dev/null"
 
@@ -326,7 +329,7 @@ class ArchitectureHandler:
         file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename, type=bool, script_name=script_name)
         file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename, script_name=script_name)
         file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
         return None # if an identifier is missing
@@ -338,14 +341,14 @@ class ArchitectureHandler:
       generate_command = ""
       try:
         generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, type=bool, optional=True, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         generate_rtl = False
 
       if generate_rtl:
         try:
           generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False, script_name=script_name)
           generate_rtl = True
-        except (KeyNotInListError, BadValueInListError) as e:
+        except (KeyNotInListError, BadValueInListError):
           printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
           self.banned_arch_param.append(arch_param_dir)
           self.error_archs.append(arch_display_name)
@@ -354,7 +357,7 @@ class ArchitectureHandler:
 
       try:
         design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         design_path = -1
         if generate_rtl:
           printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
@@ -373,7 +376,7 @@ class ArchitectureHandler:
           printc.error("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
           self.banned_arch_param.append(arch_param_dir)
           return None
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         param_target_filename = 'rtl/' + top_level_filename
 
     if not generate_rtl:
@@ -394,7 +397,7 @@ class ArchitectureHandler:
 
       # check if the top level module name exists in the top level file, at least
       f = open(top_level, "r")
-      if not top_level_module in f.read():
+      if top_level_module not in f.read():
         printc.error("There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"", script_name)
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
@@ -404,7 +407,7 @@ class ArchitectureHandler:
       
       # check if the top clock name exists in the top level file, at least
       f = open(top_level, "r")
-      if not clock_signal in f.read():
+      if clock_signal not in f.read():
         printc.error("There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"", script_name)
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
@@ -414,7 +417,7 @@ class ArchitectureHandler:
       
       # check if the top reset name exists in the top level file, at least
       f = open(top_level, "r")
-      if not clock_signal in f.read():
+      if clock_signal not in f.read():
         printc.error("There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"", script_name)
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
@@ -526,11 +529,11 @@ class ArchitectureHandler:
           file_copy_enable = _file_copy_enable
           file_copy_source = _file_copy_source
           file_copy_dest = _file_copy_dest
-        except (KeyNotInListError, BadValueInListError) as e:
+        except (KeyNotInListError, BadValueInListError):
           pass
-      except KeyNotInListError as e:
+      except KeyNotInListError:
         pass
-      except BadValueInListError as e:
+      except BadValueInListError:
         printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + "target_settings/" + target + "\"," + " in \"" + self.eda_target_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
 
     # check file copy
@@ -547,7 +550,8 @@ class ArchitectureHandler:
 
     lib_name = "LIB_" + target + "_" + arch.replace("/", "_")
 
-    tmp_script_path = tmp_dir + '/' + self.work_script_path
+    tmp_script_path = os.path.join(tmp_dir, self.work_script_path)
+    tmp_report_path = os.path.join(tmp_dir, self.work_report_path)
 
     arch_instance = Architecture(
       arch_name = arch,
@@ -555,6 +559,7 @@ class ArchitectureHandler:
       lib_name = lib_name,
       target = target,
       tmp_script_path=tmp_script_path,
+      tmp_report_path=tmp_report_path,
       tmp_dir=tmp_dir,
       design_path=design_path,
       rtl_path=rtl_path,
@@ -586,7 +591,7 @@ class ArchitectureHandler:
     # get use_parameters
     try:
       use_parameters = read_from_list('use_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError) as e:
+    except (KeyNotInListError, BadValueInListError):
       if add_to_error_list:
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
@@ -608,7 +613,7 @@ class ArchitectureHandler:
       # get start delimiter
       try:
         start_delimiter = read_from_list('start_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         printc.error("Cannot find key \"start_delimiter\" in \"" + settings_filename + "\", while \"use_parameters\" is true", script_name)
         if add_to_error_list:
           self.banned_arch_param.append(arch_param_dir)
@@ -618,7 +623,7 @@ class ArchitectureHandler:
       # get stop delimiter
       try:
         stop_delimiter = read_from_list('stop_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         printc.error("Cannot find key \"stop_delimiter\" in \"" + settings_filename + "\", while \"use_parameters\" is true", script_name)
         if add_to_error_list:
           self.banned_arch_param.append(arch_param_dir)

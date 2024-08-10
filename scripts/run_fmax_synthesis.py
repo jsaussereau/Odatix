@@ -38,7 +38,7 @@ from parallel_job_handler import ParallelJobHandler, ParallelJob
 
 from architecture_handler import ArchitectureHandler, Architecture
 from settings import AsterismSettings
-from utils import read_from_list, copytree, create_dir, ask_to_continue
+from utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
 from prepare_work import edit_config_file
 from check_tool import check_tool
 from run_settings import get_synth_settings
@@ -94,7 +94,7 @@ default_fmax_upper_bound = 500
 fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
 synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 
-default_supported_tools = ["vivado", "design_compiler"]
+default_supported_tools = ["vivado", "design_compiler", "openlane"]
 
 script_name = os.path.basename(__file__)
 
@@ -182,6 +182,30 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
       )
     sys.exit(-1)
 
+  # Get tool settings
+  tool_settings_filename = os.path.realpath(os.path.join(eda_tool_dir, "tool.yml"))
+
+  # Check if the tool file exists 
+  if not os.path.isfile(tool_settings_filename):
+    printc.error(
+      'Settings file "' + tool_settings_filename + '", for the selected eda tool "' + tool + '" does not exist', script_name
+    )
+    sys.exit(-1)
+  with open(tool_settings_filename, "r") as f:
+    try:
+      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    except Exception as e:
+      printc.error('Settings file "' + tool_settings_filename + '", for the selected eda tool "' + tool + '" is not a valid YAML file', script_name)
+      printc.cyan("error details: ", end="", script_name=script_name)
+      print(str(e))
+      sys.exit(-1)
+
+    # Mandatory keys
+    global work_report_path
+    try:
+      work_report_path = read_from_list("report_path", settings_data, tool_settings_filename, optional=True, print_error=False, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      pass
   # Try launching eda tool
   check_tool(
     tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools
@@ -210,6 +234,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     arch_path=arch_path,
     script_path=script_path,
     work_script_path=work_script_path,
+    work_report_path=work_report_path,
     log_path=log_path,
     eda_target_filename=eda_target_filename,
     fmax_status_filename=fmax_status_filename,
@@ -335,6 +360,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
 
       # Edit tcl config script
       tcl_config_file = os.path.join(arch_instance.tmp_script_path, tcl_config_filename)
+      report_path = os.path.join(arch_instance.tmp_dir, work_report_path)
       edit_config_file(arch_instance, tcl_config_file)
 
       # Write yaml config script
@@ -349,7 +375,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
           pattern = re.escape(source_tcl) + r"(.+?\.tcl)"
 
           def replace_path(match):
-            return "source " + arch_instance.tmp_script_path + "/" + match.group(1)
+            return "source " + os.path.realpath(arch_instance.tmp_script_path) + "/" + match.group(1)
 
           tcl_content = re.sub(pattern, replace_path, tcl_content)
           with open(arch_instance.tmp_script_path + "/" + filename, "w") as f:
