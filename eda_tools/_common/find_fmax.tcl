@@ -25,6 +25,7 @@ if {[catch {
   # Settings
   ######################################
   source scripts/settings.tcl
+  source scripts/init_script.tcl
   source scripts/is_slack_met.tcl
   source scripts/update_freq.tcl
 
@@ -87,7 +88,6 @@ if {[catch {
   set fs_start_time [clock seconds]
 
   # do analyze and elaborate steps once
-  source $init_script
   source $analyze_script
 
   # do not analyze rtl after that (try tcsh and bash versions)
@@ -133,7 +133,7 @@ if {[catch {
       set logfile_handler [open $logfile a]
       puts $logfile_handler  "MET"
       close $logfile_handler
-      exec /bin/sh -c "cp $report_path/* $tmp_path/report_MET"
+      exec /bin/sh -c "cp -r $report_path/* $tmp_path/report_MET"
     } else {
       set upper_bound $cur_freq
       puts ""
@@ -153,7 +153,7 @@ if {[catch {
         puts $logfile_handler  "VIOLATED"
         close $logfile_handler
       }
-      exec /bin/sh -c "cp $report_path/* $tmp_path/report_VIOLATED"
+      exec /bin/sh -c "cp -r $report_path/* $tmp_path/report_VIOLATED"
     }
 
     set diff [expr {$upper_bound - $lower_bound}]
@@ -200,7 +200,7 @@ if {[catch {
 
   if {$got_met == 1 && $got_violated == 1} {
     #restore reports and results from the synthesis meeting timing requirements
-    exec /bin/sh -c "cp $tmp_path/report_MET/* $report_path"
+    exec /bin/sh -c "cp -r $tmp_path/report_MET/* $report_path"
 
     update_freq $lower_bound $constraints_file
 
