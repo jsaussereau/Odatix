@@ -362,11 +362,18 @@ class ParallelJobHandler:
     help_height = 1
     logs_height = height - progress_height - separator_height - help_height - header_height
 
-    header_win = curses.newwin(header_height, width, 0, 0)
-    progress_win = curses.newwin(progress_height, width, header_height, 0)
-    separator_win = curses.newwin(separator_height, width, header_height + progress_height, 0)
-    logs_win = curses.newwin(logs_height, width, header_height + progress_height + separator_height, 0)
-    help_win = curses.newwin(help_height, width, height - help_height, 0)
+    try:
+      header_win = curses.newwin(header_height, width, 0, 0)
+      progress_win = curses.newwin(progress_height, width, header_height, 0)
+      separator_win = curses.newwin(separator_height, width, header_height + progress_height, 0)
+      logs_win = curses.newwin(logs_height, width, header_height + progress_height + separator_height, 0)
+      help_win = curses.newwin(help_height, width, height - help_height, 0)
+    except curses.error:
+      stdscr.clear()
+      stdscr.addstr(0, 0, "Could not start: window is too small. Press any key to exit", curses.color_pair(2))
+      stdscr.refresh()
+      stdscr.getch()
+      sys.exit(-1)
 
     finished = False
     ask_exit = False
