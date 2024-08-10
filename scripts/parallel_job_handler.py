@@ -34,19 +34,39 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, "lib")
 sys.path.append(lib_path)
 
-import ansi_to_curses
+from ansi_to_curses import AnsiToCursesConverter
 import printc
 import motd
 
-STD_BUF = "stdbuf -oL "
+######################################
+# Settings
+######################################
 
+STD_BUF = "stdbuf -oL "
+script_name = os.path.basename(__file__)
+error = None
+
+######################################
+# ParallelJob
+######################################
 
 class ParallelJob:
   status_file_pattern = re.compile(r"(.*)")
   progress_file_pattern = re.compile(r"(.*)")
 
   def __init__(
-    self, process, command, directory, target, arch, display_name, status_file, progress_file, tmp_dir, progress_mode="default", status="not started"
+    self,
+    process,
+    command,
+    directory,
+    target,
+    arch,
+    display_name,
+    status_file,
+    progress_file,
+    tmp_dir,
+    progress_mode="default",
+    status="not started",
   ):
     self.process = process
     self.command = command
@@ -118,6 +138,10 @@ class ParallelJob:
     return progress
 
 
+######################################
+# ParallelJobHandler
+######################################
+
 class ParallelJobHandler:
   def __init__(self, job_list, nb_jobs, auto_exit=False, log_size_limit=100):
     self.job_list = job_list
@@ -138,8 +162,11 @@ class ParallelJobHandler:
 
   @staticmethod
   def set_nonblocking(fd):
-    fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-    fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+    try:
+      fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+      fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+    except TypeError:
+      pass
 
   @staticmethod
   def progress_bar(window, id, progress, bar_width, title, title_size, width, status="", selected=False):
@@ -168,7 +195,7 @@ class ParallelJobHandler:
       window.addstr(id, len(button) + len(title) + 3 + bar_length, " " * (bar_width - bar_length), curses.color_pair(1))
       window.addstr(id, len(button) + len(title) + 3 + bar_width, f"] {percentage}")
 
-      comment_position = len(button) + len(title) + 3 + bar_width + 9
+      comment_position = len(button) + len(title) + 3 + bar_width + 8
       if status == "failed":
         window.addstr(id, comment_position, comment, curses.color_pair(2))
       elif status == "running":
@@ -185,26 +212,28 @@ class ParallelJobHandler:
   def update_header(self, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width):
     header_win.hline(0, 0, " ", width, curses.color_pair(1) | curses.A_REVERSE)
     try:
-      header_win.addstr(0, 1, "v"+str(self.version), curses.color_pair(1) | curses.A_REVERSE)
+      header_win.addstr(0, 1, "v" + str(self.version), curses.color_pair(1) | curses.A_REVERSE)
     except curses.error:
       pass
     if total_jobs_count == 1:
       if retired_jobs_count == total_jobs_count:
-        text="{}/{} job done!".format(retired_jobs_count, total_jobs_count)
+        text = "{}/{} job done!".format(retired_jobs_count, total_jobs_count)
       else:
-        text="{}/{} job done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
+        text = "{}/{} job done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
     else:
       if retired_jobs_count == total_jobs_count:
-        text="{}/{} jobs done!".format(retired_jobs_count, total_jobs_count)
+        text = "{}/{} jobs done!".format(retired_jobs_count, total_jobs_count)
       else:
-        text="{}/{} jobs done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
+        text = "{}/{} jobs done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
     try:
       header_win.addstr(0, width - len(text) - 1, text, curses.color_pair(1) | curses.A_REVERSE)
     except curses.error:
       pass
-    
+
     try:
-      header_win.addstr(0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+      header_win.addstr(
+        0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD
+      )
     except curses.error:
       pass
     header_win.hline(1, 0, "-", width)
@@ -295,7 +324,7 @@ class ParallelJobHandler:
     self.previous_log_size = log_length
 
   def run_job(self, job):
-    job.log_history.append("Running job command: ")
+    job.log_history.append(printc.colors.CYAN + "Run job command" + printc.colors.ENDC)
     job.log_history.append(printc.colors.BOLD + " > " + job.command + printc.colors.ENDC)
 
     process = subprocess.Popen(
@@ -305,7 +334,8 @@ class ParallelJobHandler:
       cwd=job.directory,
       shell=True,
       text=True,
-      preexec_fn=os.setpgrp,  # Set the process group
+      bufsize=1,
+      # preexec_fn=os.setpgrp,  # Set the process group
     )
 
     self.set_nonblocking(process.stdout)
@@ -349,10 +379,12 @@ class ParallelJobHandler:
     curses.init_pair(3, curses.COLOR_YELLOW, -1)
     curses.init_pair(4, curses.COLOR_GREEN, -1)
     curses.init_pair(5, curses.COLOR_BLUE, -1)
-    curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_WHITE + ansi_to_curses.LIGHT_OFFSET)
+    curses.init_pair(6, curses.COLOR_CYAN, -1)
+    curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
 
     height, width = stdscr.getmaxyx()
     old_width = width
+    old_height = height
 
     header_height = 2
 
@@ -388,6 +420,8 @@ class ParallelJobHandler:
 
     total_jobs_count = len(self.job_list)
 
+    stdscr.nodelay(True)
+
     while True:
       # Check if all jobs have finished
       active_jobs_count = len(self.running_job_list)
@@ -400,8 +434,8 @@ class ParallelJobHandler:
       self.update_header(header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
 
       progress_win.erase()
+      height, width = progress_win.getmaxyx()
       for id, job in enumerate(self.job_list):
-        height, width = progress_win.getmaxyx()
 
         if job in self.retired_job_list:
           progress = job.progress
@@ -424,18 +458,20 @@ class ParallelJobHandler:
             if job == selected_job:
               selected_job.log_changed = True
               self.update_logs(logs_win, selected_job, logs_height, width)
-
-        self.progress_bar(
-          id=id,
-          window=progress_win,
-          progress=progress,
-          bar_width=(width - 25),
-          title=job.display_name,
-          title_size=self.max_title_length,
-          width=width,
-          status=job.status,
-          selected=(id == self.selected_job_index),
-        )
+        try:
+          self.progress_bar(
+            id=id,
+            window=progress_win,
+            progress=progress,
+            bar_width=(width - 25),
+            title=job.display_name,
+            title_size=self.max_title_length,
+            width=width,
+            status=job.status,
+            selected=(id == self.selected_job_index),
+          )
+        except curses.error:
+          pass
       progress_win.refresh()
 
       # Add a separator
@@ -479,7 +515,6 @@ class ParallelJobHandler:
       old_width = width
 
       # Get inputs
-      stdscr.nodelay(True)
       key = stdscr.getch()
       curses.flushinp()
 
