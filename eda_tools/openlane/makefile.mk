@@ -45,7 +45,7 @@ GEN_CONFIG_SCRIPT       = eda_tools/openlane/scripts/gen_config.py
 LIB_NAME                = openlane_test
 
 MOUNT_CMD               = cd $(OPENLANE_DIR); make mount ENV_MOUNT='-d -v $(OPENLANE_DIR):/openlane --name $(LIB_NAME)'
-FLOW_CMD                = docker exec -it $(LIB_NAME) /bin/sh -c 'cd $(WORK_DIR); tclsh scripts/$(SYNTH_FREQ_SCRIPT)'
+FLOW_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'cd $(WORK_DIR); tclsh scripts/$(SYNTH_FREQ_SCRIPT)'
 GEN_CONFIG_CMD          = python3 $(GEN_CONFIG_SCRIPT) --basepath $(WORK_DIR)
 TEST_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'exit'
 
