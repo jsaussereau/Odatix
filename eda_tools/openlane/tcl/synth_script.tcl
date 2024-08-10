@@ -34,10 +34,14 @@ if {[catch {
         }
         close $chan
     } errmsg]} {
-        puts "$signature <bold><red>error: openlane flow failed, exiting<end>"
-        puts "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        exit -1
+        if {[file exists "$report_path/metrics.csv"]} {
+            puts "$signature <bold><yellow>warning: openlane flow failed at this frequency<end>"
+        } else {
+            puts "$signature <bold><red>error: openlane flow failed, exiting<end>"
+            puts "$signature tool says -> $errmsg"
+            puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+            exit -1
+        }
     }
 
     report_progress 98 $synth_statusfile

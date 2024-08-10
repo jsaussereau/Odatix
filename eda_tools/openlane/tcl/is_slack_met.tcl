@@ -20,7 +20,7 @@
 #
 
 proc is_slack_met {timing_rep} {
-  set timing_rep runs/asterism/reports/metrics.csv
+  set timing_rep $report_path/metrics.csv
   set file_handler [open $timing_rep r]
   gets $file_handler header
   
