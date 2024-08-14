@@ -105,7 +105,9 @@ def parse_regex(file, pattern, group_id):
       if match:
         return match.group(group_id)
     except Exception as e:
-      printc.error('Could not get value from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name)
+      printc.error(
+        'Could not get value from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name
+      )
       return None
 
   printc.error('No match for regex "' + pattern + '" in file "' + file + '"', script_name=script_name)
@@ -116,19 +118,41 @@ def parse_csv(file, key):
   if not os.path.isfile(file):
     printc.error('File "' + file + '" does not exist', script_name)
     return None
-  with open(file, mode="r") as infile:
+  with open(file, mode="r") as csv_file:
     try:
-      reader = csv.DictReader(infile)
+      reader = csv.DictReader(csv_file)
       for row in reader:
         if key in row:
           return row[key]
         else:
           printc.error('Could not find key "' + key + '" in csv "' + file + '"', script_name=script_name)
-    except Exception as e:
-      printc.error('Could not get value from csv "' + file + '" with key "' + key + '": ' + str(e), script_name=script_name)
+    except csv.Error as e:
+      printc.error('An error occurred while reading csv file "' + file + '": ' + str(e), script_name=script_name)
       return None
 
   return None
+
+
+def parse_yaml(file, key):
+  if not os.path.isfile(file):
+    printc.error(f'File "{file}" does not exist', script_name)
+    return None
+
+  with open(file, "r") as yaml_file:
+    try:
+      data = yaml.safe_load(yaml_file)
+      keys = key.split("[")
+      for k in keys:
+        k = k.rstrip("]")
+        if k in data:
+          data = data[k]
+        else:
+          printc.error(f'Could not find key "{k}" in yaml "{file}"', script_name=script_name)
+          return None
+      return data
+    except yaml.YAMLError as e:
+      printc.error(f'Could not parse yaml file "{file}": {str(e)}', script_name=script_name)
+      return None
 
 
 ######################################
@@ -136,7 +160,7 @@ def parse_csv(file, key):
 ######################################
 
 
-def validate_tool_settings(file_path): 
+def validate_tool_settings(file_path):
   if not os.path.isfile(file_path):
     printc.error('Tool settings file "' + os.path.realpath(file_path) + '" does not exist', script_name)
     return None
@@ -154,7 +178,7 @@ def validate_tool_settings(file_path):
 ######################################
 
 
-def extract_metrics(tool_settings, tool_settings_file, cur_path):
+def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, use_benchmark, benchmark_file):
   global banned_metrics
   results = {}
   units = {}
@@ -170,32 +194,59 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path):
       banned_metrics.append(metric)
       continue
 
+    benchmark_only = read_from_list("benchmark_only", content, tool_settings_file, parent=metric, raise_if_missing=False, type=bool, print_error=False, script_name=script_name)
+    if benchmark_only and not use_benchmark:
+      banned_metrics.append(metric)
+      continue
+
     if type == "regex":
       try:
-        file = read_from_list("file", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
-        pattern = read_from_list("pattern", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
-        group_id = read_from_list("group_id", settings, tool_settings_file, parent=metric+"[settings]", type=int, script_name=script_name)
+        file = read_from_list("file", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+        pattern = read_from_list("pattern", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+        group_id = read_from_list("group_id", settings, tool_settings_file, parent=metric + "[settings]", type=int, script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
       value = parse_regex(os.path.join(cur_path, file), pattern, group_id)
     elif type == "csv":
       try:
-        file = read_from_list("file", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
-        key = read_from_list("key", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
+        file = read_from_list( "file", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+        key = read_from_list("key", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
       value = parse_csv(os.path.join(cur_path, file), key)
+    elif type == "yaml":
+      try:
+        file = read_from_list("file", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+        key = read_from_list("key", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+      except (KeyNotInListError, BadValueInListError):
+        banned_metrics.append(metric)
+        continue
+      value = parse_yaml(os.path.join(cur_path, file), key)
+    elif type == "benchmark":
+      if not use_benchmark:
+        banned_metrics.append(metric)
+        continue
+      try:
+        key = read_from_list("key", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+      except (KeyNotInListError, BadValueInListError):
+        banned_metrics.append(metric)
+        continue
+      key = arch + "[" + key + "]"
+      value = parse_yaml(benchmark_file, key)
     elif type == "operation":
       try:
-        op = read_from_list("op", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
+        op = read_from_list("op", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
       value = calculate_operation(op, results)
     else:
-      printc.error('Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + tool_settings_file + '"', script_name=script_name)
+      printc.error(
+        'Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + tool_settings_file + '"',
+        script_name=script_name,
+      )
       banned_metrics.append(metric)
       continue
 
@@ -242,7 +293,7 @@ def calculate_operation(op_str, results):
     local_vars = {k: v for k, v in results.items() if v is not None}
     return eval(op_str, {}, local_vars)
   except (NameError, SyntaxError, TypeError, ZeroDivisionError) as e:
-    printc.warning(f"Failed to evaluate operation '{op_str}': {e}", script_name)
+    printc.error(f"Failed to evaluate operation '{op_str}': {e}", script_name)
     return None
 
 
@@ -251,51 +302,64 @@ def calculate_operation(op_str, results):
 ######################################
 
 
-def export_results(input, output, tool, format, use_benchmark, benchmark_file, tool_settings, tool_settings_file):
-  data = {}
-  units = {}
+def export_results(input, output, tools, format, use_benchmark, benchmark_file):
+  for tool in tools:
+    if tool == simulations_dir:
+      continue
 
-  input = os.path.join(input, tool)
+    tool_settings_file = os.path.join(eda_tools_path, tool, "tool.yml")
+    tool_settings = validate_tool_settings(tool_settings_file)
+    if tool_settings is None:
+      if len(tools) == 1:
+        sys.exit(-1)
+      else:
+        continue
 
-  for target in sorted(next(os.walk(input))[1]):
-    data[target] = {}
-    for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
-      data[target][architecture] = {}
-      for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
-        cur_path = os.path.join(input, target, architecture, configuration)
+    data = {}
+    units = {}
 
-        status_log = os.path.join(cur_path, "log", "status.log")
+    input = os.path.join(input, tool)
 
-        # Check if synthesis completed
-        if not os.path.isfile(status_log):
-          corrupted_directory(target, architecture + "/" + configuration)
-          continue
+    for target in sorted(next(os.walk(input))[1]):
+      data[target] = {}
+      for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
+        data[target][architecture] = {}
+        for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
+          arch = architecture + "[" + configuration + "]"
+          cur_path = os.path.join(input, target, architecture, configuration)
 
-        with open(status_log, "r") as f:
-          if status_done not in f.read():
+          status_log = os.path.join(cur_path, "log", "status.log")
+
+          # Check if synthesis completed
+          if not os.path.isfile(status_log):
             corrupted_directory(target, architecture + "/" + configuration)
             continue
 
-        # Get values
-        metrics, cur_units = extract_metrics(tool_settings, tool_settings_file, cur_path)
-        data[target][architecture][configuration] = metrics
+          with open(status_log, "r") as f:
+            if status_done not in f.read():
+              corrupted_directory(target, architecture + "/" + configuration)
+              continue
 
-        # Update units
-        units.update(cur_units)
+          # Get values
+          metrics, cur_units = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, use_benchmark, benchmark_file)
+          data[target][architecture][configuration] = metrics
 
-  # Export to the desired format
-  os.makedirs(output, exist_ok=True)
-  output_file = os.path.join(output, "results_" + tool + ".yml")
-  try:
-    with open(output_file, "w") as file:
-      yaml.dump(
-        {"units": units, "synth_results": data}, file, default_style=None, default_flow_style=False, sort_keys=False
-      )
-      printc.say('Results written to "' + output_file + '"', script_name=script_name)
-  except Exception as e:
-    printc.error('Could not write "' + output_file + '"', script_name=script_name)
-    printc.cyan("error details: ", script_name=script_name, end="")
-    print(str(e))
+          # Update units
+          units.update(cur_units)
+
+    # Export to the desired format
+    os.makedirs(output, exist_ok=True)
+    output_file = os.path.join(output, "results_" + tool + ".yml")
+    try:
+      with open(output_file, "w") as file:
+        yaml.dump(
+          {"units": units, "synth_results": data}, file, default_style=None, default_flow_style=False, sort_keys=False
+        )
+        printc.say('Results written to "' + output_file + '"', script_name=script_name)
+    except Exception as e:
+      printc.error('Could not write "' + output_file + '"', script_name=script_name)
+      printc.cyan("error details: ", script_name=script_name, end="")
+      print(str(e))
 
 
 ######################################
@@ -331,31 +395,17 @@ def main(args, settings=None):
     output = settings.result_path
 
   if args.tool == "all":
-    tools = [ item for item in os.listdir(input) if os.path.isdir(os.path.join(input, item)) ]
+    tools = [item for item in os.listdir(input) if os.path.isdir(os.path.join(input, item))]
   else:
     tools = [args.tool]
-
-  for tool in tools:
-    if tool == simulations_dir:
-      continue
-
-    tool_settings_file = os.path.join(eda_tools_path, tool, "tool.yml")
-    tool_settings = validate_tool_settings(tool_settings_file)
-    if tool_settings is None:
-      if len(tools) == 1:
-        sys.exit(-1)
-      else:
-        continue
 
     export_results(
       input=input,
       output=output,
-      tool=tool,
+      tools=tools,
       format=args.format,
       use_benchmark=use_benchmark,
       benchmark_file=benchmark_file,
-      tool_settings=tool_settings,
-      tool_settings_file=tool_settings_file
     )
 
 

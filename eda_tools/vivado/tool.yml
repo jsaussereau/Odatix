@@ -78,4 +78,16 @@ metrics:
     format: "%.3f"
     unit: W
 
+  DMIPS_per_MHz:
+    type: benchmark
+    settings:
+      key: DMIPS_per_MHz
+    format: "%.3f"
+
+  DMIPS:
+    type: operation
+    benchmark_only: True
+    settings:
+      op: DMIPS_per_MHz * Fmax
+    format: "%.0f"
 
