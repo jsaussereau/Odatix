@@ -37,6 +37,7 @@ import settings
 from settings import AsterismSettings
 
 banned_metrics = []
+banned_arch = []
 
 ######################################
 # Settings
@@ -94,9 +95,9 @@ def parse_arguments():
 ######################################
 
 
-def parse_regex(file, pattern, group_id):
+def parse_regex(file, pattern, group_id, error_prefix=""):
   if not os.path.isfile(file):
-    printc.error('File "' + file + '" does not exist', script_name)
+    printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
   with open(file, "r") as f:
     try:
@@ -106,17 +107,17 @@ def parse_regex(file, pattern, group_id):
         return match.group(group_id)
     except Exception as e:
       printc.error(
-        'Could not get value from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name
+        error_prefix + 'Could not get value from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name
       )
       return None
 
-  printc.error('No match for regex "' + pattern + '" in file "' + file + '"', script_name=script_name)
+  printc.error(error_prefix + 'No match for regex "' + pattern + '" in file "' + file + '"', script_name=script_name)
   return None
 
 
-def parse_csv(file, key):
+def parse_csv(file, key, error_prefix=""):
   if not os.path.isfile(file):
-    printc.error('File "' + file + '" does not exist', script_name)
+    printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
   with open(file, mode="r") as csv_file:
     try:
@@ -125,17 +126,17 @@ def parse_csv(file, key):
         if key in row:
           return row[key]
         else:
-          printc.error('Could not find key "' + key + '" in csv "' + file + '"', script_name=script_name)
+          printc.error(error_prefix + 'Could not find key "' + key + '" in csv "' + file + '"', script_name=script_name)
     except csv.Error as e:
-      printc.error('An error occurred while reading csv file "' + file + '": ' + str(e), script_name=script_name)
+      printc.error(error_prefix + 'An error occurred while reading csv file "' + file + '": ' + str(e), script_name=script_name)
       return None
 
   return None
 
 
-def parse_yaml(file, key):
+def parse_yaml(file, key, error_prefix=""):
   if not os.path.isfile(file):
-    printc.error(f'File "{file}" does not exist', script_name)
+    printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
 
   with open(file, "r") as yaml_file:
@@ -147,11 +148,11 @@ def parse_yaml(file, key):
         if k in data:
           data = data[k]
         else:
-          printc.error(f'Could not find key "{k}" in yaml "{file}"', script_name=script_name)
+          printc.error(error_prefix + 'Could not find key "' + k + '" in yaml "' + file + '"', script_name=script_name)
           return None
       return data
     except yaml.YAMLError as e:
-      printc.error(f'Could not parse yaml file "{file}": {str(e)}', script_name=script_name)
+      printc.error(error_prefix + 'Could not parse yaml file "' + file + '": ' + str(e), script_name=script_name)
       return None
 
 
@@ -168,8 +169,8 @@ def validate_tool_settings(file_path):
     try:
       tool_settings = yaml.safe_load(file)
       return tool_settings
-    except yaml.YAMLError as exc:
-      printc.error("Error in tool configuration file: " + str(exc), script_name)
+    except yaml.YAMLError as e:
+      printc.error("Error in tool configuration file: " + str(e), script_name)
       return None
 
 
@@ -178,10 +179,11 @@ def validate_tool_settings(file_path):
 ######################################
 
 
-def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, use_benchmark, benchmark_file):
+def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file):
   global banned_metrics
   results = {}
   units = {}
+  error_prefix = arch_path + " => "
   metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
   for metric, content in metrics.items():
     if metric in banned_metrics:
@@ -207,7 +209,7 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, use_bench
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_regex(os.path.join(cur_path, file), pattern, group_id)
+      value = parse_regex(os.path.join(cur_path, file), pattern, group_id, error_prefix)
     elif type == "csv":
       try:
         file = read_from_list( "file", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
@@ -215,7 +217,7 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, use_bench
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_csv(os.path.join(cur_path, file), key)
+      value = parse_csv(os.path.join(cur_path, file), key, error_prefix)
     elif type == "yaml":
       try:
         file = read_from_list("file", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
@@ -223,10 +225,12 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, use_bench
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_yaml(os.path.join(cur_path, file), key)
+      value = parse_yaml(os.path.join(cur_path, file), key, error_prefix)
     elif type == "benchmark":
       if not use_benchmark:
         banned_metrics.append(metric)
+        continue
+      if arch in banned_arch:
         continue
       try:
         key = read_from_list("key", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
@@ -234,14 +238,16 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, use_bench
         banned_metrics.append(metric)
         continue
       key = arch + "[" + key + "]"
-      value = parse_yaml(benchmark_file, key)
+      value = parse_yaml(benchmark_file, key, error_prefix)
+      if value is None:
+        banned_arch.append(arch)
     elif type == "operation":
       try:
         op = read_from_list("op", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = calculate_operation(op, results)
+      value = calculate_operation(op, results, error_prefix)
     else:
       printc.error(
         'Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + tool_settings_file + '"',
@@ -288,12 +294,12 @@ def convert_to_numeric(data):
     return data
 
 
-def calculate_operation(op_str, results):
+def calculate_operation(op_str, results, error_prefix=""):
   try:
     local_vars = {k: v for k, v in results.items() if v is not None}
     return eval(op_str, {}, local_vars)
   except (NameError, SyntaxError, TypeError, ZeroDivisionError) as e:
-    printc.error(f"Failed to evaluate operation '{op_str}': {e}", script_name)
+    printc.error(error_prefix + 'Failed to evaluate operation "' + op_str + '": ' + str(e) , script_name)
     return None
 
 
@@ -326,7 +332,8 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
         data[target][architecture] = {}
         for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
           arch = architecture + "[" + configuration + "]"
-          cur_path = os.path.join(input, target, architecture, configuration)
+          arch_path = os.path.join(target, architecture, configuration)
+          cur_path = os.path.join(input, arch_path)
 
           status_log = os.path.join(cur_path, "log", "status.log")
 
@@ -341,7 +348,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
               continue
 
           # Get values
-          metrics, cur_units = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, use_benchmark, benchmark_file)
+          metrics, cur_units = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file)
           data[target][architecture][configuration] = metrics
 
           # Update units
