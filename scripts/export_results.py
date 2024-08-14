@@ -32,9 +32,11 @@ lib_path = os.path.join(current_dir, "lib")
 sys.path.append(lib_path)
 
 import printc
-from utils import read_from_list, create_dir
+from utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
 import settings
 from settings import AsterismSettings
+
+banned_metrics = []
 
 ######################################
 # Settings
@@ -94,25 +96,38 @@ def parse_arguments():
 
 def parse_regex(file, pattern, group_id):
   if not os.path.isfile(file):
-    printc.warning('File "' + file + '" does not exist', script_name)
+    printc.error('File "' + file + '" does not exist', script_name)
     return None
   with open(file, "r") as f:
-    content = f.read()
-    match = re.search(pattern, content)
-    if match:
-      return match.group(group_id)
+    try:
+      content = f.read()
+      match = re.search(pattern, content)
+      if match:
+        return match.group(group_id)
+    except Exception as e:
+      printc.error('Could not get value from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name)
+      return None
+
+  printc.error('No match for regex "' + pattern + '" in file "' + file + '"', script_name=script_name)
   return None
 
 
 def parse_csv(file, key):
   if not os.path.isfile(file):
-    printc.warning('File "' + file + '" does not exist', script_name)
+    printc.error('File "' + file + '" does not exist', script_name)
     return None
   with open(file, mode="r") as infile:
-    reader = csv.DictReader(infile)
-    for row in reader:
-      if key in row:
-        return row[key]
+    try:
+      reader = csv.DictReader(infile)
+      for row in reader:
+        if key in row:
+          return row[key]
+        else:
+          printc.error('Could not find key "' + key + '" in csv "' + file + '"', script_name=script_name)
+    except Exception as e:
+      printc.error('Could not get value from csv "' + file + '" with key "' + key + '": ' + str(e), script_name=script_name)
+      return None
+
   return None
 
 
@@ -128,10 +143,9 @@ def validate_tool_settings(file_path):
   with open(file_path, "r") as file:
     try:
       tool_settings = yaml.safe_load(file)
-      # TODO: Add more validation logic
       return tool_settings
     except yaml.YAMLError as exc:
-      printc.error("Error in configuration file:", exc, script_name)
+      printc.error("Error in tool configuration file: " + str(exc), script_name)
       return None
 
 
@@ -140,35 +154,63 @@ def validate_tool_settings(file_path):
 ######################################
 
 
-def extract_metrics(tool_settings, cur_path):
+def extract_metrics(tool_settings, tool_settings_file, cur_path):
+  global banned_metrics
   results = {}
   units = {}
-  for metric, config in tool_settings["metrics"].items():
-    if config["type"] == "regex":
-      file = config["settings"]["file"]
-      pattern = config["settings"]["pattern"]
-      group_id = config["settings"]["group_id"]
+  metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
+  for metric, content in metrics.items():
+    if metric in banned_metrics:
+      continue
+
+    try:
+      type = read_from_list("type", content, tool_settings_file, parent=metric, script_name=script_name)
+      settings = read_from_list("settings", content, tool_settings_file, parent=metric, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      banned_metrics.append(metric)
+      continue
+
+    if type == "regex":
+      try:
+        file = read_from_list("file", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
+        pattern = read_from_list("pattern", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
+        group_id = read_from_list("group_id", settings, tool_settings_file, parent=metric+"[settings]", type=int, script_name=script_name)
+      except (KeyNotInListError, BadValueInListError):
+        banned_metrics.append(metric)
+        continue
       value = parse_regex(os.path.join(cur_path, file), pattern, group_id)
-    elif config["type"] == "csv":
-      file = config["settings"]["file"]
-      key = config["settings"]["key"]
+    elif type == "csv":
+      try:
+        file = read_from_list("file", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
+        key = read_from_list("key", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
+      except (KeyNotInListError, BadValueInListError):
+        banned_metrics.append(metric)
+        continue
       value = parse_csv(os.path.join(cur_path, file), key)
-    elif config["type"] == "operation":
-      op_str = config["settings"]["op"]
-      value = calculate_operation(op_str, results)
+    elif type == "operation":
+      try:
+        op = read_from_list("op", settings, tool_settings_file, parent=metric+"[settings]", script_name=script_name)
+      except (KeyNotInListError, BadValueInListError):
+        banned_metrics.append(metric)
+        continue
+      value = calculate_operation(op, results)
+    else:
+      printc.error('Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + tool_settings_file + '"', script_name=script_name)
+      banned_metrics.append(metric)
+      continue
 
     # Apply formatting if specified
-    if value is not None and "format" in config:
+    if value is not None and "format" in content:
       try:
-        value = convert_to_numeric(config["format"] % float(value))
+        value = convert_to_numeric(content["format"] % float(value))
       except ValueError:
         pass  # printc.warning(f"Failed to format value {value} for metric {metric}", script_name)
 
     # Append unit if specified
     if value is not None:
       results[metric] = value
-      if "unit" in config:
-        units[metric] = config["unit"]
+      if "unit" in content:
+        units[metric] = content["unit"]
     else:
       results[metric] = None
 
@@ -209,7 +251,7 @@ def calculate_operation(op_str, results):
 ######################################
 
 
-def export_results(input, output, tool, format, use_benchmark, benchmark_file, tool_settings):
+def export_results(input, output, tool, format, use_benchmark, benchmark_file, tool_settings, tool_settings_file):
   data = {}
   units = {}
 
@@ -235,7 +277,7 @@ def export_results(input, output, tool, format, use_benchmark, benchmark_file, t
             continue
 
         # Get values
-        metrics, cur_units = extract_metrics(tool_settings, cur_path)
+        metrics, cur_units = extract_metrics(tool_settings, tool_settings_file, cur_path)
         data[target][architecture][configuration] = metrics
 
         # Update units
@@ -313,6 +355,7 @@ def main(args, settings=None):
       use_benchmark=use_benchmark,
       benchmark_file=benchmark_file,
       tool_settings=tool_settings,
+      tool_settings_file=tool_settings_file
     )
 
 
