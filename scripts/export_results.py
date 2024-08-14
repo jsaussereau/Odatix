@@ -279,9 +279,9 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
 ######################################
 
 
-def corrupted_directory(target, architecture):
+def corrupted_directory(directory):
   printc.warning(
-    target + "/" + architecture + " => synthesis has not finished or directory has been corrupted", script_name
+    directory + " => Synthesis has not finished or directory has been corrupted", script_name
   )
 
 
@@ -309,9 +309,12 @@ def calculate_operation(op_str, results, error_prefix=""):
 
 
 def export_results(input, output, tools, format, use_benchmark, benchmark_file):
+  input_path = input
   for tool in tools:
     if tool == simulations_dir:
       continue
+    
+    printc.cyan("Export " + tool + " results", script_name)
 
     tool_settings_file = os.path.join(eda_tools_path, tool, "tool.yml")
     tool_settings = validate_tool_settings(tool_settings_file)
@@ -324,9 +327,14 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
     data = {}
     units = {}
 
-    input = os.path.join(input, tool)
+    input = os.path.join(input_path, tool)
 
-    for target in sorted(next(os.walk(input))[1]):
+    try:
+      dirs = sorted(next(os.walk(input))[1])
+    except StopIteration:
+      continue
+
+    for target in dirs:
       data[target] = {}
       for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
         data[target][architecture] = {}
@@ -339,12 +347,12 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
 
           # Check if synthesis completed
           if not os.path.isfile(status_log):
-            corrupted_directory(target, architecture + "/" + configuration)
+            corrupted_directory(arch_path)
             continue
 
           with open(status_log, "r") as f:
             if status_done not in f.read():
-              corrupted_directory(target, architecture + "/" + configuration)
+              corrupted_directory(arch_path)
               continue
 
           # Get values
@@ -406,14 +414,14 @@ def main(args, settings=None):
   else:
     tools = [args.tool]
 
-    export_results(
-      input=input,
-      output=output,
-      tools=tools,
-      format=args.format,
-      use_benchmark=use_benchmark,
-      benchmark_file=benchmark_file,
-    )
+  export_results(
+    input=input,
+    output=output,
+    tools=tools,
+    format=args.format,
+    use_benchmark=use_benchmark,
+    benchmark_file=benchmark_file,
+  )
 
 
 if __name__ == "__main__":
