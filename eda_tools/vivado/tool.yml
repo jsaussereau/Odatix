@@ -12,7 +12,7 @@ metrics:
       file: log/frequency_search.log
       pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
       group_id: 2
-    format: "%d"
+    format: "%.0f"
     unit: MHz
 
   LUT_count:
@@ -21,7 +21,7 @@ metrics:
       file: report/utilization.rep
       pattern: "\\| Slice LUTs (\\s*)\\|(\\s*)([0-9]+)(.*)"
       group_id: 3
-    format: "%d"
+    format: "%.0f"
 
   Reg_count:
     type: regex
@@ -29,13 +29,13 @@ metrics:
       file: report/utilization.rep
       pattern: "\\| Slice Registers (\\s*)\\|(\\s*)([0-9]+)(.*)"
       group_id: 3
-    format: "%d"
+    format: "%.0f"
 
   LUT+Reg_count:
     type: operation
     settings:
       op: LUT_count + Reg_count
-    format: "%d"
+    format: "%.0f"
 
   BRAM_count:
     type: regex
@@ -43,7 +43,7 @@ metrics:
       file: report/utilization.rep
       pattern: "\\| Block RAM Tile (\\s*)\\|(\\s*)([0-9]+)(.*)"
       group_id: 3
-    format: "%d"
+    format: "%.0f"
 
   DSP_count:
     type: regex
@@ -51,7 +51,7 @@ metrics:
       file: report/utilization.rep
       pattern: "\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)"
       group_id: 3
-    format: "%d"
+    format: "%.0f"
 
   Static_Power:
     type: regex

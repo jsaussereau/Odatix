@@ -13,7 +13,7 @@ metrics:
       file: log/frequency_search.log
       pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
       group_id: 2
-    format: "%d"
+    format: "%.0f"
     unit: MHz
 
   Cell_Area:
@@ -29,7 +29,7 @@ metrics:
     settings:
       file: runs/asterism/reports/metrics.csv
       key: synth_cell_count
-    format: "%d"
+    format: "%.0f"
 
   WNS:
     type: csv
@@ -52,7 +52,7 @@ metrics:
     settings:
       file: runs/asterism/reports/metrics.csv
       key: wire_length
-    format: "%d"
+    format: "%.0f"
     unit: "um"
 
   Vias:
@@ -60,7 +60,7 @@ metrics:
     settings:
       file: runs/asterism/reports/metrics.csv
       key: vias
-    format: "%d"
+    format: "%.0f"
 
   Clock_Period:
     type: csv
