@@ -21,16 +21,19 @@
 
 import os
 import sys
-import yaml
 import argparse
+import traceback
+import platform
+from datetime import datetime
 
-from settings import AsterismSettings
 from motd import *
 import run_simulations as run_sim
 import run_fmax_synthesis as run_synth
 import export_results as exp_res
 import export_benchmark as exp_bench
 import clean as cln
+import settings
+from settings import AsterismSettings
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,6 +47,8 @@ from utils import *
 ######################################
 
 EXIT_SUCCESS = 0
+
+error_logfile = "asterism_error.log"
 
 prog = os.path.basename(sys.argv[0])
 script_name = os.path.basename(__file__)
@@ -85,14 +90,15 @@ class ArgParser:
 
     # Define parser for the 'results' command
     ArgParser.res_parser = subparsers.add_parser("results", help="export benchmark results", formatter_class=formatter)
-    ArgParser.res_parser.add_argument('-i', '--input', default='work', help='Input path (default: work)')
-    ArgParser.res_parser.add_argument('-o', '--output', default='results', help='Output path (default: results')
-    ArgParser.res_parser.add_argument('-t', '--tool', default='vivado', help='eda tool in use (default: vivado)')
-    ArgParser.res_parser.add_argument('-f', '--format', choices=['csv', 'yml', 'all'], default='yml',help='Output format: csv, yml, or all (default: yml)')
-    ArgParser.res_parser.add_argument('-s', '--sim_file', default='log/sim.log', help='simulation log file (default: log/sim.log)')
-    ArgParser.res_parser.add_argument('-u', '--use_benchmark', action='store_true', help='Use benchmark values in yaml file')
-    ArgParser.res_parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default='dhrystone', help='benchmark to parse (default: dhrystone)')
-    ArgParser.res_parser.add_argument('-B', '--benchmark_file', default='results/benchmark.yml', help='Benchmark file (default: results/benchmark.yml')
+    ArgParser.res_parser.add_argument("-t", "--tool", default="all", help="eda tool in use, or 'all'")
+    ArgParser.res_parser.add_argument("-f", "--format", choices=["csv", "yml", "all"], help="Output format: csv, yml, or all")
+    ArgParser.res_parser.add_argument("-u", "--use_benchmark", action="store_true", help="Use benchmark values in yaml file")
+    ArgParser.res_parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default=exp_bench.DEFAULT_BENCHMARK, help='benchmark to parse (default: ' + exp_bench.DEFAULT_BENCHMARK + ')')
+    ArgParser.res_parser.add_argument("-B", "--benchmark_file", help="output benchmark file")
+    ArgParser.res_parser.add_argument('-S', '--sim_file', default=exp_bench.DEFAULT_SIM_FILE, help='simulation log file (default: ' + exp_bench.DEFAULT_SIM_FILE + ')')
+    ArgParser.res_parser.add_argument("-w", "--work", help="simulation work directory")
+    ArgParser.res_parser.add_argument("-r", "--respath", help="Result path")
+    ArgParser.res_parser.add_argument("-c", "--config", default=AsterismSettings.DEFAULT_SETTINGS_FILE, help="global settings file for asterism (default: " + AsterismSettings.DEFAULT_SETTINGS_FILE + ")")
     ArgParser.add_nobanner(ArgParser.res_parser)
 
     # Define parser for the 'res_benchmark' command
@@ -169,7 +175,7 @@ def run_simulations(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    printc.error(str(e), script_name=run_sim.script_name)
+    internal_error(e)
     success = False
   return success
 
@@ -181,20 +187,26 @@ def run_synthesis(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    printc.error(str(e), script_name=run_synth.script_name)
+    internal_error(e)
     success = False
   if success and not args.noexport:
-    newargs = argparse.Namespace(
-      tool = args.tool,
-      format = exp_res.DEFAULT_FORMAT,
-      use_benchmark = None,
-      benchmark_file = None,
-      work = args.work,
-      respath = None,
-      config = args.config,
-    )
-    print()
-    export_results(newargs)
+    try:
+      newargs = argparse.Namespace(
+        tool = args.tool,
+        format = exp_res.DEFAULT_FORMAT,
+        use_benchmark = None,
+        benchmark_file = None,
+        work = args.work,
+        respath = None,
+        config = args.config,
+      )
+      exp_res.main(newargs)
+    except SystemExit as e:
+      if e.code != EXIT_SUCCESS:
+        success = False
+    except Exception as e:
+      internal_error(e)
+      success = False
   return success
 
 def export_benchmark(args):
@@ -205,7 +217,7 @@ def export_benchmark(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    printc.error(str(e))
+    internal_error(e)
     success = False
 
 def export_results(args):
@@ -216,7 +228,7 @@ def export_results(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    printc.error(str(e), script_name=exp_res.script_name)
+    internal_error(e)
     success = False
   return success
 
@@ -224,25 +236,38 @@ def export_all_results(args):
   success = True
   try:
     if args.use_benchmark:
-      exp_bench.export_benchmark(
-        input=args.input + "/simulation",
-        output=args.output + "/benchmark.yml",
-        benchmark=args.benchmark,
-        sim_file=args.sim_file
+      newargs = argparse.Namespace(
+        benchmark = args.benchmark,
+        sim_file = args.sim_file,
+        benchmark_file = args.benchmark_file,
+        work = args.work,
+        config = args.config,
       )
-    exp_res.export_results(
-      input=args.input + '/' + args.tool,
-      output=args.output,
-      tool=args.tool,
-      format=args.format,
-      use_benchmark=args.use_benchmark, 
-      benchmark_file=args.benchmark_file
+      exp_bench.main(newargs)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+      return success
+  except Exception as e:
+    internal_error(e)
+    success = False
+    return success
+  try:
+    newargs = argparse.Namespace(
+      tool = args.tool,
+      format = args.format,
+      use_benchmark = args.use_benchmark,
+      benchmark_file = args.benchmark_file,
+      work = args.work,
+      respath = args.respath,
+      config = args.config,
     )
+    exp_res.main(newargs)
   except SystemExit as e:
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    printc.error(str(e), script_name=exp_bench.script_name)
+    internal_error(e)
     success = False
   return success
 
@@ -254,8 +279,36 @@ def clean(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    printc.error(str(e))
+    internal_error(e)
     success = False
+  
+
+######################################
+# Misc
+######################################
+
+def internal_error(e):
+  tb_full = traceback.format_exc()
+  command_line = ' '.join(sys.argv)
+  current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+  system_info = {
+    "OS": platform.system(),
+    "OS Version": platform.version(),
+    "Python Version": platform.python_version(),
+    "Machine": platform.machine(),
+  }
+  with open(error_logfile, "w") as log_file:
+    log_file.write("Date and Time: " + current_time + "\n\n")
+    log_file.write("System Information:\n")
+    for key, value in system_info.items():
+      log_file.write("  " + key + ": " + value + "\n")
+    log_file.write("\nCommand:\n")
+    log_file.write("  " + command_line + "\n\n")
+    log_file.write(tb_full)
+  printc.internal_error(type(e).__name__ + ": " + str(e), script_name)
+  printc.note('Full error details written to "' + error_logfile + '"', script_name)
+  printc.note("Please, report this error with the error log attached", script_name)
+
 
 ######################################
 # Main
