@@ -210,7 +210,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
     try:
       work_report_path = read_from_list("report_path", settings_data, tool_settings_filename, optional=True, print_error=False, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
-      sys.exit(-1)
+      pass
 
   # Try launching eda tool
   check_tool(
