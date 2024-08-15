@@ -29,7 +29,7 @@ lib_path = os.path.join(current_dir, 'lib')
 sys.path.append(lib_path)
 
 import printc
-from utils import *
+from utils import read_from_list, KeyNotInListError, BadValueInListError
 
 script_name = os.path.basename(__file__)
 
@@ -93,7 +93,7 @@ class AsterismSettings:
         self.simulation_settings_file = read_from_list('simulation_settings_file', settings_data, settings_filename , script_name=script_name)
         self.fmax_synthesis_settings_file = read_from_list('fmax_synthesis_settings_file', settings_data, settings_filename , script_name=script_name)
         self.range_synthesis_settings_file = read_from_list('range_synthesis_settings_file', settings_data, settings_filename , script_name=script_name)
-      except (KeyNotInListError, BadValueInListError) as e:
+      except (KeyNotInListError, BadValueInListError):
         self.valid = False
         return False
     self.valid = True
