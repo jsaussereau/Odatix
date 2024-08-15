@@ -1,6 +1,6 @@
-#**********************************************************************#
-#                               Asterism                               #
-#**********************************************************************#
+# ********************************************************************** #
+#                               Asterism                                 #
+# ********************************************************************** #
 #
 # Copyright (C) 2022 Jonathan Saussereau
 #
@@ -9,12 +9,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # Asterism is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
@@ -25,7 +25,7 @@ import yaml
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, 'lib')
+lib_path = os.path.join(current_dir, "lib")
 sys.path.append(lib_path)
 
 import printc
@@ -38,7 +38,7 @@ script_name = os.path.basename(__file__)
 ######################################
 
 # get eda_tools folder
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
   base_path = os.path.dirname(sys.executable)
 else:
   base_path = current_dir
@@ -73,7 +73,7 @@ class AsterismSettings:
       self.valid = False
       return False
 
-    with open(settings_filename, 'r') as f:
+    with open(settings_filename, "r") as f:
       try:
         settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
       except Exception as e:
@@ -83,16 +83,16 @@ class AsterismSettings:
         self.valid = False
         return False
       try:
-        self.work_path = read_from_list('work_path', settings_data, settings_filename, script_name=script_name)
-        self.sim_work_path = read_from_list('sim_work_path', settings_data, settings_filename, script_name=script_name)
-        self.result_path = read_from_list('result_path', settings_data, settings_filename, script_name=script_name)
-        self.arch_path = read_from_list('arch_path', settings_data, settings_filename, script_name=script_name)
-        self.sim_path = read_from_list('sim_path', settings_data, settings_filename, script_name=script_name)
-        self.use_benchmark = read_from_list('use_benchmark', settings_data, settings_filename, type=bool, script_name=script_name)
-        self.benchmark_file = read_from_list('benchmark_file', settings_data, settings_filename , script_name=script_name)
-        self.simulation_settings_file = read_from_list('simulation_settings_file', settings_data, settings_filename , script_name=script_name)
-        self.fmax_synthesis_settings_file = read_from_list('fmax_synthesis_settings_file', settings_data, settings_filename , script_name=script_name)
-        self.range_synthesis_settings_file = read_from_list('range_synthesis_settings_file', settings_data, settings_filename , script_name=script_name)
+        self.work_path = read_from_list("work_path", settings_data, settings_filename, script_name=script_name)
+        self.sim_work_path = read_from_list("sim_work_path", settings_data, settings_filename, script_name=script_name)
+        self.result_path = read_from_list("result_path", settings_data, settings_filename, script_name=script_name)
+        self.arch_path = read_from_list("arch_path", settings_data, settings_filename, script_name=script_name)
+        self.sim_path = read_from_list("sim_path", settings_data, settings_filename, script_name=script_name)
+        self.use_benchmark = read_from_list("use_benchmark", settings_data, settings_filename, type=bool, script_name=script_name)
+        self.benchmark_file = read_from_list("benchmark_file", settings_data, settings_filename , script_name=script_name)
+        self.simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename , script_name=script_name)
+        self.fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename , script_name=script_name)
+        self.range_synthesis_settings_file = read_from_list("range_synthesis_settings_file", settings_data, settings_filename , script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         self.valid = False
         return False
@@ -110,19 +110,19 @@ class AsterismSettings:
         return False
       else:
         settings_data = {
-          'work_path': input("  Enter work path [default: " + AsterismSettings.DEFAULT_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_WORK_PATH,
-          'sim_work_path': input("  Enter simulation work path [default: " + AsterismSettings.DEFAULT_SIM_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_WORK_PATH,
-          'result_path': input("  Enter result path [default: " + AsterismSettings.DEFAULT_RESULT_PATH + "]: ") or AsterismSettings.DEFAULT_RESULT_PATH,
-          'arch_path': input("  Enter architecture path [default: " + AsterismSettings.DEFAULT_ARCH_PATH + "]: ") or AsterismSettings.DEFAULT_ARCH_PATH,
-          'sim_path': input("  Enter simulation path [default: " + AsterismSettings.DEFAULT_SIM_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_PATH,
-          'use_benchmark': input("  Use benchmark (True/False) [default: " + str(AsterismSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in AsterismSettings.YAML_BOOL or AsterismSettings.DEFAULT_USE_BENCHMARK,
-          'benchmark_file': input("  Enter benchmark file path [default: " + AsterismSettings.DEFAULT_BENCHMARK_FILE + "]: ") or AsterismSettings.DEFAULT_BENCHMARK_FILE,
-          'simulation_settings_file': input("  Enter simulation settings file [default: " + AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
-          'fmax_synthesis_settings_file': input("  Enter fmax synthesis settings file [default: " + AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
-          'range_synthesis_settings_file': input("  Enter range synthesis settings file [default: " + AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
+          "work_path": input("  Enter work path [default: " + AsterismSettings.DEFAULT_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_WORK_PATH,
+          "sim_work_path": input("  Enter simulation work path [default: " + AsterismSettings.DEFAULT_SIM_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_WORK_PATH,
+          "result_path": input("  Enter result path [default: " + AsterismSettings.DEFAULT_RESULT_PATH + "]: ") or AsterismSettings.DEFAULT_RESULT_PATH,
+          "arch_path": input("  Enter architecture path [default: " + AsterismSettings.DEFAULT_ARCH_PATH + "]: ") or AsterismSettings.DEFAULT_ARCH_PATH,
+          "sim_path": input("  Enter simulation path [default: " + AsterismSettings.DEFAULT_SIM_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_PATH,
+          "use_benchmark": input("  Use benchmark (True/False) [default: " + str(AsterismSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in AsterismSettings.YAML_BOOL or AsterismSettings.DEFAULT_USE_BENCHMARK,
+          "benchmark_file": input("  Enter benchmark file path [default: " + AsterismSettings.DEFAULT_BENCHMARK_FILE + "]: ") or AsterismSettings.DEFAULT_BENCHMARK_FILE,
+          "simulation_settings_file": input("  Enter simulation settings file [default: " + AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
+          "fmax_synthesis_settings_file": input("  Enter fmax synthesis settings file [default: " + AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+          "range_synthesis_settings_file": input("  Enter range synthesis settings file [default: " + AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
         }
 
-        with open(settings_filename, 'w') as f:
+        with open(settings_filename, "w") as f:
           yaml.dump(settings_data, f, sort_keys=False)
 
         printc.say("Asterism settings file \"" + settings_filename + "\" has been generated.", script_name=script_name)
