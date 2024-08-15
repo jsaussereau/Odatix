@@ -243,18 +243,18 @@ class ArchitectureHandler:
               script_copy_enable = False
               script_copy_source = "/dev/null"
 
-      for arch in architectures:
-        architecture_instance = self.get_architecture(
-          arch = arch,
-          target = target, 
-          only_one_target = only_one_target, 
-          script_copy_enable = script_copy_enable, 
-          script_copy_source = script_copy_source,
-          synthesis = True,
-          constraint_filename = constraint_filename
-        )
-        if architecture_instance is not None:
-          self.architecture_instances.append(architecture_instance)
+        for arch in architectures:
+          architecture_instance = self.get_architecture(
+            arch = arch,
+            target = target, 
+            only_one_target = only_one_target, 
+            script_copy_enable = script_copy_enable, 
+            script_copy_source = script_copy_source,
+            synthesis = True,
+            constraint_filename = constraint_filename
+          )
+          if architecture_instance is not None:
+            self.architecture_instances.append(architecture_instance)
 
     return self.architecture_instances
   
