@@ -7,14 +7,16 @@
 work_path: work
 sim_work_path: work/simulations
 result_path: results
-arch_path: architectures
-sim_path: simulations
+arch_path: asterism_config/architectures
+sim_path: asterism_config/simulations
+target_path: asterism_config
 
 use_benchmark: True
 benchmark_file: results/benchmark.yml
 
-simulation_settings_file: _run_simulations_settings.yml
-fmax_synthesis_settings_file: _run_fmax_synthesis_settings.yml
-range_synthesis_settings_file: _run_range_synthesis_settings.yml
+# benchmarks_settings_file: asterism_config/benchmarks.yml
+clean_settings_file: asterism_config/clean.yml
+simulation_settings_file: asterism_config/simulations_settings.yml
+fmax_synthesis_settings_file: asterism_config/fmax_synthesis_settings.yml
 
 ...

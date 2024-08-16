@@ -130,10 +130,11 @@ def parse_arguments():
 ######################################
 
 
-def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, overwrite, noask):
+def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask):
   _overwrite, ask_continue, show_log_if_one, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
+
 
   if overwrite:
     overwrite = True
@@ -143,7 +144,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, over
   if noask:
     ask_continue = False
 
-  eda_target_filename = os.path.realpath("target_" + tool + ".yml")
+  eda_target_filename = os.path.realpath(os.path.join(target_path, "target_" + tool + ".yml"))
 
   # Check if the target file exists
   if not os.path.isfile(eda_target_filename):
@@ -456,11 +457,12 @@ def main(args, settings=None):
   else:
     work_path = settings.work_path
 
+  target_path = settings.target_path
   tool = args.tool
   overwrite = args.overwrite
   noask = args.noask
 
-  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, overwrite, noask)
+  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask)
 
 
 if __name__ == "__main__":

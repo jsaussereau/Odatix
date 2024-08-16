@@ -1,6 +1,6 @@
-#**********************************************************************#
-#                               Asterism                               #
-#**********************************************************************#
+# ********************************************************************** #
+#                               Asterism                                 #
+# ********************************************************************** #
 #
 # Copyright (C) 2022 Jonathan Saussereau
 #
@@ -9,12 +9,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # Asterism is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with Asterism. If not, see <https://www.gnu.org/licenses/>.
 #
@@ -28,17 +28,16 @@ import argparse
 
 # add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, 'lib')
+lib_path = os.path.join(current_dir, "lib")
 sys.path.append(lib_path)
 
 import printc
-from utils import *
+from utils import read_from_list, KeyNotInListError, BadValueInListError
 
 from settings import AsterismSettings
 
 script_name = os.path.basename(__file__)
 
-DEFAULT_YML = "clean.yml"
 DANGEROUS_PATHS = ["/", "./", "./*", "*", "~", ".", ".."]
 
 ######################################
@@ -46,13 +45,13 @@ DANGEROUS_PATHS = ["/", "./", "./*", "*", "~", ".", ".."]
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument('-i', '--input', default=DEFAULT_YML, help='input settings file (default: ' + DEFAULT_YML + ')')
-  parser.add_argument('-f', '--force', action='store_true', help='force delete (dangerous!)')
-  parser.add_argument('-v', '--verbose', action='store_true', help='print extra details')
-  parser.add_argument('-q', '--quiet', action='store_true', help='do not print anything, except errors')
+  parser.add_argument("-i", "--input", default=AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE, help="input settings file (default: " + AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE + ")")
+  parser.add_argument("-f", "--force", action="store_true", help="force delete (dangerous!)")
+  parser.add_argument("-v", "--verbose", action="store_true", help="print extra details")
+  parser.add_argument("-q", "--quiet", action="store_true", help="do not print anything, except errors")
 
 def parse_arguments():
-  parser = argparse.ArgumentParser(description='Clean up current directory')
+  parser = argparse.ArgumentParser(description="Clean up current directory")
   add_arguments(parser)
   return parser.parse_args()
 
@@ -107,11 +106,11 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
   if not os.path.isfile(settings_filename):
     if not quiet:
       printc.note("There is no clean settings file \"" + settings_filename + "\" in \"" + os.path.realpath(".") + "\". Using default Asterism clean settings file", script_name)
-    settings_filename = os.path.join(AsterismSettings.asterism_dir, DEFAULT_YML)
+    settings_filename = os.path.join(AsterismSettings.asterism_dir, AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE)
     if not os.path.isfile(settings_filename):
       printc.error("There is no default Asterism clean settings file \"" + settings_filename, script_name)
       sys.exit(-1)
-  with open(settings_filename, 'r') as f:
+  with open(settings_filename, "r") as f:
     try:
       settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     except Exception as e:
@@ -121,7 +120,7 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
       sys.exit(-1)
     try:
       remove_list = read_from_list("remove_list", settings_data, settings_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError) as e:
+    except (KeyNotInListError, BadValueInListError):
       sys.exit(-1)
 
     if not isinstance(remove_list, list):

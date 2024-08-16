@@ -49,13 +49,16 @@ class AsterismSettings:
   DEFAULT_WORK_PATH = "work"
   DEFAULT_SIM_WORK_PATH = "work/simulations"
   DEFAULT_RESULT_PATH = "results"
-  DEFAULT_ARCH_PATH = "architectures"
-  DEFAULT_SIM_PATH = "simulations"
+  DEFAULT_USERCONFIG_PATH = "asterism_config"
+  DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
+  DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
+  DEFAULT_TARGET_PATH = DEFAULT_USERCONFIG_PATH
   DEFAULT_USE_BENCHMARK = True
   DEFAULT_BENCHMARK_FILE = "results/benchmark.yml"
-  DEFAULT_SIMULATION_SETTINGS_FILE = "_run_simulations_settings.yml"
-  DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = "_run_fmax_synthesis_settings.yml"
-  DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = "_run_range_synthesis_settings.yml"
+  DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml")
+  DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
+  DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
+  # DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "range_synthesis_settings.yml")
   
   asterism_dir = os.path.realpath(os.path.join(base_path, ".."))
 
@@ -88,8 +91,10 @@ class AsterismSettings:
         self.result_path = read_from_list("result_path", settings_data, settings_filename, script_name=script_name)
         self.arch_path = read_from_list("arch_path", settings_data, settings_filename, script_name=script_name)
         self.sim_path = read_from_list("sim_path", settings_data, settings_filename, script_name=script_name)
+        self.target_path = read_from_list("target_path", settings_data, settings_filename, script_name=script_name)
         self.use_benchmark = read_from_list("use_benchmark", settings_data, settings_filename, type=bool, script_name=script_name)
         self.benchmark_file = read_from_list("benchmark_file", settings_data, settings_filename , script_name=script_name)
+        self.clean_settings_file = read_from_list("clean_settings_file", settings_data, settings_filename , script_name=script_name)
         self.simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename , script_name=script_name)
         self.fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename , script_name=script_name)
         self.range_synthesis_settings_file = read_from_list("range_synthesis_settings_file", settings_data, settings_filename , script_name=script_name)
@@ -115,11 +120,13 @@ class AsterismSettings:
           "result_path": input("  Enter result path [default: " + AsterismSettings.DEFAULT_RESULT_PATH + "]: ") or AsterismSettings.DEFAULT_RESULT_PATH,
           "arch_path": input("  Enter architecture path [default: " + AsterismSettings.DEFAULT_ARCH_PATH + "]: ") or AsterismSettings.DEFAULT_ARCH_PATH,
           "sim_path": input("  Enter simulation path [default: " + AsterismSettings.DEFAULT_SIM_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_PATH,
+          "target_path": input("  Enter target settings files path [default: " + AsterismSettings.DEFAULT_TARGET_PATH + "]: ") or AsterismSettings.DEFAULT_TARGET_PATH,
           "use_benchmark": input("  Use benchmark (True/False) [default: " + str(AsterismSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in AsterismSettings.YAML_BOOL or AsterismSettings.DEFAULT_USE_BENCHMARK,
           "benchmark_file": input("  Enter benchmark file path [default: " + AsterismSettings.DEFAULT_BENCHMARK_FILE + "]: ") or AsterismSettings.DEFAULT_BENCHMARK_FILE,
+          "clean_settings_file": input("  Enter clean settings file [default: " + AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE,
           "simulation_settings_file": input("  Enter simulation settings file [default: " + AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
           "fmax_synthesis_settings_file": input("  Enter fmax synthesis settings file [default: " + AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
-          "range_synthesis_settings_file": input("  Enter range synthesis settings file [default: " + AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
+          # "range_synthesis_settings_file": input("  Enter range synthesis settings file [default: " + AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
         }
 
         with open(settings_filename, "w") as f:
