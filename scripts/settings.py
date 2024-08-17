@@ -40,7 +40,7 @@ else:
   base_path = current_dir
 
 class OdatixSettings:
-  DEFAULT_SETTINGS_FILE = "scripts.yml"
+  DEFAULT_SETTINGS_FILE = "odatix.yml"
 
   DEFAULT_WORK_PATH = "work"
   DEFAULT_SIM_WORK_PATH = "work/simulations"
