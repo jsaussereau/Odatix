@@ -1,7 +1,6 @@
 ##############################################
 # Settings for OpenLane
 ##############################################
----
 
 process_group: False
 report_path: runs/asterism/reports
