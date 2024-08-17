@@ -24,7 +24,7 @@ import sys
 import yaml
 
 import scripts.lib.printc as printc
-from scripts.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
+from scripts.lib.utils import read_from_list, KeyNotInListError, BadValueInListError, ask_yes_no
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 script_name = os.path.basename(__file__)
