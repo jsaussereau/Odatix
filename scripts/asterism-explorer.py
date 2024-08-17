@@ -1,22 +1,22 @@
-#**********************************************************************#
-#                               Asterism                               #
-#**********************************************************************#
+# ********************************************************************** #
+#                                Odatix                                  #
+# ********************************************************************** #
 #
 # Copyright (C) 2022 Jonathan Saussereau
 #
-# This file is part of Asterism.
-# Asterism is free software: you can redistribute it and/or modify
+# This file is part of Odatix.
+# Odatix is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
-# Asterism is distributed in the hope that it will be useful,
+#
+# Odatix is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
-# along with Asterism. If not, see <https://www.gnu.org/licenses/>.
+# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os
@@ -53,7 +53,7 @@ def add_arguments(parser):
   parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
 
 def parse_arguments():
-  parser = argparse.ArgumentParser(description='Asterism - Start Result Explorer')
+  parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
   add_arguments(parser)
   return parser.parse_args()
 
@@ -91,7 +91,6 @@ def start_result_explorer(input, network=False):
   port = 8052
 
   from waitress import serve
-  from flask import request
 
   logging.getLogger('waitress').setLevel(logging.ERROR)
 
