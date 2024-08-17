@@ -23,7 +23,6 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.express as px
-import legend
 import re
 
 plot_colors = px.colors.qualitative.Plotly
@@ -31,7 +30,7 @@ plot_colors = px.colors.qualitative.Plotly
 
 def create_legend_items(explorer, page_name=""):
   legend_items = [
-    legend.create_legend_item(
+    create_legend_item(
       architecture=architecture, line_style="2px dashed", color=plot_colors[i % len(plot_colors)], page_name=page_name
     )
     for i, architecture in enumerate(explorer.all_architectures)

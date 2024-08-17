@@ -26,16 +26,12 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 import yaml
-import page_xy
-import page_vs
-import page_radar
 
-# Add local libs to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, "..", "lib")
-sys.path.append(lib_path)
+import scripts.explorer.page_xy as page_xy
+import scripts.explorer.page_vs as page_vs
+import scripts.explorer.page_radar as page_radar
 
-import printc
+import scripts.lib.printc as printc
 
 script_name = os.path.basename(__file__)
 

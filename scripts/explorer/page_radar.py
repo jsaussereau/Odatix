@@ -26,8 +26,9 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 import plotly.graph_objs as go
-import legend
-import navigation
+
+import scripts.explorer.legend as legend
+import scripts.explorer.navigation as navigation
 
 page_name = "radar"
 
