@@ -4,7 +4,6 @@
 ##############################################
 ---
 
-#rtl path, relative to Asterism root directory, not this directory
 rtl_path: "examples/shift_register_sv"
 
 top_level_file: "shift_register.sv"

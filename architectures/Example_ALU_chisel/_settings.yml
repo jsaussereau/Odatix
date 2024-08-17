@@ -8,7 +8,6 @@
 generate_rtl: Yes
 generate_command: "sbt 'runMain ALUTop --o=rtl'" # this requires sbt and firtool
 
-# design path, relative to Asterism root directory, not this directory
 design_path: "examples/alu_chisel"
 rtl_path: "examples/alu_chisel/rtl"
 

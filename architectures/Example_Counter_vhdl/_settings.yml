@@ -4,7 +4,6 @@
 ##############################################
 ---
 
-#rtl path, relative to "architectures" parent directory (Asterism root), not this directory
 rtl_path: "examples/counter_vhdl"
 
 top_level_file: "counter.vhdl"
