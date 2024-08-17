@@ -29,14 +29,9 @@ import select
 import signal
 import subprocess
 
-# Add local libs to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, "lib")
-sys.path.append(lib_path)
-
-from ansi_to_curses import AnsiToCursesConverter
-import printc
-import motd
+from scripts.lib.ansi_to_curses import AnsiToCursesConverter
+import scripts.lib.printc as printc
+from scripts.motd import read_version
 
 ######################################
 # Settings
@@ -154,7 +149,7 @@ class ParallelJobHandler:
     self.auto_exit = auto_exit
     self.log_size_limit = log_size_limit
 
-    self.version = motd.read_version()
+    self.version = read_version()
 
     self.running_job_list = []
     self.retired_job_list = []

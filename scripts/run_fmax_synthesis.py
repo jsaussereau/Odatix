@@ -27,22 +27,18 @@ import shutil
 import argparse
 import subprocess
 
-# Add local libs to path
+import scripts.lib.printc as printc
+from scripts.replace_params import replace_params
+from scripts.parallel_job_handler import ParallelJobHandler, ParallelJob
+
+from scripts.settings import OdatixSettings
+from scripts.lib.architecture_handler import ArchitectureHandler, Architecture
+from scripts.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
+from scripts.lib.prepare_work import edit_config_file
+from scripts.lib.check_tool import check_tool
+from scripts.lib.run_settings import get_synth_settings
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, "lib")
-sys.path.append(lib_path)
-
-import printc
-from replace_params import replace_params
-from parallel_job_handler import ParallelJobHandler, ParallelJob
-
-from architecture_handler import ArchitectureHandler, Architecture
-from settings import OdatixSettings
-from utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
-from prepare_work import edit_config_file
-from check_tool import check_tool
-from run_settings import get_synth_settings
-
 
 ######################################
 # Settings

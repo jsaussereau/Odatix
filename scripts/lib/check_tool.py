@@ -25,8 +25,8 @@ import copy
 import time
 import subprocess
 
-import printc
-from utils import *
+import scripts.lib.printc as printc
+from scripts.lib.utils import *
 
 script_name = os.path.basename(__file__)
 

@@ -26,15 +26,9 @@ import glob
 import shutil
 import argparse
 
-# add local libs to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, "lib")
-sys.path.append(lib_path)
-
-import printc
-from utils import read_from_list, KeyNotInListError, BadValueInListError
-
-from settings import OdatixSettings
+import scripts.lib.printc as printc
+from scripts.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
+from scripts.settings import OdatixSettings
 
 script_name = os.path.basename(__file__)
 

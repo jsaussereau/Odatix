@@ -25,22 +25,23 @@ import argparse
 import traceback
 import platform
 from datetime import datetime
+from pathlib import Path
 
-from motd import *
-import run_simulations as run_sim
-import run_fmax_synthesis as run_synth
-import export_results as exp_res
-import export_benchmark as exp_bench
-import clean as cln
-import settings
-from settings import OdatixSettings
+# Add parent dir to path if not run as a package
+if __package__ is None:
+  current_dir = os.path.dirname(os.path.abspath(__file__))
+  sys.path.append(os.path.join(current_dir, os.pardir))
 
-# Add local libs to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, 'lib')
-sys.path.append(lib_path)
-
-from utils import *
+from scripts.motd import *
+import scripts.run_simulations as run_sim
+import scripts.run_fmax_synthesis as run_synth
+import scripts.export_results as exp_res
+import scripts.export_benchmark as exp_bench
+import scripts.clean as cln
+import scripts.settings as settings
+from scripts.settings import OdatixSettings
+import scripts.lib.printc as printc
+from scripts.lib.utils import *
 
 ######################################
 # Settings
@@ -314,7 +315,10 @@ def internal_error(e):
 # Main
 ######################################
 
-def main(args):
+def main(args=None):
+
+  if args is None:
+    args = ArgParser.parse_arguments()
 
   # Display the version if requested
   if args.version:

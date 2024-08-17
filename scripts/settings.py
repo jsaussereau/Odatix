@@ -23,14 +23,10 @@ import os
 import sys
 import yaml
 
-# Add local libs to path
+import scripts.lib.printc as printc
+from scripts.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, "lib")
-sys.path.append(lib_path)
-
-import printc
-from utils import read_from_list, KeyNotInListError, BadValueInListError
-
 script_name = os.path.basename(__file__)
 
 ######################################
@@ -44,7 +40,7 @@ else:
   base_path = current_dir
 
 class OdatixSettings:
-  DEFAULT_SETTINGS_FILE = "odatix.yml"
+  DEFAULT_SETTINGS_FILE = "scripts.yml"
 
   DEFAULT_WORK_PATH = "work"
   DEFAULT_SIM_WORK_PATH = "work/simulations"
@@ -97,7 +93,7 @@ class OdatixSettings:
         self.clean_settings_file = read_from_list("clean_settings_file", settings_data, settings_filename , script_name=script_name)
         self.simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename , script_name=script_name)
         self.fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename , script_name=script_name)
-        self.range_synthesis_settings_file = read_from_list("range_synthesis_settings_file", settings_data, settings_filename , script_name=script_name)
+        # self.range_synthesis_settings_file = read_from_list("range_synthesis_settings_file", settings_data, settings_filename , script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         self.valid = False
         return False

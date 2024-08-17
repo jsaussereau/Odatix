@@ -22,7 +22,8 @@
 import os
 import sys
 import shutil
-import printc
+
+import scripts.lib.printc as printc
 
 YAML_BOOL = ('true', 'false', 'yes', 'no', 'on', 'off')
 

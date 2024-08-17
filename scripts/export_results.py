@@ -26,15 +26,12 @@ import re
 import csv
 import argparse
 
-# Add local libs to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, "lib")
-sys.path.append(lib_path)
+import scripts.lib.printc as printc
+from scripts.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
+import scripts.settings as settings
+from scripts.settings import OdatixSettings
 
-import printc
-from utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
-import settings
-from settings import OdatixSettings
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
 banned_metrics = []
 banned_arch = []

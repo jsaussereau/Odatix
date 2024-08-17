@@ -24,12 +24,7 @@ import re
 import sys
 import argparse
 
-# Add local libs to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, 'lib')
-sys.path.append(lib_path)
-
-import printc
+import scripts.lib.printc as printc
 
 script_name = os.path.basename(__file__)
 

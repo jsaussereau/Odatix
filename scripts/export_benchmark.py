@@ -25,17 +25,9 @@ import sys
 import yaml
 import argparse
 
-dmips_per_mhz_pattern = re.compile("(.*)DMIPS_Per_MHz: ([0-9.]+)")
-bad_value = ' /   '
-
-# Add local libs to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, 'lib')
-sys.path.append(lib_path)
-
-from settings import OdatixSettings
-import re_helper as rh
-import printc
+from scripts.settings import OdatixSettings
+import scripts.lib.re_helper as rh
+import scripts.lib.printc as printc
 
 ######################################
 # Settings
@@ -47,6 +39,9 @@ DEFAULT_SIM_FILE = "log/sim.log"
 status_done = 'Done: 100%'
 
 script_name = os.path.basename(__file__)
+
+dmips_per_mhz_pattern = re.compile("(.*)DMIPS_Per_MHz: ([0-9.]+)")
+bad_value = None
 
 ######################################
 # Parse Arguments

@@ -30,17 +30,8 @@ import socket
 import logging 
 import argparse
 
-# Add local libs to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, 'lib')
-sys.path.append(lib_path)
-
-# Add explorer to path
-lib_path = os.path.join(current_dir, 'explorer')
-sys.path.append(lib_path)
-
-import printc
-from explorer_app import ResultExplorer
+import scripts.lib.printc as printc
+from scripts.explorer.explorer_app import ResultExplorer
 
 script_name = os.path.basename(__file__)
 

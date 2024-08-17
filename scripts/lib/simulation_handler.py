@@ -23,12 +23,11 @@ import os
 import math
 import yaml
 
-from architecture_handler import ArchitectureHandler
-
 from os.path import isfile
 from os.path import isdir
 
-from utils import *
+from scripts.lib.architecture_handler import ArchitectureHandler
+from scripts.lib.utils import *
 
 script_name = os.path.basename(__file__)
 
