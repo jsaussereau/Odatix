@@ -28,7 +28,7 @@ if {[catch {
     report_progress 5 $synth_statusfile
 
     if {[catch {
-        set chan [open "|/bin/sh -c \"/openlane/flow.tcl -tag asterism -overwrite\"" r]
+        set chan [open "|/bin/sh -c \"/openlane/flow.tcl -tag odatix -overwrite\"" r]
         while {[gets $chan line] >= 0} {
             puts $line
         }
