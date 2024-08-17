@@ -358,5 +358,4 @@ def main(args=None):
     success = clean(args)
 
 if __name__ == "__main__":
-  args = ArgParser.parse_arguments()
-  main(args)
+  main()
