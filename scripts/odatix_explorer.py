@@ -30,6 +30,11 @@ import socket
 import logging 
 import argparse
 
+# Add parent dir to path if not run as a package
+if __package__ is None:
+  current_dir = os.path.dirname(os.path.abspath(__file__))
+  sys.path.append(os.path.join(current_dir, os.pardir))
+
 import scripts.lib.printc as printc
 from scripts.explorer.explorer_app import ResultExplorer
 
