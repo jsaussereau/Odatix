@@ -122,12 +122,13 @@ def start_result_explorer(input, network=False):
 # Main
 ######################################
 
-def main(args):
+def main(args=None):
+  if args is None:
+    args = parse_arguments()
+
   network = args.network
   input = args.input
   start_result_explorer(input, network)
 
-
 if __name__ == "__main__":
-  args = parse_arguments()
-  main(args)
+  main()
