@@ -43,7 +43,7 @@ if getattr(sys, "frozen", False):
 else:
   base_path = current_dir
 
-class AsterismSettings:
+class OdatixSettings:
   DEFAULT_SETTINGS_FILE = "asterism.yml"
 
   DEFAULT_WORK_PATH = "work"
@@ -115,18 +115,18 @@ class AsterismSettings:
         return False
       else:
         settings_data = {
-          "work_path": input("  Enter work path [default: " + AsterismSettings.DEFAULT_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_WORK_PATH,
-          "sim_work_path": input("  Enter simulation work path [default: " + AsterismSettings.DEFAULT_SIM_WORK_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_WORK_PATH,
-          "result_path": input("  Enter result path [default: " + AsterismSettings.DEFAULT_RESULT_PATH + "]: ") or AsterismSettings.DEFAULT_RESULT_PATH,
-          "arch_path": input("  Enter architecture path [default: " + AsterismSettings.DEFAULT_ARCH_PATH + "]: ") or AsterismSettings.DEFAULT_ARCH_PATH,
-          "sim_path": input("  Enter simulation path [default: " + AsterismSettings.DEFAULT_SIM_PATH + "]: ") or AsterismSettings.DEFAULT_SIM_PATH,
-          "target_path": input("  Enter target settings files path [default: " + AsterismSettings.DEFAULT_TARGET_PATH + "]: ") or AsterismSettings.DEFAULT_TARGET_PATH,
-          "use_benchmark": input("  Use benchmark (True/False) [default: " + str(AsterismSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in AsterismSettings.YAML_BOOL or AsterismSettings.DEFAULT_USE_BENCHMARK,
-          "benchmark_file": input("  Enter benchmark file path [default: " + AsterismSettings.DEFAULT_BENCHMARK_FILE + "]: ") or AsterismSettings.DEFAULT_BENCHMARK_FILE,
-          "clean_settings_file": input("  Enter clean settings file [default: " + AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE,
-          "simulation_settings_file": input("  Enter simulation settings file [default: " + AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
-          "fmax_synthesis_settings_file": input("  Enter fmax synthesis settings file [default: " + AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
-          # "range_synthesis_settings_file": input("  Enter range synthesis settings file [default: " + AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or AsterismSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
+          "work_path": input("  Enter work path [default: " + OdatixSettings.DEFAULT_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_WORK_PATH,
+          "sim_work_path": input("  Enter simulation work path [default: " + OdatixSettings.DEFAULT_SIM_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_SIM_WORK_PATH,
+          "result_path": input("  Enter result path [default: " + OdatixSettings.DEFAULT_RESULT_PATH + "]: ") or OdatixSettings.DEFAULT_RESULT_PATH,
+          "arch_path": input("  Enter architecture path [default: " + OdatixSettings.DEFAULT_ARCH_PATH + "]: ") or OdatixSettings.DEFAULT_ARCH_PATH,
+          "sim_path": input("  Enter simulation path [default: " + OdatixSettings.DEFAULT_SIM_PATH + "]: ") or OdatixSettings.DEFAULT_SIM_PATH,
+          "target_path": input("  Enter target settings files path [default: " + OdatixSettings.DEFAULT_TARGET_PATH + "]: ") or OdatixSettings.DEFAULT_TARGET_PATH,
+          "use_benchmark": input("  Use benchmark (True/False) [default: " + str(OdatixSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in OdatixSettings.YAML_BOOL or OdatixSettings.DEFAULT_USE_BENCHMARK,
+          "benchmark_file": input("  Enter benchmark file path [default: " + OdatixSettings.DEFAULT_BENCHMARK_FILE + "]: ") or OdatixSettings.DEFAULT_BENCHMARK_FILE,
+          "clean_settings_file": input("  Enter clean settings file [default: " + OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE,
+          "simulation_settings_file": input("  Enter simulation settings file [default: " + OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
+          "fmax_synthesis_settings_file": input("  Enter fmax synthesis settings file [default: " + OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+          # "range_synthesis_settings_file": input("  Enter range synthesis settings file [default: " + OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
         }
 
         with open(settings_filename, "w") as f:

@@ -33,7 +33,7 @@ import export_results as exp_res
 import export_benchmark as exp_bench
 import clean as cln
 import settings
-from settings import AsterismSettings
+from settings import OdatixSettings
 
 # Add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -98,7 +98,7 @@ class ArgParser:
     ArgParser.res_parser.add_argument('-S', '--sim_file', default=exp_bench.DEFAULT_SIM_FILE, help='simulation log file (default: ' + exp_bench.DEFAULT_SIM_FILE + ')')
     ArgParser.res_parser.add_argument("-w", "--work", help="simulation work directory")
     ArgParser.res_parser.add_argument("-r", "--respath", help="Result path")
-    ArgParser.res_parser.add_argument("-c", "--config", default=AsterismSettings.DEFAULT_SETTINGS_FILE, help="global settings file for asterism (default: " + AsterismSettings.DEFAULT_SETTINGS_FILE + ")")
+    ArgParser.res_parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for asterism (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
     ArgParser.add_nobanner(ArgParser.res_parser)
 
     # Define parser for the 'res_benchmark' command

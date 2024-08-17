@@ -34,7 +34,7 @@ sys.path.append(lib_path)
 import printc
 from utils import read_from_list, KeyNotInListError, BadValueInListError
 
-from settings import AsterismSettings
+from settings import OdatixSettings
 
 script_name = os.path.basename(__file__)
 
@@ -45,7 +45,7 @@ DANGEROUS_PATHS = ["/", "./", "./*", "*", "~", ".", ".."]
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument("-i", "--input", default=AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE, help="input settings file (default: " + AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE + ")")
+  parser.add_argument("-i", "--input", default=OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE, help="input settings file (default: " + OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE + ")")
   parser.add_argument("-f", "--force", action="store_true", help="force delete (dangerous!)")
   parser.add_argument("-v", "--verbose", action="store_true", help="print extra details")
   parser.add_argument("-q", "--quiet", action="store_true", help="do not print anything, except errors")
@@ -106,7 +106,7 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
   if not os.path.isfile(settings_filename):
     if not quiet:
       printc.note("There is no clean settings file \"" + settings_filename + "\" in \"" + os.path.realpath(".") + "\". Using default Asterism clean settings file", script_name)
-    settings_filename = os.path.join(AsterismSettings.asterism_dir, AsterismSettings.DEFAULT_CLEAN_SETTINGS_FILE)
+    settings_filename = os.path.join(OdatixSettings.asterism_dir, OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE)
     if not os.path.isfile(settings_filename):
       printc.error("There is no default Asterism clean settings file \"" + settings_filename, script_name)
       sys.exit(-1)

@@ -37,7 +37,7 @@ from replace_params import replace_params
 from parallel_job_handler import ParallelJobHandler, ParallelJob
 
 from architecture_handler import ArchitectureHandler, Architecture
-from settings import AsterismSettings
+from settings import OdatixSettings
 from utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
 from prepare_work import edit_config_file
 from check_tool import check_tool
@@ -114,8 +114,8 @@ def add_arguments(parser):
   parser.add_argument(
     "-c",
     "--config",
-    default=AsterismSettings.DEFAULT_SETTINGS_FILE,
-    help="global settings file for asterism (default: " + AsterismSettings.DEFAULT_SETTINGS_FILE + ")",
+    default=OdatixSettings.DEFAULT_SETTINGS_FILE,
+    help="global settings file for asterism (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
   )
 
 
@@ -438,7 +438,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
 def main(args, settings=None):
   # Get settings
   if settings is None:
-    settings = AsterismSettings(args.config)
+    settings = OdatixSettings(args.config)
     if not settings.valid:
       sys.exit(-1)
 

@@ -34,7 +34,7 @@ sys.path.append(lib_path)
 import printc
 from utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
 import settings
-from settings import AsterismSettings
+from settings import OdatixSettings
 
 banned_metrics = []
 banned_arch = []
@@ -79,8 +79,8 @@ def add_arguments(parser):
   parser.add_argument(
     "-c",
     "--config",
-    default=AsterismSettings.DEFAULT_SETTINGS_FILE,
-    help="global settings file for asterism (default: " + AsterismSettings.DEFAULT_SETTINGS_FILE + ")",
+    default=OdatixSettings.DEFAULT_SETTINGS_FILE,
+    help="global settings file for asterism (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
   )
 
 
@@ -385,7 +385,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
 def main(args, settings=None):
   # Get settings
   if settings is None:
-    settings = AsterismSettings(args.config)
+    settings = OdatixSettings(args.config)
     if not settings.valid:
       sys.exit(-1)
 

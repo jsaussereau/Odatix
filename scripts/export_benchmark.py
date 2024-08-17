@@ -33,7 +33,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, 'lib')
 sys.path.append(lib_path)
 
-from settings import AsterismSettings
+from settings import OdatixSettings
 import re_helper as rh
 import printc
 
@@ -57,7 +57,7 @@ def add_arguments(parser):
   parser.add_argument('-S', '--sim_file', default=DEFAULT_SIM_FILE, help='simulation log file (default: ' + DEFAULT_SIM_FILE + ')')
   parser.add_argument('-B', '--benchmark_file', help='output benchmark file')
   parser.add_argument('-w', '--work', help='simulation work directory')
-  parser.add_argument('-c', '--config', default=AsterismSettings.DEFAULT_SETTINGS_FILE, help='global settings file for asterism (default: ' + AsterismSettings.DEFAULT_SETTINGS_FILE + ')')
+  parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for asterism (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Process benchmark results')
@@ -155,7 +155,7 @@ def main(args, settings=None):
 
   # Get settings
   if settings is None:
-    settings = AsterismSettings(args.config)
+    settings = OdatixSettings(args.config)
     if not settings.valid:
       sys.exit(-1)
 
