@@ -105,10 +105,10 @@ def remove_path(path, force=False, verbose=False, quiet=False):
 def clean(settings_filename, force=False, verbose=False, quiet=False):
   if not os.path.isfile(settings_filename):
     if not quiet:
-      printc.note("There is no clean settings file \"" + settings_filename + "\" in \"" + os.path.realpath(".") + "\". Using default Asterism clean settings file", script_name)
-    settings_filename = os.path.join(OdatixSettings.asterism_dir, OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE)
+      printc.note("There is no clean settings file \"" + settings_filename + "\" in \"" + os.path.realpath(".") + "\". Using default Odatix clean settings file", script_name)
+    settings_filename = os.path.join(OdatixSettings.odatix_path, OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE)
     if not os.path.isfile(settings_filename):
-      printc.error("There is no default Asterism clean settings file \"" + settings_filename, script_name)
+      printc.error("There is no default Odatix clean settings file \"" + settings_filename, script_name)
       sys.exit(-1)
   with open(settings_filename, "r") as f:
     try:

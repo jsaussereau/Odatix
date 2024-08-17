@@ -82,7 +82,7 @@ def add_arguments(parser):
   parser.add_argument('-a', '--archpath', help='architecture directory')
   parser.add_argument('-s', '--simpath', help='simulation directory')
   parser.add_argument('-w', '--work', help='simulation work directory')
-  parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for asterism (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
+  parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for Odatix (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Run parallel simulations')
@@ -204,7 +204,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       command = (
         "make {}".format(sim_rule)
         + ' RTL_DIR="{}"'.format(rtl_path)
-        + ' ASTERISM_DIR="{}"'.format(os.path.realpath(os.path.join(current_dir, "..")))
+        + ' ODATIX_DIR="{}"'.format(os.path.realpath(os.path.join(current_dir, "..")))
         + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(sim_instance.tmp_dir, log_path)))
         + ' CLOCK_SIGNAL="{}"'.format(sim_instance.architecture.clock_signal)
         + ' TOP_LEVEL_MODULE="{}"'.format(sim_instance.architecture.top_level_module)

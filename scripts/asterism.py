@@ -48,7 +48,7 @@ from utils import *
 
 EXIT_SUCCESS = 0
 
-error_logfile = "asterism_error.log"
+error_logfile = "odatix_error.log"
 
 prog = os.path.basename(sys.argv[0])
 script_name = os.path.basename(__file__)
@@ -63,7 +63,7 @@ class ArgParser:
     parser.add_argument('-Q', '--nobanner', action='store_true', help='suppress printing of banner')
 
   def parse_arguments():
-    formatter = AsterismHelpFormatter
+    formatter = OdatixHelpFormatter
     ArgParser.parser = argparse.ArgumentParser(
       conflict_handler="resolve", 
       formatter_class=formatter,
@@ -71,7 +71,7 @@ class ArgParser:
     )
     ArgParser.parser.add_argument('-v', '--version', action='store_true', help='show version and exit')
     ArgParser.parser.add_argument('-h', '--help', action='store_true', help='show this help message and exit')
-    #ArgParser.parser.add_argument('-s', '--settings', action='store_true', help='generate a asterism.yml settings file')
+    #ArgParser.parser.add_argument('-s', '--settings', action='store_true', help='generate a odatix.yml settings file')
     args, remaining_args = ArgParser.parser.parse_known_args()
 
     # Parse other arguments
@@ -98,7 +98,7 @@ class ArgParser:
     ArgParser.res_parser.add_argument('-S', '--sim_file', default=exp_bench.DEFAULT_SIM_FILE, help='simulation log file (default: ' + exp_bench.DEFAULT_SIM_FILE + ')')
     ArgParser.res_parser.add_argument("-w", "--work", help="simulation work directory")
     ArgParser.res_parser.add_argument("-r", "--respath", help="Result path")
-    ArgParser.res_parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for asterism (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
+    ArgParser.res_parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
     ArgParser.add_nobanner(ArgParser.res_parser)
 
     # Define parser for the 'res_benchmark' command
@@ -120,7 +120,7 @@ class ArgParser:
     return ArgParser.parser.parse_args()
 
   def help():
-    full_header(description="Asterism - a FPGA/ASIC toolbox for design space exploration")
+    full_header(description="Odatix - a FPGA/ASIC toolbox for design space exploration")
     printc.bold("Global:\n  ", printc.colors.CYAN, end="")
     ArgParser.parser.print_help()
     print()
@@ -150,7 +150,7 @@ class ArgParser:
     ArgParser.clean_parser.print_help()
     print()
 
-class AsterismHelpFormatter(argparse.HelpFormatter):
+class OdatixHelpFormatter(argparse.HelpFormatter):
   def __init__(self, prog):
     super().__init__(
       prog=prog,

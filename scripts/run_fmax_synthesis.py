@@ -115,7 +115,7 @@ def add_arguments(parser):
     "-c",
     "--config",
     default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-    help="global settings file for asterism (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
+    help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
   )
 
 
@@ -163,7 +163,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       printc.note(
         'The selected eda tool "'
         + tool
-        + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool",
+        + "\" is not one of the supported tool. Check out Odatix's documentation to add support for your own eda tool",
         script_name,
       )
     sys.exit(-1)
@@ -178,7 +178,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       printc.note(
         'The selected eda tool "'
         + tool
-        + "\" is not one of the supported tool. Check out Asterism's documentation to add support for your own eda tool",
+        + "\" is not one of the supported tool. Check out Odatix's documentation to add support for your own eda tool",
         script_name,
       )
     sys.exit(-1)

@@ -54,7 +54,7 @@ def check_tool(tool, script_path, makefile, rule, supported_tools):
     if tool not in supported_tools:
       printc.note(
         'The selected eda tool "{}" is not one of the supported tool. '.format(tool)
-        + "Check out Asterism's documentation to add support for your own eda tool",
+        + "Check out Odatix's documentation to add support for your own eda tool",
         script_name,
       )
       printc.note('Make sure there is a valid rule "' + rule + '" in "' + tool_makefile_file + '"', script_name)

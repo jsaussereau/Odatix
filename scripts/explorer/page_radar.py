@@ -349,14 +349,14 @@ def make_all_radar_charts(
       background,
       mode,
     )
-    filename = "Asterism-{}-{}-{}".format(yaml_name, page_name, metric)
+    filename = "Odatix-{}-{}-{}".format(yaml_name, page_name, metric)
     radar_charts.append(make_figure_div(fig, filename, dl_format))
 
   # Add legend chart
   if "separate_legend" in legend_dropdown:
     legend_fig = make_legend_chart(df, all_architectures, visible_architectures, toggle_title, background, mode)
     radar_charts.append(
-      make_figure_div(legend_fig, "Asterism-" + str(page_name) + "-legend", dl_format, remove_zoom=True)
+      make_figure_div(legend_fig, "Odatix-" + str(page_name) + "-legend", dl_format, remove_zoom=True)
     )
 
   return radar_charts

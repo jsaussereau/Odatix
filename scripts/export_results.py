@@ -80,7 +80,7 @@ def add_arguments(parser):
     "-c",
     "--config",
     default=OdatixSettings.DEFAULT_SETTINGS_FILE,
-    help="global settings file for asterism (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
+    help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
   )
 
 

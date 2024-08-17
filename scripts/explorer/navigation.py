@@ -32,7 +32,7 @@ def top_bar(page_name=""):
       html.Div(
         id=f"navbar-title-{page_name}",
         children=[
-          dcc.Link("Asterism Explorer", href="/", className="title"),
+          dcc.Link("Odatix Explorer", href="/", className="title"),
         ],
         style={"marginLeft": "30px", "transition": "margin-left 0.25s"},
       ),

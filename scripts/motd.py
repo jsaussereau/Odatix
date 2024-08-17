@@ -50,7 +50,7 @@ def add_arguments(parser):
   parser.add_argument('-f', '--full', action='store_true', help='show full motd')
 
 def parse_arguments():
-  parser = argparse.ArgumentParser(description="Asterism's message of the day")
+  parser = argparse.ArgumentParser(description="Odatix's message of the day")
   add_arguments(parser)
   return parser.parse_args()
 
@@ -81,7 +81,7 @@ def motd():
 def full_header(description=True):
   motd()
   if description:
-    print("Asterism - a FPGA/ASIC toolbox for design space exploration")
+    print("Odatix - a FPGA/ASIC toolbox for design space exploration")
   print_copyright()
   print()
   print("version: " + str(read_version()))
@@ -104,7 +104,7 @@ def read_version():
 
 def print_version():
   version = read_version()
-  print("Asterism " + str(version))
+  print("Odatix " + str(version))
 
 ######################################
 # Main

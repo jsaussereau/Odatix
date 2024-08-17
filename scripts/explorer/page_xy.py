@@ -317,7 +317,7 @@ def setup_callbacks(explorer):
       title_x=0.5,
       autosize=True,
     )
-    filename = "Asterism-{}-{}-{}-{}".format(
+    filename = "Odatix-{}-{}-{}-{}".format(
       os.path.splitext(selected_yaml)[0], selected_target, page_name, selected_metric
     )
     return html.Div(

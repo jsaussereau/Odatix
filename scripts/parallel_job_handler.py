@@ -239,7 +239,7 @@ class ParallelJobHandler:
 
     try:
       header_win.addstr(
-        0, (width - len(" Asterism ")) // 2, " Asterism ", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD
+        0, (width - len(" Odatix ")) // 2, " Odatix ", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD
       )
     except curses.error:
       pass

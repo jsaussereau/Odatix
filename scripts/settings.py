@@ -44,12 +44,12 @@ else:
   base_path = current_dir
 
 class OdatixSettings:
-  DEFAULT_SETTINGS_FILE = "asterism.yml"
+  DEFAULT_SETTINGS_FILE = "odatix.yml"
 
   DEFAULT_WORK_PATH = "work"
   DEFAULT_SIM_WORK_PATH = "work/simulations"
   DEFAULT_RESULT_PATH = "results"
-  DEFAULT_USERCONFIG_PATH = "asterism_config"
+  DEFAULT_USERCONFIG_PATH = "odatix_config"
   DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
   DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
   DEFAULT_TARGET_PATH = DEFAULT_USERCONFIG_PATH
@@ -60,7 +60,7 @@ class OdatixSettings:
   DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
   # DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "range_synthesis_settings.yml")
   
-  asterism_dir = os.path.realpath(os.path.join(base_path, ".."))
+  odatix_path = os.path.realpath(os.path.join(base_path, ".."))
 
   def __init__(self, settings_filename=DEFAULT_SETTINGS_FILE):
     self.settings_file_exists = self.generate_settings_file()
@@ -71,8 +71,8 @@ class OdatixSettings:
 
   def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
     if not os.path.isfile(settings_filename):
-      printc.error("Asterism settings file \"" + settings_filename + "\" does not exists.", script_name=script_name)
-      printc.note("Asterism settings file should be in \"" + current_dir + "\"", script_name=script_name)
+      printc.error("Odatix settings file \"" + settings_filename + "\" does not exists.", script_name=script_name)
+      printc.note("Odatix settings file should be in \"" + current_dir + "\"", script_name=script_name)
       self.valid = False
       return False
 
@@ -108,7 +108,7 @@ class OdatixSettings:
     if os.path.isfile(settings_filename):
       return True
     else:
-      printc.say("This directory does not contain an Asterism settings file \"" + settings_filename + "\".", script_name=script_name)
+      printc.say("This directory does not contain an Odatix settings file \"" + settings_filename + "\".", script_name=script_name)
       printc.say("This file is mandatory. Would you like to create one? ", end="", script_name=script_name)
       answer = ask_yes_no()
       if answer is False:
@@ -132,6 +132,6 @@ class OdatixSettings:
         with open(settings_filename, "w") as f:
           yaml.dump(settings_data, f, sort_keys=False)
 
-        printc.say("Asterism settings file \"" + settings_filename + "\" has been generated.", script_name=script_name)
+        printc.say("Odatix settings file \"" + settings_filename + "\" has been generated.", script_name=script_name)
         print()
         return True

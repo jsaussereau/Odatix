@@ -74,7 +74,7 @@ class ResultExplorer:
     self.all_configurations = sorted(set(config for df in self.dfs.values() for config in df["Configuration"].unique()))
 
     self.app = dash.Dash(__name__)
-    self.app.title = "Asterism"
+    self.app.title = "Odatix"
     self.setup_layout()
     self.setup_callbacks()
 
