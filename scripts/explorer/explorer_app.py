@@ -105,7 +105,7 @@ class ResultExplorer:
     with open(file_path, "r") as file:
       yaml_content = yaml.safe_load(file)
       units = yaml_content.get("units", {})
-      synth_results = yaml_content.get("synth_results", {})
+      synth_results = yaml_content.get("fmax_results", {})
       return synth_results, units
 
   def update_dataframe(self, yaml_data):

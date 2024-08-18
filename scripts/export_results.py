@@ -365,7 +365,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
     try:
       with open(output_file, "w") as file:
         yaml.dump(
-          {"units": units, "synth_results": data}, file, default_style=None, default_flow_style=False, sort_keys=False
+          {"units": units, "fmax_results": data}, file, default_style=None, default_flow_style=False, sort_keys=False
         )
         printc.say('Results written to "' + output_file + '"', script_name=script_name)
     except Exception as e:
