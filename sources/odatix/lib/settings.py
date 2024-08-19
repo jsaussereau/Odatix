@@ -64,7 +64,7 @@ class OdatixSettings:
       success = self.read_settings_file(settings_filename)
     else:
       printc.warning("This directory does not contain an Odatix settings file \"" + settings_filename + "\".", script_name=script_name)
-      printc.note("Run Odatix with the 'init' flag to generate it alongside other necessary config files", script_name=script_name)
+      printc.note("Run Odatix with the '--init' flag to generate it alongside other necessary config files", script_name=script_name)
       self.valid = False
 
   def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
@@ -157,7 +157,7 @@ class OdatixSettings:
     return True
 
   @staticmethod
-  def init_directory_dialog(include_examples=False, prog=""):
+  def init_directory_dialog(include_examples=None, prog=""):
     printc.note("This command will create all the configuration files needed by Odatix in the current dictory.", script_name=script_name)
     printc.warning("This will overwrite any existing configuration files.", script_name=script_name)
     printc.say("Would you like to continue? ", end="", script_name=script_name)
@@ -167,6 +167,9 @@ class OdatixSettings:
     success = OdatixSettings.init_path()
     if not success:
       return False
+    if include_examples is None:
+      printc.say("Would you like to add Odatix examples? ", end="", script_name=script_name)
+      include_examples = ask_yes_no()
     if include_examples:
       success = OdatixSettings.init_examples()
       if not success:
