@@ -37,6 +37,7 @@ def copytree(src, dst, dirs_exist_ok=False, **kwargs):
         s = os.path.join(src, item)
         d = os.path.join(dst, item)
         if os.path.isdir(s):
+          shutil.rmtree(d, ignore_errors=True)
           shutil.copytree(s, d, **kwargs)
         else:
           shutil.copy2(s, d)
