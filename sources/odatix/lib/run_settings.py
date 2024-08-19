@@ -22,8 +22,8 @@
 import os
 import yaml
 
-import scripts.lib.printc as printc
-from scripts.lib.utils import *
+import odatix.lib.printc as printc
+from odatix.lib.utils import *
 
 script_name = os.path.basename(__file__)
 

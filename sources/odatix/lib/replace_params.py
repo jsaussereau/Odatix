@@ -24,7 +24,7 @@ import re
 import sys
 import argparse
 
-import scripts.lib.printc as printc
+import odatix.lib.printc as printc
 
 script_name = os.path.basename(__file__)
 

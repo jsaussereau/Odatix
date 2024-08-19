@@ -26,8 +26,8 @@ import yaml
 from os.path import isfile
 from os.path import isdir
 
-from scripts.lib.architecture_handler import ArchitectureHandler
-from scripts.lib.utils import *
+from odatix.lib.architecture_handler import ArchitectureHandler
+from odatix.lib.utils import *
 
 script_name = os.path.basename(__file__)
 

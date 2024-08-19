@@ -25,9 +25,9 @@ import sys
 import yaml
 import argparse
 
-from scripts.settings import OdatixSettings
-import scripts.lib.re_helper as rh
-import scripts.lib.printc as printc
+from odatix.lib.settings import OdatixSettings
+import odatix.lib.re_helper as rh
+import odatix.lib.printc as printc
 
 ######################################
 # Settings

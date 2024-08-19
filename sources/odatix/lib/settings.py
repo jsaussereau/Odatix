@@ -23,8 +23,8 @@ import os
 import sys
 import yaml
 
-import scripts.lib.printc as printc
-from scripts.lib.utils import read_from_list, KeyNotInListError, BadValueInListError, ask_yes_no
+import odatix.lib.printc as printc
+from odatix.lib.utils import read_from_list, KeyNotInListError, BadValueInListError, ask_yes_no, YAML_BOOL, copytree
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 script_name = os.path.basename(__file__)
@@ -56,7 +56,7 @@ class OdatixSettings:
   DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
   # DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "range_synthesis_settings.yml")
   
-  odatix_path = os.path.realpath(os.path.join(base_path, ".."))
+  odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
 
   def __init__(self, settings_filename=DEFAULT_SETTINGS_FILE):
     self.settings_file_exists = self.generate_settings_file()
@@ -117,7 +117,7 @@ class OdatixSettings:
           "arch_path": input("  Enter architecture path [default: " + OdatixSettings.DEFAULT_ARCH_PATH + "]: ") or OdatixSettings.DEFAULT_ARCH_PATH,
           "sim_path": input("  Enter simulation path [default: " + OdatixSettings.DEFAULT_SIM_PATH + "]: ") or OdatixSettings.DEFAULT_SIM_PATH,
           "target_path": input("  Enter target settings files path [default: " + OdatixSettings.DEFAULT_TARGET_PATH + "]: ") or OdatixSettings.DEFAULT_TARGET_PATH,
-          "use_benchmark": input("  Use benchmark (True/False) [default: " + str(OdatixSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in OdatixSettings.YAML_BOOL or OdatixSettings.DEFAULT_USE_BENCHMARK,
+          "use_benchmark": input("  Use benchmark (True/False) [default: " + str(OdatixSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in YAML_BOOL or OdatixSettings.DEFAULT_USE_BENCHMARK,
           "benchmark_file": input("  Enter benchmark file path [default: " + OdatixSettings.DEFAULT_BENCHMARK_FILE + "]: ") or OdatixSettings.DEFAULT_BENCHMARK_FILE,
           "clean_settings_file": input("  Enter clean settings file [default: " + OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE,
           "simulation_settings_file": input("  Enter simulation settings file [default: " + OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
@@ -131,3 +131,18 @@ class OdatixSettings:
         printc.say("Odatix settings file \"" + settings_filename + "\" has been generated.", script_name=script_name)
         print()
         return True
+
+  @staticmethod
+  def init_examples():
+    src_path = os.path.realpath(os.path.join(OdatixSettings.odatix_path, os.pardir, "odatix_examples"))
+    dst_path = os.getcwd()
+    copytree(src_path, dst_path, dirs_exist_ok=True)
+
+  @staticmethod
+  def init_path():
+    src_path = os.path.realpath(os.path.join(OdatixSettings.odatix_path, os.pardir, "odatix_init"))
+    dst_path = os.getcwd()
+    print(f"src_path={src_path}")
+    print(f"dst_path={dst_path}")
+    copytree(src_path, dst_path, dirs_exist_ok=True)
+

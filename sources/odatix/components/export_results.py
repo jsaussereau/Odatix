@@ -26,10 +26,10 @@ import re
 import csv
 import argparse
 
-import scripts.lib.printc as printc
-from scripts.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
-import scripts.settings as settings
-from scripts.settings import OdatixSettings
+import odatix.lib.printc as printc
+from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
+import odatix.lib.settings as settings
+from odatix.lib.settings import OdatixSettings
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 

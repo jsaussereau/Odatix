@@ -23,7 +23,7 @@ import os
 import sys
 import shutil
 
-import scripts.lib.printc as printc
+import odatix.lib.printc as printc
 
 YAML_BOOL = ('true', 'false', 'yes', 'no', 'on', 'off')
 

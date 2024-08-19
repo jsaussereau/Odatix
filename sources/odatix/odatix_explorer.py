@@ -30,13 +30,13 @@ import socket
 import logging 
 import argparse
 
-# Add parent dir to path if not run as a package
-if __package__ is None:
-  current_dir = os.path.dirname(os.path.abspath(__file__))
-  sys.path.append(os.path.join(current_dir, os.pardir))
+# Add parent dir to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sources_dir = os.path.realpath(os.path.join(current_dir, os.pardir))
+sys.path.append(sources_dir)
 
-import scripts.lib.printc as printc
-from scripts.explorer.explorer_app import ResultExplorer
+import odatix.lib.printc as printc
+from odatix.explorer.explorer_app import ResultExplorer
 
 script_name = os.path.basename(__file__)
 

@@ -27,16 +27,15 @@ import shutil
 import argparse
 import subprocess
 
-import scripts.lib.printc as printc
-from scripts.replace_params import replace_params
-from scripts.parallel_job_handler import ParallelJobHandler, ParallelJob
-
-from scripts.settings import OdatixSettings
-from scripts.lib.architecture_handler import ArchitectureHandler, Architecture
-from scripts.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
-from scripts.lib.prepare_work import edit_config_file
-from scripts.lib.check_tool import check_tool
-from scripts.lib.run_settings import get_synth_settings
+import odatix.lib.printc as printc
+from odatix.lib.replace_params import replace_params
+from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
+from odatix.lib.settings import OdatixSettings
+from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
+from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
+from odatix.lib.prepare_work import edit_config_file
+from odatix.lib.check_tool import check_tool
+from odatix.lib.run_settings import get_synth_settings
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -51,7 +50,7 @@ if getattr(sys, "frozen", False):
   base_path = os.path.dirname(sys.executable)
 else:
   base_path = current_dir
-script_path = os.path.realpath(os.path.join(base_path, "../eda_tools"))
+script_path = os.path.realpath(os.path.join(base_path, os.pardir, os.pardir, "odatix_eda_tools"))
 
 work_script_path = "scripts"
 work_report_path = "report"

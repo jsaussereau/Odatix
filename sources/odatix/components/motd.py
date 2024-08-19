@@ -23,13 +23,14 @@ import os
 import sys
 import argparse
 
-import scripts.lib.printc as printc
+import odatix.lib.printc as printc
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 # get eda_tools folder
 if getattr(sys, 'frozen', False):
   base_path = os.path.dirname(sys.executable)
+  
 else:
   base_path = current_dir
 
@@ -37,7 +38,7 @@ else:
 # Settings
 ######################################
 
-version_file = os.path.realpath(os.path.join(base_path, "../version.txt"))
+version_file = os.path.realpath(os.path.join(base_path, os.pardir, "version.txt"))
 
 ######################################
 # Parse Arguments
@@ -97,7 +98,7 @@ def read_version():
     with open(version_file, 'r') as file:
       return file.read().strip()
   except:
-    #printc.warning("Could not read version file \"" + version_file + "\"")
+    printc.warning("Could not read version file \"" + version_file + "\"")
     return "Unknown"
 
 def print_version():

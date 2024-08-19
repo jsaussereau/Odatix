@@ -27,11 +27,11 @@ from dash.dependencies import Input, Output
 import pandas as pd
 import yaml
 
-import scripts.explorer.page_xy as page_xy
-import scripts.explorer.page_vs as page_vs
-import scripts.explorer.page_radar as page_radar
+import odatix.explorer.page_xy as page_xy
+import odatix.explorer.page_vs as page_vs
+import odatix.explorer.page_radar as page_radar
 
-import scripts.lib.printc as printc
+import odatix.lib.printc as printc
 
 script_name = os.path.basename(__file__)
 

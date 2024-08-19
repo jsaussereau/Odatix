@@ -29,9 +29,10 @@ import select
 import signal
 import subprocess
 
-from scripts.lib.ansi_to_curses import AnsiToCursesConverter
-import scripts.lib.printc as printc
-from scripts.motd import read_version
+from odatix.components.motd import read_version
+
+from odatix.lib.ansi_to_curses import AnsiToCursesConverter
+import odatix.lib.printc as printc
 
 ######################################
 # Settings

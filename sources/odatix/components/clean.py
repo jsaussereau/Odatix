@@ -26,9 +26,9 @@ import glob
 import shutil
 import argparse
 
-import scripts.lib.printc as printc
-from scripts.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
-from scripts.settings import OdatixSettings
+import odatix.lib.printc as printc
+from odatix.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
+from odatix.lib.settings import OdatixSettings
 
 script_name = os.path.basename(__file__)
 

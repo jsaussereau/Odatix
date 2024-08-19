@@ -27,21 +27,22 @@ import platform
 from datetime import datetime
 from pathlib import Path
 
-# Add parent dir to path if not run as a package
-if __package__ is None:
-  current_dir = os.path.dirname(os.path.abspath(__file__))
-  sys.path.append(os.path.join(current_dir, os.pardir))
+# Add parent dir to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sources_dir = os.path.realpath(os.path.join(current_dir, os.pardir))
+sys.path.append(sources_dir)
 
-from scripts.motd import *
-import scripts.run_simulations as run_sim
-import scripts.run_fmax_synthesis as run_synth
-import scripts.export_results as exp_res
-import scripts.export_benchmark as exp_bench
-import scripts.clean as cln
-import scripts.settings as settings
-from scripts.settings import OdatixSettings
-import scripts.lib.printc as printc
-from scripts.lib.utils import *
+from odatix.components.motd import *
+import odatix.components.run_simulations as run_sim
+import odatix.components.run_fmax_synthesis as run_synth
+import odatix.components.export_results as exp_res
+import odatix.components.export_benchmark as exp_bench
+import odatix.components.clean as cln
+
+import odatix.lib.settings as settings
+from odatix.lib.settings import OdatixSettings
+import odatix.lib.printc as printc
+from odatix.lib.utils import *
 
 ######################################
 # Settings
@@ -77,7 +78,7 @@ class ArgParser:
 
     # Parse other arguments
     subparsers = ArgParser.parser.add_subparsers(dest="command")
-    
+
     # Define parser for the 'synth' command
     ArgParser.synth_parser = subparsers.add_parser("synth", help="run synthesis", formatter_class=formatter)
     run_synth.add_arguments(ArgParser.synth_parser)
@@ -331,7 +332,7 @@ def main(args=None):
     sys.exit(0)
 
   # If no command is selected 
-  if args.command is None:
+  if args.command is None and not args.init:
     full_header()
     print("run ", end="")
     printc.bold(prog + " -h", end="")
@@ -339,9 +340,17 @@ def main(args=None):
     sys.exit(0)
 
   # Display the banner
-  if not args.nobanner:
-    motd()
-    print()
+  try:
+    if not args.nobanner:
+      motd()
+      print()
+  except AttributeError:
+    pass
+
+  # Init directory
+  if args.init:
+    OdatixSettings.init_path()
+    sys.exit(0)
   
   # Dispatch the command to the appropriate function
   if args.command == "sim":

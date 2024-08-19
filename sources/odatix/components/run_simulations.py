@@ -25,16 +25,15 @@ import sys
 import argparse
 import subprocess
 
-import scripts.lib.printc as printc
-from scripts.replace_params import replace_params
-from scripts.parallel_job_handler import ParallelJobHandler, ParallelJob
-
-from scripts.settings import OdatixSettings
-from scripts.lib.simulation_handler import SimulationHandler
-from scripts.lib.utils import read_from_list, copytree, create_dir, ask_to_continue
-from scripts.lib.prepare_work import edit_config_file
-from scripts.lib.check_tool import check_tool
-from scripts.lib.run_settings import get_sim_settings
+import odatix.lib.printc as printc
+from odatix.lib.replace_params import replace_params
+from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
+from odatix.lib.settings import OdatixSettings
+from odatix.lib.simulation_handler import SimulationHandler
+from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue
+from odatix.lib.prepare_work import edit_config_file
+from odatix.lib.check_tool import check_tool
+from odatix.lib.run_settings import get_sim_settings
 
 ######################################
 # Settings
