@@ -12,6 +12,7 @@ def read_requirements():
 package_list = find_packages()
 package_list.append('odatix_examples')
 package_list.append('odatix_eda_tools')
+package_list.append('odatix_init')
 
 setup(
     name="odatix",
@@ -34,6 +35,9 @@ setup(
             '**/*'
         ],
         'odatix_eda_tools': [
+            '**/*'
+        ],
+        'odatix_init': [
             '**/*'
         ]
     },
