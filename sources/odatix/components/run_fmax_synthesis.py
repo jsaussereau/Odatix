@@ -130,6 +130,11 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
 
   work_path = os.path.join(work_path, tool)
 
+  if architectures is None:
+    printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)
+    printc.note('You must define your architectures in "' + run_config_settings_filename + '" before using this command.', script_name)
+    printc.note("Check out examples Odatix's documentation for more information.", script_name)
+    sys.exit(-1)
 
   if overwrite:
     overwrite = True

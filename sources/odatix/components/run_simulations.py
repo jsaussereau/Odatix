@@ -91,6 +91,12 @@ def parse_arguments():
 def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask):
   _overwrite, ask_continue, show_log_if_one, nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
 
+  if simulations is None:
+    printc.error('The "simulations" section of "' + run_config_settings_filename + '" is empty.', script_name)
+    printc.note('You must define your simulations in "' + run_config_settings_filename + '" before using this command.', script_name)
+    printc.note("Check out examples Odatix's documentation for more information.", script_name)
+    sys.exit(-1)
+
   if overwrite:
     overwrite = True
   else:
