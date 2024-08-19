@@ -73,15 +73,11 @@ class ArgParser:
     )
     ArgParser.parser.add_argument('-v', '--version', action='store_true', help='show version and exit')
     ArgParser.parser.add_argument('-h', '--help', action='store_true', help='show this help message and exit')
-    #ArgParser.parser.add_argument('-s', '--settings', action='store_true', help='generate a odatix.yml settings file')
+    ArgParser.parser.add_argument('--init', action='store_true', help="init current directory by adding all the necessary config files")
     args, remaining_args = ArgParser.parser.parse_known_args()
 
     # Parse other arguments
     subparsers = ArgParser.parser.add_subparsers(dest="command")
-
-    # Define parser for the 'init' command
-    ArgParser.init_parser = subparsers.add_parser("init", help="init current directory", formatter_class=formatter)
-    ArgParser.init_parser.add_argument("--examples", action="store_true", help="include Odatix examples")
 
     # Define parser for the 'synth' command
     ArgParser.synth_parser = subparsers.add_parser("synth", help="run synthesis", formatter_class=formatter)
@@ -129,9 +125,6 @@ class ArgParser:
     full_header(description="Odatix - a FPGA/ASIC toolbox for design space exploration")
     printc.bold("Global:\n  ", printc.colors.CYAN, end="")
     ArgParser.parser.print_help()
-    print()
-    printc.bold("Initialization:\n  ", printc.colors.CYAN, end="")
-    ArgParser.init_parser.print_help()
     print()
     printc.bold("Synthesis:\n  ", printc.colors.CYAN, end="")
     ArgParser.synth_parser.print_help()
@@ -339,7 +332,7 @@ def main(args=None):
     sys.exit(0)
 
   # If no command is selected 
-  if args.command is None:
+  if args.command is None and not args.init:
     full_header()
     print("run ", end="")
     printc.bold(prog + " -h", end="")
@@ -351,15 +344,18 @@ def main(args=None):
   except AttributeError:
     args.nobanner = False
 
+  # Display init dialog
+  if args.init:
+    OdatixSettings.init_directory_dialog(prog=prog)
+    sys.exit(0)
+
   # Display the banner
   if not args.nobanner:
     motd()
     print()
 
   # Dispatch the command to the appropriate function
-  if args.command == "init":
-    OdatixSettings.init_directory_dialog(include_examples=args.examples, prog=prog)
-  elif args.command == "sim":
+  if args.command == "sim":
     success = run_simulations(args)
   elif args.command == "synth":
     success = run_synthesis(args)
