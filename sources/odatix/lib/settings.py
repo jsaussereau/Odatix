@@ -59,10 +59,12 @@ class OdatixSettings:
   odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
 
   def __init__(self, settings_filename=DEFAULT_SETTINGS_FILE):
-    self.settings_file_exists = self.generate_settings_file()
+    self.settings_file_exists = os.path.isfile(settings_filename)
     if self.settings_file_exists:
       success = self.read_settings_file(settings_filename)
     else:
+      printc.warning("This directory does not contain an Odatix settings file \"" + settings_filename + "\".", script_name=script_name)
+      printc.note("Run Odatix with the 'init' flag to generate it alongside other necessary config files", script_name=script_name)
       self.valid = False
 
   def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
