@@ -134,15 +134,43 @@ class OdatixSettings:
 
   @staticmethod
   def init_examples():
-    src_path = os.path.realpath(os.path.join(OdatixSettings.odatix_path, os.pardir, "odatix_examples"))
-    dst_path = os.getcwd()
-    copytree(src_path, dst_path, dirs_exist_ok=True)
+    try:
+      src_path = os.path.realpath(os.path.join(OdatixSettings.odatix_path, os.pardir, "odatix_examples"))
+      dst_path = os.getcwd()
+      copytree(src_path, dst_path, dirs_exist_ok=True)
+    except Exception as e:
+      printc.error("Could not copy examples: " + str(e), script_name=script_name)
+      return False
+    return True
 
   @staticmethod
   def init_path():
-    src_path = os.path.realpath(os.path.join(OdatixSettings.odatix_path, os.pardir, "odatix_init"))
-    dst_path = os.getcwd()
-    print(f"src_path={src_path}")
-    print(f"dst_path={dst_path}")
-    copytree(src_path, dst_path, dirs_exist_ok=True)
+    try:
+      src_path = os.path.realpath(os.path.join(OdatixSettings.odatix_path, os.pardir, "odatix_init"))
+      dst_path = os.getcwd()
+      copytree(src_path, dst_path, dirs_exist_ok=True)
+    except Exception as e:
+      printc.error("Could not initialize directory: " + str(e), script_name=script_name)
+      return False
+    return True
 
+  @staticmethod
+  def init_directory_dialog(include_examples=False, prog=""):
+    printc.note("This command will create all the configuration files needed by Odatix in the current dictory.", script_name=script_name)
+    printc.warning("This will overwrite any existing configuration files.", script_name=script_name)
+    printc.say("Would you like to continue? ", end="", script_name=script_name)
+    answer = ask_yes_no()
+    if answer == False:
+      return False
+    success = OdatixSettings.init_path()
+    if not success:
+      return False
+    if include_examples:
+      success = OdatixSettings.init_examples()
+      if not success:
+        return False
+    printc.green("Your directory can now be used by Odatix!", script_name=script_name)
+    printc.say("Run ", end="", script_name=script_name)
+    printc.bold(prog + " -h", end="")
+    print(" to get a list of useful commands")
+    return True

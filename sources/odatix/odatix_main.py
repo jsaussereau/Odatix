@@ -79,6 +79,10 @@ class ArgParser:
     # Parse other arguments
     subparsers = ArgParser.parser.add_subparsers(dest="command")
 
+    # Define parser for the 'init' command
+    ArgParser.init_parser = subparsers.add_parser("init", help="init current directory", formatter_class=formatter)
+    ArgParser.init_parser.add_argument("--examples", action="store_true", help="include Odatix examples")
+
     # Define parser for the 'synth' command
     ArgParser.synth_parser = subparsers.add_parser("synth", help="run synthesis", formatter_class=formatter)
     run_synth.add_arguments(ArgParser.synth_parser)
@@ -332,28 +336,27 @@ def main(args=None):
     sys.exit(0)
 
   # If no command is selected 
-  if args.command is None and not args.init:
+  if args.command is None:
     full_header()
     print("run ", end="")
     printc.bold(prog + " -h", end="")
     print(" to get a list of useful commands")
     sys.exit(0)
 
-  # Display the banner
   try:
-    if not args.nobanner:
-      motd()
-      print()
+    args.nobanner
   except AttributeError:
-    pass
+    args.nobanner = False
 
-  # Init directory
-  if args.init:
-    OdatixSettings.init_path()
-    sys.exit(0)
-  
+  # Display the banner
+  if not args.nobanner:
+    motd()
+    print()
+
   # Dispatch the command to the appropriate function
-  if args.command == "sim":
+  if args.command == "init":
+    OdatixSettings.init_directory_dialog(include_examples=args.examples, prog=prog)
+  elif args.command == "sim":
     success = run_simulations(args)
   elif args.command == "synth":
     success = run_synthesis(args)
