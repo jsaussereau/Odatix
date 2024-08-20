@@ -48,7 +48,7 @@ bad_value = None
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument('-b', '--benchmark', choices=['dhrystone'], default=DEFAULT_BENCHMARK, help='benchmark to parse (default: ' + DEFAULT_BENCHMARK + ')')
+  parser.add_argument('-b', '--benchmark', default=DEFAULT_BENCHMARK, help='benchmark to parse (default: ' + DEFAULT_BENCHMARK + ')')
   parser.add_argument('-S', '--sim_file', default=DEFAULT_SIM_FILE, help='simulation log file (default: ' + DEFAULT_SIM_FILE + ')')
   parser.add_argument('-B', '--benchmark_file', help='output benchmark file')
   parser.add_argument('-w', '--work', help='simulation work directory')
@@ -132,7 +132,7 @@ def write_to_yaml(input, sim_file, output_file):
 
 def export_benchmark(input, output, benchmark, sim_file):
   print(printc.colors.CYAN + "Export " +  benchmark + " results" + printc.colors.ENDC)
-
+  input = os.path.join(input, benchmark)
   if not os.path.isdir(input):
     printc.error("input directory \"" + input + "\" does not exist", script_name)
     sys.exit(1)
