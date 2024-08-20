@@ -48,12 +48,6 @@ status_done = "Done: 100%"
 
 script_name = os.path.basename(__file__)
 
-# get eda_tools folder
-if getattr(sys, "frozen", False):
-  base_path = os.path.dirname(sys.executable)
-else:
-  base_path = current_dir
-eda_tools_path = os.path.realpath(os.path.join(base_path, "..", "eda_tools"))
 
 ######################################
 # Parse Arguments
@@ -313,7 +307,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
     
     printc.cyan("Export " + tool + " results", script_name)
 
-    tool_settings_file = os.path.join(eda_tools_path, tool, "tool.yml")
+    tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, "tool.yml")
     tool_settings = validate_tool_settings(tool_settings_file)
     if tool_settings is None:
       if len(tools) == 1:
