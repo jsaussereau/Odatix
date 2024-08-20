@@ -57,6 +57,9 @@ class OdatixSettings:
   # DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "range_synthesis_settings.yml")
   
   odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
+  odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
+  odatix_init_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_init"))
+  odatix_examples_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_examples"))
 
   def __init__(self, settings_filename=DEFAULT_SETTINGS_FILE):
     self.settings_file_exists = os.path.isfile(settings_filename)
@@ -137,7 +140,7 @@ class OdatixSettings:
   @staticmethod
   def init_examples():
     try:
-      src_path = os.path.realpath(os.path.join(OdatixSettings.odatix_path, os.pardir, "odatix_examples"))
+      src_path = OdatixSettings.odatix_examples_path
       dst_path = os.getcwd()
       copytree(src_path, dst_path, dirs_exist_ok=True)
     except Exception as e:
@@ -148,7 +151,7 @@ class OdatixSettings:
   @staticmethod
   def init_path():
     try:
-      src_path = os.path.realpath(os.path.join(OdatixSettings.odatix_path, os.pardir, "odatix_init"))
+      src_path = OdatixSettings.odatix_init_path
       dst_path = os.getcwd()
       copytree(src_path, dst_path, dirs_exist_ok=True)
     except Exception as e:
