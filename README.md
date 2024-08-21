@@ -27,11 +27,13 @@ Odatix also enables parallel simulations of different configurations of the same
 
 ### Synthesis
 
-| EDA Tool                 | Status              |
-| :----------------------- | :------------------ |
-| AMD Vivado               | ✔️ supported        |
-| Synopsys Design Compiler | ✔️ supported        |
-| Intel Quartus Prime      | 📅 planned          |
+
+| EDA Tool                                                       | Status              |
+| :------------------------------------------------------------- | :------------------ |
+| AMD Vivado                                                     | ✔️ supported        |
+| Synopsys Design Compiler                                       | ✔️ supported        |
+| [OpenLane 1](https://github.com/The-OpenROAD-Project/OpenLane) | ✔️ supported        |
+| Intel Quartus Prime                                            | 📅 planned          |
 
 ### Simulation
 
