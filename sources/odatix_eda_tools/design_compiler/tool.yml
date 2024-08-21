@@ -1,0 +1,126 @@
+
+##############################################
+# Settings for Design Compiler
+##############################################
+
+process_group: True
+
+metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: log/frequency_search.log
+      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 2
+    format: "%.0f"
+    unit: MHz
+
+  Cell_Area:
+    type: regex
+    settings:
+      file: report/area.rep
+      pattern: "Total cell area:(\\s*)([0-9,.]+)(.*)"
+      group_id: 2
+    format: "%.3f"
+    unit: um^2
+
+  Total_Area:
+    type: regex
+    settings:
+      file: report/area.rep
+      pattern: "Total area:(\\s*)([0-9,.]+)(.*)"
+      group_id: 2
+    format: "%.3f"
+    unit: um^2
+
+  Comb_Area:
+    type: regex
+    settings:
+      file: report/area.rep
+      pattern: "Combinational area:(\\s*)([0-9,.]+)(.*)"
+      group_id: 2
+    format: "%.3f"
+    unit: um^2
+
+  Noncomb_Area:
+    type: regex
+    settings:
+      file: report/area.rep
+      pattern: "Noncombinational area:(\\s*)([0-9,.]+)(.*)"
+      group_id: 2
+    format: "%.3f"
+    unit: um^2
+
+  Buf_Inv_Area:
+    type: regex
+    settings:
+      file: report/area.rep
+      pattern: "Buf/Inv area:(\\s*)([0-9,.]+)(.*)"
+      group_id: 2
+    format: "%.3f"
+    unit: um^2
+
+  Macro_Area:
+    type: regex
+    settings:
+      file: report/area.rep
+      pattern: "Macro/Black Box area:(\\s*)([0-9,.]+)(.*)"
+      group_id: 2
+    format: "%.3f"
+    unit: um^2
+
+  Net_Area:
+    type: regex
+    settings:
+      file: report/area.rep
+      pattern: "Net Interconnect area:(\\s*)([0-9,.]+)(.*)"
+      group_id: 2
+    format: "%.3f"
+    unit: um^2
+
+  Cell_count:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "Cell count:(\\s*)([0-9,.]+)(.*)"
+      group_id: 2
+    format: "%.0f"
+
+  # Static_Power:
+  #   type: regex
+  #   settings:
+  #     file: report/power.rep
+  #     pattern: "\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+  #     group_id: 3
+  #   format: "%.3f"
+  #   unit: W
+
+  # Dynamic_Power:
+  #   type: regex
+  #   settings:
+  #     file: report/power.rep
+  #     pattern: "\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+  #     group_id: 3
+  #   format: "%.3f"
+  #   unit: W
+
+  # Total_Power:
+  #   type: operation
+  #   settings:
+  #     op: Static_Power + Dynamic_Power
+  #   format: "%.3f"
+  #   unit: W
+
+  DMIPS_per_MHz:
+    type: benchmark
+    settings:
+      key: DMIPS_per_MHz
+    format: "%.3f"
+
+  DMIPS:
+    type: operation
+    benchmark_only: True
+    settings:
+      op: DMIPS_per_MHz * Fmax
+    format: "%.0f"
+

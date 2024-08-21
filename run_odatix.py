@@ -19,29 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-########################################################
-# Paths
-########################################################
+import sources.odatix.odatix_main as odatix_main
 
-SOURCE_DIR              = sources
-
-########################################################
-# Installation
-########################################################
-
-BUILD_CMD               = python -m build $(SOURCE_DIR)
-VENV                    = venv
-VENV_PYTHON             = $(VENV)/bin/python
-INSTALL_BUILD_CMD       = $(VENV_PYTHON) -m pip install build
-
-########################################################
-# Build
-########################################################
-
-.PHONY: build
-build: $(VENV_PYTHON)
-	$(BUILD_CMD)
-
-$(VENV_PYTHON):
-	python -m venv $(VENV)
-	$(INSTALL_BUILD_CMD)
+if __name__ == "__main__":
+  odatix_main.main()

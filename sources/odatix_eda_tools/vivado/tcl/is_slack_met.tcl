@@ -19,29 +19,28 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-########################################################
-# Paths
-########################################################
+proc is_slack_met {timing_rep} {
+  set tfile [open $timing_rep]
+  #check if we can find "slack (MET)" in the timing report
+  while {[gets $tfile data] != -1} {
+    if {[string match *[string toupper "slack (MET)"]* [string toupper $data]]} {
+      close $tfile
+      return 1  
+    }
+  }
+  close $tfile
+  return 0
+}
 
-SOURCE_DIR              = sources
-
-########################################################
-# Installation
-########################################################
-
-BUILD_CMD               = python -m build $(SOURCE_DIR)
-VENV                    = venv
-VENV_PYTHON             = $(VENV)/bin/python
-INSTALL_BUILD_CMD       = $(VENV_PYTHON) -m pip install build
-
-########################################################
-# Build
-########################################################
-
-.PHONY: build
-build: $(VENV_PYTHON)
-	$(BUILD_CMD)
-
-$(VENV_PYTHON):
-	python -m venv $(VENV)
-	$(INSTALL_BUILD_CMD)
+proc is_slack_inf {timing_rep} {
+  set tfile [open $timing_rep]
+  #check if we can find "Slack:                    inf" in the timing report
+  while {[gets $tfile data] != -1} {
+    if {[string match *[string toupper "Slack:                    inf"]* [string toupper $data]]} {
+      close $tfile
+      return 1  
+    }
+  }
+  close $tfile
+  return 0
+}

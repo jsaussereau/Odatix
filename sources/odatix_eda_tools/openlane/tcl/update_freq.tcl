@@ -19,29 +19,20 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-########################################################
-# Paths
-########################################################
+proc update_freq {freq constraints_file} {
+  # Get new period
+  set clock_period [expr {1000.0 / $freq}]
+  
+  # Read constraints file
+  set file [open $constraints_file r]
+  set json_data [read $file]
+  close $file
 
-SOURCE_DIR              = sources
+  # Change CLOCK_PERIOD
+  set updated_json_data [regsub -all {("CLOCK_PERIOD":\s*)[0-9.]+} $json_data "\\1$clock_period"]
 
-########################################################
-# Installation
-########################################################
-
-BUILD_CMD               = python -m build $(SOURCE_DIR)
-VENV                    = venv
-VENV_PYTHON             = $(VENV)/bin/python
-INSTALL_BUILD_CMD       = $(VENV_PYTHON) -m pip install build
-
-########################################################
-# Build
-########################################################
-
-.PHONY: build
-build: $(VENV_PYTHON)
-	$(BUILD_CMD)
-
-$(VENV_PYTHON):
-	python -m venv $(VENV)
-	$(INSTALL_BUILD_CMD)
+  # Save new constraints
+  set file [open $constraints_file w]
+  puts $file $updated_json_data
+  close $file
+}

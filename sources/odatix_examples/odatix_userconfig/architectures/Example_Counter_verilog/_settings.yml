@@ -1,0 +1,41 @@
+
+##############################################
+# Settings for counter example
+##############################################
+---
+
+rtl_path: "examples/counter_verilog"
+
+# design settings
+top_level_file: "counter.v"
+top_level_module: "counter"
+clock_signal: "clock"
+reset_signal: "reset"
+
+# copy a file into synthesis directory?
+file_copy_enable: No
+file_copy_source: "/dev/null"
+file_copy_dest: "/dev/null"
+
+# delimiters for parameter files
+use_parameters: Yes
+start_delimiter: "counter #("
+stop_delimiter: ")("
+
+# optional target-specific bounds (in MHz) to speed up fmax search
+xc7s25-csga225-1:
+  fmax_lower_bound: 100
+  fmax_upper_bound: 900
+xc7a100t-csg324-1:
+  fmax_lower_bound: 250
+  fmax_upper_bound: 900
+xc7k70t-fbg676-2:
+  fmax_lower_bound: 200
+  fmax_upper_bound: 1800
+XFAB180CMOS:
+  fmax_lower_bound: 400
+  fmax_upper_bound: 700
+AMS350CMOS:
+  fmax_lower_bound: 60
+  fmax_upper_bound: 160
+...

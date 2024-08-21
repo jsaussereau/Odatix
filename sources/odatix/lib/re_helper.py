@@ -19,29 +19,16 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-########################################################
-# Paths
-########################################################
+import os
+import re
 
-SOURCE_DIR              = sources
+BAD_VALUE = ' /   '
 
-########################################################
-# Installation
-########################################################
-
-BUILD_CMD               = python -m build $(SOURCE_DIR)
-VENV                    = venv
-VENV_PYTHON             = $(VENV)/bin/python
-INSTALL_BUILD_CMD       = $(VENV_PYTHON) -m pip install build
-
-########################################################
-# Build
-########################################################
-
-.PHONY: build
-build: $(VENV_PYTHON)
-	$(BUILD_CMD)
-
-$(VENV_PYTHON):
-	python -m venv $(VENV)
-	$(INSTALL_BUILD_CMD)
+def get_re_group_from_file(file, pattern, group_id, bad_value=BAD_VALUE):
+  if os.path.exists(file):
+    for i, line in enumerate(open(file)):
+      for match in re.finditer(pattern, line):
+        parts = pattern.search(match.group())
+        if group_id <= len(parts.groups()):
+          return parts.group(group_id)
+  return bad_value

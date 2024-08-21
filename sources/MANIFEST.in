@@ -1,0 +1,7 @@
+include requirements.txt
+include README.md
+include odatix/version.txt
+recursive-include odatix/explorer/assets *
+recursive-include odatix/eda_tools *
+recursive-include odatix_examples *
+recursive-include odatix_init *

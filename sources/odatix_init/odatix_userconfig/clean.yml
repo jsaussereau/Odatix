@@ -1,0 +1,25 @@
+
+##############################################
+# Odatix Clean Settings
+##############################################
+---
+
+remove_list:
+  # Design Compiler
+  - alib-*
+  - LIB_*_autoread
+  - command.log
+  - default.svf
+  - filenames*.log
+  - change_names_verilog
+  - ARCH
+  - ENTI
+  - "*.syn"
+  - "*.mr"
+
+  # Vivado
+  - .Xil
+  - "*.jou"
+  - hs_err_*.log
+  - vivado*.log
+  - tight_setup_hold_pins.txt

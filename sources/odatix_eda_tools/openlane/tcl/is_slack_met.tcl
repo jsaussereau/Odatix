@@ -19,29 +19,31 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-########################################################
-# Paths
-########################################################
+proc is_slack_met {timing_rep} {
+  set timing_rep $report_path/metrics.csv
+  set file_handler [open $timing_rep r]
+  gets $file_handler header
+  
+  set wns_value 0.0
+  
+  set data_line [gets $file_handler]
 
-SOURCE_DIR              = sources
+  close $file_handler
+  
+  set data_fields [split $data_line ","]
+  
+  set header_fields [split $header ","]
+  set wns_index [lsearch -exact $header_fields "wns"]
+  set wns_value [lindex $data_fields $wns_index]
+  set wns_value [expr {$wns_value + 0.0}]
+  
+  if {$wns_value >= 0} {
+      return 1
+  } else {
+      return 0
+  }
+}
 
-########################################################
-# Installation
-########################################################
-
-BUILD_CMD               = python -m build $(SOURCE_DIR)
-VENV                    = venv
-VENV_PYTHON             = $(VENV)/bin/python
-INSTALL_BUILD_CMD       = $(VENV_PYTHON) -m pip install build
-
-########################################################
-# Build
-########################################################
-
-.PHONY: build
-build: $(VENV_PYTHON)
-	$(BUILD_CMD)
-
-$(VENV_PYTHON):
-	python -m venv $(VENV)
-	$(INSTALL_BUILD_CMD)
+proc is_slack_inf {timing_rep} {
+  return 0
+}

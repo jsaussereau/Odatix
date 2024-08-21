@@ -19,29 +19,11 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-########################################################
-# Paths
-########################################################
-
-SOURCE_DIR              = sources
-
-########################################################
-# Installation
-########################################################
-
-BUILD_CMD               = python -m build $(SOURCE_DIR)
-VENV                    = venv
-VENV_PYTHON             = $(VENV)/bin/python
-INSTALL_BUILD_CMD       = $(VENV_PYTHON) -m pip install build
-
-########################################################
-# Build
-########################################################
-
-.PHONY: build
-build: $(VENV_PYTHON)
-	$(BUILD_CMD)
-
-$(VENV_PYTHON):
-	python -m venv $(VENV)
-	$(INSTALL_BUILD_CMD)
+proc update_freq {freq constraints_file} {
+  set period [expr {(1.0/$freq)*1000.0}]
+  set constraints_file_handler [open $constraints_file w]
+  puts -nonewline $constraints_file_handler {create_clock -period }
+  puts -nonewline $constraints_file_handler $period 
+  puts $constraints_file_handler { [get_ports $clock_signal]}
+  close $constraints_file_handler
+}

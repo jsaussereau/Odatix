@@ -1,0 +1,35 @@
+
+##############################################
+# Target settings for vivado
+##############################################
+---
+
+constraint_file: constraints.xdc
+
+script_copy_enable: No
+script_copy_source: "/dev/null"
+
+# FPGA target
+targets:
+  #- xc7s6-cpga196-1
+  #- xc7s25-csga225-1
+  #- xc7a15t-cpg236-1
+  #- xc7a35t-cpg236-1
+  - xc7a100t-csg324-1
+  # - xc7k70t-fbg676-2
+  #- xc7k70t-fbg676-3
+  #- xc7k160t-fbg484-2
+  #- xc7k160t-fbg484-3
+  #- xc7k325t-ffg900-2
+  #- xc7v585t-ffg1761-2
+  #- xc7v585t-ffg1761-3
+  #- xcku035-fbva676-2-e
+  #- xcku035-fbva676-3-e
+  #- xcvu065-ffvc1517-2-e
+  #- xcvu065-ffvc1517-3-e
+  #- xcku3p-ffva676-2-e
+  #- xcku3p-ffva676-3-e
+  #- xcvu3p-ffvc1517-2-e
+  #- xcvu3p-ffvc1517-3-e
+
+...

@@ -1,0 +1,92 @@
+##############################################
+# Settings for Vivado
+##############################################
+
+process_group: True
+
+metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: log/frequency_search.log
+      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 2
+    format: "%.0f"
+    unit: MHz
+
+  LUT_count:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "\\| Slice LUTs (\\s*)\\|(\\s*)([0-9]+)(.*)"
+      group_id: 3
+    format: "%.0f"
+
+  Reg_count:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "\\| Slice Registers (\\s*)\\|(\\s*)([0-9]+)(.*)"
+      group_id: 3
+    format: "%.0f"
+
+  LUT+Reg_count:
+    type: operation
+    settings:
+      op: LUT_count + Reg_count
+    format: "%.0f"
+
+  BRAM_count:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "\\| Block RAM Tile (\\s*)\\|(\\s*)([0-9]+)(.*)"
+      group_id: 3
+    format: "%.0f"
+
+  DSP_count:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)"
+      group_id: 3
+    format: "%.0f"
+
+  Static_Power:
+    type: regex
+    settings:
+      file: report/power.rep
+      pattern: "\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+      group_id: 3
+    format: "%.3f"
+    unit: W
+
+  Dynamic_Power:
+    type: regex
+    settings:
+      file: report/power.rep
+      pattern: "\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+      group_id: 3
+    format: "%.3f"
+    unit: W
+
+  Total_Power:
+    type: operation
+    settings:
+      op: Static_Power + Dynamic_Power
+    format: "%.3f"
+    unit: W
+
+  DMIPS_per_MHz:
+    type: benchmark
+    settings:
+      key: DMIPS_per_MHz
+    format: "%.3f"
+
+  DMIPS:
+    type: operation
+    benchmark_only: True
+    settings:
+      op: DMIPS_per_MHz * Fmax
+    format: "%.0f"
+

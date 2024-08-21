@@ -1,0 +1,38 @@
+
+##############################################
+# Settings for Shift Register example
+##############################################
+---
+
+rtl_path: "examples/shift_register_sv"
+
+top_level_file: "shift_register.sv"
+top_level_module: "shift_register"
+
+clock_signal: "i_clk"
+reset_signal: "i_rst"
+
+# copy a file into synthesis directory?
+file_copy_enable: No
+file_copy_source: "/dev/null"
+file_copy_dest: "/dev/null"
+
+# delimiters for parameter files
+use_parameters: Yes
+start_delimiter: "#("
+stop_delimiter: ")("
+
+# optional target-specific bounds (in MHz) to speed up fmax search
+xc7a100t-csg324-1:
+  fmax_lower_bound: 650
+  fmax_upper_bound: 1000
+xc7k70t-fbg676-2:
+  fmax_lower_bound: 450
+  fmax_upper_bound: 2500
+XFAB180CMOS:
+  fmax_lower_bound: 200
+  fmax_upper_bound: 1000
+AMS350CMOS:
+  fmax_lower_bound: 50
+  fmax_upper_bound: 500
+...

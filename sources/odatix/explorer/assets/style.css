@@ -1,0 +1,208 @@
+/**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: white;
+  color: black;
+}
+
+.navbar {
+  background-color: #24292f;
+  color: white;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  height: 30px;
+}
+
+.navbar .nav-links {
+  display: flex;
+  margin-right: 20px;
+}
+
+.navbar .nav-links a {
+  color: white;
+  margin: 0 15px;
+  text-decoration: none;
+  font-size: 18px;
+}
+
+.navbar .nav-links a:hover {
+  text-decoration: underline;
+}
+
+.navbar .title {
+  position: fixed;
+  top: 10px;
+  z-index: 2;
+  color: white;
+  text-decoration: none;
+  font-size: 24px;
+  font-weight: bold;
+  margin-left: 60px;
+}
+
+.sidebar {
+  position: relative;
+  color: white;
+  position: fixed;
+  top: 0;
+  height: 100%;
+  padding-top: 10px;
+  overflow-x: hidden;
+  transition: left 0.25s;
+}
+
+.sidebar-content {
+  margin-top: 50px;
+  background-color: #24292e;
+  position: relative;
+  color: white;
+  position: fixed;
+  top: 0;
+  height: 100%;
+  overflow-x: hidden;
+  transition: left 0.25s;
+}
+
+.sidebar-content-holder {
+  padding-bottom: 150px;
+}
+
+.sidebar-top{
+  position: fixed;
+  z-index: -2;
+  top: 0px;
+  left: 0px;
+  background-color: #24292e;
+  height: 50px;
+  transition: left 0.25s;
+}
+
+.sidebar .title {
+  display: flex;
+  color: white;
+  text-decoration: none;
+  font-size: 24px;
+  font-weight: bold;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.sidebar h2 {
+  margin-left: 20px;
+  margin-top: 30px;
+  margin-bottom: 15px;
+}
+
+button {
+  background-color: #f6f8fa;
+  border: 1px solid #d1d5da;
+  border-radius: 6px;
+  color: #24292e;
+  padding: 10px 15px;
+  margin-right: 5px;
+  font-size: 14px;
+  font-weight: 515;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04);
+}
+
+button:hover {
+  background-color: #f3f4f6;
+  border-color: #c6cbd1;
+}
+
+button:active {
+  background-color: #edeff2;
+  box-shadow: inset 0 1px 0 rgba(27, 31, 35, 0.15); 
+}
+
+button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.3);
+}
+
+.title-dropdown{
+  display: flex;
+  vertical-align: middle;
+  align-items: center;
+  margin-left: 75px;
+  margin-right: 75px;
+}
+
+.sidebar .title-dropdown{
+  display: flex;
+  vertical-align: middle;
+  align-items: center;
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.dropdown-label{
+  width:100px;
+  font-weight: 525;
+}
+
+.dash-dropdown{
+  margin-bottom: 5px;
+  width: 250px;
+  background-color: #f6f8fa;
+  border: 1px solid #d1d5da;
+  border-radius: 6px; 
+  color: #24292e;
+  font-size: 14px; 
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s; 
+  box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); 
+  appearance: none;   
+}
+
+.error {
+  background-color: #f6f8fa;
+  color: #ef553b;
+  border: 1px solid #d1d5da;
+  border-radius: 6px; 
+  font-weight: 600;
+  margin: 10px;
+  margin-left: 20px;
+  margin-right: 20px;
+  padding: 10px;
+  box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); 
+}
+
+.content {
+  transition: margin-left 0.25s
+}
+
+.toggle-container {
+  margin-left: 15px;
+}

@@ -1,0 +1,41 @@
+
+##############################################
+# Settings for ALU example
+##############################################
+---
+
+rtl_path: "examples/alu_sv"
+
+top_level_file: "alu_top.sv"
+top_level_module: "alu_top"
+
+clock_signal: "i_clk"
+reset_signal: "i_rst"
+
+# copy a file into synthesis directory?
+file_copy_enable: No
+file_copy_source: "/dev/null"
+file_copy_dest: "/dev/null"
+
+# delimiters for parameter files
+use_parameters: Yes
+start_delimiter: "#("
+stop_delimiter: ")("
+
+# optional target-specific bounds (in MHz) to speed up fmax search
+xc7s25-csga225-1:
+  fmax_lower_bound: 100
+  fmax_upper_bound: 450
+xc7a100t-csg324-1:
+  fmax_lower_bound: 150
+  fmax_upper_bound: 450
+xc7k70t-fbg676-2:
+  fmax_lower_bound: 50
+  fmax_upper_bound: 1200
+XFAB180CMOS:
+  fmax_lower_bound: 300
+  fmax_upper_bound: 700
+AMS350CMOS:
+  fmax_lower_bound: 50
+  fmax_upper_bound: 400
+...

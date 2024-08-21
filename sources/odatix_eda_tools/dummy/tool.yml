@@ -1,0 +1,15 @@
+##############################################
+# Settings for dummy tool
+##############################################
+
+process_group: True
+
+metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: log/frequency_search.log
+      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 2
+    format: "%d"
+    unit: MHz

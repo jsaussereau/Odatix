@@ -1,0 +1,30 @@
+
+##############################################
+# Odatix settings for fmax synthesis
+##############################################
+---
+
+# overwrite existing results
+overwrite:        No
+
+# prompt 'Continue? (Y/n)' after settings checks
+ask_continue:     Yes
+
+# show synthesis log if there is only one architecture selected
+show_log_if_one:  Yes
+
+# maximum number of parallel synthesis
+nb_jobs:          8
+
+# targeted architectures
+architectures: 
+
+#--------------------------------------------#
+# Add your own designs!
+#--------------------------------------------#
+
+  #- Your_Design/Your_1st_Configuration
+  #- Your_Design/Your_2nd_Configuration
+  #- Your_Design/Your_3rd_Configuration
+
+...

@@ -19,29 +19,26 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-########################################################
-# Paths
-########################################################
+if {[catch {
 
-SOURCE_DIR              = sources
+    source scripts/settings.tcl
 
-########################################################
-# Installation
-########################################################
+    set signature "<grey>\[init_script.tcl\]<end>"
 
-BUILD_CMD               = python -m build $(SOURCE_DIR)
-VENV                    = venv
-VENV_PYTHON             = $(VENV)/bin/python
-INSTALL_BUILD_CMD       = $(VENV_PYTHON) -m pip install build
+    ######################################
+    # Create directories
+    ######################################
 
-########################################################
-# Build
-########################################################
+    exec /bin/sh -c "mkdir -p $tmp_path"
+    exec /bin/sh -c "mkdir -p $report_path"
+    exec /bin/sh -c "mkdir -p $result_path"
+    exec /bin/sh -c "mkdir -p $log_path"
 
-.PHONY: build
-build: $(VENV_PYTHON)
-	$(BUILD_CMD)
-
-$(VENV_PYTHON):
-	python -m venv $(VENV)
-	$(INSTALL_BUILD_CMD)
+} ]} {
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    puts "$signature <cyan>tcl error detail:<red>"
+    puts "$errorInfo"
+    puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
+    exit -1
+}

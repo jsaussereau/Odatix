@@ -1,0 +1,98 @@
+
+##############################################
+# Odatix settings for fmax synthesis
+##############################################
+---
+
+# overwrite existing results
+overwrite:        No
+
+# prompt 'Continue? (Y/n)' after settings checks
+ask_continue:     Yes
+
+# show synthesis log if there is only one architecture selected
+show_log_if_one:  Yes
+
+# maximum number of parallel synthesis
+nb_jobs:          8
+
+# targeted architectures
+architectures: 
+
+#--------------------------------------------#
+# Add your own designs!
+#--------------------------------------------#
+
+  #- Your_Design/Your_1st_Configuration
+  #- Your_Design/Your_2nd_Configuration
+  #- Your_Design/Your_3rd_Configuration
+
+#--------------------------------------------#
+# Examples
+#--------------------------------------------#
+
+  - Example_Counter_vhdl/04bits
+  - Example_Counter_vhdl/08bits
+  - Example_Counter_vhdl/16bits
+  - Example_Counter_vhdl/24bits
+  - Example_Counter_vhdl/32bits
+  - Example_Counter_vhdl/48bits
+  - Example_Counter_vhdl/64bits
+
+  #- Example_Counter_sv/04bits
+  #- Example_Counter_sv/08bits
+  #- Example_Counter_sv/16bits
+  #- Example_Counter_sv/24bits
+  #- Example_Counter_sv/32bits
+  #- Example_Counter_sv/48bits
+  #- Example_Counter_sv/64bits
+
+  #- Example_Counter_chisel/04bits
+  #- Example_Counter_chisel/08bits
+  #- Example_Counter_chisel/16bits
+  #- Example_Counter_chisel/24bits
+  #- Example_Counter_chisel/32bits
+  #- Example_Counter_chisel/48bits
+  #- Example_Counter_chisel/64bits
+
+  #- Example_ALU_sv/04bits
+  #- Example_ALU_sv/08bits
+  #- Example_ALU_sv/16bits
+  #- Example_ALU_sv/24bits
+  #- Example_ALU_sv/32bits
+  #- Example_ALU_sv/48bits
+  #- Example_ALU_sv/64bits
+
+  #- Example_ALU_chisel/04bits
+  #- Example_ALU_chisel/08bits
+  #- Example_ALU_chisel/16bits
+  #- Example_ALU_chisel/24bits
+  #- Example_ALU_chisel/32bits
+  #- Example_ALU_chisel/48bits
+  #- Example_ALU_chisel/64bits
+
+  #- Example_Shift_Register_sv/04bits
+  #- Example_Shift_Register_sv/08bits
+  #- Example_Shift_Register_sv/16bits
+  #- Example_Shift_Register_sv/24bits
+  #- Example_Shift_Register_sv/32bits
+  #- Example_Shift_Register_sv/48bits
+  #- Example_Shift_Register_sv/64bits
+
+  #- Example_Shift_Register_chisel/04bits
+  #- Example_Shift_Register_chisel/08bits
+  #- Example_Shift_Register_chisel/16bits
+  #- Example_Shift_Register_chisel/24bits
+  #- Example_Shift_Register_chisel/32bits
+  #- Example_Shift_Register_chisel/48bits
+  #- Example_Shift_Register_chisel/64bits
+
+  #- Example_Mult/04bits
+  #- Example_Mult/08bits
+  #- Example_Mult/16bits
+  #- Example_Mult/24bits
+  #- Example_Mult/32bits
+  #- Example_Mult/48bits
+  #- Example_Mult/64bits
+
+...

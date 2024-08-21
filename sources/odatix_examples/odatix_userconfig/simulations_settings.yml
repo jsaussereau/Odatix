@@ -1,0 +1,61 @@
+
+##############################################
+# Odatix settings for simulations
+##############################################
+---
+
+# overwrite existing results
+overwrite:        No
+
+# prompt 'Continue? (Y/n)' after settings checks
+ask_continue:     Yes
+
+# show simulation log if there is only one architecture selected
+show_log_if_one:  Yes
+
+# maximum number of parallel simulations
+nb_jobs:          12
+
+# targeted simulations
+simulations: 
+
+#--------------------------------------------#
+# Add your own designs!
+#--------------------------------------------#
+
+  #- Your_Simulation:
+  #  - Your_Design/Your_1st_Configuration
+  #  - Your_Design/Your_2nd_Configuration
+  #  - Your_Design/Your_3rd_Configuration
+
+#--------------------------------------------#
+# Examples
+#--------------------------------------------#
+
+  - TB_Example_Counter_GHDL:
+    - Example_Counter_vhdl/04bits
+    - Example_Counter_vhdl/08bits
+    - Example_Counter_vhdl/16bits
+    - Example_Counter_vhdl/24bits
+    - Example_Counter_vhdl/32bits
+    - Example_Counter_vhdl/48bits
+    - Example_Counter_vhdl/64bits
+
+  # - TB_Example_Counter_Verilator:
+  #   - Example_Counter_sv/04bits
+  #   - Example_Counter_sv/08bits
+  #   - Example_Counter_sv/16bits
+  #   - Example_Counter_sv/24bits
+  #   - Example_Counter_sv/32bits
+  #   - Example_Counter_sv/48bits
+  #   - Example_Counter_sv/64bits
+
+  #   - Example_Counter_chisel/04bits
+  #   - Example_Counter_chisel/08bits
+  #   - Example_Counter_chisel/16bits
+  #   - Example_Counter_chisel/24bits
+  #   - Example_Counter_chisel/32bits
+  #   - Example_Counter_chisel/48bits
+  #   - Example_Counter_chisel/64bits
+
+...

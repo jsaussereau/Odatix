@@ -1,0 +1,20 @@
+
+##############################################
+# Target Settings for OpenLane
+##############################################
+---
+
+constraint_file: config.json
+
+script_copy_enable: No
+script_copy_source: "/dev/null"
+
+# ASIC target
+targets:
+  - sky130A
+  # - sky130B
+  # - gf180mcuA
+  # - gf180mcuB
+  # - gf180mcuC
+
+...
