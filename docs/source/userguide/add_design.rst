@@ -19,7 +19,6 @@ Step 2: Setting file
          :linenos:
 
          ---
-         #rtl path, relative to Asterism root directory, not this directory
          rtl_path: "examples/alu_sv"
 
          top_level_file: "alu_top.sv"
@@ -57,7 +56,6 @@ Step 2: Setting file
          generate_rtl: "true"
          generate_command: "sbt 'runMain ALUTop --o=rtl'" # command for rtl generation
 
-         # design path, relative to Asterism root directory, not this directory
          design_path: "examples/alu_chisel"
          rtl_path: "examples/alu_chisel/rtl"
 

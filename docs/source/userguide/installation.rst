@@ -2,7 +2,7 @@
 Installation
 ************
 
-Install Asterism
+Install Odatix
 ================
 
 Step 1: Clone the repository
@@ -16,8 +16,8 @@ Step 1: Clone the repository
 
          sudo apt update
          sudo apt install -y git
-         git clone https://github.com/jsaussereau/Asterism.git
-         cd Asterism/
+         git clone https://github.com/jsaussereau/Odatix.git
+         cd Odatix/
 
    .. group-tab:: Fedora/CentOS/AlmaLinux
 
@@ -25,8 +25,8 @@ Step 1: Clone the repository
 
          sudo dnf update
          sudo dnf install -y git
-         git clone https://github.com/jsaussereau/Asterism.git
-         cd Asterism/
+         git clone https://github.com/jsaussereau/Odatix.git
+         cd Odatix/
 
    .. group-tab:: Arch Linux
 
@@ -34,8 +34,8 @@ Step 1: Clone the repository
 
          sudo pacman -Syu
          sudo pacman -S git --noconfirm
-         git clone https://github.com/jsaussereau/Asterism.git
-         cd Asterism/
+         git clone https://github.com/jsaussereau/Odatix.git
+         cd Odatix/
 
 
 Step 2: Install Python 3.6+ and make
@@ -94,7 +94,7 @@ Option #1: Using pipx (recommended)
          pipx ensurepath
 
 .. warning::
-   If the directory where pipx stores apps was not already in your PATH environment variable, you have to start a new shell session before running Asterism
+   If the directory where pipx stores apps was not already in your PATH environment variable, you have to start a new shell session before running Odatix
 
 Option #2: Using pip
 ~~~~~~~~~~~~~~~~~~~~

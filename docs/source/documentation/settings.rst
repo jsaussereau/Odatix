@@ -11,9 +11,9 @@ These are the YAML key for architecture settings files ``_settings.yml``
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
 | 🔑 Key name            | 💡 Role                                               | 💬 Comment                                                 | ➕ Status                                 |
 +========================+=======================================================+============================================================+===========================================+
-| ``rtl_path``           | Path of the RTL files                                 | The path is relative to Asterism root directory            | Mandatory                                 |
+| ``rtl_path``           | Path of the RTL files                                 | The path is relative to the current directory              | Mandatory                                 |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
-| ``design_path``        | Path of the design files                              | The path is relative to Asterism root directory            | Optional unless ``param_target_file`` or  |
+| ``design_path``        | Path of the design files                              | The path is relative to the current directory              | Optional unless ``param_target_file`` or  |
 |                        |                                                       |                                                            | ``generate_command`` are used             |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
 | ``generate_rtl``       | Enable RTL generation, using HLS or Chisel for example| Make sure all tools used within this command are installed | Optional                                  |
@@ -32,7 +32,7 @@ These are the YAML key for architecture settings files ``_settings.yml``
 | ``file_copy_enable``   | Enable the copy of a source file to the work copy of  | This is done after the copy of the copy of ``rtl_path``    | Mandatory                                 |
 |                        | $rtl_path                                             |                                                            |                                           |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
-| ``file_copy_source``   | Path of the source file to copy                       | The path is relative to Asterism root directory            | Mandatory                                 |
+| ``file_copy_source``   | Path of the source file to copy                       | The path is relative to the current directory              | Mandatory                                 |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
 | ``file_copy_dest``     | Destination path of the copied file                   | The path is relative to ``rtl_path``                       | Mandatory                                 |
 +------------------------+-------------------------------------------------------+------------------------------------------------------------+-------------------------------------------+
