@@ -52,4 +52,4 @@ jobs:
     - name: Publish distribution 📦 to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        path: sources/dist/
+        packages_dir: sources/dist/
