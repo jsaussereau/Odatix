@@ -11,7 +11,7 @@ arch_path: odatix_userconfig/architectures
 sim_path: odatix_userconfig/simulations
 target_path: odatix_userconfig
 
-use_benchmark: True
+use_benchmark: False
 benchmark_file: results/benchmark.yml
 
 clean_settings_file: odatix_userconfig/clean.yml

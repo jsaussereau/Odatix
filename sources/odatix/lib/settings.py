@@ -49,7 +49,7 @@ class OdatixSettings:
   DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
   DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
   DEFAULT_TARGET_PATH = DEFAULT_USERCONFIG_PATH
-  DEFAULT_USE_BENCHMARK = True
+  DEFAULT_USE_BENCHMARK = False
   DEFAULT_BENCHMARK_FILE = "results/benchmark.yml"
   DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml")
   DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
