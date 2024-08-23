@@ -177,8 +177,24 @@ class OdatixSettings:
       success = OdatixSettings.init_examples()
       if not success:
         return False
+    OdatixSettings.init_success(prog)
+    return True
+
+  @staticmethod
+  def init_directory_nodialog(include_examples=None, prog=""):
+    success = OdatixSettings.init_path()
+    if not success:
+      return False
+    if include_examples:
+      success = OdatixSettings.init_examples()
+      if not success:
+        return False
+    OdatixSettings.init_success(prog)
+    return True
+
+  @staticmethod
+  def init_success(prog=""):
     printc.green("Your directory can now be used by Odatix!", script_name=script_name)
     printc.say("Run ", end="", script_name=script_name)
     printc.bold(prog + " -h", end="")
     print(" to get a list of useful commands")
-    return True

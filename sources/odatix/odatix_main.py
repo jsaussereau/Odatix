@@ -78,9 +78,13 @@ class ArgParser:
 
     # Parse other arguments
     subparsers = ArgParser.parser.add_subparsers(dest="command")
+    
+    # Define parser for the 'init' command
+    ArgParser.init_parser = subparsers.add_parser("init", help="init current directory by adding all the necessary config files (without any prompt)", formatter_class=formatter)
+    ArgParser.init_parser.add_argument("-e", "--examples", action="store_true", help="Include examples")
 
     # Define parser for the 'fmax' command
-    ArgParser.fmax_parser = subparsers.add_parser("fmax", help="run synthesis", formatter_class=formatter)
+    ArgParser.fmax_parser = subparsers.add_parser("fmax", help="run fmax synthesis", formatter_class=formatter)
     run_synth.add_arguments(ArgParser.fmax_parser)
     ArgParser.fmax_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.fmax_parser)
@@ -150,6 +154,9 @@ class ArgParser:
     print()
     printc.bold("Clean:\n  ", printc.colors.CYAN, end="")
     ArgParser.clean_parser.print_help()
+    print()
+    printc.bold("Init:\n  ", printc.colors.CYAN, end="")
+    ArgParser.init_parser.print_help()
     print()
 
 class OdatixHelpFormatter(argparse.HelpFormatter):
@@ -355,7 +362,9 @@ def main(args=None):
     print()
 
   # Dispatch the command to the appropriate function
-  if args.command == "sim":
+  if args.command == "init":
+    success = OdatixSettings.init_directory_nodialog(args.examples, prog)
+  elif args.command == "sim":
     success = run_simulations(args)
   elif args.command == "fmax":
     success = run_fmax_synthesis(args)
@@ -367,6 +376,8 @@ def main(args=None):
     success = export_results(args)
   elif args.command in "clean":
     success = clean(args)
+
+  sys.exit(success)
 
 if __name__ == "__main__":
   main()
