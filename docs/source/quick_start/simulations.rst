@@ -16,9 +16,7 @@ Run the init command of Odatix to create configuration files.
 
 .. code-block:: bash
 
-   odatix --init
-
-When asked if you would like to include Odatix examples, answer yes. 
+   odatix init --examples
 
 Step 2: Choose the designs you want to simulate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

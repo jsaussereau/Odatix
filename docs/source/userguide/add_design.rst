@@ -11,9 +11,7 @@ Run the init command of Odatix to create configuration files.
 
 .. code-block:: bash
 
-   odatix --init
-
-When asked if you would like to include Odatix examples, answer no. 
+   odatix init
 
 
 Step 2: Architecture folder
