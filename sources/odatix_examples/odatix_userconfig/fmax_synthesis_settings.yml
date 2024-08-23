@@ -31,13 +31,25 @@ architectures:
 # Examples
 #--------------------------------------------#
 
-  - Example_Counter_vhdl/04bits
-  - Example_Counter_vhdl/08bits
-  - Example_Counter_vhdl/16bits
-  - Example_Counter_vhdl/24bits
-  - Example_Counter_vhdl/32bits
-  - Example_Counter_vhdl/48bits
-  - Example_Counter_vhdl/64bits
+# Work with every supported EDA tools
+
+  - Example_Counter_verilog/04bits
+  - Example_Counter_verilog/08bits
+  - Example_Counter_verilog/16bits
+  - Example_Counter_verilog/24bits
+  - Example_Counter_verilog/32bits
+  - Example_Counter_verilog/48bits
+  - Example_Counter_verilog/64bits
+
+# Currenly only works with Vivado and Design Compiler
+
+  # - Example_Counter_vhdl/04bits
+  # - Example_Counter_vhdl/08bits
+  # - Example_Counter_vhdl/16bits
+  # - Example_Counter_vhdl/24bits
+  # - Example_Counter_vhdl/32bits
+  # - Example_Counter_vhdl/48bits
+  # - Example_Counter_vhdl/64bits
 
   #- Example_Counter_sv/04bits
   #- Example_Counter_sv/08bits
