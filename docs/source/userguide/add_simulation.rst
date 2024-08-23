@@ -1,21 +1,26 @@
 Add your own simulation
 =======================
 
-Step 1: Simulation folder
+Step 1: Define your design
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Define your design by following the steps in section :doc:`/userguide/add_design`
+
+Step 2: Simulation folder
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create a folder named after your simulation in the ``simulations`` folder.
+Create a folder named after your simulation in the ``odatix_userconfig/simulations`` folder.
 
-Step 2: Makefile
+Step 3: Makefile
 ~~~~~~~~~~~~~~~~
 
 - Add a ``Makefile`` file to your newly created folder. 
 - Add a rule named ``sim`` than runs the simulation. Any simulator installed on your system can be used.
 
 .. tip::
-    Check out the examples for Verilator and GHDL Makefiles in the ``simulations`` directory.
+    Check out the examples for Verilator and GHDL Makefiles in the ``odatix_userconfig/simulations`` from the quick start guide.
 
-Step 3: Optional setting file
+Step 4: Optional setting file
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - Add a ``_settings.yml`` file to your newly created folder and fill it with one of the templates below
@@ -40,9 +45,9 @@ Step 3: Optional setting file
 .. note::
     If your testbench does not need to have its parameters modified for each configuration (as could a c++ verilator testbench for example), a ``_settings.yml`` is not mandatory
 
-Step 4: Run your design configurations!
+Step 5: Run your design configurations!
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Follow the same steps as in section :doc:`/userguide/quick_start` :
-   - Edit ``_run_simulations_settings.yml`` to add your simulations, linked to the corresponding design configurations
+Follow the same steps as in section :doc:`/quick_start/simulations` from the quick start guide:
+   - Edit ``odatix_userconfig/simulations_settings.yml`` to add your simulations, linked to the corresponding design configurations
    - Run the selected simulations

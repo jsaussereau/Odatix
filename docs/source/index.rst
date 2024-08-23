@@ -10,7 +10,11 @@ Odatix
 .. |GitHub| image:: https://img.shields.io/badge/GitHub-Odatix-blue.svg?logo=github
   :target:  https://github.com/jsaussereau/Odatix
 
-|GitHub| |License| |Docs|
+.. |PyPi| image:: https://img.shields.io/pypi/v/odatix
+  :target:  https://pypi.org/project/odatix/
+
+
+|GitHub| |PyPi| |License| |Docs|
 
 **Odatix** is a toolbox designed to facilitate logical synthesis of configurable designs on various FPGA and ASIC tools such as Vivado and Design Compiler. 
 It allows to easily find the maximum operating frequency of any digital architecture described with an HDL (VHDL, Verilog, SystemVerilog, Chisel).
@@ -47,6 +51,10 @@ Synthesis
      - ✔️ supported
    * - Synopsys Design Compiler
      - ✔️ supported
+   * - `OpenLane 1 <https://github.com/The-OpenROAD-Project/OpenLane>`_
+     - ✔️ supported
+   * - `F4PGA <https://github.com/chipsalliance/f4pga>`_
+     - 📅 planned
    * - Intel Quartus Prime
      - 📅 planned
 
@@ -61,15 +69,13 @@ Contents
 --------
 
 .. toctree::
-  :caption: User Guide
+  :maxdepth: 2
 
-  userguide/installation
-  userguide/quick_start
-  userguide/add_design
-  userguide/add_simulation
+  installation/index
+  
+  quick_start/index
 
-.. toctree::
-  :caption: Documentation
+  userguide/index
 
   documentation/commands
   documentation/settings
