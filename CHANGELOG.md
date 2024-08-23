@@ -2,7 +2,17 @@
 All notable changes to this project will be documented in this file.
  
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
- 
+  
+## [3.0.2] - 2024-08-23
+
+### Added
+
+- Add a 'init' command that does the same thing as '--init' but without any prompt
+
+### Fixed
+
+- Fix clean command not using the file specified in odatix.yml
+
 ## [3.0.1] - 2024-08-21
 
 ### Added
@@ -22,4 +32,3 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - Change Asterism's name to Odatix
 - Change config files directory 
 - Change results format 
- 
