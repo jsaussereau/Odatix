@@ -45,7 +45,7 @@ class OdatixSettings:
   DEFAULT_WORK_PATH = "work"
   DEFAULT_SIM_WORK_PATH = "work/simulations"
   DEFAULT_RESULT_PATH = "results"
-  DEFAULT_USERCONFIG_PATH = "odatix_config"
+  DEFAULT_USERCONFIG_PATH = "odatix_userconfig"
   DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
   DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
   DEFAULT_TARGET_PATH = DEFAULT_USERCONFIG_PATH

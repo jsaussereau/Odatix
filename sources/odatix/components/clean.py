@@ -39,10 +39,16 @@ DANGEROUS_PATHS = ["/", "./", "./*", "*", "~", ".", ".."]
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument("-i", "--input", default=OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE, help="input settings file (default: " + OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE + ")")
+  parser.add_argument("-i", "--input", default=None, help="input settings file")
   parser.add_argument("-f", "--force", action="store_true", help="force delete (dangerous!)")
   parser.add_argument("-v", "--verbose", action="store_true", help="print extra details")
   parser.add_argument("-q", "--quiet", action="store_true", help="do not print anything, except errors")
+  parser.add_argument(
+    "-c",
+    "--config",
+    default=OdatixSettings.DEFAULT_SETTINGS_FILE,
+    help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
+  )
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description="Clean up current directory")
@@ -129,7 +135,16 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
 # Main
 ######################################
 
-def main(args):
+def main(args, settings=None): 
+  # Get settings
+  if settings is None:
+    settings = OdatixSettings(args.config)
+    if not settings.valid:
+      sys.exit(-1)
+
+  if args.input is None:
+    args.input = settings.clean_settings_file
+
   clean(
     settings_filename=args.input,
     force=args.force,
