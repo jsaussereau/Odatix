@@ -79,11 +79,11 @@ class ArgParser:
     # Parse other arguments
     subparsers = ArgParser.parser.add_subparsers(dest="command")
 
-    # Define parser for the 'synth' command
-    ArgParser.synth_parser = subparsers.add_parser("synth", help="run synthesis", formatter_class=formatter)
-    run_synth.add_arguments(ArgParser.synth_parser)
-    ArgParser.synth_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
-    ArgParser.add_nobanner(ArgParser.synth_parser)
+    # Define parser for the 'fmax' command
+    ArgParser.fmax_parser = subparsers.add_parser("fmax", help="run synthesis", formatter_class=formatter)
+    run_synth.add_arguments(ArgParser.fmax_parser)
+    ArgParser.fmax_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
+    ArgParser.add_nobanner(ArgParser.fmax_parser)
 
     # Define parser for the 'sim' command
     ArgParser.sim_parser = subparsers.add_parser("sim", help="run simulations", formatter_class=formatter)
@@ -127,7 +127,7 @@ class ArgParser:
     ArgParser.parser.print_help()
     print()
     printc.bold("Synthesis:\n  ", printc.colors.CYAN, end="")
-    ArgParser.synth_parser.print_help()
+    ArgParser.fmax_parser.print_help()
     print()
     printc.bold("Simulation:\n  ", printc.colors.CYAN, end="")
     ArgParser.sim_parser.print_help()
@@ -181,7 +181,7 @@ def run_simulations(args):
     success = False
   return success
 
-def run_synthesis(args):
+def run_fmax_synthesis(args):
   success = True
   try:
     run_synth.main(args)
@@ -357,8 +357,8 @@ def main(args=None):
   # Dispatch the command to the appropriate function
   if args.command == "sim":
     success = run_simulations(args)
-  elif args.command == "synth":
-    success = run_synthesis(args)
+  elif args.command == "fmax":
+    success = run_fmax_synthesis(args)
   elif args.command == "results":
     success = export_all_results(args)
   elif args.command in "res_benchmark":
