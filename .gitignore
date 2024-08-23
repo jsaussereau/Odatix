@@ -40,6 +40,9 @@ venv
 
 # Others
 **/.stamp.*
+examples
+odatix_userconfig
+odatix.yml
 
 # Docs
 docs/build
