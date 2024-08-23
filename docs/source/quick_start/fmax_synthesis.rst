@@ -78,19 +78,19 @@ Step 4: Run the selected designs
 
    .. code-block:: bash
 
-      odatix synth --tool vivado
+      odatix fmax --tool vivado
 
 .. tab:: Design Compiler
 
    .. code-block:: bash
 
-      odatix synth --tool design_compiler
+      odatix fmax --tool design_compiler
 
 .. tab:: Openlane
 
    .. code-block:: bash
 
-      odatix synth --tool openlane
+      odatix fmax --tool openlane
 
 
 Step 5: Visualize and explore the results

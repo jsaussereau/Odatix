@@ -11,11 +11,11 @@ Odatix commands
 +-------------------+-------------------------------------------+----------------------------------------------------+
 | Simulation        | ``odatix sim``                            | Run simulations                                    |
 +-------------------+-------------------------------------------+----------------------------------------------------+
-| Synthesis         | ``odatix synth --tool vivado``            | Run synthesis + place&route in *Vivado*            |
+| Synthesis         | ``odatix fmax --tool vivado``             | Run synthesis + place&route in *Vivado*            |
 |                   +-------------------------------------------+----------------------------------------------------+
-|                   | ``odatix synth --tool openlane``          | Run synthesis + place&route in *Openlane*          |
+|                   | ``odatix fmax --tool openlane``           | Run synthesis + place&route in *Openlane*          |
 |                   +-------------------------------------------+----------------------------------------------------+
-|                   | ``odatix synth --tool design_compiler``   | Run synthesis in *Design Compiler*                 |
+|                   | ``odatix fmax --tool design_compiler``    | Run synthesis in *Design Compiler*                 |
 +-------------------+-------------------------------------------+----------------------------------------------------+
 | Data Export       | ``odatix results``                        | Export synthesis results and benchmark results     |
 |                   +-------------------------------------------+----------------------------------------------------+
@@ -28,5 +28,7 @@ Odatix commands
 |                   | ``odatix-explorer --network``             | Explore results in a web app (network-accessible)  |
 +-------------------+-------------------------------------------+----------------------------------------------------+
 | Others            | ``odatix --help``                         | Display a list of useful commands                  |
+|                   +-------------------------------------------+----------------------------------------------------+
+|                   | ``odatix clean``                          | Clean current repository                           |
 +-------------------+-------------------------------------------+----------------------------------------------------+
 
