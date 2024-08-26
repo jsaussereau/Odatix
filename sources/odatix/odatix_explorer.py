@@ -29,7 +29,7 @@ import logging
 import argparse
 
 import odatix.lib.printc as printc
-from odatix.lib.term_mode import set_raw_mode, restore_mode
+import odatix.lib.term_mode as term_mode
 from odatix.explorer.explorer_app import ResultExplorer
 
 script_name = os.path.basename(__file__)
@@ -54,7 +54,8 @@ def parse_arguments():
 def open_browser():
   webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
 
-def close_server():
+def close_server(old_settings):
+  term_mode.restore_mode(old_settings)
   print('\r')
   os._exit(0)
 
@@ -86,26 +87,24 @@ def start_result_explorer(input, network=False):
   # Open the web page
   process = Thread(target=open_browser).start()
 
-  old_settings = set_raw_mode()
-
   result_explorer = ResultExplorer(
-    result_path=input,
-    old_settings=old_settings
+    result_path=input
   )
 
   # Start the server
   serve_thread = Thread(target=serve, args=(result_explorer.app.server,), kwargs={'host': host_address, 'port': port})
   serve_thread.start()
 
+  old_settings = term_mode.set_raw_mode()
   try:
     while True:
       # Check if a key is pressed
       if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
         key = sys.stdin.read(1).lower()
         if key == 'q':
-          close_server()
+          close_server(old_settings)
   finally:
-    restore_mode(old_settings)
+    term_mode.restore_mode(old_settings)
 
 ######################################
 # Main
