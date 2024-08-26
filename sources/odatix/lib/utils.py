@@ -22,6 +22,9 @@
 import os
 import sys
 import shutil
+import platform
+import traceback
+from datetime import datetime
 
 import odatix.lib.printc as printc
 
@@ -162,7 +165,7 @@ def internal_error(e, error_logfile, script_name):
   printc.internal_error(type(e).__name__ + ": " + str(e), script_name)
   printc.note('Full error details written to "' + error_logfile + '"', script_name)
   printc.note("Please, report this error with the error log attached", script_name)
-  
+
 def safe_df_append(df, row, ignore_index=True):
   if hasattr(df, 'append'):
     return df.append(row, ignore_index=ignore_index)
