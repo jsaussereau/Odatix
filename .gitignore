@@ -35,7 +35,7 @@ sources/dist
 build
 dist
 release
-venv
+venv*
 **/*.egg-info
 
 # Others
