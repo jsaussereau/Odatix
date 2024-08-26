@@ -140,3 +140,25 @@ def create_dir(dir):
   if os.path.isdir(dir):
     shutil.rmtree(dir)
   os.makedirs(dir)
+
+def internal_error(e, error_logfile, script_name):
+  tb_full = traceback.format_exc()
+  command_line = ' '.join(sys.argv)
+  current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+  system_info = {
+    "OS": platform.system(),
+    "OS Version": platform.version(),
+    "Python Version": platform.python_version(),
+    "Machine": platform.machine(),
+  }
+  with open(error_logfile, "w") as log_file:
+    log_file.write("Date and Time: " + current_time + "\n\n")
+    log_file.write("System Information:\n")
+    for key, value in system_info.items():
+      log_file.write("  " + key + ": " + value + "\n")
+    log_file.write("\nCommand:\n")
+    log_file.write("  " + command_line + "\n\n")
+    log_file.write(tb_full)
+  printc.internal_error(type(e).__name__ + ": " + str(e), script_name)
+  printc.note('Full error details written to "' + error_logfile + '"', script_name)
+  printc.note("Please, report this error with the error log attached", script_name)
