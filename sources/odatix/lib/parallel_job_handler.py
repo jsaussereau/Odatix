@@ -343,7 +343,7 @@ class ParallelJobHandler:
         stderr=subprocess.PIPE,
         cwd=job.tmp_dir,
         shell=True,
-        text=True
+        universal_newlines=True
       )
 
       self.set_nonblocking(process.stdout)
@@ -369,7 +369,7 @@ class ParallelJobHandler:
       stderr=subprocess.PIPE,
       cwd=job.directory,
       shell=True,
-      text=True,
+      universal_newlines=True,
       bufsize=1,
       preexec_fn=os.setpgrp if self.process_group else None, 
     )
