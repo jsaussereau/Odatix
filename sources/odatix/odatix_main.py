@@ -22,9 +22,6 @@
 import os
 import sys
 import argparse
-import traceback
-import platform
-from datetime import datetime
 from pathlib import Path
 
 # Add parent dir to path
@@ -184,7 +181,7 @@ def run_simulations(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    internal_error(e)
+    internal_error(e, error_logfile, script_name)
     success = False
   return success
 
@@ -196,7 +193,7 @@ def run_fmax_synthesis(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    internal_error(e)
+    internal_error(e, error_logfile, script_name)
     success = False
   if success and not args.noexport:
     try:
@@ -214,7 +211,7 @@ def run_fmax_synthesis(args):
       if e.code != EXIT_SUCCESS:
         success = False
     except Exception as e:
-      internal_error(e)
+      internal_error(e, error_logfile, script_name)
       success = False
   return success
 
@@ -226,7 +223,7 @@ def export_benchmark(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    internal_error(e)
+    internal_error(e, error_logfile, script_name)
     success = False
 
 def export_results(args):
@@ -237,7 +234,7 @@ def export_results(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    internal_error(e)
+    internal_error(e, error_logfile, script_name)
     success = False
   return success
 
@@ -258,7 +255,7 @@ def export_all_results(args):
       success = False
       return success
   except Exception as e:
-    internal_error(e)
+    internal_error(e, error_logfile, script_name)
     success = False
     return success
   try:
@@ -276,7 +273,7 @@ def export_all_results(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    internal_error(e)
+    internal_error(e, error_logfile, script_name)
     success = False
   return success
 
@@ -288,35 +285,8 @@ def clean(args):
     if e.code != EXIT_SUCCESS:
       success = False
   except Exception as e:
-    internal_error(e)
+    internal_error(e, error_logfile, script_name)
     success = False
-  
-
-######################################
-# Misc
-######################################
-
-def internal_error(e):
-  tb_full = traceback.format_exc()
-  command_line = ' '.join(sys.argv)
-  current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-  system_info = {
-    "OS": platform.system(),
-    "OS Version": platform.version(),
-    "Python Version": platform.python_version(),
-    "Machine": platform.machine(),
-  }
-  with open(error_logfile, "w") as log_file:
-    log_file.write("Date and Time: " + current_time + "\n\n")
-    log_file.write("System Information:\n")
-    for key, value in system_info.items():
-      log_file.write("  " + key + ": " + value + "\n")
-    log_file.write("\nCommand:\n")
-    log_file.write("  " + command_line + "\n\n")
-    log_file.write(tb_full)
-  printc.internal_error(type(e).__name__ + ": " + str(e), script_name)
-  printc.note('Full error details written to "' + error_logfile + '"', script_name)
-  printc.note("Please, report this error with the error log attached", script_name)
 
 
 ######################################
