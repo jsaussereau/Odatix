@@ -29,6 +29,7 @@ import plotly.graph_objs as go
 
 import odatix.explorer.legend as legend
 import odatix.explorer.navigation as navigation
+from odatix.lib.utils import safe_df_append
 
 page_name = "radar"
 
@@ -258,7 +259,7 @@ def make_radar_chart(
       df_architecture = df[df["Architecture"] == architecture]
       if "close_line" in toggle_close:
         first_row = df_architecture.iloc[0:1]
-        df_architecture = df_architecture._append(first_row, ignore_index=True)
+        df_architecture = safe_df_append(df_architecture, first_row)
 
       fig.add_trace(
         go.Scatterpolar(
