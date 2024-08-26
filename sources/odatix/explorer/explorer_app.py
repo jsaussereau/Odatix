@@ -34,14 +34,16 @@ import odatix.explorer.page_radar as page_radar
 
 import odatix.lib.printc as printc
 from odatix.lib.utils import internal_error
+import odatix.lib.term_mode as term_mode
 
 script_name = os.path.basename(__file__)
 error_logfile = "odatix-explorer_error.log"
 
 class ResultExplorer:
-  def __init__(self, result_path="results", yaml_prefix="results_"):
+  def __init__(self, result_path="results", yaml_prefix="results_", old_settings=None):
     self.result_path = result_path
     self.yaml_prefix = yaml_prefix
+    self.old_settings = old_settings
 
     # Check paths
     if not os.path.exists(result_path):
@@ -83,7 +85,10 @@ class ResultExplorer:
     """
     Handle flask exceptions
     """
+    if self.old_settings is not None:
+      term_mode.restore_mode(self.old_settings)
     internal_error(e, error_logfile, script_name)
+    os._exit(-1)
 
   def load_yaml_files(self):
     """

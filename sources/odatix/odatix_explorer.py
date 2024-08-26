@@ -56,7 +56,6 @@ def open_browser():
 
 def close_server(old_settings):
   term_mode.restore_mode(old_settings)
-  print('\r')
   os._exit(0)
 
 def start_result_explorer(input, network=False):
@@ -87,15 +86,17 @@ def start_result_explorer(input, network=False):
   # Open the web page
   process = Thread(target=open_browser).start()
 
+  old_settings = term_mode.set_raw_mode()
+
   result_explorer = ResultExplorer(
-    result_path=input
+    result_path=input,
+    old_settings=old_settings
   )
 
   # Start the server
   serve_thread = Thread(target=serve, args=(result_explorer.app.server,), kwargs={'host': host_address, 'port': port})
   serve_thread.start()
 
-  old_settings = term_mode.set_raw_mode()
   try:
     while True:
       # Check if a key is pressed
