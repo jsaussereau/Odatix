@@ -26,20 +26,24 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 import yaml
+from flask import jsonify
 
 import odatix.explorer.page_xy as page_xy
 import odatix.explorer.page_vs as page_vs
 import odatix.explorer.page_radar as page_radar
 
 import odatix.lib.printc as printc
+from odatix.lib.utils import internal_error
+from odatix.lib.term_mode import set_raw_mode, restore_mode
 
 script_name = os.path.basename(__file__)
-
+error_logfile = "odatix-explorer_error.log"
 
 class ResultExplorer:
-  def __init__(self, result_path="results", yaml_prefix="results_"):
+  def __init__(self, result_path="results", yaml_prefix="results_", old_settings=None):
     self.result_path = result_path
     self.yaml_prefix = yaml_prefix
+    self.old_settings = old_settings
 
     # Check paths
     if not os.path.exists(result_path):
@@ -71,8 +75,22 @@ class ResultExplorer:
 
     self.app = dash.Dash(__name__)
     self.app.title = "Odatix"
+
+    self.app.server.register_error_handler(Exception, self.handle_flask_exception)
+
     self.setup_layout()
     self.setup_callbacks()
+
+  def handle_flask_exception(self, e):
+    """
+    Handle flask exceptions
+    """
+    if self.old_settings is not None:
+      restore_mode(self.old_settings)
+
+    internal_error(e, error_logfile, script_name)
+    
+    os._exit(0)
 
   def load_yaml_files(self):
     """

@@ -23,19 +23,13 @@ import os
 import sys
 import webbrowser
 from threading import Thread
-import tty
-import termios
 import select
 import socket
 import logging 
 import argparse
 
-# Add parent dir to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sources_dir = os.path.realpath(os.path.join(current_dir, os.pardir))
-sys.path.append(sources_dir)
-
 import odatix.lib.printc as printc
+from odatix.lib.term_mode import set_raw_mode, restore_mode
 from odatix.explorer.explorer_app import ResultExplorer
 
 script_name = os.path.basename(__file__)
@@ -61,20 +55,8 @@ def open_browser():
   webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
 
 def close_server():
-  restore_mode(old_settings)
   print('\r')
   os._exit(0)
-
-def set_raw_mode():
-  fd = sys.stdin.fileno()
-  global old_settings
-  old_settings = termios.tcgetattr(fd)
-  tty.setraw(fd)
-  return old_settings
-
-def restore_mode(old_settings):
-  fd = sys.stdin.fileno()
-  termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 def start_result_explorer(input, network=False):
 
@@ -104,15 +86,17 @@ def start_result_explorer(input, network=False):
   # Open the web page
   process = Thread(target=open_browser).start()
 
+  old_settings = set_raw_mode()
+
   result_explorer = ResultExplorer(
-    result_path=input
+    result_path=input,
+    old_settings=old_settings
   )
 
   # Start the server
   serve_thread = Thread(target=serve, args=(result_explorer.app.server,), kwargs={'host': host_address, 'port': port})
   serve_thread.start()
 
-  old_settings = set_raw_mode()
   try:
     while True:
       # Check if a key is pressed
