@@ -2,7 +2,18 @@
 All notable changes to this project will be documented in this file.
  
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
-  
+    
+## [3.0.3] - 2024-08-26
+
+### Added 
+
+- Find another port if the default port is not available for Odatix Explorer
+- Improve error handling
+
+### Fixed
+
+- Fix compatibility with python 3.6
+
 ## [3.0.2] - 2024-08-23
 
 ### Added
