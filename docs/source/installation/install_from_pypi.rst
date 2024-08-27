@@ -42,3 +42,8 @@ Step 3: Install the package
 .. code-block:: bash
 
    python3 -m pip install odatix
+
+Step 4: Install one of the supported EDA tools
+----------------------------------------------
+
+More information in section :doc:`/installation/install_eda_tools`.

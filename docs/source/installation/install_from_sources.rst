@@ -74,3 +74,7 @@ Step 4: Install the package
    python3 -m pip install ./sources
 
 
+Step 5: Install one of the supported EDA tools
+----------------------------------------------
+
+More information in section :doc:`/installation/install_eda_tools`.

@@ -2,7 +2,31 @@
 Install one of the supported EDA tools
 **************************************
 
+Install OpenLane
+----------------
+
+OpenLane is a free and open-source automated RTL to GDSII flow based on several components including OpenROAD, Yosys, Magic, and Netgen. 
+
+
+.. card:: OpenLane installation guide
+   :margin: auto
+   :width: 50%
+   :link: https://openlane.readthedocs.io/en/latest/getting_started/installation/index.html
+   :text-align: center
+        
+Install Vivado
+--------------
+
+Vivado is a software suite dedicated to AMD (Xilinx) SoCs and FPGAs. Vivado ML Standard Edition (formerly WebPack Edition) has no-cost for smaller devices.
+
+.. card:: AMD unified installer download page
+   :margin: auto
+   :width: 50%
+   :link: https://www.xilinx.com/support/download.html
+   :text-align: center
+      
 Make sure your EDA tool is added to your PATH environment variable
+------------------------------------------------------------------
 
 .. code-block:: bash
 
@@ -14,4 +38,4 @@ Example of adding Vivado to the PATH environment variable (your installation pat
 
 .. code-block:: bash
 
-   PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin
+   PATH=$PATH:/opt/xilinx/Vivado/2022.2/bin

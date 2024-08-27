@@ -30,3 +30,12 @@ Additionally, it is possible to use Odatix without installing it by running it d
         :text-align: center
 
         (For developers)
+
+
+Make sure at least one of the supported EDA tools is installed. 
+
+.. card:: Install one of the supported EDA tools
+   :margin: auto
+   :width: 50%
+   :link: install_eda_tools.html
+   :text-align: center
