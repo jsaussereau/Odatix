@@ -58,6 +58,24 @@ Step 2: Install Python 3.6+ and make
 Step 3: Configure a virtual environment [*Optional*]
 ----------------------------------------------------
 
+.. tab:: Ubuntu/Debian
+
+   .. code-block:: bash
+
+      sudo apt install -y python3-venv
+
+.. tab:: Fedora/CentOS/AlmaLinux
+
+   .. code-block:: bash
+      
+      # venv should be shipped with your python installation
+
+.. tab:: Arch Linux
+
+   .. code-block:: bash
+      
+      # venv should be shipped with your python installation
+
 .. code-block:: bash
 
    # Create a virtual environment
