@@ -1,13 +1,18 @@
 # Configuration file for the Sphinx documentation builder.
 
+import os 
 # -- Project information
 
 project = 'Odatix'
 copyright = '2022-2024, Jonathan Saussereau'
 author = 'Jonathan Saussereau'
 
-#release = '0.1'
-#version = '0.1.0'
+def read_version():
+    version_file = os.path.join(os.pardir, os.pardir, "sources", "odatix", "version.txt")
+    with open(version_file, "r") as file:
+        return file.read().strip()
+
+release = read_version()
 
 # -- General configuration
 
