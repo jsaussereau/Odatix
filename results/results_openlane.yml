@@ -1,0 +1,86 @@
+units:
+  Fmax: MHz
+  Cell_Area: um^2
+  WNS: ns
+  TNS: ns
+  Wire_Length: um
+  Clock_Period: ns
+  Power_Slowest_Internal: W
+  Power_Typical_Switching: W
+  Power_Fastest_Leakage: W
+fmax_results:
+  sky130A:
+    Example_Counter_chisel: {}
+    Example_Counter_verilog:
+      08bits:
+        Fmax: 358
+        Cell_Area: 1081.037
+        Synth_Cell_Count: 55
+        WNS: 0.0
+        TNS: 0.0
+        Wire_Length: 1177
+        Vias: 457
+        Clock_Period: 2.79
+        Power_Slowest_Internal: 0.000284
+        Power_Typical_Switching: 0.000124
+        Power_Fastest_Leakage: 1.0e-09
+      16bits:
+        Fmax: 241
+        Cell_Area: 2387.29
+        Synth_Cell_Count: 117
+        WNS: 0.0
+        TNS: 0.0
+        Wire_Length: 2374
+        Vias: 934
+        Clock_Period: 4.15
+        Power_Slowest_Internal: 0.000316
+        Power_Typical_Switching: 0.000197
+        Power_Fastest_Leakage: 2.0e-09
+      24bits:
+        Fmax: 215
+        Cell_Area: 3633.485
+        Synth_Cell_Count: 182
+        WNS: 0.0
+        TNS: 0.0
+        Wire_Length: 3750
+        Vias: 1413
+        Clock_Period: 4.65
+        Power_Slowest_Internal: 0.00036
+        Power_Typical_Switching: 0.000246
+        Power_Fastest_Leakage: 2.0e-09
+      32bits:
+        Fmax: 197
+        Cell_Area: 4754.56
+        Synth_Cell_Count: 236
+        WNS: 0.0
+        TNS: 0.0
+        Wire_Length: 4812
+        Vias: 1798
+        Clock_Period: 5.08
+        Power_Slowest_Internal: 0.000498
+        Power_Typical_Switching: 0.000333
+        Power_Fastest_Leakage: 3.0e-09
+      48bits:
+        Fmax: 150
+        Cell_Area: 7607.296
+        Synth_Cell_Count: 374
+        WNS: 0.0
+        TNS: 0.0
+        Wire_Length: 7874
+        Vias: 2818
+        Clock_Period: 6.67
+        Power_Slowest_Internal: 0.000488
+        Power_Typical_Switching: 0.000369
+        Power_Fastest_Leakage: 4.0e-09
+      64bits:
+        Fmax: 134
+        Cell_Area: 9819.418
+        Synth_Cell_Count: 476
+        WNS: 0.0
+        TNS: 0.0
+        Wire_Length: 11316
+        Vias: 3698
+        Clock_Period: 7.46
+        Power_Slowest_Internal: 0.000658
+        Power_Typical_Switching: 0.000508
+        Power_Fastest_Leakage: 6.0e-09

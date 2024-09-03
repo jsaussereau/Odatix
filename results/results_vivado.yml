@@ -1,0 +1,1276 @@
+units:
+  Fmax: MHz
+  Static_Power: W
+  Dynamic_Power: W
+  Total_Power: W
+fmax_results:
+  xc7a100t-csg324-1:
+    Example_ALU_chisel:
+      04bits:
+        Fmax: 787
+        LUT_count: 29
+        Reg_count: 9
+        LUT+Reg_count: 38
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.019
+        Total_Power: 0.11
+      08bits:
+        Fmax: 291
+        LUT_count: 74
+        Reg_count: 28
+        LUT+Reg_count: 102
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.015
+        Total_Power: 0.106
+      16bits:
+        Fmax: 254
+        LUT_count: 168
+        Reg_count: 52
+        LUT+Reg_count: 220
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.027
+        Total_Power: 0.118
+      24bits:
+        Fmax: 237
+        LUT_count: 259
+        Reg_count: 76
+        LUT+Reg_count: 335
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.036
+        Total_Power: 0.127
+      32bits:
+        Fmax: 221
+        LUT_count: 362
+        Reg_count: 100
+        LUT+Reg_count: 462
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.046
+        Total_Power: 0.137
+      48bits:
+        Fmax: 196
+        LUT_count: 604
+        Reg_count: 148
+        LUT+Reg_count: 752
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.061
+        Total_Power: 0.152
+      64bits:
+        Fmax: 191
+        LUT_count: 843
+        Reg_count: 202
+        LUT+Reg_count: 1045
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.084
+        Total_Power: 0.175
+    Example_ALU_sv:
+      04bits:
+        Fmax: 364
+        LUT_count: 33
+        Reg_count: 16
+        LUT+Reg_count: 49
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.01
+        Total_Power: 0.101
+      08bits:
+        Fmax: 280
+        LUT_count: 91
+        Reg_count: 28
+        LUT+Reg_count: 119
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.015
+        Total_Power: 0.106
+      16bits:
+        Fmax: 235
+        LUT_count: 202
+        Reg_count: 52
+        LUT+Reg_count: 254
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.026
+        Total_Power: 0.117
+      24bits:
+        Fmax: 214
+        LUT_count: 330
+        Reg_count: 76
+        LUT+Reg_count: 406
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.033
+        Total_Power: 0.124
+      32bits:
+        Fmax: 206
+        LUT_count: 473
+        Reg_count: 100
+        LUT+Reg_count: 573
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.046
+        Total_Power: 0.137
+      48bits:
+        Fmax: 187
+        LUT_count: 702
+        Reg_count: 150
+        LUT+Reg_count: 852
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.058
+        Total_Power: 0.149
+      64bits:
+        Fmax: 180
+        LUT_count: 988
+        Reg_count: 199
+        LUT+Reg_count: 1187
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.077
+        Total_Power: 0.168
+    Example_Counter_chisel:
+      04bits:
+        Fmax: 850
+        LUT_count: 6
+        Reg_count: 5
+        LUT+Reg_count: 11
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.015
+        Total_Power: 0.106
+      08bits:
+        Fmax: 503
+        LUT_count: 9
+        Reg_count: 8
+        LUT+Reg_count: 17
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.016
+        Total_Power: 0.107
+      16bits:
+        Fmax: 490
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.026
+        Total_Power: 0.117
+      24bits:
+        Fmax: 418
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.033
+        Total_Power: 0.124
+      32bits:
+        Fmax: 387
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.04
+        Total_Power: 0.131
+      48bits:
+        Fmax: 335
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.052
+        Total_Power: 0.143
+      64bits:
+        Fmax: 288
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.06
+        Total_Power: 0.151
+    Example_Counter_sv:
+      04bits:
+        Fmax: 850
+        LUT_count: 6
+        Reg_count: 5
+        LUT+Reg_count: 11
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.015
+        Total_Power: 0.106
+      08bits:
+        Fmax: 503
+        LUT_count: 9
+        Reg_count: 8
+        LUT+Reg_count: 17
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.016
+        Total_Power: 0.107
+      16bits:
+        Fmax: 490
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.026
+        Total_Power: 0.117
+      24bits:
+        Fmax: 418
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.033
+        Total_Power: 0.124
+      32bits:
+        Fmax: 387
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.04
+        Total_Power: 0.131
+      48bits:
+        Fmax: 335
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.052
+        Total_Power: 0.143
+      64bits:
+        Fmax: 288
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.06
+        Total_Power: 0.151
+    Example_Counter_verilog:
+      04bits:
+        Fmax: 850
+        LUT_count: 6
+        Reg_count: 5
+        LUT+Reg_count: 11
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.015
+        Total_Power: 0.106
+      08bits:
+        Fmax: 503
+        LUT_count: 9
+        Reg_count: 8
+        LUT+Reg_count: 17
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.016
+        Total_Power: 0.107
+      16bits:
+        Fmax: 490
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.026
+        Total_Power: 0.117
+      24bits:
+        Fmax: 418
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.033
+        Total_Power: 0.124
+      32bits:
+        Fmax: 387
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.04
+        Total_Power: 0.131
+      48bits:
+        Fmax: 335
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.052
+        Total_Power: 0.143
+      64bits:
+        Fmax: 288
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.06
+        Total_Power: 0.151
+    Example_Counter_vhdl:
+      04bits:
+        Fmax: 850
+        LUT_count: 6
+        Reg_count: 5
+        LUT+Reg_count: 11
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.015
+        Total_Power: 0.106
+      08bits:
+        Fmax: 503
+        LUT_count: 9
+        Reg_count: 8
+        LUT+Reg_count: 17
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.016
+        Total_Power: 0.107
+      16bits:
+        Fmax: 490
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.026
+        Total_Power: 0.117
+      24bits:
+        Fmax: 418
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.033
+        Total_Power: 0.124
+      32bits:
+        Fmax: 384
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.04
+        Total_Power: 0.131
+      48bits:
+        Fmax: 335
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.052
+        Total_Power: 0.143
+      64bits:
+        Fmax: 288
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.06
+        Total_Power: 0.151
+    Example_Mult:
+      04bits:
+        Fmax: 560
+        LUT_count: 7
+        Reg_count: 16
+        LUT+Reg_count: 23
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.016
+        Total_Power: 0.107
+      08bits:
+        Fmax: 284
+        LUT_count: 40
+        Reg_count: 41
+        LUT+Reg_count: 81
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.021
+        Total_Power: 0.112
+      24bits:
+        Fmax: 253
+        LUT_count: 0
+        Reg_count: 17
+        LUT+Reg_count: 17
+        BRAM_count: 0
+        DSP_count: 2
+        Static_Power: 0.091
+        Dynamic_Power: 0.058
+        Total_Power: 0.149
+      32bits:
+        Fmax: 253
+        LUT_count: 16
+        Reg_count: 17
+        LUT+Reg_count: 33
+        BRAM_count: 0
+        DSP_count: 3
+        Static_Power: 0.091
+        Dynamic_Power: 0.084
+        Total_Power: 0.175
+      48bits:
+        Fmax: 135
+        LUT_count: 14
+        Reg_count: 17
+        LUT+Reg_count: 31
+        BRAM_count: 0
+        DSP_count: 6
+        Static_Power: 0.091
+        Dynamic_Power: 0.069
+        Total_Power: 0.16
+      64bits:
+        Fmax: 109
+        LUT_count: 31
+        Reg_count: 51
+        LUT+Reg_count: 82
+        BRAM_count: 0
+        DSP_count: 10
+        Static_Power: 0.091
+        Dynamic_Power: 0.08
+        Total_Power: 0.171
+    Example_Shift_Register_chisel:
+      04bits:
+        Fmax: 948
+        LUT_count: 4
+        Reg_count: 4
+        LUT+Reg_count: 8
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.026
+        Total_Power: 0.117
+      08bits:
+        Fmax: 929
+        LUT_count: 8
+        Reg_count: 8
+        LUT+Reg_count: 16
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.056
+        Total_Power: 0.147
+      16bits:
+        Fmax: 869
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.115
+        Total_Power: 0.206
+      24bits:
+        Fmax: 832
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.092
+        Dynamic_Power: 0.17
+        Total_Power: 0.262
+      32bits:
+        Fmax: 832
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.092
+        Dynamic_Power: 0.23
+        Total_Power: 0.322
+      48bits:
+        Fmax: 821
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.092
+        Dynamic_Power: 0.344
+        Total_Power: 0.436
+      64bits:
+        Fmax: 695
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.092
+        Dynamic_Power: 0.406
+        Total_Power: 0.498
+    Example_Shift_Register_sv:
+      04bits:
+        Fmax: 948
+        LUT_count: 4
+        Reg_count: 4
+        LUT+Reg_count: 8
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.026
+        Total_Power: 0.117
+      08bits:
+        Fmax: 929
+        LUT_count: 8
+        Reg_count: 8
+        LUT+Reg_count: 16
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.056
+        Total_Power: 0.147
+      16bits:
+        Fmax: 869
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.091
+        Dynamic_Power: 0.115
+        Total_Power: 0.206
+      24bits:
+        Fmax: 832
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.092
+        Dynamic_Power: 0.17
+        Total_Power: 0.262
+      32bits:
+        Fmax: 832
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.092
+        Dynamic_Power: 0.23
+        Total_Power: 0.322
+      48bits:
+        Fmax: 835
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.092
+        Dynamic_Power: 0.351
+        Total_Power: 0.443
+      64bits:
+        Fmax: 707
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.092
+        Dynamic_Power: 0.412
+        Total_Power: 0.504
+  xc7k70t-fbg676-2:
+    Example_ALU_chisel:
+      04bits:
+        Fmax: 694
+        LUT_count: 29
+        Reg_count: 16
+        LUT+Reg_count: 45
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.02
+        Total_Power: 0.101
+      08bits:
+        Fmax: 546
+        LUT_count: 73
+        Reg_count: 28
+        LUT+Reg_count: 101
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.029
+        Total_Power: 0.11
+      16bits:
+        Fmax: 478
+        LUT_count: 168
+        Reg_count: 52
+        LUT+Reg_count: 220
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.05
+        Total_Power: 0.131
+      24bits:
+        Fmax: 440
+        LUT_count: 259
+        Reg_count: 76
+        LUT+Reg_count: 335
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.067
+        Total_Power: 0.148
+      32bits:
+        Fmax: 415
+        LUT_count: 362
+        Reg_count: 100
+        LUT+Reg_count: 462
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.086
+        Total_Power: 0.167
+      48bits:
+        Fmax: 365
+        LUT_count: 602
+        Reg_count: 148
+        LUT+Reg_count: 750
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.117
+        Total_Power: 0.198
+      64bits:
+        Fmax: 341
+        LUT_count: 842
+        Reg_count: 202
+        LUT+Reg_count: 1044
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.149
+        Total_Power: 0.23
+    Example_ALU_sv:
+      04bits:
+        Fmax: 784
+        LUT_count: 33
+        Reg_count: 32
+        LUT+Reg_count: 65
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.024
+        Total_Power: 0.105
+      08bits:
+        Fmax: 527
+        LUT_count: 92
+        Reg_count: 28
+        LUT+Reg_count: 120
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.03
+        Total_Power: 0.111
+      16bits:
+        Fmax: 432
+        LUT_count: 199
+        Reg_count: 52
+        LUT+Reg_count: 251
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.049
+        Total_Power: 0.13
+      24bits:
+        Fmax: 393
+        LUT_count: 327
+        Reg_count: 76
+        LUT+Reg_count: 403
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.06
+        Total_Power: 0.141
+      32bits:
+        Fmax: 377
+        LUT_count: 467
+        Reg_count: 100
+        LUT+Reg_count: 567
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.082
+        Total_Power: 0.163
+      48bits:
+        Fmax: 352
+        LUT_count: 714
+        Reg_count: 150
+        LUT+Reg_count: 864
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.111
+        Total_Power: 0.192
+      64bits:
+        Fmax: 325
+        LUT_count: 993
+        Reg_count: 199
+        LUT+Reg_count: 1192
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.137
+        Total_Power: 0.218
+    Example_Counter_chisel:
+      04bits:
+        Fmax: 1614
+        LUT_count: 6
+        Reg_count: 5
+        LUT+Reg_count: 11
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.032
+        Total_Power: 0.113
+      08bits:
+        Fmax: 1002
+        LUT_count: 8
+        Reg_count: 8
+        LUT+Reg_count: 16
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.033
+        Total_Power: 0.114
+      16bits:
+        Fmax: 897
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.05
+        Total_Power: 0.131
+      24bits:
+        Fmax: 817
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.065
+        Total_Power: 0.146
+      32bits:
+        Fmax: 751
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.079
+        Total_Power: 0.16
+      48bits:
+        Fmax: 689
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.108
+        Total_Power: 0.189
+      64bits:
+        Fmax: 584
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.121
+        Total_Power: 0.202
+    Example_Counter_sv:
+      04bits:
+        Fmax: 1614
+        LUT_count: 6
+        Reg_count: 5
+        LUT+Reg_count: 11
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.032
+        Total_Power: 0.113
+      08bits:
+        Fmax: 1002
+        LUT_count: 8
+        Reg_count: 8
+        LUT+Reg_count: 16
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.033
+        Total_Power: 0.114
+      16bits:
+        Fmax: 897
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.05
+        Total_Power: 0.131
+      24bits:
+        Fmax: 817
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.065
+        Total_Power: 0.146
+      32bits:
+        Fmax: 751
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.079
+        Total_Power: 0.16
+      48bits:
+        Fmax: 689
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.108
+        Total_Power: 0.189
+      64bits:
+        Fmax: 584
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.121
+        Total_Power: 0.202
+    Example_Counter_verilog:
+      04bits:
+        Fmax: 1614
+        LUT_count: 6
+        Reg_count: 5
+        LUT+Reg_count: 11
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.032
+        Total_Power: 0.113
+      08bits:
+        Fmax: 1002
+        LUT_count: 8
+        Reg_count: 8
+        LUT+Reg_count: 16
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.033
+        Total_Power: 0.114
+      16bits:
+        Fmax: 897
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.05
+        Total_Power: 0.131
+      24bits:
+        Fmax: 817
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.065
+        Total_Power: 0.146
+      32bits:
+        Fmax: 751
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.079
+        Total_Power: 0.16
+      48bits:
+        Fmax: 689
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.108
+        Total_Power: 0.189
+      64bits:
+        Fmax: 584
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.121
+        Total_Power: 0.202
+    Example_Counter_vhdl:
+      04bits:
+        Fmax: 1614
+        LUT_count: 6
+        Reg_count: 5
+        LUT+Reg_count: 11
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.032
+        Total_Power: 0.113
+      08bits:
+        Fmax: 1002
+        LUT_count: 8
+        Reg_count: 8
+        LUT+Reg_count: 16
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.033
+        Total_Power: 0.114
+      16bits:
+        Fmax: 897
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.05
+        Total_Power: 0.131
+      24bits:
+        Fmax: 817
+        LUT_count: 24
+        Reg_count: 24
+        LUT+Reg_count: 48
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.065
+        Total_Power: 0.146
+      32bits:
+        Fmax: 751
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.079
+        Total_Power: 0.16
+      48bits:
+        Fmax: 689
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.108
+        Total_Power: 0.189
+      64bits:
+        Fmax: 584
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.121
+        Total_Power: 0.202
+    Example_Mult:
+      04bits:
+        Fmax: 1094
+        LUT_count: 7
+        Reg_count: 11
+        LUT+Reg_count: 18
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.033
+        Total_Power: 0.114
+      08bits:
+        Fmax: 589
+        LUT_count: 39
+        Reg_count: 38
+        LUT+Reg_count: 77
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.044
+        Total_Power: 0.125
+      24bits:
+        Fmax: 353
+        LUT_count: 0
+        Reg_count: 17
+        LUT+Reg_count: 17
+        BRAM_count: 0
+        DSP_count: 2
+        Static_Power: 0.081
+        Dynamic_Power: 0.082
+        Total_Power: 0.163
+      32bits:
+        Fmax: 353
+        LUT_count: 16
+        Reg_count: 17
+        LUT+Reg_count: 33
+        BRAM_count: 0
+        DSP_count: 3
+        Static_Power: 0.081
+        Dynamic_Power: 0.118
+        Total_Power: 0.199
+      48bits:
+        Fmax: 189
+        LUT_count: 14
+        Reg_count: 17
+        LUT+Reg_count: 31
+        BRAM_count: 0
+        DSP_count: 6
+        Static_Power: 0.081
+        Dynamic_Power: 0.099
+        Total_Power: 0.18
+      64bits:
+        Fmax: 153
+        LUT_count: 31
+        Reg_count: 51
+        LUT+Reg_count: 82
+        BRAM_count: 0
+        DSP_count: 10
+        Static_Power: 0.081
+        Dynamic_Power: 0.112
+        Total_Power: 0.193
+    Example_Shift_Register_chisel:
+      04bits:
+        Fmax: 1836
+        LUT_count: 4
+        Reg_count: 4
+        LUT+Reg_count: 8
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.054
+        Total_Power: 0.135
+      08bits:
+        Fmax: 1614
+        LUT_count: 8
+        Reg_count: 8
+        LUT+Reg_count: 16
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.102
+        Total_Power: 0.183
+      16bits:
+        Fmax: 1591
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.215
+        Total_Power: 0.297
+      24bits:
+        Fmax: 1606
+        LUT_count: 25
+        Reg_count: 25
+        LUT+Reg_count: 50
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.332
+        Total_Power: 0.414
+      32bits:
+        Fmax: 1544
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.43
+        Total_Power: 0.512
+      48bits:
+        Fmax: 1544
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.652
+        Total_Power: 0.734
+      64bits:
+        Fmax: 1104
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.645
+        Total_Power: 0.727
+    Example_Shift_Register_sv:
+      04bits:
+        Fmax: 1836
+        LUT_count: 4
+        Reg_count: 4
+        LUT+Reg_count: 8
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.054
+        Total_Power: 0.135
+      04bits_:
+        Fmax: 1836
+        LUT_count: 4
+        Reg_count: 4
+        LUT+Reg_count: 8
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.054
+        Total_Power: 0.135
+      08bits:
+        Fmax: 1614
+        LUT_count: 8
+        Reg_count: 8
+        LUT+Reg_count: 16
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.081
+        Dynamic_Power: 0.102
+        Total_Power: 0.183
+      16bits:
+        Fmax: 1591
+        LUT_count: 16
+        Reg_count: 16
+        LUT+Reg_count: 32
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.215
+        Total_Power: 0.297
+      24bits:
+        Fmax: 1606
+        LUT_count: 25
+        Reg_count: 25
+        LUT+Reg_count: 50
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.332
+        Total_Power: 0.414
+      32bits:
+        Fmax: 1537
+        LUT_count: 32
+        Reg_count: 32
+        LUT+Reg_count: 64
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.428
+        Total_Power: 0.51
+      48bits:
+        Fmax: 1596
+        LUT_count: 48
+        Reg_count: 48
+        LUT+Reg_count: 96
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.082
+        Dynamic_Power: 0.673
+        Total_Power: 0.755
+      64bits:
+        Fmax: 1226
+        LUT_count: 64
+        Reg_count: 64
+        LUT+Reg_count: 128
+        BRAM_count: 0
+        DSP_count: 0
+        Static_Power: 0.083
+        Dynamic_Power: 0.714
+        Total_Power: 0.797

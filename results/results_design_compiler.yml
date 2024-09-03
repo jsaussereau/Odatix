@@ -1,0 +1,926 @@
+units:
+  Fmax: MHz
+  Cell_Area: um^2
+  Total_Area: um^2
+  Comb_Area: um^2
+  Noncomb_Area: um^2
+  Buf_Inv_Area: um^2
+  Macro_Area: um^2
+  Net_Area: um^2
+fmax_results:
+  AMS350CMOS:
+    Example_ALU_chisel:
+      04bits:
+        Fmax: 136
+        Cell_Area: 37510.2
+        Total_Area: 43189.2
+        Comb_Area: 14305.2
+        Noncomb_Area: 23205.0
+        Buf_Inv_Area: 1947.4
+        Macro_Area: 0.0
+        Net_Area: 5679.0
+        Cell_count: 293
+      08bits:
+        Fmax: 117
+        Cell_Area: 83974.8
+        Total_Area: 98023.8
+        Comb_Area: 36745.8
+        Noncomb_Area: 47229.0
+        Buf_Inv_Area: 6006.0
+        Macro_Area: 0.0
+        Net_Area: 14049.0
+        Cell_count: 730
+      16bits:
+        Fmax: 122
+        Cell_Area: 185749.2
+        Total_Area: 214171.2
+        Comb_Area: 79552.2
+        Noncomb_Area: 106197.0
+        Buf_Inv_Area: 11775.4
+        Macro_Area: 0.0
+        Net_Area: 28422.0
+        Cell_count: 1509
+      24bits:
+        Fmax: 107
+        Cell_Area: 268140.601
+        Total_Area: 310224.601
+        Comb_Area: 135735.601
+        Noncomb_Area: 132405.0
+        Buf_Inv_Area: 20001.8
+        Macro_Area: 0.0
+        Net_Area: 42084.0
+        Cell_count: 2181
+      32bits:
+        Fmax: 109
+        Cell_Area: 367840.201
+        Total_Area: 424540.201
+        Comb_Area: 169369.201
+        Noncomb_Area: 198471.0
+        Buf_Inv_Area: 19601.4
+        Macro_Area: 0.0
+        Net_Area: 56700.0
+        Cell_count: 2865
+      48bits:
+        Fmax: 102
+        Cell_Area: 628700.801
+        Total_Area: 734882.801
+        Comb_Area: 316934.801
+        Noncomb_Area: 311766.0
+        Buf_Inv_Area: 53508.001
+        Macro_Area: 0.0
+        Net_Area: 106182.0
+        Cell_count: 5469
+    Example_ALU_sv:
+      04bits:
+        Fmax: 262
+        Cell_Area: 19455.8
+        Total_Area: 23496.8
+        Comb_Area: 10719.8
+        Noncomb_Area: 8736.0
+        Buf_Inv_Area: 1073.8
+        Macro_Area: 0.0
+        Net_Area: 4041.0
+        Cell_count: 201
+      08bits:
+        Fmax: 261
+        Cell_Area: 43534.4
+        Total_Area: 53857.4
+        Comb_Area: 28792.4
+        Noncomb_Area: 14742.0
+        Buf_Inv_Area: 3203.2
+        Macro_Area: 0.0
+        Net_Area: 10323.0
+        Cell_count: 517
+      16bits:
+        Fmax: 250
+        Cell_Area: 86595.601
+        Total_Area: 108150.601
+        Comb_Area: 60660.601
+        Noncomb_Area: 25935.0
+        Buf_Inv_Area: 8626.8
+        Macro_Area: 0.0
+        Net_Area: 21555.0
+        Cell_count: 1102
+      24bits:
+        Fmax: 256
+        Cell_Area: 143798.2
+        Total_Area: 177179.2
+        Comb_Area: 98480.2
+        Noncomb_Area: 45318.0
+        Buf_Inv_Area: 9336.6
+        Macro_Area: 0.0
+        Net_Area: 33381.0
+        Cell_count: 1630
+      32bits:
+        Fmax: 262
+        Cell_Area: 179270.0
+        Total_Area: 222731.0
+        Comb_Area: 131222.0
+        Noncomb_Area: 48048.0
+        Buf_Inv_Area: 11848.2
+        Macro_Area: 0.0
+        Net_Area: 43461.0
+        Cell_count: 2096
+      48bits:
+        Fmax: 312
+        Cell_Area: 214669.001
+        Total_Area: 273565.001
+        Comb_Area: 159796.001
+        Noncomb_Area: 54873.0
+        Buf_Inv_Area: 15943.2
+        Macro_Area: 0.0
+        Net_Area: 58896.0
+        Cell_count: 2371
+      64bits:
+        Fmax: 307
+        Cell_Area: 252852.601
+        Total_Area: 320217.601
+        Comb_Area: 182418.601
+        Noncomb_Area: 70434.0
+        Buf_Inv_Area: 20347.601
+        Macro_Area: 0.0
+        Net_Area: 67365.0
+        Cell_count: 2833
+    Example_Counter_chisel:
+      04bits:
+        Fmax: 144
+        Cell_Area: 4186.0
+        Total_Area: 4870.0
+        Comb_Area: 2548.0
+        Noncomb_Area: 1638.0
+        Buf_Inv_Area: 236.6
+        Macro_Area: 0.0
+        Net_Area: 684.0
+        Cell_count: 35
+      08bits:
+        Fmax: 131
+        Cell_Area: 12066.6
+        Total_Area: 14136.6
+        Comb_Area: 9882.6
+        Noncomb_Area: 2184.0
+        Buf_Inv_Area: 1310.4
+        Macro_Area: 0.0
+        Net_Area: 2070.0
+        Cell_count: 112
+      16bits:
+        Fmax: 95
+        Cell_Area: 16798.6
+        Total_Area: 20236.6
+        Comb_Area: 12430.6
+        Noncomb_Area: 4368.0
+        Buf_Inv_Area: 2129.4
+        Macro_Area: 0.0
+        Net_Area: 3438.0
+        Cell_count: 186
+      24bits:
+        Fmax: 92
+        Cell_Area: 29575.0
+        Total_Area: 35254.0
+        Comb_Area: 22750.0
+        Noncomb_Area: 6825.0
+        Buf_Inv_Area: 3603.6
+        Macro_Area: 0.0
+        Net_Area: 5679.0
+        Cell_count: 321
+      32bits:
+        Fmax: 84
+        Cell_Area: 38220.0
+        Total_Area: 46194.0
+        Comb_Area: 29484.0
+        Noncomb_Area: 8736.0
+        Buf_Inv_Area: 4404.4
+        Macro_Area: 0.0
+        Net_Area: 7974.0
+        Cell_count: 439
+      48bits:
+        Fmax: 78
+        Cell_Area: 59495.8
+        Total_Area: 71699.8
+        Comb_Area: 46391.8
+        Noncomb_Area: 13104.0
+        Buf_Inv_Area: 8080.8
+        Macro_Area: 0.0
+        Net_Area: 12204.0
+        Cell_count: 683
+      64bits:
+        Fmax: 78
+        Cell_Area: 84011.2
+        Total_Area: 101129.2
+        Comb_Area: 66539.2
+        Noncomb_Area: 17472.0
+        Buf_Inv_Area: 9464.0
+        Macro_Area: 0.0
+        Net_Area: 17118.0
+        Cell_count: 926
+    Example_Counter_sv:
+      04bits:
+        Fmax: 153
+        Cell_Area: 4641.0
+        Total_Area: 5442.0
+        Comb_Area: 3549.0
+        Noncomb_Area: 1092.0
+        Buf_Inv_Area: 546.0
+        Macro_Area: 0.0
+        Net_Area: 801.0
+        Cell_count: 44
+      08bits:
+        Fmax: 131
+        Cell_Area: 11611.6
+        Total_Area: 13573.6
+        Comb_Area: 9427.6
+        Noncomb_Area: 2184.0
+        Buf_Inv_Area: 1274.0
+        Macro_Area: 0.0
+        Net_Area: 1962.0
+        Cell_count: 105
+      16bits:
+        Fmax: 98
+        Cell_Area: 17927.0
+        Total_Area: 21518.0
+        Comb_Area: 12903.8
+        Noncomb_Area: 5023.2
+        Buf_Inv_Area: 1983.8
+        Macro_Area: 0.0
+        Net_Area: 3591.0
+        Cell_count: 197
+      24bits:
+        Fmax: 88
+        Cell_Area: 26899.6
+        Total_Area: 32488.6
+        Comb_Area: 20347.6
+        Noncomb_Area: 6552.0
+        Buf_Inv_Area: 3658.2
+        Macro_Area: 0.0
+        Net_Area: 5589.0
+        Cell_count: 311
+      32bits:
+        Fmax: 86
+        Cell_Area: 39894.4
+        Total_Area: 48129.4
+        Comb_Area: 31158.4
+        Noncomb_Area: 8736.0
+        Buf_Inv_Area: 5023.2
+        Macro_Area: 0.0
+        Net_Area: 8235.0
+        Cell_count: 455
+      48bits:
+        Fmax: 79
+        Cell_Area: 58367.4
+        Total_Area: 70238.4
+        Comb_Area: 45263.4
+        Noncomb_Area: 13104.0
+        Buf_Inv_Area: 7607.6
+        Macro_Area: 0.0
+        Net_Area: 11871.0
+        Cell_count: 658
+      64bits:
+        Fmax: 77
+        Cell_Area: 83028.4
+        Total_Area: 100317.4
+        Comb_Area: 65556.4
+        Noncomb_Area: 17472.0
+        Buf_Inv_Area: 9846.2
+        Macro_Area: 0.0
+        Net_Area: 17289.0
+        Cell_count: 929
+    Example_Counter_vhdl:
+      04bits:
+        Fmax: 146
+        Cell_Area: 4295.2
+        Total_Area: 5159.2
+        Comb_Area: 3203.2
+        Noncomb_Area: 1092.0
+        Buf_Inv_Area: 473.2
+        Macro_Area: 0.0
+        Net_Area: 864.0
+        Cell_count: 43
+      08bits:
+        Fmax: 131
+        Cell_Area: 11611.6
+        Total_Area: 13573.6
+        Comb_Area: 9427.6
+        Noncomb_Area: 2184.0
+        Buf_Inv_Area: 1274.0
+        Macro_Area: 0.0
+        Net_Area: 1962.0
+        Cell_count: 105
+      16bits:
+        Fmax: 96
+        Cell_Area: 18418.4
+        Total_Area: 22162.4
+        Comb_Area: 14050.4
+        Noncomb_Area: 4368.0
+        Buf_Inv_Area: 2511.6
+        Macro_Area: 0.0
+        Net_Area: 3744.0
+        Cell_count: 207
+      24bits:
+        Fmax: 90
+        Cell_Area: 27081.6
+        Total_Area: 32607.6
+        Comb_Area: 20529.6
+        Noncomb_Area: 6552.0
+        Buf_Inv_Area: 3312.4
+        Macro_Area: 0.0
+        Net_Area: 5526.0
+        Cell_count: 303
+      32bits:
+        Fmax: 85
+        Cell_Area: 39712.4
+        Total_Area: 47758.4
+        Comb_Area: 30903.6
+        Noncomb_Area: 8808.8
+        Buf_Inv_Area: 5551.0
+        Macro_Area: 0.0
+        Net_Area: 8046.0
+        Cell_count: 454
+      48bits:
+        Fmax: 76
+        Cell_Area: 56492.8
+        Total_Area: 68300.8
+        Comb_Area: 43388.8
+        Noncomb_Area: 13104.0
+        Buf_Inv_Area: 7116.2
+        Macro_Area: 0.0
+        Net_Area: 11808.0
+        Cell_count: 647
+      64bits:
+        Fmax: 76
+        Cell_Area: 80225.6
+        Total_Area: 97334.6
+        Comb_Area: 62753.6
+        Noncomb_Area: 17472.0
+        Buf_Inv_Area: 9045.4
+        Macro_Area: 0.0
+        Net_Area: 17109.0
+        Cell_count: 926
+    Example_Mult:
+      04bits:
+        Fmax: 262
+        Cell_Area: 8044.4
+        Total_Area: 9160.4
+        Comb_Area: 2584.4
+        Noncomb_Area: 5460.0
+        Buf_Inv_Area: 436.8
+        Macro_Area: 0.0
+        Net_Area: 1116.0
+        Cell_count: 61
+      08bits:
+        Fmax: 315
+        Cell_Area: 22240.4
+        Total_Area: 26137.4
+        Comb_Area: 13231.4
+        Noncomb_Area: 9009.0
+        Buf_Inv_Area: 2020.2
+        Macro_Area: 0.0
+        Net_Area: 3897.0
+        Cell_count: 212
+      16bits:
+        Fmax: 262
+        Cell_Area: 64919.4
+        Total_Area: 76061.4
+        Comb_Area: 43898.4
+        Noncomb_Area: 21021.0
+        Buf_Inv_Area: 5369.0
+        Macro_Area: 0.0
+        Net_Area: 11142.0
+        Cell_count: 574
+      24bits:
+        Fmax: 313
+        Cell_Area: 121375.8
+        Total_Area: 142516.8
+        Comb_Area: 90253.8
+        Noncomb_Area: 31122.0
+        Buf_Inv_Area: 9009.0
+        Macro_Area: 0.0
+        Net_Area: 21141.0
+        Cell_count: 1043
+      32bits:
+        Fmax: 315
+        Cell_Area: 186495.399
+        Total_Area: 219597.399
+        Comb_Area: 150732.399
+        Noncomb_Area: 35763.0
+        Buf_Inv_Area: 12048.4
+        Macro_Area: 0.0
+        Net_Area: 33102.0
+        Cell_count: 1557
+      48bits:
+        Fmax: 315
+        Cell_Area: 381289.999
+        Total_Area: 447952.999
+        Comb_Area: 322321.999
+        Noncomb_Area: 58968.0
+        Buf_Inv_Area: 22003.801
+        Macro_Area: 0.0
+        Net_Area: 66663.0
+        Cell_count: 3022
+      64bits:
+        Fmax: 262
+        Cell_Area: 632540.997
+        Total_Area: 742259.997
+        Comb_Area: 555008.997
+        Noncomb_Area: 77532.0
+        Buf_Inv_Area: 32432.401
+        Macro_Area: 0.0
+        Net_Area: 109719.0
+        Cell_count: 4810
+    Example_Shift_Register_chisel:
+      04bits:
+        Fmax: 234
+        Cell_Area: 2002.0
+        Total_Area: 2389.0
+        Comb_Area: 910.0
+        Noncomb_Area: 1092.0
+        Buf_Inv_Area: 109.2
+        Macro_Area: 0.0
+        Net_Area: 387.0
+        Cell_count: 21
+      08bits:
+        Fmax: 232
+        Cell_Area: 3931.2
+        Total_Area: 4678.2
+        Comb_Area: 1747.2
+        Noncomb_Area: 2184.0
+        Buf_Inv_Area: 254.8
+        Macro_Area: 0.0
+        Net_Area: 747.0
+        Cell_count: 41
+      16bits:
+        Fmax: 232
+        Cell_Area: 7898.8
+        Total_Area: 9383.8
+        Comb_Area: 3530.8
+        Noncomb_Area: 4368.0
+        Buf_Inv_Area: 709.8
+        Macro_Area: 0.0
+        Net_Area: 1485.0
+        Cell_count: 83
+      24bits:
+        Fmax: 232
+        Cell_Area: 11720.8
+        Total_Area: 13925.8
+        Comb_Area: 5168.8
+        Noncomb_Area: 6552.0
+        Buf_Inv_Area: 982.8
+        Macro_Area: 0.0
+        Net_Area: 2205.0
+        Cell_count: 123
+      32bits:
+        Fmax: 232
+        Cell_Area: 15724.8
+        Total_Area: 18649.8
+        Comb_Area: 6988.8
+        Noncomb_Area: 8736.0
+        Buf_Inv_Area: 1346.8
+        Macro_Area: 0.0
+        Net_Area: 2925.0
+        Cell_count: 163
+      48bits:
+        Fmax: 232
+        Cell_Area: 23223.2
+        Total_Area: 27588.2
+        Comb_Area: 10119.2
+        Noncomb_Area: 13104.0
+        Buf_Inv_Area: 2002.0
+        Macro_Area: 0.0
+        Net_Area: 4365.0
+        Cell_count: 243
+      64bits:
+        Fmax: 232
+        Cell_Area: 31304.0
+        Total_Area: 37127.0
+        Comb_Area: 13832.0
+        Noncomb_Area: 17472.0
+        Buf_Inv_Area: 2730.0
+        Macro_Area: 0.0
+        Net_Area: 5823.0
+        Cell_count: 325
+    Example_Shift_Register_sv:
+      04bits:
+        Fmax: 234
+        Cell_Area: 2002.0
+        Total_Area: 2389.0
+        Comb_Area: 910.0
+        Noncomb_Area: 1092.0
+        Buf_Inv_Area: 109.2
+        Macro_Area: 0.0
+        Net_Area: 387.0
+        Cell_count: 21
+      08bits:
+        Fmax: 232
+        Cell_Area: 3931.2
+        Total_Area: 4678.2
+        Comb_Area: 1747.2
+        Noncomb_Area: 2184.0
+        Buf_Inv_Area: 254.8
+        Macro_Area: 0.0
+        Net_Area: 747.0
+        Cell_count: 41
+      16bits:
+        Fmax: 232
+        Cell_Area: 7898.8
+        Total_Area: 9383.8
+        Comb_Area: 3530.8
+        Noncomb_Area: 4368.0
+        Buf_Inv_Area: 709.8
+        Macro_Area: 0.0
+        Net_Area: 1485.0
+        Cell_count: 83
+      24bits:
+        Fmax: 232
+        Cell_Area: 11720.8
+        Total_Area: 13925.8
+        Comb_Area: 5168.8
+        Noncomb_Area: 6552.0
+        Buf_Inv_Area: 982.8
+        Macro_Area: 0.0
+        Net_Area: 2205.0
+        Cell_count: 123
+      32bits:
+        Fmax: 232
+        Cell_Area: 15724.8
+        Total_Area: 18649.8
+        Comb_Area: 6988.8
+        Noncomb_Area: 8736.0
+        Buf_Inv_Area: 1346.8
+        Macro_Area: 0.0
+        Net_Area: 2925.0
+        Cell_count: 163
+      48bits:
+        Fmax: 232
+        Cell_Area: 23223.2
+        Total_Area: 27588.2
+        Comb_Area: 10119.2
+        Noncomb_Area: 13104.0
+        Buf_Inv_Area: 2002.0
+        Macro_Area: 0.0
+        Net_Area: 4365.0
+        Cell_count: 243
+      64bits:
+        Fmax: 232
+        Cell_Area: 31304.0
+        Total_Area: 37127.0
+        Comb_Area: 13832.0
+        Noncomb_Area: 17472.0
+        Buf_Inv_Area: 2730.0
+        Macro_Area: 0.0
+        Net_Area: 5823.0
+        Cell_count: 325
+  XFAB180CMOS:
+    Example_ALU_sv:
+      04bits:
+        Fmax: 641
+        Cell_Area: 5632.826
+        Total_Area: 5949.844
+        Comb_Area: 2012.102
+        Noncomb_Area: 3620.725
+        Buf_Inv_Area: 226.601
+        Macro_Area: 0.0
+        Net_Area: 317.017
+        Cell_count: 247
+      08bits:
+        Fmax: 521
+        Cell_Area: 10754.549
+        Total_Area: 11509.022
+        Comb_Area: 6179.48
+        Noncomb_Area: 4575.069
+        Buf_Inv_Area: 949.453
+        Macro_Area: 0.0
+        Net_Area: 754.473
+        Cell_count: 614
+      16bits:
+        Fmax: 464
+        Cell_Area: 21951.325
+        Total_Area: 23397.875
+        Comb_Area: 9668.753
+        Noncomb_Area: 12282.573
+        Buf_Inv_Area: 925.782
+        Macro_Area: 0.0
+        Net_Area: 1446.55
+        Cell_count: 1089
+      24bits:
+        Fmax: 376
+        Cell_Area: 29191.145
+        Total_Area: 31429.26
+        Comb_Area: 18374.429
+        Noncomb_Area: 10816.716
+        Buf_Inv_Area: 1417.916
+        Macro_Area: 0.0
+        Net_Area: 2238.115
+        Cell_count: 1624
+      32bits:
+        Fmax: 431
+        Cell_Area: 54451.36
+        Total_Area: 58036.549
+        Comb_Area: 23546.025
+        Noncomb_Area: 30905.336
+        Buf_Inv_Area: 2389.766
+        Macro_Area: 0.0
+        Net_Area: 3585.189
+        Cell_count: 2599
+      48bits:
+        Fmax: 499
+        Cell_Area: 70009.266
+        Total_Area: 74847.257
+        Comb_Area: 28995.288
+        Noncomb_Area: 41013.978
+        Buf_Inv_Area: 3191.334
+        Macro_Area: 0.0
+        Net_Area: 4837.99
+        Cell_count: 3221
+      64bits:
+        Fmax: 606
+        Cell_Area: 100694.248
+        Total_Area: 107552.196
+        Comb_Area: 43590.012
+        Noncomb_Area: 57104.236
+        Buf_Inv_Area: 3450.25
+        Macro_Area: 0.0
+        Net_Area: 6857.948
+        Cell_count: 4716
+    Example_Counter_chisel: {}
+    Example_Counter_sv:
+      04bits:
+        Fmax: 691
+        Cell_Area: 643.262
+        Total_Area: 696.735
+        Comb_Area: 457.61
+        Noncomb_Area: 185.651
+        Buf_Inv_Area: 114.905
+        Macro_Area: 0.0
+        Net_Area: 53.474
+        Cell_count: 45
+      08bits:
+        Fmax: 552
+        Cell_Area: 1191.289
+        Total_Area: 1277.929
+        Comb_Area: 804.934
+        Noncomb_Area: 386.355
+        Buf_Inv_Area: 84.399
+        Macro_Area: 0.0
+        Net_Area: 86.64
+        Cell_count: 68
+      16bits:
+        Fmax: 536
+        Cell_Area: 3283.846
+        Total_Area: 3495.316
+        Comb_Area: 1998.331
+        Noncomb_Area: 1285.514
+        Buf_Inv_Area: 266.242
+        Macro_Area: 0.0
+        Net_Area: 211.471
+        Cell_count: 175
+      24bits:
+        Fmax: 483
+        Cell_Area: 4041.603
+        Total_Area: 4326.604
+        Comb_Area: 2925.487
+        Noncomb_Area: 1116.116
+        Buf_Inv_Area: 431.522
+        Macro_Area: 0.0
+        Net_Area: 285.001
+        Cell_count: 229
+      32bits:
+        Fmax: 474
+        Cell_Area: 6727.646
+        Total_Area: 7172.688
+        Comb_Area: 4219.737
+        Noncomb_Area: 2507.909
+        Buf_Inv_Area: 526.657
+        Macro_Area: 0.0
+        Net_Area: 445.042
+        Cell_count: 348
+      48bits:
+        Fmax: 451
+        Cell_Area: 9925.701
+        Total_Area: 10617.415
+        Comb_Area: 7332.802
+        Noncomb_Area: 2592.899
+        Buf_Inv_Area: 1279.214
+        Macro_Area: 0.0
+        Net_Area: 691.714
+        Cell_count: 590
+      64bits:
+        Fmax: 434
+        Cell_Area: 13140.718
+        Total_Area: 14101.254
+        Comb_Area: 9504.958
+        Noncomb_Area: 3635.76
+        Buf_Inv_Area: 1353.378
+        Macro_Area: 0.0
+        Net_Area: 960.536
+        Cell_count: 793
+    Example_Counter_vhdl:
+      04bits:
+        Fmax: 682
+        Cell_Area: 538.092
+        Total_Area: 578.477
+        Comb_Area: 317.418
+        Noncomb_Area: 220.674
+        Buf_Inv_Area: 52.585
+        Macro_Area: 0.0
+        Net_Area: 40.385
+        Cell_count: 30
+      08bits:
+        Fmax: 547
+        Cell_Area: 1108.298
+        Total_Area: 1197.788
+        Comb_Area: 729.67
+        Noncomb_Area: 378.629
+        Buf_Inv_Area: 89.217
+        Macro_Area: 0.0
+        Net_Area: 89.49
+        Cell_count: 67
+      16bits:
+        Fmax: 514
+        Cell_Area: 3475.123
+        Total_Area: 3724.214
+        Comb_Area: 2124.58
+        Noncomb_Area: 1350.543
+        Buf_Inv_Area: 213.957
+        Macro_Area: 0.0
+        Net_Area: 249.091
+        Cell_count: 194
+      24bits:
+        Fmax: 473
+        Cell_Area: 4663.294
+        Total_Area: 4999.026
+        Comb_Area: 3386.815
+        Noncomb_Area: 1276.479
+        Buf_Inv_Area: 423.796
+        Macro_Area: 0.0
+        Net_Area: 335.732
+        Cell_count: 273
+      32bits:
+        Fmax: 454
+        Cell_Area: 6204.306
+        Total_Area: 6656.758
+        Comb_Area: 4438.911
+        Noncomb_Area: 1765.395
+        Buf_Inv_Area: 616.774
+        Macro_Area: 0.0
+        Net_Area: 452.451
+        Cell_count: 359
+      48bits:
+        Fmax: 431
+        Cell_Area: 9388.518
+        Total_Area: 10105.965
+        Comb_Area: 7048.307
+        Noncomb_Area: 2340.21
+        Buf_Inv_Area: 901.086
+        Macro_Area: 0.0
+        Net_Area: 717.448
+        Cell_count: 597
+      64bits:
+        Fmax: 417
+        Cell_Area: 13062.936
+        Total_Area: 14062.912
+        Comb_Area: 9992.365
+        Noncomb_Area: 3070.571
+        Buf_Inv_Area: 1467.783
+        Macro_Area: 0.0
+        Net_Area: 999.976
+        Cell_count: 834
+    Example_Mult:
+      04bits:
+        Fmax: 1247
+        Cell_Area: 1757.286
+        Total_Area: 1838.797
+        Comb_Area: 450.593
+        Noncomb_Area: 1306.694
+        Buf_Inv_Area: 44.558
+        Macro_Area: 0.0
+        Net_Area: 81.511
+        Cell_count: 65
+      08bits:
+        Fmax: 1343
+        Cell_Area: 3545.678
+        Total_Area: 3752.59
+        Comb_Area: 1959.408
+        Noncomb_Area: 1586.27
+        Buf_Inv_Area: 141.102
+        Macro_Area: 0.0
+        Net_Area: 206.911
+        Cell_count: 161
+      16bits:
+        Fmax: 1218
+        Cell_Area: 15832.469
+        Total_Area: 16626.38
+        Comb_Area: 7037.754
+        Noncomb_Area: 8794.714
+        Buf_Inv_Area: 267.35
+        Macro_Area: 0.0
+        Net_Area: 793.912
+        Cell_count: 582
+      24bits:
+        Fmax: 1264
+        Cell_Area: 19675.041
+        Total_Area: 20914.918
+        Comb_Area: 14701.565
+        Noncomb_Area: 4973.477
+        Buf_Inv_Area: 267.35
+        Macro_Area: 0.0
+        Net_Area: 1239.876
+        Cell_count: 836
+      32bits:
+        Fmax: 1264
+        Cell_Area: 31845.983
+        Total_Area: 33865.21
+        Comb_Area: 25388.997
+        Noncomb_Area: 6456.986
+        Buf_Inv_Area: 460.437
+        Macro_Area: 0.0
+        Net_Area: 2019.227
+        Cell_count: 1336
+      48bits:
+        Fmax: 241
+        Cell_Area: 73370.308
+        Total_Area: 77819.675
+        Comb_Area: 58233.621
+        Noncomb_Area: 15136.687
+        Buf_Inv_Area: 1888.57
+        Macro_Area: 0.0
+        Net_Area: 4449.368
+        Cell_count: 2967
+      64bits:
+        Fmax: 161
+        Cell_Area: 112825.014
+        Total_Area: 119822.151
+        Comb_Area: 100157.812
+        Noncomb_Area: 12667.201
+        Buf_Inv_Area: 3261.302
+        Macro_Area: 0.0
+        Net_Area: 6997.137
+        Cell_count: 4552
+    Example_Shift_Register_sv:
+      04bits:
+        Fmax: 1025
+        Cell_Area: 337.488
+        Total_Area: 359.675
+        Comb_Area: 142.102
+        Noncomb_Area: 195.386
+        Buf_Inv_Area: 14.853
+        Macro_Area: 0.0
+        Net_Area: 22.188
+        Cell_count: 17
+      08bits:
+        Fmax: 1044
+        Cell_Area: 588.268
+        Total_Area: 627.514
+        Comb_Area: 227.201
+        Noncomb_Area: 361.067
+        Buf_Inv_Area: 29.806
+        Macro_Area: 0.0
+        Net_Area: 39.246
+        Cell_count: 27
+      16bits:
+        Fmax: 967
+        Cell_Area: 1208.15
+        Total_Area: 1290.8
+        Comb_Area: 481.598
+        Noncomb_Area: 726.552
+        Buf_Inv_Area: 0.0
+        Macro_Area: 0.0
+        Net_Area: 82.65
+        Cell_count: 63
+      24bits:
+        Fmax: 959
+        Cell_Area: 1792.501
+        Total_Area: 1913.912
+        Comb_Area: 710.499
+        Noncomb_Area: 1082.002
+        Buf_Inv_Area: 37.132
+        Macro_Area: 0.0
+        Net_Area: 121.411
+        Cell_count: 91
+      32bits:
+        Fmax: 965
+        Cell_Area: 2368.334
+        Total_Area: 2529.077
+        Comb_Area: 924.765
+        Noncomb_Area: 1443.569
+        Buf_Inv_Area: 59.411
+        Macro_Area: 0.0
+        Net_Area: 160.743
+        Cell_count: 120
+      48bits:
+        Fmax: 969
+        Cell_Area: 3636.304
+        Total_Area: 3883.121
+        Comb_Area: 1473.301
+        Noncomb_Area: 2163.003
+        Buf_Inv_Area: 17.562
+        Macro_Area: 0.0
+        Net_Area: 246.818
+        Cell_count: 191
+      64bits:
+        Fmax: 969
+        Cell_Area: 4709.162
+        Total_Area: 5019.25
+        Comb_Area: 1727.89
+        Noncomb_Area: 2981.272
+        Buf_Inv_Area: 47.467
+        Macro_Area: 0.0
+        Net_Area: 310.088
+        Cell_count: 222
