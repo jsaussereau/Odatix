@@ -185,7 +185,10 @@ class ResultExplorer:
     page_radar.setup_callbacks(self)
 
   def run(self):
-    self.app.run_server(debug=False)
+    self.app.run(
+      host='0.0.0.0',
+      debug=False
+    )
 
 
 if __name__ == "__main__":
