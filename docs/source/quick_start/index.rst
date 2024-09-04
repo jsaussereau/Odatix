@@ -26,3 +26,11 @@ Here are two tutorials depending on you want to try first:
         :text-align: center
 
         Run parallel simulations on the simulator of your choice
+
+If you would like to try Odatix Explorer without running all configurations, you can try it online with sample results:
+
+.. card:: Try Odatix Explorer Online
+   :margin: auto
+   :width: 50%
+   :link: https://odatix.onrender.com
+   :text-align: center
