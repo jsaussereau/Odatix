@@ -34,3 +34,5 @@ If you would like to try Odatix Explorer without running all configurations, you
    :width: 50%
    :link: https://odatix.onrender.com
    :text-align: center
+
+   Please note the deployment server can take up to a minute to start. Running Odatix Explorer locally is much faster. Thank you for your patience.
