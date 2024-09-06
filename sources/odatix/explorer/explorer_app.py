@@ -48,6 +48,8 @@ class ResultExplorer:
     # Check paths
     if not os.path.exists(result_path):
       printc.error('Could not find result path "' + result_path + '"')
+      if self.old_settings is not None:
+        term_mode.restore_mode(self.old_settings)
       sys.exit(-1)
 
     # Initialize additional instance variables here
