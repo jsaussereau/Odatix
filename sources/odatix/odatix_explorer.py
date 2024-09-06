@@ -49,6 +49,7 @@ max_find_port_attempts = 50
 def add_arguments(parser):
   parser.add_argument('-i', '--input', type=str, default='results', help='Directory of the result YAML files')
   parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
+  parser.add_argument('--normal_term_mode', action='store_true', help='Do not change terminal mode')
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
@@ -63,7 +64,8 @@ def open_browser():
   webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
 
 def close_server(old_settings):
-  term_mode.restore_mode(old_settings)
+  if old_settings is not None:
+    term_mode.restore_mode(old_settings)
   os._exit(0)
 
 def find_free_port(host, start_port):
@@ -83,7 +85,7 @@ def find_free_port(host, start_port):
       port += 1
       attempts += 1
 
-def start_result_explorer(input, network=False):
+def start_result_explorer(input, network=False, normal_term_mode=False):
 
   global ip_address
   global port
@@ -105,12 +107,19 @@ def start_result_explorer(input, network=False):
     print(" (network-accessible)")
   else:
     print(" (localhost only)")
-  printc.say("press 'q' to quit", script_name=script_name)
+
+  if normal_term_mode:
+    printc.say("press 'q', then enter to quit", script_name=script_name)
+  else:
+    printc.say("press 'q' to quit", script_name=script_name)
 
   # Open the web page
   process = Thread(target=open_browser).start()
 
-  old_settings = term_mode.set_raw_mode()
+  if normal_term_mode:
+    old_settings = None
+  else:
+    old_settings = term_mode.set_raw_mode()
 
   result_explorer = ResultExplorer(
     result_path=input,
@@ -129,7 +138,8 @@ def start_result_explorer(input, network=False):
         if key == 'q':
           close_server(old_settings)
   finally:
-    term_mode.restore_mode(old_settings)
+    if old_settings is not None:
+      term_mode.restore_mode(old_settings)
 
 ######################################
 # Main
@@ -141,7 +151,8 @@ def main(args=None):
 
   network = args.network
   input = args.input
-  start_result_explorer(input, network)
+  normal_term_mode = args.normal_term_mode
+  start_result_explorer(input, network, normal_term_mode)
 
 if __name__ == "__main__":
   main()
