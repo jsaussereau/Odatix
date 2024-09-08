@@ -228,43 +228,76 @@ def setup_callbacks(explorer):
     background,
     *checklist_values,
   ):
-    if not selected_yaml or selected_yaml not in explorer.dfs:
-      return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
+    try:
+      if not selected_yaml or selected_yaml not in explorer.dfs:
+        return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
 
-    if not selected_target or selected_target not in explorer.dfs[selected_yaml]["Target"].values:
-      return html.Div(className="error", children=[html.Div("Please select a valid target.")])
+      if not selected_target or selected_target not in explorer.dfs[selected_yaml]["Target"].values:
+        return html.Div(className="error", children=[html.Div("Please select a valid target.")])
 
-    selected_metric_display = selected_metric.replace("_", " ") if selected_metric is not None else ""
+      selected_metric_display = selected_metric.replace("_", " ") if selected_metric is not None else ""
 
-    unit = legend.unit_to_html(explorer.units[selected_yaml].get(selected_metric, ""))
-    selected_metric_display_unit = selected_metric_display + " (" + unit + ")" if unit else selected_metric_display
+      unit = legend.unit_to_html(explorer.units[selected_yaml].get(selected_metric, ""))
+      selected_metric_display_unit = selected_metric_display + " (" + unit + ")" if unit else selected_metric_display
 
-    ctx = dash.callback_context
-    triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
+      ctx = dash.callback_context
+      triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    if triggered_id in ["show-all", "hide-all"]:
-      visible_architectures = set(explorer.all_architectures if triggered_id == "show-all" else [])
-    else:
-      visible_architectures = set(
-        architecture for i, architecture in enumerate(explorer.all_architectures) if checklist_values[i]
-      )
+      if triggered_id in ["show-all", "hide-all"]:
+        visible_architectures = set(explorer.all_architectures if triggered_id == "show-all" else [])
+      else:
+        visible_architectures = set(
+          architecture for i, architecture in enumerate(explorer.all_architectures) if checklist_values[i]
+        )
 
-    filtered_df = explorer.dfs[selected_yaml][
-      (explorer.dfs[selected_yaml]["Target"] == selected_target)
-      & (explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures))
-    ]
+      filtered_df = explorer.dfs[selected_yaml][
+        (explorer.dfs[selected_yaml]["Target"] == selected_target)
+        & (explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures))
+      ]
 
-    unique_configurations = sorted(filtered_df["Configuration"].unique())
+      unique_configurations = sorted(filtered_df["Configuration"].unique())
 
-    fig = go.Figure()
+      fig = go.Figure()
 
-    if display_mode == "points":
-      for i, architecture in enumerate(explorer.all_architectures):
-        if architecture in visible_architectures:
-          df_architecture = filtered_df[filtered_df["Architecture"] == architecture]
-          if selected_metric is None or selected_metric not in df_architecture.columns:
-            return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
-          else:
+      if display_mode == "points":
+        for i, architecture in enumerate(explorer.all_architectures):
+          if architecture in visible_architectures:
+            df_architecture = filtered_df[filtered_df["Architecture"] == architecture]
+            if selected_metric is None or selected_metric not in df_architecture.columns:
+              return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
+            else:
+              y_values = [
+                df_architecture[df_architecture["Configuration"] == config][selected_metric].values[0]
+                if config in df_architecture["Configuration"].values
+                else None
+                for config in unique_configurations
+              ]
+
+            mode = "lines+markers" if "show_lines" in toggle_lines else "markers"
+
+            fig.add_trace(
+              go.Scatter(
+                x=unique_configurations,
+                y=y_values,
+                mode=mode,
+                line=dict(dash="dot") if "show_lines" in toggle_lines else None,
+                marker=dict(size=10, color=legend.get_color(i)),
+                name=architecture,
+                connectgaps=True,
+                hovertemplate="<br>".join(
+                  [
+                    "Architecture: %{fullData.name}",
+                    "Configuration: %{x}",
+                    selected_metric_display + ": %{y} " + unit,
+                    "<extra></extra>",
+                  ]
+                ),
+              )
+            )
+      elif display_mode == "bars":
+        for i, architecture in enumerate(explorer.all_architectures):
+          if architecture in visible_architectures:
+            df_architecture = filtered_df[filtered_df["Architecture"] == architecture]
             y_values = [
               df_architecture[df_architecture["Configuration"] == config][selected_metric].values[0]
               if config in df_architecture["Configuration"].values
@@ -272,70 +305,40 @@ def setup_callbacks(explorer):
               for config in unique_configurations
             ]
 
-          mode = "lines+markers" if "show_lines" in toggle_lines else "markers"
-
-          fig.add_trace(
-            go.Scatter(
-              x=unique_configurations,
-              y=y_values,
-              mode=mode,
-              line=dict(dash="dot") if "show_lines" in toggle_lines else None,
-              marker=dict(size=10, color=legend.get_color(i)),
-              name=architecture,
-              connectgaps=True,
-              hovertemplate="<br>".join(
-                [
-                  "Architecture: %{fullData.name}",
-                  "Configuration: %{x}",
-                  selected_metric_display + ": %{y} " + unit,
-                  "<extra></extra>",
-                ]
-              ),
+            fig.add_trace(
+              go.Bar(x=unique_configurations, y=y_values, marker=dict(color=legend.get_color(i)), name=architecture)
             )
-          )
-    elif display_mode == "bars":
-      for i, architecture in enumerate(explorer.all_architectures):
-        if architecture in visible_architectures:
-          df_architecture = filtered_df[filtered_df["Architecture"] == architecture]
-          y_values = [
-            df_architecture[df_architecture["Configuration"] == config][selected_metric].values[0]
-            if config in df_architecture["Configuration"].values
-            else None
-            for config in unique_configurations
-          ]
 
-          fig.add_trace(
-            go.Bar(x=unique_configurations, y=y_values, marker=dict(color=legend.get_color(i)), name=architecture)
+      fig.update_layout(
+        paper_bgcolor=background,
+        showlegend="show_legend" in toggle_legend,
+        xaxis_title="Configuration",
+        yaxis_title=selected_metric_display_unit,
+        yaxis=dict(range=[0, None]),
+        title=selected_metric_display if "show_title" in toggle_title else None,
+        title_x=0.5,
+        autosize=True,
+      )
+      filename = "Odatix-{}-{}-{}-{}".format(
+        os.path.splitext(selected_yaml)[0], selected_target, page_name, selected_metric
+      )
+      return html.Div(
+        [
+          dcc.Graph(
+            figure=fig,
+            style={"width": "100%", "height": "100%"},
+            config={
+              "displayModeBar": True,
+              "displaylogo": False,
+              "modeBarButtonsToRemove": ["lasso", "select"],
+              "toImageButtonOptions": {"format": dl_format, "scale": "3", "filename": filename},
+            },
           )
-
-    fig.update_layout(
-      paper_bgcolor=background,
-      showlegend="show_legend" in toggle_legend,
-      xaxis_title="Configuration",
-      yaxis_title=selected_metric_display_unit,
-      yaxis=dict(range=[0, None]),
-      title=selected_metric_display if "show_title" in toggle_title else None,
-      title_x=0.5,
-      autosize=True,
-    )
-    filename = "Odatix-{}-{}-{}-{}".format(
-      os.path.splitext(selected_yaml)[0], selected_target, page_name, selected_metric
-    )
-    return html.Div(
-      [
-        dcc.Graph(
-          figure=fig,
-          style={"width": "100%", "height": "100%"},
-          config={
-            "displayModeBar": True,
-            "displaylogo": False,
-            "modeBarButtonsToRemove": ["lasso", "select"],
-            "toImageButtonOptions": {"format": dl_format, "scale": "3", "filename": filename},
-          },
-        )
-      ],
-      style={"width": "100%", "height": "100%", "display": "inline-block", "vertical-align": "top"},
-    )
+        ],
+        style={"width": "100%", "height": "100%", "display": "inline-block", "vertical-align": "top"},
+      )
+    except Exception as e:
+      return html.Div(className="error", children=[html.Div("Unexpected error: " + str(e))])
 
   legend.setup_callbacks(explorer, page_name)
   navigation.setup_sidebar_callbacks(explorer, page_name)

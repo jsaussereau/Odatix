@@ -394,56 +394,59 @@ def setup_callbacks(explorer):
     background,
     *checklist_values,
   ):
-    if not selected_yaml or selected_yaml not in explorer.dfs:
-      return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
+    try:
+      if not selected_yaml or selected_yaml not in explorer.dfs:
+        return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
 
-    if not selected_target or selected_target not in explorer.dfs[selected_yaml]["Target"].values:
-      return html.Div(className="error", children=[html.Div("Please select a valid target.")])
+      if not selected_target or selected_target not in explorer.dfs[selected_yaml]["Target"].values:
+        return html.Div(className="error", children=[html.Div("Please select a valid target.")])
 
-    ctx = dash.callback_context
-    triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
+      ctx = dash.callback_context
+      triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    if triggered_id in ["show-all", "hide-all"]:
-      visible_architectures = set(explorer.all_architectures if triggered_id == "show-all" else [])
-    else:
-      visible_architectures = set(
-        architecture for i, architecture in enumerate(explorer.all_architectures) if checklist_values[i]
+      if triggered_id in ["show-all", "hide-all"]:
+        visible_architectures = set(explorer.all_architectures if triggered_id == "show-all" else [])
+      else:
+        visible_architectures = set(
+          architecture for i, architecture in enumerate(explorer.all_architectures) if checklist_values[i]
+        )
+
+      filtered_df = explorer.dfs[selected_yaml][
+        (explorer.dfs[selected_yaml]["Target"] == selected_target)
+        & (explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures))
+      ]
+
+      unique_configurations = sorted(filtered_df["Configuration"].unique())
+
+      metrics = [col for col in filtered_df.columns if col not in ["Target", "Architecture", "Configuration"]]
+      all_configurations = explorer.all_configurations
+      all_architectures = explorer.all_architectures
+
+      for metric in metrics:
+        filtered_df.loc[:, metric] = pd.to_numeric(filtered_df[metric], errors="coerce")
+
+      yaml_name = os.path.splitext(selected_yaml)[0] + "-" + selected_target
+
+      radar_charts = make_all_radar_charts(
+        filtered_df,
+        explorer.units[selected_yaml],
+        metrics,
+        unique_configurations,
+        all_architectures,
+        visible_architectures,
+        yaml_name,
+        legend_dropdown,
+        toggle_title,
+        toggle_lines,
+        toggle_close,
+        dl_format,
+        background,
       )
 
-    filtered_df = explorer.dfs[selected_yaml][
-      (explorer.dfs[selected_yaml]["Target"] == selected_target)
-      & (explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures))
-    ]
-
-    unique_configurations = sorted(filtered_df["Configuration"].unique())
-
-    metrics = [col for col in filtered_df.columns if col not in ["Target", "Architecture", "Configuration"]]
-    all_configurations = explorer.all_configurations
-    all_architectures = explorer.all_architectures
-
-    for metric in metrics:
-      filtered_df.loc[:, metric] = pd.to_numeric(filtered_df[metric], errors="coerce")
-
-    yaml_name = os.path.splitext(selected_yaml)[0] + "-" + selected_target
-
-    radar_charts = make_all_radar_charts(
-      filtered_df,
-      explorer.units[selected_yaml],
-      metrics,
-      unique_configurations,
-      all_architectures,
-      visible_architectures,
-      yaml_name,
-      legend_dropdown,
-      toggle_title,
-      toggle_lines,
-      toggle_close,
-      dl_format,
-      background,
-    )
-
-    return html.Div(radar_charts, style={"display": "flex", "flex-wrap": "wrap", "justify-content": "space-evenly"})
-
+      return html.Div(radar_charts, style={"display": "flex", "flex-wrap": "wrap", "justify-content": "space-evenly"})
+    except Exception as e:
+      return html.Div(className="error", children=[html.Div("Unexpected error: " + str(e))])
+      
   @explorer.app.callback(Output(f"target-dropdown-{page_name}", "options"), Input("yaml-dropdown", "value"))
   def update_dropdowns_radar(selected_yaml):
     if not selected_yaml or selected_yaml not in explorer.dfs:
