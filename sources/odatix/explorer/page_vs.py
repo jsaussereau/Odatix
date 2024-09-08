@@ -237,6 +237,9 @@ def setup_callbacks(explorer):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
 
+    if not selected_target or selected_target not in explorer.dfs[selected_yaml]["Target"].values:
+      return html.Div(className="error", children=[html.Div("Please select a valid target.")])
+
     selected_metric_x_display = selected_metric_x.replace("_", " ") if selected_metric_x is not None else ""
     selected_metric_y_display = selected_metric_y.replace("_", " ") if selected_metric_y is not None else ""
 
@@ -269,6 +272,11 @@ def setup_callbacks(explorer):
     for i, architecture in enumerate(explorer.all_architectures):
       if architecture in visible_architectures:
         df_architecture = filtered_df[filtered_df["Architecture"] == architecture]
+
+        if selected_metric_x is None or selected_metric_x not in df_architecture.columns:
+          return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
+        if selected_metric_y is None or selected_metric_y not in df_architecture.columns:
+          return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
 
         x_values = df_architecture[selected_metric_x].tolist()
         y_values = df_architecture[selected_metric_y].tolist()

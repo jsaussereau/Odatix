@@ -231,6 +231,9 @@ def setup_callbacks(explorer):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
 
+    if not selected_target or selected_target not in explorer.dfs[selected_yaml]["Target"].values:
+      return html.Div(className="error", children=[html.Div("Please select a valid target.")])
+
     selected_metric_display = selected_metric.replace("_", " ") if selected_metric is not None else ""
 
     unit = legend.unit_to_html(explorer.units[selected_yaml].get(selected_metric, ""))
@@ -259,12 +262,15 @@ def setup_callbacks(explorer):
       for i, architecture in enumerate(explorer.all_architectures):
         if architecture in visible_architectures:
           df_architecture = filtered_df[filtered_df["Architecture"] == architecture]
-          y_values = [
-            df_architecture[df_architecture["Configuration"] == config][selected_metric].values[0]
-            if config in df_architecture["Configuration"].values
-            else None
-            for config in unique_configurations
-          ]
+          if selected_metric is None or selected_metric not in df_architecture.columns:
+            return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
+          else:
+            y_values = [
+              df_architecture[df_architecture["Configuration"] == config][selected_metric].values[0]
+              if config in df_architecture["Configuration"].values
+              else None
+              for config in unique_configurations
+            ]
 
           mode = "lines+markers" if "show_lines" in toggle_lines else "markers"
 

@@ -397,8 +397,8 @@ def setup_callbacks(explorer):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
 
-    if not selected_target:
-      return html.Div(className="error", children=[html.Div("Please select a target.")])
+    if not selected_target or selected_target not in explorer.dfs[selected_yaml]["Target"].values:
+      return html.Div(className="error", children=[html.Div("Please select a valid target.")])
 
     ctx = dash.callback_context
     triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
