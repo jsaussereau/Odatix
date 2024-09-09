@@ -10,6 +10,10 @@
 vluint64_t main_time = 0;  // Current simulation time
 vluint64_t cycle = 0;      // Current clock cycle
 
+double sc_time_stamp() { 
+    return main_time;
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
 
@@ -64,9 +68,6 @@ int main(int argc, char** argv) {
         if (main_time == 9) {
             top->reset = 0;
         }
-
-        // Run half a period
-        Verilated::timeInc(PERIOD / 2);
 
         // Evaluate the model
         top->eval();
@@ -144,6 +145,7 @@ int main(int argc, char** argv) {
             }
         }
 
+	    // Run half a period
         main_time++;
         cycle = main_time / 2; // Increment cycle every two main_time increments
     }

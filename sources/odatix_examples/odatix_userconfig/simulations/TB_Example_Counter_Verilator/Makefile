@@ -60,7 +60,7 @@ SIM_FILE = $(OBJ_DIR)/V$(MODULE)
 PROGRESS_FILE = $(LOG_DIR)/progress.log
 
 # Options Verilator
-VERILATOR_FLAGS = -Wall -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL --trace --x-assign unique --x-initial unique
+VERILATOR_FLAGS = -Wall --trace --x-assign unique --x-initial unique
 
 ########################################################
 # Text formatting
