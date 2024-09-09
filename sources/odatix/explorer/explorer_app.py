@@ -40,10 +40,11 @@ script_name = os.path.basename(__file__)
 error_logfile = "odatix-explorer_error.log"
 
 class ResultExplorer:
-  def __init__(self, result_path="results", yaml_prefix="results_", old_settings=None):
+  def __init__(self, result_path="results", yaml_prefix="results_", old_settings=None, safe_mode=False):
     self.result_path = result_path
     self.yaml_prefix = yaml_prefix
     self.old_settings = old_settings
+    self.safe_mode = safe_mode
 
     # Check paths
     if not os.path.exists(result_path):
@@ -90,7 +91,8 @@ class ResultExplorer:
     if self.old_settings is not None:
       term_mode.restore_mode(self.old_settings)
     internal_error(e, error_logfile, script_name)
-    os._exit(-1)
+    if not self.safe_mode:
+      os._exit(-1)
 
   def load_yaml_files(self):
     """
