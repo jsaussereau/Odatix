@@ -210,11 +210,11 @@ class ParallelJobHandler:
       else:
         window.addstr(id, comment_position, comment, curses.color_pair(1))
     except curses.error as e:
-      print(f"curses.error: {e}")
+      pass
 
   def update_header(self, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width):
-    header_win.hline(0, 0, " ", width, curses.color_pair(1) | curses.A_REVERSE)
     try:
+      header_win.hline(0, 0, " ", width, curses.color_pair(1) | curses.A_REVERSE)
       header_win.addstr(0, 1, "v" + str(self.version), curses.color_pair(1) | curses.A_REVERSE)
     except curses.error:
       pass
@@ -239,7 +239,11 @@ class ParallelJobHandler:
       )
     except curses.error:
       pass
-    header_win.hline(1, 0, "-", width)
+    try:
+      header_win.hline(1, 0, "-", width)
+    except curses.error:
+      pass
+
     header_win.refresh()
 
   @staticmethod
@@ -255,7 +259,10 @@ class ParallelJobHandler:
     ]
 
     help_win.attron(curses.color_pair(1) | curses.A_REVERSE)
-    help_win.addstr(" ")
+    try:
+      help_win.addstr(" ")
+    except curses.error:
+      pass
 
     for i, (key, description) in enumerate(help_text):
       try:
@@ -278,13 +285,16 @@ class ParallelJobHandler:
 
   @staticmethod
   def show_exit_confirmation(help_win):
-    help_win.erase()
-    help_win.addstr(" Kill all jobs and exit: Yes (", curses.color_pair(1) | curses.A_REVERSE)
-    help_win.addstr("y", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
-    help_win.addstr(") / No (", curses.color_pair(1) | curses.A_REVERSE)
-    help_win.addstr("n", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
-    help_win.addstr(")? ", curses.color_pair(1) | curses.A_REVERSE)
-    help_win.refresh()
+    try:
+      help_win.erase()
+      help_win.addstr(" Kill all jobs and exit: Yes (", curses.color_pair(1) | curses.A_REVERSE)
+      help_win.addstr("y", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+      help_win.addstr(") / No (", curses.color_pair(1) | curses.A_REVERSE)
+      help_win.addstr("n", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+      help_win.addstr(")? ", curses.color_pair(1) | curses.A_REVERSE)
+      help_win.refresh()
+    except curses.error:
+      pass
 
     key = help_win.getch()
     curses.flushinp()
@@ -297,9 +307,12 @@ class ParallelJobHandler:
 
   @staticmethod
   def update_exit(help_win):
-    help_win.erase()
-    help_win.addstr(" Exiting... ", curses.color_pair(1) | curses.A_REVERSE)
-    help_win.refresh()
+    try:
+      help_win.erase()
+      help_win.addstr(" Exiting... ", curses.color_pair(1) | curses.A_REVERSE)
+      help_win.refresh()
+    except curses.error:
+      pass
 
   def update_logs(self, logs_win, selected_job, logs_height, width):
     history = selected_job.log_history
@@ -437,8 +450,11 @@ class ParallelJobHandler:
       help_win = curses.newwin(help_height, width, height - help_height, 0)
     except curses.error:
       stdscr.clear()
-      stdscr.addstr(0, 0, "Could not start: window is too small. Press any key to exit", curses.color_pair(2))
-      stdscr.refresh()
+      try:
+        stdscr.addstr(0, 0, "Could not start: window is too small. Press any key to exit", curses.color_pair(2))
+        stdscr.refresh()
+      except curses.error:
+        pass
       stdscr.getch()
       sys.exit(-1)
 
@@ -458,6 +474,28 @@ class ParallelJobHandler:
     stdscr.nodelay(True)
 
     while True:
+      height, width = stdscr.getmaxyx()
+      # If window size changes, adjust the layout
+      if height != old_height or width != old_width:
+        try:
+          logs_height = height - progress_height - separator_height - help_height - header_height
+          logs_win = curses.newwin(logs_height, width, header_height + progress_height + separator_height, 0)
+          help_win = curses.newwin(help_height, width, height - help_height, 0)
+          progress_win = curses.newwin(progress_height, width, header_height, 0)
+          separator_win = curses.newwin(separator_height, width, header_height + progress_height, 0)
+
+          self.update_logs(logs_win, selected_job, logs_height, width)
+        except curses.error:
+          try:
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Window is too small!", curses.color_pair(2))
+            stdscr.refresh()
+          except curses.error:
+            pass
+
+        old_width = width
+        old_height = height
+
       # Check if all jobs have finished
       active_jobs_count = len(self.running_job_list)
       if active_jobs_count == 0:
