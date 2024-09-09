@@ -85,7 +85,7 @@ def setup_callbacks(explorer, page_name):
   def update_checklist_states(show_all_clicks, hide_all_clicks, *current_values):
     ctx = dash.callback_context
     if not ctx.triggered:
-      return dash.no_update
+      return current_values
 
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
     if button_id == "show-all":
