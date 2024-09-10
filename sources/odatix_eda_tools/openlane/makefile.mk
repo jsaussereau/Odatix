@@ -24,7 +24,7 @@
 # Paths
 ########################################################
 
-OPENLANE_DIR            = ~/Documents/ASIC/OpenLane
+TOOL_INSTALL_PATH       = ~/ASIC/OpenLane
 SCRIPT_DIR              = ./scripts
 LOG_DIR                 = ./log
 REPORT_DIR              = ./report
@@ -45,7 +45,7 @@ GEN_CONFIG_SCRIPT       = $(ODATIX_DIR)/../odatix_eda_tools/openlane/scripts/gen
 
 LIB_NAME                = openlane_test
 
-MOUNT_CMD               = cd $(OPENLANE_DIR); make mount ENV_MOUNT='-d -v $(OPENLANE_DIR):/openlane --name $(LIB_NAME)'
+MOUNT_CMD               = cd $(TOOL_INSTALL_PATH); make mount ENV_MOUNT='-d -v $(TOOL_INSTALL_PATH):/openlane --name $(LIB_NAME)'
 FLOW_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'cd $(WORK_DIR); tclsh scripts/$(SYNTH_FREQ_SCRIPT)'
 GEN_CONFIG_CMD          = python3 $(GEN_CONFIG_SCRIPT) --basepath $(WORK_DIR)
 TEST_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'exit'

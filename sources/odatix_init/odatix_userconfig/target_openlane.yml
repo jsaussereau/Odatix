@@ -6,6 +6,9 @@
 
 constraint_file: config.json
 
+# /!\ UPDATE WITH YOUR OWN INSTALL PATH HERE /!\ 
+tool_install_path: ~/OpenLane
+
 script_copy_enable: No
 script_copy_source: "/dev/null"
 
