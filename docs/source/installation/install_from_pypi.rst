@@ -10,7 +10,7 @@ Step 1: Install Python 3.6+ and make
    .. code-block:: bash
 
       sudo apt update
-      sudo apt install -y python3 make
+      sudo apt install -y python3 python3-pip python3-venv make
 
 .. tab:: Fedora/CentOS/AlmaLinux
 
@@ -28,24 +28,6 @@ Step 1: Install Python 3.6+ and make
 
 Step 2: Configure a virtual environment [*Optional*]
 ----------------------------------------------------
-
-.. tab:: Ubuntu/Debian
-
-   .. code-block:: bash
-
-      sudo apt install -y python3-venv
-
-.. tab:: Fedora/CentOS/AlmaLinux
-
-   .. code-block:: bash
-      
-      # venv should be shipped with your python installation
-
-.. tab:: Arch Linux
-
-   .. code-block:: bash
-      
-      # venv should be shipped with your python installation
 
 .. code-block:: bash
 
