@@ -28,12 +28,12 @@ import subprocess
 
 # add local libs to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-lib_path = os.path.join(current_dir, '../../../scripts/lib')
-sys.path.append(lib_path)
+sources_path = os.path.join(current_dir, '../../sources')
+sys.path.append(sources_path)
 
-import printc
+import odatix.lib.printc as printc
 
-from architecture_handler import Architecture
+from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
 
 ######################################
 # Settings

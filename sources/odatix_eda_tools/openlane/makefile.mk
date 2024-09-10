@@ -36,7 +36,8 @@ WORK_DIR                = ./tmp
 
 SYNTH_FREQ_SCRIPT       = find_fmax.tcl
 LOG_FILE                = $(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log
-GEN_CONFIG_SCRIPT       = eda_tools/openlane/scripts/gen_config.py
+ODATIX_DIR              = ../..
+GEN_CONFIG_SCRIPT       = $(ODATIX_DIR)/../odatix_eda_tools/openlane/scripts/gen_config.py
 
 ########################################################
 # Tool specific

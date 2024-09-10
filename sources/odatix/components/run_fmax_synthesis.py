@@ -378,6 +378,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       command = (
         "make -f {} {}".format(tool_makefile_file, synth_fmax_rule)
         + ' WORK_DIR="{}"'.format(os.path.realpath(arch_instance.tmp_dir))
+        + ' ODATIX_DIR="{}"'.format(OdatixSettings.odatix_path)
         + ' SCRIPT_DIR="{}"'.format(os.path.realpath(os.path.join(arch_instance.tmp_dir, work_script_path)))
         + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(arch_instance.tmp_dir, log_path)))
         + ' CLOCK_SIGNAL="{}"'.format(arch_instance.clock_signal)
