@@ -213,11 +213,6 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     except (KeyNotInListError, BadValueInListError):
       pass
 
-  # Try launching eda tool
-  check_tool(
-    tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools
-  )
-
   with open(eda_target_filename, "r") as f:
     try:
       settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
@@ -233,6 +228,25 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
       sys.exit(-1)  # if a key is missing
+
+    # Optional keys
+    try:
+      install_path = read_from_list("tool_install_path", settings_data, eda_target_filename, print_error=False, script_name=script_name)
+      install_path = os.path.realpath(os.path.expanduser(install_path))
+      if not os.path.isdir(install_path):
+        printc.error('The installation path "' + install_path + '" defined for tool "' + tool + '" in "' + eda_target_filename + '" does not exist', script_name)
+        printc.note('Please update the path in "' + eda_target_filename + '"', script_name=script_name)
+        printc.note('if no installation path is needed by ' + tool + '\'s Makefile, simply remove "install_path" from "' + eda_target_filename + '"', script_name=script_name)
+        sys.exit(-1)
+
+    except (KeyNotInListError, BadValueInListError):
+      printc.note('No tool_install_path specified for "' + tool + '"', script_name=script_name)
+      install_path = "/"
+
+  # Try launching eda tool
+  check_tool(
+    tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools, tool_install_path=install_path
+  )
 
   ParallelJob.set_patterns(synth_status_pattern, fmax_status_pattern)
 
@@ -255,7 +269,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     overwrite=overwrite,
   )
 
-  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file)
+  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path)
 
   # Print checklist summary
   arch_handler.print_summary()
@@ -378,6 +392,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       command = (
         "make -f {} {}".format(tool_makefile_file, synth_fmax_rule)
         + ' WORK_DIR="{}"'.format(os.path.realpath(arch_instance.tmp_dir))
+        + ' TOOL_INSTALL_PATH="{}"'.format(os.path.realpath(arch_instance.install_path))
         + ' ODATIX_DIR="{}"'.format(OdatixSettings.odatix_path)
         + ' SCRIPT_DIR="{}"'.format(os.path.realpath(os.path.join(arch_instance.tmp_dir, work_script_path)))
         + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(arch_instance.tmp_dir, log_path)))

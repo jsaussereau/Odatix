@@ -31,12 +31,12 @@ from odatix.lib.utils import *
 script_name = os.path.basename(__file__)
 
 
-def check_tool(tool, script_path, makefile, rule, supported_tools):
+def check_tool(tool, script_path, makefile, rule, supported_tools, tool_install_path):
   print('checking the selected eda tool "' + tool + '" ..', end="")
   sys.stdout.flush()
   tool_makefile_file = script_path + "/" + tool + "/" + makefile
   test_process = subprocess.Popen(
-    ["make", "-f", tool_makefile_file, rule, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+    ["make", "-f" , tool_makefile_file, rule, "TOOL_INSTALL_PATH="+tool_install_path, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
   )
   while test_process.poll() is None:
     print(".", end="", flush=True)
