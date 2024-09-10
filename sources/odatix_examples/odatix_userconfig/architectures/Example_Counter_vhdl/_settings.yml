@@ -20,7 +20,7 @@ file_copy_dest: "/dev/null"
 # delimiters for parameter files
 use_parameters: Yes
 start_delimiter: "generic ("
-stop_delimiter: ");"
+stop_delimiter: "  );"
 
 # optional target-specific bounds (in MHz) to speed up fmax search
 xc7s25-csga225-1:
