@@ -125,7 +125,7 @@ if {[catch {
     close $frequency_handler
 
     # update bounds depending on slack
-    if {[is_slack_met $timing_rep]} {
+    if {[is_slack_met $report_path $timing_rep]} {
       set lower_bound $cur_freq
       set got_met 1
       puts ""
@@ -138,7 +138,7 @@ if {[catch {
       set upper_bound $cur_freq
       puts ""
       #puts "<bold><red>$cur_freq MHz: VIOLATED<end>"
-      if {[is_slack_inf $timing_rep]} {
+      if {[is_slack_inf $report_path $timing_rep]} {
         set logfile_handler [open $logfile a]
         puts $logfile_handler  "INFINITE"
         puts ""

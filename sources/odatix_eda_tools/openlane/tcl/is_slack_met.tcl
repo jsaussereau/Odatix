@@ -19,7 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-proc is_slack_met {timing_rep} {
+proc is_slack_met {report_path timing_rep} {
   set timing_rep $report_path/metrics.csv
   set file_handler [open $timing_rep r]
   gets $file_handler header
@@ -44,6 +44,6 @@ proc is_slack_met {timing_rep} {
   }
 }
 
-proc is_slack_inf {timing_rep} {
+proc is_slack_inf {report_path timing_rep} {
   return 0
 }

@@ -19,7 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-proc is_slack_met {timing_rep} {
+proc is_slack_met {report_path timing_rep} {
   set tfile [open $timing_rep]
   #check if we can find "slack (MET)" in the timing report
   while {[gets $tfile data] != -1} {
@@ -32,7 +32,7 @@ proc is_slack_met {timing_rep} {
   return 0
 }
 
-proc is_slack_inf {timing_rep} {
+proc is_slack_inf {report_path timing_rep} {
   set tfile [open $timing_rep]
   #check if we can find "Slack:                    inf" in the timing report
   while {[gets $tfile data] != -1} {
