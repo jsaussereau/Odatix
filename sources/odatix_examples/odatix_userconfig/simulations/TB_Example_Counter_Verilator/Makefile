@@ -24,7 +24,7 @@
 ########################################################
 
 WORK_DIR = .
-RTL_DIR = ../../examples/counter_sv
+RTL_DIR = ../../../examples/counter_sv
 OBJ_DIR = $(WORK_DIR)/obj
 LOG_DIR = $(WORK_DIR)/log
 VCD_DIR = $(WORK_DIR)/vcd
