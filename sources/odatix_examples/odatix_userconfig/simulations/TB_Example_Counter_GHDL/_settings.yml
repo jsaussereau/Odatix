@@ -8,7 +8,7 @@
 use_parameters: Yes
 param_target_file: "tb/tb_counter.vhdl"
 start_delimiter: "generic ("
-stop_delimiter: ");"
+stop_delimiter: "  );"
 
 # override part of the parameters
 override_parameters: No

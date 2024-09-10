@@ -24,7 +24,7 @@
 ########################################################
 
 WORK_DIR = .
-RTL_DIR = ../../examples/counter_vhdl
+RTL_DIR = ../../../examples/counter_vhdl
 OBJ_DIR = $(WORK_DIR)/obj
 LOG_DIR = $(WORK_DIR)/log
 VCD_DIR = $(WORK_DIR)/vcd
@@ -98,9 +98,9 @@ $(VCD_FILE): $(RTL_DIR)/* $(TB_DIR)/*
 	@echo "progress: 25%" > $(PROGRESS_FILE)
 	@$(GHDL) -a $(GHDL_FLAGS) $(TB_DIR)/*
 	@echo "progress: 50%" > $(PROGRESS_FILE)
-	@$(GHDL) -e $(GHDL_FLAGS) -o $(EXECUTABLE) $(TB_MODULE)
+	@$(GHDL) -e $(GHDL_FLAGS) $(TB_MODULE)
 	@echo "progress: 75%" > $(PROGRESS_FILE)
-	@$(GHDL) -r $(EXECUTABLE) --vcd=$(VCD_FILE) $(GHDL_SIM_OPT) | tee $(LOG_DIR)/sim.log
+	@$(GHDL) -r $(GHDL_FLAGS) $(TB_MODULE) --vcd=$(VCD_FILE) $(GHDL_SIM_OPT) | tee $(LOG_DIR)/sim.log
 	@echo "progress: 100%" > $(PROGRESS_FILE)
 
 .PHONY: clean
