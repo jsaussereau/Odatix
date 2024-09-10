@@ -44,6 +44,7 @@ class OdatixSettings:
 
   DEFAULT_WORK_PATH = "work"
   DEFAULT_SIM_WORK_PATH = "work/simulations"
+  DEFAULT_FMAX_WORK_PATH = "work/fmax"
   DEFAULT_RESULT_PATH = "results"
   DEFAULT_USERCONFIG_PATH = "odatix_userconfig"
   DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
@@ -89,6 +90,7 @@ class OdatixSettings:
       try:
         self.work_path = read_from_list("work_path", settings_data, settings_filename, script_name=script_name)
         self.sim_work_path = read_from_list("sim_work_path", settings_data, settings_filename, script_name=script_name)
+        self.fmax_work_path = read_from_list("fmax_work_path", settings_data, settings_filename, script_name=script_name)
         self.result_path = read_from_list("result_path", settings_data, settings_filename, script_name=script_name)
         self.arch_path = read_from_list("arch_path", settings_data, settings_filename, script_name=script_name)
         self.sim_path = read_from_list("sim_path", settings_data, settings_filename, script_name=script_name)
@@ -118,6 +120,7 @@ class OdatixSettings:
         settings_data = {
           "work_path": input("  Enter work path [default: " + OdatixSettings.DEFAULT_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_WORK_PATH,
           "sim_work_path": input("  Enter simulation work path [default: " + OdatixSettings.DEFAULT_SIM_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_SIM_WORK_PATH,
+          "fmax_work_path": input("  Enter simulation work path [default: " + OdatixSettings.DEFAULT_FMAX_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_FMAX_WORK_PATH,
           "result_path": input("  Enter result path [default: " + OdatixSettings.DEFAULT_RESULT_PATH + "]: ") or OdatixSettings.DEFAULT_RESULT_PATH,
           "arch_path": input("  Enter architecture path [default: " + OdatixSettings.DEFAULT_ARCH_PATH + "]: ") or OdatixSettings.DEFAULT_ARCH_PATH,
           "sim_path": input("  Enter simulation path [default: " + OdatixSettings.DEFAULT_SIM_PATH + "]: ") or OdatixSettings.DEFAULT_SIM_PATH,

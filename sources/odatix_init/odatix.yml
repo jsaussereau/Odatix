@@ -6,6 +6,7 @@
 
 work_path: work
 sim_work_path: work/simulations
+fmax_work_path: work/fmax
 result_path: results
 arch_path: odatix_userconfig/architectures
 sim_path: odatix_userconfig/simulations

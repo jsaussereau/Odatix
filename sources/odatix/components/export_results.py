@@ -393,7 +393,12 @@ def main(args, settings=None):
   if args.work is not None:
     input = args.work
   else:
-    input = settings.work_path
+    input = settings.fmax_work_path
+
+  if not os.path.isdir(input):
+    printc.error('Could not find fmax work directory "' + input + '"', script_name=script_name)
+    printc.note("Run fmax synthesis using the 'odatix fmax' command before exporting the results", script_name=script_name)
+    sys.exit(-1)
 
   if args.respath is not None:
     output = args.respath
