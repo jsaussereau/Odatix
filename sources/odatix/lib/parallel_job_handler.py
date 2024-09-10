@@ -102,6 +102,8 @@ class ParallelJob:
           parts = ParallelJob.progress_file_pattern.search(match.group())
           if len(parts.groups()) >= 2:
             progress = int(parts.group(2))
+      if progress > 100:
+        progress = 100
       return progress
 
   def get_progress_fmax(self):
@@ -135,6 +137,8 @@ class ParallelJob:
     else:
       progress = synth_progress
 
+    if progress > 100:
+      progress = 100
     return progress
 
 
