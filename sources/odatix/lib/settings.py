@@ -55,7 +55,7 @@ class OdatixSettings:
   DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml")
   DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
   DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
-  # DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "range_synthesis_settings.yml")
+  DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "range_synthesis_settings.yml")
   
   odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
   odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
@@ -101,6 +101,7 @@ class OdatixSettings:
       self.clean_settings_file = OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE
       self.simulation_settings_file = OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE
       self.fmax_synthesis_settings_file = OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE
+      self.range_synthesis_settings_file = OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
 
       # Read values from file
       self.work_path = read_from_list("work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
@@ -115,6 +116,7 @@ class OdatixSettings:
       self.clean_settings_file = read_from_list("clean_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
       self.simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
       self.fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+      self.range_synthesis_settings_file = read_from_list("range_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     
     self.valid = True
     return True
@@ -142,7 +144,7 @@ class OdatixSettings:
           "clean_settings_file": input("  Enter clean settings file [default: " + OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE,
           "simulation_settings_file": input("  Enter simulation settings file [default: " + OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
           "fmax_synthesis_settings_file": input("  Enter fmax synthesis settings file [default: " + OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
-          # "range_synthesis_settings_file": input("  Enter range synthesis settings file [default: " + OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
+          "range_synthesis_settings_file": input("  Enter range synthesis settings file [default: " + OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
         }
 
         with open(settings_filename, "w") as f:
