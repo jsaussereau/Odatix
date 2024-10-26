@@ -34,6 +34,15 @@ if {[catch {
     exec /bin/sh -c "mkdir -p $result_path"
     exec /bin/sh -c "mkdir -p $log_path"
 
+    ######################################
+    # Create status files
+    ######################################
+
+    exec /bin/sh -c "touch $synth_statusfile"    
+    if {$target_frequency != 0} {
+        exec /bin/sh -c "touch $statusfile"
+    }
+
 } ]} {
     puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
     puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
