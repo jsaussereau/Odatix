@@ -67,14 +67,14 @@ TCL_COLOR               = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNI
 ########################################################
 
 .PHONY: all
-all: synth_fmax_only
+all: synth_fmax
 
 ########################################################
 # Synthesis
 ########################################################
 
-.PHONY: synth_fmax_only
-synth_fmax_only: logdir
+.PHONY: synth_fmax
+synth_fmax: logdir
 	@$(TCLSH) $(SCRIPT_DIR)/$(SYNTH_FREQ_SCRIPT) | sed $(TCL_COLOR);
 
 .PHONY: test_tool

@@ -79,8 +79,8 @@ SIGNATURE               = $(_GREY)[eda_tools/openlane/makefile.mk]$(_END)
 ########################################################
 # Rules
 ########################################################
-.PHONY: synth_fmax_only
-synth_fmax_only: dirs 
+.PHONY: synth_fmax
+synth_fmax: dirs 
 	@printf "\n$(SIGNATURE) $(_CYAN)Kill existing Docker container$(_END)\n"
 	@docker kill $(LIB_NAME) 2>/dev/null || true
 	@printf "$(SIGNATURE) $(_CYAN)Start a new OpenLane Docker container$(_END)\n"

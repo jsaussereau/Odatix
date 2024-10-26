@@ -73,7 +73,7 @@ frequency_search_filename = "frequency_search.log"
 tool_makefile_filename = "makefile.mk"
 constraint_filename = "constraints.txt"
 source_tcl = "source scripts/"
-synth_fmax_rule = "synth_fmax_only"
+synth_fmax_rule = "synth_fmax"
 test_tool_rule = "test_tool"
 
 settings_ini_section = "SETTINGS"

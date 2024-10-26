@@ -112,10 +112,7 @@ analyze_only: logdir
 	@echo "result logged to \"$(LOG_DIR)/$(ANALYZE_SCRIPT).log\""
 
 .PHONY: synth_fmax
-synth_fmax: motd synth_fmax_only clean
-
-.PHONY: synth_fmax_only
-synth_fmax_only: logdir
+synth_fmax: motd logdir clean
 	@/bin/bash -c '\
 	$(VIVADO_INIT)\
 	$(VIVADO) -mode tcl -notrace \
