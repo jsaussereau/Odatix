@@ -43,6 +43,21 @@ if {[catch {
         exec /bin/sh -c "touch $statusfile"
     }
 
+    ######################################
+    # Init constraints file
+    ######################################
+
+    source scripts/update_freq.tcl
+    exec /bin/sh -c "touch $constraints_file"    
+    update_freq $target_frequency $constraints_file
+
+    if {$target_frequency != 0} {
+        exec /bin/sh -c "touch $statusfile"
+        set frequency_file_handler [open $frequency_file w]
+        puts $frequency_file_handler "$target_frequency MHz"
+        close $frequency_file_handler
+    }
+
 } ]} {
     puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
     puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
