@@ -43,6 +43,7 @@ set analyze_script     $script_path/analyze_script.tcl
 set synth_script       $script_path/synth_script.tcl
 set summary_script     $script_path/summary.tcl
 
+set frequency_file     $tmp_path/frequency.txt
 set target_file        $tmp_path/target.txt
 set architecture_file  $tmp_path/architecture.txt
 set constraints_file   $tmp_path/constraints.txt
@@ -58,6 +59,7 @@ set logfile            $log_path/frequency_search.log
 set statusfile         $log_path/status.log
 set synth_statusfile   $log_path/synth_status.log
 
+set target_frequency   100
 set fmax_lower_bound   70
 set fmax_upper_bound   90
 set fmax_explore       0
