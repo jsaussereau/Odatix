@@ -24,6 +24,7 @@ import re
 import sys
 import math
 import yaml
+import copy
 
 from os.path import isfile
 from os.path import isdir
@@ -39,7 +40,8 @@ class Architecture:
   def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_report_path, tmp_dir, design_path, rtl_path, log_path, arch_path,
                clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
-               fmax_lower_bound, fmax_upper_bound, param_target_filename, generate_rtl, generate_command, constraint_filename, install_path):
+               fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
+               param_target_filename, generate_rtl, generate_command, constraint_filename, install_path):
     self.arch_name = arch_name
     self.arch_display_name = arch_display_name
     self.lib_name = lib_name
@@ -62,6 +64,8 @@ class Architecture:
     self.script_copy_source = script_copy_source
     self.fmax_lower_bound = fmax_lower_bound
     self.fmax_upper_bound = fmax_upper_bound
+    self.range_list = range_list
+    self.target_frequency = target_frequency
     self.param_target_filename = param_target_filename
     self.use_parameters = use_parameters
     self.start_delimiter = start_delimiter
@@ -98,6 +102,8 @@ class Architecture:
       'script_copy_source': arch.script_copy_source,
       'fmax_lower_bound': arch.fmax_lower_bound,
       'fmax_upper_bound': arch.fmax_upper_bound,
+      'range_list': arch.range_list,
+      'target_frequency': arch.target_frequency,
       'param_target_filename': arch.param_target_filename,
       'generate_rtl': arch.generate_rtl,
       'generate_command': arch.generate_command,
@@ -143,6 +149,8 @@ class Architecture:
         script_copy_source    = read_from_list("script_copy_source", yaml_data, config_file, script_name=script_name),
         fmax_lower_bound      = read_from_list("fmax_lower_bound", yaml_data, config_file, script_name=script_name),
         fmax_upper_bound      = read_from_list("fmax_upper_bound", yaml_data, config_file, script_name=script_name),
+        range_list            = read_from_list("range_list", yaml_data, config_file, script_name=script_name),
+        target_frequency      = read_from_list("target_frequency", yaml_data, config_file, script_name=script_name),
         param_target_filename = read_from_list("param_target_filename", yaml_data, config_file, script_name=script_name),
         generate_rtl          = read_from_list("generate_rtl", yaml_data, config_file, script_name=script_name),
         generate_command      = read_from_list("generate_command", yaml_data, config_file, script_name=script_name),
@@ -182,6 +190,7 @@ class ArchitectureHandler:
     self.odatix_path = os.path.realpath(os.path.join(self.script_path, ".."))
 
   def reset_lists(self):
+    self.checked_arch_param = []
     self.banned_arch_param = []
     self.valid_archs = []
     self.cached_archs = []
@@ -190,7 +199,7 @@ class ArchitectureHandler:
     self.incomplete_archs = []
     self.new_archs = []
 
-  def get_architectures(self, architectures, targets, constraint_filename="", install_path=""):
+  def get_architectures(self, architectures, targets, constraint_filename="", install_path="", range_mode=False):
 
     self.reset_lists()
     self.architecture_instances = []
@@ -256,14 +265,30 @@ class ArchitectureHandler:
             script_copy_source = script_copy_source,
             synthesis = True,
             constraint_filename = constraint_filename,
-            install_path = install_path
+            install_path = install_path,
+            range_mode = range_mode
           )
-          if architecture_instance is not None:
-            self.architecture_instances.append(architecture_instance)
+          if range_mode:
+            if architecture_instance is not None:
+              for freq in architecture_instance.range_list:
+                freq_arch = copy.copy(architecture_instance)
+                formatted_freq = " {}@ {} MHz{}".format(printc.colors.GREY, freq, printc.colors.ENDC)
+                freq_arch.arch_display_name = freq_arch.arch_display_name + " @ " + str(freq) + " MHz"
+                freq_arch.tmp_dir = os.path.join(freq_arch.tmp_dir, str(freq) + "MHz")
+                freq_arch.tmp_script_path = os.path.join(freq_arch.tmp_dir, self.work_script_path)
+                freq_arch.tmp_report_path = os.path.join(freq_arch.tmp_dir, self.work_report_path)
+                freq_arch.target_frequency = freq
+                # print(f"freq_arch: {freq_arch.arch_display_name}")
+                self.valid_archs.append(freq_arch.arch_name + formatted_freq)
+                self.new_archs.append(freq_arch.arch_name + formatted_freq)
+                self.architecture_instances.append(freq_arch)
+          else:
+            if architecture_instance is not None:
+              self.architecture_instances.append(architecture_instance)
 
     return self.architecture_instances
   
-  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path=""):
+  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", range_mode=False):
 
     if arch.endswith(".txt"):
       arch = arch[:-4] 
@@ -446,6 +471,7 @@ class ArchitectureHandler:
     fmax_upper_bound_ok = False
     fmax_lower_bound = 0
     fmax_upper_bound = 0
+    range_list = []
 
     warn_fmax_obsolete = False
 
@@ -517,9 +543,13 @@ class ArchitectureHandler:
             printc.cyan("  lower_bound: XXX")
             printc.cyan("  upper_bound: XXX")
 
+        range_synthesis = read_from_list('range_synthesis', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+        if range_synthesis:
+          range_list = read_from_list('list', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
+      
       # check if bounds are valid
       if (fmax_upper_bound <= fmax_lower_bound) : 
-        printc.error("The upper bound (" + fmax_upper_bound + ") must be strictly superior to the lower bound (" + fmax_lower_bound + ")", script_name)
+        printc.error("The upper bound (" + str(fmax_upper_bound) + ") must be strictly superior to the lower bound (" + str(fmax_lower_bound) + ")", script_name)
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
         return None
@@ -552,7 +582,8 @@ class ArchitectureHandler:
           self.incomplete_archs.append(arch_display_name + formatted_bound)
         sf.close()
       else:
-        self.new_archs.append(arch_display_name + formatted_bound)
+        if not range_mode:
+          self.new_archs.append(arch_display_name + formatted_bound)
 
     # target specific file copy
     if target_options:
@@ -582,6 +613,7 @@ class ArchitectureHandler:
 
     # passed all check: added to the list
     self.valid_archs.append(arch_display_name)
+    self.checked_arch_param.append(arch_param_dir)
 
     lib_name = "LIB_" + target + "_" + arch.replace("/", "_")
 
@@ -611,6 +643,8 @@ class ArchitectureHandler:
       script_copy_source = script_copy_source,
       fmax_lower_bound=fmax_lower_bound,
       fmax_upper_bound=fmax_upper_bound,
+      range_list=range_list,
+      target_frequency=0,
       param_target_filename=param_target_filename,
       generate_rtl=generate_rtl,
       use_parameters=use_parameters,
