@@ -34,6 +34,7 @@ def edit_config_file(arch, config_file):
     cf_content = re.sub("(set reset_signal.*)",       "set reset_signal       " + arch.reset_signal, cf_content)
     cf_content = re.sub("(set top_level_module.*)",   "set top_level_module   " + arch.top_level_module, cf_content)
     cf_content = re.sub("(set top_level_file.*)",     "set top_level_file     " + arch.top_level_filename, cf_content)
+    cf_content = re.sub("(set target_frequency.*)",   "set target_frequency   " + str(arch.target_frequency), cf_content)
     cf_content = re.sub("(set fmax_lower_bound.*)",   "set fmax_lower_bound   " + arch.fmax_lower_bound, cf_content)
     cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + arch.fmax_upper_bound, cf_content)
     cf_content = re.sub("(set lib_name.*)",           "set lib_name           " + arch.lib_name, cf_content)
