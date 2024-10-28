@@ -32,6 +32,7 @@ sys.path.append(sources_dir)
 from odatix.components.motd import *
 import odatix.components.run_simulations as run_sim
 import odatix.components.run_fmax_synthesis as run_synth
+import odatix.components.run_range_synthesis as run_range
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
 import odatix.components.clean as cln
@@ -85,6 +86,12 @@ class ArgParser:
     run_synth.add_arguments(ArgParser.fmax_parser)
     ArgParser.fmax_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.fmax_parser)
+
+    # Define parser for the 'range' command
+    ArgParser.range_parser = subparsers.add_parser("range", help="run range synthesis", formatter_class=formatter)
+    run_range.add_arguments(ArgParser.range_parser)
+    ArgParser.range_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
+    ArgParser.add_nobanner(ArgParser.range_parser)
 
     # Define parser for the 'sim' command
     ArgParser.sim_parser = subparsers.add_parser("sim", help="run simulations", formatter_class=formatter)
@@ -215,6 +222,18 @@ def run_fmax_synthesis(args):
       success = False
   return success
 
+def run_range_synthesis(args):
+  success = True
+  try:
+    run_range.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
 def export_benchmark(args):
   success = True
   try:
@@ -338,6 +357,8 @@ def main(args=None):
     success = run_simulations(args)
   elif args.command == "fmax":
     success = run_fmax_synthesis(args)
+  elif args.command == "range":
+    success = run_range_synthesis(args)
   elif args.command == "results":
     success = export_all_results(args)
   elif args.command in "res_benchmark":
