@@ -46,6 +46,8 @@ simulations_dir = "simulations"
 
 status_done = "Done: 100%"
 
+synth_types = ["range", "fmax"]
+
 script_name = os.path.basename(__file__)
 
 
@@ -170,12 +172,23 @@ def validate_tool_settings(file_path):
 ######################################
 
 
-def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file):
+def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax"):
   global banned_metrics
   results = {}
   units = {}
-  error_prefix = arch_path + " => "
+  error_prefix =  arch_path + " => "
+  metrics = {}
   metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
+  
+  if type == "fmax":
+    fmax_metrics = read_from_list("synth_fmax_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
+    metrics.update(fmax_metrics)
+  elif type == "range":
+    range_metrics = read_from_list("synth_range_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
+    metrics.update(range_metrics)
+
+  # print(f"metrics={metrics}")
+
   for metric, content in metrics.items():
     if metric in banned_metrics:
       continue
@@ -298,74 +311,109 @@ def calculate_operation(op_str, results, error_prefix=""):
 # Export Results
 ######################################
 
+def process_configuration(input, target, architecture, configuration, frequency, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file):
+  if type == "range":
+    arch = architecture + "[" + configuration + "] @ " + frequency
+    arch_path = os.path.join(target, architecture, configuration, frequency)
+    status_filename = "synth_status.log"
+  else:
+    arch = architecture + "[" + configuration + "]"
+    arch_path = os.path.join(target, architecture, configuration)
+    status_filename = "status.log"
+
+  cur_path = os.path.join(input, arch_path)
+  status_log = os.path.join(cur_path, "log", status_filename)
+
+  metrics = {}
+  cur_units = {}
+
+  # Check if synthesis completed
+  if not os.path.isfile(status_log):
+    corrupted_directory(arch_path)
+    return None, None
+
+  with open(status_log, "r") as f:
+    if status_done not in f.read():
+      corrupted_directory(arch_path)
+      return None, None
+
+  # Get values
+  if type == "range":
+    metrics[type], cur_units[type] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
+    data[type][target][architecture][configuration][frequency] = metrics[type]
+  else:
+    metrics[type], cur_units[type] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
+    data[type][target][architecture][configuration] = metrics[type]
+  # print(f"metrics[type] = {metrics[type]}")
+
+  # Update units
+  units.update(cur_units[type])
+  return data, metrics
+
 
 def export_results(input, output, tools, format, use_benchmark, benchmark_file):
   input_path = input
-  for tool in tools:
-    if tool == simulations_dir:
-      continue
-    
-    printc.cyan("Export " + tool + " results", script_name)
 
-    tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, "tool.yml")
-    tool_settings = validate_tool_settings(tool_settings_file)
-    if tool_settings is None:
-      if len(tools) == 1:
-        sys.exit(-1)
-      else:
+  data = {}
+  units = {}
+  cur_units = {}
+  metrics = {}
+
+  for type in synth_types:
+    data[type] = {}
+
+    for tool in tools:
+      
+      printc.cyan("Export " + tool + " " + type + " results", script_name)
+
+      tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, "tool.yml")
+      tool_settings = validate_tool_settings(tool_settings_file)
+      if tool_settings is None:
+        if len(tools) == 1:
+          sys.exit(-1)
+        else:
+          continue
+
+      input = os.path.join(input_path, type, tool)
+
+      # print(f"input : {input}")
+
+      try:
+        dirs = sorted(next(os.walk(input))[1])
+      except StopIteration:
         continue
 
-    data = {}
-    units = {}
-
-    input = os.path.join(input_path, tool)
-
-    try:
-      dirs = sorted(next(os.walk(input))[1])
-    except StopIteration:
-      continue
-
-    for target in dirs:
-      data[target] = {}
-      for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
-        data[target][architecture] = {}
-        for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
-          arch = architecture + "[" + configuration + "]"
-          arch_path = os.path.join(target, architecture, configuration)
-          cur_path = os.path.join(input, arch_path)
-
-          status_log = os.path.join(cur_path, "log", "status.log")
-
-          # Check if synthesis completed
-          if not os.path.isfile(status_log):
-            corrupted_directory(arch_path)
-            continue
-
-          with open(status_log, "r") as f:
-            if status_done not in f.read():
-              corrupted_directory(arch_path)
+      for target in dirs:
+        data[type][target] = {}
+        for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
+          data[type][target][architecture] = {}
+          for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
+            if type == "range":
+              data[type][target][architecture][configuration] = {}
+              for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
+                process_configuration(input, target, architecture, configuration, frequency, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
+              if data == None:
+                continue
+            else:
+              process_configuration(input, target, architecture, configuration, None, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
+            
+            if data == None:
               continue
+          
 
-          # Get values
-          metrics, cur_units = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file)
-          data[target][architecture][configuration] = metrics
-
-          # Update units
-          units.update(cur_units)
-
-    # Export to the desired format
-    os.makedirs(output, exist_ok=True)
-    output_file = os.path.join(output, "results_" + tool + ".yml")
-    try:
-      with open(output_file, "w") as file:
-        yaml.dump(
-          {"units": units, "fmax_results": data}, file, default_style=None, default_flow_style=False, sort_keys=False
-        )
-        printc.say('Results written to "' + output_file + '"', script_name=script_name)
-    except Exception as e:
-      printc.error('Could not write "' + output_file + '"', script_name=script_name)
-      printc.cyan("error details: ", script_name=script_name, end="")
-      print(str(e))
+  # Export to the desired format
+  os.makedirs(output, exist_ok=True)
+  output_file = os.path.join(output, "results_" + tool + ".yml")
+  try:
+    with open(output_file, "w") as file:
+      yaml.dump(
+        {"units": units, "fmax_results": data["fmax"], "range_results": data["range"]}, file, default_style=None, default_flow_style=False, sort_keys=False
+      )
+      printc.say('Results written to "' + output_file + '"', script_name=script_name)
+  except Exception as e:
+    printc.error('Could not write "' + output_file + '"', script_name=script_name)
+    printc.cyan("error details: ", script_name=script_name, end="")
+    print(str(e))
 
 
 ######################################
@@ -393,7 +441,7 @@ def main(args, settings=None):
   if args.work is not None:
     input = args.work
   else:
-    input = settings.fmax_work_path
+    input = settings.work_path
 
   if not os.path.isdir(input):
     printc.error('Could not find fmax work directory "' + input + '"', script_name=script_name)
@@ -406,7 +454,10 @@ def main(args, settings=None):
     output = settings.result_path
 
   if args.tool == "all":
-    tools = [item for item in os.listdir(input) if os.path.isdir(os.path.join(input, item))]
+    tool_list = []
+    for type in synth_types:
+      tool_list += [item for item in os.listdir(os.path.join(input, type)) if os.path.isdir(os.path.join(input, type, item))]
+    tools = list(set(tool_list))
   else:
     tools = [args.tool]
 
