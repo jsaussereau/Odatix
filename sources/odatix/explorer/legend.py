@@ -26,7 +26,7 @@ import plotly.express as px
 import re
 
 plot_colors = px.colors.qualitative.Plotly
-
+marker_symbols = ["circle", "square", "diamond", "triangle-up", "cross", "triangle-down", "pentagon", "x", "star"]
 
 def create_legend_items(explorer, page_name=""):
   legend_items = [
@@ -114,6 +114,62 @@ def setup_callbacks(explorer, page_name):
 
 def get_color(i):
   return plot_colors[i % len(plot_colors)]
+
+def get_marker_symbol(i):
+  return marker_symbols[i % len(marker_symbols)]
+
+def get_legend_marker_symbol(marker_symbol, color="white"):
+  marker_symbol_styles = {
+    "circle": {"border-radius": "50%"},
+    "square": {"border-radius": "0"},
+    "diamond": {"transform": "rotate(45deg)", "left": "33%"},
+    "cross": {"background-color" : "00000000"},
+    "x": {"background-color" : "00000000", "left": "42%", "top": "-15px"},
+    "cross": {"background-color" : "00000000", "left": "42%", "top": "-15px"},
+    "triangle-up": {"background-color" : "00000000", "left": "45%", "top": "-19px"},
+    "triangle-down": {"background-color" : "00000000", "left": "45%", "top": "-18px"},
+    "pentagon": {"background-color" : "00000000", "left": "42%", "top": "-10px", "font-size": "15px",},
+    "star": {"background-color" : "00000000", "left": "35%", "top": "-15px", "font-size": "20px",},
+  }
+
+  text = {
+    "circle": "",
+    "square": "",
+    "diamond": "",
+    "cross": "+",
+    "x": "×",
+    "triangle-up": "▴",
+    "triangle-down": "▾",
+    "pentagon": "⬟",
+    "star": "★",
+  }
+
+  try:
+    marker_style = marker_symbol_styles.get(marker_symbols[marker_symbol], marker_symbol_styles["circle"])
+    text = text.get(marker_symbols[marker_symbol], "")
+  except Exception as e:
+    marker_style = marker_symbol_styles["circle"]
+    text = ""
+
+  return html.Div(
+    children=html.Div(
+      text,
+      style={
+        "font-weight": "bold",
+      }
+    ),
+    style={
+      "font-size": "25px",
+      "position": "absolute",
+      "top": "-6px",
+      "left": "50%",
+      "transform": "translateX(-50%)",
+      "background-color": color,
+      "width": "10px",
+      "height": "10px",
+      **marker_style,  # Apply the marker style
+    }
+  )
 
 def unit_to_html(unit):
   # Regex pattern to match ^(-?\d+) for positive/negative exponents
