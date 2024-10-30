@@ -28,6 +28,7 @@ import plotly.graph_objs as go
 
 import odatix.explorer.legend as legend
 import odatix.explorer.navigation as navigation
+import odatix.explorer.content_lib as content_lib
 
 page_name = "xy"
 
@@ -423,7 +424,7 @@ def setup_callbacks(explorer):
         style={"width": "100%", "height": "100%", "display": "inline-block", "vertical-align": "top"},
       )
     except Exception as e:
-      return html.Div(className="error", children=[html.Div("Unexpected error: " + str(e))])
+      return content_lib.generate_error_div(e)
 
   legend.setup_callbacks(explorer, page_name)
   navigation.setup_sidebar_callbacks(explorer, page_name)

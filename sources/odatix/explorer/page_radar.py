@@ -29,6 +29,7 @@ import plotly.graph_objs as go
 
 import odatix.explorer.legend as legend
 import odatix.explorer.navigation as navigation
+import odatix.explorer.content_lib as content_lib
 from odatix.lib.utils import safe_df_append
 
 page_name = "radar"
@@ -538,7 +539,7 @@ def setup_callbacks(explorer):
 
       return html.Div(radar_charts, style={"display": "flex", "flex-wrap": "wrap", "justify-content": "space-evenly"})
     except Exception as e:
-      return html.Div(className="error", children=[html.Div("Unexpected error: " + str(e))])
+      return content_lib.generate_error_div(e)
       
   # @explorer.app.callback(
   #   Output(f"target-dropdown-{page_name}", "options"), 
