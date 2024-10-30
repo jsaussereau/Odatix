@@ -36,6 +36,7 @@ page_name = "radar"
 
 def layout(explorer):
   legend_items = legend.create_legend_items(explorer, page_name)
+  target_legend_items = legend.create_target_legend_items(explorer, page_name)
 
   return html.Div(
     [
@@ -56,22 +57,36 @@ def layout(explorer):
                       id="yaml-dropdown",
                       options=[{"label": yaml_file, "value": yaml_file} for yaml_file in explorer.valid_yaml_files],
                       value=explorer.valid_yaml_files[0] if explorer.valid_yaml_files else None,
+                      clearable=False
                     ),
                   ],
                 ),
-                html.Div(
-                  className="title-dropdown",
-                  children=[
-                    html.Div(className="dropdown-label", children=[html.Label("Target")]),
-                    dcc.Dropdown(
-                      id=f"target-dropdown-{page_name}",
-                      value=explorer.dfs[explorer.valid_yaml_files[0]]["Target"].iloc[0]
-                      if explorer.valid_yaml_files
-                      else None,
-                    ),
-                  ],
-                ),
+                # html.Div(
+                #   className="title-dropdown",
+                #   children=[
+                #     html.Div(className="dropdown-label", children=[html.Label("Target")]),
+                #     dcc.Dropdown(
+                #       id=f"target-dropdown-{page_name}",
+                #       value=explorer.dfs[explorer.valid_yaml_files[0]]["Target"].iloc[0]
+                #       if explorer.valid_yaml_files
+                #       else None,
+                #     ),
+                #   ],
+                # ),
               ]
+            ),
+            html.H2("Targets"),
+            html.Div(
+              [
+                html.Div(
+                  [
+                    html.Button("Show All", id="show-all-targets", n_clicks=0),
+                    html.Button("Hide All", id="hide-all-targets", n_clicks=0),
+                  ]
+                ),
+                html.Div(target_legend_items, id=f"target-legend-{page_name}", style={"margin-top": "15px", "margin-bottom": "15px"}),
+              ],
+              style={"display": "inline-block", "margin-left": "20px"},
             ),
             html.H2("Architectures"),
             html.Div(
@@ -106,6 +121,13 @@ def layout(explorer):
             html.Div(
               className="toggle-container",
               children=[
+                dcc.Checklist(
+                  id="toggle-legendgroup",
+                  options=[{"label": " Show Legend Groups", "value": True}],
+                  value=[True],
+                  className="toggle",
+                  labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
+                ),
                 dcc.Checklist(
                   id="toggle-title",
                   options=[{"label": " Show Title", "value": "show_title"}],
@@ -179,29 +201,43 @@ def layout(explorer):
   )
 
 
-def make_legend_chart(df, all_architectures, visible_architectures, toggle_title, background, mode):
+def make_legend_chart(df, all_architectures, all_targets, targets_for_yaml, visible_architectures, visible_targets, toggle_legendgroup, toggle_title, background, mode):
   fig = go.Figure()
 
   if not visible_architectures:
     return None
 
-  for i, architecture in enumerate(all_architectures):
-    if architecture in visible_architectures:
-      df_architecture = df[df["Architecture"] == architecture]
-      fig.add_trace(
-        go.Scatterpolar(
-          r=[None],
-          theta=df_architecture["Configuration"],
-          mode=mode,
-          name=architecture,
-          marker_color=legend.get_color(i),
-        )
-      )
+  unique_configurations = sorted(df["Configuration"].unique())
+
+  i_target = -1
+
+  for target in all_targets:
+    if target in targets_for_yaml:
+      i_target = i_target + 1
+    if target in visible_targets:
+      targets = [target] * len(unique_configurations)
+      for i, architecture in enumerate(all_architectures):
+        if architecture in visible_architectures:
+          df_architecture = df[df["Architecture"] == architecture]
+          fig.add_trace(
+            go.Scatterpolar(
+              r=[None],
+              theta=df_architecture["Configuration"],
+              mode=mode,
+              name=architecture,
+              legendgroup=target,
+              legendgrouptitle_text=str(target) if toggle_legendgroup else None,
+              marker_size=10,
+              marker_color=legend.get_color(i),
+              marker_symbol=legend.get_marker_symbol(i_target),
+            )
+          )
 
   fig.update_layout(
     polar_bgcolor="rgba(255, 255, 255, 0)",
     paper_bgcolor=background,
     showlegend=True,
+    legend_groupclick="toggleitem",
     margin=dict(l=60, r=60, t=60, b=60),
     title="Legend" if "show_title" in toggle_title else "",
     title_x=0.5,
@@ -222,8 +258,12 @@ def make_radar_chart(
   metric,
   all_configurations,
   all_architectures,
+  all_targets,
+  targets_for_yaml,
   visible_architectures,
+  visible_targets,
   legend_dropdown,
+  toggle_legendgroup,
   toggle_title,
   toggle_close,
   background,
@@ -245,6 +285,8 @@ def make_radar_chart(
   metric_display = metric.replace("_", " ")
   unit = legend.unit_to_html(units.get(metric, ""))
 
+  unique_configurations = sorted(df["Configuration"].unique())
+
   fig = go.Figure(
     data=go.Scatterpolar(
       r=[None for c in all_configurations],
@@ -254,36 +296,53 @@ def make_radar_chart(
     )
   )
 
-  for i, architecture in enumerate(all_architectures):
-    if architecture in visible_architectures:
-      df_architecture = df[df["Architecture"] == architecture]
-      if "close_line" in toggle_close:
-        first_row = df_architecture.iloc[0:1]
-        df_architecture = safe_df_append(df_architecture, first_row)
+  i_target = -1
 
-      fig.add_trace(
-        go.Scatterpolar(
-          r=df_architecture[metric],
-          theta=df_architecture["Configuration"],
-          mode=mode,
-          name=architecture,
-          marker_color=legend.get_color(i),
-          hovertemplate="<br>".join(
-            [
-              "Architecture: %{fullData.name}",
-              "Configuration: %{theta}",
-              str(metric_display) + ": %{r} " + unit,
-              "<extra></extra>",
-            ]
-          ),
-        )
-      )
+  for target in all_targets:
+    if target in targets_for_yaml:
+      i_target = i_target + 1
+    if target in visible_targets:
+      targets = [target] * len(unique_configurations)
+      for i, architecture in enumerate(all_architectures):
+        if architecture in visible_architectures:
+          df_architecture = df[
+            (df["Architecture"] == architecture) & 
+            (df["Target"] == target)
+          ]
+          if "close_line" in toggle_close:
+            first_row = df_architecture.iloc[0:1]
+            df_architecture = safe_df_append(df_architecture, first_row)
+
+          fig.add_trace(
+            go.Scatterpolar(
+              r=df_architecture[metric],
+              theta=df_architecture["Configuration"],
+              mode=mode,
+              name=architecture,
+              customdata=targets,
+              legendgroup=target,
+              legendgrouptitle_text=str(target) if toggle_legendgroup else None,
+              marker_size=10,
+              marker_color=legend.get_color(i),
+              marker_symbol=legend.get_marker_symbol(i_target),
+              hovertemplate="<br>".join(
+                [
+                  "Architecture: %{fullData.name}",
+                  "Configuration: %{theta}",
+                  "Target: %{customdata}",
+                  str(metric_display) + ": %{r} " + unit,
+                  "<extra></extra>",
+                ]
+              ),
+            )
+          )
 
   fig.update_layout(
     # template='plotly_dark',
     paper_bgcolor=background,
     polar=dict(radialaxis=dict(visible=True, range=[0, df[metric].max() if not df[metric].empty else 1])),
     showlegend="show_legend" in legend_dropdown,
+    legend_groupclick="toggleitem",
     margin=dict(l=60, r=60, t=60, b=60),
     title=metric_display if "show_title" in toggle_title else None,
     title_x=0.5,
@@ -308,7 +367,7 @@ def make_figure_div(fig, filename, dl_format, remove_zoom=False):
             "displayModeBar": True,
             "displaylogo": False,
             "modeBarButtonsToRemove": to_remove,
-            "toImageButtonOptions": {"format": dl_format, "scale": "3", "filename": filename},
+            # "toImageButtonOptions": {"format": dl_format, "scale": "3", "filename": filename},
           },
         )
       ],
@@ -324,9 +383,13 @@ def make_all_radar_charts(
   metrics,
   all_configurations,
   all_architectures,
+  all_targets,
+  targets_for_yaml,
   visible_architectures,
+  visible_targets,
   yaml_name,
   legend_dropdown,
+  toggle_legendgroup,
   toggle_title,
   toggle_lines,
   toggle_close,
@@ -344,8 +407,12 @@ def make_all_radar_charts(
       metric,
       all_configurations,
       all_architectures,
+      all_targets,
+      targets_for_yaml,
       visible_architectures,
+      visible_targets,
       legend_dropdown,
+      toggle_legendgroup,
       toggle_title,
       toggle_close,
       background,
@@ -356,7 +423,7 @@ def make_all_radar_charts(
 
   # Add legend chart
   if "separate_legend" in legend_dropdown:
-    legend_fig = make_legend_chart(df, all_architectures, visible_architectures, toggle_title, background, mode)
+    legend_fig = make_legend_chart(df, all_architectures, all_targets, targets_for_yaml, visible_architectures, visible_targets, toggle_legendgroup, toggle_title, background, mode)
     radar_charts.append(
       make_figure_div(legend_fig, "Odatix-" + str(page_name) + "-legend", dl_format, remove_zoom=True)
     )
@@ -365,28 +432,38 @@ def make_all_radar_charts(
 
 
 def setup_callbacks(explorer):
+  all_architecture_inputs = [
+    Input(f"checklist-arch-{architecture}-{page_name}", "value") for architecture in explorer.all_architectures
+  ]
+  all_target_inputs = [
+    Input(f"checklist-target-{target}-{page_name}", "value") for target in explorer.all_targets
+  ]
+  all_checklist_inputs = all_architecture_inputs + all_target_inputs
+
   @explorer.app.callback(
     Output("radar-graphs", "children"),
     [
       Input("yaml-dropdown", "value"),
-      Input(f"target-dropdown-{page_name}", "value"),
+      # Input(f"target-dropdown-{page_name}", "value"),
       Input("show-all", "n_clicks"),
       Input("hide-all", "n_clicks"),
       Input("legend-dropdown", "value"),
+      Input("toggle-legendgroup", "value"),
       Input("toggle-title", "value"),
       Input("toggle-lines", "value"),
       Input("toggle-close-line", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
     ]
-    + [Input(f"checklist-{architecture}-{page_name}", "value") for architecture in explorer.all_architectures],
+    + all_checklist_inputs  
   )
   def update_radar_charts(
     selected_yaml,
-    selected_target,
+    # selected_target,
     show_all,
     hide_all,
     legend_dropdown,
+    toggle_legendgroup,
     toggle_title,
     toggle_lines,
     toggle_close,
@@ -395,25 +472,35 @@ def setup_callbacks(explorer):
     *checklist_values,
   ):
     try:
+      arch_checklist_values = checklist_values[:len(all_architecture_inputs)]
+      target_checklist_values = checklist_values[len(all_architecture_inputs):]
+
       if not selected_yaml or selected_yaml not in explorer.dfs:
         return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
-
-      if not selected_target or selected_target not in explorer.dfs[selected_yaml]["Target"].values:
-        return html.Div(className="error", children=[html.Div("Please select a valid target.")])
 
       ctx = dash.callback_context
       triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
       if triggered_id in ["show-all", "hide-all"]:
-        visible_architectures = set(explorer.all_architectures if triggered_id == "show-all" else [])
+        visible_architectures = set(
+          explorer.dfs[selected_yaml]["Architecture"].unique() if triggered_id == "show-all" else []
+        )
       else:
         visible_architectures = set(
-          architecture for i, architecture in enumerate(explorer.all_architectures) if checklist_values[i]
+          architecture for i, architecture in enumerate(explorer.all_architectures) if arch_checklist_values[i] and architecture in explorer.dfs[selected_yaml]["Architecture"].unique()
+        )
+
+      if triggered_id in ["show-all-targets", "hide-all-targets"]:
+        visible_targets = set(
+          explorer.dfs[selected_yaml]["Target"].unique() if triggered_id == "show-all-targets" else []
+        )
+      else:
+        visible_targets = set(
+          target for i, target in enumerate(explorer.all_targets) if target_checklist_values[i] and target in explorer.dfs[selected_yaml]["Target"].unique()
         )
 
       filtered_df = explorer.dfs[selected_yaml][
-        (explorer.dfs[selected_yaml]["Target"] == selected_target)
-        & (explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures))
+        (explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures))
       ]
 
       unique_configurations = sorted(filtered_df["Configuration"].unique())
@@ -421,11 +508,13 @@ def setup_callbacks(explorer):
       metrics = [col for col in filtered_df.columns if col not in ["Target", "Architecture", "Configuration"]]
       all_configurations = explorer.all_configurations
       all_architectures = explorer.all_architectures
+      all_targets = explorer.all_targets
+      targets_for_yaml = explorer.dfs[selected_yaml]["Target"].unique()
 
       for metric in metrics:
         filtered_df.loc[:, metric] = pd.to_numeric(filtered_df[metric], errors="coerce")
 
-      yaml_name = os.path.splitext(selected_yaml)[0] + "-" + selected_target
+      yaml_name = os.path.splitext(selected_yaml)[0]
 
       radar_charts = make_all_radar_charts(
         filtered_df,
@@ -433,9 +522,13 @@ def setup_callbacks(explorer):
         metrics,
         unique_configurations,
         all_architectures,
+        all_targets,
+        targets_for_yaml,
         visible_architectures,
+        visible_targets,
         yaml_name,
         legend_dropdown,
+        toggle_legendgroup,
         toggle_title,
         toggle_lines,
         toggle_close,
@@ -447,15 +540,18 @@ def setup_callbacks(explorer):
     except Exception as e:
       return html.Div(className="error", children=[html.Div("Unexpected error: " + str(e))])
       
-  @explorer.app.callback(Output(f"target-dropdown-{page_name}", "options"), Input("yaml-dropdown", "value"))
-  def update_dropdowns_radar(selected_yaml):
-    if not selected_yaml or selected_yaml not in explorer.dfs:
-      return [], []
+  # @explorer.app.callback(
+  #   Output(f"target-dropdown-{page_name}", "options"), 
+  #   Input("yaml-dropdown", "value")
+  # )
+  # def update_dropdowns_radar(selected_yaml):
+  #   if not selected_yaml or selected_yaml not in explorer.dfs:
+  #     return [], []
 
-    df = explorer.dfs[selected_yaml]
-    available_targets = [{"label": target, "value": target} for target in df["Target"].unique()]
+  #   df = explorer.dfs[selected_yaml]
+  #   available_targets = [{"label": target, "value": target} for target in df["Target"].unique()]
 
-    return available_targets
+  #   return available_targets
 
   legend.setup_callbacks(explorer, page_name)
   navigation.setup_sidebar_callbacks(explorer, page_name)
