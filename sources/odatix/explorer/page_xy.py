@@ -417,7 +417,11 @@ def setup_callbacks(explorer):
               "displayModeBar": True,
               "displaylogo": False,
               "modeBarButtonsToRemove": ["lasso", "select"],
-              # "toImageButtonOptions": {"format": dl_format, "scale": "3", "filename": filename},
+              "toImageButtonOptions": {
+                "format": dl_format,
+                "scale": "3",
+                "filename": filename
+              },
             },
           )
         ],
