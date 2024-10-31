@@ -120,8 +120,8 @@ def layout(explorer):
               children=[
                 dcc.Checklist(
                   id="toggle-legend",
-                  options=[{"label": " Show Legend", "value": "show_legend"}],
-                  value=[""],
+                  options=[{"label": " Show Legend", "value": True}],
+                  value=[],
                   className="toggle",
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
@@ -134,14 +134,14 @@ def layout(explorer):
                 ),
                 dcc.Checklist(
                   id="toggle-title",
-                  options=[{"label": " Show Title", "value": "show_title"}],
-                  value=["show_title"],
+                  options=[{"label": " Show Title", "value": True}],
+                  value=[True],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
                 dcc.Checklist(
                   id="toggle-lines",
-                  options=[{"label": " Show Lines", "value": "show_lines"}],
-                  value=["show_lines"],
+                  options=[{"label": " Show Lines", "value": True}],
+                  value=[True],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
               ],
@@ -329,14 +329,14 @@ def setup_callbacks(explorer):
                     for config in unique_configurations
                   ]
 
-                mode = "lines+markers" if "show_lines" in toggle_lines else "markers"
+                mode = "lines+markers" if toggle_lines else "markers"
 
                 fig.add_trace(
                   go.Scatter(
                     x=unique_configurations,
                     y=y_values,
                     mode=mode,
-                    line=dict(dash="dot") if "show_lines" in toggle_lines else None,
+                    line=dict(dash="dot") if toggle_lines else None,
                     marker=dict(
                       size=10, 
                       color=legend.get_color(i),
@@ -396,12 +396,12 @@ def setup_callbacks(explorer):
 
       fig.update_layout(
         paper_bgcolor=background,
-        showlegend="show_legend" in toggle_legend,
+        showlegend=True if toggle_legend else False,
         legend_groupclick="toggleitem",
         xaxis_title="Configuration",
         yaxis_title=selected_metric_display_unit,
         yaxis=dict(range=[0, None]),
-        title=selected_metric_display if "show_title" in toggle_title else None,
+        title=selected_metric_display if toggle_title else None,
         title_x=0.5,
         autosize=True,
       )

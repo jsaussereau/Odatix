@@ -131,20 +131,20 @@ def layout(explorer):
                 ),
                 dcc.Checklist(
                   id="toggle-title",
-                  options=[{"label": " Show Title", "value": "show_title"}],
-                  value=["show_title"],
+                  options=[{"label": " Show Title", "value": True}],
+                  value=[True],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
                 dcc.Checklist(
                   id="toggle-lines",
-                  options=[{"label": " Show Lines", "value": "show_lines"}],
-                  value=["show_lines"],
+                  options=[{"label": " Show Lines", "value": True}],
+                  value=[True],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
                 dcc.Checklist(
                   id="toggle-close-line",
-                  options=[{"label": " Close Lines", "value": "close_line"}],
-                  value=[""],
+                  options=[{"label": " Close Lines", "value": True}],
+                  value=[],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
               ],
@@ -240,7 +240,7 @@ def make_legend_chart(df, all_architectures, all_targets, targets_for_yaml, visi
     showlegend=True,
     legend_groupclick="toggleitem",
     margin=dict(l=60, r=60, t=60, b=60),
-    title="Legend" if "show_title" in toggle_title else "",
+    title="Legend" if toggle_title else "",
     title_x=0.5,
     polar=dict(radialaxis=dict(visible=False), angularaxis=dict(visible=False)),
     autosize=True,
@@ -310,7 +310,7 @@ def make_radar_chart(
             (df["Architecture"] == architecture) & 
             (df["Target"] == target)
           ]
-          if "close_line" in toggle_close:
+          if toggle_close:
             first_row = df_architecture.iloc[0:1]
             df_architecture = safe_df_append(df_architecture, first_row)
 
@@ -345,7 +345,7 @@ def make_radar_chart(
     showlegend="show_legend" in legend_dropdown,
     legend_groupclick="toggleitem",
     margin=dict(l=60, r=60, t=60, b=60),
-    title=metric_display if "show_title" in toggle_title else None,
+    title=metric_display if toggle_title else None,
     title_x=0.5,
     width=840 if "show_legend" in legend_dropdown else 475,
     height=475,

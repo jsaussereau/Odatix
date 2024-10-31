@@ -116,8 +116,8 @@ def layout(explorer):
               children=[
                 dcc.Checklist(
                   id="toggle-legend",
-                  options=[{"label": " Show Legend", "value": "show_legend"}],
-                  value=[""],
+                  options=[{"label": " Show Legend", "value": True}],
+                  value=[],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
                 dcc.Checklist(
@@ -129,20 +129,20 @@ def layout(explorer):
                 ),
                 dcc.Checklist(
                   id="toggle-title",
-                  options=[{"label": " Show Title", "value": "show_title"}],
-                  value=["show_title"],
+                  options=[{"label": " Show Title", "value": True}],
+                  value=[True],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
                 dcc.Checklist(
                   id="toggle-lines",
-                  options=[{"label": " Show Lines", "value": "show_lines"}],
-                  value=[""],
+                  options=[{"label": " Show Lines", "value": True}],
+                  value=[],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
                 dcc.Checklist(
                   id="toggle-labels",
-                  options=[{"label": " Show Labels", "value": "show_labels"}],
-                  value=["show_labels"],
+                  options=[{"label": " Show Labels", "value": True}],
+                  value=[True],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
               ],
@@ -335,7 +335,7 @@ def setup_callbacks(explorer):
               config_names = df_architecture["Configuration"].tolist()
               targets = [target] * len(x_values)
 
-              mode = "lines+markers" if "show_lines" in toggle_lines else "markers"
+              mode = "lines+markers" if toggle_lines else "markers"
               if toggle_labels:
                 mode += "+text"
 
@@ -344,7 +344,7 @@ def setup_callbacks(explorer):
                   x=x_values,
                   y=y_values,
                   mode=mode,
-                  line=dict(dash="dot") if "show_lines" in toggle_lines else None,
+                  line=dict(dash="dot") if toggle_lines else None,
                   marker=dict(
                     size=10,
                     color=legend.get_color(i),
@@ -372,13 +372,13 @@ def setup_callbacks(explorer):
 
       fig.update_layout(
         paper_bgcolor=background,
-        showlegend="show_legend" in toggle_legend,
+        showlegend=True if toggle_legend else False,
         legend_groupclick="toggleitem",
         xaxis_title=selected_metric_x_display_unit,
         yaxis_title=selected_metric_y_display_unit,
         xaxis=dict(range=[0, None]),
         yaxis=dict(range=[0, None]),
-        title=selected_metric_y_display + " vs " + selected_metric_x_display if "show_title" in toggle_title else None,
+        title=selected_metric_y_display + " vs " + selected_metric_x_display if toggle_title else None,
         title_x=0.5,
         autosize=True,
       )
