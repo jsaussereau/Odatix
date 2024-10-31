@@ -74,7 +74,12 @@ class ResultExplorer:
     self.all_architectures = sorted(
       set(architecture for df in self.dfs.values() for architecture in df["Architecture"].unique())
     )
-    self.all_configurations = sorted(set(config for df in self.dfs.values() for config in df["Configuration"].unique()))
+    self.all_targets = sorted(
+      set(target for df in self.dfs.values() for target in df["Target"].unique())
+    )
+    self.all_configurations = sorted(
+      set(config for df in self.dfs.values() for config in df["Configuration"].unique())
+    )
 
     self.app = dash.Dash(__name__)
     self.app.title = "Odatix"
@@ -191,7 +196,7 @@ class ResultExplorer:
   def run(self):
     self.app.run(
       host='0.0.0.0',
-      debug=False
+      debug=True
     )
 
 
