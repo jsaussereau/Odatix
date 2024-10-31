@@ -370,7 +370,7 @@ def make_figure_div(fig, filename, dl_format, remove_zoom=False):
             "modeBarButtonsToRemove": to_remove,
             "toImageButtonOptions": {
               "format": dl_format,
-              "scale": "3",
+              "scale": 3,
               "filename": filename
             },
           },

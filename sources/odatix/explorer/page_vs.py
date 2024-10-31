@@ -396,7 +396,7 @@ def setup_callbacks(explorer):
               "modeBarButtonsToRemove": ["lasso", "select"],
               "toImageButtonOptions": {
                 "format": dl_format,
-                "scale": "3",
+                "scale": 3,
                 "filename": filename,
               },
             },
