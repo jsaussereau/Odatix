@@ -58,17 +58,17 @@ def layout(explorer):
                 ),
               ],
             ),
-            # html.Div(
-            #   className="title-dropdown",
-            #   children=[
-            #     html.Div(className="dropdown-label", children=[html.Label("Results")]),
-            #     dcc.Dropdown(
-            #       id=f"results-dropdown-{page_name}",
-            #       value="All",
-            #       options= ["All", "Fmax", "Range"]
-            #     ),
-            #   ],
-            # ),
+            html.Div(
+              className="title-dropdown",
+              children=[
+                html.Div(className="dropdown-label", children=[html.Label("Results")]),
+                dcc.Dropdown(
+                  id=f"results-dropdown-{page_name}",
+                  value="All",
+                  options= ["All", "Fmax", "Range"]
+                ),
+              ],
+            ),
             html.Div(
               className="title-dropdown",
               children=[
@@ -231,7 +231,7 @@ def setup_callbacks(explorer):
     [
       Input("yaml-dropdown", "value"),
       Input("metric-dropdown", "value"),
-      # Input(f"results-dropdown-{page_name}", "value"),
+      Input(f"results-dropdown-{page_name}", "value"),
       Input("show-all", "n_clicks"),
       Input("hide-all", "n_clicks"),
       Input("show-all-targets", "n_clicks"),
@@ -249,7 +249,7 @@ def setup_callbacks(explorer):
   def update_graph(
     selected_yaml,
     selected_metric,
-    # selected_results,
+    selected_results,
     show_all,
     hide_all,
     show_all_targets,
@@ -319,45 +319,44 @@ def setup_callbacks(explorer):
                   (filtered_df["Target"] == target)
                 ]
                 
-                if selected_metric is None or selected_metric not in df_architecture_target.columns:
-                  return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
-                else:
-                  y_values = [
-                    df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
-                    if config in df_architecture_target["Configuration"].values
-                    else None
-                    for config in unique_configurations
-                  ]
-
                 mode = "lines+markers" if toggle_lines else "markers"
+                
+                if selected_results in ["All", "Fmax"]:
+                  if selected_metric is None or selected_metric not in df_architecture_target.columns:
+                    return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
+                  else:
+                    y_values = [
+                      df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
+                      if config in df_architecture_target["Configuration"].values
+                      else None
+                      for config in unique_configurations
+                    ]
+                    add_trace_to_fig(
+                      fig, unique_configurations, y_values, mode, architecture, "fmax",
+                      targets, target, selected_metric_display, unit, i, i_target, toggle_legendgroup
+                    )
+                  
+                if selected_results in ["All", "Range"]:
+                  for i_freq, frequency in enumerate(explorer.all_frequencies):
+                    df_frequency = df_architecture_target[df_architecture_target["Frequency"] == frequency]
+                    if df_frequency.empty:
+                      continue
 
-                fig.add_trace(
-                  go.Scatter(
-                    x=unique_configurations,
-                    y=y_values,
-                    mode=mode,
-                    line=dict(dash="dot") if toggle_lines else None,
-                    marker=dict(
-                      size=10, 
-                      color=legend.get_color(i),
-                      symbol=legend.get_marker_symbol(i_target),
-                    ),
-                    name=architecture,
-                    customdata=targets,
-                    legendgroup=target,
-                    legendgrouptitle_text=str(target) if toggle_legendgroup else None,
-                    connectgaps=True,
-                    hovertemplate="<br>".join(
-                      [
-                        "Architecture: %{fullData.name}",
-                        "Configuration: %{x}",
-                        "Target: %{customdata}",
-                        selected_metric_display + ": %{y} " + unit,
-                        "<extra></extra>",
-                      ]
-                    ),
-                  )
-                )
+                    print("hey")
+
+                    y_values = [
+                      df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
+                      if config in df_frequency["Configuration"].values
+                      else None
+                      for config in unique_configurations
+                    ]
+
+                    add_trace_to_fig(
+                      fig, unique_configurations, y_values, mode, architecture, f"{frequency} MHz",
+                      targets, target, selected_metric_display, unit, i, i_target, toggle_legendgroup
+                    )
+
+
       elif display_mode == "bars":
         for j, target in enumerate(explorer.all_targets):
           if target in visible_targets:
@@ -433,3 +432,31 @@ def setup_callbacks(explorer):
   legend.setup_callbacks(explorer, page_name)
   navigation.setup_sidebar_callbacks(explorer, page_name)
 
+def add_trace_to_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, i, i_target, toggle_legendgroup):
+  fig.add_trace(
+    go.Scatter(
+      x=x_values,
+      y=y_values,
+      mode=mode,
+      line=dict(dash="dot") if mode == "lines+markers" else None,
+      marker=dict(
+        size=10,
+        color=legend.get_color(i),
+        symbol=legend.get_marker_symbol(i_target),
+      ),
+      name=f"{architecture} @ {frequency}" if frequency else architecture,
+      customdata=targets,
+      legendgroup=target,
+      legendgrouptitle_text=str(target) if toggle_legendgroup else None,
+      connectgaps=True,
+      hovertemplate="<br>".join(
+        [
+          "Architecture: %{fullData.name}",
+          "Configuration: %{x}",
+          "Target: %{customdata}",
+          selected_metric_display + ": %{y} " + unit,
+          "<extra></extra>",
+        ]
+      ),
+    )
+  )
