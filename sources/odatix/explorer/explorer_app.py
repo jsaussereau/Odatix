@@ -27,6 +27,7 @@ from dash.dependencies import Input, Output
 import pandas as pd
 import yaml
 from flask import jsonify
+import traceback
 
 import odatix.explorer.page_xy as page_xy
 import odatix.explorer.page_vs as page_vs
@@ -45,6 +46,8 @@ class ResultExplorer:
     self.yaml_prefix = yaml_prefix
     self.old_settings = old_settings
     self.safe_mode = safe_mode
+
+    self.required_columns = ["Target", "Architecture", "Configuration"]
 
     # Check paths
     if not os.path.exists(result_path):
@@ -80,6 +83,10 @@ class ResultExplorer:
     self.all_configurations = sorted(
       set(config for df in self.dfs.values() for config in df["Configuration"].unique())
     )
+    self.all_frequencies = sorted(
+      set(freq for df in self.dfs.values() for freq in df["Frequency"].unique() if isinstance(freq, (int, float)))
+    )
+
 
     self.app = dash.Dash(__name__)
     self.app.title = "Odatix"
@@ -106,22 +113,36 @@ class ResultExplorer:
     for yaml_file in self.yaml_files:
       file_path = os.path.join(self.result_path, yaml_file)
       try:
-        data, units = self.get_yaml_data(file_path)
-        df = self.update_dataframe(data)
-        if df is None:
-          printc.warning('YAML file  "' + yaml_file + '" is empty or corrupted, skipping...', script_name=script_name)
+        fmax_data, range_data, units = self.get_yaml_data(file_path)
+        all_data = {"Fmax": fmax_data, "Range": range_data}
+        df = self.update_dataframe(all_data)
+
+        # print(f"df[range] = {df.get("Range", pd.DataFrame())}")
+        # print(f"range_data = {range_data}")
+
+        if df.get("Fmax", pd.DataFrame()).empty and df.get("Range", pd.DataFrame()).empty:
+          printc.warning('YAML file "' + yaml_file + '" is empty or corrupted, skipping...', script_name=script_name)
           printc.note(
-            'Run fmax synthesis with the correct settings to generate "' + yaml_file + '"', script_name=script_name
+            'Run fmax synthesis or range synthesis with the correct settings to generate "' + yaml_file + '"', script_name=script_name
           )
         else:
-          self.all_data[yaml_file] = data
+          self.all_data[yaml_file] = all_data
           self.units[yaml_file] = units
           self.valid_yaml_files.append(yaml_file)
           self.dfs[yaml_file] = df
-      except:
+
+        if df.get("Fmax", pd.DataFrame()).empty:
+          printc.note('Could not find any fmax result in YAML file "' + yaml_file + '"', script_name=script_name)
+        if df.get("Range", pd.DataFrame()).empty:
+          printc.note('Could not find any range result in YAML file "' + yaml_file + '"', script_name=script_name)
+
+      except Exception as e:
         printc.warning(
-          'YAML file  "' + yaml_file + '" is not a valid result file, skipping...', script_name=script_name
+          'YAML file "' + yaml_file + '" is not a valid result file, skipping...', script_name=script_name
         )
+        printc.cyan("error details: ", end="", script_name=script_name)
+        print(str(e))
+        print(traceback.format_exc())
 
   def get_yaml_data(self, file_path):
     """
@@ -130,22 +151,45 @@ class ResultExplorer:
     with open(file_path, "r") as file:
       yaml_content = yaml.safe_load(file)
       units = yaml_content.get("units", {})
-      synth_results = yaml_content.get("fmax_results", {})
-      return synth_results, units
+      fmax_results = yaml_content.get("fmax_results", {})
+      range_results = yaml_content.get("range_results", {})
+      return fmax_results, range_results, units
 
   def update_dataframe(self, yaml_data):
-    """
-    Update the dataframe with YAML data.
+    """n
+    Combine 'fmax' and 'range' data into a single hierarchical DataFrame.
     """
     data = []
-    for target, architectures in yaml_data.items():
-      for architecture, configurations in architectures.items():
-        for config, metrics in configurations.items():
-          row = metrics.copy()
-          row["Target"] = target
-          row["Architecture"] = architecture
-          row["Configuration"] = config
-          data.append(row)
+    
+    for result_type, target_data in yaml_data.items():
+      for target, architectures in target_data.items():
+        for architecture, configurations in architectures.items():
+          for config, metrics in configurations.items():
+            if result_type == "Range":
+              # For 'range', include frequency as a sub-level
+              for frequency, freq_metrics in metrics.items():
+                row = {
+                  "Target": target,
+                  "Architecture": architecture,
+                  "Configuration": config,
+                  "Frequency": frequency,
+                  "Type": result_type
+                }
+                row.update(freq_metrics)
+                data.append(row)
+            else:
+              # For 'fmax', use a single 'Frequency' entry
+              row = {
+                "Target": target,
+                "Architecture": architecture,
+                "Configuration": config,
+                "Frequency": "fmax",  # Set a constant for fmax frequency
+                "Type": result_type
+              }
+              row.update(metrics)
+              data.append(row)
+
+    # Create DataFrame and set multi-index
     df = pd.DataFrame(data)
 
     # Check if the dataframe contains the required columns and they are not empty
@@ -154,15 +198,22 @@ class ResultExplorer:
       return None
     return df
 
-  def update_metrics(self, yaml_data):
+  def update_metrics(self, yaml_data, results="Fmax"):
     """
     Update metrics based on YAML data.
     """
     metrics_from_yaml = set()
-    for target_data in yaml_data.values():
-      for architecture_data in target_data.values():
-        for configuration_data in architecture_data.values():
-          metrics_from_yaml.update(configuration_data.keys())
+
+    for type in yaml_data.keys():
+      for target_data in yaml_data[type].values():
+        for architecture_data in target_data.values():
+          for configuration_data in architecture_data.values():
+            if type == "Fmax" and results in ["All", "Fmax"]:
+              metrics_from_yaml.update(configuration_data.keys())
+            elif type == "Range" and results in ["All", "Range"]:
+              for frequency_data in configuration_data.values():
+                metrics_from_yaml.update(frequency_data.keys())
+          
     return metrics_from_yaml
 
   def setup_layout(self):
