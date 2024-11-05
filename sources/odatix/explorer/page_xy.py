@@ -98,7 +98,7 @@ def layout(explorer):
                     html.Button("Hide All", id="hide-all", n_clicks=0),
                   ]
                 ),
-                html.Div(legend_items, id="custom-legend", style={"margin-top": "15px", "margin-bottom": "15px"}),
+                html.Div(legend_items, id=f"custom-legend-{page_name}", style={"margin-top": "15px", "margin-bottom": "15px"}),
               ],
               style={"display": "inline-block", "margin-left": "20px"},
             ),
@@ -111,6 +111,30 @@ def layout(explorer):
                   id="display-mode-dropdown",
                   options=[{"label": "Points", "value": "points"}, {"label": "Bars", "value": "bars"}],
                   value="points",
+                ),
+              ],
+              style={"margin-bottom": "5px"},
+            ),
+            html.Div(
+              className="title-dropdown",
+              children=[
+                html.Div(className="dropdown-label", children=[html.Label("Color Mode")]),
+                dcc.Dropdown(
+                  id="color-mode-dropdown",
+                  options=[{"label": "Architecture", "value": "architecture"}, {"label": "Target", "value": "target"}, {"label": "Frequency", "value": "frequency"}],
+                  value="architecture",
+                ),
+              ],
+              style={"margin-bottom": "5px"},
+            ),
+            html.Div(
+              className="title-dropdown",
+              children=[
+                html.Div(className="dropdown-label", children=[html.Label("Symbol Mode")]),
+                dcc.Dropdown(
+                  id="symbol-mode-dropdown",
+                  options=[{"label": "Architecture", "value": "architecture"}, {"label": "Target", "value": "target"}, {"label": "Frequency", "value": "frequency"}],
+                  value="target",
                 ),
               ],
               style={"margin-bottom": "5px"},
@@ -241,6 +265,8 @@ def setup_callbacks(explorer):
       Input("toggle-title", "value"),
       Input("toggle-lines", "value"),
       Input("display-mode-dropdown", "value"),
+      Input("color-mode-dropdown", "value"),
+      Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
     ]
@@ -259,6 +285,8 @@ def setup_callbacks(explorer):
     toggle_title,
     toggle_lines,
     display_mode,
+    color_mode,
+    symbol_mode,
     dl_format,
     background,
     *checklist_values,
@@ -312,7 +340,7 @@ def setup_callbacks(explorer):
             i_target = i_target + 1
           if target in visible_targets:
             targets = [target] * len(unique_configurations)
-            for i, architecture in enumerate(explorer.all_architectures):
+            for  i_architecture, architecture in enumerate(explorer.all_architectures):
               if architecture in visible_architectures:
                 df_architecture_target = filtered_df[
                   (filtered_df["Architecture"] == architecture) & 
@@ -331,9 +359,24 @@ def setup_callbacks(explorer):
                       else None
                       for config in unique_configurations
                     ]
+
+                    if color_mode == "architecture":
+                      color_id = i_architecture
+                    elif color_mode == "target":
+                      color_id = i_target
+                    else:
+                      color_id = 0
+
+                    if symbol_mode == "architecture":
+                      symbol_id = i_architecture
+                    elif symbol_mode == "target":
+                      symbol_id = i_target
+                    else:
+                      symbol_id = 0
+
                     add_trace_to_fig(
                       fig, unique_configurations, y_values, mode, architecture, "fmax",
-                      targets, target, selected_metric_display, unit, i, i_target, toggle_legendgroup
+                      targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
                     )
                   
                 if selected_results in ["All", "Range"]:
@@ -342,7 +385,19 @@ def setup_callbacks(explorer):
                     if df_frequency.empty:
                       continue
 
-                    print("hey")
+                    if color_mode == "architecture":
+                      color_id = i_architecture
+                    elif color_mode == "target":
+                      color_id = i_target
+                    else:
+                      color_id = i_freq + 1
+                      
+                    if symbol_mode == "architecture":
+                      symbol_id = i_architecture
+                    elif symbol_mode == "target":
+                      symbol_id = i_target
+                    else:
+                      symbol_id = i_freq + 1
 
                     y_values = [
                       df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
@@ -353,7 +408,7 @@ def setup_callbacks(explorer):
 
                     add_trace_to_fig(
                       fig, unique_configurations, y_values, mode, architecture, f"{frequency} MHz",
-                      targets, target, selected_metric_display, unit, i, i_target, toggle_legendgroup
+                      targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
                     )
 
 
@@ -432,7 +487,7 @@ def setup_callbacks(explorer):
   legend.setup_callbacks(explorer, page_name)
   navigation.setup_sidebar_callbacks(explorer, page_name)
 
-def add_trace_to_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, i, i_target, toggle_legendgroup):
+def add_trace_to_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup):
   fig.add_trace(
     go.Scatter(
       x=x_values,
@@ -441,8 +496,8 @@ def add_trace_to_fig(fig, x_values, y_values, mode, architecture, frequency, tar
       line=dict(dash="dot") if mode == "lines+markers" else None,
       marker=dict(
         size=10,
-        color=legend.get_color(i),
-        symbol=legend.get_marker_symbol(i_target),
+        color=legend.get_color(color_id),
+        symbol=legend.get_marker_symbol(symbol_id),
       ),
       name=f"{architecture} @ {frequency}" if frequency else architecture,
       customdata=targets,
