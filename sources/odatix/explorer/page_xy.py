@@ -413,41 +413,66 @@ def setup_callbacks(explorer):
 
 
       elif display_mode == "bars":
-        for j, target in enumerate(explorer.all_targets):
+        for target in explorer.all_targets:
+          if target in explorer.dfs[selected_yaml]["Target"].unique():
+            i_target = i_target + 1
           if target in visible_targets:
             targets = [target] * len(unique_configurations)
-            for i, architecture in enumerate(explorer.all_architectures):
+            for i_architecture, architecture in enumerate(explorer.all_architectures):
               if architecture in visible_architectures:
                 df_architecture_target = filtered_df[
                   (filtered_df["Architecture"] == architecture) & 
                   (filtered_df["Target"] == target)
                 ]
-                y_values = [
-                  df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
-                  if config in df_architecture_target["Configuration"].values
-                  else None
-                  for config in unique_configurations
-                ]
+                  
+                if selected_results in ["All", "Range"]:
+                  for i_freq, frequency in enumerate(explorer.all_frequencies):
+                    df_frequency = df_architecture_target[df_architecture_target["Frequency"] == frequency]
+                    if df_frequency.empty:
+                      continue
 
-                fig.add_trace(
-                  go.Bar(
-                    x=unique_configurations,
-                    y=y_values,
-                    marker=dict(color=legend.get_color(i)),
-                    name=architecture,
-                    customdata=targets,
-                    hovertemplate="<br>".join(
-                      [
-                        "Architecture: %{fullData.name}",
-                        "Configuration: %{x}",
-                        "Target: %{customdata}",
-                        selected_metric_display + ": %{y} " + unit,
-                        "<extra></extra>",
-                      ]
-                    ),
-                  )
-                )
+                    if color_mode == "architecture":
+                      color_id = i_architecture
+                    elif color_mode == "target":
+                      color_id = i_target
+                    else:
+                      color_id = i_freq + 1
 
+                    y_values = [
+                      df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
+                      if config in df_frequency["Configuration"].values
+                      else None
+                      for config in unique_configurations
+                    ]
+
+                    add_trace_to_bar_fig(
+                      fig, unique_configurations, y_values, None, architecture, f"{frequency} MHz",
+                      targets, target, selected_metric_display, unit, color_id, None, toggle_legendgroup
+                    )
+
+                if selected_results in ["All", "Fmax"]:
+                  if selected_metric is None or selected_metric not in df_architecture_target.columns:
+                    return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
+                  else:
+                    y_values = [
+                      df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
+                      if config in df_architecture_target["Configuration"].values
+                      else None
+                      for config in unique_configurations
+                    ]
+
+                    if color_mode == "architecture":
+                      color_id = i_architecture
+                    elif color_mode == "target":
+                      color_id = i_target
+                    else:
+                      color_id = 0
+
+                    add_trace_to_bar_fig(
+                      fig, unique_configurations, y_values, None, architecture, "fmax",
+                      targets, target, selected_metric_display, unit, color_id, None, toggle_legendgroup
+                    )
+                    
       fig.update_layout(
         paper_bgcolor=background,
         showlegend=True if toggle_legend else False,
@@ -504,6 +529,26 @@ def add_trace_to_fig(fig, x_values, y_values, mode, architecture, frequency, tar
       legendgroup=target,
       legendgrouptitle_text=str(target) if toggle_legendgroup else None,
       connectgaps=True,
+      hovertemplate="<br>".join(
+        [
+          "Architecture: %{fullData.name}",
+          "Configuration: %{x}",
+          "Target: %{customdata}",
+          selected_metric_display + ": %{y} " + unit,
+          "<extra></extra>",
+        ]
+      ),
+    )
+  )
+
+def add_trace_to_bar_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup):
+  fig.add_trace(
+    go.Bar(
+      x=x_values,
+      y=y_values,
+      marker=dict(color=legend.get_color(color_id)),
+      name=f"{architecture} @ {frequency}" if frequency else architecture,
+      customdata=targets,
       hovertemplate="<br>".join(
         [
           "Architecture: %{fullData.name}",
