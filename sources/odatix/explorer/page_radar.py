@@ -62,18 +62,6 @@ def layout(explorer):
                     ),
                   ],
                 ),
-                # html.Div(
-                #   className="title-dropdown",
-                #   children=[
-                #     html.Div(className="dropdown-label", children=[html.Label("Target")]),
-                #     dcc.Dropdown(
-                #       id=f"target-dropdown-{page_name}",
-                #       value=explorer.dfs[explorer.valid_yaml_files[0]]["Target"].iloc[0]
-                #       if explorer.valid_yaml_files
-                #       else None,
-                #     ),
-                #   ],
-                # ),
               ]
             ),
             html.H2("Targets"),
@@ -98,11 +86,35 @@ def layout(explorer):
                     html.Button("Hide All", id="hide-all", n_clicks=0),
                   ]
                 ),
-                html.Div(legend_items, id="custom-legend", style={"margin-top": "15px", "margin-bottom": "15px"}),
+                html.Div(legend_items, id=f"custom-legend-{page_name}", style={"margin-top": "15px", "margin-bottom": "15px"}),
               ],
               style={"display": "inline-block", "margin-left": "20px"},
             ),
             html.H2("Display Settings"),
+            html.Div(
+              className="title-dropdown",
+              children=[
+                html.Div(className="dropdown-label", children=[html.Label("Color Mode")]),
+                dcc.Dropdown(
+                  id="color-mode-dropdown",
+                  options=[{"label": "Architecture", "value": "architecture"}, {"label": "Target", "value": "target"}, {"label": "Frequency", "value": "frequency"}],
+                  value="architecture",
+                ),
+              ],
+              style={"margin-bottom": "5px"},
+            ),
+            html.Div(
+              className="title-dropdown",
+              children=[
+                html.Div(className="dropdown-label", children=[html.Label("Symbol Mode")]),
+                dcc.Dropdown(
+                  id="symbol-mode-dropdown",
+                  options=[{"label": "Architecture", "value": "architecture"}, {"label": "Target", "value": "target"}, {"label": "Frequency", "value": "frequency"}],
+                  value="target",
+                ),
+              ],
+              style={"margin-bottom": "5px"},
+            ),
             html.Div(
               className="title-dropdown",
               children=[

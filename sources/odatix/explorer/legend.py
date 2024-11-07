@@ -131,8 +131,6 @@ def setup_callbacks(explorer, page_name):
         color = get_color(i) if color_mode == "architecture" else "#fff"
         marker_symbol = i if symbol_mode == "architecture" else 0
 
-        print(f"Architecture: {architecture}, Color: {color}, Marker Symbol: {marker_symbol}, Display: {display}")
-
         legend_item = create_legend_item(
           label=architecture,
           line_style="2px dashed",
