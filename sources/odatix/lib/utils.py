@@ -159,6 +159,7 @@ def internal_error(e, error_logfile, script_name):
     log_file.write("System Information:\n")
     for key, value in system_info.items():
       log_file.write("  " + key + ": " + value + "\n")
+    log_file.write("\nOdatix Version: " + str(odatix.components.motd.read_version()) + "\n\n")
     log_file.write("\nCommand:\n")
     log_file.write("  " + command_line + "\n\n")
     log_file.write(tb_full)
