@@ -640,7 +640,7 @@ class ParallelJobHandler:
       key = stdscr.getch()
       curses.flushinp()        
 
-      if key == curses.KEY_PPAGE:  # Page Up
+      if key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  # Page Up
         if self.selected_job_index > 0:
           self.selected_job_index -= 1
         if self.selected_job_index < self.job_index_start:
@@ -650,7 +650,7 @@ class ParallelJobHandler:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         selected_job.autoscroll = True
         self.update_logs(logs_win, selected_job, logs_height, width)
-      elif key == curses.KEY_NPAGE:  # Page Down
+      elif key == curses.KEY_NPAGE or key == ord("n") or key == ord("N"):  # Page Down
         if self.selected_job_index < len(self.job_list) - 1:
           self.selected_job_index += 1
         if self.selected_job_index >= self.job_index_end:
@@ -678,7 +678,7 @@ class ParallelJobHandler:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         selected_job.autoscroll = True
         self.update_logs(logs_win, selected_job, logs_height, width)
-      elif key == ord("+"): 
+      elif key == ord("+") or key == ord("="): 
         if logs_height > 0:
           if self.job_index_end < self.job_count:
             self.job_index_end += 1
@@ -686,7 +686,7 @@ class ParallelJobHandler:
           elif self.job_index_start > 0:
             self.job_index_start -= 1
             resize = True
-      elif key == ord("-"):
+      elif key == ord("-") or key == ord("_"):
         if self.selected_job_index < self.job_index_end - 1:
           self.job_index_end -= 1
           resize = True
