@@ -147,7 +147,7 @@ class ParallelJob:
 ######################################
 
 class ParallelJobHandler:
-  def __init__(self, job_list, nb_jobs=4, process_group=True, auto_exit=False, log_size_limit=100):
+  def __init__(self, job_list, nb_jobs=4, process_group=True, auto_exit=False, log_size_limit=200):
     self.job_list = job_list
     self.nb_jobs = nb_jobs
     self.process_group = process_group
@@ -164,6 +164,16 @@ class ParallelJobHandler:
     self.max_title_length = max(len(job.display_name) for job in job_list)
 
     self.converter = AnsiToCursesConverter()
+
+    # Initial calculation of max displayed jobs
+    height, _ = curses.initscr().getmaxyx()
+    self.job_count = len(self.job_list)
+    displayed_jobs_cmd = height // 2 - 2 # Default to half the remaining screen height
+    max_displayed_jobs = min(self.job_count, displayed_jobs_cmd)
+    
+    # Job list
+    self.job_index_start = 0
+    self.job_index_end = max_displayed_jobs
 
   @staticmethod
   def set_nonblocking(fd):
@@ -243,12 +253,48 @@ class ParallelJobHandler:
       )
     except curses.error:
       pass
-    try:
-      header_win.hline(1, 0, "-", width)
-    except curses.error:
-      pass
 
     header_win.refresh()
+
+  def update_progress_window(self, progress_win, selected_job):
+    height, width = progress_win.getmaxyx()
+    
+    # Clear the window
+    progress_win.erase()
+
+    # Display the jobs within the visible range
+    for id, job in enumerate(self.job_list[self.job_index_start:self.job_index_end]):
+      selected = (self.selected_job_index == self.job_index_start + id)
+      try:
+        self.progress_bar(
+          id=id,
+          window=progress_win,
+          progress=job.progress,
+          bar_width=(width - 25),
+          title=job.display_name,
+          title_size=self.max_title_length,
+          width=width,
+          status=job.status,
+          selected=selected,
+        )
+      except curses.error:
+        pass
+    progress_win.refresh()
+
+
+  def update_separator(self, separator_win, val, ref, width):
+      separator_win.erase()
+      if val == ref:
+        separator_text = "-" * (width - 1)
+      else:
+        message = f"{val - ref} more" 
+        padding = 4
+        separator_text = "-" * padding + message + "-" * (width - len(message) - padding - 1)
+      try:
+        separator_win.addstr(0, 0, separator_text)
+      except curses.error as e:
+        pass
+      separator_win.refresh()
 
   @staticmethod
   def update_help(help_win):
@@ -257,9 +303,10 @@ class ParallelJobHandler:
     # Define the text with attributes
     help_text = [
       ("q", "Quit"),
-      ("PageUp/PageDown", "Switch Process"),
+      ("PageUp/PageDown", "Switch Job"),
       ("Up/Down", "Scroll Log"),
       ("Home/End", "Scroll to Top/Bottom"),
+      ("+/-", "Adjust Progress Window"),
     ]
 
     help_win.attron(curses.color_pair(1) | curses.A_REVERSE)
@@ -302,9 +349,9 @@ class ParallelJobHandler:
 
     key = help_win.getch()
     curses.flushinp()
-    if key == ord("y"):
+    if key == ord("y") or key == ord("Y"):
       return True, True
-    elif key == ord("n"):
+    elif key == ord("n") or key == ord("N"):
       return True, False
     else:
       return False, False
@@ -438,19 +485,19 @@ class ParallelJobHandler:
     old_width = width
     old_height = height
 
-    header_height = 2
-
     # Adjust window positions
-    progress_height = len(self.job_list)
+    progress_height = self.job_index_end - self.job_index_start
+    header_height = 1
     separator_height = 1
     help_height = 1
-    logs_height = height - progress_height - separator_height - help_height - header_height
+    logs_height = height - progress_height - 2*separator_height - help_height - header_height
 
     try:
       header_win = curses.newwin(header_height, width, 0, 0)
-      progress_win = curses.newwin(progress_height, width, header_height, 0)
-      separator_win = curses.newwin(separator_height, width, header_height + progress_height, 0)
-      logs_win = curses.newwin(logs_height, width, header_height + progress_height + separator_height, 0)
+      separator_top_win = curses.newwin(separator_height, width, header_height, 0)
+      progress_win = curses.newwin(progress_height, width, header_height + separator_height, 0)
+      separator_middle_win = curses.newwin(separator_height, width, header_height + separator_height + progress_height, 0)
+      logs_win = curses.newwin(logs_height, width, header_height + separator_height + progress_height + separator_height, 0)
       help_win = curses.newwin(help_height, width, height - help_height, 0)
     except curses.error:
       stdscr.clear()
@@ -477,16 +524,21 @@ class ParallelJobHandler:
 
     stdscr.nodelay(True)
 
+    resize = False
+
     while True:
       height, width = stdscr.getmaxyx()
       # If window size changes, adjust the layout
-      if height != old_height or width != old_width:
+      if height != old_height or width != old_width or resize:
         try:
-          logs_height = height - progress_height - separator_height - help_height - header_height
-          logs_win = curses.newwin(logs_height, width, header_height + progress_height + separator_height, 0)
+          progress_height = self.job_index_end - self.job_index_start
+          logs_height = height - progress_height - 2*separator_height - help_height - header_height
+          
+          separator_top_win = curses.newwin(separator_height, width, header_height, 0)
+          progress_win = curses.newwin(progress_height, width, header_height + separator_height, 0)
+          separator_middle_win = curses.newwin(separator_height, width, header_height + separator_height + progress_height, 0)
+          logs_win = curses.newwin(logs_height, width, header_height + separator_height + progress_height + separator_height, 0)
           help_win = curses.newwin(help_height, width, height - help_height, 0)
-          progress_win = curses.newwin(progress_height, width, header_height, 0)
-          separator_win = curses.newwin(separator_height, width, header_height + progress_height, 0)
 
           self.update_logs(logs_win, selected_job, logs_height, width)
         except curses.error:
@@ -499,6 +551,7 @@ class ParallelJobHandler:
 
         old_width = width
         old_height = height
+        resize = False
 
       # Check if all jobs have finished
       active_jobs_count = len(self.running_job_list)
@@ -510,16 +563,17 @@ class ParallelJobHandler:
       # Add a header
       self.update_header(header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
 
-      progress_win.erase()
-      height, width = progress_win.getmaxyx()
-      for id, job in enumerate(self.job_list):
+      # Add a separator
+      self.update_separator(separator_top_win, self.job_index_start, 0, width)
 
+      # Update job status and progress
+      for job in self.job_list:
         if job in self.retired_job_list:
-          progress = job.progress
+          job.progress = job.progress
         elif job not in self.running_job_list or job.process is None:
-          progress = 0
-        else:
-          progress = job.get_progress()
+          job.progress = 0
+        else: 
+          job.progress = job.get_progress()
           if job.process.poll() is not None:
             if job.process.returncode == 0:
               if job.status == "starting":
@@ -530,36 +584,22 @@ class ParallelJobHandler:
                 job.status = "success"
             else:
               job.status = "failed"
-              if progress is None:
-                progress = 0
+              if job.progress is None:
+                job.progress = 0
 
-            self.retire_job(job, progress)
+            self.retire_job(job, job.progress)
             if not self.job_queue.empty():
               self.start_job(self.job_queue.get())
               
             if job == selected_job:
               selected_job.log_changed = True
               self.update_logs(logs_win, selected_job, logs_height, width)
-        try:
-          self.progress_bar(
-            id=id,
-            window=progress_win,
-            progress=progress,
-            bar_width=(width - 25),
-            title=job.display_name,
-            title_size=self.max_title_length,
-            width=width,
-            status=job.status,
-            selected=(id == self.selected_job_index),
-          )
-        except curses.error:
-          pass
-      progress_win.refresh()
+
+      # Update progress window
+      self.update_progress_window(progress_win, selected_job)
 
       # Add a separator
-      separator_win.erase()
-      separator_win.hline(0, 0, "-", width)
-      separator_win.refresh()
+      self.update_separator(separator_middle_win, self.job_count, self.job_index_end, width)
 
       # Collect all stdout and stderr pipes
       pipes = [job.process.stdout for job in self.running_job_list] + [
@@ -598,22 +638,28 @@ class ParallelJobHandler:
 
       # Get inputs
       key = stdscr.getch()
-      curses.flushinp()
+      curses.flushinp()        
 
       if key == curses.KEY_PPAGE:  # Page Up
         if self.selected_job_index > 0:
           self.selected_job_index -= 1
-          selected_job = self.job_list[self.selected_job_index]
-          selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-          selected_job.autoscroll = True
-          self.update_logs(logs_win, selected_job, logs_height, width)
+        if self.selected_job_index < self.job_index_start:
+          self.job_index_start -= 1
+          self.job_index_end -= 1
+        selected_job = self.job_list[self.selected_job_index]
+        selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
+        selected_job.autoscroll = True
+        self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_NPAGE:  # Page Down
         if self.selected_job_index < len(self.job_list) - 1:
           self.selected_job_index += 1
-          selected_job = self.job_list[self.selected_job_index]
-          selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-          selected_job.autoscroll = True
-          self.update_logs(logs_win, selected_job, logs_height, width)
+        if self.selected_job_index >= self.job_index_end:
+          self.job_index_start += 1
+          self.job_index_end += 1
+        selected_job = self.job_list[self.selected_job_index]
+        selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
+        selected_job.autoscroll = True
+        self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_UP:  # Scroll Up
         if selected_job.log_position > 0:
           selected_job.log_position = max(0, selected_job.log_position - 3)
@@ -632,6 +678,21 @@ class ParallelJobHandler:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         selected_job.autoscroll = True
         self.update_logs(logs_win, selected_job, logs_height, width)
+      elif key == ord("+"): 
+        if logs_height > 0:
+          if self.job_index_end < self.job_count:
+            self.job_index_end += 1
+            resize = True
+          elif self.job_index_start > 0:
+            self.job_index_start -= 1
+            resize = True
+      elif key == ord("-"):
+        if self.selected_job_index < self.job_index_end - 1:
+          self.job_index_end -= 1
+          resize = True
+        elif self.job_index_start < self.job_index_end - 1:
+          self.job_index_start += 1
+          resize = True
       else:
         if self.auto_exit and finished:
           return True
