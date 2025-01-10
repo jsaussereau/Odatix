@@ -204,7 +204,7 @@ class ParallelJobHandler:
     comment = f"({status})"
 
     try:
-      button = "[*]" if selected else "[ ]"
+      button = "[x]" if selected else "[ ]"
       window.addstr(id, 0, f"{button} {title} [")
       window.addstr(id, len(button) + len(title) + 3, "#" * bar_length, curses.color_pair(1))
       window.addstr(id, len(button) + len(title) + 3 + bar_length, " " * (bar_width - bar_length), curses.color_pair(1))
