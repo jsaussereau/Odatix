@@ -423,6 +423,19 @@ class ParallelJobHandler:
       job.log_history.append(printc.colors.CYAN + "note: look for earlier error to solve this issue" + printc.colors.ENDC)
       return
 
+  def click_on_job(self, progress_win, y, x):
+    # Check if the click occured in progress_win
+    if progress_win.enclose(y, x):
+      # Get job index based on Y position
+      relative_y = y - progress_win.getbegyx()[0]
+      job_index = self.job_index_start + relative_y
+
+      # Check if index is valid
+      if 0 <= job_index < len(self.job_list):
+        self.selected_job_index = job_index
+        return True
+    return False
+
   def run_job(self, job):
     job.log_history.append(printc.colors.CYAN + "Run job command" + printc.colors.ENDC)
     job.log_history.append(printc.colors.BOLD + " > " + job.command + printc.colors.ENDC)
@@ -468,6 +481,9 @@ class ParallelJobHandler:
 
   def curses_main(self, stdscr):
     curses.curs_set(0)  # Hide cursor
+
+    # Enable mouse
+    curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
 
     curses.start_color()
     curses.use_default_colors()
@@ -638,38 +654,78 @@ class ParallelJobHandler:
 
       # Get inputs
       key = stdscr.getch()
-      curses.flushinp()        
+      curses.flushinp()    
 
-      if key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  # Page Up
+      def update_selected_job():
+        job = self.job_list[self.selected_job_index]
+        job.log_position = max(0, len(job.log_history) - logs_height)
+        job.autoscroll = True
+        return job
+
+      def scroll_up_logs(selected_job):
+        if selected_job.log_position > 0:
+          selected_job.log_position = max(0, selected_job.log_position - 3)
+          selected_job.autoscroll = False
+          self.update_logs(logs_win, selected_job, logs_height, width)
+
+      def scroll_down_logs(selected_job):
+        if selected_job.log_position + logs_height < len(selected_job.log_history):
+          selected_job.log_position = min(len(selected_job.log_history) - logs_height, selected_job.log_position + 3)
+          selected_job.autoscroll = False
+          self.update_logs(logs_win, selected_job, logs_height, width)
+
+      def scroll_up_progress():
+        self.job_index_start -= 1
+        self.job_index_end -= 1
+
+      def scroll_down_progress():
+        self.job_index_start += 1
+        self.job_index_end += 1
+
+      if key == curses.KEY_MOUSE:
+        _, x, y, _, button = curses.getmouse()
+        
+        # Left click
+        if button == curses.BUTTON1_CLICKED:
+          # Check if user left clicked on a job
+          if self.click_on_job(progress_win, y, x):
+            selected_job = update_selected_job()
+            self.update_logs(logs_win, selected_job, logs_height, width)
+
+        # Scroll up
+        elif button == curses.BUTTON4_PRESSED:
+          if progress_win.enclose(y, x):
+            if self.job_index_start > 0:
+              scroll_up_progress()
+          elif logs_win.enclose(y, x):
+            scroll_up_logs(selected_job)
+
+        # Scroll down
+        elif button == curses.BUTTON5_PRESSED:
+          if progress_win.enclose(y, x):
+            if self.job_index_end <= len(self.job_list) - 1:
+              scroll_down_progress()
+          elif logs_win.enclose(y, x):
+            scroll_down_logs(selected_job)
+
+      elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  # Page Up
         if self.selected_job_index > 0:
           self.selected_job_index -= 1
         if self.selected_job_index < self.job_index_start:
-          self.job_index_start -= 1
-          self.job_index_end -= 1
-        selected_job = self.job_list[self.selected_job_index]
-        selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-        selected_job.autoscroll = True
+          scroll_up_progress()
+        selected_job = update_selected_job()
         self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_NPAGE or key == ord("n") or key == ord("N"):  # Page Down
         if self.selected_job_index < len(self.job_list) - 1:
           self.selected_job_index += 1
         if self.selected_job_index >= self.job_index_end:
-          self.job_index_start += 1
-          self.job_index_end += 1
-        selected_job = self.job_list[self.selected_job_index]
-        selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-        selected_job.autoscroll = True
+          scroll_down_progress()
+        selected_job = update_selected_job()
         self.update_logs(logs_win, selected_job, logs_height, width)
       elif key == curses.KEY_UP:  # Scroll Up
-        if selected_job.log_position > 0:
-          selected_job.log_position = max(0, selected_job.log_position - 3)
-          selected_job.autoscroll = False
-          self.update_logs(logs_win, selected_job, logs_height, width)
+        scroll_up_logs(selected_job)
       elif key == curses.KEY_DOWN:  # Scroll Down
-        if selected_job.log_position + logs_height < len(selected_job.log_history):
-          selected_job.log_position = min(len(selected_job.log_history) - logs_height, selected_job.log_position + 3)
-          selected_job.autoscroll = False
-          self.update_logs(logs_win, selected_job, logs_height, width)
+        scroll_down_logs(selected_job)
       elif key == curses.KEY_HOME:  # Home
         selected_job.log_position = 0
         selected_job.autoscroll = False
