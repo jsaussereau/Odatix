@@ -697,7 +697,7 @@ class ParallelJobHandler:
         if self.auto_exit and finished:
           return True
         else:
-          if key == ord("q"):
+          if key == ord("q") or key == ord("Q"):
             if finished:
               return True
             else:
