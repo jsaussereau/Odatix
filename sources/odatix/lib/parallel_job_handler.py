@@ -701,7 +701,7 @@ class ParallelJobHandler:
           elif new_job_index_end >= self.job_count:
             remainder = new_job_index_end - self.job_count
             self.job_index_end = self.job_count
-            self.job_index_start = max(0, self.job_index_start - remaining)
+            self.job_index_start = max(0, self.job_index_start - remainder)
             resize = True
           # General case
           else:
@@ -709,23 +709,23 @@ class ParallelJobHandler:
             resize = True
 
         # Left click
-        if button == curses.BUTTON1_CLICKED:
+        if button & curses.BUTTON1_CLICKED:
           # Check if user left clicked on a job
           if self.click_on_job(progress_win, y, x):
             selected_job = update_selected_job()
             self.update_logs(logs_win, selected_job, logs_height, width)
 
         # Hold separator
-        elif button == curses.BUTTON1_PRESSED:
+        elif button & curses.BUTTON1_PRESSED:
           if separator_middle_win.enclose(y, x):
             resize_hold = True
 
         # Release
-        elif button == curses.BUTTON1_RELEASED:
+        elif button & curses.BUTTON1_RELEASED:
           resize_hold = False
 
         # Scroll up
-        elif button == curses.BUTTON4_PRESSED:
+        elif button & curses.BUTTON4_PRESSED:
           if progress_win.enclose(y, x):
             if self.job_index_start > 0:
               scroll_up_progress()
@@ -733,7 +733,7 @@ class ParallelJobHandler:
             scroll_up_logs(selected_job)
 
         # Scroll down
-        elif button == curses.BUTTON5_PRESSED:
+        elif button & curses.BUTTON5_PRESSED:
           if progress_win.enclose(y, x):
             if self.job_index_end <= len(self.job_list) - 1:
               scroll_down_progress()
