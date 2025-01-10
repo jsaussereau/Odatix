@@ -541,6 +541,7 @@ class ParallelJobHandler:
     stdscr.nodelay(True)
 
     resize = False
+    resize_hold = False
 
     while True:
       height, width = stdscr.getmaxyx()
@@ -684,13 +685,44 @@ class ParallelJobHandler:
 
       if key == curses.KEY_MOUSE:
         _, x, y, _, button = curses.getmouse()
-        
+
+        if resize_hold:
+          # Ensure the y-coordinate does not exceed the bounds of the terminal height
+          y = min(y, height - 2)
+
+          relative_y = y - (header_height + separator_height)
+          new_job_index_end = self.job_index_start + relative_y
+
+          # Minimum size
+          if new_job_index_end <= self.job_index_start:
+            self.job_index_end = self.job_index_start + 1
+            resize = True
+          # Exceeding job count
+          elif new_job_index_end >= self.job_count:
+            remainder = new_job_index_end - self.job_count
+            self.job_index_end = self.job_count
+            self.job_index_start = max(0, self.job_index_start - remaining)
+            resize = True
+          # General case
+          else:
+            self.job_index_end = new_job_index_end
+            resize = True
+
         # Left click
         if button == curses.BUTTON1_CLICKED:
           # Check if user left clicked on a job
           if self.click_on_job(progress_win, y, x):
             selected_job = update_selected_job()
             self.update_logs(logs_win, selected_job, logs_height, width)
+
+        # Hold separator
+        elif button == curses.BUTTON1_PRESSED:
+          if separator_middle_win.enclose(y, x):
+            resize_hold = True
+
+        # Release
+        elif button == curses.BUTTON1_RELEASED:
+          resize_hold = False
 
         # Scroll up
         elif button == curses.BUTTON4_PRESSED:
@@ -707,33 +739,46 @@ class ParallelJobHandler:
               scroll_down_progress()
           elif logs_win.enclose(y, x):
             scroll_down_logs(selected_job)
-
-      elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  # Page Up
+      
+      # Page Up
+      elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  
         if self.selected_job_index > 0:
           self.selected_job_index -= 1
         if self.selected_job_index < self.job_index_start:
           scroll_up_progress()
         selected_job = update_selected_job()
         self.update_logs(logs_win, selected_job, logs_height, width)
-      elif key == curses.KEY_NPAGE or key == ord("n") or key == ord("N"):  # Page Down
+
+      # Page Down
+      elif key == curses.KEY_NPAGE or key == ord("n") or key == ord("N"):
         if self.selected_job_index < len(self.job_list) - 1:
           self.selected_job_index += 1
         if self.selected_job_index >= self.job_index_end:
           scroll_down_progress()
         selected_job = update_selected_job()
         self.update_logs(logs_win, selected_job, logs_height, width)
-      elif key == curses.KEY_UP:  # Scroll Up
+
+      # Scroll Up Logs
+      elif key == curses.KEY_UP:
         scroll_up_logs(selected_job)
-      elif key == curses.KEY_DOWN:  # Scroll Down
+
+      # Scroll Down
+      elif key == curses.KEY_DOWN:
         scroll_down_logs(selected_job)
-      elif key == curses.KEY_HOME:  # Home
+
+      # Logs Home
+      elif key == curses.KEY_HOME:
         selected_job.log_position = 0
         selected_job.autoscroll = False
         self.update_logs(logs_win, selected_job, logs_height, width)
-      elif key == curses.KEY_END:  # End
+
+      # Logs End
+      elif key == curses.KEY_END:
         selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
         selected_job.autoscroll = True
         self.update_logs(logs_win, selected_job, logs_height, width)
+
+      # Expand progress window
       elif key == ord("+") or key == ord("="): 
         if logs_height > 0:
           if self.job_index_end < self.job_count:
@@ -742,6 +787,8 @@ class ParallelJobHandler:
           elif self.job_index_start > 0:
             self.job_index_start -= 1
             resize = True
+
+      # Shrink progress window
       elif key == ord("-") or key == ord("_"):
         if self.selected_job_index < self.job_index_end - 1:
           self.job_index_end -= 1
@@ -749,6 +796,8 @@ class ParallelJobHandler:
         elif self.job_index_start < self.job_index_end - 1:
           self.job_index_start += 1
           resize = True
+
+      # Exit
       else:
         if self.auto_exit and finished:
           return True
