@@ -42,6 +42,132 @@ STD_BUF = "stdbuf -oL "
 script_name = os.path.basename(__file__)
 error = None
 
+NORMAL = 1
+RED = 2
+YELLOW = 3
+GREEN = 4
+BLUE = 5
+CYAN = 6
+
+REVERSE = 10
+REVERSE_RED = 12
+REVERSE_YELLOW = 13
+REVERSE_GREEN = 14
+REVERSE_BLUE = 15
+REVERSE_CYAN = 16
+
+class Theme:
+  theme = {
+    'ASCII_HIGHLIGHT': {
+      'bar'               : '-',
+      'border_left'       : ' [',
+      'border_right'      : ']',
+      'progress_empty'    : ' ',
+      'progress_full'     : '#',
+      'ballot_check'      : ' ',
+      'ballot_empty'      : ' ',
+      'selected_bold'     : True,
+      'selected_reverse'  : True,
+    },
+    'ASCII': {
+      'bar'               : '-',
+      'border_left'       : ' [',
+      'border_right'      : ']',
+      'progress_empty'    : ' ',
+      'progress_full'     : '#',
+      'ballot_check'      : '[x] ',
+      'ballot_empty'      : '[ ] ',
+      'selected_bold'     : False,
+      'selected_reverse'  : False,
+    },
+    'Legacy': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : '🮏',
+      'progress_full'     : '▅',
+      'ballot_check'      : ' ✔ ',
+      'ballot_empty'      : ' ❏ ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+    },
+    'Arrow': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : ' ',
+      'progress_full'     : '▮',
+      'ballot_check'      : ' ➜ ',
+      'ballot_empty'      : '   ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+    },
+    'Lines': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : ' ',
+      'progress_full'     : '━',
+      'ballot_check'      : ' ➜ ',
+      'ballot_empty'      : '   ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+    },
+    'Slanted': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : '▱',
+      'progress_full'     : '▰',
+      'ballot_check'      : ' ▶ ',
+      'ballot_empty'      : '   ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+    },
+    'Circle': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : '○',
+      'progress_full'     : '●',
+      'ballot_check'      : ' ● ',
+      'ballot_empty'      : '   ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+    },
+    'Simple': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : '▭',
+      'progress_full'     : '■',
+      'ballot_check'      : ' ✔ ',
+      'ballot_empty'      : ' ❏ ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+    },
+  }
+  
+  themes = list(theme.keys())
+
+  def __init__(self, theme):
+    if theme in Theme.themes:
+      self.theme = theme
+    else:
+      raise ValueError(f"Unknown theme '{theme}'")
+
+  def get(self, key):
+    if self.theme not in Theme.themes:
+      return '?'
+    if key not in Theme.theme[self.theme]:
+      return '?'
+    return Theme.theme[self.theme][key]
+
+  def next_theme(self):
+    current_index = Theme.themes.index(self.theme)
+    next_index = (current_index + 1) % len(Theme.themes)
+    self.theme = Theme.themes[next_index]
+
 ######################################
 # ParallelJob
 ######################################
@@ -175,6 +301,8 @@ class ParallelJobHandler:
     self.job_index_start = 0
     self.job_index_end = max_displayed_jobs
 
+    self.theme = Theme('ASCII_HIGHLIGHT')
+
   @staticmethod
   def set_nonblocking(fd):
     try:
@@ -183,8 +311,7 @@ class ParallelJobHandler:
     except TypeError:
       pass
 
-  @staticmethod
-  def progress_bar(window, id, progress, bar_width, title, title_size, width, status="", selected=False):
+  def progress_bar(self, window, id, progress, bar_width, title, title_size, width, status="", selected=False):
     bar_width = bar_width - title_size
     if bar_width < 4:
       bar_width = 4
@@ -203,33 +330,58 @@ class ParallelJobHandler:
     percentage = f"{progress:.0f}%"
     comment = f"({status})"
 
+    real_id = self.job_index_start  + id
+
     try:
-      button = "[x]" if selected else "[ ]"
-      window.addstr(id, 0, f"{button} {title} [")
-      window.addstr(id, len(button) + len(title) + 3, "#" * bar_length, curses.color_pair(1))
-      window.addstr(id, len(button) + len(title) + 3 + bar_length, " " * (bar_width - bar_length), curses.color_pair(1))
-      window.addstr(id, len(button) + len(title) + 3 + bar_width, f"] {percentage}")
+      if real_id == self.selected_job_index and self.theme.get('selected_reverse'):
+        window.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
+        attr = curses.A_REVERSE | curses.A_BOLD
+        offset = REVERSE
+      else:
+        attr = 0
+        offset = 0
+
+      button = self.theme.get('ballot_check') if selected else self.theme.get('ballot_empty')
+      border_left = self.theme.get('border_left')
+      border_right = self.theme.get('border_right')
+
+      window.addstr(id, 0, f"{button}")
+      if real_id == self.selected_job_index and self.theme.get('selected_bold'):
+        window.attron(curses.color_pair(NORMAL) | curses.A_BOLD)
+      window.addstr(id, len(button), f"{title}")
+      window.attroff(curses.A_BOLD)
+      window.addstr(id, len(button) + len(title), f"{border_left}")
+      window.addstr(id, len(button) + len(title) + len(border_left), self.theme.get('progress_full') * bar_length)
+      window.addstr(id, len(button) + len(title) + len(border_left) + bar_length, self.theme.get('progress_empty') * (bar_width - bar_length))
+
+      pos = len(button) + len(title) + len(border_left) + bar_width + len(border_right)
+      window.addstr(id, pos, " "*(width-pos))
+      window.addstr(id, len(button) + len(title) + len(border_left) + bar_width, f"{border_right} {percentage}")
 
       comment_position = len(button) + len(title) + 3 + bar_width + 8
       if status == "failed":
-        window.addstr(id, comment_position, comment, curses.color_pair(2))
+        window.addstr(id, comment_position, comment, curses.color_pair(RED + offset) | attr)
       elif status == "running":
-        window.addstr(id, comment_position, comment, curses.color_pair(3))
+        window.addstr(id, comment_position, comment, curses.color_pair(YELLOW + offset) | attr)
       elif status == "success":
-        window.addstr(id, comment_position, comment, curses.color_pair(4))
+        window.addstr(id, comment_position, comment, curses.color_pair(GREEN + offset) | attr)
       elif status == "queued":
-        window.addstr(id, comment_position, comment, curses.color_pair(5))
+        window.addstr(id, comment_position, comment, curses.color_pair(BLUE + offset) | attr)
       elif status == "starting":
-        window.addstr(id, comment_position, comment, curses.color_pair(6))
+        window.addstr(id, comment_position, comment, curses.color_pair(CYAN + offset) | attr)
       else:
-        window.addstr(id, comment_position, comment, curses.color_pair(1))
+        window.addstr(id, comment_position, comment, curses.color_pair(NORMAL + offset) | attr)
+
     except curses.error as e:
       pass
+    
+    window.attroff(curses.A_REVERSE)
+    window.attroff(curses.A_BOLD)
 
   def update_header(self, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width):
     try:
-      header_win.hline(0, 0, " ", width, curses.color_pair(1) | curses.A_REVERSE)
-      header_win.addstr(0, 1, "v" + str(self.version), curses.color_pair(1) | curses.A_REVERSE)
+      header_win.hline(0, 0, " ", width, curses.color_pair(NORMAL) | curses.A_REVERSE)
+      header_win.addstr(0, 1, "v" + str(self.version), curses.color_pair(NORMAL) | curses.A_REVERSE)
     except curses.error:
       pass
     if total_jobs_count == 1:
@@ -243,13 +395,13 @@ class ParallelJobHandler:
       else:
         text = "{}/{} jobs done - {} running".format(retired_jobs_count, total_jobs_count, active_jobs_count)
     try:
-      header_win.addstr(0, width - len(text) - 1, text, curses.color_pair(1) | curses.A_REVERSE)
+      header_win.addstr(0, width - len(text) - 1, text, curses.color_pair(NORMAL) | curses.A_REVERSE)
     except curses.error:
       pass
 
     try:
       header_win.addstr(
-        0, (width - len(" Odatix ")) // 2, " Odatix ", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD
+        0, (width - len(" Odatix ")) // 2, " Odatix ", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD
       )
     except curses.error:
       pass
@@ -285,11 +437,11 @@ class ParallelJobHandler:
   def update_separator(self, separator_win, val, ref, width):
       separator_win.erase()
       if val == ref:
-        separator_text = "-" * (width - 1)
+        separator_text = self.theme.get("bar") * (width - 1)
       else:
         message = f"{val - ref} more" 
         padding = 4
-        separator_text = "-" * padding + message + "-" * (width - len(message) - padding - 1)
+        separator_text = self.theme.get("bar") * padding + message + self.theme.get("bar") * (width - len(message) - padding - 1)
       try:
         separator_win.addstr(0, 0, separator_text)
       except curses.error as e:
@@ -309,7 +461,7 @@ class ParallelJobHandler:
       ("+/-", "Adjust Progress Window"),
     ]
 
-    help_win.attron(curses.color_pair(1) | curses.A_REVERSE)
+    help_win.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
     try:
       help_win.addstr(" ")
     except curses.error:
@@ -319,7 +471,7 @@ class ParallelJobHandler:
       try:
         if i > 0:
           help_win.addstr(" | ")
-        help_win.attron(curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+        help_win.attron(curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
         help_win.addstr(key)
         help_win.attroff(curses.A_BOLD)  # Remove attributes
         help_win.addstr(": ")
@@ -331,18 +483,18 @@ class ParallelJobHandler:
       help_win.addstr(" ")
     except curses.error:
       pass
-    help_win.attroff(curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
+    help_win.attroff(curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
     help_win.refresh()
 
   @staticmethod
   def show_exit_confirmation(help_win):
     try:
       help_win.erase()
-      help_win.addstr(" Kill all jobs and exit: Yes (", curses.color_pair(1) | curses.A_REVERSE)
-      help_win.addstr("y", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
-      help_win.addstr(") / No (", curses.color_pair(1) | curses.A_REVERSE)
-      help_win.addstr("n", curses.color_pair(1) | curses.A_REVERSE | curses.A_BOLD)
-      help_win.addstr(")? ", curses.color_pair(1) | curses.A_REVERSE)
+      help_win.addstr(" Kill all jobs and exit: Yes (", curses.color_pair(NORMAL) | curses.A_REVERSE)
+      help_win.addstr("y", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+      help_win.addstr(") / No (", curses.color_pair(NORMAL) | curses.A_REVERSE)
+      help_win.addstr("n", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+      help_win.addstr(")? ", curses.color_pair(NORMAL) | curses.A_REVERSE)
       help_win.refresh()
     except curses.error:
       pass
@@ -360,7 +512,7 @@ class ParallelJobHandler:
   def update_exit(help_win):
     try:
       help_win.erase()
-      help_win.addstr(" Exiting... ", curses.color_pair(1) | curses.A_REVERSE)
+      help_win.addstr(" Exiting... ", curses.color_pair(NORMAL) | curses.A_REVERSE)
       help_win.refresh()
     except curses.error:
       pass
@@ -489,13 +641,19 @@ class ParallelJobHandler:
     curses.use_default_colors()
 
     # Define color pairs
-    curses.init_pair(1, -1, -1)
-    curses.init_pair(2, curses.COLOR_RED, -1)
-    curses.init_pair(3, curses.COLOR_YELLOW, -1)
-    curses.init_pair(4, curses.COLOR_GREEN, -1)
-    curses.init_pair(5, curses.COLOR_BLUE, -1)
-    curses.init_pair(6, curses.COLOR_CYAN, -1)
-    curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(NORMAL, -1, -1)
+    curses.init_pair(RED, curses.COLOR_RED, -1)
+    curses.init_pair(YELLOW, curses.COLOR_YELLOW, -1)
+    curses.init_pair(GREEN, curses.COLOR_GREEN, -1)
+    curses.init_pair(BLUE, curses.COLOR_BLUE, -1)
+    curses.init_pair(CYAN, curses.COLOR_CYAN, -1)
+
+    curses.init_pair(REVERSE, curses.COLOR_BLACK, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(REVERSE_RED, -1, curses.COLOR_RED + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(REVERSE_YELLOW, -1, curses.COLOR_YELLOW + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(REVERSE_GREEN, -1, curses.COLOR_GREEN + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(REVERSE_BLUE, -1, curses.COLOR_BLUE + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(REVERSE_CYAN, -1, curses.COLOR_CYAN + AnsiToCursesConverter.LIGHT_OFFSET)
 
     height, width = stdscr.getmaxyx()
     old_width = width
@@ -518,7 +676,7 @@ class ParallelJobHandler:
     except curses.error:
       stdscr.clear()
       try:
-        stdscr.addstr(0, 0, "Could not start: window is too small. Press any key to exit", curses.color_pair(2))
+        stdscr.addstr(0, 0, "Could not start: window is too small. Press any key to exit", curses.color_pair(RED))
         stdscr.refresh()
       except curses.error:
         pass
@@ -561,7 +719,7 @@ class ParallelJobHandler:
         except curses.error:
           try:
             stdscr.clear()
-            stdscr.addstr(0, 0, "Window is too small!", curses.color_pair(2))
+            stdscr.addstr(0, 0, "Window is too small!", curses.color_pair(RED))
             stdscr.refresh()
           except curses.error:
             pass
@@ -796,6 +954,10 @@ class ParallelJobHandler:
         elif self.job_index_start < self.job_index_end - 1:
           self.job_index_start += 1
           resize = True
+
+      # Change theme
+      elif key == ord("t") or key == ord("T"):
+        self.theme.next_theme()
 
       # Exit
       else:
