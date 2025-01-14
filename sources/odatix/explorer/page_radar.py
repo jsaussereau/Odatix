@@ -64,6 +64,17 @@ def layout(explorer):
                 ),
               ]
             ),
+            html.Div(
+              className="title-dropdown",
+              children=[
+                html.Div(className="dropdown-label", children=[html.Label("Results")]),
+                dcc.Dropdown(
+                  id=f"results-dropdown-{page_name}",
+                  value="All",
+                  options= ["All", "Fmax", "Range"]
+                ),
+              ],
+            ),
             html.H2("Targets"),
             html.Div(
               [
@@ -269,9 +280,11 @@ def make_radar_chart(
   df,
   units,
   metric,
+  selected_results,
   all_configurations,
   all_architectures,
   all_targets,
+  all_frequencies,
   targets_for_yaml,
   visible_architectures,
   visible_targets,
@@ -279,11 +292,14 @@ def make_radar_chart(
   toggle_legendgroup,
   toggle_title,
   toggle_close,
+  color_mode,
+  symbol_mode,
   background,
   mode,
 ):
-  df.loc[:, metric] = pd.to_numeric(df[metric], errors="coerce")
-  df = df.dropna(subset=[metric])
+  numeric_df = df.copy()
+  numeric_df.loc[:, metric] = pd.to_numeric(numeric_df[metric], errors="coerce")
+  numeric_df = numeric_df.dropna(subset=[metric])
 
   if df.empty:
     fig = go.Figure(data=go.Scatterpolar())
@@ -299,6 +315,7 @@ def make_radar_chart(
   unit = legend.unit_to_html(units.get(metric, ""))
 
   unique_configurations = sorted(df["Configuration"].unique())
+  nb_points = len(unique_configurations) + 1 if toggle_close else len(unique_configurations)
 
   fig = go.Figure(
     data=go.Scatterpolar(
@@ -314,35 +331,57 @@ def make_radar_chart(
   for target in all_targets:
     if target in targets_for_yaml:
       i_target = i_target + 1
-    if target in visible_targets:
-      targets = [target] * len(unique_configurations)
-      for i, architecture in enumerate(all_architectures):
-        if architecture in visible_architectures:
-          df_architecture = df[
-            (df["Architecture"] == architecture) & 
-            (df["Target"] == target)
-          ]
+    if target not in visible_targets:
+      continue
+      
+    targets = [target] * nb_points
+
+    for i_architecture, architecture in enumerate(all_architectures):
+      if architecture in visible_architectures:
+        df_architecture = df[
+          (df["Architecture"] == architecture) & 
+          (df["Target"] == target)
+        ]
+
+        df_architecture_fmax = df_architecture[df_architecture["Type"] == "Fmax"]
+        if selected_results in ["All", "Fmax"] and not df_architecture_fmax.empty:
+
           if toggle_close:
-            first_row = df_architecture.iloc[0:1]
-            df_architecture = safe_df_append(df_architecture, first_row)
+            first_row = df_architecture_fmax.iloc[0:1]
+            df_architecture_fmax = safe_df_append(df_architecture_fmax, first_row)
+
+          if color_mode == "architecture":
+            color_id = i_architecture
+          elif color_mode == "target":
+            color_id = i_target
+          else:
+            color_id = 0
+
+          if symbol_mode == "architecture":
+            symbol_id = i_architecture
+          elif symbol_mode == "target":
+            symbol_id = i_target
+          else:
+            symbol_id = 0
 
           fig.add_trace(
             go.Scatterpolar(
-              r=df_architecture[metric],
-              theta=df_architecture["Configuration"],
+              r=df_architecture_fmax[metric],
+              theta=df_architecture_fmax["Configuration"],
               mode=mode,
               name=architecture,
               customdata=targets,
               legendgroup=target,
               legendgrouptitle_text=str(target) if toggle_legendgroup else None,
               marker_size=10,
-              marker_color=legend.get_color(i),
-              marker_symbol=legend.get_marker_symbol(i_target),
+              marker_color=legend.get_color(color_id),
+              marker_symbol=legend.get_marker_symbol(symbol_id),
               hovertemplate="<br>".join(
                 [
                   "Architecture: %{fullData.name}",
                   "Configuration: %{theta}",
                   "Target: %{customdata}",
+                  "Frequency: fmax",
                   str(metric_display) + ": %{r} " + unit,
                   "<extra></extra>",
                 ]
@@ -350,10 +389,59 @@ def make_radar_chart(
             )
           )
 
+        df_architecture_range = df_architecture[df_architecture["Type"] == "Range"]
+        if selected_results in ["All", "Range"] and not df_architecture_range.empty:
+          for i_freq, frequency in enumerate(all_frequencies):
+            df_frequency = df_architecture_range[df_architecture_range["Frequency"] == frequency]
+            frequencies = [f"{frequency} MHz"] * nb_points
+
+            if toggle_close:
+              first_row = df_frequency.iloc[0:1]
+              df_frequency = safe_df_append(df_frequency, first_row)
+            
+            if color_mode == "architecture":
+              color_id = i_architecture
+            elif color_mode == "target":
+              color_id = i_target
+            else:
+              color_id = i_freq + 1
+              
+            if symbol_mode == "architecture":
+              symbol_id = i_architecture
+            elif symbol_mode == "target":
+              symbol_id = i_target
+            else:
+              symbol_id = i_freq + 1
+
+            fig.add_trace(
+              go.Scatterpolar(
+                r=df_frequency[metric],
+                theta=df_frequency["Configuration"],
+                mode=mode,
+                name=architecture,
+                customdata=[list(a) for a in zip(targets, frequencies)],
+                legendgroup=target,
+                legendgrouptitle_text=str(target) if toggle_legendgroup else None,
+                marker_size=10,
+                marker_color=legend.get_color(color_id),
+                marker_symbol=legend.get_marker_symbol(symbol_id),
+                hovertemplate="<br>".join(
+                  [
+                    "Architecture: %{fullData.name}",
+                    "Configuration: %{theta}",
+                    "Target: %{customdata[0]}",
+                    "Frequency: %{customdata[1]}",
+                    str(metric_display) + ": %{r} " + unit,
+                    "<extra></extra>",
+                  ]
+                ),
+              )
+            )
+
   fig.update_layout(
     # template='plotly_dark',
     paper_bgcolor=background,
-    polar=dict(radialaxis=dict(visible=True, range=[0, df[metric].max() if not df[metric].empty else 1])),
+    polar=dict(radialaxis=dict(visible=True, range=[0, numeric_df[metric].max() if not df[metric].empty else 1])),
     showlegend="show_legend" in legend_dropdown,
     legend_groupclick="toggleitem",
     margin=dict(l=60, r=60, t=60, b=60),
@@ -398,9 +486,11 @@ def make_all_radar_charts(
   df,
   units,
   metrics,
+  selected_results,
   all_configurations,
   all_architectures,
   all_targets,
+  all_frequencies,
   targets_for_yaml,
   visible_architectures,
   visible_targets,
@@ -410,21 +500,25 @@ def make_all_radar_charts(
   toggle_title,
   toggle_lines,
   toggle_close,
+  color_mode,
+  symbol_mode,
   dl_format,
   background,
 ):
   radar_charts = []
 
-  mode = "lines+markers" if "show_lines" in toggle_lines else "markers"
+  mode = "lines+markers" if toggle_lines else "markers"
 
   for metric in metrics:
     fig = make_radar_chart(
       df,
       units,
       metric,
+      selected_results,
       all_configurations,
       all_architectures,
       all_targets,
+      all_frequencies,
       targets_for_yaml,
       visible_architectures,
       visible_targets,
@@ -432,6 +526,8 @@ def make_all_radar_charts(
       toggle_legendgroup,
       toggle_title,
       toggle_close,
+      color_mode,
+      symbol_mode,
       background,
       mode,
     )
@@ -462,6 +558,7 @@ def setup_callbacks(explorer):
     [
       Input("yaml-dropdown", "value"),
       # Input(f"target-dropdown-{page_name}", "value"),
+      Input(f"results-dropdown-{page_name}", "value"),
       Input("show-all", "n_clicks"),
       Input("hide-all", "n_clicks"),
       Input("legend-dropdown", "value"),
@@ -469,6 +566,8 @@ def setup_callbacks(explorer):
       Input("toggle-title", "value"),
       Input("toggle-lines", "value"),
       Input("toggle-close-line", "value"),
+      Input("color-mode-dropdown", "value"),
+      Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
     ]
@@ -477,6 +576,7 @@ def setup_callbacks(explorer):
   def update_radar_charts(
     selected_yaml,
     # selected_target,
+    selected_results,
     show_all,
     hide_all,
     legend_dropdown,
@@ -484,6 +584,8 @@ def setup_callbacks(explorer):
     toggle_title,
     toggle_lines,
     toggle_close,
+    color_mode,
+    symbol_mode,
     dl_format,
     background,
     *checklist_values,
@@ -522,14 +624,12 @@ def setup_callbacks(explorer):
 
       unique_configurations = sorted(filtered_df["Configuration"].unique())
 
-      metrics = [col for col in filtered_df.columns if col not in ["Target", "Architecture", "Configuration"]]
+      metrics = [col for col in filtered_df.columns if col not in ["Target", "Architecture", "Configuration", "Type", "Frequency"]]
       all_configurations = explorer.all_configurations
       all_architectures = explorer.all_architectures
       all_targets = explorer.all_targets
+      all_frequencies = explorer.all_frequencies
       targets_for_yaml = explorer.dfs[selected_yaml]["Target"].unique()
-
-      for metric in metrics:
-        filtered_df.loc[:, metric] = pd.to_numeric(filtered_df[metric], errors="coerce")
 
       yaml_name = os.path.splitext(selected_yaml)[0]
 
@@ -537,9 +637,11 @@ def setup_callbacks(explorer):
         filtered_df,
         explorer.units[selected_yaml],
         metrics,
+        selected_results,
         unique_configurations,
         all_architectures,
         all_targets,
+        all_frequencies,
         targets_for_yaml,
         visible_architectures,
         visible_targets,
@@ -549,6 +651,8 @@ def setup_callbacks(explorer):
         toggle_title,
         toggle_lines,
         toggle_close,
+        color_mode,
+        symbol_mode,
         dl_format,
         background,
       )
