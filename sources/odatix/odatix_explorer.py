@@ -33,6 +33,8 @@ import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
 from odatix.explorer.explorer_app import ResultExplorer
 
+sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
+
 ######################################
 # Settings
 ######################################
