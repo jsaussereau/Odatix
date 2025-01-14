@@ -137,7 +137,7 @@ def layout(explorer):
                     {"label": "Show", "value": "show_legend"},
                     {"label": "Separate", "value": "separate_legend"},
                   ],
-                  value="hide_legend",
+                  value="separate_legend",
                 ),
               ],
               style={"margin-bottom": "5px"},
@@ -167,7 +167,7 @@ def layout(explorer):
                 dcc.Checklist(
                   id="toggle-close-line",
                   options=[{"label": " Close Lines", "value": True}],
-                  value=[],
+                  value=[True],
                   labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                 ),
               ],
