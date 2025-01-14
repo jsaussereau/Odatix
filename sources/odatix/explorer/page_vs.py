@@ -372,16 +372,17 @@ def setup_callbacks(explorer):
 
             mode = "lines+markers" if toggle_lines else "markers"
 
-            if selected_results in ["All", "Fmax"]:
+            df_architecture_fmax = df_architecture[df_architecture["Type"] == "Fmax"]
 
-              if selected_metric_x is None or selected_metric_x not in df_architecture.columns:
+            if selected_results in ["All", "Fmax"] and not df_architecture_fmax.empty:
+              if selected_metric_x is None or selected_metric_x not in df_architecture_fmax.columns:
                 return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
-              if selected_metric_y is None or selected_metric_y not in df_architecture.columns:
+              if selected_metric_y is None or selected_metric_y not in df_architecture_fmax.columns:
                 return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
 
-              x_values = df_architecture[selected_metric_x].tolist()
-              y_values = df_architecture[selected_metric_y].tolist()
-              config_names = df_architecture["Configuration"].tolist()
+              x_values = df_architecture_fmax[selected_metric_x].tolist()
+              y_values = df_architecture_fmax[selected_metric_y].tolist()
+              config_names = df_architecture_fmax["Configuration"].tolist()
               targets = [target] * len(x_values)
               frequencies = ["fmax"] * len(x_values)
 
@@ -408,9 +409,11 @@ def setup_callbacks(explorer):
                 unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
               )
 
-            if selected_results in ["All", "Range"]:
+            df_architecture_range = df_architecture[df_architecture["Type"] == "Range"]
+
+            if selected_results in ["All", "Range"] and not df_architecture_range.empty:
               for i_freq, frequency in enumerate(explorer.all_frequencies):
-                df_frequency = df_architecture[df_architecture["Frequency"] == frequency]
+                df_frequency = df_architecture_range[df_architecture_range["Frequency"] == frequency]
                 if df_frequency.empty:
                   continue
 
