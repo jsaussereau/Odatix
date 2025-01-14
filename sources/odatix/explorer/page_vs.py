@@ -58,6 +58,17 @@ def layout(explorer):
                 ),
               ],
             ),
+            html.Div(
+              className="title-dropdown",
+              children=[
+                html.Div(className="dropdown-label", children=[html.Label("Results")]),
+                dcc.Dropdown(
+                  id=f"results-dropdown-{page_name}",
+                  value="All",
+                  options= ["All", "Fmax", "Range"]
+                ),
+              ],
+            ),
             # html.Div(
             #   className="title-dropdown",
             #   children=[
@@ -260,6 +271,7 @@ def setup_callbacks(explorer):
       Input("yaml-dropdown", "value"),
       Input("metric-x-dropdown", "value"),
       Input("metric-y-dropdown", "value"),
+      Input(f"results-dropdown-{page_name}", "value"),
       # Input(f"target-dropdown-{page_name}", "value"),
       Input("show-all", "n_clicks"),
       Input("hide-all", "n_clicks"),
@@ -268,6 +280,8 @@ def setup_callbacks(explorer):
       Input("toggle-title", "value"),
       Input("toggle-lines", "value"),
       Input("toggle-labels", "value"),
+      Input("color-mode-dropdown", "value"),
+      Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
     ]
@@ -277,6 +291,7 @@ def setup_callbacks(explorer):
     selected_yaml,
     selected_metric_x,
     selected_metric_y,
+    selected_results,
     # selected_target,
     show_all,
     hide_all,
@@ -285,6 +300,8 @@ def setup_callbacks(explorer):
     toggle_title,
     toggle_lines,
     toggle_labels,
+    color_mode,
+    symbol_mode,
     dl_format,
     background,
     *checklist_values,
@@ -342,57 +359,90 @@ def setup_callbacks(explorer):
         if target in explorer.dfs[selected_yaml]["Target"].unique():
           i_target = i_target + 1
         if target in visible_targets:
-          for i, architecture in enumerate(explorer.all_architectures):
+          for i_architecture, architecture in enumerate(explorer.all_architectures):
             if architecture in visible_architectures:
               df_architecture = filtered_df[
                 (filtered_df["Architecture"] == architecture) & 
                 (filtered_df["Target"] == target)
               ]
 
-              if selected_metric_x is None or selected_metric_x not in df_architecture.columns:
-                return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
-              if selected_metric_y is None or selected_metric_y not in df_architecture.columns:
-                return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
-
-              x_values = df_architecture[selected_metric_x].tolist()
-              y_values = df_architecture[selected_metric_y].tolist()
-              config_names = df_architecture["Configuration"].tolist()
-              targets = [target] * len(x_values)
-
               mode = "lines+markers" if toggle_lines else "markers"
-              if toggle_labels:
-                mode += "+text"
 
-              fig.add_trace(
-                go.Scatter(
-                  x=x_values,
-                  y=y_values,
-                  mode=mode,
-                  line=dict(dash="dot") if toggle_lines else None,
-                  marker=dict(
-                    size=10,
-                    color=legend.get_color(i),
-                    symbol=legend.get_marker_symbol(i_target),
-                  ),
-                  name=architecture,
-                  customdata=targets,
-                  legendgroup=target,
-                  legendgrouptitle_text=str(target) if toggle_legendgroup else None,
-                  connectgaps=True,
-                  text=config_names,
-                  textposition="top center",
-                  hovertemplate="<br>".join(
-                    [
-                      "Architecture: %{fullData.name}",
-                      "Configuration: %{text}",
-                      "Target: %{customdata}",
-                      selected_metric_x_display + ": %{x} " + unit_x,
-                      selected_metric_y_display + ": %{y} " + unit_y,
-                      "<extra></extra>",
-                    ]
-                  ),
+              if selected_results in ["All", "Fmax"]:
+
+                if selected_metric_x is None or selected_metric_x not in df_architecture.columns:
+                  return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
+                if selected_metric_y is None or selected_metric_y not in df_architecture.columns:
+                  return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
+
+                x_values = df_architecture[selected_metric_x].tolist()
+                y_values = df_architecture[selected_metric_y].tolist()
+                config_names = df_architecture["Configuration"].tolist()
+                targets = [target] * len(x_values)
+                frequencies = ["fmax"] * len(x_values)
+
+                if color_mode == "architecture":
+                  color_id = i_architecture
+                elif color_mode == "target":
+                  color_id = i_target
+                else:
+                  color_id = 0
+
+                if symbol_mode == "architecture":
+                  symbol_id = i_architecture
+                elif symbol_mode == "target":
+                  symbol_id = i_target
+                else:
+                  symbol_id = 0
+
+                if toggle_labels:
+                  mode += "+text"
+
+                add_trace_to_fig(
+                  fig, x_values, y_values, mode, architecture, frequencies, "fmax", config_names,
+                  targets, target, selected_metric_x_display, selected_metric_y_display,
+                  unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
                 )
-              )
+
+              if selected_results in ["All", "Range"]:
+                for i_freq, frequency in enumerate(explorer.all_frequencies):
+                  df_frequency = df_architecture[df_architecture["Frequency"] == frequency]
+                  if df_frequency.empty:
+                    continue
+
+                  if selected_metric_x is None or selected_metric_x not in df_frequency.columns:
+                    return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
+                  if selected_metric_y is None or selected_metric_y not in df_frequency.columns:
+                    return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
+
+                  x_values = df_frequency[selected_metric_x].tolist()
+                  y_values = df_frequency[selected_metric_y].tolist()
+                  config_names = df_frequency["Configuration"].tolist()
+                  targets = [target] * len(x_values)
+                  frequencies = [f"{frequency} MHz"] * len(x_values)
+
+                  if color_mode == "architecture":
+                    color_id = i_architecture
+                  elif color_mode == "target":
+                    color_id = i_target
+                  else:
+                    color_id = i_freq + 1
+                    
+                  if symbol_mode == "architecture":
+                    symbol_id = i_architecture
+                  elif symbol_mode == "target":
+                    symbol_id = i_target
+                  else:
+                    symbol_id = i_freq + 1
+
+                  if toggle_labels:
+                    mode += "+text"
+
+                  add_trace_to_fig(
+                    fig, x_values, y_values, mode, architecture, frequencies, f"{frequency} MHz", config_names,
+                    targets, target, selected_metric_x_display, selected_metric_y_display,
+                    unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
+                  )
 
       fig.update_layout(
         paper_bgcolor=background,
@@ -433,3 +483,36 @@ def setup_callbacks(explorer):
 
   legend.setup_callbacks(explorer, page_name)
   navigation.setup_sidebar_callbacks(explorer, page_name)
+
+def add_trace_to_fig(fig, x_values, y_values, mode, architecture, frequencies, frequency, config_names, targets, target, selected_metric_x_display, selected_metric_y_display, unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup):
+  fig.add_trace(
+    go.Scatter(
+      x=x_values,
+      y=y_values,
+      mode=mode,
+      line=dict(dash="dot") if toggle_lines else None,
+      marker=dict(
+        size=10,
+        color=legend.get_color(color_id ),
+        symbol=legend.get_marker_symbol(symbol_id),
+      ),
+      name=f"{architecture} @ {frequency}" if frequency else architecture,
+      customdata=[list(a) for a in zip(targets, frequencies)],
+      legendgroup=target,
+      legendgrouptitle_text=str(target) if toggle_legendgroup else None,
+      connectgaps=True,
+      text=config_names,
+      textposition="top center",
+      hovertemplate="<br>".join(
+        [
+          "Architecture: %{fullData.name}",
+          "Configuration: %{text}",
+          "Target: %{customdata[0]}",
+          "Frequency: %{customdata[1]}",
+          selected_metric_x_display + ": %{x} " + unit_x,
+          selected_metric_y_display + ": %{y} " + unit_y,
+          "<extra></extra>",
+        ]
+      ),
+    )
+  )
