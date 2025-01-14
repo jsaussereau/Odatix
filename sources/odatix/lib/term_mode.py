@@ -46,3 +46,28 @@ def restore_mode(old_settings):
   """
   fd = sys.stdin.fileno()
   termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+class RawModeOutputWrapper:
+  """
+  A wrapper for sys.stdout that ensures compatibility with raw terminal mode.
+  
+  In raw mode, a newline character (`\n`) only moves the cursor to the next line
+  but does not return it to the beginning of the line. This class intercepts all 
+  output to sys.stdout and replaces every `\n` with the combination `\r\n`, 
+  which moves the cursor both to the next line and back to the beginning.
+  """
+  def __init__(self, wrapped):
+    self.wrapped = wrapped # The original sys.stdout or any file-like object to wrap/
+
+  def write(self, text):
+    """ 
+    Replaces `\n` with `\r\n` and writes the modified text to the wrapped output
+    """
+    text = text.replace("\n", "\r\n")
+    self.wrapped.write(text)
+
+  def flush(self):
+    """
+    Flushes the wrapped output stream
+    """
+    self.wrapped.flush()
