@@ -328,7 +328,8 @@ def setup_callbacks(explorer):
         (explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures))
       ]
 
-      unique_configurations = sorted(filtered_df["Configuration"].unique())
+      #unique_configurations = sorted(filtered_df["Configuration"].unique())
+      unique_configurations = filtered_df["Configuration"].unique()
 
       fig = go.Figure()
 
@@ -338,141 +339,151 @@ def setup_callbacks(explorer):
         for target in explorer.all_targets:
           if target in explorer.dfs[selected_yaml]["Target"].unique():
             i_target = i_target + 1
-          if target in visible_targets:
-            targets = [target] * len(unique_configurations)
-            for  i_architecture, architecture in enumerate(explorer.all_architectures):
-              if architecture in visible_architectures:
-                df_architecture_target = filtered_df[
-                  (filtered_df["Architecture"] == architecture) & 
-                  (filtered_df["Target"] == target)
+          if target not in visible_targets:
+            continue
+
+          targets = [target] * len(unique_configurations)
+          for  i_architecture, architecture in enumerate(explorer.all_architectures):
+            
+            if architecture not in visible_architectures:
+              continue
+              
+            df_architecture_target = filtered_df[
+              (filtered_df["Architecture"] == architecture) & 
+              (filtered_df["Target"] == target)
+            ]
+            if df_architecture_target.empty:
+              continue
+            
+            mode = "lines+markers" if toggle_lines else "markers"
+            
+            if selected_results in ["All", "Fmax"]:
+              if selected_metric is None or selected_metric not in df_architecture_target.columns:
+                return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
+              else:
+                y_values = [
+                  df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
+                  if config in df_architecture_target["Configuration"].values
+                  else None
+                  for config in unique_configurations
                 ]
-                
-                mode = "lines+markers" if toggle_lines else "markers"
-                
-                if selected_results in ["All", "Fmax"]:
-                  if selected_metric is None or selected_metric not in df_architecture_target.columns:
-                    return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
-                  else:
-                    y_values = [
-                      df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
-                      if config in df_architecture_target["Configuration"].values
-                      else None
-                      for config in unique_configurations
-                    ]
 
-                    if color_mode == "architecture":
-                      color_id = i_architecture
-                    elif color_mode == "target":
-                      color_id = i_target
-                    else:
-                      color_id = 0
+                if color_mode == "architecture":
+                  color_id = i_architecture
+                elif color_mode == "target":
+                  color_id = i_target
+                else:
+                  color_id = 0
 
-                    if symbol_mode == "architecture":
-                      symbol_id = i_architecture
-                    elif symbol_mode == "target":
-                      symbol_id = i_target
-                    else:
-                      symbol_id = 0
+                if symbol_mode == "architecture":
+                  symbol_id = i_architecture
+                elif symbol_mode == "target":
+                  symbol_id = i_target
+                else:
+                  symbol_id = 0
 
-                    add_trace_to_fig(
-                      fig, unique_configurations, y_values, mode, architecture, "fmax",
-                      targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
-                    )
+                add_trace_to_fig(
+                  fig, unique_configurations, y_values, mode, architecture, "fmax",
+                  targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
+                )
+              
+            if selected_results in ["All", "Range"]:
+              for i_freq, frequency in enumerate(explorer.all_frequencies):
+                df_frequency = df_architecture_target[df_architecture_target["Frequency"] == frequency]
+                if df_frequency.empty:
+                  continue
+
+                if color_mode == "architecture":
+                  color_id = i_architecture
+                elif color_mode == "target":
+                  color_id = i_target
+                else:
+                  color_id = i_freq + 1
                   
-                if selected_results in ["All", "Range"]:
-                  for i_freq, frequency in enumerate(explorer.all_frequencies):
-                    df_frequency = df_architecture_target[df_architecture_target["Frequency"] == frequency]
-                    if df_frequency.empty:
-                      continue
+                if symbol_mode == "architecture":
+                  symbol_id = i_architecture
+                elif symbol_mode == "target":
+                  symbol_id = i_target
+                else:
+                  symbol_id = i_freq + 1
 
-                    if color_mode == "architecture":
-                      color_id = i_architecture
-                    elif color_mode == "target":
-                      color_id = i_target
-                    else:
-                      color_id = i_freq + 1
-                      
-                    if symbol_mode == "architecture":
-                      symbol_id = i_architecture
-                    elif symbol_mode == "target":
-                      symbol_id = i_target
-                    else:
-                      symbol_id = i_freq + 1
+                y_values = [
+                  df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
+                  if config in df_frequency["Configuration"].values
+                  else None
+                  for config in unique_configurations
+                ]
 
-                    y_values = [
-                      df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
-                      if config in df_frequency["Configuration"].values
-                      else None
-                      for config in unique_configurations
-                    ]
-
-                    add_trace_to_fig(
-                      fig, unique_configurations, y_values, mode, architecture, f"{frequency} MHz",
-                      targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
-                    )
-
+                add_trace_to_fig(
+                  fig, unique_configurations, y_values, mode, architecture, f"{frequency} MHz",
+                  targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
+                )
 
       elif display_mode == "bars":
         for target in explorer.all_targets:
           if target in explorer.dfs[selected_yaml]["Target"].unique():
             i_target = i_target + 1
-          if target in visible_targets:
-            targets = [target] * len(unique_configurations)
-            for i_architecture, architecture in enumerate(explorer.all_architectures):
-              if architecture in visible_architectures:
-                df_architecture_target = filtered_df[
-                  (filtered_df["Architecture"] == architecture) & 
-                  (filtered_df["Target"] == target)
+          if target not in visible_targets:
+            continue
+
+          targets = [target] * len(unique_configurations)
+          for i_architecture, architecture in enumerate(explorer.all_architectures):
+            if architecture not in visible_architectures:
+              continue
+            
+            df_architecture_target = filtered_df[
+              (filtered_df["Architecture"] == architecture) & 
+              (filtered_df["Target"] == target)
+            ]
+                
+            if selected_results in ["All", "Range"]:
+              for i_freq, frequency in enumerate(explorer.all_frequencies):
+                df_frequency = df_architecture_target[df_architecture_target["Frequency"] == frequency]
+                if df_frequency.empty:
+                  continue
+
+                if color_mode == "architecture":
+                  color_id = i_architecture
+                elif color_mode == "target":
+                  color_id = i_target
+                else:
+                  color_id = i_freq + 1
+
+                y_values = [
+                  df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
+                  if config in df_frequency["Configuration"].values
+                  else None
+                  for config in unique_configurations
                 ]
-                  
-                if selected_results in ["All", "Range"]:
-                  for i_freq, frequency in enumerate(explorer.all_frequencies):
-                    df_frequency = df_architecture_target[df_architecture_target["Frequency"] == frequency]
-                    if df_frequency.empty:
-                      continue
 
-                    if color_mode == "architecture":
-                      color_id = i_architecture
-                    elif color_mode == "target":
-                      color_id = i_target
-                    else:
-                      color_id = i_freq + 1
+                add_trace_to_bar_fig(
+                  fig, unique_configurations, y_values, None, architecture, f"{frequency} MHz",
+                  targets, target, selected_metric_display, unit, color_id, None, toggle_legendgroup
+                )
 
-                    y_values = [
-                      df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
-                      if config in df_frequency["Configuration"].values
-                      else None
-                      for config in unique_configurations
-                    ]
+            if selected_results in ["All", "Fmax"]:
+              if selected_metric is None or selected_metric not in df_architecture_target.columns:
+                return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
+              else:
+                y_values = [
+                  df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
+                  if config in df_architecture_target["Configuration"].values
+                  else None
+                  for config in unique_configurations
+                ]
 
-                    add_trace_to_bar_fig(
-                      fig, unique_configurations, y_values, None, architecture, f"{frequency} MHz",
-                      targets, target, selected_metric_display, unit, color_id, None, toggle_legendgroup
-                    )
+                if color_mode == "architecture":
+                  color_id = i_architecture
+                elif color_mode == "target":
+                  color_id = i_target
+                else:
+                  color_id = 0
 
-                if selected_results in ["All", "Fmax"]:
-                  if selected_metric is None or selected_metric not in df_architecture_target.columns:
-                    return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
-                  else:
-                    y_values = [
-                      df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
-                      if config in df_architecture_target["Configuration"].values
-                      else None
-                      for config in unique_configurations
-                    ]
+                add_trace_to_bar_fig(
+                  fig, unique_configurations, y_values, None, architecture, "fmax",
+                  targets, target, selected_metric_display, unit, color_id, None, toggle_legendgroup
+                )
 
-                    if color_mode == "architecture":
-                      color_id = i_architecture
-                    elif color_mode == "target":
-                      color_id = i_target
-                    else:
-                      color_id = 0
-
-                    add_trace_to_bar_fig(
-                      fig, unique_configurations, y_values, None, architecture, "fmax",
-                      targets, target, selected_metric_display, unit, color_id, None, toggle_legendgroup
-                    )
-                    
       fig.update_layout(
         paper_bgcolor=background,
         showlegend=True if toggle_legend else False,

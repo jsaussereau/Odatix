@@ -358,91 +358,95 @@ def setup_callbacks(explorer):
       for j, target in enumerate(explorer.all_targets):
         if target in explorer.dfs[selected_yaml]["Target"].unique():
           i_target = i_target + 1
-        if target in visible_targets:
-          for i_architecture, architecture in enumerate(explorer.all_architectures):
-            if architecture in visible_architectures:
-              df_architecture = filtered_df[
-                (filtered_df["Architecture"] == architecture) & 
-                (filtered_df["Target"] == target)
-              ]
+        if target not in visible_targets:
+          continue
 
-              mode = "lines+markers" if toggle_lines else "markers"
+        for i_architecture, architecture in enumerate(explorer.all_architectures):
+          if architecture in visible_architectures:
+            df_architecture = filtered_df[
+              (filtered_df["Architecture"] == architecture) & 
+              (filtered_df["Target"] == target)
+            ]
+            if df_architecture.empty:
+              continue
 
-              if selected_results in ["All", "Fmax"]:
+            mode = "lines+markers" if toggle_lines else "markers"
 
-                if selected_metric_x is None or selected_metric_x not in df_architecture.columns:
+            if selected_results in ["All", "Fmax"]:
+
+              if selected_metric_x is None or selected_metric_x not in df_architecture.columns:
+                return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
+              if selected_metric_y is None or selected_metric_y not in df_architecture.columns:
+                return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
+
+              x_values = df_architecture[selected_metric_x].tolist()
+              y_values = df_architecture[selected_metric_y].tolist()
+              config_names = df_architecture["Configuration"].tolist()
+              targets = [target] * len(x_values)
+              frequencies = ["fmax"] * len(x_values)
+
+              if color_mode == "architecture":
+                color_id = i_architecture
+              elif color_mode == "target":
+                color_id = i_target
+              else:
+                color_id = 0
+
+              if symbol_mode == "architecture":
+                symbol_id = i_architecture
+              elif symbol_mode == "target":
+                symbol_id = i_target
+              else:
+                symbol_id = 0
+
+              if toggle_labels:
+                mode += "+text"
+
+              add_trace_to_fig(
+                fig, x_values, y_values, mode, architecture, frequencies, "fmax", config_names,
+                targets, target, selected_metric_x_display, selected_metric_y_display,
+                unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
+              )
+
+            if selected_results in ["All", "Range"]:
+              for i_freq, frequency in enumerate(explorer.all_frequencies):
+                df_frequency = df_architecture[df_architecture["Frequency"] == frequency]
+                if df_frequency.empty:
+                  continue
+
+                if selected_metric_x is None or selected_metric_x not in df_frequency.columns:
                   return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
-                if selected_metric_y is None or selected_metric_y not in df_architecture.columns:
+                if selected_metric_y is None or selected_metric_y not in df_frequency.columns:
                   return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
 
-                x_values = df_architecture[selected_metric_x].tolist()
-                y_values = df_architecture[selected_metric_y].tolist()
-                config_names = df_architecture["Configuration"].tolist()
+                x_values = df_frequency[selected_metric_x].tolist()
+                y_values = df_frequency[selected_metric_y].tolist()
+                config_names = df_frequency["Configuration"].tolist()
                 targets = [target] * len(x_values)
-                frequencies = ["fmax"] * len(x_values)
+                frequencies = [f"{frequency} MHz"] * len(x_values)
 
                 if color_mode == "architecture":
                   color_id = i_architecture
                 elif color_mode == "target":
                   color_id = i_target
                 else:
-                  color_id = 0
-
+                  color_id = i_freq + 1
+                  
                 if symbol_mode == "architecture":
                   symbol_id = i_architecture
                 elif symbol_mode == "target":
                   symbol_id = i_target
                 else:
-                  symbol_id = 0
+                  symbol_id = i_freq + 1
 
                 if toggle_labels:
                   mode += "+text"
 
                 add_trace_to_fig(
-                  fig, x_values, y_values, mode, architecture, frequencies, "fmax", config_names,
+                  fig, x_values, y_values, mode, architecture, frequencies, f"{frequency} MHz", config_names,
                   targets, target, selected_metric_x_display, selected_metric_y_display,
                   unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
                 )
-
-              if selected_results in ["All", "Range"]:
-                for i_freq, frequency in enumerate(explorer.all_frequencies):
-                  df_frequency = df_architecture[df_architecture["Frequency"] == frequency]
-                  if df_frequency.empty:
-                    continue
-
-                  if selected_metric_x is None or selected_metric_x not in df_frequency.columns:
-                    return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
-                  if selected_metric_y is None or selected_metric_y not in df_frequency.columns:
-                    return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
-
-                  x_values = df_frequency[selected_metric_x].tolist()
-                  y_values = df_frequency[selected_metric_y].tolist()
-                  config_names = df_frequency["Configuration"].tolist()
-                  targets = [target] * len(x_values)
-                  frequencies = [f"{frequency} MHz"] * len(x_values)
-
-                  if color_mode == "architecture":
-                    color_id = i_architecture
-                  elif color_mode == "target":
-                    color_id = i_target
-                  else:
-                    color_id = i_freq + 1
-                    
-                  if symbol_mode == "architecture":
-                    symbol_id = i_architecture
-                  elif symbol_mode == "target":
-                    symbol_id = i_target
-                  else:
-                    symbol_id = i_freq + 1
-
-                  if toggle_labels:
-                    mode += "+text"
-
-                  add_trace_to_fig(
-                    fig, x_values, y_values, mode, architecture, frequencies, f"{frequency} MHz", config_names,
-                    targets, target, selected_metric_x_display, selected_metric_y_display,
-                    unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
-                  )
 
       fig.update_layout(
         paper_bgcolor=background,
