@@ -117,30 +117,52 @@ class ResultExplorer:
         all_data = {"Fmax": fmax_data, "Range": range_data}
         df = self.update_dataframe(all_data)
 
-        # print(f"df[range] = {df.get("Range", pd.DataFrame())}")
-        # print(f"range_data = {range_data}")
-
-        if df.get("Fmax", pd.DataFrame()).empty and df.get("Range", pd.DataFrame()).empty:
-          printc.warning('YAML file "' + yaml_file + '" is empty or corrupted, skipping...', script_name=script_name)
-          printc.note(
-            'Run fmax synthesis or range synthesis with the correct settings to generate "' + yaml_file + '"', script_name=script_name
+        # Validate YAML data
+        if fmax_data == {} and range_data == {}:
+          printc.warning(
+              f'Result file "{yaml_file}" is empty or corrupted, skipping...', 
+              script_name=script_name
           )
-        else:
-          self.all_data[yaml_file] = all_data
-          self.units[yaml_file] = units
-          self.valid_yaml_files.append(yaml_file)
-          self.dfs[yaml_file] = df
+          printc.note(
+              f'Run fmax synthesis or range synthesis with the correct settings to generate "{yaml_file}"',
+              script_name=script_name
+          )
+          continue  # Skip to the next file
 
+        # Validate the DataFrame
+        if not isinstance(df, pd.DataFrame) or df.empty:
+          printc.warning(
+            f'Result file "{yaml_file}" is invalid, skipping...', 
+            script_name=script_name
+          )
+          continue  # Skip to the next file
+
+        # Additional checks on the DataFrame
+        for col in self.required_columns:
+          if col not in df.columns or df[col].isnull().all():
+            printc.warning(
+              f'Required column "{col}" missing or empty in "{yaml_file}", skipping...', 
+              script_name=script_name
+            )
+            continue  # Skip to the next file
+
+        # Add valid data
+        self.all_data[yaml_file] = all_data
+        self.units[yaml_file] = units
+        self.valid_yaml_files.append(yaml_file)
+        self.dfs[yaml_file] = df
+
+        # Diagnostic messages
         if df.get("Fmax", pd.DataFrame()).empty:
-          printc.note('Could not find any fmax result in YAML file "' + yaml_file + '"', script_name=script_name)
+          printc.note(f'No fmax results found in YAML file "{yaml_file}".', script_name=script_name)
         if df.get("Range", pd.DataFrame()).empty:
-          printc.note('Could not find any range result in YAML file "' + yaml_file + '"', script_name=script_name)
+          printc.note(f'No range results found in YAML file "{yaml_file}".', script_name=script_name)
 
       except Exception as e:
         printc.warning(
-          'YAML file "' + yaml_file + '" is not a valid result file, skipping...', script_name=script_name
+            f'YAML file "{yaml_file}" is not a valid result file, skipping...', script_name=script_name
         )
-        printc.cyan("error details: ", end="", script_name=script_name)
+        printc.cyan("Error details: ", end="", script_name=script_name)
         print(str(e))
         print(traceback.format_exc())
 
