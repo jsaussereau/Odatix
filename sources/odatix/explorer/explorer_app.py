@@ -29,9 +29,8 @@ import yaml
 from flask import jsonify
 import traceback
 
-import odatix.explorer.page_xy as page_xy
-import odatix.explorer.page_vs as page_vs
-import odatix.explorer.page_radar as page_radar
+import odatix.explorer.navigation as navigation
+import odatix.explorer.behaviors.setup_callbacks as setup_callbacks
 
 import odatix.lib.printc as printc
 from odatix.lib.utils import internal_error
@@ -80,15 +79,16 @@ class ResultExplorer:
     self.all_targets = sorted(
       set(target for df in self.dfs.values() for target in df["Target"].unique())
     )
-    self.all_configurations = sorted(
-      set(config for df in self.dfs.values() for config in df["Configuration"].unique())
-    )
+    # self.all_configurations = sorted(
+    #   set(config for df in self.dfs.values() for config in df["Configuration"].unique())
+    # )
+    self.all_configurations = set(config for df in self.dfs.values() for config in df["Configuration"].unique())
     self.all_frequencies = sorted(
       set(freq for df in self.dfs.values() for freq in df["Frequency"].unique() if isinstance(freq, (int, float)))
     )
 
 
-    self.app = dash.Dash(__name__)
+    self.app = app = dash.Dash(__name__, use_pages=True)
     self.app.title = "Odatix"
 
     self.app.server.register_error_handler(Exception, self.handle_flask_exception)
@@ -243,28 +243,36 @@ class ResultExplorer:
     Setup the layout of the Dash application.
     """
     self.app.layout = html.Div(
-      [dcc.Location(id="url", refresh=False), html.Div([html.Div(id="page-content", className="container")])]
+      [
+        navigation.top_bar(),
+        navigation.side_bar(self),
+        dcc.Location(id="url", refresh=False),
+        dcc.Store(id="previous-url", data=""),
+        html.Div(
+          [dash.page_container],
+          id="content",
+          className="content",
+          style={
+            "marginLeft": navigation.side_bar_width,
+            "width": "calc(100%-" + navigation.side_bar_width + ")",
+            "height": "100%",
+          },
+        ),
+      ],
+      style={
+        "width": "100%",
+        "height": "100%",
+        "display": "flex",
+        "flex-direction": "column"
+      },
     )
 
   def setup_callbacks(self):
     """
     Setup Dash callbacks for interactivity.
     """
-
-    @self.app.callback(Output("page-content", "children"), [Input("url", "pathname")])
-    def display_page(pathname):
-      if pathname == "/xy":
-        return page_xy.layout(self)
-      elif pathname == "/vs":
-        return page_vs.layout(self)
-      elif pathname == "/radar":
-        return page_radar.layout(self)
-      else:
-        return page_xy.layout(self)
-
-    page_xy.setup_callbacks(self)
-    page_vs.setup_callbacks(self)
-    page_radar.setup_callbacks(self)
+    navigation.setup_sidebar_callbacks(self)
+    setup_callbacks.setup_callbacks(self)
 
   def run(self):
     self.app.run(

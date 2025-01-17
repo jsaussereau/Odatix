@@ -28,13 +28,12 @@ import re
 plot_colors = px.colors.qualitative.Plotly
 marker_symbols = ["circle", "square", "diamond", "triangle-up", "cross", "triangle-down", "pentagon", "x", "star"]
 
-def create_legend_items(explorer, page_name="", color_mode="Architecture", symbol_mode="Target"):
+def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target"):
   legend_items = [
     create_legend_item(
       label=architecture, 
       line_style="2px dashed",
       color=get_color(i) if color_mode == "Architecture" else "#000",  # Appliquer la couleur en fonction du mode
-      page_name=page_name,
       type="arch",
       marker_symbol=i if symbol_mode == "Architecture" else 0,  # Appliquer le symbole en fonction du mode
     )
@@ -43,12 +42,12 @@ def create_legend_items(explorer, page_name="", color_mode="Architecture", symbo
   return legend_items
 
 
-def create_legend_item(label, line_style, color, page_name="", type="arch", marker_symbol=0, draw_line=True, display=True):  
+def create_legend_item(label, line_style, color, type="arch", marker_symbol=0, draw_line=True, display=True):  
   line_color = color if draw_line else "00000000"
   return html.Div(
     [
       dcc.Checklist(
-        id=f"checklist-{type}-{label}-{page_name}",
+        id=f"checklist-{type}-{label}",
         options=[{"label": "", "value": label}],
         value=[label],
         inline=True,
@@ -66,17 +65,16 @@ def create_legend_item(label, line_style, color, page_name="", type="arch", mark
       ),
       html.Div(f"{label}", style={"display": "inline-block", "margin-left": "5px"}),
     ],
-    id=f"legend-item-{type}-{label}-{page_name}",
+    id=f"legend-item-{type}-{label}",
     style={"display": "block" if display else "none", "margin-top": "2.5px", "margin-bottom": "2.5px"},
   )
 
-def create_target_legend_items(explorer, page_name="", color_mode="Target", symbol_mode="Target"):
+def create_target_legend_items(explorer, color_mode="Target", symbol_mode="Target"):
   legend_items = [
     create_legend_item(
       label=target,
       line_style="2px dashed",
       color=get_color(i) if color_mode == "Target" else "#fff", 
-      page_name=page_name,
       type="target",
       marker_symbol=i if symbol_mode == "Target" else 0,
       draw_line=False,
@@ -85,13 +83,13 @@ def create_target_legend_items(explorer, page_name="", color_mode="Target", symb
   ]
   return legend_items
 
-def setup_callbacks(explorer, page_name):
+def setup_callbacks(explorer):
 
   # Architectures 
   @explorer.app.callback(
-    [Output(f"checklist-arch-{architecture}-{page_name}", "value") for architecture in explorer.all_architectures],
-    [Input("show-all", "n_clicks"), Input("hide-all", "n_clicks")],
-    [State(f"checklist-arch-{architecture}-{page_name}", "value") for architecture in explorer.all_architectures],
+    [Output(f"checklist-arch-{architecture}", "value") for architecture in explorer.all_architectures],
+    [Input("show-all-architectures", "n_clicks"), Input("hide-all-architectures", "n_clicks")],
+    [State(f"checklist-arch-{architecture}", "value") for architecture in explorer.all_architectures],
   )
   def update_arch_checklist_states(show_all_clicks, hide_all_clicks, *current_values):
     ctx = dash.callback_context
@@ -99,15 +97,15 @@ def setup_callbacks(explorer, page_name):
       return current_values
 
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    if button_id == "show-all":
+    if button_id == "show-all-architectures":
       return [[architecture] for architecture in explorer.all_architectures]
-    elif button_id == "hide-all":
+    elif button_id == "hide-all-architectures":
       return [[] for _ in explorer.all_architectures]
 
     return current_values
 
   @explorer.app.callback(
-    Output(f"custom-legend-{page_name}", "children"),
+    Output(f"custom-legend", "children"),
     [
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
@@ -135,7 +133,6 @@ def setup_callbacks(explorer, page_name):
           label=architecture,
           line_style="2px dashed",
           color=color,
-          page_name=page_name,
           type="arch",
           marker_symbol=marker_symbol,
           draw_line=True,
@@ -148,9 +145,9 @@ def setup_callbacks(explorer, page_name):
 
   # Targets
   @explorer.app.callback(
-    [Output(f"checklist-target-{target}-{page_name}", "value") for target in explorer.all_targets],
+    [Output(f"checklist-target-{target}", "value") for target in explorer.all_targets],
     [Input("show-all-targets", "n_clicks"), Input("hide-all-targets", "n_clicks")],
-    [State(f"checklist-target-{target}-{page_name}", "value") for target in explorer.all_targets],
+    [State(f"checklist-target-{target}", "value") for target in explorer.all_targets],
   )
   def update_target_checklist_states(show_all_clicks, hide_all_clicks, *current_values):
     ctx = dash.callback_context
@@ -166,7 +163,7 @@ def setup_callbacks(explorer, page_name):
     return current_values
 
   @explorer.app.callback(
-    Output(f"target-legend-{page_name}", "children"),
+    Output(f"target-legend", "children"),
     [
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
@@ -195,7 +192,6 @@ def setup_callbacks(explorer, page_name):
         label=target,
         line_style="2px dashed",
         color=color,
-        page_name=page_name,
         type="target",
         marker_symbol=marker_symbol,
         draw_line=True,
