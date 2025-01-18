@@ -27,6 +27,7 @@ import re
 
 plot_colors = px.colors.qualitative.Plotly
 marker_symbols = ["circle", "square", "diamond", "triangle-up", "cross", "triangle-down", "pentagon", "x", "star"]
+patterns = ['', '/', '\\', 'x', '-', '|', '+', '.']
 
 def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target"):
   legend_items = [
@@ -206,6 +207,9 @@ def get_color(i):
 
 def get_marker_symbol(i):
   return marker_symbols[i % len(marker_symbols)]
+
+def get_pattern(i):
+  return patterns[i % len(patterns)]
 
 def get_legend_marker_symbol(marker_symbol, color="white"):
   marker_symbol_styles = {

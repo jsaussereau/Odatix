@@ -60,12 +60,17 @@ def add_trace_to_xy_fig(fig, x_values, y_values, mode, architecture, frequency, 
     )
   )
 
-def add_trace_to_bar_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup):
+def add_trace_to_bar_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup):
   fig.add_trace(
     go.Bar(
       x=x_values,
       y=y_values,
-      marker=dict(color=legend.get_color(color_id)),
+      marker=dict(
+        color=legend.get_color(color_id),
+        pattern=dict(
+          shape=legend.get_pattern(pattern_id)
+        )
+      ),
       name=f"{architecture} @ {frequency}" if frequency else architecture,
       customdata=targets,
       hovertemplate="<br>".join(

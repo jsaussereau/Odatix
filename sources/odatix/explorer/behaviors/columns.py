@@ -147,6 +147,13 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               else:
                 color_id = i_freq + 1
 
+              if symbol_mode == "architecture":
+                pattern_id = i_architecture
+              elif symbol_mode == "target":
+                pattern_id = i_target
+              else:
+                pattern_id = i_freq + 1
+
               y_values = [
                 df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
                 if config in df_frequency["Configuration"].values
@@ -156,7 +163,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
 
               figures.add_trace_to_bar_fig(
                 fig, unique_configurations, y_values, None, architecture, f"{frequency} MHz",
-                targets, target, selected_metric_display, unit, color_id, None, toggle_legendgroup
+                targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
               )
 
           if selected_results in ["All", "Fmax"]:
@@ -177,9 +184,16 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               else:
                 color_id = 0
 
+              if symbol_mode == "architecture":
+                pattern_id = i_architecture
+              elif symbol_mode == "target":
+                pattern_id = i_target
+              else:
+                pattern_id = 0
+
               figures.add_trace_to_bar_fig(
                 fig, unique_configurations, y_values, None, architecture, "fmax",
-                targets, target, selected_metric_display, unit, color_id, None, toggle_legendgroup
+                targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
               )
 
       fig.update_layout(
