@@ -27,6 +27,7 @@ import traceback
 from datetime import datetime
 
 import odatix.lib.printc as printc
+import odatix.components.motd
 
 YAML_BOOL = ('true', 'false', 'yes', 'no', 'on', 'off')
 
