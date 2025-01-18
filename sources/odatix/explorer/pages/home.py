@@ -31,11 +31,31 @@ dash.register_page(
   name='Home',
 )
 
-pages = [
-  {"name": "Lines / Points", "link": "/lines", "image": "assets/preview/lines.svg"},
-  {"name": "Columns", "link": "/columns", "image": "assets/preview/columns.svg"},
-  {"name": "Scatter", "link": "/scatter", "image": "assets/preview/scatter.svg"},
-  {"name": "Radar", "link": "/radar", "image": "assets/preview/radar.svg"},
+cards = [
+  {
+    "name": "Lines / Points",
+    "link": "/lines",
+    "image": "assets/preview/lines.svg",
+    "description": "A line chart to draw values for a specific metric",
+  },
+  {
+    "name": "Columns",
+    "link": "/columns",
+    "image": "assets/preview/columns.svg",
+    "description": "A column chart to draw values for a specific metric",
+  },
+  {
+    "name": "Scatter",
+    "link": "/scatter",
+    "image": "assets/preview/scatter.svg",
+    "description": "A scatter chart to draw a metric against another",
+  },
+  {
+    "name": "Radar",
+    "link": "/radar",
+    "image": "assets/preview/radar.svg",
+    "description": "A collection of radar charts for all metrics",
+  },
 ]
 
 def create_button(page):
@@ -45,7 +65,11 @@ def create_button(page):
         html.Img(src=page["image"], style={"height": "300px", "margin": "auto", "object-fit": "cover"}),
         html.Div(
           page["name"],
-          style={"text-align": "center", "margin-top": "10px", "color": "black", "font-weight": "bold"},
+          style={"text-align": "center", "color": "black", "font-weight": "bold"},
+        ),
+        html.Div(
+          page["description"],
+          style={"text-align": "center", "margin": "25px", "color": "black"},
         ),
       ],
       style={
@@ -73,7 +97,7 @@ padding = 20
 layout = html.Div(
   [
     html.Div(
-      [create_button(page) for page in pages],
+      [create_button(card) for card in cards],
       style={
         "display": "flex",
         "flex-wrap": "wrap",
