@@ -147,7 +147,9 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               else:
                 color_id = i_freq + 1
 
-              if symbol_mode == "architecture":
+              if symbol_mode == "none":
+                pattern_id = 0
+              elif symbol_mode == "architecture":
                 pattern_id = i_architecture
               elif symbol_mode == "target":
                 pattern_id = i_target
@@ -184,7 +186,9 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               else:
                 color_id = 0
 
-              if symbol_mode == "architecture":
+              if symbol_mode == "none":
+                pattern_id = 0
+              elif symbol_mode == "architecture":
                 pattern_id = i_architecture
               elif symbol_mode == "target":
                 pattern_id = i_target

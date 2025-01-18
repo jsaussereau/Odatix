@@ -187,7 +187,7 @@ def side_bar(explorer):
                     html.Div(className="dropdown-label", children=[html.Label("Symbol Mode")]),
                     dcc.Dropdown(
                       id="symbol-mode-dropdown",
-                      options=[{"label": "Architecture", "value": "architecture"}, {"label": "Target", "value": "target"}, {"label": "Frequency", "value": "frequency"}],
+                      options=[{"label": "None", "value": "none"}, {"label": "Architecture", "value": "architecture"}, {"label": "Target", "value": "target"}, {"label": "Frequency", "value": "frequency"}],
                       value="target",
                     ),
                   ],
