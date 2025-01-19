@@ -281,6 +281,7 @@ details {
 }
 
 #p404 {
+  margin: 25px;
   max-width: fit-content; 
   margin-inline: auto;
   border-radius: 20px;
