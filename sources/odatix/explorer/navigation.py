@@ -33,7 +33,7 @@ banned_pages = ["PageNotFound", "Home"]
 def top_bar():
   return html.Div(
     [
-      html.A(
+      dcc.Link(
         id="navbar-title",
         className="link",
         href="/",

@@ -20,7 +20,7 @@
 #
 
 import dash
-from dash import html
+from dash import dcc, html
 
 import odatix.explorer.navigation as navigation
 
@@ -59,7 +59,7 @@ cards = [
 ]
 
 def create_button(page):
-  return html.A(
+  return dcc.Link(
     html.Div(
       [
         html.Img(
