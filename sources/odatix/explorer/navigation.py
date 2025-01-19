@@ -29,6 +29,7 @@ top_bar_height = "50px"
 side_bar_width = "400px"
 
 banned_pages = ["PageNotFound", "Home"]
+sidebar_urls = ["/lines", "/columns", "/scatter", "/radar"]
 
 def top_bar():
   return html.Div(
@@ -379,11 +380,11 @@ def setup_sidebar_callbacks(explorer):
 
     triggered_property = ctx.triggered[0]["prop_id"].split(".")[0]
     if triggered_property == "url":
-      if url == "/":
+      if url not in sidebar_urls:
         triggered_property = "close-button"
         hide_button = True
       else:
-        if previous_url == "/":
+        if previous_url not in sidebar_urls:
           triggered_property = "toggle-button"
 
     if triggered_property == "toggle-button":
