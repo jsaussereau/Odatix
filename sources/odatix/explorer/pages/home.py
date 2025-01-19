@@ -62,31 +62,21 @@ def create_button(page):
   return html.A(
     html.Div(
       [
-        html.Img(src=page["image"], style={"height": "300px", "margin": "auto", "object-fit": "cover"}),
+        html.Img(
+          src=page["image"],
+          className="card-img",
+          style={"height": "300px"}
+        ),
         html.Div(
           page["name"],
-          style={"text-align": "center", "color": "black", "font-weight": "bold"},
+          className="card-title",
         ),
         html.Div(
           page["description"],
-          style={"text-align": "center", "margin": "25px", "color": "black"},
+          className="card-description",
         ),
       ],
-      style={
-        "min-width": "0",
-        "max-width": "100%",
-        "width": "450px",
-        "height": "390px",
-        "box-shadow": "0px 4px 6px rgba(0,0,0,0.1)",
-        "border": "1px solid #ddd",
-        "border-radius": "8px",
-        "overflow": "hidden",
-        "cursor": "pointer",
-        "display": "flex",
-        "flex-direction": "column",
-        "justify-content": "space-between",
-        "text-decoration": "none",
-      },
+      className="card",
     ),
     href=page["link"],
     style={"text-decoration": "none"},
@@ -109,6 +99,7 @@ layout = html.Div(
   id=f"{__name__}-content",
   style={
     "width": "100%", 
+    "background-color": "#f6f8fa",
     "min-height": f"calc(100vh - {navigation.top_bar_height} - {2*padding}px)",
     "display": "flex",
     "justify-content": "center",

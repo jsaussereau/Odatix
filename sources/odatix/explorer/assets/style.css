@@ -59,13 +59,60 @@ html, body {
 .navbar .title {
   position: relative;
   top: 0px;
+  font-weight: bold;
+  font-size: 24px;
   z-index: 2;
   color: white;
   text-decoration: none;
-  font-size: 24px;
-  font-weight: bold;
-  /* margin-left: 60px; */
   overflow: hidden; 
+  transition: transform 0.4s ease;
+}
+
+.link {
+  height: 30px;
+  align-items: center;
+  color: #000;
+  text-decoration: none;
+  display: flex;
+}
+
+.mask {
+  position: relative;
+  padding: 0;
+  height: 20px;
+  overflow: hidden;
+}
+
+.link-container {
+  transition: transform 0.4s ease;
+}
+
+.title {
+  display: block;
+  font-size: 20px;
+  line-height: 20px;
+  transition: transform 0.4s ease;
+}
+
+.link-title1 {
+  transform-origin: right center;
+}
+
+.link-title2 {
+  transform-origin: left center;
+  transform: rotate(20deg);
+}
+
+.link:hover .link-container {
+  transform: translateY(-20px);
+}
+
+.link:hover .link-title1 {
+  transform: rotate(20deg);
+}
+
+.link:hover .link-title2 {
+  transform: rotate(0);
 }
 
 .sidebar {
@@ -121,6 +168,14 @@ html, body {
   margin-bottom: 15px;
 }
 
+.sidebar-button {
+  transition: all .2s cubic-bezier(0.175, 0.885, 0, 1);
+}
+.sidebar-button:hover {
+  box-shadow: 0px 30px 18px -8px rgba(0, 0, 0, 0.1);
+  transform: scale(1.05, 1.05);
+}
+
 button {
   background-color: #f6f8fa;
   border: 1px solid #d1d5da;
@@ -136,8 +191,9 @@ button {
 }
 
 button:hover {
-  background-color: #f3f4f6;
+  background-color: #d1d5da;
   border-color: #c6cbd1;
+  /* transform: scale(1.02, 1.02 ); */
 }
 
 button:active {
@@ -184,6 +240,10 @@ button:focus {
   transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s; 
   box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); 
   appearance: none;   
+}
+
+.Select-value:hover {
+  background-color: #d1d5da;
 }
 
 .error {
@@ -241,10 +301,51 @@ details {
   margin: 20px;
 }
 
-.home-container{
+.home-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
 }
+
+.card {
+  background-color: #fff;
+  color: #24292e;
+  min-width: 0;
+  max-width: 100%;
+  width: 450px;
+  height: 390px;
+  box-shadow: 0px 13px 10px -7px rgba(0, 0, 0, 0.1);
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-decoration: none;
+  transition: all .2s cubic-bezier(0.175, 0.885, 0, 1);
+}
+
+.card-img {
+  margin: auto;
+  object-fit: cover;
+}
+
+.card-title  {
+  text-align: center;
+  font-size: 1.25em;
+  font-weight: bold;
+}
+
+.card-description {
+  text-align: center;
+  margin: 25px;
+}
+
+.card:hover {
+  box-shadow: 0px 30px 18px -8px rgba(0, 0, 0, 0.1);
+  transform: scale(1.05, 1.05);
+}
+

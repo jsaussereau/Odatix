@@ -33,10 +33,21 @@ banned_pages = ["PageNotFound", "Home"]
 def top_bar():
   return html.Div(
     [
-      html.Div(
+      html.A(
         id="navbar-title",
+        className="link",
+        href="/",
         children=[
-          dcc.Link("Odatix Explorer", href="/", className="title"),
+          html.Span(
+            html.Div(
+              [
+                html.Span("Odatix Explorer", className="link-title1 title"),
+                html.Span("Home", className="link-title2 title"),
+              ],
+              className="link-container"
+            ),
+            className="mask"
+          )
         ],
         style={"position": "fixed", "margin-left": "30px", "left": "75px", "z-index": "2", "transition": "margin-left 0.25s"},
       ),
@@ -68,6 +79,7 @@ def side_bar(explorer):
       ),
       html.Img(
         id="toggle-button",
+        className="sidebar-button",
         src="/assets/icons/sidebar-panel-expand-icon.svg",
         n_clicks=0,
         style={
@@ -85,6 +97,7 @@ def side_bar(explorer):
         children=[
           html.Img(
             id="close-button",
+            className="sidebar-button",
             src="/assets/icons/sidebar-panel-collapse-icon.svg",
             n_clicks=0,
             style={"cursor": "pointer", "position": "absolute", "top": "10px", "left": "20px", "width": "30px"},
