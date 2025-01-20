@@ -175,7 +175,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               if toggle_labels:
                 mode += "+text"
 
-              figures.add_trace_to_vs_fig(
+              figures.add_trace_to_scatter_fig(
                 fig, x_values, y_values, mode, architecture, frequencies, "fmax", config_names,
                 targets, target, selected_metric_x_display, selected_metric_y_display,
                 unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
@@ -219,7 +219,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                 if toggle_labels:
                   mode += "+text"
 
-                figures.add_trace_to_vs_fig(
+                figures.add_trace_to_scatter_fig(
                   fig, x_values, y_values, mode, architecture, frequencies, f"{frequency} MHz", config_names,
                   targets, target, selected_metric_x_display, selected_metric_y_display,
                   unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup

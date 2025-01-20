@@ -166,7 +166,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               else:
                 pattern_id = 0
 
-              figures.add_trace_to_bar_fig(
+              figures.add_trace_to_columns_fig(
                 fig, unique_configurations, y_values, None, architecture, "fmax",
                 targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
               )
@@ -200,7 +200,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                 for config in unique_configurations
               ]
 
-              figures.add_trace_to_bar_fig(
+              figures.add_trace_to_columns_fig(
                 fig, unique_configurations, y_values, None, architecture, f"{frequency} MHz",
                 targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
               )

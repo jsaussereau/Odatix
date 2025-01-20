@@ -170,7 +170,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               else:
                 symbol_id = 0
 
-              figures.add_trace_to_xy_fig(
+              figures.add_trace_to_lines_fig(
                 fig, unique_configurations, y_values, mode, architecture, "fmax",
                 targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
               )
@@ -204,7 +204,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                 for config in unique_configurations
               ]
 
-              figures.add_trace_to_xy_fig(
+              figures.add_trace_to_lines_fig(
                 fig, unique_configurations, y_values, mode, architecture, f"{frequency} MHz",
                 targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
               )

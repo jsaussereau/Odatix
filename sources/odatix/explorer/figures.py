@@ -31,7 +31,7 @@ import odatix.explorer.legend as legend
 
 from odatix.lib.utils import safe_df_append
 
-def add_trace_to_xy_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup):
+def add_trace_to_lines_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup):
   fig.add_trace(
     go.Scatter(
       x=x_values,
@@ -60,7 +60,7 @@ def add_trace_to_xy_fig(fig, x_values, y_values, mode, architecture, frequency, 
     )
   )
 
-def add_trace_to_bar_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup):
+def add_trace_to_columns_fig(fig, x_values, y_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup):
   fig.add_trace(
     go.Bar(
       x=x_values,
@@ -87,7 +87,7 @@ def add_trace_to_bar_fig(fig, x_values, y_values, mode, architecture, frequency,
     )
   )
 
-def add_trace_to_vs_fig(fig, x_values, y_values, mode, architecture, frequencies, frequency, config_names, targets, target, selected_metric_x_display, selected_metric_y_display, unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup):
+def add_trace_to_scatter_fig(fig, x_values, y_values, mode, architecture, frequencies, frequency, config_names, targets, target, selected_metric_x_display, selected_metric_y_display, unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup):
   fig.add_trace(
     go.Scatter(
       x=x_values,
