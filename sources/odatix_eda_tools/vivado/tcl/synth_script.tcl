@@ -159,7 +159,7 @@ if {[catch {
         puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
 
-    report_progress 0 $synth_statusfile
+    report_progress 100 $synth_statusfile
 
 } gblerrmsg ]} {
     puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"

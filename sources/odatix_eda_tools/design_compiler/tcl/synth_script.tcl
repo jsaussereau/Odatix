@@ -195,7 +195,7 @@ if {[catch {
     write_sdc ${result_path}/${basename}_${runname}.sdc
 
 
-    report_progress 0 $synth_statusfile
+    report_progress 100 $synth_statusfile
 
 } gblerrmsg ]} {
     puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"

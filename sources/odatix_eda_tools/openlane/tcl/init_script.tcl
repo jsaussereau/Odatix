@@ -35,7 +35,14 @@ if {[catch {
     exec /bin/sh -c "mkdir -p $log_path"
 
     exec /bin/sh -c "touch $statusfile"
-    exec /bin/sh -c "touch $synth_statusfile"
+    exec /bin/sh -c "touch $synth_statusfile"    
+    
+    ######################################
+    # Init constraints file
+    ######################################
+
+    source scripts/update_freq.tcl
+    update_freq $target_frequency $constraints_file
 
 } ]} {
     puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"

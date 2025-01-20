@@ -51,6 +51,7 @@ if {[catch {
 
   proc run_synth_script {synth_script} {
     source $synth_script
+    report_progress 0 $synth_statusfile
   }
 
   ######################################
