@@ -73,6 +73,8 @@ def add_trace_to_bar_fig(fig, x_values, y_values, mode, architecture, frequency,
       ),
       name=f"{architecture} @ {frequency}" if frequency else architecture,
       customdata=targets,
+      legendgroup=target,
+      legendgrouptitle_text=str(target) if toggle_legendgroup else None,
       hovertemplate="<br>".join(
         [
           "Architecture: %{fullData.name}",
