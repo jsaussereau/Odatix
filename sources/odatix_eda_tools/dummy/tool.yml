@@ -4,12 +4,22 @@
 
 process_group: True
 
-metrics:
+synth_fmax_metrics:
   Fmax:
     type: regex
     settings:
       file: log/frequency_search.log
       pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
       group_id: 2
-    format: "%d"
+    format: "%.0f"
+    unit: MHz
+
+synth_range_metrics:
+  Frequency:
+    type: regex
+    settings:
+      file: frequency.txt
+      pattern: "([0-9_]+) MHz"
+      group_id: 1
+    format: "%.0f"
     unit: MHz

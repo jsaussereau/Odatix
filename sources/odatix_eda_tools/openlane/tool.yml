@@ -5,7 +5,7 @@
 process_group: False
 report_path: runs/odatix/reports
 
-metrics:
+synth_fmax_metrics:
   Fmax:
     type: regex
     settings:
@@ -15,6 +15,17 @@ metrics:
     format: "%.0f"
     unit: MHz
 
+synth_range_metrics:
+  Frequency:
+    type: regex
+    settings:
+      file: frequency.txt
+      pattern: "([0-9_]+) MHz"
+      group_id: 1
+    format: "%.0f"
+    unit: MHz
+
+metrics:
   Cell_Area:
     type: csv
     settings:
