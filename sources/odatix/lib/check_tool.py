@@ -21,7 +21,6 @@
 
 import os
 import re
-import copy
 import time
 import subprocess
 
