@@ -69,7 +69,7 @@ VIVADO_COLOR            = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNI
 ########################################################
 
 .PHONY: all
-all: motd synth par
+all: motd synth
 
 
 .PHONY: clean
@@ -100,10 +100,7 @@ help:
 ########################################################
 
 .PHONY: analyze
-analyze: motd analyze_only clean
-
-.PHONY: analyze_only
-analyze_only: logdir
+analyze: motd logdir analyze_only clean
 	@$(VIVADO_INIT)\
 	$(VIVADO) -mode tcl -notrace \
 	-source $(SCRIPT_DIR)/$(INIT_SCRIPT) \
@@ -129,10 +126,7 @@ test:
 	@exit 0
 
 .PHONY: synth
-synth: motd synth_only clean
-
-.PHONY: synth_only
-synth_only: logdir
+synth: logdir
 	@$(VIVADO_INIT)\
 	$(VIVADO) -mode tcl -notrace \
 	-source $(SCRIPT_DIR)/$(INIT_SCRIPT) \
