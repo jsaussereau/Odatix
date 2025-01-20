@@ -265,6 +265,18 @@ def side_bar(explorer):
                       value=[True],
                       labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                     ),
+                    dcc.Checklist(
+                      id="toggle-unique-architectures",
+                      options=[{"label": " Unique architectures color/symbol", "value": True}],
+                      value=[True],
+                      labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
+                    ),
+                    dcc.Checklist(
+                      id="toggle-unique-targets",
+                      options=[{"label": " Unique targets color/symbol", "value": True}],
+                      value=[],
+                      labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
+                    ),
                   ],
                 ),
                 html.H2("Export Settings"),

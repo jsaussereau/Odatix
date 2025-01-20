@@ -49,6 +49,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
+      Input("toggle-unique-architectures", "value"),
+      Input("toggle-unique-targets", "value"),
     ]
     + all_checklist_inputs  
   )
@@ -68,6 +70,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     symbol_mode,
     dl_format,
     background,
+    toggle_unique_architectures,
+    toggle_unique_targets,
     *checklist_values,
   ):
     if explorer is None:
@@ -116,16 +120,17 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       fig = go.Figure()
 
       i_target = -1
-
-
-      for target in explorer.all_targets:
+      for i_unique_target, target in enumerate(explorer.all_targets):
         if target in explorer.dfs[selected_yaml]["Target"].unique():
           i_target = i_target + 1
         if target not in visible_targets:
           continue
 
         targets = [target] * len(unique_configurations)
-        for i_architecture, architecture in enumerate(explorer.all_architectures):
+        i_architecture = -1
+        for i_unique_architecture, architecture in enumerate(explorer.all_architectures):
+          if architecture in explorer.dfs[selected_yaml]["Architecture"].unique():
+            i_architecture = i_architecture + 1
           if architecture not in visible_architectures:
             continue
           
@@ -133,6 +138,38 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
             (filtered_df["Architecture"] == architecture) & 
             (filtered_df["Target"] == target)
           ]
+
+          if selected_results in ["All", "Fmax"]:
+            if selected_metric is None or selected_metric not in df_architecture_target.columns:
+              return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
+            else:
+              y_values = [
+                df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
+                if config in df_architecture_target["Configuration"].values
+                else None
+                for config in unique_configurations
+              ]
+
+              if color_mode == "architecture":
+                color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+              elif color_mode == "target":
+                color_id = i_unique_target if toggle_unique_targets else i_target
+              else:
+                color_id = 0
+
+              if symbol_mode == "none":
+                pattern_id = 0
+              elif symbol_mode == "architecture":
+                pattern_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+              elif symbol_mode == "target":
+                pattern_id = i_unique_target if toggle_unique_targets else i_target
+              else:
+                pattern_id = 0
+
+              figures.add_trace_to_bar_fig(
+                fig, unique_configurations, y_values, None, architecture, "fmax",
+                targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
+              )
               
           if selected_results in ["All", "Range"]:
             for i_freq, frequency in enumerate(explorer.all_frequencies):
@@ -150,9 +187,9 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               if symbol_mode == "none":
                 pattern_id = 0
               elif symbol_mode == "architecture":
-                pattern_id = i_architecture
+                pattern_id = i_unique_architecture if toggle_unique_architectures else i_architecture
               elif symbol_mode == "target":
-                pattern_id = i_target
+                pattern_id = i_unique_target if toggle_unique_targets else i_target
               else:
                 pattern_id = i_freq + 1
 
@@ -165,38 +202,6 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
 
               figures.add_trace_to_bar_fig(
                 fig, unique_configurations, y_values, None, architecture, f"{frequency} MHz",
-                targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
-              )
-
-          if selected_results in ["All", "Fmax"]:
-            if selected_metric is None or selected_metric not in df_architecture_target.columns:
-              return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
-            else:
-              y_values = [
-                df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
-                if config in df_architecture_target["Configuration"].values
-                else None
-                for config in unique_configurations
-              ]
-
-              if color_mode == "architecture":
-                color_id = i_architecture
-              elif color_mode == "target":
-                color_id = i_target
-              else:
-                color_id = 0
-
-              if symbol_mode == "none":
-                pattern_id = 0
-              elif symbol_mode == "architecture":
-                pattern_id = i_architecture
-              elif symbol_mode == "target":
-                pattern_id = i_target
-              else:
-                pattern_id = 0
-
-              figures.add_trace_to_bar_fig(
-                fig, unique_configurations, y_values, None, architecture, "fmax",
                 targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
               )
 

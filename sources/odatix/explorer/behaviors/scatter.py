@@ -49,6 +49,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
+      Input("toggle-unique-architectures", "value"),
+      Input("toggle-unique-targets", "value"),
     ]
     + all_checklist_inputs  
   )
@@ -68,6 +70,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     symbol_mode,
     dl_format,
     background,
+    toggle_unique_architectures,
+    toggle_unique_targets,
     *checklist_values,
   ):
     try:
@@ -118,14 +122,16 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       fig = go.Figure()
 
       i_target = -1
-
-      for j, target in enumerate(explorer.all_targets):
+      for i_unique_target, target in enumerate(explorer.all_targets):
         if target in explorer.dfs[selected_yaml]["Target"].unique():
           i_target = i_target + 1
         if target not in visible_targets:
           continue
 
-        for i_architecture, architecture in enumerate(explorer.all_architectures):
+        i_architecture = -1
+        for i_unique_architecture, architecture in enumerate(explorer.all_architectures):
+          if architecture in explorer.dfs[selected_yaml]["Architecture"].unique():
+            i_architecture = i_architecture + 1
           if architecture in visible_architectures:
             df_architecture = filtered_df[
               (filtered_df["Architecture"] == architecture) & 
@@ -151,18 +157,18 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               frequencies = ["fmax"] * len(x_values)
 
               if color_mode == "architecture":
-                color_id = i_architecture
+                color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
               elif color_mode == "target":
-                color_id = i_target
+                color_id = i_unique_target if toggle_unique_targets else i_target
               else:
                 color_id = 0
 
               if symbol_mode == "none":
                 symbol_id = 0
               elif symbol_mode == "architecture":
-                symbol_id = i_architecture
+                symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
               elif symbol_mode == "target":
-                symbol_id = i_target
+                symbol_id = i_unique_target if toggle_unique_targets else i_target
               else:
                 symbol_id = 0
 
@@ -204,9 +210,9 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                 if symbol_mode == "none":
                   symbol_id = 0
                 elif symbol_mode == "architecture":
-                  symbol_id = i_architecture
+                  symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
                 elif symbol_mode == "target":
-                  symbol_id = i_target
+                  symbol_id = i_unique_target if toggle_unique_targets else i_target
                 else:
                   symbol_id = i_freq + 1
 

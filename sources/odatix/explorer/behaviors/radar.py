@@ -47,6 +47,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
+      Input("toggle-unique-architectures", "value"),
+      Input("toggle-unique-targets", "value"),
     ]
     + all_checklist_inputs  
   )
@@ -64,6 +66,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     symbol_mode,
     dl_format,
     background,
+    toggle_unique_architectures,
+    toggle_unique_targets,
     *checklist_values,
   ):
     try:
@@ -98,26 +102,19 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         (explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures))
       ]
 
-      unique_configurations = sorted(filtered_df["Configuration"].unique())
-
       metrics = [col for col in filtered_df.columns if col not in ["Target", "Architecture", "Configuration", "Type", "Frequency"]]
-      all_configurations = explorer.all_configurations
-      all_architectures = explorer.all_architectures
-      all_targets = explorer.all_targets
-      all_frequencies = explorer.all_frequencies
+
       targets_for_yaml = explorer.dfs[selected_yaml]["Target"].unique()
 
       yaml_name = os.path.splitext(selected_yaml)[0]
 
       radar_charts = figures.make_all_radar_charts(
+        explorer,
         filtered_df,
         explorer.units[selected_yaml],
         metrics,
         selected_results,
-        unique_configurations,
-        all_architectures,
-        all_targets,
-        all_frequencies,
+        selected_yaml,
         targets_for_yaml,
         visible_architectures,
         visible_targets,
@@ -131,6 +128,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         symbol_mode,
         dl_format,
         background,
+        toggle_unique_architectures,
+        toggle_unique_targets,
       )
 
       return html.Div(radar_charts, style={"display": "flex", "flex-wrap": "wrap", "justify-content": "space-evenly"})

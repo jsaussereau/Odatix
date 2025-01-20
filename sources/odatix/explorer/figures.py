@@ -121,7 +121,23 @@ def add_trace_to_vs_fig(fig, x_values, y_values, mode, architecture, frequencies
 # Radar 
 
 
-def make_legend_chart(df, all_architectures, all_targets, targets_for_yaml, visible_architectures, visible_targets, toggle_legendgroup, toggle_title, background, mode):
+def make_legend_chart(
+  explorer,
+  df,
+  selected_results,
+  selected_yaml,
+  targets_for_yaml,
+  visible_architectures,
+  visible_targets,
+  toggle_legendgroup,
+  toggle_title,
+  color_mode,
+  symbol_mode,
+  background,
+  toggle_unique_architectures,
+  toggle_unique_targets,
+  mode
+):
   fig = go.Figure()
 
   if not visible_architectures:
@@ -130,28 +146,86 @@ def make_legend_chart(df, all_architectures, all_targets, targets_for_yaml, visi
   unique_configurations = sorted(df["Configuration"].unique())
 
   i_target = -1
-
-  for target in all_targets:
-    if target in targets_for_yaml:
+  for i_unique_target, target in enumerate(explorer.all_targets): 
+    if target in explorer.dfs[selected_yaml]["Target"].unique():
       i_target = i_target + 1
     if target in visible_targets:
       targets = [target] * len(unique_configurations)
-      for i, architecture in enumerate(all_architectures):
-        if architecture in visible_architectures:
-          df_architecture = df[df["Architecture"] == architecture]
+      i_architecture = -1
+      for i_unique_architecture, architecture in enumerate(explorer.all_architectures):
+        if architecture in explorer.dfs[selected_yaml]["Architecture"].unique():
+          i_architecture = i_architecture + 1
+        if architecture not in visible_architectures:
+          continue
+
+        df_architecture = df[df["Architecture"] == architecture]
+
+        if selected_results in ["All", "Fmax"]:
+
+          if color_mode == "architecture":
+            color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+          elif color_mode == "target":
+            color_id = i_unique_target if toggle_unique_targets else i_target
+          else:
+            color_id = 0
+
+          if symbol_mode == "none":
+            symbol_id = 0
+          elif symbol_mode == "architecture":
+            symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+          elif symbol_mode == "target":
+            symbol_id = i_unique_target if toggle_unique_targets else i_target
+          else:
+            symbol_id = 0
+            
           fig.add_trace(
             go.Scatterpolar(
               r=[None],
               theta=df_architecture["Configuration"],
               mode=mode,
-              name=architecture,
+              name=f"{architecture} @ fmax",
               legendgroup=target,
               legendgrouptitle_text=str(target) if toggle_legendgroup else None,
               marker_size=10,
-              marker_color=legend.get_color(i),
-              marker_symbol=legend.get_marker_symbol(i_target),
+              marker_color=legend.get_color(color_id),
+              marker_symbol=legend.get_marker_symbol(symbol_id),
             )
           )
+
+        if selected_results in ["All", "Range"]:
+          for i_freq, frequency in enumerate(explorer.all_frequencies):
+            df_frequency = df_architecture[df_architecture["Frequency"] == frequency]
+            if not df_frequency.empty:
+
+              if color_mode == "architecture":
+                color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+              elif color_mode == "target":
+                color_id = i_unique_target if toggle_unique_targets else i_target
+              else:
+                color_id = i_freq + 1
+                
+              if symbol_mode == "none":
+                symbol_id = 0
+              elif symbol_mode == "architecture":
+                symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+              elif symbol_mode == "target":
+                symbol_id = i_unique_target if toggle_unique_targets else i_target
+              else:
+                symbol_id = i_freq + 1
+          
+              fig.add_trace(
+                go.Scatterpolar(
+                  r=[None],
+                  theta=df_architecture["Configuration"],
+                  mode=mode,
+                  name=f"{architecture} @ {frequency} MHz",
+                  legendgroup=target,
+                  legendgrouptitle_text=str(target) if toggle_legendgroup else None,
+                  marker_size=10,
+                  marker_color=legend.get_color(color_id),
+                  marker_symbol=legend.get_marker_symbol(symbol_id),
+                )
+              )
 
   fig.update_layout(
     polar_bgcolor="rgba(255, 255, 255, 0)",
@@ -173,14 +247,12 @@ def make_legend_chart(df, all_architectures, all_targets, targets_for_yaml, visi
 
 
 def make_radar_chart(
+  explorer,
   df,
   units,
   metric,
   selected_results,
-  all_configurations,
-  all_architectures,
-  all_targets,
-  all_frequencies,
+  selected_yaml,
   targets_for_yaml,
   visible_architectures,
   visible_targets,
@@ -191,6 +263,8 @@ def make_radar_chart(
   color_mode,
   symbol_mode,
   background,
+  toggle_unique_architectures,
+  toggle_unique_targets,
   mode,
 ):
   numeric_df = df.copy()
@@ -215,16 +289,15 @@ def make_radar_chart(
 
   fig = go.Figure(
     data=go.Scatterpolar(
-      r=[None for c in all_configurations],
-      theta=all_configurations,
+      r=[None for c in unique_configurations],
+      theta=unique_configurations,
       marker_color="rgba(0, 0, 0, 0)",
       showlegend=False,
     )
   )
 
   i_target = -1
-
-  for target in all_targets:
+  for i_unique_target, target in enumerate(explorer.all_targets):
     if target in targets_for_yaml:
       i_target = i_target + 1
     if target not in visible_targets:
@@ -232,7 +305,10 @@ def make_radar_chart(
       
     targets = [target] * nb_points
 
-    for i_architecture, architecture in enumerate(all_architectures):
+    i_architecture = -1
+    for i_unique_architecture, architecture in enumerate(explorer.all_architectures):
+      if architecture in explorer.dfs[selected_yaml]["Architecture"].unique():
+        i_architecture = i_architecture + 1
       if architecture in visible_architectures:
         df_architecture = df[
           (df["Architecture"] == architecture) & 
@@ -247,18 +323,18 @@ def make_radar_chart(
             df_architecture_fmax = safe_df_append(df_architecture_fmax, first_row)
 
           if color_mode == "architecture":
-            color_id = i_architecture
+            color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
           elif color_mode == "target":
-            color_id = i_target
+            color_id = i_unique_target if toggle_unique_targets else i_target
           else:
             color_id = 0
 
           if symbol_mode == "none":
             symbol_id = 0
           elif symbol_mode == "architecture":
-            symbol_id = i_architecture
+            symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
           elif symbol_mode == "target":
-            symbol_id = i_target
+            symbol_id = i_unique_target if toggle_unique_targets else i_target
           else:
             symbol_id = 0
 
@@ -267,7 +343,7 @@ def make_radar_chart(
               r=df_architecture_fmax[metric],
               theta=df_architecture_fmax["Configuration"],
               mode=mode,
-              name=architecture,
+              name=f"{architecture} @ fmax",
               customdata=targets,
               legendgroup=target,
               legendgrouptitle_text=str(target) if toggle_legendgroup else None,
@@ -289,7 +365,7 @@ def make_radar_chart(
 
         df_architecture_range = df_architecture[df_architecture["Type"] == "Range"]
         if selected_results in ["All", "Range"] and not df_architecture_range.empty:
-          for i_freq, frequency in enumerate(all_frequencies):
+          for i_freq, frequency in enumerate(explorer.all_frequencies):
             df_frequency = df_architecture_range[df_architecture_range["Frequency"] == frequency]
             frequencies = [f"{frequency} MHz"] * nb_points
 
@@ -318,7 +394,7 @@ def make_radar_chart(
                 r=df_frequency[metric],
                 theta=df_frequency["Configuration"],
                 mode=mode,
-                name=architecture,
+                name=f"{architecture} @ {frequency} MHz",
                 customdata=[list(a) for a in zip(targets, frequencies)],
                 legendgroup=target,
                 legendgrouptitle_text=str(target) if toggle_legendgroup else None,
@@ -383,14 +459,12 @@ def make_figure_div(fig, filename, dl_format, remove_zoom=False):
 
 
 def make_all_radar_charts(
+  explorer,
   df,
   units,
   metrics,
   selected_results,
-  all_configurations,
-  all_architectures,
-  all_targets,
-  all_frequencies,
+  selected_yaml,
   targets_for_yaml,
   visible_architectures,
   visible_targets,
@@ -404,6 +478,8 @@ def make_all_radar_charts(
   symbol_mode,
   dl_format,
   background,
+  toggle_unique_architectures,
+  toggle_unique_targets,
 ):
   radar_charts = []
 
@@ -411,14 +487,12 @@ def make_all_radar_charts(
 
   for metric in metrics:
     fig = make_radar_chart(
+      explorer,
       df,
       units,
       metric,
       selected_results,
-      all_configurations,
-      all_architectures,
-      all_targets,
-      all_frequencies,
+      selected_yaml,
       targets_for_yaml,
       visible_architectures,
       visible_targets,
@@ -429,6 +503,8 @@ def make_all_radar_charts(
       color_mode,
       symbol_mode,
       background,
+      toggle_unique_architectures,
+      toggle_unique_targets,
       mode,
     )
     filename = "Odatix-{}-{}-{}".format(yaml_name, __name__, metric)
@@ -436,7 +512,23 @@ def make_all_radar_charts(
 
   # Add legend chart
   if "separate_legend" in legend_dropdown:
-    legend_fig = make_legend_chart(df, all_architectures, all_targets, targets_for_yaml, visible_architectures, visible_targets, toggle_legendgroup, toggle_title, background, mode)
+    legend_fig = make_legend_chart(
+      explorer,
+      df,
+      selected_results,
+      selected_yaml,
+      targets_for_yaml,
+      visible_architectures,
+      visible_targets,
+      toggle_legendgroup,
+      toggle_title,
+      color_mode,
+      symbol_mode,
+      background,
+      toggle_unique_architectures,
+      toggle_unique_targets,
+      mode
+    )
     radar_charts.append(
       make_figure_div(legend_fig, "Odatix-" + str(__name__) + "-legend", dl_format, remove_zoom=True)
     )

@@ -134,20 +134,29 @@ def setup_callbacks(explorer):
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
+      Input("toggle-unique-architectures", "value"),
     ],
     [State(f"checklist-arch-{architecture}", "value") for architecture in explorer.all_architectures]
   )
-  def update_architecture_legend(selected_yaml, color_mode, symbol_mode, *current_values):
+  def update_architecture_legend(selected_yaml, color_mode, symbol_mode, unique_architectures, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
     yaml_architectures = explorer.dfs[selected_yaml]["Architecture"].unique()
     legend_items = []
 
+    i_existing = -1 
     for i, (architecture, value) in enumerate(zip(explorer.all_architectures, current_values)):
-      display = architecture in yaml_architectures
-      color = get_color(i) if color_mode == "architecture" else "#fff"
-      marker_symbol = i if symbol_mode == "architecture" else 0
+      if architecture in yaml_architectures:
+        display = True
+        i_existing += 1
+      else:
+        display = False
+
+      trace_id = i if unique_architectures else i_existing
+      
+      color = get_color(trace_id) if color_mode == "architecture" else "#fff"
+      marker_symbol = trace_id if symbol_mode == "architecture" else 0
 
       legend_item = create_legend_item(
         label=architecture,
@@ -170,10 +179,11 @@ def setup_callbacks(explorer):
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
+      Input("toggle-unique-targets", "value"),
     ],
     [State(f"checklist-target-{target}", "value") for target in explorer.all_targets],
   )
-  def update_target_legend(selected_yaml, color_mode, symbol_mode, *current_values):
+  def update_target_legend(selected_yaml, color_mode, symbol_mode, unique_targets, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
@@ -187,9 +197,11 @@ def setup_callbacks(explorer):
         i_existing += 1
       else:
         display = False
+
+      trace_id = i if unique_targets else i_existing
       
-      color = get_color(i_existing) if color_mode == "target" else "#fff"
-      marker_symbol = i_existing if symbol_mode == "target" else 0
+      color = get_color(trace_id) if color_mode == "target" else "#fff"
+      marker_symbol = trace_id if symbol_mode == "target" else 0
 
       legend_item = create_legend_item(
         label=target,
