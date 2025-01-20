@@ -33,6 +33,7 @@ def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target
   legend_items = [
     create_legend_item(
       label=architecture, 
+      value=[architecture],
       line_style="2px dashed",
       color=get_color(i) if color_mode == "Architecture" else "#000",  # Appliquer la couleur en fonction du mode
       type="arch",
@@ -43,14 +44,14 @@ def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target
   return legend_items
 
 
-def create_legend_item(label, line_style, color, type="arch", marker_symbol=0, draw_line=True, display=True):  
+def create_legend_item(label, value, line_style, color, type="arch", marker_symbol=0, draw_line=True, display=True):  
   line_color = color if draw_line else "00000000"
   return html.Div(
     [
       dcc.Checklist(
         id=f"checklist-{type}-{label}",
         options=[{"label": "", "value": label}],
-        value=[label],
+        value=value,
         inline=True,
         style={"display": "inline-block", "margin-right": "10px", "text-wrap": "wrap"},
       ),
@@ -74,6 +75,7 @@ def create_target_legend_items(explorer, color_mode="Target", symbol_mode="Targe
   legend_items = [
     create_legend_item(
       label=target,
+      value=[target],
       line_style="2px dashed",
       color=get_color(i) if color_mode == "Target" else "#fff", 
       type="target",
@@ -105,45 +107,7 @@ def setup_callbacks(explorer):
 
     return current_values
 
-  @explorer.app.callback(
-    Output(f"custom-legend", "children"),
-    [
-      Input("yaml-dropdown", "value"),
-      Input("color-mode-dropdown", "value"),
-      Input("symbol-mode-dropdown", "value"),
-    ]
-  )
-  def update_architecture_legend(selected_yaml, color_mode, symbol_mode):
-    try:
-      if not selected_yaml or selected_yaml not in explorer.dfs:
-        return []
-
-      yaml_architectures = explorer.dfs[selected_yaml]["Architecture"].unique()
-      legend_items = []
-
-      for i, architecture in enumerate(explorer.all_architectures):
-        if architecture in yaml_architectures:
-          display = True
-        else:
-          display = False
-        
-        color = get_color(i) if color_mode == "architecture" else "#fff"
-        marker_symbol = i if symbol_mode == "architecture" else 0
-
-        legend_item = create_legend_item(
-          label=architecture,
-          line_style="2px dashed",
-          color=color,
-          type="arch",
-          marker_symbol=marker_symbol,
-          draw_line=True,
-          display=display
-        )
-        legend_items.append(legend_item)
-    except Exception as e:
-      print(f"Error in update_architecture_legend: {e}")
-    return legend_items
-
+  
   # Targets
   @explorer.app.callback(
     [Output(f"checklist-target-{target}", "value") for target in explorer.all_targets],
@@ -163,34 +127,73 @@ def setup_callbacks(explorer):
 
     return current_values
 
+  # Architectures 
+  @explorer.app.callback(
+    Output(f"custom-legend", "children"),
+    [
+      Input("yaml-dropdown", "value"),
+      Input("color-mode-dropdown", "value"),
+      Input("symbol-mode-dropdown", "value"),
+    ],
+    [State(f"checklist-arch-{architecture}", "value") for architecture in explorer.all_architectures]
+  )
+  def update_architecture_legend(selected_yaml, color_mode, symbol_mode, *current_values):
+    if not selected_yaml or selected_yaml not in explorer.dfs:
+      return []
+
+    yaml_architectures = explorer.dfs[selected_yaml]["Architecture"].unique()
+    legend_items = []
+
+    for i, (architecture, value) in enumerate(zip(explorer.all_architectures, current_values)):
+      display = architecture in yaml_architectures
+      color = get_color(i) if color_mode == "architecture" else "#fff"
+      marker_symbol = i if symbol_mode == "architecture" else 0
+
+      legend_item = create_legend_item(
+        label=architecture,
+        value=value,
+        line_style="2px dashed",
+        color=color,
+        type="arch",
+        marker_symbol=marker_symbol,
+        draw_line=True,
+        display=display
+      )
+      legend_items.append(legend_item)
+
+    return legend_items
+
+  # Targets
   @explorer.app.callback(
     Output(f"target-legend", "children"),
     [
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
-    ]
+    ],
+    [State(f"checklist-target-{target}", "value") for target in explorer.all_targets],
   )
-  def update_target_legend(selected_yaml, color_mode, symbol_mode):
+  def update_target_legend(selected_yaml, color_mode, symbol_mode, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
     yaml_targets = explorer.dfs[selected_yaml]["Target"].unique()
     legend_items = []
 
-    i_marker = -1 
-    for target in explorer.all_targets:
+    i_existing = -1 
+    for i, (target, value) in enumerate(zip(explorer.all_targets, current_values)):
       if target in yaml_targets:
         display = True
-        i_marker += 1
+        i_existing += 1
       else:
         display = False
       
-      color = get_color(i_marker) if color_mode == "target" else "#fff"
-      marker_symbol = i_marker if symbol_mode == "target" else 0
+      color = get_color(i_existing) if color_mode == "target" else "#fff"
+      marker_symbol = i_existing if symbol_mode == "target" else 0
 
       legend_item = create_legend_item(
         label=target,
+        value=value,
         line_style="2px dashed",
         color=color,
         type="target",
