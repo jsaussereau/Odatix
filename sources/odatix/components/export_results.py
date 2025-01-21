@@ -178,7 +178,6 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
   units = {}
   error_prefix =  arch_path + " => "
   metrics = {}
-  metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
   
   if type == "fmax":
     fmax_metrics = read_from_list("synth_fmax_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
@@ -187,6 +186,8 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
     range_metrics = read_from_list("synth_range_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
     metrics.update(range_metrics)
 
+  common_metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
+  metrics.update(common_metrics)
   # print(f"metrics={metrics}")
 
   for metric, content in metrics.items():
