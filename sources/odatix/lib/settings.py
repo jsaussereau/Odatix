@@ -89,38 +89,38 @@ class OdatixSettings:
         self.valid = False
         return False
       
-      # Default values
-      self.work_path = OdatixSettings.DEFAULT_WORK_PATH
-      self.sim_work_path = OdatixSettings.DEFAULT_SIM_WORK_PATH
-      self.fmax_work_path = OdatixSettings.DEFAULT_FMAX_WORK_PATH
-      self.range_work_path = OdatixSettings.DEFAULT_RANGE_WORK_PATH
-      self.result_path = OdatixSettings.DEFAULT_RESULT_PATH
-      self.arch_path = OdatixSettings.DEFAULT_ARCH_PATH
-      self.sim_path = OdatixSettings.DEFAULT_SIM_PATH
-      self.target_path = OdatixSettings.DEFAULT_TARGET_PATH
-      self.use_benchmark = OdatixSettings.DEFAULT_USE_BENCHMARK
-      self.benchmark_file = OdatixSettings.DEFAULT_BENCHMARK_FILE
-      self.clean_settings_file = OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE
-      self.simulation_settings_file = OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE
-      self.fmax_synthesis_settings_file = OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE
-      self.range_synthesis_settings_file = OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
-
-      # Read values from file
-      self.work_path = read_from_list("work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      self.sim_work_path = read_from_list("sim_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      self.fmax_work_path = read_from_list("fmax_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      self.range_work_path = read_from_list("range_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      self.result_path = read_from_list("result_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      self.arch_path = read_from_list("arch_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      self.sim_path = read_from_list("sim_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      self.target_path = read_from_list("target_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      self.use_benchmark = read_from_list("use_benchmark", settings_data, settings_filename, optional=True, raise_if_missing=False, type=bool, script_name=script_name)
-      self.benchmark_file = read_from_list("benchmark_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-      self.clean_settings_file = read_from_list("clean_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-      self.simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-      self.fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-      self.range_synthesis_settings_file = read_from_list("range_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+    # Read values from file
+    work_path = read_from_list("work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    sim_work_path = read_from_list("sim_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    fmax_work_path = read_from_list("fmax_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    range_work_path = read_from_list("range_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    result_path = read_from_list("result_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    arch_path = read_from_list("arch_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    sim_path = read_from_list("sim_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    target_path = read_from_list("target_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    use_benchmark = read_from_list("use_benchmark", settings_data, settings_filename, optional=True, raise_if_missing=False, type=bool, script_name=script_name)
+    benchmark_file = read_from_list("benchmark_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+    clean_settings_file = read_from_list("clean_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+    simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+    fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+    range_synthesis_settings_file = read_from_list("range_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     
+    # Default values
+    self.work_path = OdatixSettings.DEFAULT_WORK_PATH if work_path == False else work_path
+    self.sim_work_path = OdatixSettings.DEFAULT_SIM_WORK_PATH if sim_work_path == False else sim_work_path
+    self.fmax_work_path = OdatixSettings.DEFAULT_FMAX_WORK_PATH if fmax_work_path == False else fmax_work_path
+    self.range_work_path = OdatixSettings.DEFAULT_RANGE_WORK_PATH if range_work_path == False else range_work_path
+    self.result_path = OdatixSettings.DEFAULT_RESULT_PATH if result_path == False else result_path
+    self.arch_path = OdatixSettings.DEFAULT_ARCH_PATH if arch_path == False else arch_path
+    self.sim_path = OdatixSettings.DEFAULT_SIM_PATH if sim_path == False else sim_path
+    self.target_path = OdatixSettings.DEFAULT_TARGET_PATH if target_path == False else target_path
+    self.use_benchmark = OdatixSettings.DEFAULT_USE_BENCHMARK if use_benchmark == False else use_benchmark
+    self.benchmark_file = OdatixSettings.DEFAULT_BENCHMARK_FILE if benchmark_file == False else benchmark_file
+    self.clean_settings_file = OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE if clean_settings_file == False else clean_settings_file
+    self.simulation_settings_file = OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE if simulation_settings_file == False else simulation_settings_file
+    self.fmax_synthesis_settings_file = OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE if fmax_synthesis_settings_file == False else fmax_synthesis_settings_file
+    self.range_synthesis_settings_file = OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE if range_synthesis_settings_file == False else range_synthesis_settings_file
+
     self.valid = True
     return True
     
