@@ -30,15 +30,27 @@ stop_delimiter: ")"
 
 # optional target-specific bounds (in MHz) to speed up fmax search
 xc7a100t-csg324-1:
-  fmax_lower_bound: 650
-  fmax_upper_bound: 1000
+  fmax_synthesis:
+    lower_bound: 650
+    upper_bound: 1000
+  range_synthesis:
+    list: [50, 100]
 xc7k70t-fbg676-2:
-  fmax_lower_bound: 450
-  fmax_upper_bound: 2500
+  fmax_synthesis:
+    lower_bound: 450
+    upper_bound: 2500
+  range_synthesis:
+    list: [50, 100]
 XFAB180CMOS:
-  fmax_lower_bound: 200
-  fmax_upper_bound: 1000
+  fmax_synthesis:
+    lower_bound: 200
+    upper_bound: 1000
+  range_synthesis:
+    list: [50, 100]
 AMS350CMOS:
-  fmax_lower_bound: 50
-  fmax_upper_bound: 500
+  fmax_synthesis:
+    lower_bound: 50
+    upper_bound: 500
+  range_synthesis:
+    list: [50, 100]
 ...
