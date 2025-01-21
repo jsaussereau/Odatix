@@ -545,8 +545,36 @@ class ArchitectureHandler:
 
         range_synthesis = read_from_list('range_synthesis', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
         if range_synthesis:
-          range_list = read_from_list('list', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
-      
+          range_list = read_from_list('list', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          if range_list == False:
+            range_list = []
+          else:
+            range_list = list(range_list)
+
+          range_lower_bound = read_from_list('lower_bound', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          range_upper_bound = read_from_list('upper_bound', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          step = read_from_list('step', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          
+          missing_keys = []
+          if range_lower_bound == False or range_upper_bound == False or step == False:
+            if range_lower_bound == False:
+              missing_keys.append('lower_bound')
+            if range_upper_bound == False:
+              missing_keys.append('upper_bound')
+            if step == False:
+              missing_keys.append('step')
+
+          if missing_keys:
+            if len(missing_keys) < 3:
+              printc.error("The following keys are missing inside \"range_synthesis\" in {}: {}. All three keys ('lower_bound', 'upper_bound', 'step') are required to compute the range.".format(settings_filename, ", ".join(missing_keys)), script_name)
+              return None
+          else:
+            if range_lower_bound >= range_upper_bound:
+              printc.error("The upper bound ({}) must be strictly greater than the lower bound ({}) in range_synthesis".format(range_upper_bound, range_lower_bound), script_name)
+              return None
+            computed_range = list(range(range_lower_bound, range_upper_bound + 1, step))
+            range_list = range_list + computed_range
+
       # check if bounds are valid
       if (fmax_upper_bound <= fmax_lower_bound) : 
         printc.error("The upper bound (" + str(fmax_upper_bound) + ") must be strictly superior to the lower bound (" + str(fmax_lower_bound) + ")", script_name)
