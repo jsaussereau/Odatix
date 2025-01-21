@@ -574,7 +574,21 @@ class ArchitectureHandler:
               return None
             computed_range = list(range(range_lower_bound, range_upper_bound + 1, step))
             range_list = range_list + computed_range
-
+        elif range_mode:
+          printc.error("Could not find key \"range_synthesis\" in \"{}\"".format(self.eda_target_filename), script_name)
+          return None
+        if range_mode and not range_list:
+          printc.error("Could not find any valid range in \"{}\"".format(self.eda_target_filename), script_name)
+          printc.note("Supported syntax:", script_name)
+          printc.cyan("range_synthesis:")
+          printc.cyan("  lower_bound: XXX")
+          printc.cyan("  upper_bound: XXX")
+          printc.cyan("  step: XXX")
+          printc.cyan("or ")
+          printc.cyan("range_synthesis:")
+          printc.cyan("  list: [XXX, XXX, XXX]")
+          return None
+          
       # check if bounds are valid
       if (fmax_upper_bound <= fmax_lower_bound) : 
         printc.error("The upper bound (" + str(fmax_upper_bound) + ") must be strictly superior to the lower bound (" + str(fmax_lower_bound) + ")", script_name)
