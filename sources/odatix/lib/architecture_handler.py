@@ -409,7 +409,11 @@ class ArchitectureHandler:
           self.banned_arch_param.append(arch_param_dir)
           return None
       except (KeyNotInListError, BadValueInListError):
-        param_target_filename = 'rtl/' + top_level_filename
+        if not generate_rtl:
+          param_target_filename = os.path.join(rtl_path, top_level_filename)
+        else:
+          printc.error("Cannot find key \"param_target_file\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
+          printc.note("\"param_target_file\" is the file in which parameters will be replaced before running the generate command", script_name)
 
     if not generate_rtl:
       # check if rtl path exists
