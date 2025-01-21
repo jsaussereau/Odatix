@@ -273,14 +273,15 @@ class ArchitectureHandler:
               for freq in architecture_instance.range_list:
                 freq_arch = copy.copy(architecture_instance)
                 formatted_freq = " {}@ {} MHz{}".format(printc.colors.GREY, freq, printc.colors.ENDC)
+                unformatted_display_name = freq_arch.arch_display_name
                 freq_arch.arch_display_name = freq_arch.arch_display_name + " @ " + str(freq) + " MHz"
                 freq_arch.tmp_dir = os.path.join(freq_arch.tmp_dir, str(freq) + "MHz")
                 freq_arch.tmp_script_path = os.path.join(freq_arch.tmp_dir, self.work_script_path)
                 freq_arch.tmp_report_path = os.path.join(freq_arch.tmp_dir, self.work_report_path)
                 freq_arch.target_frequency = freq
                 # print(f"freq_arch: {freq_arch.arch_display_name}")
-                self.valid_archs.append(freq_arch.arch_name + formatted_freq)
-                self.new_archs.append(freq_arch.arch_name + formatted_freq)
+                self.valid_archs.append(unformatted_display_name + formatted_freq)
+                self.new_archs.append(unformatted_display_name+ formatted_freq)
                 self.architecture_instances.append(freq_arch)
           else:
             if architecture_instance is not None:
