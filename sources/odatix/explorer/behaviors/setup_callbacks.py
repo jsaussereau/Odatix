@@ -49,17 +49,23 @@ def setup_callbacks(explorer):
     Output("metric-dropdown", "options"),
     Output("metric-x-dropdown", "options"),
     Output("metric-y-dropdown", "options"),
+    Output("metric-dropdown", "value"),
+    Output("metric-x-dropdown", "value"),
+    Output("metric-y-dropdown", "value"),
     Input("yaml-dropdown", "value"),
   )
   def update_dropdowns(selected_yaml):
     if explorer is None:
-      return []*3
+      return []*3 + []*3
 
     if not selected_yaml or selected_yaml not in explorer.dfs:
-      return []*3
+      return []*3 + []*3
 
     df = explorer.dfs[selected_yaml]
     metrics_from_yaml = explorer.update_metrics(explorer.all_data[selected_yaml])
     available_metrics = [{"label": metric.replace("_", " "), "value": metric} for metric in metrics_from_yaml]
+    
+    metric0 = available_metrics[0]["value"] if len(available_metrics) > 0 else None
+    metric1 = available_metrics[1]["value"] if len(available_metrics) > 0 else None
 
-    return [available_metrics]*3
+    return [available_metrics]*3 + [metric0, metric0, metric1]
