@@ -20,7 +20,7 @@
 #
 
 import dash
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 
 import odatix.explorer.behaviors.lines as behavior_lines
 import odatix.explorer.behaviors.columns as behavior_columns
@@ -53,8 +53,11 @@ def setup_callbacks(explorer):
     Output("metric-x-dropdown", "value"),
     Output("metric-y-dropdown", "value"),
     Input("yaml-dropdown", "value"),
+    State("metric-dropdown", "value"),
+    State("metric-x-dropdown", "value"),
+    State("metric-y-dropdown", "value"),
   )
-  def update_dropdowns(selected_yaml):
+  def update_dropdowns(selected_yaml, selected_metric, selected_metric_x, selected_metric_y):
     if explorer is None:
       return []*3 + []*3
 
@@ -67,5 +70,13 @@ def setup_callbacks(explorer):
     
     metric0 = available_metrics[0]["value"] if len(available_metrics) > 0 else None
     metric1 = available_metrics[1]["value"] if len(available_metrics) > 0 else None
+    
+    # Change current metrics if they are not available anymore
+    if selected_metric not in metrics_from_yaml:
+      selected_metric = metric0
+    if selected_metric_x not in metrics_from_yaml:
+      selected_metric_x = metric0
+    if selected_metric_y not in metrics_from_yaml:
+      selected_metric_y = metric1
 
-    return [available_metrics]*3 + [metric0, metric0, metric1]
+    return [available_metrics]*3 + [selected_metric, selected_metric_x, selected_metric_y]
