@@ -220,7 +220,7 @@ class ResultExplorer:
       return None
     return df
 
-  def update_metrics(self, yaml_data, results="Fmax"):
+  def update_metrics(self, yaml_data):
     """
     Update metrics based on YAML data.
     """
@@ -230,9 +230,9 @@ class ResultExplorer:
       for target_data in yaml_data[type].values():
         for architecture_data in target_data.values():
           for configuration_data in architecture_data.values():
-            if type == "Fmax" and results in ["All", "Fmax"]:
+            if type == "Fmax" :
               metrics_from_yaml.update(configuration_data.keys())
-            elif type == "Range" and results in ["All", "Range"]:
+            elif type == "Range":
               for frequency_data in configuration_data.values():
                 metrics_from_yaml.update(frequency_data.keys())
           
