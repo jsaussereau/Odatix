@@ -153,9 +153,9 @@ class ResultExplorer:
         self.dfs[yaml_file] = df
 
         # Diagnostic messages
-        if df.get("Fmax", pd.DataFrame()).empty:
+        if df[df["Type"] == "Fmax"].empty:
           printc.note(f'No fmax results found in YAML file "{yaml_file}".', script_name=script_name)
-        if df.get("Range", pd.DataFrame()).empty:
+        if df[df["Type"] == "Range"].empty:
           printc.note(f'No range results found in YAML file "{yaml_file}".', script_name=script_name)
 
       except Exception as e:
