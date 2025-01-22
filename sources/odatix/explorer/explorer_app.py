@@ -24,6 +24,7 @@ import sys
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
+import numpy as np
 import pandas as pd
 import yaml
 from flask import jsonify
@@ -84,7 +85,7 @@ class ResultExplorer:
     # )
     self.all_configurations = set(config for df in self.dfs.values() for config in df["Configuration"].unique())
     self.all_frequencies = sorted(
-      set(freq for df in self.dfs.values() for freq in df["Frequency"].unique() if isinstance(freq, (int, float)))
+      set(freq for df in self.dfs.values() for freq in df["Frequency"].unique() if isinstance(freq, (int, float)) or np.issubdtype(type(freq), np.number))
     )
 
 
@@ -178,7 +179,7 @@ class ResultExplorer:
       return fmax_results, range_results, units
 
   def update_dataframe(self, yaml_data):
-    """n
+    """
     Combine 'fmax' and 'range' data into a single hierarchical DataFrame.
     """
     data = []
