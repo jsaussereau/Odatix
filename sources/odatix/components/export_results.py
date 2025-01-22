@@ -457,7 +457,9 @@ def main(args, settings=None):
   if args.tool == "all":
     tool_list = []
     for type in synth_types:
-      tool_list += [item for item in os.listdir(os.path.join(input, type)) if os.path.isdir(os.path.join(input, type, item))]
+      type_dir = os.path.join(input, type)
+      if os.path.isdir(type_dir):
+        tool_list += [item for item in os.listdir(type_dir) if os.path.isdir(os.path.join(input, type, item))]
     tools = list(set(tool_list))
   else:
     tools = [args.tool]
