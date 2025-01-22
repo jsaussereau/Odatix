@@ -2,7 +2,6 @@
 ##############################################
 # Odatix Clean Settings
 ##############################################
----
 
 remove_list:
   # Design Compiler
@@ -23,3 +22,11 @@ remove_list:
   - hs_err_*.log
   - vivado*.log
   - tight_setup_hold_pins.txt
+  - clockInfo.txt
+
+  # Vitis
+  - vitis_hls.log
+  
+ # Odatix
+  - odatix_error.log
+  - odatix-explorer_error.log
