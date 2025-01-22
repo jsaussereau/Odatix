@@ -254,12 +254,13 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     work_path=work_path,
     arch_path=arch_path,
     script_path=script_path,
+    log_path=log_path,
     work_script_path=work_script_path,
     work_report_path=work_report_path,
-    log_path=log_path,
+    work_log_path=work_log_path,
     process_group=process_group,
     eda_target_filename=eda_target_filename,
-    fmax_status_filename=fmax_status_filename,
+    fmax_status_filename=synth_status_filename,
     frequency_search_filename=frequency_search_filename,
     param_settings_filename=param_settings_filename,
     valid_status=valid_status,
@@ -428,22 +429,6 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
 
   parallel_jobs = ParallelJobHandler(job_list, nb_jobs, arch_handler.process_group)
   job_exit_success = parallel_jobs.run()
-
-  # Summary
-  if job_exit_success:
-    print()
-    for running_arch in job_list:
-      tmp_dir = work_path + "/" + running_arch.target + "/" + running_arch.arch
-      frequency_search_file = tmp_dir + "/" + log_path + "/" + frequency_search_filename
-      try:
-        with open(frequency_search_file, "r") as file:
-          lines = file.readlines()
-          if len(lines) >= 1:
-            summary_line = lines[-1]
-            print(running_arch.display_name + ": " + summary_line, end="")
-      except:
-        pass
-    print()
 
 
 ######################################

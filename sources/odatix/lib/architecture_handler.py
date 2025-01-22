@@ -163,13 +163,14 @@ class Architecture:
 
 class ArchitectureHandler:
 
-  def __init__(self, work_path, arch_path, script_path, work_script_path, work_report_path, log_path, process_group, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
+  def __init__(self, work_path, arch_path, script_path, log_path, work_script_path, work_log_path, work_report_path, process_group, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
     self.work_path = work_path
     self.arch_path = arch_path
     self.script_path = script_path
-    self.work_script_path = work_script_path
-    self.work_report_path = work_report_path
     self.log_path = log_path
+    self.work_script_path = work_script_path
+    self.work_log_path = work_log_path
+    self.work_report_path = work_report_path
 
     self.process_group = process_group
     
@@ -268,7 +269,10 @@ class ArchitectureHandler:
             install_path = install_path,
             range_mode = range_mode
           )
-          if range_mode:
+          if not range_mode:
+            if architecture_instance is not None:
+              self.architecture_instances.append(architecture_instance)
+          else:
             if architecture_instance is not None:
               for freq in architecture_instance.range_list:
                 freq_arch = copy.copy(architecture_instance)
@@ -279,13 +283,31 @@ class ArchitectureHandler:
                 freq_arch.tmp_script_path = os.path.join(freq_arch.tmp_dir, self.work_script_path)
                 freq_arch.tmp_report_path = os.path.join(freq_arch.tmp_dir, self.work_report_path)
                 freq_arch.target_frequency = freq
-                # print(f"freq_arch: {freq_arch.arch_display_name}")
-                self.valid_archs.append(unformatted_display_name + formatted_freq)
-                self.new_archs.append(unformatted_display_name+ formatted_freq)
-                self.architecture_instances.append(freq_arch)
-          else:
-            if architecture_instance is not None:
-              self.architecture_instances.append(architecture_instance)
+
+                # check if the architecture is in cache and has a status file
+                status_file = os.path.join(freq_arch.tmp_dir, self.work_log_path, self.fmax_status_filename)
+                if isdir(freq_arch.tmp_dir) and isfile(status_file):
+                  # check if the previous synthesis has completed
+                  sf = open(status_file, "r")
+                  if self.valid_status in sf.read():
+                    if self.overwrite:
+                      printc.warning("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\".", script_name)
+                      self.overwrite_archs.append(unformatted_display_name)
+                      self.architecture_instances.append(freq_arch)
+                      self.valid_archs.append(unformatted_display_name + formatted_freq)
+                    else:
+                      printc.note("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\". Skipping.", script_name)
+                      self.cached_archs.append(freq_arch.arch_display_name)
+                  else: 
+                    printc.warning("The previous synthesis for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\" has not finished or the directory has been corrupted.", script_name)
+                    self.incomplete_archs.append(freq_arch.arch_display_name)
+                    self.architecture_instances.append(freq_arch)
+                    self.valid_archs.append(unformatted_display_name + formatted_freq)
+                  sf.close()
+                else:
+                  self.new_archs.append(unformatted_display_name + formatted_freq)
+                  self.architecture_instances.append(freq_arch)
+                  self.valid_archs.append(unformatted_display_name + formatted_freq)
 
     return self.architecture_instances
   
@@ -607,30 +629,31 @@ class ArchitectureHandler:
       formatted_bound = " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC)
 
       # check if the architecture is in cache and has a status file
-      if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
-        # check if the previous synth_fmax has completed
-        sf = open(fmax_status_file, "r")
-        if self.valid_status in sf.read():
-          ff = open(frequency_search_file, "r")
-          if self.valid_frequency_search in ff.read():
-            if self.overwrite:
-              printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
-              self.overwrite_archs.append(arch_display_name + formatted_bound)
+      if not range_mode:
+        if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
+          # check if the previous synth_fmax has completed
+          sf = open(fmax_status_file, "r")
+          if self.valid_status in sf.read():
+            ff = open(frequency_search_file, "r")
+            if self.valid_frequency_search in ff.read():
+              if self.overwrite:
+                printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
+                self.overwrite_archs.append(arch_display_name + formatted_bound)
+              else:
+                printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
+                self.cached_archs.append(arch_display_name)
+                return None
             else:
-              printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
-              self.cached_archs.append(arch_display_name)
-              return None
-          else:
-            printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
+              printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
+              self.incomplete_archs.append(arch_display_name + formatted_bound)
+            ff.close()
+          else: 
+            printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
             self.incomplete_archs.append(arch_display_name + formatted_bound)
-          ff.close()
-        else: 
-          printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
-          self.incomplete_archs.append(arch_display_name + formatted_bound)
-        sf.close()
-      else:
-        if not range_mode:
-          self.new_archs.append(arch_display_name + formatted_bound)
+          sf.close()
+        else:
+          if not range_mode:
+            self.new_archs.append(arch_display_name + formatted_bound)
 
     # target specific file copy
     if target_options:
@@ -659,8 +682,9 @@ class ArchitectureHandler:
         return None
 
     # passed all check: added to the list
-    self.valid_archs.append(arch_display_name)
-    self.checked_arch_param.append(arch_param_dir)
+    if not range_mode:
+      self.valid_archs.append(arch_display_name)
+      self.checked_arch_param.append(arch_param_dir)
 
     lib_name = "LIB_" + target + "_" + arch.replace("/", "_")
 
