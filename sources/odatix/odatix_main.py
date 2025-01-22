@@ -36,6 +36,7 @@ import odatix.components.run_range_synthesis as run_range
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
 import odatix.components.clean as cln
+import odatix.odatix_explorer as explorer
 
 import odatix.lib.settings as settings
 from odatix.lib.settings import OdatixSettings
@@ -161,6 +162,12 @@ class ArgParser:
     print()
     printc.bold("Init:\n  ", printc.colors.CYAN, end="")
     ArgParser.init_parser.print_help()
+    print()
+    printc.bold("Result exploration:\n  ", printc.colors.CYAN, end="")
+    print("usage: odatix-explorer [-h] [-i INPUT] [-n] [--normal_term_mode] [--safe_mode]")
+    print("  run ", end="")
+    printc.bold("odatix-explorer -h", end="")
+    print(" for more details")
     print()
 
 class OdatixHelpFormatter(argparse.HelpFormatter):
