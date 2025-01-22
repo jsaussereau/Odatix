@@ -133,26 +133,25 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
           if architecture in explorer.dfs[selected_yaml]["Architecture"].unique():
             i_architecture = i_architecture + 1
           if architecture in visible_architectures:
-            df_architecture = filtered_df[
+            df_architecture_target = filtered_df[
               (filtered_df["Architecture"] == architecture) & 
               (filtered_df["Target"] == target)
             ]
-            if df_architecture.empty:
+            if df_architecture_target.empty:
               continue
 
             mode = "lines+markers" if toggle_lines else "markers"
 
-            df_architecture_fmax = df_architecture[df_architecture["Type"] == "Fmax"]
-
-            if selected_results in ["All", "Fmax"] and not df_architecture_fmax.empty:
-              if selected_metric_x is None or selected_metric_x not in df_architecture_fmax.columns:
+            df_fmax = df_architecture_target[df_architecture_target["Type"] == "Fmax"]
+            if selected_results in ["All", "Fmax"] and not df_fmax.empty:
+              if selected_metric_x is None or selected_metric_x not in df_fmax.columns:
                 return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
-              if selected_metric_y is None or selected_metric_y not in df_architecture_fmax.columns:
+              if selected_metric_y is None or selected_metric_y not in df_fmax.columns:
                 return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
 
-              x_values = df_architecture_fmax[selected_metric_x].tolist()
-              y_values = df_architecture_fmax[selected_metric_y].tolist()
-              config_names = df_architecture_fmax["Configuration"].tolist()
+              x_values = df_fmax[selected_metric_x].tolist()
+              y_values = df_fmax[selected_metric_y].tolist()
+              config_names = df_fmax["Configuration"].tolist()
               targets = [target] * len(x_values)
               frequencies = ["fmax"] * len(x_values)
 
@@ -181,11 +180,10 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                 unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
               )
 
-            df_architecture_range = df_architecture[df_architecture["Type"] == "Range"]
-
-            if selected_results in ["All", "Range"] and not df_architecture_range.empty:
+            df_range = df_architecture_target[df_architecture_target["Type"] == "Range"]
+            if selected_results in ["All", "Range"] and not df_range.empty:
               for i_freq, frequency in enumerate(explorer.all_frequencies):
-                df_frequency = df_architecture_range[df_architecture_range["Frequency"] == frequency]
+                df_frequency = df_range[df_range["Frequency"] == frequency]
                 if df_frequency.empty:
                   continue
 

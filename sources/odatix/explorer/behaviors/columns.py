@@ -139,43 +139,48 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
             (filtered_df["Target"] == target)
           ]
 
-          if selected_results in ["All", "Fmax"]:
+          df_fmax = df_architecture_target[df_architecture_target["Type"] == "Fmax"]
+          if selected_results in ["All", "Fmax"] and not df_fmax.empty:
             if selected_metric is None or selected_metric not in df_architecture_target.columns:
               return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
+            
+            y_values = [
+              df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
+              if config in df_architecture_target["Configuration"].values
+              else None
+              for config in unique_configurations
+            ]
+
+            if color_mode == "architecture":
+              color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+            elif color_mode == "target":
+              color_id = i_unique_target if toggle_unique_targets else i_target
             else:
-              y_values = [
-                df_architecture_target[df_architecture_target["Configuration"] == config][selected_metric].values[0]
-                if config in df_architecture_target["Configuration"].values
-                else None
-                for config in unique_configurations
-              ]
+              color_id = 0
 
-              if color_mode == "architecture":
-                color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
-              elif color_mode == "target":
-                color_id = i_unique_target if toggle_unique_targets else i_target
-              else:
-                color_id = 0
+            if symbol_mode == "none":
+              pattern_id = 0
+            elif symbol_mode == "architecture":
+              pattern_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+            elif symbol_mode == "target":
+              pattern_id = i_unique_target if toggle_unique_targets else i_target
+            else:
+              pattern_id = 0
 
-              if symbol_mode == "none":
-                pattern_id = 0
-              elif symbol_mode == "architecture":
-                pattern_id = i_unique_architecture if toggle_unique_architectures else i_architecture
-              elif symbol_mode == "target":
-                pattern_id = i_unique_target if toggle_unique_targets else i_target
-              else:
-                pattern_id = 0
+            figures.add_trace_to_columns_fig(
+              fig, unique_configurations, y_values, None, architecture, "fmax",
+              targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
+            )
 
-              figures.add_trace_to_columns_fig(
-                fig, unique_configurations, y_values, None, architecture, "fmax",
-                targets, target, selected_metric_display, unit, color_id, pattern_id, toggle_legendgroup
-              )
-              
-          if selected_results in ["All", "Range"]:
+          df_range = df_architecture_target[df_architecture_target["Type"] == "Range"] 
+          if selected_results in ["All", "Range"] and not df_range.empty:
             for i_freq, frequency in enumerate(explorer.all_frequencies):
               df_frequency = df_architecture_target[df_architecture_target["Frequency"] == frequency]
               if df_frequency.empty:
                 continue
+
+              if selected_metric is None or selected_metric not in df_frequency.columns:
+                return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
 
               if color_mode == "architecture":
                 color_id = i_architecture

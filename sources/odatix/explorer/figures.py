@@ -162,7 +162,8 @@ def make_legend_chart(
 
         df_architecture = df[df["Architecture"] == architecture]
 
-        if selected_results in ["All", "Fmax"]:
+        df_fmax = df_architecture[df_architecture["Type"] == "Fmax"]
+        if selected_results in ["All", "Fmax"] and not df_fmax.empty:
 
           if color_mode == "architecture":
             color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
@@ -183,7 +184,7 @@ def make_legend_chart(
           fig.add_trace(
             go.Scatterpolar(
               r=[None],
-              theta=df_architecture["Configuration"],
+              theta=df_fmax["Configuration"],
               mode=mode,
               name=f"{architecture} @ fmax",
               legendgroup=target,
@@ -194,7 +195,8 @@ def make_legend_chart(
             )
           )
 
-        if selected_results in ["All", "Range"]:
+        df_range = df_architecture[df_architecture["Type"] == "Range"]
+        if selected_results in ["All", "Range"] and not df_range.empty:
           for i_freq, frequency in enumerate(explorer.all_frequencies):
             df_frequency = df_architecture[df_architecture["Frequency"] == frequency]
             if not df_frequency.empty:
@@ -218,7 +220,7 @@ def make_legend_chart(
               fig.add_trace(
                 go.Scatterpolar(
                   r=[None],
-                  theta=df_architecture["Configuration"],
+                  theta=df_range["Configuration"],
                   mode=mode,
                   name=f"{architecture} @ {frequency} MHz",
                   legendgroup=target,
