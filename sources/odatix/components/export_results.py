@@ -411,6 +411,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
         {"units": units, "fmax_results": data["fmax"], "range_results": data["range"]}, file, default_style=None, default_flow_style=False, sort_keys=False
       )
       printc.say('Results written to "' + output_file + '"', script_name=script_name)
+      printc.note("Run 'odatix-explorer' to explore the results", script_name=script_name)
   except Exception as e:
     printc.error('Could not write "' + output_file + '"', script_name=script_name)
     printc.cyan("error details: ", script_name=script_name, end="")
