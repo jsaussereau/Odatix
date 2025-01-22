@@ -355,7 +355,7 @@ class ParallelJobHandler:
       window.addstr(id, len(button) + len(title) + len(border_left) + bar_length, self.theme.get('progress_empty') * (bar_width - bar_length))
 
       pos = len(button) + len(title) + len(border_left) + bar_width + len(border_right)
-      window.addstr(id, pos, " "*(width-pos))
+      window.addstr(id, pos, " "*(width-pos-1))
       window.addstr(id, len(button) + len(title) + len(border_left) + bar_width, f"{border_right} {percentage}")
 
       comment_position = len(button) + len(title) + 3 + bar_width + 8
