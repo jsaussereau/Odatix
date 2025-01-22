@@ -145,7 +145,7 @@ def side_bar(explorer):
                   id="title-metric-x-dropdown",
                   children=[
                     html.Div(className="dropdown-label", children=[html.Label("Metric X")]),
-                    dcc.Dropdown(id="metric-x-dropdown", value="Fmax"),
+                    dcc.Dropdown(id="metric-x-dropdown", value=""),
                   ],
                 ),
                 html.Div(
@@ -153,7 +153,7 @@ def side_bar(explorer):
                   id="title-metric-y-dropdown",
                   children=[
                     html.Div(className="dropdown-label", children=[html.Label("Metric Y")]),
-                    dcc.Dropdown(id="metric-y-dropdown", value="Fmax"),
+                    dcc.Dropdown(id="metric-y-dropdown", value=""),
                   ],
                 ),
                 html.H2("Targets"),
