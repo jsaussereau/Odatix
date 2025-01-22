@@ -232,6 +232,24 @@ def run_range_synthesis(args):
   except Exception as e:
     internal_error(e, error_logfile, script_name)
     success = False
+  if success and not args.noexport:
+    try:
+      newargs = argparse.Namespace(
+        tool = args.tool,
+        format = exp_res.DEFAULT_FORMAT,
+        use_benchmark = None,
+        benchmark_file = None,
+        work = args.work,
+        respath = None,
+        config = args.config,
+      )
+      exp_res.main(newargs)
+    except SystemExit as e:
+      if e.code != EXIT_SUCCESS:
+        success = False
+    except Exception as e:
+      internal_error(e, error_logfile, script_name)
+      success = False
   return success
 
 def export_benchmark(args):
