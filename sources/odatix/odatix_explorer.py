@@ -137,7 +137,7 @@ def start_result_explorer(input, network=False, normal_term_mode=False, safe_mod
   try:
     while True:
       # Check if a key is pressed
-      if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+      if sys.stdin in select.select([sys.stdin], [], [], 0.5)[0]:
         key = sys.stdin.read(1).lower()
         if key == 'q':
           close_server(old_settings)
