@@ -6,8 +6,8 @@
 
 work_path: work
 sim_work_path: work/simulations
-fmax_work_path: work/fmax
-range_work_path: work/range
+fmax_work_path: work/fmax_synthesis
+custom_freq_work_path: work/custom_freq_synthesis
 result_path: results
 arch_path: odatix_userconfig/architectures
 sim_path: odatix_userconfig/simulations
@@ -19,6 +19,6 @@ benchmark_file: results/benchmark.yml
 clean_settings_file: odatix_userconfig/clean.yml
 simulation_settings_file: odatix_userconfig/simulations_settings.yml
 fmax_synthesis_settings_file: odatix_userconfig/fmax_synthesis_settings.yml
-range_synthesis_settings_file: odatix_userconfig/range_synthesis_settings.yml
+custom_freq_synthesis_settings_file: odatix_userconfig/custom_freq_synthesis_settings.yml
 
 ...
