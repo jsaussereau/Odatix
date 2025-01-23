@@ -20,6 +20,7 @@ log_size_limit:   300
 nb_jobs:          8
 
 # targeted architectures
+
 architectures: 
 
 #--------------------------------------------#

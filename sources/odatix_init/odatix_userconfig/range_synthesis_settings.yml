@@ -1,6 +1,6 @@
 
 ##############################################
-# Odatix settings for simulations
+# Odatix settings for range synthesis
 ##############################################
 ---
 
@@ -11,24 +11,23 @@ overwrite:        No
 ask_continue:     Yes
 
 # exit monitor when all jobs are done
-exit_when_done:   No
+exit_when_done:   Yes
 
 # size of the log history per job in the monitor
 log_size_limit:   300
 
-# maximum number of parallel simulations
-nb_jobs:          12
+# maximum number of parallel synthesis
+nb_jobs:          8
 
-# targeted simulations
-simulations: 
+# targeted architectures
+architectures: 
 
 #--------------------------------------------#
 # Add your own designs!
 #--------------------------------------------#
 
-  #- Your_Simulation:
-  #  - Your_Design/Your_1st_Configuration
-  #  - Your_Design/Your_2nd_Configuration
-  #  - Your_Design/Your_3rd_Configuration
+  #- Your_Design/Your_1st_Configuration
+  #- Your_Design/Your_2nd_Configuration
+  #- Your_Design/Your_3rd_Configuration
 
 ...

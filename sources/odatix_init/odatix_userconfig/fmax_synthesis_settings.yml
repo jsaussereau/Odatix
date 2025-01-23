@@ -10,8 +10,11 @@ overwrite:        No
 # prompt 'Continue? (Y/n)' after settings checks
 ask_continue:     Yes
 
-# show synthesis log if there is only one architecture selected
-show_log_if_one:  Yes
+# exit monitor when all jobs are done
+exit_when_done:   Yes
+
+# size of the log history per job in the monitor
+log_size_limit:   300
 
 # maximum number of parallel synthesis
 nb_jobs:          8
