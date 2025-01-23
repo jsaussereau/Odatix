@@ -257,6 +257,23 @@ class ArchitectureHandler:
               script_copy_enable = False
               script_copy_source = "/dev/null"
 
+        # Handle joker
+        for arch in architectures:
+          if arch.endswith("/*"):
+            # get param dir (arch name before '/')
+            arch_param_dir = re.sub(r'/\*', '', arch)
+
+            # check if parameter dir exists
+            arch_param = self.arch_path + '/' + arch_param_dir
+            if isdir(arch_param):
+              files = [f[:-4] for f in os.listdir(arch_param) if os.path.isfile(os.path.join(arch_param, f)) and f.endswith(".txt")]              
+              joker_archs = [arch_param_dir + "/" + file for file in files]
+              architectures = architectures + joker_archs
+            architectures.remove(arch)
+
+        # Remove duplicates
+        architectures = list(dict.fromkeys(architectures))
+
         for arch in architectures:
           architecture_instance = self.get_architecture(
             arch = arch,
@@ -328,7 +345,7 @@ class ArchitectureHandler:
     # get param dir (arch name before '/')
     arch_param_dir = re.sub('/.*', '', arch)
 
-    # get param dir (arch name after '/')
+    # get configuration (arch name after '/')
     arch_suffix = re.sub('.*/', '', arch)
 
     # check if there is a configuration specified

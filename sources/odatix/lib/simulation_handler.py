@@ -20,6 +20,7 @@
 #
 
 import os
+import re
 import math
 import yaml
 
@@ -48,11 +49,12 @@ class Simulation:
 
 class SimulationHandler:
 
-  def __init__(self, work_path, arch_path, sim_path, work_script_path, log_path, param_settings_filename, sim_settings_filename, sim_makefile_filename, overwrite):
+  def __init__(self, work_path, arch_path, sim_path, work_script_path, work_log_path, log_path, param_settings_filename, sim_settings_filename, sim_makefile_filename, overwrite):
     self.work_path = work_path
     self.arch_path = arch_path
     self.sim_path = sim_path
     self.work_script_path = work_script_path
+    self.work_log_path = work_log_path
     self.log_path = log_path
     self.overwrite = overwrite
     self.param_settings_filename = param_settings_filename
@@ -80,6 +82,7 @@ class SimulationHandler:
       arch_path = self.arch_path,
       script_path = "",
       work_script_path = self.work_script_path,
+      work_log_path = self.work_log_path,
       work_report_path = "",
       log_path = self.log_path,
       process_group=True,
@@ -99,6 +102,20 @@ class SimulationHandler:
         if sim_dict is not None:
           for sim, arch_list in sim_dict.items():
             if arch_list is not None and arch_list is not None:
+              # Handle joker
+              for arch in arch_list:
+                if arch.endswith("/*"):
+                  # get param dir (arch name before '/')
+                  arch_param_dir = re.sub(r'/\*', '', arch)
+
+                  # check if parameter dir exists
+                  arch_param = self.arch_path + '/' + arch_param_dir
+                  if isdir(arch_param):
+                    files = [f[:-4] for f in os.listdir(arch_param) if os.path.isfile(os.path.join(arch_param, f)) and f.endswith(".txt")]              
+                    joker_archs = [arch_param_dir + "/" + file for file in files]
+                    arch_list = arch_list + joker_archs
+                  arch_list.remove(arch)
+
               for arch in arch_list:
                 simulation_instance = self.get_simulation(sim, arch, arch_handler)
                 if simulation_instance is not None:
