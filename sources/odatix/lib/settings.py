@@ -103,7 +103,7 @@ class OdatixSettings:
     clean_settings_file = read_from_list("clean_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-    range_synthesis_settings_file = read_from_list("custom_freqsynthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+    range_synthesis_settings_file = read_from_list("custom_freq_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     
     # Default values
     self.work_path = OdatixSettings.DEFAULT_WORK_PATH if work_path == False else work_path
