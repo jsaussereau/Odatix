@@ -31,6 +31,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 #### Odatix Explorer
 - Improve speed and remove unnecessary refreshes
 - Improve UI and UX
+- 
+### Fixed
 
 #### Odatix
 - Fix crash if the number of jobs is greater than the number of lines in the terminal
