@@ -61,7 +61,7 @@ Synthesis
 Simulation
 ~~~~~~~~~~
 
-Virtually any simulator! Check out the section :doc:`/userguide/add_simulation` for more information.
+Virtually any simulator! Check out the section :doc:`/quick_start/add_simulation` for more information.
 
 Odatix includes examples for Verilator and GHDL.
 

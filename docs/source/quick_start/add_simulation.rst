@@ -4,7 +4,7 @@ Add your own simulation
 Step 1: Define your design
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Define your design by following the steps in section :doc:`/userguide/add_design`
+Define your design by following the steps in section :doc:`/quick_start/add_design`
 
 Step 2: Simulation folder
 ~~~~~~~~~~~~~~~~~~~~~~~~~
