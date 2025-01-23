@@ -12,7 +12,8 @@ def read_version():
     with open(version_file, "r") as file:
         return file.read().strip()
 
-release = read_version()
+version = read_version()
+release = version
 
 # -- General configuration
 
