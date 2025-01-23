@@ -1,6 +1,6 @@
 
 ##############################################
-# Odatix settings for range synthesis
+# Odatix settings for custom freq synthesis
 ##############################################
 ---
 
@@ -29,5 +29,9 @@ architectures:
   #- Your_Design/Your_1st_Configuration
   #- Your_Design/Your_2nd_Configuration
   #- Your_Design/Your_3rd_Configuration
+
+  # or 
+  
+  # - Your_Design/*
 
 ...
