@@ -2,7 +2,7 @@
 
 [![GitHub](https://img.shields.io/badge/GitHub-Odatix-blue.svg?logo=github)](https://github.com/jsaussereau/Odatix)
 [![PyPi Package](https://img.shields.io/pypi/v/odatix)](https://pypi.org/project/odatix/)
-[![cite](https://img.shields.io/badge/cite-DOI%3A10.1016/j.softx.2024.101970-green)](https://doi.org/10.1016/j.softx.2024.101970)
+[![cite](https://img.shields.io/badge/cite-DOI%3A10.1016/j.softx.2024.101970-green)](https://www.sciencedirect.com/science/article/pii/S2352711024003406)
 [![GitHub License](https://img.shields.io/github/license/jsaussereau/Odatix)](https://github.com/jsaussereau/Odatix/blob/main/LICENSE)
 [![Documentation Status](https://readthedocs.org/projects/odatix/badge/?version=latest)](https://odatix.readthedocs.io)
 
