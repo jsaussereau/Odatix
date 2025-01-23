@@ -41,6 +41,7 @@ from odatix.lib.run_settings import get_sim_settings
 
 work_path = "work/simulation"
 work_script_path = "scripts"
+work_log_path = "log"
 common_script_path = "_common"
 log_path = "log"
 arch_path = "architectures"
@@ -89,7 +90,7 @@ def parse_arguments():
 ######################################
 
 def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask):
-  _overwrite, ask_continue, show_log_if_one, nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
+  _overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
 
   if simulations is None:
     printc.error('The "simulations" section of "' + run_config_settings_filename + '" is empty.', script_name)
@@ -112,6 +113,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
     arch_path = arch_path,
     sim_path = sim_path,
     work_script_path = work_script_path,
+    work_log_path = work_log_path,
     log_path = log_path,
     overwrite = overwrite,
     param_settings_filename = param_settings_filename,
@@ -237,6 +239,8 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
     job_list=job_list,
     nb_jobs=nb_jobs,
     process_group=True,
+    auto_exit=exit_when_done,
+    log_size_limit=log_size_limit,
   )
   job_exit_success = parallel_jobs.run()
 

@@ -126,7 +126,7 @@ def parse_arguments():
 
 
 def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask):
-  _overwrite, ask_continue, show_log_if_one, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
+  _overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
 
@@ -427,7 +427,13 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
   for arch_instance in architecture_instances:
     prepare_job(arch_instance)
 
-  parallel_jobs = ParallelJobHandler(job_list, nb_jobs, arch_handler.process_group)
+  parallel_jobs = ParallelJobHandler(
+    job_list,
+    nb_jobs,
+    arch_handler.process_group,
+    auto_exit=exit_when_done,
+    log_size_limit=log_size_limit,
+  )
   job_exit_success = parallel_jobs.run()
 
 

@@ -27,6 +27,9 @@ from odatix.lib.utils import *
 
 script_name = os.path.basename(__file__)
 
+DEFAULT_EXIT_WHEN_DONE = False
+DEFAULT_LOG_SIZE_LIMIT = 200
+
 def get_synth_settings(settings_filename):
   # failsafe
   if settings_filename is None:
@@ -49,12 +52,22 @@ def get_synth_settings(settings_filename):
     try:
       overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
       ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, type=bool, script_name=script_name)
       nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, type=int, script_name=script_name)
       architectures   = read_from_list("architectures", settings_data, settings_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
       sys.exit(-1) # if a key is missing
-  return overwrite, ask_continue, show_log_if_one, nb_jobs, architectures
+
+    # Optional keys
+    try:
+      exit_when_done  = read_from_list("exit_when_done", settings_data, settings_filename, optional=True, type=bool, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      exit_when_done = DEFAULT_EXIT_WHEN_DONE
+    try:
+      log_size_limit  = read_from_list("log_size_limit", settings_data, settings_filename, optional=True, type=int, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      log_size_limit = DEFAULT_LOG_SIZE_LIMIT
+      
+  return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, architectures
 
 
 def get_sim_settings(settings_filename):
@@ -73,9 +86,19 @@ def get_sim_settings(settings_filename):
     try:
       overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
       ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      show_log_if_one = read_from_list("show_log_if_one", settings_data, settings_filename, type=bool, script_name=script_name)
       nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, type=int, script_name=script_name)
       simulations     = read_from_list("simulations", settings_data, settings_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
       sys.exit(-1) # if a key is missing
-  return overwrite, ask_continue, show_log_if_one, nb_jobs, simulations
+
+    # Optional keys
+    try:
+      exit_when_done  = read_from_list("exit_when_done", settings_data, settings_filename, optional=True, type=bool, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      exit_when_done = DEFAULT_EXIT_WHEN_DONE
+    try:
+      log_size_limit  = read_from_list("log_size_limit", settings_data, settings_filename, optional=True, type=int, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      log_size_limit = DEFAULT_LOG_SIZE_LIMIT
+
+  return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, simulations
