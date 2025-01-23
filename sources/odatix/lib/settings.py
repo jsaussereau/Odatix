@@ -56,7 +56,7 @@ class OdatixSettings:
   DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml")
   DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
   DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
-  DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "range_synthesis_settings.yml")
+  DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml")
   
   odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
   odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
@@ -93,7 +93,7 @@ class OdatixSettings:
     work_path = read_from_list("work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
     sim_work_path = read_from_list("sim_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
     fmax_work_path = read_from_list("fmax_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    range_work_path = read_from_list("range_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    range_work_path = read_from_list("custom_freq_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
     result_path = read_from_list("result_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
     arch_path = read_from_list("arch_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
     sim_path = read_from_list("sim_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
@@ -103,7 +103,7 @@ class OdatixSettings:
     clean_settings_file = read_from_list("clean_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-    range_synthesis_settings_file = read_from_list("range_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+    range_synthesis_settings_file = read_from_list("custom_freqsynthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     
     # Default values
     self.work_path = OdatixSettings.DEFAULT_WORK_PATH if work_path == False else work_path
