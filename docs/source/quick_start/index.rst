@@ -1,11 +1,11 @@
 Quick Start
 ===========
 
-The easiest way to learn how to use Odatix is by exploring the integrated examples.
 
 Try Odatix through examples
 ---------------------------
 
+The easiest way to learn how to use Odatix is by exploring the integrated examples.
 Here are two tutorials depending on you want to try first:
 
 .. toctree::
@@ -13,6 +13,7 @@ Here are two tutorials depending on you want to try first:
     :hidden:
     
     fmax_synthesis
+    custom_freq_synthesis
     simulations
 
 
@@ -22,13 +23,21 @@ Here are two tutorials depending on you want to try first:
         :link: fmax_synthesis.html
         :text-align: center
 
-        Run parallel Fmax synthesis flow on the EDA tool and technological target of your choice (FGPA or ASIC)
+        Run the parallel Fmax synthesis flow on the EDA tool and technological target of your choice (FGPA or ASIC)
 
-    .. grid-item-card:: Try parallel simulations
-        :link: simulations.html
+    .. grid-item-card:: Try parallel custom frequency synthesis
+        :link: custom_freq_synthesis.html
         :text-align: center
 
-        Run parallel simulations on the simulator of your choice
+        Run the parallel custom frequency synthesis flow on the EDA tool and technological target of your choice (FGPA or ASIC)
+
+.. card:: Try parallel simulations
+    :margin: auto
+    :width: 50%
+    :link: simulations.html
+    :text-align: center
+
+    Run parallel simulations on the simulator of your choice
 
 .. If you would like to try Odatix Explorer without running all configurations, you can try it online with sample results:
 

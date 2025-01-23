@@ -35,11 +35,12 @@ Example:
 .. code-block:: yaml
    :caption: odatix_userconfig/simulations_settings.yml
    :linenos:
-   :emphasize-lines: 4
+   :emphasize-lines: 5
 
    overwrite:        No  # overwrite existing results?
    ask_continue:     Yes # prompt 'continue? (y/n)' after settings checks?
-   show_log_if_one:  Yes # show synthesis log if there is only one architecture selected?
+   exit_when_done:   No  # exit monitor when all jobs are done
+   log_size_limit:   300 # size of the log history per job in the monitor
    nb_jobs:          12  # maximum number of parallel synthesis
 
    simulations: 
@@ -58,3 +59,8 @@ Step 3: Run the selected designs
 .. code-block:: bash
 
    odatix sim
+
+Step 4: Try with your own design
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Check out sections :doc:`/quick_start/add_design` and  :doc:`/quick_start/add_simulation`

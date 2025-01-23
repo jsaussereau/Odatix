@@ -49,13 +49,23 @@ Step 3: Architecture settings file
       start_delimiter: "#("
       stop_delimiter: ")("
 
-      # optional target-specific bounds (in MHz) to speed up fmax search
+      # target-specific options
       xc7s25-csga225-1:
-         fmax_lower_bound: 100
-         fmax_upper_bound: 450
+         fmax_synthesis:
+            lower_bound: 100
+            upper_bound: 450
+         custom_freq_synthesis:
+            # list definition
+            list: [50, 100]
       xc7a100t-csg324-1:
-         fmax_lower_bound: 150
-         fmax_upper_bound: 450
+         fmax_synthesis:
+            lower_bound: 150
+            upper_bound: 800
+         custom_freq_synthesis:
+            # range definition
+            lower_bound: 200
+            upper_bound: 1800
+            step: 200
       ...
 
 .. tab:: Chisel/HLS
@@ -89,19 +99,30 @@ Step 3: Architecture settings file
       start_delimiter: "new ALUTop("
       stop_delimiter: ")"
 
-      # optional target-specific bounds (in MHz) to speed up fmax search
+      # target-specific options
       xc7s25-csga225-1:
-         fmax_lower_bound: 100
-         fmax_upper_bound: 450
+         fmax_synthesis:
+            lower_bound: 100
+            upper_bound: 450
+         custom_freq_synthesis:
+            # list definition
+            list: [50, 100]
       xc7a100t-csg324-1:
-         fmax_lower_bound: 150
-         fmax_upper_bound: 800
+         fmax_synthesis:
+            lower_bound: 150
+            upper_bound: 800
+         custom_freq_synthesis:
+            # range definition
+            lower_bound: 200
+            upper_bound: 1800
+            step: 200
       ...
 
 - Edit the file, so it matches your design source files directory, top level filename, module name, and clock signal name.
 - The rtl/design path can be both absolute or relative to the directory from where you start Odatix.
 - Set ``start_delimiter`` and ``stop_delimiter``, so it matches the delimiters of the parameter section in your top level source file.
-- Add target-specific bounds for the binary search.
+- Add target-specific bounds for the binary search in ``fmax_synthesis``.
+- Add a list of frequencies, a range (lower and upper bounds and a step) or a combination of both in ``custom_freq_synthesis`` for custom frequency synthesis.
 - A documentation of the keys for ``_settings.yml`` files can be found in section :doc:`/documentation/settings`
 
 Step 4: Parameter files
@@ -152,8 +173,9 @@ The only constraint is the strict correspondence between the contents of the par
 Step 5: Run your design configurations!
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Follow the same steps as in section :doc:`/quick_start/fmax_synthesis` from the quick start guide:
+Follow the same steps as in section :doc:`/quick_start/fmax_synthesis` for Fmax synthesis or :doc:`/quick_start/custom_freq_synthesis` for custom frequency synthesis.:
    - Edit ``odatix_userconfig/fmax_synthesis_settings.yml`` to add your design's configurations
+   - Edit ``odatix_userconfig/custom_freq_synthesis_settings.yml`` to add your design's configurations
    - Select the target device or technology in the yaml file corresponding to your EDA tool.
    - Run the selected designs
    - Visualize and explore the results
