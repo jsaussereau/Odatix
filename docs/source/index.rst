@@ -1,11 +1,6 @@
 Odatix
 ========
 
-.. |License| image:: https://img.shields.io/github/license/jsaussereau/Odatix
-  :target:  https://github.com/jsaussereau/Odatix/blob/main/LICENSE
-
-.. |Docs| image:: https://readthedocs.org/projects/odatix/badge/?version=latest
-  :target:  https://odatix.readthedocs.io
 
 .. |GitHub| image:: https://img.shields.io/badge/GitHub-Odatix-blue.svg?logo=github
   :target:  https://github.com/jsaussereau/Odatix
@@ -13,8 +8,17 @@ Odatix
 .. |PyPi| image:: https://img.shields.io/pypi/v/odatix
   :target:  https://pypi.org/project/odatix/
 
+.. |Cite| image:: https://img.shields.io/badge/cite-DOI%3A10.1016/j.softx.2024.101970-green
+  :target:  https://www.sciencedirect.com/science/article/pii/S2352711024003406
+  
+.. |License| image:: https://img.shields.io/github/license/jsaussereau/Odatix
+  :target:  https://github.com/jsaussereau/Odatix/blob/main/LICENSE
 
-|GitHub| |PyPi| |License| |Docs|
+.. |Docs| image:: https://readthedocs.org/projects/odatix/badge/?version=latest
+  :target:  https://odatix.readthedocs.io
+
+
+|GitHub| |PyPi| |Cite| |License| |Docs|
 
 **Odatix** is a toolbox designed to facilitate logical synthesis of configurable designs on various FPGA and ASIC tools such as Vivado and Design Compiler. 
 It allows to easily find the maximum operating frequency of any digital architecture described with an HDL (VHDL, Verilog, SystemVerilog, Chisel).
@@ -74,8 +78,6 @@ Contents
   installation/index
   
   quick_start/index
-
-  userguide/index
 
   documentation/commands
   documentation/settings
