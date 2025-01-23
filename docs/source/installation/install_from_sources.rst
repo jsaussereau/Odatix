@@ -87,10 +87,19 @@ Step 3: Configure a virtual environment [*Optional*]
 Step 4: Install the package
 ----------------------------
 
-.. code-block:: bash
+Depending of if you just want to use Odatix or modify it:
 
-   python3 -m pip install ./sources
+.. tab:: Use Odatix
 
+   .. code-block:: bash
+
+      python3 -m pip install ./sources
+
+.. tab:: Use and modify Odatix
+
+   .. code-block:: bash
+
+      python3 -m pip install -e ./sources
 
 Step 5: Install one of the supported EDA tools
 ----------------------------------------------
