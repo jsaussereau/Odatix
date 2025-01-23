@@ -176,8 +176,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
             )
             
-          df_range = df_architecture_target[df_architecture_target["Type"] == "Range"]
-          if selected_results in ["All", "Range"] and not df_range.empty:
+          df_range = df_architecture_target[df_architecture_target["Type"] == "Custom Freq"]
+          if selected_results in ["All", "Custom Freq"] and not df_range.empty:
             for i_freq, frequency in enumerate(explorer.all_frequencies):
               df_frequency = df_range[df_range["Frequency"] == frequency]
               if df_frequency.empty:

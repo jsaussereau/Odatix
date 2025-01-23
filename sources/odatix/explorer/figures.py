@@ -195,8 +195,8 @@ def make_legend_chart(
             )
           )
 
-        df_range = df_architecture[df_architecture["Type"] == "Range"]
-        if selected_results in ["All", "Range"] and not df_range.empty:
+        df_range = df_architecture[df_architecture["Type"] == "Custom Freq"]
+        if selected_results in ["All", "Custom Freq"] and not df_range.empty:
           for i_freq, frequency in enumerate(explorer.all_frequencies):
             df_frequency = df_architecture[df_architecture["Frequency"] == frequency]
             if not df_frequency.empty:
@@ -367,8 +367,8 @@ def make_radar_chart(
             )
           )
 
-        df_architecture_range = df_architecture[df_architecture["Type"] == "Range"]
-        if selected_results in ["All", "Range"] and not df_architecture_range.empty:
+        df_architecture_range = df_architecture[df_architecture["Type"] == "Custom Freq"]
+        if selected_results in ["All", "Custom Freq"] and not df_architecture_range.empty:
           for i_freq, frequency in enumerate(explorer.all_frequencies):
             df_frequency = df_architecture_range[df_architecture_range["Frequency"] == frequency]
             frequencies = [f"{frequency} MHz"] * nb_points

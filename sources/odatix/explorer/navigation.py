@@ -128,7 +128,7 @@ def side_bar(explorer):
                     dcc.Dropdown(
                       id="results-dropdown",
                       value="All",
-                      options= ["All", "Fmax", "Range"]
+                      options= ["All", "Fmax", "Custom Freq"]
                     ),
                   ],
                 ),
