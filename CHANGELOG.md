@@ -2,14 +2,55 @@
 All notable changes to this project will be documented in this file.
  
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
-    
+
+## [3.2.0] - 2025-01-23
+
+### Added 
+
+#### Odatix
+- Add support for synthesis at custom frequencies (list and/or range)
+- Add wildcard (*) support in place of configuration name
+- Add alternate keyboard shortcuts
+- Add mouse interactions
+- Add basic theming
+- Add exit_when_done and log_size_limit keys 
+
+#### Odatix Explorer
+- Add target selection in side bar
+- Add support for range results
+- Add color and maker options
+- Add a home page
+- Add options to enable/disable unique color+symbol for architectures and targets
+
+### Changed
+  
+#### Odatix
+- Change default work path for fmax synthesis to work/fmax_synthesis
+- Change fmax synthesis output result key to 'fmax_synthesis'
+
+#### Odatix Explorer
+- Improve speed and remove unnecessary refreshes
+- Improve UI and UX
+
+#### Odatix
+- Fix crash if the number of jobs is greater than the number of lines in the terminal
+- Fix controls not working with caps locked
+- Fix missing param_target_file while generate_rtl=true not raising an error
+
+#### Odatix Explorer
+- Fix sidebar options being reset on page switch
+- Fix high cpu usage
+
 ## [3.1.0] - 2024-09-10
 
 ### Added 
 
-- Add '--normal_term_mode' option to odatix-explorer
-- Add '--safe_mode' option to odatix-explorer
+#### Odatix
 - Add a tool_install_path key to target files
+
+#### Odatix Explorer
+- Add '--normal_term_mode' option
+- Add '--safe_mode' option
 
 ### Changed
   
