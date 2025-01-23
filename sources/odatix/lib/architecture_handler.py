@@ -587,7 +587,7 @@ class ArchitectureHandler:
             printc.cyan("  lower_bound: XXX")
             printc.cyan("  upper_bound: XXX")
 
-        range_synthesis = read_from_list('range_synthesis', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+        range_synthesis = read_from_list('custom_freq_synthesis', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
         if range_synthesis:
           range_list = read_from_list('list', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
           if range_list == False:

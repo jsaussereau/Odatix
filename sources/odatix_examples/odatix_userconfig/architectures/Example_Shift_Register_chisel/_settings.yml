@@ -33,24 +33,24 @@ xc7a100t-csg324-1:
   fmax_synthesis:
     lower_bound: 650
     upper_bound: 1000
-  range_synthesis:
+  custom_freq_synthesis:
     list: [50, 100]
 xc7k70t-fbg676-2:
   fmax_synthesis:
     lower_bound: 450
     upper_bound: 2500
-  range_synthesis:
+  custom_freq_synthesis:
     list: [50, 100]
 XFAB180CMOS:
   fmax_synthesis:
     lower_bound: 200
     upper_bound: 1000
-  range_synthesis:
+  custom_freq_synthesis:
     list: [50, 100]
 AMS350CMOS:
   fmax_synthesis:
     lower_bound: 50
     upper_bound: 500
-  range_synthesis:
+  custom_freq_synthesis:
     list: [50, 100]
 ...
