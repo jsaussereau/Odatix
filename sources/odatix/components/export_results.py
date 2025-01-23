@@ -46,7 +46,7 @@ simulations_dir = "simulations"
 
 status_done = "Done: 100%"
 
-synth_types = ["range", "fmax"]
+synth_types = ["custom_freq_synthesis", "fmax_synthesis"]
 
 script_name = os.path.basename(__file__)
 
@@ -313,7 +313,7 @@ def calculate_operation(op_str, results, error_prefix=""):
 ######################################
 
 def process_configuration(input, target, architecture, configuration, frequency, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file):
-  if type == "range":
+  if type == "custom_freq_synthesis":
     arch = architecture + "[" + configuration + "] @ " + frequency
     arch_path = os.path.join(target, architecture, configuration, frequency)
     status_filename = "synth_status.log"
@@ -339,7 +339,7 @@ def process_configuration(input, target, architecture, configuration, frequency,
       return None, None
 
   # Get values
-  if type == "range":
+  if type == "custom_freq_synthesis":
     metrics[type], cur_units[type] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
     data[type][target][architecture][configuration][frequency] = metrics[type]
   else:
@@ -389,7 +389,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
         for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
           data[type][target][architecture] = {}
           for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
-            if type == "range":
+            if type == "custom_freq_synthesis":
               data[type][target][architecture][configuration] = {}
               for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
                 process_configuration(input, target, architecture, configuration, frequency, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
@@ -408,7 +408,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
   try:
     with open(output_file, "w") as file:
       yaml.dump(
-        {"units": units, "fmax_results": data["fmax"], "range_results": data["range"]}, file, default_style=None, default_flow_style=False, sort_keys=False
+        {"units": units, "fmax_synthesis": data["fmax_synthesis"], "custom_freq_synthesis": data["custom_freq_synthesis"]}, file, default_style=None, default_flow_style=False, sort_keys=False
       )
       printc.say('Results written to "' + output_file + '"', script_name=script_name)
       printc.note("Run 'odatix-explorer' to explore the results", script_name=script_name)
@@ -446,8 +446,9 @@ def main(args, settings=None):
     input = settings.work_path
 
   if not os.path.isdir(input):
-    printc.error('Could not find fmax work directory "' + input + '"', script_name=script_name)
+    printc.error('Could not find work directory "' + input + '"', script_name=script_name)
     printc.note("Run fmax synthesis using the 'odatix fmax' command before exporting the results", script_name=script_name)
+    printc.note("Or run custom frequency synthesis using the 'odatix freq' command before exporting the results", script_name=script_name)
     sys.exit(-1)
 
   if args.respath is not None:
