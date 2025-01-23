@@ -88,8 +88,8 @@ class ArgParser:
     ArgParser.fmax_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.fmax_parser)
 
-    # Define parser for the 'range' command
-    ArgParser.range_parser = subparsers.add_parser("range", help="run range synthesis", formatter_class=formatter)
+    # Define parser for the 'freq' command
+    ArgParser.range_parser = subparsers.add_parser("freq", help="run synthesis at custom frequencies", formatter_class=formatter)
     run_range.add_arguments(ArgParser.range_parser)
     ArgParser.range_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.range_parser)
@@ -382,7 +382,7 @@ def main(args=None):
     success = run_simulations(args)
   elif args.command == "fmax":
     success = run_fmax_synthesis(args)
-  elif args.command == "range":
+  elif args.command == "freq":
     success = run_range_synthesis(args)
   elif args.command == "results":
     success = export_all_results(args)
