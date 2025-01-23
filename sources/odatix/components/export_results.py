@@ -172,7 +172,7 @@ def validate_tool_settings(file_path):
 ######################################
 
 
-def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax"):
+def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis"):
   global banned_metrics
   results = {}
   units = {}
@@ -180,10 +180,10 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
   metrics = {}
   
   if type == "fmax":
-    fmax_metrics = read_from_list("synth_fmax_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
+    fmax_metrics = read_from_list("fmax_sythesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
     metrics.update(fmax_metrics)
-  elif type == "range":
-    range_metrics = read_from_list("synth_range_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
+  elif type == "custom_freq_synthesis":
+    range_metrics = read_from_list("custom_freq_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
     metrics.update(range_metrics)
 
   common_metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)

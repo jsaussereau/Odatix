@@ -4,7 +4,7 @@
 
 process_group: True
 
-synth_fmax_metrics:
+fmax_synthesis_metrics:
   Fmax:
     type: regex
     settings:
@@ -14,7 +14,7 @@ synth_fmax_metrics:
     format: "%.0f"
     unit: MHz
 
-synth_range_metrics:
+custom_freq_synthesis_metrics:
   Frequency:
     type: regex
     settings:
