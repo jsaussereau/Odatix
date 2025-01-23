@@ -27,7 +27,7 @@ setup(
     package_data={
         'odatix': [
             'version.txt',
-            'explorer/assets/**/*',
+            'explorer/**/*',
             'init/**/*',
             'eda_tools/**/*',
         ],
