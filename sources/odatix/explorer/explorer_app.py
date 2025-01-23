@@ -115,7 +115,7 @@ class ResultExplorer:
       file_path = os.path.join(self.result_path, yaml_file)
       try:
         fmax_data, range_data, units = self.get_yaml_data(file_path)
-        all_data = {"Fmax": fmax_data, "Range": range_data}
+        all_data = {"Fmax": fmax_data, "Custom Freq": range_data}
         df = self.update_dataframe(all_data)
 
         # Validate YAML data
@@ -156,7 +156,7 @@ class ResultExplorer:
         # Diagnostic messages
         if df[df["Type"] == "Fmax"].empty:
           printc.note(f'No fmax results found in YAML file "{yaml_file}".', script_name=script_name)
-        if df[df["Type"] == "Range"].empty:
+        if df[df["Type"] == "Custom Freq"].empty:
           printc.note(f'No range results found in YAML file "{yaml_file}".', script_name=script_name)
 
       except Exception as e:
@@ -174,13 +174,18 @@ class ResultExplorer:
     with open(file_path, "r") as file:
       yaml_content = yaml.safe_load(file)
       units = yaml_content.get("units", {})
-      fmax_results = yaml_content.get("fmax_results", {})
-      range_results = yaml_content.get("range_results", {})
+
+      fmax_results = yaml_content.get("fmax_synthesis", {})
+      legacy_fmax_results = yaml_content.get("fmax_results", {})
+      fmax_results.update(legacy_fmax_results)
+
+      range_results = yaml_content.get("custom_freq_synthesis", {})
+
       return fmax_results, range_results, units
 
   def update_dataframe(self, yaml_data):
     """
-    Combine 'fmax' and 'range' data into a single hierarchical DataFrame.
+    Combine 'fmax' and 'custom freq' data into a single hierarchical DataFrame.
     """
     data = []
     
@@ -188,8 +193,8 @@ class ResultExplorer:
       for target, architectures in target_data.items():
         for architecture, configurations in architectures.items():
           for config, metrics in configurations.items():
-            if result_type == "Range":
-              # For 'range', include frequency as a sub-level
+            if result_type == "Custom Freq":
+              # For 'custom freq', include frequency as a sub-level
               for frequency, freq_metrics in metrics.items():
                 row = {
                   "Target": target,
@@ -233,7 +238,7 @@ class ResultExplorer:
           for configuration_data in architecture_data.values():
             if type == "Fmax" :
               metrics_from_yaml.update(configuration_data.keys())
-            elif type == "Range":
+            elif type == "Custom Freq":
               for frequency_data in configuration_data.values():
                 metrics_from_yaml.update(frequency_data.keys())
           
