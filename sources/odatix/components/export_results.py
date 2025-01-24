@@ -179,8 +179,8 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
   error_prefix =  arch_path + " => "
   metrics = {}
   
-  if type == "fmax":
-    fmax_metrics = read_from_list("fmax_sythesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
+  if type == "fmax_synthesis":
+    fmax_metrics = read_from_list("fmax_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
     metrics.update(fmax_metrics)
   elif type == "custom_freq_synthesis":
     range_metrics = read_from_list("custom_freq_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
