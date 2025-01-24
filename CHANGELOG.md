@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
  
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.2.2] - 2025-01-24
+
+### Fixed
+- Fix fmax synthesis metrics not being exported
+
 ## [3.2.1] - 2025-01-23
 
 ### Fixed
