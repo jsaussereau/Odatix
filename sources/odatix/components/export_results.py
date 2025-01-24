@@ -180,15 +180,17 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
   metrics = {}
   
   if type == "fmax_synthesis":
-    fmax_metrics = read_from_list("fmax_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
-    metrics.update(fmax_metrics)
+    fmax_metrics = read_from_list("fmax_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, print_error=False, script_name=script_name)
+    if fmax_metrics != False:
+      metrics.update(fmax_metrics)
   elif type == "custom_freq_synthesis":
-    range_metrics = read_from_list("custom_freq_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
-    metrics.update(range_metrics)
+    range_metrics = read_from_list("custom_freq_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, print_error=False, script_name=script_name)
+    if range_metrics != False:
+      metrics.update(range_metrics)
 
-  common_metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, script_name=script_name)
-  metrics.update(common_metrics)
-  # print(f"metrics={metrics}")
+  common_metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, print_error=False, script_name=script_name)
+  if common_metrics != False:
+    metrics.update(common_metrics)
 
   for metric, content in metrics.items():
     if metric in banned_metrics:
