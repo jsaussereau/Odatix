@@ -57,6 +57,12 @@ script_name = os.path.basename(__file__)
 
 
 def add_arguments(parser):
+  """
+  Add command-line arguments for configuring the script.
+
+  Args:
+      parser (ArgumentParser): Argument parser instance.
+  """
   parser.add_argument("-t", "--tool", default="all", help="eda tool in use, or 'all' (default: all)")
   parser.add_argument(
     "-f",
@@ -78,6 +84,12 @@ def add_arguments(parser):
 
 
 def parse_arguments():
+  """
+  Parse and return command-line arguments.
+
+  Returns:
+      Namespace: Parsed command-line arguments.
+  """
   parser = argparse.ArgumentParser(description="Process FPGA or ASIC results")
   add_arguments(parser)
   return parser.parse_args()
@@ -89,6 +101,18 @@ def parse_arguments():
 
 
 def parse_regex(file, pattern, group_id, error_prefix=""):
+  """
+  Parse a file with a regex to extract a specific value.
+
+  Args:
+      file (str): Path to the file.
+      pattern (str): Regular expression to search for.
+      group_id (int): Regex group ID to extract.
+      error_prefix (str): Prefix for error messages.
+
+  Returns:
+      str | None: The matched value, or None if not found or on error.
+  """
   if not os.path.isfile(file):
     printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
@@ -109,6 +133,17 @@ def parse_regex(file, pattern, group_id, error_prefix=""):
 
 
 def parse_csv(file, key, error_prefix=""):
+  """
+  Parse a CSV file to extract a value associated with a specific key.
+
+  Args:
+      file (str): Path to the CSV file.
+      key (str): Key to search for in the file.
+      error_prefix (str): Prefix for error messages.
+
+  Returns:
+      str | None: The value corresponding to the key, or None if not found.
+  """
   if not os.path.isfile(file):
     printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
@@ -128,6 +163,17 @@ def parse_csv(file, key, error_prefix=""):
 
 
 def parse_yaml(file, key, error_prefix=""):
+  """
+  Parse a YAML file to extract a value associated with a key.
+
+  Args:
+      file (str): Path to the YAML file.
+      key (str): Key to search for in the YAML data.
+      error_prefix (str): Prefix for error messages.
+
+  Returns:
+      Any | None: Extracted value, or None if not found or on error.
+  """
   if not os.path.isfile(file):
     printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
@@ -155,6 +201,15 @@ def parse_yaml(file, key, error_prefix=""):
 
 
 def validate_tool_settings(file_path):
+  """
+  Validate and load tool settings from a YAML file.
+
+  Args:
+      file_path (str): Path to the tool settings file.
+
+  Returns:
+      dict | None: Loaded settings as a dictionary, or None if invalid.
+  """
   if not os.path.isfile(file_path):
     printc.error('Tool settings file "' + os.path.realpath(file_path) + '" does not exist', script_name)
     return None
@@ -173,6 +228,49 @@ def validate_tool_settings(file_path):
 
 
 def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis"):
+  """
+  Extract metrics from synthesis results based on tool-specific settings.
+
+  This function processes various types of synthesis metrics, such as 
+  `fmax_synthesis` or `custom_freq_synthesis`, by parsing tool output 
+  files (e.g., regex, CSV, YAML) and optionally using benchmark values.
+
+  Args:
+      tool_settings (dict): The loaded settings for the EDA tool, containing 
+                            metric definitions.
+      tool_settings_file (str): Path to the YAML file containing tool settings.
+      cur_path (str): Current path to the directory containing synthesis results.
+      arch (str): Identifier for the architecture being processed.
+      arch_path (str): Full path to the architecture-specific directory.
+      use_benchmark (bool): Whether to use benchmark data for extracting metrics.
+      benchmark_file (str): Path to the benchmark YAML file.
+      type (str): Type of synthesis (e.g., "fmax_synthesis" or "custom_freq_synthesis").
+                  Defaults to "fmax_synthesis".
+
+  Returns:
+      tuple: 
+          - results (dict): A dictionary containing extracted metric values.
+            Keys are metric names, and values are the corresponding extracted results.
+          - units (dict): A dictionary mapping metric names to their units, if specified.
+            If no unit is defined for a metric, it is omitted from this dictionary.
+
+  Raises:
+      KeyNotInListError: If a required key is missing in `tool_settings`.
+      BadValueInListError: If a value in `tool_settings` is invalid for a metric.
+      ValueError: When parsing or formatting a metric value fails.
+
+  Notes:
+      - Metrics are extracted from files (regex, CSV, or YAML) defined in the tool 
+        settings. Each metric can specify its own type and extraction settings.
+      - Metrics marked as "benchmark_only" are only included if `use_benchmark` is True.
+      - Global lists `banned_metrics` and `banned_arch` are updated to exclude metrics
+        or architectures that encounter errors during extraction.
+
+  Examples:
+      For `type="fmax_synthesis"`, metrics defined under "fmax_synthesis_metrics" 
+      in the `tool_settings` file are prioritized. Common metrics (defined under 
+      "metrics") are always included.
+  """
   global banned_metrics
   results = {}
   units = {}
@@ -287,12 +385,28 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
 
 
 def corrupted_directory(directory):
+  """
+  Log a warning indicating that a synthesis directory is corrupted or incomplete.
+
+  Args:
+      directory (str): Path to the directory that is flagged as corrupted.
+  """
   printc.warning(
     directory + " => Synthesis has not finished or directory has been corrupted", script_name
   )
 
 
 def convert_to_numeric(data):
+  """
+  Convert a string representation of a number to a numeric type (int or float).
+
+  Args:
+      data (str): The string to convert.
+
+  Returns:
+      int | float | str: The numeric representation of the input if conversion is successful;
+      otherwise, the original string.
+  """
   try:
     if "." in data:
       return float(data)
@@ -302,6 +416,17 @@ def convert_to_numeric(data):
 
 
 def calculate_operation(op_str, results, error_prefix=""):
+  """
+  Evaluate a mathematical operation on the extracted results.
+
+  Args:
+      op_str (str): The mathematical operation as a string (e.g., "a + b / c").
+      results (dict): Dictionary of metric values available for the operation.
+      error_prefix (str): Prefix for error messages to provide context.
+
+  Returns:
+      float | int | None: The result of the evaluated operation, or None if an error occurs.
+  """
   try:
     local_vars = {k: v for k, v in results.items() if v is not None}
     return eval(op_str, {}, local_vars)
@@ -315,6 +440,40 @@ def calculate_operation(op_str, results, error_prefix=""):
 ######################################
 
 def process_configuration(input, target, architecture, configuration, frequency, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file):
+  """
+  Process the configuration for a specific architecture and extract relevant metrics.
+
+  This function validates the synthesis status for a given configuration and 
+  architecture, and extracts metrics if the synthesis has completed successfully.
+
+  Args:
+      input (str): Base directory for the synthesis results.
+      target (str): Target device or platform being synthesized.
+      architecture (str): Name of the architecture being processed.
+      configuration (str): Configuration of the architecture (e.g., specific design options).
+      frequency (str | None): Frequency variant for custom frequency synthesis; None for fmax synthesis.
+      type (str): Type of synthesis ("fmax_synthesis" or "custom_freq_synthesis").
+      units (dict): Dictionary to store metric units for the synthesis results.
+      data (dict): Dictionary to store extracted metrics for the current configuration.
+      tool_settings (dict): Settings specific to the EDA tool being used.
+      tool_settings_file (str): Path to the YAML file containing tool settings.
+      use_benchmark (bool): Whether to use benchmark values for metric extraction.
+      benchmark_file (str): Path to the benchmark YAML file.
+
+  Returns:
+      tuple:
+          - data (dict): Updated dictionary containing extracted metrics.
+          - metrics (dict): Extracted metrics for the current configuration.
+
+  Notes:
+      - This function ensures the synthesis status is checked before attempting 
+        to extract metrics.
+      - For `custom_freq_synthesis`, metrics are organized per frequency.
+      - Updates the global `units` dictionary with units for the extracted metrics.
+
+  Raises:
+      None: Errors are logged using `printc.error`, and the function returns None if an error occurs.
+  """
   if type == "custom_freq_synthesis":
     arch = architecture + "[" + configuration + "] @ " + frequency
     arch_path = os.path.join(target, architecture, configuration, frequency)
@@ -355,6 +514,40 @@ def process_configuration(input, target, architecture, configuration, frequency,
 
 
 def export_results(input, output, tools, format, use_benchmark, benchmark_file):
+  """
+  Export synthesis results for multiple tools, configurations and architectures
+  to a specified format.
+
+  This function iterates over synthesis results from specified tools, of every
+  architecture configurations in the input directory, extracts metrics, and writes 
+  the results to YAML files.
+
+  Args:
+      input (str): Base directory containing synthesis results.
+      output (str): Directory where the exported results will be saved.
+      tools (list): List of EDA tools to process.
+      format (str): Output format for the results ("csv", "yml", or "all").
+      use_benchmark (bool): Whether to include benchmark data in the metrics.
+      benchmark_file (str): Path to the benchmark YAML file.
+
+  Returns:
+      None: Results are saved to files; errors are logged.
+
+  Notes:
+      - For each tool, synthesis types (`fmax_synthesis` and `custom_freq_synthesis`) 
+        are processed separately.
+      - Creates a structured YAML output containing extracted metrics and units.
+      - Skips tools or configurations with missing or invalid data.
+      - Outputs results to separate YAML files for each tool.
+
+  Example:
+      If `tools = ["tool1", "tool2"]`, the function generates:
+      - `results_tool1.yml` in the specified output directory.
+      - `results_tool2.yml` in the specified output directory.
+
+  Raises:
+      SystemExit: If no valid synthesis results are found for the specified tools.
+  """
   input_path = input
 
   data = {}
