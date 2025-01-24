@@ -362,11 +362,9 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
   cur_units = {}
   metrics = {}
 
-  for type in synth_types:
-    data[type] = {}
-
-    for tool in tools:
-      
+  for tool in tools:
+    for type in synth_types:
+      data[type] = {}
       printc.cyan("Export " + tool + " " + type + " results", script_name)
 
       tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, "tool.yml")
@@ -378,8 +376,6 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
           continue
 
       input = os.path.join(input_path, type, tool)
-
-      # print(f"input : {input}")
 
       try:
         dirs = sorted(next(os.walk(input))[1])
@@ -402,22 +398,21 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
             
             if data == None:
               continue
-          
 
-  # Export to the desired format
-  os.makedirs(output, exist_ok=True)
-  output_file = os.path.join(output, "results_" + tool + ".yml")
-  try:
-    with open(output_file, "w") as file:
-      yaml.dump(
-        {"units": units, "fmax_synthesis": data["fmax_synthesis"], "custom_freq_synthesis": data["custom_freq_synthesis"]}, file, default_style=None, default_flow_style=False, sort_keys=False
-      )
-      printc.say('Results written to "' + output_file + '"', script_name=script_name)
-      printc.note("Run 'odatix-explorer' to explore the results", script_name=script_name)
-  except Exception as e:
-    printc.error('Could not write "' + output_file + '"', script_name=script_name)
-    printc.cyan("error details: ", script_name=script_name, end="")
-    print(str(e))
+    # Export to the desired format
+    os.makedirs(output, exist_ok=True)
+    output_file = os.path.join(output, "results_" + tool + ".yml")
+    try:
+      with open(output_file, "w") as file:
+        yaml.dump(
+          {"units": units, "fmax_synthesis": data["fmax_synthesis"], "custom_freq_synthesis": data["custom_freq_synthesis"]}, file, default_style=None, default_flow_style=False, sort_keys=False
+        )
+        printc.say('Results written to "' + output_file + '"', script_name=script_name)
+        printc.note("Run 'odatix-explorer' to explore the results", script_name=script_name)
+    except Exception as e:
+      printc.error('Could not write "' + output_file + '"', script_name=script_name)
+      printc.cyan("error details: ", script_name=script_name, end="")
+      print(str(e))
 
 
 ######################################
