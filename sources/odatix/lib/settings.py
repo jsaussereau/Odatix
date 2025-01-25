@@ -19,6 +19,25 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+"""
+This module defines the settings and initialization functions for Odatix.
+
+Classes:
+    OdatixSettings: Encapsulates all paths, settings, and initialization logic for Odatix.
+
+Functions:
+    None defined at the module level; all logic is encapsulated in the OdatixSettings class.
+
+Usage:
+    Use `OdatixSettings` to handle configuration file paths, work directories, and
+    initialization procedures for Odatix.
+
+    Example:
+        settings = OdatixSettings()
+        if settings.valid:
+            print("Settings loaded successfully")
+"""
+
 import os
 import sys
 import yaml
@@ -34,13 +53,32 @@ script_name = os.path.basename(__file__)
 # Settings
 ######################################
 
-# get eda_tools folder
+# Determine the install path of Odatix
 if getattr(sys, "frozen", False):
   base_path = os.path.dirname(sys.executable)
 else:
   base_path = current_dir
 
 class OdatixSettings:
+  """
+  Handles Odatix configuration, paths, and initialization.
+
+  Attributes:
+      DEFAULT_* (str): Default paths and filenames for Odatix configurations.
+      odatix_*_path (str): Paths to key Odatix components (e.g., EDA tools definition, embedded examples).
+      valid (bool): Indicates whether the settings were successfully loaded.
+      settings_file_exists (bool): Whether the settings file exists.
+
+  Methods:
+      __init__: Initializes the settings object and loads configurations.
+      read_settings_file: Reads and validates the Odatix settings file.
+      init_examples: Copies example configurations to the current directory.
+      init_path: Initializes the required directory structure for Odatix.
+      init_directory_dialog: Creates the configuration with user prompts.
+      init_directory_nodialog: Creates the configuration without user prompts.
+      init_success: Displays success messages post-initialization.
+  """
+
   DEFAULT_SETTINGS_FILE = "odatix.yml"
 
   DEFAULT_WORK_PATH = "work"
@@ -65,6 +103,12 @@ class OdatixSettings:
   odatix_examples_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_examples"))
 
   def __init__(self, settings_filename=DEFAULT_SETTINGS_FILE):
+    """
+    Initialize Odatix settings by reading the configuration file.
+
+    Args:
+        settings_filename (str): Name of the settings file to load.
+    """
     self.settings_file_exists = os.path.isfile(settings_filename)
     if self.settings_file_exists:
       success = self.read_settings_file(settings_filename)
@@ -74,8 +118,17 @@ class OdatixSettings:
       self.valid = False
 
   def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
+    """
+    Read and parse the settings file for Odatix configurations.
+
+    Args:
+        settings_filename (str): Path to the settings file.
+
+    Returns:
+        bool: True if the settings were successfully loaded, False otherwise.
+    """
     if not os.path.isfile(settings_filename):
-      printc.note("Odatix settings file \"" + settings_filename + "\" does not exists.", script_name=script_name)
+      printc.note("Odatix settings file \"" + settings_filename + "\" does not exist.", script_name=script_name)
       settings_data = {}
     else:
       with open(settings_filename, "r") as f:
@@ -88,7 +141,7 @@ class OdatixSettings:
           self.valid = False
           return False
       
-    # Get values from file
+    # Retrieve values from the settings file
     self.work_path, _ = get_from_dict("work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORK_PATH, script_name=script_name)
     self.simulation_work_path, _ = get_from_dict("simulation_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_WORK_PATH, script_name=script_name)
     self.fmax_synthesis_work_path, _ = get_from_dict("fmax_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH, script_name=script_name)
@@ -123,6 +176,12 @@ class OdatixSettings:
     
   @staticmethod
   def init_examples():
+    """
+    Copy example configurations to the current directory.
+
+    Returns:
+        bool: True if successful, False otherwise.
+    """
     try:
       src_path = OdatixSettings.odatix_examples_path
       dst_path = os.getcwd()
@@ -134,6 +193,12 @@ class OdatixSettings:
 
   @staticmethod
   def init_path():
+    """
+    Initialize the required directory structure for Odatix.
+
+    Returns:
+        bool: True if successful, False otherwise.
+    """
     try:
       src_path = OdatixSettings.odatix_init_path
       dst_path = os.getcwd()
@@ -145,7 +210,17 @@ class OdatixSettings:
 
   @staticmethod
   def init_directory_dialog(include_examples=None, prog=""):
-    printc.note("This command will create all the configuration files needed by Odatix in the current dictory.", script_name=script_name)
+    """
+    Initialize the configuration directory with user interaction.
+
+    Args:
+        include_examples (bool | None): Whether to include example files (prompted if None).
+        prog (str): Program name for success message.
+
+    Returns:
+        bool: True if initialization is successful, False otherwise.
+    """
+    printc.note("This command will create all the configuration files needed by Odatix in the current directory.", script_name=script_name)
     printc.warning("This will overwrite any existing configuration files.", script_name=script_name)
     printc.say("Would you like to continue? ", end="", script_name=script_name)
     answer = ask_yes_no()
@@ -166,6 +241,16 @@ class OdatixSettings:
 
   @staticmethod
   def init_directory_nodialog(include_examples=None, prog=""):
+    """
+    Initialize the configuration directory without user interaction.
+
+    Args:
+        include_examples (bool | None): Whether to include example files.
+        prog (str): Program name for success message.
+
+    Returns:
+        bool: True if initialization is successful, False otherwise.
+    """
     success = OdatixSettings.init_path()
     if not success:
       return False
@@ -178,6 +263,12 @@ class OdatixSettings:
 
   @staticmethod
   def init_success(prog=""):
+    """
+    Display a success message after directory initialization.
+
+    Args:
+        prog (str): Program name for the message.
+    """
     printc.green("Your directory can now be used by Odatix!", script_name=script_name)
     printc.say("Run ", end="", script_name=script_name)
     printc.bold(prog + " -h", end="")
