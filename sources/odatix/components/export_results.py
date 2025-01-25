@@ -46,8 +46,6 @@ simulations_dir = "simulations"
 
 status_done = "Done: 100%"
 
-synth_types = ["custom_freq_synthesis", "fmax_synthesis"]
-
 script_name = os.path.basename(__file__)
 
 
@@ -439,7 +437,7 @@ def calculate_operation(op_str, results, error_prefix=""):
 # Export Results
 ######################################
 
-def process_configuration(input, target, architecture, configuration, frequency, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file):
+def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file):
   """
   Process the configuration for a specific architecture and extract relevant metrics.
 
@@ -452,7 +450,7 @@ def process_configuration(input, target, architecture, configuration, frequency,
       architecture (str): Name of the architecture being processed.
       configuration (str): Configuration of the architecture (e.g., specific design options).
       frequency (str | None): Frequency variant for custom frequency synthesis; None for fmax synthesis.
-      type (str): Type of synthesis ("fmax_synthesis" or "custom_freq_synthesis").
+      type (str): Type of results to process (e.g. "fmax_synthesis" or "custom_freq_synthesis").
       units (dict): Dictionary to store metric units for the synthesis results.
       data (dict): Dictionary to store extracted metrics for the current configuration.
       tool_settings (dict): Settings specific to the EDA tool being used.
@@ -501,19 +499,19 @@ def process_configuration(input, target, architecture, configuration, frequency,
 
   # Get values
   if type == "custom_freq_synthesis":
-    metrics[type], cur_units[type] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
-    data[type][target][architecture][configuration][frequency] = metrics[type]
+    metrics[result_key], cur_units[result_key] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
+    data[result_key][target][architecture][configuration][frequency] = metrics[result_key]
   else:
-    metrics[type], cur_units[type] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
-    data[type][target][architecture][configuration] = metrics[type]
-  # print(f"metrics[type] = {metrics[type]}")
+    metrics[result_key], cur_units[result_key] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
+    data[result_key][target][architecture][configuration] = metrics[result_key]
+  # print(f"metrics[result_key] = {metrics[result_key]}")
 
   # Update units
-  units.update(cur_units[type])
+  units.update(cur_units[result_key])
   return data, metrics
 
 
-def export_results(input, output, tools, format, use_benchmark, benchmark_file):
+def export_results(input, output, tools, format, use_benchmark, benchmark_file, result_types):
   """
   Export synthesis results for multiple tools, configurations and architectures
   to a specified format.
@@ -525,10 +523,11 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
   Args:
       input (str): Base directory containing synthesis results.
       output (str): Directory where the exported results will be saved.
-      tools (list): List of EDA tools to process.
+      tools (list | str): List of EDA tools to process or "All" to process all available tools.
       format (str): Output format for the results ("csv", "yml", or "all").
       use_benchmark (bool): Whether to include benchmark data in the metrics.
       benchmark_file (str): Path to the benchmark YAML file.
+      result_types (dict): Dictionary specifying the yaml key and path for each result type to process (e.g., `fmax_synthesis` and `custom_freq_synthesis`) 
 
   Returns:
       None: Results are saved to files; errors are logged.
@@ -550,15 +549,46 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
   """
   input_path = input
 
-  data = {}
-  units = {}
-  cur_units = {}
-  metrics = {}
+  # Check result_types is valid
+  for result_type in result_types:
+    if not "path" in result_types[result_type] or not "key" in result_types[result_type]:
+      printc.error("Invalid result_types formatting: " + str(result_types), script_name)
+      printc.note("Example of valid synthesis type formatting: ", script_name)
+      printc.cyan('"custom_freq_synthesis": {')
+      printc.cyan('  "key": "custom_freq_synthesis",')
+      printc.cyan('  "path": your/custom/freq/synthesis/path,')
+      printc.cyan('},')
+      printc.cyan('"fmax_synthesis": {')
+      printc.cyan('  "key": "fmax_synthesis",')
+      printc.cyan('  "path": your/fmax/synthesis/path,')
+      printc.cyan('},: ')
+      return
+
+  # Get tool list
+  if not isinstance(tools, list):
+    if not isinstance(tools, str) or tools != "all":
+      printc.error("Invalid value for 'tools': " + tools, script_name)
+      printc.note("'tools' should be ether a list or 'all'" + tools, script_name)
+    else:
+      tools = []
+      for result_type in result_types:
+        work_path = result_types[result_type]["path"]
+        type_dir = os.path.join(input_path, work_path)
+        if os.path.isdir(type_dir):
+          tools += [item for item in os.listdir(type_dir) if os.path.isdir(os.path.join(input, result_type, item))]
+      tools = list(set(tools))
 
   for tool in tools:
-    for type in synth_types:
-      data[type] = {}
-      printc.cyan("Export " + tool + " " + type + " results", script_name)
+    data = {}
+    units = {}
+    cur_units = {}
+    metrics = {}
+
+    for result_type in result_types:
+      result_key = result_types[result_type]["key"]
+      work_path = result_types[result_type]["path"]
+      data[result_key] = {}
+      printc.cyan("Export " + tool + " " + result_key + " results", script_name)
 
       tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, "tool.yml")
       tool_settings = validate_tool_settings(tool_settings_file)
@@ -568,7 +598,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
         else:
           continue
 
-      input = os.path.join(input_path, type, tool)
+      input = os.path.join(input_path, work_path, tool)
 
       try:
         dirs = sorted(next(os.walk(input))[1])
@@ -576,18 +606,18 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file):
         continue
 
       for target in dirs:
-        data[type][target] = {}
+        data[result_key][target] = {}
         for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
-          data[type][target][architecture] = {}
+          data[result_key][target][architecture] = {}
           for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
-            if type == "custom_freq_synthesis":
-              data[type][target][architecture][configuration] = {}
+            if result_type == "custom_freq_synthesis":
+              data[result_key][target][architecture][configuration] = {}
               for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
-                process_configuration(input, target, architecture, configuration, frequency, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
+                process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
               if data == None:
                 continue
             else:
-              process_configuration(input, target, architecture, configuration, None, type, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
+              process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
             
             if data == None:
               continue
@@ -646,13 +676,10 @@ def main(args, settings=None):
   else:
     output = settings.result_path
 
+  result_types = settings.result_types
+
   if args.tool == "all":
-    tool_list = []
-    for type in synth_types:
-      type_dir = os.path.join(input, type)
-      if os.path.isdir(type_dir):
-        tool_list += [item for item in os.listdir(type_dir) if os.path.isdir(os.path.join(input, type, item))]
-    tools = list(set(tool_list))
+    tools = args.tool
   else:
     tools = [args.tool]
 
@@ -663,6 +690,7 @@ def main(args, settings=None):
     format=args.format,
     use_benchmark=use_benchmark,
     benchmark_file=benchmark_file,
+    result_types=result_types,
   )
 
 

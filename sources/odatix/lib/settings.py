@@ -171,6 +171,17 @@ class OdatixSettings:
     if no_longer_supported:
       printc.note("\"simulation_work_path\", \"fmax_synthesis_work_path\" and \"custom_freq_synthesis_work_path\" are relative to \"work_path\"", script_name=script_name)
     
+    self.result_types = {
+      "custom_freq_synthesis": {
+        "key": "custom_freq_synthesis",
+        "path": self.custom_freq_synthesis_work_path,
+      },
+      "fmax_synthesis": {
+        "key": "fmax_synthesis",
+        "path": self.fmax_synthesis_work_path,
+      },
+    }
+
     self.valid = True
     return True
     
