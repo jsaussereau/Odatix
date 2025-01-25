@@ -359,7 +359,7 @@ class ParallelJobHandler:
       window.addstr(id, len(button) + len(title) + len(border_left) + bar_width, f"{border_right} {percentage}")
 
       comment_position = len(button) + len(title) + 3 + bar_width + 8
-      if status == "failed":
+      if status == "failed" or status == "killed" or status == "canceled":
         window.addstr(id, comment_position, comment, curses.color_pair(RED + offset) | attr)
       elif status == "running":
         window.addstr(id, comment_position, comment, curses.color_pair(YELLOW + offset) | attr)
@@ -954,6 +954,31 @@ class ParallelJobHandler:
         elif self.job_index_start < self.job_index_end - 1:
           self.job_index_start += 1
           resize = True
+
+      # Kill the selected job
+      elif key == ord('k') or key == ord('K'):
+        if selected_job.status == "running":  # Kill the running job
+          try:
+            os.killpg(os.getpgid(selected_job.process.pid), signal.SIGTERM)
+            selected_job.status = "killed"
+            self.retire_job(selected_job, selected_job.progress)
+            selected_job.log_history.append(printc.colors.RED + "Job killed by user" + printc.colors.ENDC)
+          except ProcessLookupError:
+            selected_job.log_history.append(printc.colors.RED + "Failed to kill the job" + printc.colors.ENDC)
+        elif selected_job.status == "queued":  # Remove job from queue
+          try:
+            self.job_queue.queue.remove(selected_job)
+            selected_job.status = "canceled"
+            selected_job.log_history.append(printc.colors.RED + "Job canceled by user" + printc.colors.ENDC)
+          except ValueError:
+            pass
+
+      # Start the selected job
+      elif key == ord('s') or key == ord('S'): 
+        if selected_job.status == "queued":
+          self.job_queue.queue.remove(selected_job)
+        if selected_job.status == "queued" or selected_job.status == "canceled":  # Start a queued job immediately
+          self.start_job(selected_job)
 
       # Change theme
       elif key == ord("t") or key == ord("T"):
