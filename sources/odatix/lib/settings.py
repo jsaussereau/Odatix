@@ -24,7 +24,8 @@ import sys
 import yaml
 
 import odatix.lib.printc as printc
-from odatix.lib.utils import read_from_list, KeyNotInListError, BadValueInListError, ask_yes_no, YAML_BOOL, copytree
+from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
+from odatix.lib.utils import ask_yes_no, YAML_BOOL, copytree
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 script_name = os.path.basename(__file__)
@@ -56,7 +57,7 @@ class OdatixSettings:
   DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml")
   DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
   DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
-  DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml")
+  DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml")
   
   odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
   odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
@@ -74,70 +75,49 @@ class OdatixSettings:
 
   def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
     if not os.path.isfile(settings_filename):
-      printc.error("Odatix settings file \"" + settings_filename + "\" does not exists.", script_name=script_name)
-      printc.note("Odatix settings file should be in \"" + current_dir + "\"", script_name=script_name)
-      self.valid = False
-      return False
-
-    with open(settings_filename, "r") as f:
-      try:
-        settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-      except Exception as e:
-        printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
-        printc.cyan("error details: ", end="", script_name=script_name)
-        print(str(e))
-        self.valid = False
-        return False
+      printc.note("Odatix settings file \"" + settings_filename + "\" does not exists.", script_name=script_name)
+      settings_data = {}
+    else:
+      with open(settings_filename, "r") as f:
+        try:
+          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        except Exception as e:
+          printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
+          printc.cyan("error details: ", end="", script_name=script_name)
+          print(str(e))
+          self.valid = False
+          return False
       
-    # Read values from file
-    work_path = read_from_list("work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    simulation_work_path = read_from_list("simulation_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    fmax_synthesis_work_path = read_from_list("fmax_synthesis_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    custom_freq_synthesis_work_path = read_from_list("custom_freq_synthesis_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    result_path = read_from_list("result_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    arch_path = read_from_list("arch_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    sim_path = read_from_list("sim_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    target_path = read_from_list("target_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    use_benchmark = read_from_list("use_benchmark", settings_data, settings_filename, optional=True, raise_if_missing=False, type=bool, script_name=script_name)
-    benchmark_file = read_from_list("benchmark_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-    clean_settings_file = read_from_list("clean_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-    simulation_settings_file = read_from_list("simulation_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-    fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
-    range_synthesis_settings_file = read_from_list("custom_freq_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
+    # Get values from file
+    self.work_path, _ = get_from_dict("work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORK_PATH, script_name=script_name)
+    self.simulation_work_path, _ = get_from_dict("simulation_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_WORK_PATH, script_name=script_name)
+    self.fmax_synthesis_work_path, _ = get_from_dict("fmax_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH, script_name=script_name)
+    self.custom_freq_synthesis_work_path, _ = get_from_dict("custom_freq_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH, script_name=script_name)
+    self.result_path, _ = get_from_dict("result_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_RESULT_PATH, script_name=script_name)
+    self.arch_path, _ = get_from_dict("arch_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ARCH_PATH, script_name=script_name)
+    self.sim_path, _ = get_from_dict("sim_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIM_PATH, script_name=script_name)
+    self.target_path, _ = get_from_dict("target_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TARGET_PATH, script_name=script_name)
+    self.use_benchmark, _ = get_from_dict("use_benchmark", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_USE_BENCHMARK, type=bool, script_name=script_name)
+    self.benchmark_file, _ = get_from_dict("benchmark_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_BENCHMARK_FILE, script_name=script_name)
+    self.clean_settings_file, _ = get_from_dict("clean_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE, script_name=script_name)
+    self.simulation_settings_file, _ = get_from_dict("simulation_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE, script_name=script_name)
+    self.fmax_synthesis_settings_file, _ = get_from_dict("fmax_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE , script_name=script_name)
+    self.custom_freq_synthesis_settings_file, _ = get_from_dict("custom_freq_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE , script_name=script_name)
     
     # Depreciation warnings
     no_longer_supported = False
-    key = read_from_list("sim_work_path", settings_data, settings_filename, print_error=False, raise_if_missing=False, script_name=script_name)
-    if key != False:
-      princ.warning("\"sim_work_path\" is no longer supported, use \"simulation_work_path\" instead")
+    if "sim_work_path" in settings_data:
+      printc.warning("\"sim_work_path\" is no longer supported, use \"simulation_work_path\" instead", script_name=script_name)
       no_longer_supported = True
-    key = read_from_list("fmax_work_path", settings_data, settings_filename, print_error=False, raise_if_missing=False, script_name=script_name)
-    if key != False:
-      princ.warning("\"fmax_work_path\" is no longer supported, use \"fmax_synthesis_work_path\" instead")
+    if "fmax_work_path" in settings_data:
+      printc.warning("\"fmax_work_path\" is no longer supported, use \"fmax_synthesis_work_path\" instead", script_name=script_name)
       no_longer_supported = True
-    key = read_from_list("custom_freq_work_path", settings_data, settings_filename, print_error=False, raise_if_missing=False, script_name=script_name);
-    if key != False:
-      princ.warning("\"custom_freq_work_path\" is no longer supported, use \"custom_freq_synthesis_work_path\" instead")
+    if "custom_freq_work_path" in settings_data:
+      printc.warning("\"custom_freq_work_path\" is no longer supported, use \"custom_freq_synthesis_work_path\" instead", script_name=script_name)
       no_longer_supported = True
     if no_longer_supported:
-      princ.note("\"simulation_work_path\", \"fmax_synthesis_work_path\" and \"custom_freq_synthesis_work_path\" are relative to \"work_path\"")
+      printc.note("\"simulation_work_path\", \"fmax_synthesis_work_path\" and \"custom_freq_synthesis_work_path\" are relative to \"work_path\"", script_name=script_name)
     
-    # Default values
-    self.work_path = OdatixSettings.DEFAULT_WORK_PATH if work_path == False else work_path
-    self.simulation_work_path = OdatixSettings.DEFAULT_SIMULATION_WORK_PATH if simulation_work_path == False else simulation_work_path
-    self.fmax_synthesis_work_path = OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH if fmax_work_path == False else fmax_synthesis_work_path
-    self.custom_freq_synthesis_work_path = OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH if custom_freq_synthesis_work_path == False else custom_freq_synthesis_work_path
-    self.result_path = OdatixSettings.DEFAULT_RESULT_PATH if result_path == False else result_path
-    self.arch_path = OdatixSettings.DEFAULT_ARCH_PATH if arch_path == False else arch_path
-    self.sim_path = OdatixSettings.DEFAULT_SIM_PATH if sim_path == False else sim_path
-    self.target_path = OdatixSettings.DEFAULT_TARGET_PATH if target_path == False else target_path
-    self.use_benchmark = OdatixSettings.DEFAULT_USE_BENCHMARK if use_benchmark == False else use_benchmark
-    self.benchmark_file = OdatixSettings.DEFAULT_BENCHMARK_FILE if benchmark_file == False else benchmark_file
-    self.clean_settings_file = OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE if clean_settings_file == False else clean_settings_file
-    self.simulation_settings_file = OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE if simulation_settings_file == False else simulation_settings_file
-    self.fmax_synthesis_settings_file = OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE if fmax_synthesis_settings_file == False else fmax_synthesis_settings_file
-    self.range_synthesis_settings_file = OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE if range_synthesis_settings_file == False else range_synthesis_settings_file
-
     self.valid = True
     return True
     
