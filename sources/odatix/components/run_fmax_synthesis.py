@@ -478,7 +478,7 @@ def main(args, settings=None):
   if args.work is not None:
     work_path = args.work
   else:
-    work_path = settings.fmax_work_path
+    work_path = os.path.join(settings.work_path, settings.fmax_synthesis_work_path)
 
   target_path = settings.target_path
   tool = args.tool

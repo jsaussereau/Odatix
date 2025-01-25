@@ -43,9 +43,9 @@ class OdatixSettings:
   DEFAULT_SETTINGS_FILE = "odatix.yml"
 
   DEFAULT_WORK_PATH = "work"
-  DEFAULT_SIM_WORK_PATH = "work/simulations"
-  DEFAULT_FMAX_WORK_PATH = "work/synth_fmax"
-  DEFAULT_RANGE_WORK_PATH = "work/synth_range"
+  DEFAULT_SIMULATION_WORK_PATH = "simulations"
+  DEFAULT_FMAX_SYNTHESIS_WORK_PATH = "fmax_synthesis"
+  DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH = "custom_freq_synthesis"
   DEFAULT_RESULT_PATH = "results"
   DEFAULT_USERCONFIG_PATH = "odatix_userconfig"
   DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
@@ -91,9 +91,9 @@ class OdatixSettings:
       
     # Read values from file
     work_path = read_from_list("work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    sim_work_path = read_from_list("sim_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    fmax_work_path = read_from_list("fmax_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-    range_work_path = read_from_list("custom_freq_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    simulation_work_path = read_from_list("simulation_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    fmax_synthesis_work_path = read_from_list("fmax_synthesis_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
+    custom_freq_synthesis_work_path = read_from_list("custom_freq_synthesis_work_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
     result_path = read_from_list("result_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
     arch_path = read_from_list("arch_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
     sim_path = read_from_list("sim_path", settings_data, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
@@ -105,11 +105,28 @@ class OdatixSettings:
     fmax_synthesis_settings_file = read_from_list("fmax_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     range_synthesis_settings_file = read_from_list("custom_freq_synthesis_settings_file", settings_data, settings_filename, optional=True, raise_if_missing=False , script_name=script_name)
     
+    # Depreciation warnings
+    no_longer_supported = False
+    key = read_from_list("sim_work_path", settings_data, settings_filename, print_error=False, raise_if_missing=False, script_name=script_name)
+    if key != False:
+      princ.warning("\"sim_work_path\" is no longer supported, use \"simulation_work_path\" instead")
+      no_longer_supported = True
+    key = read_from_list("fmax_work_path", settings_data, settings_filename, print_error=False, raise_if_missing=False, script_name=script_name)
+    if key != False:
+      princ.warning("\"fmax_work_path\" is no longer supported, use \"fmax_synthesis_work_path\" instead")
+      no_longer_supported = True
+    key = read_from_list("custom_freq_work_path", settings_data, settings_filename, print_error=False, raise_if_missing=False, script_name=script_name);
+    if key != False:
+      princ.warning("\"custom_freq_work_path\" is no longer supported, use \"custom_freq_synthesis_work_path\" instead")
+      no_longer_supported = True
+    if no_longer_supported:
+      princ.note("\"simulation_work_path\", \"fmax_synthesis_work_path\" and \"custom_freq_synthesis_work_path\" are relative to \"work_path\"")
+    
     # Default values
     self.work_path = OdatixSettings.DEFAULT_WORK_PATH if work_path == False else work_path
-    self.sim_work_path = OdatixSettings.DEFAULT_SIM_WORK_PATH if sim_work_path == False else sim_work_path
-    self.fmax_work_path = OdatixSettings.DEFAULT_FMAX_WORK_PATH if fmax_work_path == False else fmax_work_path
-    self.range_work_path = OdatixSettings.DEFAULT_RANGE_WORK_PATH if range_work_path == False else range_work_path
+    self.simulation_work_path = OdatixSettings.DEFAULT_SIMULATION_WORK_PATH if simulation_work_path == False else simulation_work_path
+    self.fmax_synthesis_work_path = OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH if fmax_work_path == False else fmax_synthesis_work_path
+    self.custom_freq_synthesis_work_path = OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH if custom_freq_synthesis_work_path == False else custom_freq_synthesis_work_path
     self.result_path = OdatixSettings.DEFAULT_RESULT_PATH if result_path == False else result_path
     self.arch_path = OdatixSettings.DEFAULT_ARCH_PATH if arch_path == False else arch_path
     self.sim_path = OdatixSettings.DEFAULT_SIM_PATH if sim_path == False else sim_path

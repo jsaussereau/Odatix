@@ -274,7 +274,7 @@ def main(args, settings=None):
   if args.work is not None:
     work_path = args.work
   else:
-    work_path = settings.sim_work_path
+    work_path = os.path.join(settings.work_path, settings.simulation_work_path)
 
   overwrite = args.overwrite
   noask = args.noask

@@ -452,7 +452,7 @@ def main(args, settings=None):
   if args.input is not None:
     run_config_settings_filename = args.input
   else:
-    run_config_settings_filename = settings.range_synthesis_settings_file
+    run_config_settings_filename = settings.custom_freq_synthesis_settings_file
 
   if args.archpath is not None:
     arch_path = args.archpath
@@ -462,7 +462,7 @@ def main(args, settings=None):
   if args.work is not None:
     work_path = args.work
   else:
-    work_path = settings.range_work_path
+    work_path = os.path.join(settings.work_path, settings.custom_freq_synthesis_work_path)
 
   target_path = settings.target_path
   tool = args.tool
