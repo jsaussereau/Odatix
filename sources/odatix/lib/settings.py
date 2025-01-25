@@ -121,40 +121,6 @@ class OdatixSettings:
     self.valid = True
     return True
     
-  def generate_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
-    if os.path.isfile(settings_filename):
-      return True
-    else:
-      printc.say("This directory does not contain an Odatix settings file \"" + settings_filename + "\".", script_name=script_name)
-      printc.say("This file is mandatory. Would you like to create one? ", end="", script_name=script_name)
-      answer = ask_yes_no()
-      if answer is False:
-        return False
-      else:
-        settings_data = {
-          "work_path": input("  Enter work path [default: " + OdatixSettings.DEFAULT_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_WORK_PATH,
-          "sim_work_path": input("  Enter simulation work path [default: " + OdatixSettings.DEFAULT_SIM_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_SIM_WORK_PATH,
-          "fmax_work_path": input("  Enter fmax synthesis work path [default: " + OdatixSettings.DEFAULT_FMAX_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_FMAX_WORK_PATH,
-          "range_work_path": input("  Enter range synthesis work path [default: " + OdatixSettings.DEFAULT_RANGE_WORK_PATH + "]: ") or OdatixSettings.DEFAULT_RANGE_WORK_PATH,
-          "result_path": input("  Enter result path [default: " + OdatixSettings.DEFAULT_RESULT_PATH + "]: ") or OdatixSettings.DEFAULT_RESULT_PATH,
-          "arch_path": input("  Enter architecture path [default: " + OdatixSettings.DEFAULT_ARCH_PATH + "]: ") or OdatixSettings.DEFAULT_ARCH_PATH,
-          "sim_path": input("  Enter simulation path [default: " + OdatixSettings.DEFAULT_SIM_PATH + "]: ") or OdatixSettings.DEFAULT_SIM_PATH,
-          "target_path": input("  Enter target settings files path [default: " + OdatixSettings.DEFAULT_TARGET_PATH + "]: ") or OdatixSettings.DEFAULT_TARGET_PATH,
-          "use_benchmark": input("  Use benchmark (True/False) [default: " + str(OdatixSettings.DEFAULT_USE_BENCHMARK) + "]: ").lower() in YAML_BOOL or OdatixSettings.DEFAULT_USE_BENCHMARK,
-          "benchmark_file": input("  Enter benchmark file path [default: " + OdatixSettings.DEFAULT_BENCHMARK_FILE + "]: ") or OdatixSettings.DEFAULT_BENCHMARK_FILE,
-          "clean_settings_file": input("  Enter clean settings file [default: " + OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE,
-          "simulation_settings_file": input("  Enter simulation settings file [default: " + OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
-          "fmax_synthesis_settings_file": input("  Enter fmax synthesis settings file [default: " + OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
-          "range_synthesis_settings_file": input("  Enter range synthesis settings file [default: " + OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE + "]: ") or OdatixSettings.DEFAULT_RANGE_SYNTHESIS_SETTINGS_FILE
-        }
-
-        with open(settings_filename, "w") as f:
-          yaml.dump(settings_data, f, sort_keys=False)
-
-        printc.say("Odatix settings file \"" + settings_filename + "\" has been generated.", script_name=script_name)
-        print()
-        return True
-
   @staticmethod
   def init_examples():
     try:
