@@ -22,8 +22,10 @@
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
+import plotly.io as pio
 
 import odatix.explorer.legend as legend
+import odatix.explorer.themes as themes
 
 top_bar_height = "50px"
 side_bar_width = "400px"
@@ -64,6 +66,7 @@ def top_bar():
     ],
     style={"height": f"{top_bar_height}"},
     className="navbar",
+    id="navbar",
   )
 
 
@@ -225,6 +228,18 @@ def side_bar(explorer):
                   style={"margin-bottom": "5px"},
                 ),
                 html.Div(
+                  className="title-dropdown",
+                  children=[
+                    html.Div(className="dropdown-label", children=[html.Label("Theme")]),
+                    dcc.Dropdown(
+                      id="theme-dropdown",
+                      options=[{"label": f"{theme}", "value": f"{theme}"} for theme in reversed(list(pio.templates))],
+                      value="plotly",
+                    ),
+                  ],
+                  style={"margin-bottom": "5px"},
+                ),
+                html.Div(
                   className="toggle-container",
                   children=[
                     dcc.Checklist(
@@ -366,27 +381,34 @@ def setup_sidebar_callbacks(explorer):
     [
       Output("sidebar", "style"),
       Output("content", "style"),
+      Output("navbar", "style"), 
       Output("navbar-title", "style"),
       Output("sidebar-top", "style"),
       Output("toggle-button", "style"),
       Output("previous-url", "data"),
     ],
-    [Input("toggle-button", "n_clicks"), Input("close-button", "n_clicks"), Input("url", "pathname")],
+    [
+      Input("toggle-button", "n_clicks"),
+      Input("close-button", "n_clicks"),
+      Input("url", "pathname"),
+      Input("theme-dropdown", "value"),
+    ],
     [
       State("previous-url", "data"),
       State("sidebar", "style"),
       State("content", "style"),
+      State("navbar", "style"),
       State("navbar-title", "style"),
       State("sidebar-top", "style"),
       State("toggle-button", "style"),
     ],
   )
   def toggle_sidebar(
-    toggle_n_clicks, close_n_clicks, url, previous_url, sidebar_style, content_style, navbar_style, sidebar_top, toggle_style
+    toggle_n_clicks, close_n_clicks, url, theme, previous_url, sidebar_style, content_style, navbar_style, navbar_title_style, sidebar_top, toggle_style
   ):
     ctx = dash.callback_context
     if not ctx.triggered:
-      return sidebar_style, content_style, navbar_style, sidebar_top, toggle_style
+      return sidebar_style, content_style, navbar_style, navbar_title_style, sidebar_top, toggle_style
     
     hide_button = False
 
@@ -404,26 +426,32 @@ def setup_sidebar_callbacks(explorer):
         sidebar_style["left"] = "0"
         sidebar_top["left"] = "0"
         content_style["marginLeft"] = side_bar_width
-        navbar_style["marginLeft"] = "30px"
-        navbar_style["position"] = "fixed"
+        navbar_title_style["marginLeft"] = "30px"
+        navbar_title_style["position"] = "fixed"
         toggle_style["display"] = "none"
       else:
         sidebar_style["left"] = "-" + side_bar_width
         sidebar_top["left"] = "-" + side_bar_width
         content_style["marginLeft"] = "0"
-        navbar_style["marginLeft"] = "0"
-        navbar_style["position"] = "relative"
+        navbar_title_style["marginLeft"] = "0"
+        navbar_title_style["position"] = "relative"
         toggle_style["display"] = "block"
     elif triggered_property == "close-button":
       sidebar_style["left"] = "-" + side_bar_width
       sidebar_top["left"] = "-" + side_bar_width
       content_style["marginLeft"] = "0"
-      navbar_style["marginLeft"] = "0"
-      navbar_style["position"] = "relative"
+      navbar_title_style["marginLeft"] = "0"
+      navbar_title_style["position"] = "relative"
       toggle_style["display"] = "block"
 
     if hide_button:
       toggle_style["display"] = "none"
 
-    return sidebar_style, content_style, navbar_style, sidebar_top, toggle_style, url
+    bar_background = themes.get_nav_bgcolor(theme)
+    sidebar_style["backgroundColor"] = bar_background
+    sidebar_top["backgroundColor"] = bar_background
+    navbar_style["backgroundColor"] = bar_background
+    navbar_title_style["backgroundColor"] = bar_background
+
+    return sidebar_style, content_style, navbar_style, navbar_title_style, sidebar_top, toggle_style, url
 

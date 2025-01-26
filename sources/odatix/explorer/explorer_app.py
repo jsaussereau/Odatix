@@ -265,6 +265,7 @@ class ResultExplorer:
           },
         ),
       ],
+      id="main-container",
       style={
         "width": "100%",
         "height": "100%",

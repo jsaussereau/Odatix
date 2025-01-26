@@ -28,6 +28,7 @@ import plotly.graph_objs as go
 import odatix.explorer.legend as legend
 import odatix.explorer.content_lib as content_lib
 import odatix.explorer.figures as figures
+import odatix.explorer.themes as themes
 
 def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs):
 
@@ -47,6 +48,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
+      Input("theme-dropdown", "value"),
       Input("toggle-unique-architectures", "value"),
       Input("toggle-unique-targets", "value"),
     ]
@@ -66,6 +68,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     symbol_mode,
     dl_format,
     background,
+    theme,
     toggle_unique_architectures,
     toggle_unique_targets,
     *checklist_values,
@@ -128,11 +131,13 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         symbol_mode,
         dl_format,
         background,
+        theme,
         toggle_unique_architectures,
         toggle_unique_targets,
       )
 
-      return html.Div(radar_charts, style={"display": "flex", "flex-wrap": "wrap", "justify-content": "space-evenly"})
+      page_background = themes.get_page_bgcolor(theme)
+      return html.Div(radar_charts, style={"display": "flex", "flex-wrap": "wrap", "justify-content": "space-evenly", "backgroundColor": page_background})
     except Exception as e:
       return content_lib.generate_error_div(e)
       

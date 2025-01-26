@@ -27,6 +27,7 @@ import odatix.explorer.behaviors.columns as behavior_columns
 import odatix.explorer.behaviors.scatter as behavior_scatter
 import odatix.explorer.behaviors.radar as behavior_radar
 import odatix.explorer.legend as legend
+import odatix.explorer.themes as themes
 
 def setup_callbacks(explorer):
   all_architecture_inputs = [
@@ -80,3 +81,11 @@ def setup_callbacks(explorer):
       selected_metric_y = metric1
 
     return [available_metrics]*3 + [selected_metric, selected_metric_x, selected_metric_y]
+
+  @explorer.app.callback(
+    Output("main-container", "style"),
+    Input("theme-dropdown", "value"),
+  )
+  def update_theme(theme):
+    style = {"backgroundColor": themes.get_page_bgcolor(theme)}
+    return style

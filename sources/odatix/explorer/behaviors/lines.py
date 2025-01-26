@@ -49,6 +49,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
       Input("background-dropdown", "value"),
+      Input("theme-dropdown", "value"),
       Input("toggle-unique-architectures", "value"),
       Input("toggle-unique-targets", "value"),
     ]
@@ -70,6 +71,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     symbol_mode,
     dl_format,
     background,
+    theme,
     toggle_unique_architectures,
     toggle_unique_targets,
     *checklist_values,
@@ -225,6 +227,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         title=selected_metric_display if toggle_title else None,
         title_x=0.5,
         autosize=True,
+        template=theme,
       )
       filename = "Odatix-{}-{}-{}".format(
         os.path.splitext(selected_yaml)[0], __name__, selected_metric

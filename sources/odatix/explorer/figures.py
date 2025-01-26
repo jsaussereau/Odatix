@@ -136,6 +136,7 @@ def make_legend_chart(
   color_mode,
   symbol_mode,
   background,
+  theme,
   toggle_unique_architectures,
   toggle_unique_targets,
   mode
@@ -245,6 +246,7 @@ def make_legend_chart(
     legend_y=1,
     width=475,
     height=475,
+    template=theme,
   )
 
   return fig
@@ -267,6 +269,7 @@ def make_radar_chart(
   color_mode,
   symbol_mode,
   background,
+  theme,
   toggle_unique_architectures,
   toggle_unique_targets,
   mode,
@@ -282,6 +285,7 @@ def make_radar_chart(
       showlegend=False,
       title=metric.replace("_", " ") if metric is not None else "",
       title_x=0.5,
+      template=theme,
     )
     return fig
 
@@ -419,7 +423,6 @@ def make_radar_chart(
             )
 
   fig.update_layout(
-    # template='plotly_dark',
     paper_bgcolor=background,
     polar=dict(radialaxis=dict(visible=True, range=[0, numeric_df[metric].max() if not df[metric].empty else 1])),
     showlegend="show_legend" in legend_dropdown,
@@ -429,6 +432,7 @@ def make_radar_chart(
     title_x=0.5,
     width=840 if "show_legend" in legend_dropdown else 475,
     height=475,
+    template=theme,
   )
 
   return fig
@@ -482,6 +486,7 @@ def make_all_radar_charts(
   symbol_mode,
   dl_format,
   background,
+  theme,
   toggle_unique_architectures,
   toggle_unique_targets,
 ):
@@ -507,6 +512,7 @@ def make_all_radar_charts(
       color_mode,
       symbol_mode,
       background,
+      theme,
       toggle_unique_architectures,
       toggle_unique_targets,
       mode,
@@ -529,6 +535,7 @@ def make_all_radar_charts(
       color_mode,
       symbol_mode,
       background,
+      theme,
       toggle_unique_architectures,
       toggle_unique_targets,
       mode
