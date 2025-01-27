@@ -77,6 +77,9 @@ def add_arguments(parser):
   parser.add_argument('-a', '--archpath', help='architecture directory')
   parser.add_argument('-s', '--simpath', help='simulation directory')
   parser.add_argument('-w', '--work', help='simulation work directory')
+  parser.add_argument("-E", "--exit", help="exit monitor when all jobs are done")
+  parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+  parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for Odatix (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
 
 def parse_arguments():
@@ -89,8 +92,8 @@ def parse_arguments():
 # Run Simulations
 ######################################
 
-def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask):
-  _overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
+def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs):
+  _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
 
   if simulations is None:
     printc.error('The "simulations" section of "' + run_config_settings_filename + '" is empty.', script_name)
@@ -102,6 +105,21 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
     overwrite = True
   else:
     overwrite = _overwrite
+
+  if exit_when_done:
+    exit_when_done = True
+  else:
+    exit_when_done = _exit_when_done
+
+  if log_size_limit is not None:
+    log_size_limit = int(log_size_limit)
+  else:
+    log_size_limit = _log_size_limit
+
+  if nb_jobs is not None:
+    nb_jobs = int(nb_jobs)
+  else:
+    nb_jobs = _nb_jobs
   
   if noask:
     ask_continue = False
@@ -278,8 +296,12 @@ def main(args, settings=None):
 
   overwrite = args.overwrite
   noask = args.noask
+  exit_when_done = args.exit
+  log_size_limit = args.logsize
+  nb_jobs = args.jobs
 
-  run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask)
+  run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs)
+
 
 if __name__ == "__main__":
   args = parse_arguments()

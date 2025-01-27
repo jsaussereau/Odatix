@@ -5,19 +5,19 @@
 ---
 
 # overwrite existing results
-overwrite:        No
+overwrite:        No   # overridden by -o / --overwrite
 
 # prompt 'Continue? (Y/n)' after settings checks
-ask_continue:     Yes
+ask_continue:     Yes  # overridden by -y / --noask
 
 # exit monitor when all jobs are done
-exit_when_done:   Yes
+exit_when_done:   Yes  # overridden by -E / --exit
 
 # size of the log history per job in the monitor
-log_size_limit:   300
+log_size_limit:   300  # overridden by --logsize
 
-# maximum number of parallel synthesis
-nb_jobs:          8
+# maximum number of parallel jobs
+nb_jobs:          8    # overridden by -j / --jobs
 
 # targeted architectures
 

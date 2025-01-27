@@ -106,6 +106,9 @@ def add_arguments(parser):
   parser.add_argument("-i", "--input", help="input settings file")
   parser.add_argument("-a", "--archpath", help="architecture directory")
   parser.add_argument("-w", "--work", help="work directory")
+  parser.add_argument("-E", "--exit", help="exit monitor when all jobs are done")
+  parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+  parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument(
     "-c",
     "--config",
@@ -125,8 +128,8 @@ def parse_arguments():
 ######################################
 
 
-def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask):
-  _overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
+def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs):
+  _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
 
@@ -140,6 +143,21 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     overwrite = True
   else:
     overwrite = _overwrite
+
+  if exit_when_done:
+    exit_when_done = True
+  else:
+    exit_when_done = _exit_when_done
+
+  if log_size_limit is not None:
+    log_size_limit = int(log_size_limit)
+  else:
+    log_size_limit = _log_size_limit
+
+  if nb_jobs is not None:
+    nb_jobs = int(nb_jobs)
+  else:
+    nb_jobs = _nb_jobs
 
   if noask:
     ask_continue = False
@@ -484,8 +502,11 @@ def main(args, settings=None):
   tool = args.tool
   overwrite = args.overwrite
   noask = args.noask
+  exit_when_done = args.exit
+  log_size_limit = args.logsize
+  nb_jobs = args.jobs
 
-  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask)
+  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs)
 
 
 if __name__ == "__main__":
