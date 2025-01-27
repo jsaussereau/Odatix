@@ -29,16 +29,16 @@ metrics:
     type: regex
     settings:
       file: report/utilization.rep
-      pattern: "\\| Slice LUTs (\\s*)\\|(\\s*)([0-9]+)(.*)"
-      group_id: 3
+      pattern: "\\| (Slice|CLB) LUTs \\s*\\|\\s*([0-9]+).*"
+      group_id: 2
     format: "%.0f"
 
   Reg_count:
     type: regex
     settings:
       file: report/utilization.rep
-      pattern: "\\| Slice Registers (\\s*)\\|(\\s*)([0-9]+)(.*)"
-      group_id: 3
+      pattern: "\\| (Slice|CLB) Registers \\s*\\|\\s*([0-9]+).*"
+      group_id: 2
     format: "%.0f"
 
   LUT+Reg_count:
