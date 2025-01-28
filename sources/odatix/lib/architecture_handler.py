@@ -38,7 +38,7 @@ script_name = os.path.basename(__file__)
 odatix_path_pattern = re.compile(r"\$odatix")
 
 class Architecture:
-  def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_report_path, tmp_dir, 
+  def __init__(self, arch_name, arch_display_name, lib_name, target, local_rtl_path, tmp_script_path, tmp_report_path, tmp_dir, 
                design_path, design_path_whitelist, design_path_blacklist, rtl_path, log_path, arch_path,
                clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
@@ -48,6 +48,7 @@ class Architecture:
     self.arch_display_name = arch_display_name
     self.lib_name = lib_name
     self.target = target
+    self.local_rtl_path = local_rtl_path
     self.tmp_script_path = tmp_script_path
     self.tmp_report_path = tmp_report_path
     self.tmp_dir = tmp_dir
@@ -85,13 +86,14 @@ class Architecture:
       'arch_display_name': arch.arch_display_name,
       'lib_name': arch.lib_name,
       'target': arch.target,
+      'rtl_path': arch.local_rtl_path,
       'script_path': arch.tmp_script_path,
       'report_path': arch.tmp_report_path,
       'tmp_path': arch.tmp_dir,
       'design_path': arch.design_path,
       'design_path_whitelist': arch.design_path_whitelist,
       'design_path_blacklist': arch.design_path_blacklist,
-      'rtl_path': arch.rtl_path,
+      'source_rtl_path': arch.rtl_path,
       'log_path': arch.log_path,
       'arch_path': arch.arch_path,
       'clock_signal': arch.clock_signal,
@@ -134,13 +136,14 @@ class Architecture:
         arch_display_name        = get_from_dict("arch_display_name", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         lib_name                 = get_from_dict("lib_name", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         target                   = get_from_dict("target", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
+        rtl_path                 = get_from_dict("source_rtl_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         tmp_script_path          = get_from_dict("script_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         tmp_report_path          = get_from_dict("report_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         tmp_dir                  = get_from_dict("tmp_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         design_path              = get_from_dict("design_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         design_path_whitelist    = get_from_dict("design_path_whitelist", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         design_path_blacklist    = get_from_dict("design_path_blacklist", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
-        rtl_path                 = get_from_dict("rtl_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
+        local_rtl_path           = get_from_dict("rtl_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         log_path                 = get_from_dict("log_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         arch_path                = get_from_dict("arch_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         clock_signal             = get_from_dict("clock_signal", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
@@ -171,11 +174,12 @@ class Architecture:
 
 class ArchitectureHandler:
 
-  def __init__(self, work_path, arch_path, script_path, log_path, work_script_path, work_log_path, work_report_path, process_group, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
+  def __init__(self, work_path, arch_path, script_path, log_path, work_rtl_path, work_script_path, work_log_path, work_report_path, process_group, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
     self.work_path = work_path
     self.arch_path = arch_path
     self.script_path = script_path
     self.log_path = log_path
+    self.work_rtl_path = work_rtl_path
     self.work_script_path = work_script_path
     self.work_log_path = work_log_path
     self.work_report_path = work_report_path
@@ -402,7 +406,6 @@ class ArchitectureHandler:
         self.error_archs.append(arch_display_name)
         return None # if an identifier is missing
       try:
-        rtl_path           = read_from_list('rtl_path', settings_data, settings_filename, script_name=script_name)
         top_level_filename = read_from_list('top_level_file', settings_data, settings_filename, script_name=script_name)
         top_level_module   = read_from_list('top_level_module', settings_data, settings_filename, script_name=script_name)
         clock_signal       = read_from_list('clock_signal', settings_data, settings_filename, script_name=script_name)
@@ -420,33 +423,40 @@ class ArchitectureHandler:
         return None
 
       generate_command = ""
-      try:
-        generate_rtl = read_from_list('generate_rtl', settings_data, settings_filename, type=bool, optional=True, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError):
+      generate_rtl, defined = get_from_dict('generate_rtl', settings_data, settings_filename, type=bool, silent=True, script_name=script_name)
+      if not defined:
         generate_rtl = False
 
       if generate_rtl:
-        try:
-          generate_command = read_from_list('generate_command', settings_data, settings_filename, print_error=False, script_name=script_name)
+        local_rtl_path, _ = get_from_dict('generate_output', settings_data, settings_filename, default_value=self.work_rtl_path, script_name=script_name)
+        rtl_path = self.work_rtl_path 
+        generate_command, defined = get_from_dict('generate_command', settings_data, settings_filename, silent=True, script_name=script_name)
+        if defined:
           generate_rtl = True
-        except (KeyNotInListError, BadValueInListError):
+        else:
           printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
           self.banned_arch_param.append(arch_param_dir)
           self.error_archs.append(arch_display_name)
           generate_rtl = False
           return None
+      else:
+        local_rtl_path = self.work_rtl_path 
+        rtl_path, defined = get_from_dict('rtl_path', settings_data, settings_filename, script_name=script_name)
+        if not defined:
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+          return None
 
-      try:
-        design_path = read_from_list('design_path', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError):
+      design_path, defined = get_from_dict('design_path', settings_data, settings_filename, silent=True, script_name=script_name)
+      if not defined:
         design_path = -1
         if generate_rtl:
           printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
           self.banned_arch_param.append(arch_param_dir)
           return None
       
-      design_path_whitelist, _ = get_from_dict("design_path_whitelist", settings_data, settings_filename, type=list, default_value=[], slient=True, script_name=script_name)
-      design_path_blacklist, _ = get_from_dict("design_path_blacklist", settings_data, settings_filename, type=list, default_value=[], slient=True, script_name=script_name)
+      design_path_whitelist, _ = get_from_dict("design_path_whitelist", settings_data, settings_filename, type=list, default_value=[], silent=True, script_name=script_name)
+      design_path_blacklist, _ = get_from_dict("design_path_blacklist", settings_data, settings_filename, type=list, default_value=[], silent=True, script_name=script_name)
       try:
         param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
         if design_path == -1:
@@ -728,6 +738,7 @@ class ArchitectureHandler:
       arch_display_name = arch_display_name,
       lib_name = lib_name,
       target = target,
+      local_rtl_path=local_rtl_path,
       tmp_script_path=tmp_script_path,
       tmp_report_path=tmp_report_path,
       tmp_dir=tmp_dir,

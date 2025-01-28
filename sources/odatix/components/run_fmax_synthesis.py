@@ -274,6 +274,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     arch_path=arch_path,
     script_path=script_path,
     log_path=log_path,
+    work_rtl_path=work_rtl_path,
     work_script_path=work_script_path,
     work_log_path=work_log_path,
     work_report_path=work_report_path,
