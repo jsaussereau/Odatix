@@ -192,6 +192,7 @@ class ArchitectureHandler:
 
     self.default_fmax_lower_bound = default_fmax_lower_bound
     self.default_fmax_upper_bound = default_fmax_upper_bound
+    self.default_custom_freq_list = [50, 100]
 
     self.overwrite = overwrite
     self.reset_lists()
@@ -533,9 +534,13 @@ class ArchitectureHandler:
     
     if synthesis:
       if target_options == False:
-        printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
+        if range_mode:
+          printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency list instead: " + "{} MHz.".format(self.default_custom_freq_list), script_name)
+        else:
+          printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default fmax frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
         fmax_lower_bound = self.default_fmax_lower_bound
         fmax_upper_bound = self.default_fmax_upper_bound
+        range_list = self.default_custom_freq_list
       else:
         fmax_synthesis = read_from_list('fmax_synthesis', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
         if fmax_synthesis:
