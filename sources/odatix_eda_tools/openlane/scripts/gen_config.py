@@ -64,7 +64,7 @@ def parse_arguments():
 # Main
 ######################################
 
-def main(base_path, clock_signal, docker_id, design_name):
+def main(base_path, clock_signal, docker_id, design_name, rtl_path):
   config_file = os.path.join(base_path, config_filename)
 
   # Check if config file exists
@@ -95,7 +95,7 @@ def main(base_path, clock_signal, docker_id, design_name):
 
   data['DESIGN_NAME'] = design_name
   data['CLOCK_PORT'] = clock_signal
-  data['VERILOG_FILES'] = "dir::rtl/*.v"
+  data['VERILOG_FILES'] = "dir::" + rtl_path + "/*.v"
 
   try: 
     with open(config_file, 'w') as f:
@@ -140,5 +140,6 @@ if __name__ == "__main__":
     base_path = args.basepath,
     clock_signal = args.clock,
     docker_id = args.docker,
-    design_name = args.name
+    design_name = args.name,
+    rtl_path = arch.local_rtl_path,
   )

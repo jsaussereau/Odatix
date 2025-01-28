@@ -29,14 +29,23 @@ set top_level_file     soc/soc_top_level.sv
 set clock_signal       i_xtal_p
 set reset_signal       i_rst
 
-set script_path        scripts
+set local_script_path  scripts
+set local_rtl_path     rtl
+set local_result_path  result
+set local_report_path  report
+set local_log_path     log
+set local_work_path    work
+
 set tmp_path           synth
-set arch_path          architectures
-set rtl_path           ../../../rtl
-set result_path        $tmp_path/result
-set report_path        $tmp_path/report
-set log_path           $tmp_path/log
-set work_path          $tmp_path/work
+set script_path        $tmp_path/$local_script_path
+set rtl_path           $tmp_path/$local_rtl_path
+set result_path        $tmp_path/$local_result_path
+set report_path        $tmp_path/$local_report_path
+set log_path           $tmp_path/$local_log_path
+set work_path          $tmp_path/$local_work_path
+
+set source_rtl_path    ../../../rtl
+set source_arch_path   architectures
 
 set init_script        $script_path/init_script.tcl
 set analyze_script     $script_path/analyze_script.tcl
@@ -65,8 +74,6 @@ set fmax_upper_bound   90
 set fmax_explore       0
 set fmax_mindiff       1
 set fmax_safezone      5
-
-set rtl_file_format    .sv
 
 set lib_name           WORK
 

@@ -48,7 +48,7 @@ if {[catch {
     # read verilog source files
     puts "\n$signature reading verilog...<end>"
     if {![
-        analyze -library $lib_name -f verilog -autoread -recursive $tmp_path/rtl/
+        analyze -library $lib_name -f verilog -autoread -recursive $rtl_path
     ]} {
         puts "$signature <cyan>note: failed reading verilog source files<end>"
         set verilog_error 1
@@ -57,7 +57,7 @@ if {[catch {
     # read systemverilog source files
     puts "\n$signature reading system verilog...<end>"
     if {![
-        analyze -library $lib_name -f sverilog -autoread -recursive $tmp_path/rtl/
+        analyze -library $lib_name -f sverilog -autoread -recursive $rtl_path
     ]} {
         puts "$signature <cyan>note: failed reading systemverilog source files<end>"
         set sverilog_error 1
@@ -66,7 +66,7 @@ if {[catch {
     # read vhdl source files
     puts "\n$signature reading vhdl verilog...<end>"
     if {![
-        analyze -library $lib_name -f vhdl -autoread -recursive $tmp_path/rtl/
+        analyze -library $lib_name -f vhdl -autoread -recursive $rtl_path
     ]} {
         puts "$signature <cyan>note: failed reading vhdl source files<end>"
         if {$verilog_error == 1 && $sverilog_error == 1} {

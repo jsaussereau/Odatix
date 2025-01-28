@@ -35,7 +35,7 @@ if {[catch {
     set sverilog_error 0
 
     # read verilog source files
-    set verilog_filenames [split [exec find $tmp_path/rtl/ -type f ( -name *.v -o -name *.sv )] \n]
+    set verilog_filenames [split [exec find $rtl_path -type f ( -name *.v -o -name *.sv )] \n]
     if {[catch {read_verilog $verilog_filenames} errmsg]} {
         if {$verilog_filenames == ""} {
             puts "$signature <cyan>note: no verilog file in source directory<end>"
@@ -47,7 +47,7 @@ if {[catch {
     }
 
     # read vhdl source files
-    set vhdl_filenames [split [exec find $tmp_path/rtl/ -type f ( -name *.vhd -o -name *.vhdl )] \n]
+    set vhdl_filenames [split [exec find $rtl_path -type f ( -name *.vhd -o -name *.vhdl )] \n]
     if {[catch {read_vhdl $vhdl_filenames} errmsg]} {
         if {$vhdl_filenames == ""} {
             puts "$signature <cyan>note: no vhdl file in source directory<end>"
