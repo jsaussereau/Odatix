@@ -730,7 +730,8 @@ class ParallelJobHandler:
 
       # Check if all jobs have finished
       active_jobs_count = len(self.running_job_list)
-      if active_jobs_count == 0:
+      queued_jobs_count = self.job_queue.qsize()
+      if active_jobs_count == 0 and queued_jobs_count == 0:
         finished = True
 
       retired_jobs_count = len(self.retired_job_list)
