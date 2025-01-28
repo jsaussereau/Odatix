@@ -67,10 +67,14 @@ if {[catch {
     if {[catch {
         synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO
     } errmsg]} {
-        puts "$signature <bold><red>error: failed design synth, exiting<end>"
+        puts "$signature <bold><red>error: failed design synth<end>"
         puts -nonewline "$signature tool says -> $errmsg"
         puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        exit -1
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
     }
     report_progress 45 $synth_statusfile
     if {[catch {
@@ -96,10 +100,14 @@ if {[catch {
     if {[catch {
         place_design -directive Explore
     } errmsg]} {
-        puts "$signature <bold><red>error: failed design place, exiting<end>"
+        puts "$signature <bold><red>error: failed design place<end>"
         puts -nonewline "$signature tool says -> $errmsg"
         puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        exit -1
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
     }
     report_progress 70 $synth_statusfile
     if {[catch {
@@ -116,7 +124,11 @@ if {[catch {
         puts "$signature <bold><red>error: failed design route, exiting<end>"
         puts -nonewline "$signature tool says -> $errmsg"
         puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        exit -1
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
     }
     report_progress 85 $synth_statusfile
     if {[catch {
@@ -142,7 +154,11 @@ if {[catch {
         puts "$signature <bold><red>error: failed design route, exiting<end>"
         puts -nonewline "$signature tool says -> $errmsg"
         puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        exit -1
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
     }
     report_progress 98 $synth_statusfile
 
@@ -162,12 +178,16 @@ if {[catch {
     report_progress 100 $synth_statusfile
 
 } gblerrmsg ]} {
-    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
-    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
-    catch {
-        puts "$signature <cyan>tcl error detail:<red>"
-        puts "$gblerrmsg"
+    if {$gblerrmsg == "continue"} {
+        return -code continue
+    } else {
+        puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+        puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+        catch {
+            puts "$signature <cyan>tcl error detail:<red>"
+            puts "$gblerrmsg"
+        }
+        puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
+        exit -1
     }
-    puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
-    exit -1
 }

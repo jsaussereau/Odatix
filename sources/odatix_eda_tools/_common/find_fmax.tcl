@@ -50,8 +50,18 @@ if {[catch {
   }
 
   proc run_synth_script {synth_script} {
-    source $synth_script
+    if {![file exists $synth_script]} {
+      puts "<bold><red>error: Synthesis script $synth_script not found.<end>"
+      exit -1
+    }
+    if {[
+      catch {source $synth_script} errmsg
+    ]} {
+      report_progress 0 $synth_statusfile
+      return 0 ; # Failure
+    }
     report_progress 0 $synth_statusfile
+    return 1 ; # Success
   }
 
   ######################################
@@ -119,42 +129,51 @@ if {[catch {
     puts "######################################"
     puts "<end>"
 
-    run_synth_script $synth_script
+    set synth_succeeded [run_synth_script $synth_script]
 
     set frequency_handler [open $freq_rep w]
     puts -nonewline $frequency_handler  "Target frequency:         $cur_freq"
     close $frequency_handler
 
-    # update bounds depending on slack
-    if {[is_slack_met $report_path $timing_rep]} {
-      set lower_bound $cur_freq
-      set got_met 1
-      puts ""
-      #puts "<bold><green>$cur_freq MHz: MET<end>"
-      set logfile_handler [open $logfile a]
-      puts $logfile_handler  "MET"
-      close $logfile_handler
-      exec /bin/sh -c "cp -r $report_path/* $tmp_path/report_MET"
-    } else {
-      set upper_bound $cur_freq
-      puts ""
-      #puts "<bold><red>$cur_freq MHz: VIOLATED<end>"
-      if {[is_slack_inf $report_path $timing_rep]} {
-        set logfile_handler [open $logfile a]
-        puts $logfile_handler  "INFINITE"
+    if {$synth_succeeded == 1} {
+      # update bounds depending on slack
+      if {[is_slack_met $report_path $timing_rep]} {
+        set lower_bound $cur_freq
+        set got_met 1
         puts ""
-        puts "$signature <bold><red>Path is unconstrained. Make sure there are registers at input and output of design. Make sure you select the correct clock signal.<end>"
-        puts "$signature <cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
-        puts $logfile_handler "Path is unconstrained. Make sure there are registers at input and output of design.  Make sure you select the correct clock signal. Both the rtl description and the tool's synthesis choices could be at fault"
-        close $logfile_handler
-        exit -2
-      } else {
-        set got_violated 1
+        #puts "<bold><green>$cur_freq MHz: MET<end>"
         set logfile_handler [open $logfile a]
-        puts $logfile_handler  "VIOLATED"
+        puts $logfile_handler  "MET"
         close $logfile_handler
+        exec /bin/sh -c "cp -r $report_path/* $tmp_path/report_MET"
+      } else {
+        set upper_bound $cur_freq
+        puts ""
+        #puts "<bold><red>$cur_freq MHz: VIOLATED<end>"
+        if {[is_slack_inf $report_path $timing_rep]} {
+          set logfile_handler [open $logfile a]
+          puts $logfile_handler  "INFINITE"
+          puts ""
+          puts "$signature <bold><red>Path is unconstrained. Make sure there are registers at input and output of design. Make sure you select the correct clock signal.<end>"
+          puts "$signature <cyan>Both the rtl description and the tool's synthesis choices could be at fault<end>"
+          puts $logfile_handler "Path is unconstrained. Make sure there are registers at input and output of design.  Make sure you select the correct clock signal. Both the rtl description and the tool's synthesis choices could be at fault"
+          close $logfile_handler
+          exit -2
+        } else {
+          set got_violated 1
+          set logfile_handler [open $logfile a]
+          puts $logfile_handler  "VIOLATED"
+          close $logfile_handler
+        }
+        exec /bin/sh -c "cp -r $report_path/* $tmp_path/report_VIOLATED"
       }
-      exec /bin/sh -c "cp -r $report_path/* $tmp_path/report_VIOLATED"
+    } else {
+      puts "<bold><cyan>Skipping current frequency $cur_freq due to errors in synthesis.<end>"
+      set upper_bound $cur_freq
+      set got_violated 1
+      set logfile_handler [open $logfile a]
+      puts $logfile_handler  "FAILED"
+      close $logfile_handler
     }
 
     set diff [expr {$upper_bound - $lower_bound}]
