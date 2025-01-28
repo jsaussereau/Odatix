@@ -23,6 +23,9 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import copy
 
+default_theme = "plotly"
+templates = pio.templates
+
 themes = {
   "code_dark": {
     "base_template": "plotly_dark",
@@ -76,24 +79,24 @@ def get_plot_bgcolor(theme):
 
 
 
-pio.templates["code_dark"] = go.layout.Template(
-  layout = copy.deepcopy(pio.templates["plotly_dark"].layout).update(
+templates["code_dark"] = go.layout.Template(
+  layout = copy.deepcopy(templates["plotly_dark"].layout).update(
     paper_bgcolor=get_page_bgcolor("code_dark"),
     plot_bgcolor=get_plot_bgcolor("code_dark"),
     polar_bgcolor=get_plot_bgcolor("code_dark"),
   )
 )
 
-pio.templates["odatix_darker"] = go.layout.Template(
-  layout = copy.deepcopy(pio.templates["plotly_dark"].layout).update(
+templates["odatix_darker"] = go.layout.Template(
+  layout = copy.deepcopy(templates["plotly_dark"].layout).update(
     paper_bgcolor=get_page_bgcolor("odatix_darker"),
     plot_bgcolor=get_plot_bgcolor("odatix_darker"),
     polar_bgcolor=get_plot_bgcolor("odatix_darker"),
   )
 )
 
-pio.templates["odatix_dark"] = go.layout.Template(
-  layout = copy.deepcopy(pio.templates["plotly_dark"].layout).update(
+templates["odatix_dark"] = go.layout.Template(
+  layout = copy.deepcopy(templates["plotly_dark"].layout).update(
     paper_bgcolor=get_page_bgcolor("odatix_dark"),
     plot_bgcolor=get_plot_bgcolor("odatix_dark"),
     polar_bgcolor=get_plot_bgcolor("odatix_dark"),

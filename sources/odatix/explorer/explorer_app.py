@@ -36,16 +36,23 @@ import odatix.explorer.behaviors.setup_callbacks as setup_callbacks
 import odatix.lib.printc as printc
 from odatix.lib.utils import internal_error
 import odatix.lib.term_mode as term_mode
+import odatix.explorer.themes as themes
 
 script_name = os.path.basename(__file__)
 error_logfile = "odatix-explorer_error.log"
 
 class ResultExplorer:
-  def __init__(self, result_path="results", yaml_prefix="results_", old_settings=None, safe_mode=False):
+  def __init__(self, result_path="results", yaml_prefix="results_", old_settings=None, safe_mode=False, theme=None):
     self.result_path = result_path
     self.yaml_prefix = yaml_prefix
     self.old_settings = old_settings
     self.safe_mode = safe_mode
+
+    if theme is None or theme not in themes.templates:
+      printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.')
+      self.start_theme = themes.default_theme
+    else:
+      self.start_theme = theme
 
     self.required_columns = ["Target", "Architecture", "Configuration"]
 

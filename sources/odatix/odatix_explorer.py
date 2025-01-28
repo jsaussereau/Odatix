@@ -53,6 +53,7 @@ def add_arguments(parser):
   parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
   parser.add_argument('--normal_term_mode', action='store_true', help='Do not change terminal mode')
   parser.add_argument('--safe_mode', action='store_true', help='Do not exit on internal error')
+  parser.add_argument('--theme', default=None, help='Use a specific theme')
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
@@ -88,7 +89,7 @@ def find_free_port(host, start_port):
       port += 1
       attempts += 1
 
-def start_result_explorer(input, network=False, normal_term_mode=False, safe_mode=False):
+def start_result_explorer(input, network=False, normal_term_mode=False, safe_mode=False, theme=None):
 
   global ip_address
   global port
@@ -127,7 +128,8 @@ def start_result_explorer(input, network=False, normal_term_mode=False, safe_mod
   result_explorer = ResultExplorer(
     result_path=input,
     old_settings=old_settings,
-    safe_mode=safe_mode
+    safe_mode=safe_mode,
+    theme=theme,
   )
 
   # Start the server
@@ -157,7 +159,7 @@ def main(args=None):
   input = args.input
   normal_term_mode = args.normal_term_mode
   safe_mode = args.safe_mode
-  start_result_explorer(input, network, normal_term_mode, safe_mode)
+  start_result_explorer(input, network, normal_term_mode, safe_mode, args.theme)
 
 if __name__ == "__main__":
   main()

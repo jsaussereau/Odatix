@@ -233,8 +233,8 @@ def side_bar(explorer):
                     html.Div(className="dropdown-label", children=[html.Label("Theme")]),
                     dcc.Dropdown(
                       id="theme-dropdown",
-                      options=[{"label": f"{theme}", "value": f"{theme}"} for theme in reversed(list(pio.templates))],
-                      value="plotly",
+                      options=[{"label": f"{theme}", "value": f"{theme}"} for theme in reversed(list(themes.templates))],
+                      value=explorer.start_theme,
                     ),
                   ],
                   style={"margin-bottom": "5px"},
