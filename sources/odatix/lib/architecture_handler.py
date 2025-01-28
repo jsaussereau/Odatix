@@ -43,7 +43,7 @@ class Architecture:
                clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
                fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
-               param_target_filename, generate_rtl, generate_command, constraint_filename, install_path):
+               param_target_filename, generate_rtl, generate_command, constraint_filename, install_path, continue_on_error=False):
     self.arch_name = arch_name
     self.arch_display_name = arch_display_name
     self.lib_name = lib_name
@@ -79,6 +79,7 @@ class Architecture:
     self.generate_command = generate_command
     self.constraint_filename = constraint_filename
     self.install_path = install_path
+    self.continue_on_error = continue_on_error
 
   def write_yaml(arch, config_file): 
     yaml_data = {
@@ -116,7 +117,8 @@ class Architecture:
       'generate_rtl': arch.generate_rtl,
       'generate_command': arch.generate_command,
       'constraint_filename': arch.constraint_filename,
-      'install_path': arch.install_path
+      'install_path': arch.install_path,
+      'continue_on_error': arch.continue_on_error,
     }
       
     with open(config_file, 'w') as f:
@@ -167,6 +169,7 @@ class Architecture:
         generate_command         = get_from_dict("generate_command", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         constraint_filename      = get_from_dict("constraint_filename", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],   
         install_path             = get_from_dict("install_path", yaml_data, config_file, behavior=key.MANTADORY_RAISE, script_name=script_name)[0],
+        continue_on_error        = get_from_dict("continue_on_error", yaml_data, config_file, behavior=key.OPTIONAL_DEFAULT, default_value=False, script_name=script_name)[0],
       )
     except (KeyNotInListError, BadValueInListError):
       return None
@@ -174,7 +177,7 @@ class Architecture:
 
 class ArchitectureHandler:
 
-  def __init__(self, work_path, arch_path, script_path, log_path, work_rtl_path, work_script_path, work_log_path, work_report_path, process_group, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite):
+  def __init__(self, work_path, arch_path, script_path, log_path, work_rtl_path, work_script_path, work_log_path, work_report_path, process_group, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite, continue_on_error=False):
     self.work_path = work_path
     self.arch_path = arch_path
     self.script_path = script_path
@@ -199,6 +202,8 @@ class ArchitectureHandler:
     self.default_custom_freq_list = [50, 100]
 
     self.overwrite = overwrite
+    self.continue_on_error = continue_on_error
+
     self.reset_lists()
 
     self.odatix_path = os.path.realpath(os.path.join(self.script_path, ".."))
@@ -768,7 +773,8 @@ class ArchitectureHandler:
       stop_delimiter=stop_delimiter,
       generate_command=generate_command,
       constraint_filename=constraint_filename,
-      install_path=install_path
+      install_path=install_path,
+      continue_on_error=self.continue_on_error,
     )
 
     return arch_instance

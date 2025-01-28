@@ -107,8 +107,9 @@ def add_arguments(parser):
   parser.add_argument("-i", "--input", help="input settings file")
   parser.add_argument("-a", "--archpath", help="architecture directory")
   parser.add_argument("-w", "--work", help="work directory")
-  parser.add_argument("-E", "--exit", help="exit monitor when all jobs are done")
+  parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
   parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+  parser.add_argument("-f", "--force", action="store_true", help="force fmax synthesis to continue on synthesis error")
   parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument(
     "-c",
@@ -129,7 +130,7 @@ def parse_arguments():
 ######################################
 
 
-def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs):
+def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, continue_on_error):
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
@@ -288,6 +289,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     default_fmax_lower_bound=default_fmax_lower_bound,
     default_fmax_upper_bound=default_fmax_upper_bound,
     overwrite=overwrite,
+    continue_on_error=continue_on_error,
   )
 
   architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path)
@@ -513,8 +515,9 @@ def main(args, settings=None):
   exit_when_done = args.exit
   log_size_limit = args.logsize
   nb_jobs = args.jobs
+  continue_on_error = args.force
 
-  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs)
+  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, continue_on_error)
 
 
 if __name__ == "__main__":

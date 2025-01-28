@@ -46,6 +46,8 @@ def edit_config_file(arch, config_file):
     cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + arch.fmax_upper_bound, cf_content)
     
     cf_content = re.sub("(set lib_name.*)",           "set lib_name           " + arch.lib_name, cf_content)
+    
+    cf_content = re.sub("(set continue_on_error.*)",  "set continue_on_error  " + ("1" if arch.continue_on_error else "0"), cf_content)
  
   with open(config_file, 'w') as f:
     f.write(cf_content)
