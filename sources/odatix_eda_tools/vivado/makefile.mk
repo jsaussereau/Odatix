@@ -127,13 +127,18 @@ test:
 
 .PHONY: synth
 synth: logdir
-	@$(VIVADO_INIT)\
+	@/bin/bash -c '\
+	$(VIVADO_INIT)\
 	$(VIVADO) -mode tcl -notrace \
 	-source $(SCRIPT_DIR)/$(INIT_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(ANALYZE_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(SYNTH_SCRIPT) \
 	-source $(SCRIPT_DIR)/$(EXIT_SCRIPT) \
-	| tee $(LOG_DIR)/$(SYNTH_SCRIPT).log | sed $(VIVADO_COLOR)
+	| tee $(LOG_DIR)/$(SYNTH_SCRIPT).log\
+	| sed $(VIVADO_COLOR); \
+	EXIT_CODE=$${PIPESTATUS[0]}; \
+	echo "result logged to \"$(LOG_DIR)/$(SYNTH_SCRIPT).log\""; \
+	exit $$EXIT_CODE'
 
 .PHONY: vivado
 vivado:
