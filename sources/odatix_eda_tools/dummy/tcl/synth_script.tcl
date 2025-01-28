@@ -21,9 +21,9 @@
 
 if {[catch {
 
-    source scripts/settings.tcl
-
     set signature "<grey>\[synth_script.tcl\]<end>"
+
+    source scripts/settings.tcl
 
     puts "$signature <yellow>warning: this is a dummy script, nothing is being done here!<end>"
     puts "$signature dummy synthesis script for $lib_name"

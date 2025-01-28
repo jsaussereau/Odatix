@@ -21,9 +21,9 @@
 
 if {[catch {
 
-    source scripts/settings.tcl
-
     set signature "<grey>\[synth_script.tcl\]<end>"
+
+    source scripts/settings.tcl
 
     report_progress 5 $synth_statusfile
 

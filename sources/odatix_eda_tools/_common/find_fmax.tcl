@@ -21,6 +21,8 @@
 
 if {[catch {
 
+  set signature "<grey>\[find_fmax.tcl\]<end>"
+
   ######################################
   # Settings
   ######################################
@@ -28,8 +30,6 @@ if {[catch {
   source scripts/init_script.tcl
   source scripts/is_slack_met.tcl
   source scripts/update_freq.tcl
-
-  set signature "<grey>\[find_fmax.tcl\]<end>"
 
   set lower_bound $fmax_lower_bound
   set upper_bound $fmax_upper_bound

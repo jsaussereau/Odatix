@@ -20,10 +20,10 @@
 #
 
 if {[catch {
-    
-    source scripts/settings.tcl
 
     set signature "<grey>\[synth_script.tcl\]<end>"
+    
+    source scripts/settings.tcl
 
     set basename ${top_level_module}
     set runname gates_dc

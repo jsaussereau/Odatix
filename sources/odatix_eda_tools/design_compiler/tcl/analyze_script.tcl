@@ -21,9 +21,9 @@
 
 if {[catch {
 
-    source scripts/settings.tcl
-
     set signature "<grey>\[analyze_script.tcl\]<end>"
+
+    source scripts/settings.tcl
 
     define_design_lib WORK -path $work_path
 

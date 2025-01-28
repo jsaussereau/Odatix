@@ -21,9 +21,9 @@
 
 if {[catch {
 
-    source scripts/settings.tcl
-
     set signature "<grey>\[init_script.tcl\]<end>"
+    
+    source scripts/settings.tcl
 
     ######################################
     # Create directories
