@@ -4,12 +4,14 @@
 ##############################################
 ---
 
+design_path: "examples/alu_chisel"
+design_path_whitelist: ['project', 'src', 'build.sbt'] # path/pattern of what should be copied from design_path
+design_path_blacklist: [] # path/pattern of what should NOT be copied from design_path
+
 # generate the rtl (from chisel for example)
 generate_rtl: Yes
 generate_command: "sbt 'runMain ALUTop --o=rtl'" # this requires sbt and firtool
-
-design_path: "examples/alu_chisel"
-rtl_path: "examples/alu_chisel/rtl"
+generate_output: "rtl" # path of the generated rtl
 
 # generated design settings
 top_level_file: "ALUTop.sv"
