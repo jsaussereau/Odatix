@@ -6,6 +6,8 @@
 
 constraint_file: constraints.txt
 
+tool_install_path: "" # tclsh should be in your $PATH
+
 script_copy_enable: No
 script_copy_source: "/dev/null"
 

@@ -6,6 +6,8 @@
 
 constraint_file: timing_constraints.txt
 
+tool_install_path: "" # Design Compiler should be in your $PATH
+
 script_copy_enable: No
 script_copy_source: "/dev/null"
 
