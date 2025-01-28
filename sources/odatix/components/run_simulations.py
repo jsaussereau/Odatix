@@ -39,6 +39,7 @@ from odatix.lib.run_settings import get_sim_settings
 # Settings
 ######################################
 
+work_rtl_path = "rtl"
 work_path = "work/simulation"
 work_script_path = "scripts"
 work_log_path = "log"
@@ -179,7 +180,13 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       # copy design 
       if sim_instance.architecture.design_path != -1:
         try:
-          copytree(sim_instance.architecture.design_path, sim_instance.tmp_dir, dirs_exist_ok = True)
+          copytree(
+            src=arch_instance.design_path,
+            dst=arch_instance.tmp_dir,
+            whitelist=arch_instance.design_path_whitelist,
+            blacklist=arch_instance.design_path_blacklist,
+            dirs_exist_ok=True
+          )
         except:
           printc.error("Could not copy \"" + sim_instance.architecture.design_path + "\" into work directory \"" + sim_instance.tmp_dir + "\"", script_name)
           printc.note("make sure there are no file or folder named identically in the two directories", script_name)

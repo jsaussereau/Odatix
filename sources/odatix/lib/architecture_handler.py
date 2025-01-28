@@ -30,6 +30,7 @@ from os.path import isfile
 from os.path import isdir
 
 from odatix.lib.utils import *
+from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.printc as printc
 
 script_name = os.path.basename(__file__)
@@ -37,7 +38,8 @@ script_name = os.path.basename(__file__)
 odatix_path_pattern = re.compile(r"\$odatix")
 
 class Architecture:
-  def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_report_path, tmp_dir, design_path, rtl_path, log_path, arch_path,
+  def __init__(self, arch_name, arch_display_name, lib_name, target, tmp_script_path, tmp_report_path, tmp_dir, 
+               design_path, design_path_whitelist, design_path_blacklist, rtl_path, log_path, arch_path,
                clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
                fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
@@ -50,6 +52,8 @@ class Architecture:
     self.tmp_report_path = tmp_report_path
     self.tmp_dir = tmp_dir
     self.design_path = design_path
+    self.design_path_whitelist = design_path_whitelist
+    self.design_path_blacklist = design_path_blacklist
     self.rtl_path = rtl_path
     self.log_path = log_path
     self.arch_path = arch_path
@@ -85,6 +89,8 @@ class Architecture:
       'report_path': arch.tmp_report_path,
       'tmp_path': arch.tmp_dir,
       'design_path': arch.design_path,
+      'design_path_whitelist': arch.design_path_whitelist,
+      'design_path_blacklist': arch.design_path_blacklist,
       'rtl_path': arch.rtl_path,
       'log_path': arch.log_path,
       'arch_path': arch.arch_path,
@@ -436,6 +442,8 @@ class ArchitectureHandler:
           self.banned_arch_param.append(arch_param_dir)
           return None
       
+      design_path_whitelist, _ = get_from_dict("design_path_whitelist", settings_data, settings_filename, type=list, default_value=[], slient=True, script_name=script_name)
+      design_path_blacklist, _ = get_from_dict("design_path_blacklist", settings_data, settings_filename, type=list, default_value=[], slient=True, script_name=script_name)
       try:
         param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
         if design_path == -1:
@@ -717,6 +725,8 @@ class ArchitectureHandler:
       tmp_report_path=tmp_report_path,
       tmp_dir=tmp_dir,
       design_path=design_path,
+      design_path_whitelist=design_path_whitelist,
+      design_path_blacklist=design_path_blacklist,
       rtl_path=rtl_path,
       log_path=self.log_path,
       arch_path=self.arch_path,

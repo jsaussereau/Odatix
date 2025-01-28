@@ -52,6 +52,7 @@ else:
   base_path = current_dir
 script_path = os.path.realpath(os.path.join(base_path, os.pardir, os.pardir, "odatix_eda_tools"))
 
+work_rtl_path = "rtl"
 work_script_path = "scripts"
 work_report_path = "report"
 work_result_path = "result"
@@ -322,11 +323,17 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
 
       # Copy design
       if arch_instance.design_path != -1:
-        copytree(arch_instance.design_path, arch_instance.tmp_dir, dirs_exist_ok=True)
+        copytree(
+          src=arch_instance.design_path,
+          dst=arch_instance.tmp_dir,
+          whitelist=arch_instance.design_path_whitelist,
+          blacklist=arch_instance.design_path_blacklist,
+          dirs_exist_ok=True
+        )
 
       # Copy rtl (if exists)
       if not arch_instance.generate_rtl:
-        copytree(arch_instance.rtl_path, arch_instance.tmp_dir + "/" + "rtl", dirs_exist_ok=True)
+        copytree(arch_instance.rtl_path, arch_instance.tmp_dir + "/" + work_rtl_path, dirs_exist_ok=True)
 
       # Replace parameters
       if arch_instance.use_parameters:
