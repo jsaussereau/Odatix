@@ -82,7 +82,7 @@ class SimulationHandler:
       work_path = self.work_path,
       arch_path = self.arch_path,
       script_path = "",
-      work_rtl_path=work_rtl_path,
+      work_rtl_path=self.work_rtl_path,
       work_script_path = self.work_script_path,
       work_log_path = self.work_log_path,
       work_report_path = "",
