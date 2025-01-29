@@ -70,7 +70,7 @@ def setup_callbacks(explorer):
     available_metrics = [{"label": metric.replace("_", " "), "value": metric} for metric in metrics_from_yaml]
     
     metric0 = available_metrics[0]["value"] if len(available_metrics) > 0 else None
-    metric1 = available_metrics[1]["value"] if len(available_metrics) > 0 else None
+    metric1 = available_metrics[1]["value"] if len(available_metrics) > 1 else None
     
     # Change current metrics if they are not available anymore
     if selected_metric not in metrics_from_yaml:
