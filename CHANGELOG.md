@@ -3,6 +3,37 @@ All notable changes to this project will be documented in this file.
  
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.3.0] - 2025-01-29
+
+### Added 
+
+#### Odatix
+- Add 's' keybinding to force a job to start
+- Add 'k' keybinding to kill a running job
+- Add -E / --exit option to exit monitor when all jobs are done
+- Add -j / --jobs option to specify maximum number of parallel jobs
+- Add --logsize option to specify the size of the log history per job in the monitor
+- Add -f / --force to force fmax synthesis to continue on synthesis error
+
+#### Odatix Explorer
+- Add themes
+- Add --nobrowser option
+- Add -T / --theme option
+
+### Changed
+
+#### Odatix
+- Replaced 'sim_work_path' key in odatix.yml by 'simulation_work_path' (now relative to work_path)
+- Replaced 'fmax_work_path' key in odatix.yml by 'fmax_synthesis_work_path' (now relative to work_path)
+- Replaced 'custom_freq_work_path' key in odatix.yml by 'custom_freq_synthesis_work_path' (now relative to work_path)
+
+### Fixed
+
+#### Odatix
+- Fix 'odatix results' not using the work paths defined in odatix.yml
+- Fix lut and register count not being exported with ultrascale targets on vivado
+- Fix custom frequency synthesis fail resulting in a success status
+
 ## [3.2.2] - 2025-01-24
 
 ### Fixed
