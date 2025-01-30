@@ -341,6 +341,8 @@ class ParallelJobHandler:
         attr = 0
         offset = 0
 
+      attr = attr | curses.A_DIM if self.showing_help else attr
+
       button = self.theme.get('ballot_check') if selected else self.theme.get('ballot_empty')
       border_left = self.theme.get('border_left')
       border_right = self.theme.get('border_right')
@@ -410,6 +412,8 @@ class ParallelJobHandler:
 
   def update_progress_window(self, progress_win, selected_job):
     height, width = progress_win.getmaxyx()
+    if self.showing_help:
+      progress_win.attron(curses.A_DIM)
     
     # Clear the window
     progress_win.erase()
@@ -432,74 +436,72 @@ class ParallelJobHandler:
       except curses.error:
         pass
     progress_win.refresh()
-
+    progress_win.attroff(curses.A_DIM)
 
   def update_separator(self, separator_win, val, ref, width):
-      separator_win.erase()
-      if val == ref:
-        separator_text = self.theme.get("bar") * (width - 1)
-      else:
-        message = f"{val - ref} more" 
-        padding = 4
-        separator_text = self.theme.get("bar") * padding + message + self.theme.get("bar") * (width - len(message) - padding - 1)
-      try:
-        separator_win.addstr(0, 0, separator_text)
-      except curses.error as e:
-        pass
-      separator_win.refresh()
+    dim = self.showing_help and curses.A_DIM
+    separator_win.erase()
+    if val == ref:
+      separator_text = self.theme.get("bar") * (width - 1)
+    else:
+      message = f"{val - ref} more" 
+      padding = 4
+      separator_text = self.theme.get("bar") * padding + message + self.theme.get("bar") * (width - len(message) - padding - 1)
+    try:
+      separator_win.addstr(0, 0, separator_text, dim)
+    except curses.error as e:
+      pass
+    separator_win.refresh()
 
   @staticmethod
-  def update_help(help_win):
-    help_win.erase()
+  def update_help(bottom_bar):
+    bottom_bar.erase()
 
     # Define the text with attributes
     help_text = [
       ("q", "Quit"),
-      ("PageUp/PageDown", "Switch Job"),
-      ("Up/Down", "Scroll Log"),
-      ("Home/End", "Scroll to Top/Bottom"),
-      ("+/-", "Adjust Progress Window"),
+      ("h", "Help Menu"),
     ]
 
-    help_win.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
+    bottom_bar.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
     try:
-      help_win.addstr(" ")
+      bottom_bar.addstr(" ")
     except curses.error:
       pass
 
     for i, (key, description) in enumerate(help_text):
       try:
         if i > 0:
-          help_win.addstr(" | ")
-        help_win.attron(curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
-        help_win.addstr(key)
-        help_win.attroff(curses.A_BOLD)  # Remove attributes
-        help_win.addstr(": ")
-        help_win.addstr(description)
+          bottom_bar.addstr(" | ")
+        bottom_bar.attron(curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+        bottom_bar.addstr(key)
+        bottom_bar.attroff(curses.A_BOLD)  # Remove attributes
+        bottom_bar.addstr(": ")
+        bottom_bar.addstr(description)
       except curses.error:
         pass
 
     try:
-      help_win.addstr(" ")
+      bottom_bar.addstr(" ")
     except curses.error:
       pass
-    help_win.attroff(curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
-    help_win.refresh()
+    bottom_bar.attroff(curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+    bottom_bar.refresh()
 
   @staticmethod
-  def show_exit_confirmation(help_win):
+  def show_exit_confirmation(bottom_bar):
     try:
-      help_win.erase()
-      help_win.addstr(" Kill all jobs and exit: Yes (", curses.color_pair(NORMAL) | curses.A_REVERSE)
-      help_win.addstr("y", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
-      help_win.addstr(") / No (", curses.color_pair(NORMAL) | curses.A_REVERSE)
-      help_win.addstr("n", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
-      help_win.addstr(")? ", curses.color_pair(NORMAL) | curses.A_REVERSE)
-      help_win.refresh()
+      bottom_bar.erase()
+      bottom_bar.addstr(" Kill all jobs and exit: Yes (", curses.color_pair(NORMAL) | curses.A_REVERSE)
+      bottom_bar.addstr("y", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+      bottom_bar.addstr(") / No (", curses.color_pair(NORMAL) | curses.A_REVERSE)
+      bottom_bar.addstr("n", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+      bottom_bar.addstr(")? ", curses.color_pair(NORMAL) | curses.A_REVERSE)
+      bottom_bar.refresh()
     except curses.error:
       pass
 
-    key = help_win.getch()
+    key = bottom_bar.getch()
     curses.flushinp()
     if key == ord("y") or key == ord("Y"):
       return True, True
@@ -509,11 +511,11 @@ class ParallelJobHandler:
       return False, False
 
   @staticmethod
-  def update_exit(help_win):
+  def update_exit(bottom_bar):
     try:
-      help_win.erase()
-      help_win.addstr(" Exiting... ", curses.color_pair(NORMAL) | curses.A_REVERSE)
-      help_win.refresh()
+      bottom_bar.erase()
+      bottom_bar.addstr(" Exiting... ", curses.color_pair(NORMAL) | curses.A_REVERSE)
+      bottom_bar.refresh()
     except curses.error:
       pass
 
@@ -535,12 +537,53 @@ class ParallelJobHandler:
       try:
         logs_win.move(i, 0)
         logs_win.clrtoeol()
-        self.converter.add_ansi_str(logs_win, line, width=width)
+        self.converter.add_ansi_str(logs_win, line, width=width, dim=self.showing_help)
       except curses.error:
         pass
 
     logs_win.refresh()
     self.previous_log_size = log_length
+
+  def update_help_popup(self, popup_win, width, height, popup_width, popup_height):
+    """Display a non-blocking help popup in the center of the screen while updating the other windows."""
+
+    help_text = [
+      ("q"          , "Quit"),
+      ("PageUp    n", "Select next Job"),
+      ("PageDown  p", "Select previous Job"),
+      ("Up/Down"    , "Scroll Log"),
+      ("Home/End"   , "Scroll to Top/Bottom"),
+      ("+/-"        , "Change Progress Window Size"),
+      ("k"          , "Kill selected job"),
+      ("s"          , "Start selected job immediately"),
+      ("t"          , "Switch Theme"),
+      ("h         ?", "Show Help"),
+    ]
+    
+    popup_win.box()
+
+    popup_win.addstr(1, (popup_width - len(" Help Menu ")) // 2, " Help Menu ", curses.A_BOLD | curses.A_REVERSE)
+
+    close_x = popup_width - 5
+    try:
+      popup_win.addstr(1, close_x, " X ", curses.A_BOLD | curses.color_pair(REVERSE_RED))
+    except curses.error:
+      pass
+    try:
+      popup_win.addstr(3, 3, "Key      Alt", curses.A_BOLD )
+      popup_win.addstr(3, 17, "Description", curses.A_BOLD )
+      for i, (key, desc) in enumerate(help_text, start=4):
+        if i < popup_height - 2:
+          popup_win.addstr(i, 3, f"{key}", curses.color_pair(CYAN))
+          popup_win.addstr(i, 17, f"{desc}")
+    except curses.error:
+      pass
+    try:
+      quit_text = "Press 'q' or 'h' to close"
+      popup_win.addstr(popup_height - 2, (popup_width - len(quit_text)) // 2, quit_text, curses.A_DIM)
+    except curses.error:
+      pass
+    popup_win.refresh()
 
   def start_job(self, job):
     # Run generate command
@@ -665,6 +708,10 @@ class ParallelJobHandler:
     separator_height = 1
     help_height = 1
     logs_height = height - progress_height - 2*separator_height - help_height - header_height
+    popup_width = min(50, width - 4)
+    popup_height = min(17, height - 4)
+    start_x = (width - popup_width) // 2
+    start_y = (height - popup_height) // 2
 
     try:
       header_win = curses.newwin(header_height, width, 0, 0)
@@ -672,7 +719,9 @@ class ParallelJobHandler:
       progress_win = curses.newwin(progress_height, width, header_height + separator_height, 0)
       separator_middle_win = curses.newwin(separator_height, width, header_height + separator_height + progress_height, 0)
       logs_win = curses.newwin(logs_height, width, header_height + separator_height + progress_height + separator_height, 0)
-      help_win = curses.newwin(help_height, width, height - help_height, 0)
+      bottom_bar = curses.newwin(help_height, width, height - help_height, 0)
+      popup_win = curses.newwin(popup_height, popup_width, start_y, start_x)
+      popup_win.box()
     except curses.error:
       stdscr.clear()
       try:
@@ -701,10 +750,16 @@ class ParallelJobHandler:
     resize = False
     resize_hold = False
 
+    self.showing_help = False
+
     while True:
       height, width = stdscr.getmaxyx()
       # If window size changes, adjust the layout
       if height != old_height or width != old_width or resize:
+        popup_width = min(50, width - 4)
+        popup_height = min(17, height - 4)
+        start_x = (width - popup_width) // 2
+        start_y = (height - popup_height) // 2
         try:
           progress_height = self.job_index_end - self.job_index_start
           logs_height = height - progress_height - 2*separator_height - help_height - header_height
@@ -713,8 +768,8 @@ class ParallelJobHandler:
           progress_win = curses.newwin(progress_height, width, header_height + separator_height, 0)
           separator_middle_win = curses.newwin(separator_height, width, header_height + separator_height + progress_height, 0)
           logs_win = curses.newwin(logs_height, width, header_height + separator_height + progress_height + separator_height, 0)
-          help_win = curses.newwin(help_height, width, height - help_height, 0)
-
+          bottom_bar = curses.newwin(help_height, width, height - help_height, 0)
+          popup_win = curses.newwin(popup_height, popup_width, start_y, start_x)
           self.update_logs(logs_win, selected_job, logs_height, width)
         except curses.error:
           try:
@@ -777,6 +832,10 @@ class ParallelJobHandler:
       # Add a separator
       self.update_separator(separator_middle_win, self.job_count, self.job_index_end, width)
 
+      # Help window
+      if self.showing_help:
+        self.update_help_popup(popup_win, width, height, popup_width, popup_height)
+
       # Collect all stdout and stderr pipes
       pipes = [job.process.stdout for job in self.running_job_list] + [
         job.process.stderr for job in self.running_job_list
@@ -809,7 +868,7 @@ class ParallelJobHandler:
 
       # Handle resize
       if width != old_width:
-          self.update_logs(logs_win, selected_job, logs_height, width)
+        self.update_logs(logs_win, selected_job, logs_height, width)
       old_width = width
 
       # Get inputs
@@ -842,172 +901,195 @@ class ParallelJobHandler:
         self.job_index_start += 1
         self.job_index_end += 1
 
-      if key == curses.KEY_MOUSE:
-        _, x, y, _, button = curses.getmouse()
+      if not self.showing_help:
 
-        if resize_hold:
-          # Ensure the y-coordinate does not exceed the bounds of the terminal height
-          y = min(y, height - 2)
+        if key == curses.KEY_MOUSE:
+          _, x, y, _, button = curses.getmouse()
 
-          relative_y = y - (header_height + separator_height)
-          new_job_index_end = self.job_index_start + relative_y
+          if resize_hold:
+            # Ensure the y-coordinate does not exceed the bounds of the terminal height
+            y = min(y, height - 2)
 
-          # Minimum size
-          if new_job_index_end <= self.job_index_start:
-            self.job_index_end = self.job_index_start + 1
+            relative_y = y - (header_height + separator_height)
+            new_job_index_end = self.job_index_start + relative_y
+
+            # Minimum size
+            if new_job_index_end <= self.job_index_start:
+              self.job_index_end = self.job_index_start + 1
+              resize = True
+            # Exceeding job count
+            elif new_job_index_end >= self.job_count:
+              remainder = new_job_index_end - self.job_count
+              self.job_index_end = self.job_count
+              self.job_index_start = max(0, self.job_index_start - remainder)
+              resize = True
+            # General case
+            else:
+              self.job_index_end = new_job_index_end
+              resize = True
+
+          # Left click
+          if button & curses.BUTTON1_CLICKED:
+            # Check if user left clicked on a job
+            if self.click_on_job(progress_win, y, x):
+              selected_job = update_selected_job()
+              self.update_logs(logs_win, selected_job, logs_height, width)
+
+          # Hold separator
+          elif button & curses.BUTTON1_PRESSED:
+            if separator_middle_win.enclose(y, x):
+              resize_hold = True
+
+          # Release
+          elif button & curses.BUTTON1_RELEASED:
+            resize_hold = False
+
+          # Scroll up
+          elif button & curses.BUTTON4_PRESSED:
+            if progress_win.enclose(y, x):
+              if self.job_index_start > 0:
+                scroll_up_progress()
+            elif logs_win.enclose(y, x):
+              scroll_up_logs(selected_job)
+
+          # Scroll down
+          elif button & curses.BUTTON5_PRESSED:
+            if progress_win.enclose(y, x):
+              if self.job_index_end <= len(self.job_list) - 1:
+                scroll_down_progress()
+            elif logs_win.enclose(y, x):
+              scroll_down_logs(selected_job)
+        
+        # Page Up
+        elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  
+          if self.selected_job_index > 0:
+            self.selected_job_index -= 1
+          if self.selected_job_index < self.job_index_start:
+            scroll_up_progress()
+          selected_job = update_selected_job()
+          self.update_logs(logs_win, selected_job, logs_height, width)
+
+        # Page Down
+        elif key == curses.KEY_NPAGE or key == ord("n") or key == ord("N"):
+          if self.selected_job_index < len(self.job_list) - 1:
+            self.selected_job_index += 1
+          if self.selected_job_index >= self.job_index_end:
+            scroll_down_progress()
+          selected_job = update_selected_job()
+          self.update_logs(logs_win, selected_job, logs_height, width)
+
+        # Scroll Up Logs
+        elif key == curses.KEY_UP:
+          scroll_up_logs(selected_job)
+
+        # Scroll Down
+        elif key == curses.KEY_DOWN:
+          scroll_down_logs(selected_job)
+
+        # Logs Home
+        elif key == curses.KEY_HOME:
+          selected_job.log_position = 0
+          selected_job.autoscroll = False
+          self.update_logs(logs_win, selected_job, logs_height, width)
+
+        # Logs End
+        elif key == curses.KEY_END:
+          selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
+          selected_job.autoscroll = True
+          self.update_logs(logs_win, selected_job, logs_height, width)
+
+        # Expand progress window
+        elif key == ord("+") or key == ord("="): 
+          if logs_height > 0:
+            if self.job_index_end < self.job_count:
+              self.job_index_end += 1
+              resize = True
+            elif self.job_index_start > 0:
+              self.job_index_start -= 1
+              resize = True
+
+        # Shrink progress window
+        elif key == ord("-") or key == ord("_"):
+          if self.selected_job_index < self.job_index_end - 1:
+            self.job_index_end -= 1
             resize = True
-          # Exceeding job count
-          elif new_job_index_end >= self.job_count:
-            remainder = new_job_index_end - self.job_count
-            self.job_index_end = self.job_count
-            self.job_index_start = max(0, self.job_index_start - remainder)
+          elif self.job_index_start < self.job_index_end - 1:
+            self.job_index_start += 1
             resize = True
-          # General case
+
+        # Kill the selected job
+        elif key == ord('k') or key == ord('K'):
+          if selected_job.status == "running":  # Kill the running job
+            try:
+              os.killpg(os.getpgid(selected_job.process.pid), signal.SIGTERM)
+              selected_job.status = "killed"
+              self.retire_job(selected_job, selected_job.progress)
+              selected_job.log_history.append(printc.colors.RED + "Job killed by user" + printc.colors.ENDC)
+            except ProcessLookupError:
+              selected_job.log_history.append(printc.colors.RED + "Failed to kill the job" + printc.colors.ENDC)
+          elif selected_job.status == "queued":  # Remove job from queue
+            try:
+              self.job_queue.queue.remove(selected_job)
+              selected_job.status = "canceled"
+              selected_job.log_history.append(printc.colors.RED + "Job canceled by user" + printc.colors.ENDC)
+            except ValueError:
+              pass
+
+        # Start the selected job
+        elif key == ord('s') or key == ord('S'): 
+          if selected_job.status == "queued":
+            self.job_queue.queue.remove(selected_job)
+          if selected_job.status == "queued" or selected_job.status == "canceled":  # Start a queued job immediately
+            self.start_job(selected_job)
+
+        # Change theme
+        elif key == ord("t") or key == ord("T"):
+          self.theme.next_theme()
+
+        # Open help menu
+        elif key in [ord("h"), ord("H"), ord("?")]:
+          self.showing_help = True
+          self.update_logs(logs_win, selected_job, logs_height, width) # Update to dim log window
+
+        # Exit
+        else:
+          if self.auto_exit and finished:
+            return True
           else:
-            self.job_index_end = new_job_index_end
-            resize = True
+            if key == ord("q") or key == ord("Q"):
+              if finished:
+                return True
+              else:
+                ask_exit = True
+      
+      else: # help window
+        if key == curses.KEY_MOUSE:
+          _, mouse_x, mouse_y, _, button = curses.getmouse()
+          close_x = (width - min(50, width - 4)) // 2 + min(50, width - 4) - 5
+          close_y = (height - min(17, height - 4)) // 2 + 1
 
-        # Left click
-        if button & curses.BUTTON1_CLICKED:
-          # Check if user left clicked on a job
-          if self.click_on_job(progress_win, y, x):
-            selected_job = update_selected_job()
+          if button & curses.BUTTON1_CLICKED and mouse_y == close_y and close_x <= mouse_x <= close_x + 2:
+            self.showing_help = False
+            logs_win.erase()
             self.update_logs(logs_win, selected_job, logs_height, width)
 
-        # Hold separator
-        elif button & curses.BUTTON1_PRESSED:
-          if separator_middle_win.enclose(y, x):
-            resize_hold = True
-
-        # Release
-        elif button & curses.BUTTON1_RELEASED:
-          resize_hold = False
-
-        # Scroll up
-        elif button & curses.BUTTON4_PRESSED:
-          if progress_win.enclose(y, x):
-            if self.job_index_start > 0:
-              scroll_up_progress()
-          elif logs_win.enclose(y, x):
-            scroll_up_logs(selected_job)
-
-        # Scroll down
-        elif button & curses.BUTTON5_PRESSED:
-          if progress_win.enclose(y, x):
-            if self.job_index_end <= len(self.job_list) - 1:
-              scroll_down_progress()
-          elif logs_win.enclose(y, x):
-            scroll_down_logs(selected_job)
-      
-      # Page Up
-      elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  
-        if self.selected_job_index > 0:
-          self.selected_job_index -= 1
-        if self.selected_job_index < self.job_index_start:
-          scroll_up_progress()
-        selected_job = update_selected_job()
-        self.update_logs(logs_win, selected_job, logs_height, width)
-
-      # Page Down
-      elif key == curses.KEY_NPAGE or key == ord("n") or key == ord("N"):
-        if self.selected_job_index < len(self.job_list) - 1:
-          self.selected_job_index += 1
-        if self.selected_job_index >= self.job_index_end:
-          scroll_down_progress()
-        selected_job = update_selected_job()
-        self.update_logs(logs_win, selected_job, logs_height, width)
-
-      # Scroll Up Logs
-      elif key == curses.KEY_UP:
-        scroll_up_logs(selected_job)
-
-      # Scroll Down
-      elif key == curses.KEY_DOWN:
-        scroll_down_logs(selected_job)
-
-      # Logs Home
-      elif key == curses.KEY_HOME:
-        selected_job.log_position = 0
-        selected_job.autoscroll = False
-        self.update_logs(logs_win, selected_job, logs_height, width)
-
-      # Logs End
-      elif key == curses.KEY_END:
-        selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-        selected_job.autoscroll = True
-        self.update_logs(logs_win, selected_job, logs_height, width)
-
-      # Expand progress window
-      elif key == ord("+") or key == ord("="): 
-        if logs_height > 0:
-          if self.job_index_end < self.job_count:
-            self.job_index_end += 1
-            resize = True
-          elif self.job_index_start > 0:
-            self.job_index_start -= 1
-            resize = True
-
-      # Shrink progress window
-      elif key == ord("-") or key == ord("_"):
-        if self.selected_job_index < self.job_index_end - 1:
-          self.job_index_end -= 1
-          resize = True
-        elif self.job_index_start < self.job_index_end - 1:
-          self.job_index_start += 1
-          resize = True
-
-      # Kill the selected job
-      elif key == ord('k') or key == ord('K'):
-        if selected_job.status == "running":  # Kill the running job
-          try:
-            os.killpg(os.getpgid(selected_job.process.pid), signal.SIGTERM)
-            selected_job.status = "killed"
-            self.retire_job(selected_job, selected_job.progress)
-            selected_job.log_history.append(printc.colors.RED + "Job killed by user" + printc.colors.ENDC)
-          except ProcessLookupError:
-            selected_job.log_history.append(printc.colors.RED + "Failed to kill the job" + printc.colors.ENDC)
-        elif selected_job.status == "queued":  # Remove job from queue
-          try:
-            self.job_queue.queue.remove(selected_job)
-            selected_job.status = "canceled"
-            selected_job.log_history.append(printc.colors.RED + "Job canceled by user" + printc.colors.ENDC)
-          except ValueError:
-            pass
-
-      # Start the selected job
-      elif key == ord('s') or key == ord('S'): 
-        if selected_job.status == "queued":
-          self.job_queue.queue.remove(selected_job)
-        if selected_job.status == "queued" or selected_job.status == "canceled":  # Start a queued job immediately
-          self.start_job(selected_job)
-
-      # Change theme
-      elif key == ord("t") or key == ord("T"):
-        self.theme.next_theme()
-
-      # Exit
-      else:
-        if self.auto_exit and finished:
-          return True
-        else:
-          if key == ord("q") or key == ord("Q"):
-            if finished:
-              return True
-            else:
-              ask_exit = True
+        elif key in [ord('h'), ord('H'), ord('?'), ord('q'), ord('Q')]:
+          self.showing_help = False
+          logs_win.erase() # Erase remains of help menu
+          self.update_logs(logs_win, selected_job, logs_height, width)
 
       # Handle exit
       if ask_exit:
-        user_answered, user_confirmed = self.show_exit_confirmation(help_win)
+        user_answered, user_confirmed = self.show_exit_confirmation(bottom_bar)
         if user_answered:
           if user_confirmed:
-            self.update_exit(help_win)
+            self.update_exit(bottom_bar)
             self.terminate_all_jobs()
             return False
           else:
             ask_exit = False
       else:
-        self.update_help(help_win)
+        self.update_help(bottom_bar)
 
   def run(self):
     curses.wrapper(self.curses_main)
