@@ -64,7 +64,7 @@ class AnsiToCursesConverter:
       self.current_color = curses.color_pair(0)
       self.initialized = True
 
-  def add_ansi_str(self, win, text, debug_win=None, width=-1):
+  def add_ansi_str(self, win, text, debug_win=None, width=-1, dim=False):
     self.initialize_colors()
 
     # Regular expression to find ANSI escape sequences
@@ -75,6 +75,7 @@ class AnsiToCursesConverter:
 
     current_width = 0
     truncated = False
+    dim = dim and curses.A_DIM
 
     for i, segment in enumerate(segments):
       if i % 2 == 0:
@@ -86,11 +87,11 @@ class AnsiToCursesConverter:
               segment = segment[:remaining_width-3]
               truncated = True
             current_width += len(segment)
-            win.addstr(segment, self.current_color | self.current_intensity)
+            win.addstr(segment, self.current_color | self.current_intensity | dim)
           if truncated:
-            win.addstr("...", curses.color_pair(90))
+            win.addstr("...", curses.color_pair(90) | dim)
         else:
-          win.addstr(segment, self.current_color | self.current_intensity)
+          win.addstr(segment, self.current_color | self.current_intensity | dim)
       else:
         # ANSI code segment
         codes = segment.split(";")
@@ -107,7 +108,7 @@ class AnsiToCursesConverter:
             self.current_intensity = A_NORMAL
           else:
             if debug_win is not None:
-              debug_win.addstr("{Unsupported ANSI escape code:" + code + "}", curses.color_pair(31))
+              debug_win.addstr("{Unsupported ANSI escape code:" + code + "}", curses.color_pair(31) | dim)
 
     win.refresh()
     if debug_win is not None:
