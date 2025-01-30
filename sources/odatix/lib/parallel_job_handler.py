@@ -560,27 +560,35 @@ class ParallelJobHandler:
       ("h         ?", "Show Help"),
     ]
     
+    if popup_height <= 7:
+      popup_win.erase()
     popup_win.box()
-
-    popup_win.addstr(1, (popup_width - len(" Help Menu ")) // 2, " Help Menu ", curses.A_BOLD | curses.A_REVERSE)
-
-    close_x = popup_width - 5
+    
     try:
+      close_x = popup_width - 5
       popup_win.addstr(1, close_x, " X ", curses.A_BOLD | curses.color_pair(REVERSE_RED))
     except curses.error:
       pass
+
+    if popup_height > 2:
+      try:
+        text = " Help Menu "
+        popup_win.addstr(1, (popup_width - len(text)) // 2, text, curses.A_BOLD | curses.A_REVERSE)
+      except curses.error:
+        pass
+      if popup_height > 5:
+        try:
+          popup_win.addstr(3, 3, "Key      Alt", curses.A_BOLD )
+          popup_win.addstr(3, 17, "Description", curses.A_BOLD )
+          for i, (key, desc) in enumerate(help_text, start=4):
+            if i < popup_height - 2:
+              popup_win.addstr(i, 3, f"{key}", curses.color_pair(CYAN))
+              popup_win.addstr(i, 17, f"{desc}")
+        except curses.error:
+          pass
     try:
-      popup_win.addstr(3, 3, "Key      Alt", curses.A_BOLD )
-      popup_win.addstr(3, 17, "Description", curses.A_BOLD )
-      for i, (key, desc) in enumerate(help_text, start=4):
-        if i < popup_height - 2:
-          popup_win.addstr(i, 3, f"{key}", curses.color_pair(CYAN))
-          popup_win.addstr(i, 17, f"{desc}")
-    except curses.error:
-      pass
-    try:
-      quit_text = "Press 'q' or 'h' to close"
-      popup_win.addstr(popup_height - 2, (popup_width - len(quit_text)) // 2, quit_text, curses.A_DIM)
+      text = "Press 'q' or 'h' to close"
+      popup_win.addstr(max(popup_height - 2, 1), (popup_width - len(text)) // 2, text, curses.A_DIM)
     except curses.error:
       pass
     popup_win.refresh()
@@ -710,6 +718,7 @@ class ParallelJobHandler:
     logs_height = height - progress_height - 2*separator_height - help_height - header_height
     popup_width = min(50, width - 4)
     popup_height = min(17, height - 4)
+    popup_height = max(popup_height, 3)
     start_x = (width - popup_width) // 2
     start_y = (height - popup_height) // 2
 
@@ -758,6 +767,7 @@ class ParallelJobHandler:
       if height != old_height or width != old_width or resize:
         popup_width = min(50, width - 4)
         popup_height = min(17, height - 4)
+        popup_height = max(popup_height, 3)
         start_x = (width - popup_width) // 2
         start_y = (height - popup_height) // 2
         try:
