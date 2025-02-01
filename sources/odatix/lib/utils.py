@@ -26,6 +26,7 @@ import shutil
 import fnmatch
 import platform
 import traceback
+import subprocess
 from datetime import datetime
 
 import odatix.lib.printc as printc
@@ -248,3 +249,14 @@ def safe_df_append(df, row, ignore_index=True):
     return df.append(row, ignore_index=ignore_index)
   else:
     return df._append(row, ignore_index=ignore_index)
+
+def open_path_in_explorer(path):
+  """Opens the given path in the system file explorer."""
+  if sys.platform.startswith("win"): # Windows
+    os.startfile(path)
+  elif sys.platform.startswith("linux"): # Linux
+    subprocess.run(["xdg-open", path])
+  elif sys.platform.startswith("darwin"): # macOS
+    subprocess.run(["open", path])
+  else:
+    raise NotImplementedError(f"Unsupported platform: {platform}")
