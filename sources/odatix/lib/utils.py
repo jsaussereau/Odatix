@@ -19,6 +19,25 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+"""
+This module contains utility functions for file operations, error handling,
+and user interactions within Odatix.
+
+Functions:
+    - copytree: Custom function to copy directories with filtering options.
+    - chunk_list: Splits a list into smaller chunks of a given size.
+    - read_from_list: Reads and validates values from a dictionary.
+    - read_from_config: Reads a value from a configuration file.
+    - move_cursor_up: Moves the cursor up in the terminal.
+    - progress_bar: Displays a progress bar in the terminal.
+    - ask_to_continue: Prompts the user to continue or exit.
+    - ask_yes_no: Prompts the user for a yes/no input.
+    - create_dir: Creates a directory, removing it first if it exists.
+    - internal_error: Logs internal errors and prints an error message.
+    - safe_df_append: Safely appends data to a pandas DataFrame.
+    - open_path_in_explorer: Opens a file or directory in the system explorer.
+"""
+
 import os
 import sys
 import glob
@@ -125,16 +144,22 @@ def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kw
         shutil.copy2(src_file, dst_file, **kwargs)
 
 def chunk_list(lst, n):
+  """Splits a list into chunks of size n."""
   for i in range(0, len(lst), n):
     yield lst[i:i + n]
 
 class KeyNotInListError(Exception):
+  """Exception raised when a required key is missing in a list."""
   pass
 
 class BadValueInListError(Exception):
+  """Exception raised when a value in a list is of the wrong type."""
   pass
 
 def read_from_list(key, input_list, filename, raise_if_missing=True, optional=False, print_error=True, parent=None, type=None, script_name=""):
+  """
+  Retrieves a value from a dictionary, with error handling and type validation.
+  """
   parent_string = "" if parent == None else ", inside list \"" + parent + "\","
   if key in input_list:
     value = input_list[key]
@@ -171,11 +196,13 @@ def read_from_config(identifier, config, filename, script_name=""):
     return False
 
 def move_cursor_up():
+  """Moves the terminal cursor up one line."""
   sys.stdout.write('\x1b[1A') # Move cursor up
   sys.stdout.write("\033[K") # Clear to the end of line
   sys.stdout.flush()
 
 def progress_bar(progress, title, title_size=50, bar_size=50, endstr='', progress_char="#"):
+  """Displays a progress bar in the terminal."""
   if progress is None:
     limit = 1
   else:
@@ -217,6 +244,7 @@ def ask_yes_no():
       print("Please enter yes or no")
 
 def create_dir(dir):
+  """Creates a directory, removing it first if it exists."""
   if os.path.isdir(dir):
     shutil.rmtree(dir)
   os.makedirs(dir)
