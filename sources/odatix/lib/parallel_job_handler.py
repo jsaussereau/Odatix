@@ -32,6 +32,7 @@ import subprocess
 from odatix.components.motd import read_version
 
 from odatix.lib.ansi_to_curses import AnsiToCursesConverter
+from odatix.lib.utils import open_path_in_explorer
 import odatix.lib.printc as printc
 
 ######################################
@@ -556,6 +557,7 @@ class ParallelJobHandler:
       ("+/-"        , "Change Progress Window Size"),
       ("k"          , "Kill selected job"),
       ("s"          , "Start selected job immediately"),
+      ("o"          , "Open current job work path"),
       ("t"          , "Switch Theme"),
       ("h         ?", "Show Help"),
     ]
@@ -632,12 +634,10 @@ class ParallelJobHandler:
       # Get job index based on Y position
       relative_y = y - progress_win.getbegyx()[0]
       job_index = self.job_index_start + relative_y
-
       # Check if index is valid
       if 0 <= job_index < len(self.job_list):
-        self.selected_job_index = job_index
-        return True
-    return False
+        return job_index
+    return -1
 
   def run_job(self, job):
     job.log_history.append(printc.colors.CYAN + "Run job command" + printc.colors.ENDC)
@@ -937,13 +937,23 @@ class ParallelJobHandler:
             else:
               self.job_index_end = new_job_index_end
               resize = True
-
+        
           # Left click
-          if button & curses.BUTTON1_CLICKED:
+          if button & curses.BUTTON1_CLICKED or button & curses.BUTTON1_DOUBLE_CLICKED:
             # Check if user left clicked on a job
-            if self.click_on_job(progress_win, y, x):
+            job_index = self.click_on_job(progress_win, y, x)
+            # If user clicked on a job, update the selected job
+            if job_index >= 0:
+              self.selected_job_index = job_index
               selected_job = update_selected_job()
               self.update_logs(logs_win, selected_job, logs_height, width)
+          
+              # Check if it was a double click
+              if button & curses.BUTTON1_DOUBLE_CLICKED:
+                try:
+                  open_path_in_explorer(self.job_list[job_index].tmp_dir)
+                except NotImplementedError:
+                  pass
 
           # Hold separator
           elif button & curses.BUTTON1_PRESSED:
@@ -1051,6 +1061,13 @@ class ParallelJobHandler:
             self.job_queue.queue.remove(selected_job)
           if selected_job.status == "queued" or selected_job.status == "canceled":  # Start a queued job immediately
             self.start_job(selected_job)
+
+        # Open job work directory in system file explorer
+        elif key == ord('o') or key == ord('O'): 
+          try:
+            open_path_in_explorer(selected_job.tmp_dir)
+          except NotImplementedError:
+            pass
 
         # Change theme
         elif key == ord("t") or key == ord("T"):
