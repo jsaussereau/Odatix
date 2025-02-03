@@ -32,10 +32,12 @@ from odatix.lib.replace_params import replace_params
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
+from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
 from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import check_tool
 from odatix.lib.run_settings import get_synth_settings
+from odatix.lib.variables import replace_variables, Variables
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -64,6 +66,7 @@ arch_path = "architectures"
 nb_jobs = 4
 
 param_settings_filename = "_settings.yml"
+tool_settings_filename = "tool.yml"
 arch_filename = "architecture.txt"
 target_filename = "target.txt"
 tcl_config_filename = "settings.tcl"
@@ -187,50 +190,9 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       )
     sys.exit(-1)
 
-  # Check if the tool makefile exists
-  tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
-  if not os.path.isfile(tool_makefile_file):
-    printc.error(
-      'Makefile "' + tool_makefile_file + '", for the selected eda tool "' + tool + '" does not exist', script_name
-    )
-    if tool not in default_supported_tools:
-      printc.note(
-        'The selected eda tool "'
-        + tool
-        + "\" is not one of the supported tool. Check out Odatix's documentation to add support for your own eda tool",
-        script_name,
-      )
-    sys.exit(-1)
-
   # Get tool settings
-  tool_settings_filename = os.path.realpath(os.path.join(eda_tool_dir, "tool.yml"))
-
-  # Check if the tool file exists 
-  if not os.path.isfile(tool_settings_filename):
-    printc.error(
-      'Settings file "' + tool_settings_filename + '", for the selected eda tool "' + tool + '" does not exist', script_name
-    )
-    sys.exit(-1)
-  with open(tool_settings_filename, "r") as f:
-    try:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-    except Exception as e:
-      printc.error('Settings file "' + tool_settings_filename + '", for the selected eda tool "' + tool + '" is not a valid YAML file', script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
-      print(str(e))
-      sys.exit(-1)
-
-    # Mandatory keys
-    try:
-      process_group = read_from_list("process_group", settings_data, tool_settings_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      pass
-
-    global work_report_path
-    try:
-      work_report_path = read_from_list("report_path", settings_data, tool_settings_filename, optional=True, print_error=False, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      pass
+  tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, tool_settings_filename))
+  process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file)
 
   with open(eda_target_filename, "r") as f:
     try:
@@ -262,9 +224,23 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       printc.note('No tool_install_path specified for "' + tool + '"', script_name=script_name)
       install_path = "/"
 
+  # Concat all strings if it is a list
+  if isinstance(tool_test_command, list):
+    tool_test_command = " ".join(map(str, tool_test_command)) 
+
+  # Define user accessible variables
+  variables = Variables(
+    tool_install_path=os.path.realpath(install_path),
+    odatix_path=OdatixSettings.odatix_path,
+    odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+  )
+
+  # Replace variables in command
+  tool_test_command = replace_variables(tool_test_command, variables)
+
   # Try launching eda tool
   check_tool(
-    tool, script_path, makefile=tool_makefile_filename, rule=test_tool_rule, supported_tools=default_supported_tools, tool_install_path=install_path
+    tool, command=tool_test_command, supported_tools=default_supported_tools, tool_install_path=install_path
   )
 
   ParallelJob.set_patterns(synth_status_pattern, fmax_status_pattern)
@@ -279,6 +255,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     work_report_path=work_report_path,
     work_log_path=work_log_path,
     process_group=process_group,
+    command=run_command,
     eda_target_filename=eda_target_filename,
     fmax_status_filename=synth_status_filename,
     frequency_search_filename=frequency_search_filename,
@@ -414,24 +391,32 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
           with open(arch_instance.tmp_script_path + "/" + filename, "w") as f:
             f.write(tcl_content)
 
-      # Run binary search script
-      tool_makefile_file = script_path + "/" + tool + "/" + tool_makefile_filename
-      command = (
-        "make -f {} {}".format(tool_makefile_file, synth_range_rule)
-        + ' WORK_DIR="{}"'.format(os.path.realpath(arch_instance.tmp_dir))
-        + ' TOOL_INSTALL_PATH="{}"'.format(os.path.realpath(arch_instance.install_path))
-        + ' ODATIX_DIR="{}"'.format(OdatixSettings.odatix_path)
-        + ' SCRIPT_DIR="{}"'.format(os.path.realpath(os.path.join(arch_instance.tmp_dir, work_script_path)))
-        + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(arch_instance.tmp_dir, log_path)))
-        + ' CLOCK_SIGNAL="{}"'.format(arch_instance.clock_signal)
-        + ' TOP_LEVEL_MODULE="{}"'.format(arch_instance.top_level_module)
-        + ' LIB_NAME="{}"'.format(arch_instance.lib_name)
-        + " --no-print-directory"
+      # Concat all strings if it is a list
+      if isinstance(arch_handler.command, list):
+        command = " ".join(map(str, arch_handler.command)) 
+      else:
+        command = arch_handler.command
+
+      # Define user accessible variables
+      variables = Variables(
+        work_path=os.path.realpath(arch_instance.tmp_dir),
+        tool_install_path=os.path.realpath(arch_instance.install_path),
+        odatix_path=OdatixSettings.odatix_path,
+        odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+        script_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, work_script_path)),
+        log_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, log_path)),
+        clock_signal=arch_instance.clock_signal,
+        top_level_module=arch_instance.top_level_module,
+        lib_name=arch_instance.lib_name,
       )
+
+      # Replace variables in command
+      command = replace_variables(command, variables)
 
       fmax_status_file = os.path.join(arch_instance.tmp_dir, log_path, fmax_status_filename)
       synth_status_file = os.path.join(arch_instance.tmp_dir, log_path, synth_status_filename)
 
+      # Run custom frequency synthesis script
       running_arch = ParallelJob(
         process=None,
         command=command,

@@ -177,7 +177,29 @@ class Architecture:
 
 class ArchitectureHandler:
 
-  def __init__(self, work_path, arch_path, script_path, log_path, work_rtl_path, work_script_path, work_log_path, work_report_path, process_group, eda_target_filename, fmax_status_filename, frequency_search_filename, param_settings_filename, valid_status, valid_frequency_search, default_fmax_lower_bound, default_fmax_upper_bound, overwrite, continue_on_error=False):
+  def __init__(
+    self,
+    work_path,
+    arch_path,
+    script_path,
+    log_path,
+    work_rtl_path,
+    work_script_path,
+    work_log_path,
+    work_report_path,
+    process_group,
+    command,
+    eda_target_filename,
+    fmax_status_filename,
+    frequency_search_filename,
+    param_settings_filename,
+    valid_status,
+    valid_frequency_search,
+    default_fmax_lower_bound,
+    default_fmax_upper_bound,
+    overwrite,
+    continue_on_error=False
+  ):
     self.work_path = work_path
     self.arch_path = arch_path
     self.script_path = script_path
@@ -188,6 +210,7 @@ class ArchitectureHandler:
     self.work_report_path = work_report_path
 
     self.process_group = process_group
+    self.command = command
     
     self.eda_target_filename = eda_target_filename
     self.fmax_status_filename = fmax_status_filename

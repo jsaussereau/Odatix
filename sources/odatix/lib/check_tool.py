@@ -30,12 +30,14 @@ from odatix.lib.utils import *
 script_name = os.path.basename(__file__)
 
 
-def check_tool(tool, script_path, makefile, rule, supported_tools, tool_install_path):
+def check_tool(tool, command, supported_tools, tool_install_path):
   print('checking the selected eda tool "' + tool + '" ..', end="")
   sys.stdout.flush()
-  tool_makefile_file = script_path + "/" + tool + "/" + makefile
   test_process = subprocess.Popen(
-    ["make", "-f" , tool_makefile_file, rule, "TOOL_INSTALL_PATH="+tool_install_path, "--no-print-directory"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+    command,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+    shell=True,
   )
   while test_process.poll() is None:
     print(".", end="", flush=True)
@@ -56,6 +58,6 @@ def check_tool(tool, script_path, makefile, rule, supported_tools, tool_install_
         + "Check out Odatix's documentation to add support for your own eda tool",
         script_name,
       )
-      printc.note('Make sure there is a valid rule "' + rule + '" in "' + tool_makefile_file + '"', script_name)
+      # printc.note('Make sure there is a valid rule "' + rule + '" in "' + tool_makefile_file + '"', script_name)
     sys.exit(-1)
   print()
