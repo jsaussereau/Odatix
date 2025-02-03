@@ -28,8 +28,10 @@ import argparse
 
 import odatix.lib.printc as printc
 from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
+from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.settings as settings
 from odatix.lib.settings import OdatixSettings
+from odatix.lib.variables import replace_variables, Variables
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -42,8 +44,9 @@ banned_arch = []
 
 DEFAULT_FORMAT = "yml"
 
-simulations_dir = "simulations"
+tool_settings_filename = "tool.yml"
 
+simulations_dir = "simulations"
 status_done = "Done: 100%"
 
 script_name = os.path.basename(__file__)
@@ -73,6 +76,7 @@ def add_arguments(parser):
   parser.add_argument("-B", "--benchmark_file", help="Benchmark file")
   parser.add_argument("-w", "--work", help="Work directory")
   parser.add_argument("-r", "--respath", help="Result path")
+  parser.add_argument("-m", "--metrics", help="Metrics definition file")
   parser.add_argument(
     "-c",
     "--config",
@@ -225,7 +229,7 @@ def validate_tool_settings(file_path):
 ######################################
 
 
-def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis"):
+def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis"):
   """
   Extract metrics from synthesis results based on tool-specific settings.
 
@@ -234,9 +238,9 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
   files (e.g., regex, CSV, YAML) and optionally using benchmark values.
 
   Args:
-      tool_settings (dict): The loaded settings for the EDA tool, containing 
+      metrics_data (dict): The loaded settings for the EDA tool, containing 
                             metric definitions.
-      tool_settings_file (str): Path to the YAML file containing tool settings.
+      metrics_file (str): Path to the YAML file containing tool settings.
       cur_path (str): Current path to the directory containing synthesis results.
       arch (str): Identifier for the architecture being processed.
       arch_path (str): Full path to the architecture-specific directory.
@@ -253,8 +257,8 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
             If no unit is defined for a metric, it is omitted from this dictionary.
 
   Raises:
-      KeyNotInListError: If a required key is missing in `tool_settings`.
-      BadValueInListError: If a value in `tool_settings` is invalid for a metric.
+      KeyNotInListError: If a required key is missing in `metrics_data`.
+      BadValueInListError: If a value in `metrics_data` is invalid for a metric.
       ValueError: When parsing or formatting a metric value fails.
 
   Notes:
@@ -266,7 +270,7 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
 
   Examples:
       For `type="fmax_synthesis"`, metrics defined under "fmax_synthesis_metrics" 
-      in the `tool_settings` file are prioritized. Common metrics (defined under 
+      in the `metrics_data` file are prioritized. Common metrics (defined under 
       "metrics") are always included.
   """
   global banned_metrics
@@ -276,15 +280,15 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
   metrics = {}
   
   if type == "fmax_synthesis":
-    fmax_metrics = read_from_list("fmax_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, print_error=False, script_name=script_name)
+    fmax_metrics = read_from_list("fmax_synthesis_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
     if fmax_metrics != False:
       metrics.update(fmax_metrics)
   elif type == "custom_freq_synthesis":
-    range_metrics = read_from_list("custom_freq_synthesis_metrics", tool_settings, tool_settings_file, raise_if_missing=False, print_error=False, script_name=script_name)
+    range_metrics = read_from_list("custom_freq_synthesis_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
     if range_metrics != False:
       metrics.update(range_metrics)
 
-  common_metrics = read_from_list("metrics", tool_settings, tool_settings_file, raise_if_missing=False, print_error=False, script_name=script_name)
+  common_metrics = read_from_list("metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
   if common_metrics != False:
     metrics.update(common_metrics)
 
@@ -293,38 +297,38 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
       continue
 
     try:
-      type = read_from_list("type", content, tool_settings_file, parent=metric, script_name=script_name)
-      settings = read_from_list("settings", content, tool_settings_file, parent=metric, script_name=script_name)
+      type = read_from_list("type", content, metrics_file, parent=metric, script_name=script_name)
+      settings = read_from_list("settings", content, metrics_file, parent=metric, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
       banned_metrics.append(metric)
       continue
 
-    benchmark_only = read_from_list("benchmark_only", content, tool_settings_file, parent=metric, raise_if_missing=False, type=bool, print_error=False, script_name=script_name)
+    benchmark_only = read_from_list("benchmark_only", content, metrics_file, parent=metric, raise_if_missing=False, type=bool, print_error=False, script_name=script_name)
     if benchmark_only and not use_benchmark:
       banned_metrics.append(metric)
       continue
 
     if type == "regex":
       try:
-        file = read_from_list("file", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
-        pattern = read_from_list("pattern", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
-        group_id = read_from_list("group_id", settings, tool_settings_file, parent=metric + "[settings]", type=int, script_name=script_name)
+        file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
+        pattern = read_from_list("pattern", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
+        group_id = read_from_list("group_id", settings, metrics_file, parent=metric + "[settings]", type=int, script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
       value = parse_regex(os.path.join(cur_path, file), pattern, group_id, error_prefix)
     elif type == "csv":
       try:
-        file = read_from_list( "file", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
-        key = read_from_list("key", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+        file = read_from_list( "file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
+        key = read_from_list("key", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
       value = parse_csv(os.path.join(cur_path, file), key, error_prefix)
     elif type == "yaml":
       try:
-        file = read_from_list("file", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
-        key = read_from_list("key", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+        file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
+        key = read_from_list("key", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
@@ -336,7 +340,7 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
       if arch in banned_arch:
         continue
       try:
-        key = read_from_list("key", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+        key = read_from_list("key", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
@@ -346,14 +350,14 @@ def extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path
         banned_arch.append(arch)
     elif type == "operation":
       try:
-        op = read_from_list("op", settings, tool_settings_file, parent=metric + "[settings]", script_name=script_name)
+        op = read_from_list("op", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
       value = calculate_operation(op, results, error_prefix)
     else:
       printc.error(
-        'Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + tool_settings_file + '"',
+        'Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + metrics_file + '"',
         script_name=script_name,
       )
       banned_metrics.append(metric)
@@ -437,7 +441,7 @@ def calculate_operation(op_str, results, error_prefix=""):
 # Export Results
 ######################################
 
-def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file):
+def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, data, metrics_data, metrics_file, use_benchmark, benchmark_file):
   """
   Process the configuration for a specific architecture and extract relevant metrics.
 
@@ -453,8 +457,8 @@ def process_configuration(input, target, architecture, configuration, frequency,
       type (str): Type of results to process (e.g. "fmax_synthesis" or "custom_freq_synthesis").
       units (dict): Dictionary to store metric units for the synthesis results.
       data (dict): Dictionary to store extracted metrics for the current configuration.
-      tool_settings (dict): Settings specific to the EDA tool being used.
-      tool_settings_file (str): Path to the YAML file containing tool settings.
+      metrics_data (dict): Settings specific to the EDA tool being used.
+      metrics_file (str): Path to the YAML file containing tool settings.
       use_benchmark (bool): Whether to use benchmark values for metric extraction.
       benchmark_file (str): Path to the benchmark YAML file.
 
@@ -499,10 +503,10 @@ def process_configuration(input, target, architecture, configuration, frequency,
 
   # Get values
   if type == "custom_freq_synthesis":
-    metrics[result_key], cur_units[result_key] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
+    metrics[result_key], cur_units[result_key] = extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
     data[result_key][target][architecture][configuration][frequency] = metrics[result_key]
   else:
-    metrics[result_key], cur_units[result_key] = extract_metrics(tool_settings, tool_settings_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
+    metrics[result_key], cur_units[result_key] = extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
     data[result_key][target][architecture][configuration] = metrics[result_key]
   # print(f"metrics[result_key] = {metrics[result_key]}")
 
@@ -511,7 +515,7 @@ def process_configuration(input, target, architecture, configuration, frequency,
   return data, metrics
 
 
-def export_results(input, output, tools, format, use_benchmark, benchmark_file, result_types):
+def export_results(input, output, tools, format, use_benchmark, benchmark_file, result_types, custom_metrics_file=None):
   """
   Export synthesis results for multiple tools, configurations and architectures
   to a specified format.
@@ -528,6 +532,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       use_benchmark (bool): Whether to include benchmark data in the metrics.
       benchmark_file (str): Path to the benchmark YAML file.
       result_types (dict): Dictionary specifying the yaml key and path for each result type to process (e.g., `fmax_synthesis` and `custom_freq_synthesis`) 
+      custom_metrics_file (str): Path to a metrics definition YAML file.
 
   Returns:
       None: Results are saved to files; errors are logged.
@@ -584,19 +589,47 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
     cur_units = {}
     metrics = {}
 
+    # Get tool setting file
+    tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, tool_settings_filename)
+    tool_settings = validate_tool_settings(tool_settings_file)
+    if tool_settings is None:
+      if len(tools) == 1:
+        sys.exit(-1)
+      else:
+        continue
+
+    # Get the default_metrics_file from the tool settings file
+    if custom_metrics_file is None:
+      metrics_file, defined = get_from_dict("default_metrics_file", tool_settings, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
+      if not defined:
+        continue
+    else:
+      metrics_file = custom_metrics_file
+
+    # Define user accessible variables
+    variables = Variables(
+      odatix_path=OdatixSettings.odatix_path,
+      odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+    )
+
+    # Replace variables in command
+    metrics_file = replace_variables(metrics_file, variables)
+
+    if not os.path.isfile(metrics_file):
+      printc.error('Metrics definition file "' + os.path.realpath(metrics_file) + '" does not exist', script_name)
+      continue
+    with open(metrics_file, "r") as file:
+      try:
+        metrics_data = yaml.safe_load(file)
+      except yaml.YAMLError as e:
+        printc.error("Error in metrics definition file: " + str(e), script_name)
+        continue
+
     for result_type in result_types:
       result_key = result_types[result_type]["key"]
       work_path = result_types[result_type]["path"]
       data[result_key] = {}
       printc.cyan("Export " + tool + " " + result_key + " results", script_name)
-
-      tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, "tool.yml")
-      tool_settings = validate_tool_settings(tool_settings_file)
-      if tool_settings is None:
-        if len(tools) == 1:
-          sys.exit(-1)
-        else:
-          continue
 
       input = os.path.join(input_path, work_path, tool)
 
@@ -613,11 +646,11 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
             if result_type == "custom_freq_synthesis":
               data[result_key][target][architecture][configuration] = {}
               for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
-                process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
+                process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, data, metrics_data, metrics_file, use_benchmark, benchmark_file)
               if data == None:
                 continue
             else:
-              process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, data, tool_settings, tool_settings_file, use_benchmark, benchmark_file)
+              process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, data, metrics_data, metrics_file, use_benchmark, benchmark_file)
             
             if data == None:
               continue
@@ -683,6 +716,11 @@ def main(args, settings=None):
   else:
     tools = [args.tool]
 
+  if args.metrics is not None:
+    metrics_file = args.metrics
+  else:
+    metrics_file = None
+
   export_results(
     input=input,
     output=output,
@@ -691,6 +729,7 @@ def main(args, settings=None):
     use_benchmark=use_benchmark,
     benchmark_file=benchmark_file,
     result_types=result_types,
+    custom_metrics_file=metrics_file,
   )
 
 

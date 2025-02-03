@@ -109,6 +109,7 @@ class ArgParser:
     ArgParser.res_parser.add_argument('-S', '--sim_file', default=exp_bench.DEFAULT_SIM_FILE, help='simulation log file (default: ' + exp_bench.DEFAULT_SIM_FILE + ')')
     ArgParser.res_parser.add_argument("-w", "--work", help="simulation work directory")
     ArgParser.res_parser.add_argument("-r", "--respath", help="Result path")
+    ArgParser.res_parser.add_argument("-m", "--metrics", help="Metrics definition file")
     ArgParser.res_parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
     ArgParser.add_nobanner(ArgParser.res_parser)
 
@@ -221,6 +222,7 @@ def run_fmax_synthesis(args):
         benchmark_file = None,
         work = args.work,
         respath = None,
+        metrics = None,
         config = args.config,
       )
       exp_res.main(newargs)
@@ -251,6 +253,7 @@ def run_range_synthesis(args):
         benchmark_file = None,
         work = args.work,
         respath = None,
+        metrics = None,
         config = args.config,
       )
       exp_res.main(newargs)
@@ -312,7 +315,8 @@ def export_all_results(args):
       use_benchmark = args.use_benchmark,
       benchmark_file = args.benchmark_file,
       work = args.work,
-      respath = args.respath,
+      respath = args.respath,        
+      metrics = args.metrics,
       config = args.config,
     )
     exp_res.main(newargs)
