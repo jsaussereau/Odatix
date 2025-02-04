@@ -19,35 +19,51 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import sys
 import os
 import re
 
-def edit_config_file(arch, config_file): 
-  with open(config_file, 'r') as f:
+def edit_config_file(arch, config_file):
+  """Replace settings in tcl config file"""
+
+  # Read tcl settings file
+  with open(config_file, 'r', encoding='utf-8') as f:
     cf_content = f.read()
 
-    cf_content = re.sub("(set top_level_module.*)",   "set top_level_module   " + arch.top_level_module, cf_content)
-    cf_content = re.sub("(set top_level_file.*)",     "set top_level_file     " + arch.top_level_filename, cf_content)
-    
-    cf_content = re.sub("(set clock_signal.*)",       "set clock_signal       " + arch.clock_signal, cf_content)
-    cf_content = re.sub("(set reset_signal.*)",       "set reset_signal       " + arch.reset_signal, cf_content)
+  # Normalise path for Windows/Unix compatibility
+  tmp_path = os.path.realpath(arch.tmp_dir)
+  if sys.platform == "win32":
+    tmp_path = tmp_path.replace("\\", "/") 
+  
+  constraints_file = "$tmp_path" + "/" + arch.constraint_filename
 
-    cf_content = re.sub("(set local_rtl_path.*)",     "set local_rtl_path     " + arch.local_rtl_path, cf_content)
+  def safe_replace(value):
+    if value is None:
+      return ""
+    return value
 
-    cf_content = re.sub("(set tmp_path.*)",           "set tmp_path           " + os.path.realpath(arch.tmp_dir), cf_content)
+  # Replace rules definition
+  replacements = {
+    r"(set top_level_module\s+).*":   lambda m: f"{m.group(1)}{safe_replace(arch.top_level_module)}",
+    r"(set top_level_file\s+).*":     lambda m: f"{m.group(1)}{safe_replace(arch.top_level_filename)}",
+    r"(set clock_signal\s+).*":       lambda m: f"{m.group(1)}{safe_replace(arch.clock_signal)}",
+    r"(set reset_signal\s+).*":       lambda m: f"{m.group(1)}{safe_replace(arch.reset_signal)}",
+    r"(set local_rtl_path\s+).*":     lambda m: f"{m.group(1)}{safe_replace(arch.local_rtl_path)}",
+    r"(set tmp_path\s+).*":           lambda m: f"{m.group(1)}{safe_replace(tmp_path)}",
+    r"(set source_rtl_path\s+).*":    lambda m: f"{m.group(1)}{safe_replace(arch.rtl_path)}",
+    r"(set source_arch_path\s+).*":   lambda m: f"{m.group(1)}{safe_replace(arch.arch_path)}",
+    r"(set constraints_file\s+).*":   lambda m: f"{m.group(1)}{safe_replace(constraints_file)}",
+    r"(set target_frequency\s+).*":   lambda m: f"{m.group(1)}{arch.target_frequency}",
+    r"(set fmax_lower_bound\s+).*":   lambda m: f"{m.group(1)}{arch.fmax_lower_bound}",
+    r"(set fmax_upper_bound\s+).*":   lambda m: f"{m.group(1)}{arch.fmax_upper_bound}",
+    r"(set lib_name\s+).*":           lambda m: f"{m.group(1)}{safe_replace(arch.lib_name)}",
+    r"(set continue_on_error\s+).*":  lambda m: f"{m.group(1)}" + ("1" if arch.continue_on_error else "0"),
+  }
 
-    cf_content = re.sub("(set source_rtl_path.*)",    "set source_rtl_path    " + arch.rtl_path, cf_content)
-    cf_content = re.sub("(set source_arch_path.*)",   "set source_arch_path   " + arch.arch_path, cf_content)
-    
-    cf_content = re.sub("(set constraints_file.*)",   "set constraints_file   $tmp_path/" + arch.constraint_filename, cf_content)
+  # Replace
+  for pattern, replacement in replacements.items():
+    cf_content = re.sub(pattern, replacement, cf_content, flags=re.MULTILINE)
 
-    cf_content = re.sub("(set target_frequency.*)",   "set target_frequency   " + str(arch.target_frequency), cf_content)
-    cf_content = re.sub("(set fmax_lower_bound.*)",   "set fmax_lower_bound   " + arch.fmax_lower_bound, cf_content)
-    cf_content = re.sub("(set fmax_upper_bound.*)",   "set fmax_upper_bound   " + arch.fmax_upper_bound, cf_content)
-    
-    cf_content = re.sub("(set lib_name.*)",           "set lib_name           " + arch.lib_name, cf_content)
-    
-    cf_content = re.sub("(set continue_on_error.*)",  "set continue_on_error  " + ("1" if arch.continue_on_error else "0"), cf_content)
- 
-  with open(config_file, 'w') as f:
+  # Write tcl settings file
+  with open(config_file, 'w', encoding='utf-8') as f:
     f.write(cf_content)
