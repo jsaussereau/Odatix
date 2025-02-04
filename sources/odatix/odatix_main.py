@@ -36,7 +36,6 @@ import odatix.components.run_range_synthesis as run_range
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
 import odatix.components.clean as cln
-import odatix.odatix_explorer as explorer
 
 import odatix.lib.settings as settings
 from odatix.lib.settings import OdatixSettings
