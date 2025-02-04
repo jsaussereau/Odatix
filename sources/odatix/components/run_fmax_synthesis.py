@@ -332,10 +332,10 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
         # print()
 
       # Create target and architecture files
-      f = open(arch_instance.tmp_dir + "/" + target_filename, "w")
+      f = open(os.path.join(arch_instance.tmp_dir, target_filename), "w")
       print(arch_instance.target, file=f)
       f.close()
-      f = open(arch_instance.tmp_dir + "/" + arch_filename, "w")
+      f = open(os.path.join(arch_instance.tmp_dir, arch_filename), "w")
       print(arch_instance.arch_name, file=f)
       f.close()
 
@@ -382,15 +382,15 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       # Link all scripts to config script
       for filename in os.listdir(arch_instance.tmp_script_path):
         if filename.endswith(".tcl"):
-          with open(arch_instance.tmp_script_path + "/" + filename, "r") as f:
+          with open(os.path.join(arch_instance.tmp_script_path, filename), "r") as f:
             tcl_content = f.read()
           pattern = re.escape(source_tcl) + r"(.+?\.tcl)"
 
           def replace_path(match):
-            return "source " + os.path.realpath(arch_instance.tmp_script_path) + "/" + match.group(1)
+            return "source " + os.path.join(os.path.realpath(arch_instance.tmp_script_path), match.group(1)).replace('\\','/')
 
           tcl_content = re.sub(pattern, replace_path, tcl_content)
-          with open(arch_instance.tmp_script_path + "/" + filename, "w") as f:
+          with open(os.path.join(arch_instance.tmp_script_path, filename), "w") as f:
             f.write(tcl_content)
 
       # Concat all strings if it is a list
