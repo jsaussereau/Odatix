@@ -19,17 +19,10 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-import re
+import os
+import odatix.lib.printc as printc
 
-odatix_path_pattern = re.compile(r"\$odatix_path")
-odatix_eda_tools_path_pattern = re.compile(r"\$eda_tools_path")
-work_path_pattern = re.compile(r"\$work_path")
-tool_install_path_pattern = re.compile(r"\$tool_install_path")
-script_path_pattern = re.compile(r"\$script_path")
-log_path_pattern = re.compile(r"\$log_path")
-clock_signal_pattern = re.compile(r"\$clock_signal")
-top_level_module_pattern = re.compile(r"\$top_level_module")
-lib_name_pattern = re.compile(r"\$lib_name")
+script_name = os.path.basename(__file__)
 
 class Variables:
   def __init__(
@@ -56,23 +49,27 @@ class Variables:
 
 def replace_variables(command, variables):
   if variables is not None:
-    if variables.odatix_path is not None:
-      command = re.sub(odatix_path_pattern, variables.odatix_path, command)
-    if variables.odatix_eda_tools_path is not None:
-      command = re.sub(odatix_eda_tools_path_pattern, variables.odatix_eda_tools_path, command)
-    if variables.work_path is not None:
-      command = re.sub(work_path_pattern, variables.work_path, command)
-    if variables.tool_install_path is not None:
-      command = re.sub(tool_install_path_pattern, variables.tool_install_path, command)
-    if variables.script_path is not None:
-      command = re.sub(script_path_pattern, variables.script_path, command)
-    if variables.log_path is not None:
-      command = re.sub(log_path_pattern, variables.log_path, command)
-    if variables.clock_signal is not None:
-      command = re.sub(clock_signal_pattern, variables.clock_signal, command)
-    if variables.top_level_module is not None:
-      command = re.sub(top_level_module_pattern, variables.top_level_module, command)
-    if variables.lib_name is not None:
-      command = re.sub(lib_name_pattern, variables.lib_name, command)
+    try:
+      command_out = command
+      replacements = {
+        "$odatix_path": variables.odatix_path,
+        "$eda_tools_path": variables.odatix_eda_tools_path,
+        "$work_path": variables.work_path,
+        "$tool_install_path": variables.tool_install_path,
+        "$script_path": variables.script_path,
+        "$log_path": variables.log_path,
+        "$clock_signal": variables.clock_signal,
+        "$top_level_module": variables.top_level_module,
+        "$lib_name": variables.lib_name
+      }
+      for key, value in replacements.items():
+        if value is not None:
+          command_out = command_out.replace(key, value)
 
-  return command
+    except Exception as e:
+      printc.error(f'Failed replacing variable "{key}" by {value}', script_name=script_name)
+      printc.cyan("error details: ", end="", script_name=script_name)
+      print(str(e))
+      return command
+
+  return command_out
