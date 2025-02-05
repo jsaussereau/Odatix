@@ -20,8 +20,10 @@
 #
 
 import sys
-import tty
-import termios
+
+if sys.platform != "win32":
+  import tty
+  import termios
 
 def set_raw_mode():
   """
@@ -31,11 +33,12 @@ def set_raw_mode():
   Returns:
     old_settings (list): The original terminal settings before switching to raw mode.
   """
-  fd = sys.stdin.fileno()
-  global old_settings
-  old_settings = termios.tcgetattr(fd)
-  tty.setraw(fd)
-  return old_settings
+  if sys.platform != "win32":
+    fd = sys.stdin.fileno()
+    global old_settings
+    old_settings = termios.tcgetattr(fd)
+    tty.setraw(fd)
+    return old_settings
 
 def restore_mode(old_settings):
   """
@@ -44,8 +47,9 @@ def restore_mode(old_settings):
   Args:
     old_settings (list): The terminal settings to restore.
   """
-  fd = sys.stdin.fileno()
-  termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+  if sys.platform != "win32":
+    fd = sys.stdin.fileno()
+    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 class RawModeOutputWrapper:
   """
