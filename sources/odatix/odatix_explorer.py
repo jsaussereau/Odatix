@@ -23,11 +23,16 @@ import os
 import sys
 import webbrowser
 from threading import Thread
-import select
 import socket
 import logging 
 import argparse
 from waitress import serve
+
+if sys.platform == "win32":
+  import msvcrt
+else:
+  import select
+
 
 import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
@@ -141,10 +146,16 @@ def start_result_explorer(input, network=False, normal_term_mode=False, safe_mod
   try:
     while True:
       # Check if a key is pressed
-      if sys.stdin in select.select([sys.stdin], [], [], 0.5)[0]:
-        key = sys.stdin.read(1).lower()
-        if key == 'q':
-          close_server(old_settings)
+      if sys.platform == "win32":
+        if msvcrt.kbhit():
+          key = msvcrt.getch().decode("utf-8").lower()
+          if key == 'q':
+            close_server(old_settings)
+      else:
+        if sys.stdin in select.select([sys.stdin], [], [], 0.5)[0]:
+          key = sys.stdin.read(1).lower()
+          if key == 'q':
+            close_server(old_settings)
   finally:
     if old_settings is not None:
       term_mode.restore_mode(old_settings)
