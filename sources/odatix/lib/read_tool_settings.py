@@ -29,71 +29,71 @@ import odatix.lib.printc as printc
 script_name = os.path.basename(__file__)
 
 def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis'):
+  """
+  Reads the settings for a given EDA tool from a YAML configuration file.
+
+  Args:
+    tool (str): The name of the EDA tool.
+    tool_settings_file (str): The path to the YAML configuration file.
+    synth_type (str, optional): The type of synthesis to be used. 
+                                Can be either 'fmax_synthesis' or 'custom_freq_synthesis'. 
+                                Defaults to 'fmax_synthesis'.
+
+  Returns:
+    tuple: A tuple containing:
+      - process_group (bool): Whether the process grouping is enabled.
+      - default_metrics_file (str): Path to the default metrics file.
+      - synthesis_command (list): The command for the selected synthesis type.
+      - tool_test_command (list): The command to check if the tool is installed.
+
+  Raises:
+    SystemExit: If the settings file does not exist, is invalid, or if the requested tool 
+                or synthesis type is not supported.
+  """
   if not os.path.isfile(tool_settings_file):
     printc.error(
-      'Settings file "' + tool_settings_file + '", for the selected eda tool "' + tool + '" does not exist', script_name
+      f'Settings file "{tool_settings_file}", for the selected EDA tool "{tool}" does not exist', script_name
     )
     sys.exit(-1)
+
+  # Load YAML settings file
   with open(tool_settings_file, "r") as f:
     try:
       settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     except Exception as e:
-      printc.error('Settings file "' + tool_settings_file + '", for the selected eda tool "' + tool + '" is not a valid YAML file', script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
+      printc.error(f'Settings file "{tool_settings_file}", for the selected EDA tool "{tool}" is not a valid YAML file', script_name)
+      printc.cyan("Error details: ", end="", script_name=script_name)
       print(str(e))
       sys.exit(-1)
 
-    # Mandatory keys
-    process_group, _ = get_from_dict("process_group", settings_data, tool_settings_file, default_value=True, script_name=script_name)
-    report_path, _ = get_from_dict("report_path", settings_data, tool_settings_file, default_value="report", silent=True, script_name=script_name)
-    
-    tool_test_command, _ = get_from_dict("tool_test_command", settings_data, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
+  # Retrieve global settings
+  process_group, _ = get_from_dict("process_group", settings_data, tool_settings_file, default_value=True, script_name=script_name)
+  report_path, _ = get_from_dict("report_path", settings_data, tool_settings_file, default_value="report", silent=True, script_name=script_name)
+  default_metrics_file, _ = get_from_dict("default_metrics_file", settings_data, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
 
-    default_metrics_file, _ = get_from_dict("default_metrics_file", settings_data, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
+  # Determine the current platform (Unix or Windows)
+  platform_key = "windows" if sys.platform == 'win32' else "unix"
 
-    fmax_synthesis_command_windows, fmax_synthesis_supported_windows = get_from_dict("fmax_synthesis_command_windows", settings_data, tool_settings_file, silent=True, script_name=script_name)
-    fmax_synthesis_command_unix, fmax_synthesis_supported_unix = get_from_dict("fmax_synthesis_command_unix", settings_data, tool_settings_file, silent=True, script_name=script_name)
-   
-    custom_freq_synthesis_command_unix, custom_freq_synthesis_supported_unix = get_from_dict("custom_freq_synthesis_command_unix", settings_data, tool_settings_file, silent=True, script_name=script_name)
-    custom_freq_synthesis_command_windows, custom_freq_synthesis_supported_windows = get_from_dict("custom_freq_synthesis_command_windows", settings_data, tool_settings_file, silent=True, script_name=script_name)
+  # Ensure the corresponding section exists in the configuration file
+  if platform_key not in settings_data:
+    printc.error(f'The selected EDA tool "{tool}" does not support {platform_key}', script_name)
+    sys.exit(-1)
 
-    unix_supported = fmax_synthesis_supported_unix and custom_freq_synthesis_supported_unix
-    windows_supported = fmax_synthesis_supported_windows and custom_freq_synthesis_supported_windows
+  platform_settings = settings_data[platform_key]
 
-    fmax_synthesis_supported = fmax_synthesis_supported_unix and fmax_synthesis_supported_windows
-    custom_freq_synthesis_supported = custom_freq_synthesis_supported_unix and custom_freq_synthesis_supported_windows
+  # Retrieve tool test command
+  tool_test_command, tool_test_supported = get_from_dict("tool_test_command", platform_settings, tool_settings_file, silent=True, script_name=script_name)
 
-    if synth_type == 'fmax_synthesis':
-      if not fmax_synthesis_supported:
-          printc.error('Fmax synthesis is not supported with the selected eda tool "' + tool + '"')
-          sys.exit(-1)
-      if sys.platform == 'win32':
-        if fmax_supported_windows:
-          command = fmax_synthesis_command_windows
-        else:
-          printc.error('Fmax synthesis is not supported with the selected eda tool "' + tool + '" on Windows')
-          sys.exit(-1)
-      else:
-        if fmax_synthesis_supported_unix:
-          command = fmax_synthesis_command_unix
-        else:
-          printc.error('Fmax synthesis is not supported with the selected eda tool "' + tool + '" on Unix')
-          sys.exit(-1)
-    elif synth_type == 'custom_freq_synthesis':
-      if not fmax_synthesis_supported:
-          printc.error('Custom freq synthesis is not supported with the selected eda tool "' + tool + '"')
-          sys.exit(-1)
-      if sys.platform == 'win32':
-        if fmax_supported_windows:
-          command = fmax_synthesis_command_windows
-        else:
-          printc.error('Custom freq synthesis is not supported with the selected eda tool "' + tool + '" on Windows')
-          sys.exit(-1)
-      else:
-        if fmax_synthesis_supported_unix:
-          command = fmax_synthesis_command_unix
-        else:
-          printc.error('Custom freq synthesis is not supported with the selected eda tool "' + tool + '" on Unix')
-          sys.exit(-1)
+  if not tool_test_supported:
+    printc.error(f'The selected EDA tool "{tool}" is not supported on {platform_key} (tool_test_command is missing)', script_name)
+    sys.exit(-1)
 
-    return process_group, report_path, command, tool_test_command, default_metrics_file
+  # Retrieve synthesis command based on the requested type
+  synthesis_key = "fmax_synthesis_command" if synth_type == 'fmax_synthesis' else "custom_freq_synthesis_command"
+  synthesis_command, synthesis_supported = get_from_dict(synthesis_key, platform_settings, tool_settings_file, silent=True, script_name=script_name)
+
+  if not synthesis_supported:
+    printc.error(f'{synth_type.replace("_", " ").capitalize()} is not supported with the selected EDA tool "{tool}" on {platform_key}', script_name)
+    sys.exit(-1)
+
+  return process_group, report_path, synthesis_command, tool_test_command, default_metrics_file
