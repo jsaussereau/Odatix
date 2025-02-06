@@ -293,6 +293,9 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       # Create directory
       create_dir(arch_instance.tmp_dir)
 
+      # Create log dir
+      create_dir(arch_instance.tmp_log_path)
+      
       # Copy scripts
       try:
         copytree(script_path + "/" + common_script_path, arch_instance.tmp_script_path)
