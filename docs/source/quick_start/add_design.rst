@@ -33,19 +33,19 @@ Step 3: Architecture settings file
       ---
       rtl_path: "examples/alu_sv"
 
-      top_level_file: "alu_top.sv"
+      top_level_file: "alu_top.sv" # The top level path relative to rtl_path
       top_level_module: "alu_top"
 
       clock_signal: "i_clk"
       reset_signal: "i_rst"
 
       # copy a file into synthesis directory?
-      file_copy_enable: "false"
+      file_copy_enable: No
       file_copy_source: "/dev/null"
       file_copy_dest: "/dev/null"
 
       # delimiters for parameter files
-      use_parameters: "true"
+      use_parameters: Yes
       start_delimiter: "#("
       stop_delimiter: ")("
 
@@ -59,7 +59,7 @@ Step 3: Architecture settings file
             list: [50, 100]
       xc7a100t-csg324-1:
          fmax_synthesis:
-            lower_bound: 150
+            lower_bound: 50
             upper_bound: 800
          custom_freq_synthesis:
             # range definition
@@ -75,26 +75,28 @@ Step 3: Architecture settings file
       :linenos:
 
       ---
-      # generate the rtl (from chisel for example)
-      generate_rtl: "true"
-      generate_command: "sbt 'runMain ALUTop --o=rtl'" # command for rtl generation
-
       design_path: "examples/alu_chisel"
-      rtl_path: "examples/alu_chisel/rtl"
+      design_path_whitelist: [] # path/pattern of what should be copied from design_path
+      design_path_blacklist: [] # path/pattern of what should NOT be copied from design_path
+
+      # generate the rtl (from chisel for example)
+      generate_rtl: Yes
+      generate_command: "sbt 'runMain ALUTop --o=rtl'" # command for rtl generation
+      generate_output: "rtl" # path of the generated rtl
 
       # generated design settings
-      top_level_file: "ALUTop.sv"
+      top_level_file: "ALUTop.sv" # The top level path relative to generate_output
       top_level_module: "ALUTop"
       clock_signal: "clock"
       reset_signal: "reset"
 
       # copy a file into synthesis directory?
-      file_copy_enable: "false"
+      file_copy_enable: No
       file_copy_source: "/dev/null"
       file_copy_dest: "/dev/null"
 
       # delimiters for parameter files
-      use_parameters: "true"
+      use_parameters: Yes
       param_target_file: "src/main/scala/ALUTop.scala"
       start_delimiter: "new ALUTop("
       stop_delimiter: ")"
@@ -109,7 +111,7 @@ Step 3: Architecture settings file
             list: [50, 100]
       xc7a100t-csg324-1:
          fmax_synthesis:
-            lower_bound: 150
+            lower_bound: 50
             upper_bound: 800
          custom_freq_synthesis:
             # range definition
