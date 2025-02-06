@@ -434,6 +434,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
         status_file=fmax_status_file,
         progress_file=synth_status_file,
         tmp_dir=arch_instance.tmp_dir,
+        log_size_limit=log_size_limit,
         progress_mode="fmax",
         status="idle",
       )
