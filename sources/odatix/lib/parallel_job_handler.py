@@ -552,7 +552,8 @@ class ParallelJobHandler:
       ("q"          , "Quit"),
       ("PageUp    n", "Select next Job"),
       ("PageDown  p", "Select previous Job"),
-      ("Up/Down"    , "Scroll Log"),
+      ("Up        u", "Scroll Log"),
+      ("Down      d", "Scroll Log"),
       ("Home/End"   , "Scroll to Top/Bottom"),
       ("+/-"        , "Change Progress Window Size"),
       ("k"          , "Kill selected job"),
@@ -717,7 +718,7 @@ class ParallelJobHandler:
     help_height = 1
     logs_height = height - progress_height - 2*separator_height - help_height - header_height
     popup_width = min(50, width - 4)
-    popup_height = min(17, height - 4)
+    popup_height = min(19, height - 4)
     popup_height = max(popup_height, 3)
     start_x = (width - popup_width) // 2
     start_y = (height - popup_height) // 2
@@ -999,11 +1000,11 @@ class ParallelJobHandler:
           self.update_logs(logs_win, selected_job, logs_height, width)
 
         # Scroll Up Logs
-        elif key == curses.KEY_UP:
+        elif key == curses.KEY_UP or key == ord("u") or key == ord("U"):
           scroll_up_logs(selected_job)
 
         # Scroll Down
-        elif key == curses.KEY_DOWN:
+        elif key == curses.KEY_DOWN or key == ord("d") or key == ord("D"):
           scroll_down_logs(selected_job)
 
         # Logs Home
