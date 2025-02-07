@@ -37,10 +37,8 @@ from odatix.lib.variables import replace_variables, Variables
 
 script_name = os.path.basename(__file__)
 
-odatix_path_pattern = re.compile(r"\$odatix")
-
 class Architecture:
-  def __init__(self, arch_name, arch_display_name, lib_name, target, local_rtl_path, tmp_script_path, tmp_report_path, tmp_dir, 
+  def __init__(self, arch_name, arch_display_name, lib_name, target, local_rtl_path, tmp_script_path, tmp_report_path, tmp_log_path, tmp_dir, 
                design_path, design_path_whitelist, design_path_blacklist, rtl_path, log_path, arch_path,
                clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
                file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
@@ -53,6 +51,7 @@ class Architecture:
     self.local_rtl_path = local_rtl_path
     self.tmp_script_path = tmp_script_path
     self.tmp_report_path = tmp_report_path
+    self.tmp_log_path = tmp_log_path
     self.tmp_dir = tmp_dir
     self.design_path = design_path
     self.design_path_whitelist = design_path_whitelist
