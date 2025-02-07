@@ -29,9 +29,11 @@ import copy
 from os.path import isfile
 from os.path import isdir
 
+from odatix.lib.settings import OdatixSettings
 from odatix.lib.utils import *
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.printc as printc
+from odatix.lib.variables import replace_variables, Variables
 
 script_name = os.path.basename(__file__)
 
@@ -247,6 +249,13 @@ class ArchitectureHandler:
     self.architecture_instances = []
 
     only_one_target = len(targets) == 1
+
+    # Define user accessible variables
+    variables = Variables(
+      tool_install_path=os.path.realpath(install_path),
+      odatix_path=OdatixSettings.odatix_path,
+      odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+    )
       
     with open(self.eda_target_filename, 'r') as f:
       try:
@@ -261,7 +270,8 @@ class ArchitectureHandler:
         script_copy_enable = read_from_list('script_copy_enable', settings_data, self.eda_target_filename, type=bool, optional=True, script_name=script_name)
         if script_copy_enable:
           script_copy_source = read_from_list('script_copy_source', settings_data, self.eda_target_filename, optional=True, script_name=script_name)        
-          script_copy_source = os.path.realpath(re.sub(odatix_path_pattern, self.odatix_path, script_copy_source))
+          script_copy_source = replace_variables(script_copy_source, variables) # Replace variables in command
+
           if not os.path.isfile(script_copy_source):
             printc.note("The script source file \"" + script_copy_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
             raise BadValueInListError
@@ -289,7 +299,7 @@ class ArchitectureHandler:
               script_copy_enable = read_from_list('script_copy_enable', this_target_settings, self.eda_target_filename, type=bool, optional=True, parent="target_settings/" + target, script_name=script_name)
               if script_copy_enable:
                 script_copy_source = read_from_list('script_copy_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)        
-                script_copy_source = os.path.realpath(re.sub(odatix_path_pattern, self.odatix_path, script_copy_source))
+                script_copy_source = replace_variables(script_copy_source, variables) # Replace variables in command
 
                 if not os.path.isfile(script_copy_source):
                   printc.note("The script source file \"" + script_copy_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
@@ -741,9 +751,18 @@ class ArchitectureHandler:
         pass
       except BadValueInListError:
         printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + "target_settings/" + target + "\"," + " in \"" + self.eda_target_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
+    
+    # Define user accessible variables
+    variables = Variables(
+      tool_install_path=os.path.realpath(install_path),
+      odatix_path=OdatixSettings.odatix_path,
+      odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+    )
+
+    # Replace variables in command
+    file_copy_source = replace_variables(file_copy_source, variables)
 
     # check file copy
-    file_copy_source = os.path.realpath(re.sub(odatix_path_pattern, self.odatix_path, file_copy_source))
     if file_copy_enable:
       if not isfile(file_copy_source):
         printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
