@@ -2,17 +2,80 @@
 # Settings for Vivado
 ##############################################
 
+# Group processes (unix only)
 process_group: True
 
-fmax_synthesis_metrics:
-  Fmax:
-    type: regex
-    settings:
-      file: log/frequency_search.log
-      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
-      group_id: 2
-    format: "%.0f"
-    unit: MHz
+# Default metrics file for this tool
+default_metrics_file: "$eda_tools_path/vivado/metrics.yml"
+
+unix:
+  # Optional constants (anchors) that can be used in the file
+  constants:
+    - &vivado_init_unix export LC_ALL=C; unset LANGUAGE; # Prevent known vivado bugs
+    - &vivado_unix vivado
+    - &vivado_opt_unix -mode tcl -notrace
+    - &source_init_script_unix -source $script_path/init_script.tcl
+    - &source_analyze_script_unix -source $script_path/analyze_script.tcl
+    - &source_synth_script_unix -source $script_path/synth_script.tcl
+    - &source_synth_freq_script_unix -source $script_path/find_fmax.tcl
+    - &source_exit_script_unix -source $script_path/exit.tcl
+    
+  # Command to check if the tool is installed
+  tool_test_command: 
+    - *vivado_unix
+    - -version
+    
+  # Command for fmax synthesis
+  fmax_synthesis_command: 
+    - *vivado_init_unix
+    - *vivado_unix
+    - *vivado_opt_unix
+    - *source_init_script_unix
+    - *source_analyze_script_unix
+    - *source_synth_freq_script_unix
+    - *source_exit_script_unix
+
+  # Command for custom frequency synthesis
+  custom_freq_synthesis_command: 
+    - *vivado_init_unix
+    - *vivado_unix
+    - *vivado_opt_unix
+    - *source_init_script_unix
+    - *source_analyze_script_unix
+    - *source_synth_script_unix
+    - *source_exit_script_unix
+
+windows:
+  constants:
+    - &vivado_windows vivado.bat
+    - &vivado_opt_windows -mode tcl -notrace
+    - &source_init_script_windows -source $script_path\init_script.tcl
+    - &source_analyze_script_windows -source $script_path\analyze_script.tcl
+    - &source_synth_script_windows -source $script_path\synth_script.tcl
+    - &source_synth_freq_script_windows -source $script_path\find_fmax.tcl
+    - &source_exit_script_windows -source $script_path\exit.tcl
+
+  tool_test_command: 
+    - *vivado_windows
+    - -mode tcl -source 
+    - $eda_tools_path\_common\exit.tcl
+
+  fmax_synthesis_command:
+    - *vivado_windows
+    - *vivado_opt_windows
+    - *source_init_script_windows
+    - *source_analyze_script_windows
+    - *source_synth_freq_script_windows
+    - *source_exit_script_windows
+
+  custom_freq_synthesis_command: 
+    - *vivado_windows
+    - *vivado_opt_windows
+    - *source_init_script_windows
+    - *source_analyze_script_windows
+    - *source_synth_script_windows
+    - *source_exit_script_windows
+
 
 custom_freq_synthesis_metrics:
   Frequency:
