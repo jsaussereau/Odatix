@@ -113,6 +113,8 @@ def add_arguments(parser):
   parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
   parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
   parser.add_argument("-f", "--force", action="store_true", help="force fmax synthesis to continue on synthesis error")
+  parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
+  parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
   parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument(
     "-c",
@@ -133,7 +135,7 @@ def parse_arguments():
 ######################################
 
 
-def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, continue_on_error):
+def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, continue_on_error, check_eda_tool, debug=False):
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
@@ -240,9 +242,10 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
   tool_test_command = replace_variables(tool_test_command, variables)
 
   # Try launching eda tool
-  check_tool(
-    tool, command=tool_test_command, supported_tools=default_supported_tools, tool_install_path=install_path
-  )
+  if check_eda_tool:
+    check_tool(
+      tool, command=tool_test_command, supported_tools=default_supported_tools, tool_install_path=install_path, debug=debug
+    )
 
   ParallelJob.set_patterns(synth_status_pattern, fmax_status_pattern)
 
@@ -505,8 +508,10 @@ def main(args, settings=None):
   log_size_limit = args.logsize
   nb_jobs = args.jobs
   continue_on_error = args.force
+  check_eda_tool = not args.trust
+  debug = args.debug
 
-  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, continue_on_error)
+  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, continue_on_error, check_eda_tool, debug)
 
 
 if __name__ == "__main__":
