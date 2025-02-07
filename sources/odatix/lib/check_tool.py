@@ -29,18 +29,24 @@ from odatix.lib.utils import *
 
 script_name = os.path.basename(__file__)
 
-
-def check_tool(tool, command, supported_tools, tool_install_path):
-  print('checking the selected eda tool "' + tool + '" ..', end="")
+def check_tool(tool, command, supported_tools, tool_install_path, debug=False):
+  if debug:
+    print('checking the selected eda tool "' + tool + '":')
+    printc.bold(' > ' + command)
+    if not debug:
+      print('..', end="")
+  else:
+    print('checking the selected eda tool "' + tool + '" ..', end="")
   sys.stdout.flush()
   test_process = subprocess.Popen(
     command,
-    stdout=subprocess.DEVNULL,
-    stderr=subprocess.PIPE,
+    stdout=None if debug else subprocess.DEVNULL,
+    stderr=None,
     shell=True,
   )
   while test_process.poll() is None:
-    print(".", end="", flush=True)
+    if not debug:
+      print(".", end="", flush=True)
     time.sleep(0.5)
   if test_process.returncode == 0:
     printc.green(" success!")
