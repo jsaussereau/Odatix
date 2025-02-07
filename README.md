@@ -39,7 +39,7 @@ Odatix also enables parallel simulations of different configurations of the same
 
 ### Simulation
 
-Virtually any simulator! Check out the section [Add your own simulation](https://odatix.readthedocs.io/en/latest/userguide/add_simulation.html) for more information.
+Virtually any simulator! Check out the section [Add your own simulation](https://odatix.readthedocs.io/en/latest/quick_start/add_simulation.html) for more information.
 
 Odatix includes examples for Verilator and GHDL.
 
@@ -47,8 +47,8 @@ Odatix includes examples for Verilator and GHDL.
 
 - [Installation](https://odatix.readthedocs.io/en/latest/userguide/installation.html)
 - [Quick start](https://odatix.readthedocs.io/en/latest/userguide/quick_start.html)
-- [Add your own design](https://odatix.readthedocs.io/en/latest/userguide/add_design.html)
-- [Add your own simulation](https://odatix.readthedocs.io/en/latest/userguide/add_simulation.html)
+- [Add your own design](https://odatix.readthedocs.io/en/latest/quick_start/add_design.html)
+- [Add your own simulation](https://odatix.readthedocs.io/en/latest/quick_start/add_simulation.html)
 - [Useful commands](https://odatix.readthedocs.io/en/latest/documentation/commands.html)
 - [Settings documentation](https://odatix.readthedocs.io/en/latest/documentation/settings.html)
 
