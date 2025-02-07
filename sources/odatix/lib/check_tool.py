@@ -46,7 +46,8 @@ def check_tool(tool, command, supported_tools, tool_install_path):
     printc.green(" success!")
   else:
     printc.red(" failed!")
-    error_message = test_process.stderr.read().decode()
+    error_message = test_process.stderr.read()
+    error_message = error_message.decode("utf-8", errors="replace")
     printc.error('Could not launch eda tool "' + tool + '"', script_name)
     printc.cyan("error details: ", script_name, end="")
     printc.red(error_message, end="")
