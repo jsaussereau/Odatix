@@ -23,11 +23,22 @@ import os
 import sys
 import re
 import queue
-import fcntl
-import curses
 import select
 import signal
 import subprocess
+import curses
+import locale
+import io
+
+if sys.platform == "win32":
+  import msvcrt
+  import time
+  import ctypes
+  import threading
+  STD_BUF = ""
+else:
+  import fcntl
+  STD_BUF = ""
 
 from odatix.components.motd import read_version
 
@@ -35,11 +46,19 @@ from odatix.lib.ansi_to_curses import AnsiToCursesConverter
 from odatix.lib.utils import open_path_in_explorer
 import odatix.lib.printc as printc
 
+ENCODING = locale.getpreferredencoding()
+
+if sys.platform == "win32":
+  ENCODING = "utf-8"
+  old_stdout = sys.stdout
+  old_stderr = sys.stderr
+  sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding=ENCODING, errors="replace")
+  sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding=ENCODING, errors="replace")
+
 ######################################
 # Settings
 ######################################
 
-STD_BUF = "stdbuf -oL "
 script_name = os.path.basename(__file__)
 error = None
 
@@ -168,6 +187,23 @@ class Theme:
     current_index = Theme.themes.index(self.theme)
     next_index = (current_index + 1) % len(Theme.themes)
     self.theme = Theme.themes[next_index]
+    
+######################################
+# OS specific functions
+######################################
+
+def read_pipe_windows(pipe, job):
+  while True:
+    try:
+      data = pipe.readline()
+      if not data:
+        break
+      job.log_history.append(data)
+      if job.log_size_limit != -1 and len(job.log_history) > job.log_size_limit:
+        job.log_history = job.log_history[-job.log_size_limit:]
+      job.log_changed = True
+    except OSError:
+      break
 
 ######################################
 # ParallelJob
@@ -190,6 +226,7 @@ class ParallelJob:
     status_file,
     progress_file,
     tmp_dir,
+    log_size_limit,
     progress_mode="default",
     status="not started",
   ):
@@ -204,6 +241,7 @@ class ParallelJob:
     self.status_file = status_file
     self.progress_file = progress_file
     self.tmp_dir = tmp_dir
+    self.log_size_limit = log_size_limit
     self.progress_mode = progress_mode
     self.status = status
 
@@ -306,11 +344,12 @@ class ParallelJobHandler:
 
   @staticmethod
   def set_nonblocking(fd):
-    try:
-      fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-      fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-    except TypeError:
-      pass
+    if sys.platform != "win32":
+      try:
+        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+      except TypeError:
+        pass
 
   def progress_bar(self, window, id, progress, bar_width, title, title_size, width, status="", selected=False):
     bar_width = bar_width - title_size
@@ -610,10 +649,13 @@ class ParallelJobHandler:
       process = subprocess.Popen(
         job.generate_command,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.PIPE if sys.platform != "win32" else subprocess.STDOUT,
         cwd=job.tmp_dir,
         shell=True,
-        universal_newlines=True
+        universal_newlines=True,
+        bufsize=1,
+        encoding="utf-8",
+        errors='replace',
       )
 
       self.set_nonblocking(process.stdout)
@@ -644,6 +686,10 @@ class ParallelJobHandler:
     job.log_history.append(printc.colors.CYAN + "Run job command" + printc.colors.ENDC)
     job.log_history.append(printc.colors.BOLD + " > " + job.command + printc.colors.ENDC)
 
+    preexec_fn = None
+    if sys.platform != "win32" and self.process_group:
+      preexec_fn = os.setpgrp
+
     process = subprocess.Popen(
       STD_BUF + job.command,
       stdout=subprocess.PIPE,
@@ -652,14 +698,20 @@ class ParallelJobHandler:
       shell=True,
       universal_newlines=True,
       bufsize=1,
-      preexec_fn=os.setpgrp if self.process_group else None, 
+      preexec_fn=preexec_fn, 
+      encoding="utf-8",
+      errors='replace',
     )
-
-    self.set_nonblocking(process.stdout)
-    self.set_nonblocking(process.stderr)
 
     job.process = process
     job.status = "running"
+    
+    if sys.platform == "win32":
+      threading.Thread(target=read_pipe_windows, args=(process.stdout, job), daemon=True).start()
+      threading.Thread(target=read_pipe_windows, args=(process.stderr, job), daemon=True).start()
+    else:
+      self.set_nonblocking(process.stdout)
+      self.set_nonblocking(process.stderr)
 
   def queue_job(self, job):
     job.status = "queued"
@@ -674,7 +726,10 @@ class ParallelJobHandler:
     for job in self.running_job_list:
       if job.process:
         try:  # Try to terminate the process group
-          os.killpg(os.getpgid(job.process.pid), signal.SIGTERM)
+          if sys.platform == "win32":
+            job.process.send_signal(signal.CTRL_BREAK_EVENT)
+          else:
+            os.killpg(os.getpgid(job.process.pid), signal.SIGTERM)
         except ProcessLookupError:
           pass  # Process already terminated
 
@@ -682,6 +737,33 @@ class ParallelJobHandler:
     for job in self.running_job_list:
       if job.process:
         job.process.wait()
+
+  def read_process_output(self):
+    if sys.platform == "win32":
+      return
+    
+    pipes = [job.process.stdout for job in self.running_job_list] + [
+      job.process.stderr for job in self.running_job_list
+    ]
+    
+    try:
+      read_ready, _, _ = select.select(pipes, [], [], 0.1)
+    except:
+      read_ready = []
+    
+    for pipe in read_ready:
+      for job in self.running_job_list:
+        job.log_changed = False
+        if pipe in (job.process.stdout, job.process.stderr):
+          while True:
+            line = pipe.readline()
+            if line:
+              job.log_history.append(line)
+              if self.log_size_limit != -1 and len(job.log_history) > self.log_size_limit:
+                job.log_history = job.log_history[-self.log_size_limit:]
+              job.log_changed = True
+            else:
+              break
 
   def curses_main(self, stdscr):
     curses.curs_set(0)  # Hide cursor
@@ -767,7 +849,7 @@ class ParallelJobHandler:
       # If window size changes, adjust the layout
       if height != old_height or width != old_width or resize:
         popup_width = min(50, width - 4)
-        popup_height = min(17, height - 4)
+        popup_height = min(19, height - 4)
         popup_height = max(popup_height, 3)
         start_x = (width - popup_width) // 2
         start_y = (height - popup_height) // 2
@@ -848,29 +930,7 @@ class ParallelJobHandler:
         self.update_help_popup(popup_win, width, height, popup_width, popup_height)
 
       # Collect all stdout and stderr pipes
-      pipes = [job.process.stdout for job in self.running_job_list] + [
-        job.process.stderr for job in self.running_job_list
-      ]
-
-      try:
-        read_ready, _, _ = select.select(pipes, [], [], 0.1)
-      except:
-        read_ready = []
-
-      for pipe in read_ready:
-        for job in self.running_job_list:
-          job.log_changed = False
-          if pipe in (job.process.stdout, job.process.stderr):
-            while True:
-              line = pipe.readline()
-              if line:
-                job.log_history.append(line)
-                # Apply log size limit
-                if self.log_size_limit != -1 and len(job.log_history) > self.log_size_limit:
-                  job.log_history = job.log_history[-self.log_size_limit :]
-                job.log_changed = True
-              else:
-                break
+      self.read_process_output()
 
       # Automatically scroll if at the bottom
       if selected_job.autoscroll and selected_job.log_changed:
@@ -1042,7 +1102,10 @@ class ParallelJobHandler:
         elif key == ord('k') or key == ord('K'):
           if selected_job.status == "running":  # Kill the running job
             try:
-              os.killpg(os.getpgid(selected_job.process.pid), signal.SIGTERM)
+              if sys.platform == "win32":
+                job.process.send_signal(signal.CTRL_BREAK_EVENT)
+              else:
+                os.killpg(os.getpgid(selected_job.process.pid), signal.SIGTERM)
               selected_job.status = "killed"
               self.retire_job(selected_job, selected_job.progress)
               selected_job.log_history.append(printc.colors.RED + "Job killed by user" + printc.colors.ENDC)
