@@ -42,7 +42,7 @@ script_name = os.path.basename(__file__)
 error_logfile = "odatix-explorer_error.log"
 
 class ResultExplorer:
-  def __init__(self, result_path="results", yaml_prefix="results_", old_settings=None, safe_mode=False, theme=None):
+  def __init__(self, result_path="results", yaml_prefix="results_", old_settings=None, safe_mode=False, theme=themes.default_theme):
     self.result_path = result_path
     self.yaml_prefix = yaml_prefix
     self.old_settings = old_settings
@@ -95,9 +95,9 @@ class ResultExplorer:
       set(freq for df in self.dfs.values() for freq in df["Frequency"].unique() if isinstance(freq, (int, float)) or np.issubdtype(type(freq), np.number))
     )
 
-
     self.app = app = dash.Dash(__name__, use_pages=True)
     self.app.title = "Odatix"
+    # self.app.add_url_rule('/favicon.ico', redirect_to=url_for('static', filename='favicon.ico'))
 
     self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 
@@ -290,7 +290,8 @@ class ResultExplorer:
 
   def run(self):
     self.app.run(
-      host='0.0.0.0',
+      # host='0.0.0.0',
+      host='127.0.0.1',
       debug=True
     )
 
