@@ -110,7 +110,7 @@ def add_arguments(parser):
   parser.add_argument("-i", "--input", help="input settings file")
   parser.add_argument("-a", "--archpath", help="architecture directory")
   parser.add_argument("-w", "--work", help="work directory")
-  parser.add_argument("-E", "--exit", help="exit monitor when all jobs are done")
+  parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
   parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
   parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument(

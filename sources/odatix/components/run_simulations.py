@@ -78,7 +78,7 @@ def add_arguments(parser):
   parser.add_argument('-a', '--archpath', help='architecture directory')
   parser.add_argument('-s', '--simpath', help='simulation directory')
   parser.add_argument('-w', '--work', help='simulation work directory')
-  parser.add_argument("-E", "--exit", help="exit monitor when all jobs are done")
+  parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
   parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
   parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for Odatix (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
