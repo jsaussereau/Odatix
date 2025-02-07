@@ -194,7 +194,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
 
   # Get tool settings
   tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, tool_settings_filename))
-  process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file)
+  process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file,  synth_type='custom_freq_synthesis')
 
   with open(eda_target_filename, "r") as f:
     try:
