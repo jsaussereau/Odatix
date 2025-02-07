@@ -19,4 +19,19 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-exit 0
+if {[catch {
+
+  set signature "<grey>\[exit.tcl\]<end>"
+
+  exit
+
+} ]} {
+    puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
+    puts "$signature <cyan>note: if you did not edit the tcl script, this should not append, please report this with the information bellow<end>"
+    catch {
+      puts "$signature <cyan>tcl error detail:<red>"
+      puts "$errorInfo"
+    }
+    puts "<cyan>^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<end>"
+    exit -1
+}
