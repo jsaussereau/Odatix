@@ -29,18 +29,18 @@ if {[catch {
     # Create directories
     ######################################
 
-    exec /bin/sh -c "mkdir -p $tmp_path"
-    exec /bin/sh -c "mkdir -p $report_path"
-    exec /bin/sh -c "mkdir -p $result_path"
-    exec /bin/sh -c "mkdir -p $log_path"
+    file mkdir $tmp_path
+    file mkdir $report_path
+    file mkdir $result_path
+    file mkdir $log_path
 
     ######################################
     # Create status files
     ######################################
 
-    exec /bin/sh -c "touch $synth_statusfile"    
+    close [open $synth_statusfile w]
     if {$target_frequency != 0} {
-        exec /bin/sh -c "touch $statusfile"
+        close [open $statusfile w]
     }
 
     ######################################
@@ -48,11 +48,13 @@ if {[catch {
     ######################################
 
     source scripts/update_freq.tcl
-    exec /bin/sh -c "touch $constraints_file"    
+
+    file mkdir [file dirname $constraints_file]
+    close [open $constraints_file w]
     update_freq $target_frequency $constraints_file
 
     if {$target_frequency != 0} {
-        exec /bin/sh -c "touch $statusfile"
+        close [open $statusfile w]
         set frequency_file_handler [open $frequency_file w]
         puts $frequency_file_handler "$target_frequency MHz"
         close $frequency_file_handler

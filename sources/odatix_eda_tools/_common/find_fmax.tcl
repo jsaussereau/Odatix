@@ -77,11 +77,14 @@ if {[catch {
   }
 
   # create tmp folders
-  exec /bin/sh -c "mkdir -p $tmp_path/report_MET"
-  exec /bin/sh -c "mkdir -p $tmp_path/report_VIOLATED"		
+  # exec /bin/sh -c "mkdir -p $tmp_path/report_MET"
+  # exec /bin/sh -c "mkdir -p $tmp_path/report_VIOLATED"		
+  file mkdir $tmp_path/report_MET
+  file mkdir $tmp_path/report_VIOLATED
 
   # create logfile
-  exec /bin/sh -c "mkdir -p $log_path"
+  # exec /bin/sh -c "mkdir -p $log_path"
+  file mkdir $log_path
   set logfile_handler [open $logfile w]
   puts $logfile_handler "Binary search for interval \[$lower_bound:$upper_bound\] MHz"
   puts $logfile_handler ""
@@ -145,7 +148,9 @@ if {[catch {
         set logfile_handler [open $logfile a]
         puts $logfile_handler  "MET"
         close $logfile_handler
-        exec /bin/sh -c "cp -r $report_path/* $tmp_path/report_MET"
+        foreach file [glob -nocomplain -directory $report_path *] {
+          file copy -force $file "$tmp_path/report_MET/[file tail $file]"
+        }
       } else {
         set upper_bound $cur_freq
         puts ""
@@ -165,7 +170,9 @@ if {[catch {
           puts $logfile_handler  "VIOLATED"
           close $logfile_handler
         }
-        exec /bin/sh -c "cp -r $report_path/* $tmp_path/report_VIOLATED"
+        foreach file [glob -nocomplain -directory $report_path *] {
+          file copy -force $file "$tmp_path/report_VIOLATED/[file tail $file]"
+        }
       }
     } else {
       puts "<bold><cyan>Skipping current frequency $cur_freq due to errors in synthesis.<end>"
@@ -220,7 +227,9 @@ if {[catch {
 
   if {$got_met == 1 && $got_violated == 1} {
     #restore reports and results from the synthesis meeting timing requirements
-    exec /bin/sh -c "cp -r $tmp_path/report_MET/* $report_path"
+    foreach file [glob -nocomplain -directory $report_path/report_MET *] {
+      file copy -force $file "$tmp_path/report/[file tail $file]"
+    }
 
     update_freq $lower_bound $constraints_file
 

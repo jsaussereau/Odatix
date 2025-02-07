@@ -28,14 +28,32 @@ if {[catch {
     ######################################
     # Read source files
     ######################################
-    #set filenames [split [exec find $rtl_path/ -type f ( -name *.sv -o -name *.v )] \n]
-    #set filenames [split [exec find $rtl_path/core $rtl_path/soc -type f -name *.sv ! -name soc_config.sv ] \n]
+
+    set rtl_path [file normalize $rtl_path]
+
+    set files [glob -nocomplain -directory $rtl_path -types f {*}.v {*}.sv]
+        puts "$signature DEBUG: Found files in rtl_path:"
+        foreach f $files {
+        puts "  - $f"
+    }
 
     set verilog_error 0
     set sverilog_error 0
 
     # read verilog source files
-    set verilog_filenames [split [exec find $rtl_path -type f ( -name *.v -o -name *.sv )] \n]
+    set verilog_filenames [glob -nocomplain -directory $rtl_path -types f *.v]
+    set sverilog_filenames [glob -nocomplain -directory $rtl_path -types f *.sv]
+    set verilog_filenames [concat $verilog_filenames $sverilog_filenames]
+
+    # Recursively search in subdirectories
+    foreach subdir [glob -nocomplain -directory $rtl_path -types d *] {
+        set files [glob -nocomplain -directory $subdir -types f {*}.v {*}.sv]
+        lappend verilog_filenames {*}$files
+    }
+    puts "$signature <cyan>Found Verilog files:<end>"
+    foreach file $verilog_filenames {
+        puts "  - $file"
+    }
     if {[catch {read_verilog $verilog_filenames} errmsg]} {
         if {$verilog_filenames == ""} {
             puts "$signature <cyan>note: no verilog file in source directory<end>"
@@ -47,7 +65,19 @@ if {[catch {
     }
 
     # read vhdl source files
-    set vhdl_filenames [split [exec find $rtl_path -type f ( -name *.vhd -o -name *.vhdl )] \n]
+    set dot_vhd_filenames [glob -nocomplain -directory $rtl_path -types f *.vhd]
+    set dot_vhdl_filenames [glob -nocomplain -directory $rtl_path -types f *.vhdl]
+    set vhdl_filenames [concat $dot_vhd_filenames $dot_vhdl_filenames]
+
+    # Recursively search in subdirectories
+    foreach subdir [glob -nocomplain -directory $rtl_path -types d *] {
+        set files [glob -nocomplain -directory $subdir -types f {*}.vhd {*}.vhdl]
+        lappend vhdl_filenames {*}$files
+    }
+    puts "$signature <cyan>Found VHDL files:<end>"
+    foreach file $vhdl_filenames {
+        puts "  - $file"
+    }
     if {[catch {read_vhdl $vhdl_filenames} errmsg]} {
         if {$vhdl_filenames == ""} {
             puts "$signature <cyan>note: no vhdl file in source directory<end>"
