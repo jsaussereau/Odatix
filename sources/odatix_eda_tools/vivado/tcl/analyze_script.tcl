@@ -31,26 +31,12 @@ if {[catch {
 
     set rtl_path [file normalize $rtl_path]
 
-    set files [glob -nocomplain -directory $rtl_path -types f {*}.v {*}.sv]
-        puts "$signature DEBUG: Found files in rtl_path:"
-        foreach f $files {
-        puts "  - $f"
-    }
-
     set verilog_error 0
     set sverilog_error 0
 
     # read verilog source files
-    set verilog_filenames [glob -nocomplain -directory $rtl_path -types f *.v]
-    set sverilog_filenames [glob -nocomplain -directory $rtl_path -types f *.sv]
-    set verilog_filenames [concat $verilog_filenames $sverilog_filenames]
-
-    # Recursively search in subdirectories
-    foreach subdir [glob -nocomplain -directory $rtl_path -types d *] {
-        set files [glob -nocomplain -directory $subdir -types f {*}.v {*}.sv]
-        lappend verilog_filenames {*}$files
-    }
-    puts "$signature <cyan>Found Verilog files:<end>"
+    set verilog_filenames [get_files_recursive $rtl_path {*.v *.sv}]
+    puts "$signature <cyan>Verilog/SystemVerilog files:<end>"
     foreach file $verilog_filenames {
         puts "  - $file"
     }
@@ -65,16 +51,8 @@ if {[catch {
     }
 
     # read vhdl source files
-    set dot_vhd_filenames [glob -nocomplain -directory $rtl_path -types f *.vhd]
-    set dot_vhdl_filenames [glob -nocomplain -directory $rtl_path -types f *.vhdl]
-    set vhdl_filenames [concat $dot_vhd_filenames $dot_vhdl_filenames]
-
-    # Recursively search in subdirectories
-    foreach subdir [glob -nocomplain -directory $rtl_path -types d *] {
-        set files [glob -nocomplain -directory $subdir -types f {*}.vhd {*}.vhdl]
-        lappend vhdl_filenames {*}$files
-    }
-    puts "$signature <cyan>Found VHDL files:<end>"
+    set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
+    puts "$signature <cyan>VHDL files:<end>"
     foreach file $vhdl_filenames {
         puts "  - $file"
     }
