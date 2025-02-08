@@ -34,16 +34,20 @@ from odatix.lib.utils import *
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.printc as printc
 from odatix.lib.variables import replace_variables, Variables
+from odatix.lib.param_domain import ParamDomain
 
 script_name = os.path.basename(__file__)
 
 class Architecture:
-  def __init__(self, arch_name, arch_display_name, lib_name, target, local_rtl_path, tmp_script_path, tmp_report_path, tmp_log_path, tmp_dir, 
-               design_path, design_path_whitelist, design_path_blacklist, rtl_path, log_path, arch_path,
-               clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
-               file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
-               fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
-               param_target_filename, generate_rtl, generate_command, constraint_filename, install_path, continue_on_error=False):
+  def __init__(
+    self, arch_name, arch_display_name, lib_name, target, local_rtl_path, tmp_script_path, tmp_report_path, tmp_log_path, tmp_dir, 
+    design_path, design_path_whitelist, design_path_blacklist, rtl_path, log_path, arch_path,
+    clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
+    file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
+    fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
+    param_target_filename, generate_rtl, generate_command, constraint_filename, install_path, 
+    param_domains, continue_on_error=False,
+  ):
     self.arch_name = arch_name
     self.arch_display_name = arch_display_name
     self.lib_name = lib_name
@@ -80,6 +84,7 @@ class Architecture:
     self.generate_command = generate_command
     self.constraint_filename = constraint_filename
     self.install_path = install_path
+    self.param_domains = param_domains
     self.continue_on_error = continue_on_error
 
   def write_yaml(arch, config_file): 
@@ -317,7 +322,7 @@ class ArchitectureHandler:
             arch_param = self.arch_path + '/' + arch_param_dir
             if isdir(arch_param):
               files = [f[:-4] for f in os.listdir(arch_param) if os.path.isfile(os.path.join(arch_param, f)) and f.endswith(".txt")]              
-              joker_archs = [arch_param_dir + "/" + file for file in files]
+              joker_archs = [os.path.join(arch_param_dir, file) for file in files]
               architectures = architectures + joker_archs
             architectures.remove(arch)
 
@@ -380,6 +385,13 @@ class ArchitectureHandler:
   
   def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", range_mode=False):
 
+    arch_full = arch.replace(" ", "")
+
+    parts = [part.strip() for part in arch_full.split('+')]
+
+    arch = parts[0]
+    requested_param_domains = parts[1:]
+
     if arch.endswith(".txt"):
       arch = arch[:-4] 
       printc.note("'.txt' after the configuration name is not needed. Just use \"" + arch + "\"", script_name)
@@ -387,28 +399,33 @@ class ArchitectureHandler:
     if arch.endswith("/"):
       arch = arch[:-1] 
 
-    if only_one_target:
-      arch_display_name = arch
-    else:
-      arch_display_name = arch + " (" + target + ")"
-
     # get param dir (arch name before '/')
     arch_param_dir = re.sub('/.*', '', arch)
 
+    if len(requested_param_domains) > 0: 
+      arch_param_dir_work = arch_param_dir + "-" + "-".join(map(str, requested_param_domains)).replace("/", "_")
+      arch_display_name = arch + " [" + ", ".join(map(str, requested_param_domains)).replace("/", ":") + "]"
+    else:
+      arch_param_dir_work = arch_param_dir
+      arch_display_name = arch_full
+
+    if not only_one_target:
+      arch_display_name = arch_display_name + " (" + target + ")"
+
     # get configuration (arch name after '/')
-    arch_suffix = re.sub('.*/', '', arch)
+    arch_config = re.sub('.*/', '', arch)
 
     # check if there is a configuration specified
-    if arch_suffix == arch_param_dir:
+    if arch_config == arch_param_dir:
       printc.note("No architecture configuration selected for \"" + arch +  "\". Using default parameters", script_name)
       arch = arch + "/" + arch
       no_configuration = True
     else:
       no_configuration = False
 
-    tmp_dir = self.work_path + '/' + target + '/' + arch
-    fmax_status_file = tmp_dir + '/' + self.log_path + '/' + self.fmax_status_filename
-    frequency_search_file = tmp_dir + '/' + self.log_path + '/' + self.frequency_search_filename
+    tmp_dir = os.path.join(self.work_path, target, arch_param_dir_work, arch_config)
+    fmax_status_file = os.path.join(tmp_dir, self.log_path, self.fmax_status_filename)
+    frequency_search_file = os.path.join(tmp_dir, self.log_path, self.frequency_search_filename)
 
     # check if arch_param has been banned
     if arch_param_dir in self.banned_arch_param:
@@ -416,7 +433,7 @@ class ArchitectureHandler:
       return None
 
     # check if parameter dir exists
-    arch_param = self.arch_path + '/' + arch_param_dir
+    arch_param = os.path.join(self.arch_path, arch_param_dir)
     if not isdir(arch_param):
       printc.error("There is no directory \"" + arch_param_dir + "\" in directory \"" + self.arch_path + "\"", script_name)
       self.banned_arch_param.append(arch_param_dir)
@@ -424,14 +441,14 @@ class ArchitectureHandler:
       return None
     
     # check if settings file exists
-    if not isfile(arch_param + '/' + self.param_settings_filename):
+    if not isfile(os.path.join(arch_param, self.param_settings_filename)):
       printc.error("There is no setting file \"" + self.param_settings_filename + "\" in directory \"" + arch_param + "\"", script_name)
       self.banned_arch_param.append(arch_param_dir)
       self.error_archs.append(arch_display_name)
       return None
 
     # get settings variables
-    settings_filename = self.arch_path + '/' + arch_param_dir + '/' + self.param_settings_filename
+    settings_filename = os.path.join(self.arch_path, arch_param_dir, self.param_settings_filename)
     with open(settings_filename, 'r') as f:
       try:
         settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
@@ -454,10 +471,6 @@ class ArchitectureHandler:
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
         return None # if an identifier is missing
-
-      use_parameters, start_delimiter, stop_delimiter = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, no_configuration, arch_param_dir=arch_param_dir)
-      if use_parameters is None or start_delimiter is None or stop_delimiter is None:
-        return None
 
       generate_command = ""
       generate_rtl, defined = get_from_dict('generate_rtl', settings_data, settings_filename, type=bool, silent=True, script_name=script_name)
@@ -484,9 +497,18 @@ class ArchitectureHandler:
           self.error_archs.append(arch_display_name)
           return None
 
-      design_path, defined = get_from_dict('design_path', settings_data, settings_filename, silent=True, script_name=script_name)
+      top_level = os.path.join(rtl_path, top_level_filename)
+      work_top_level = os.path.join(tmp_dir, local_rtl_path, top_level_filename)
+      print(f"top_level = {top_level}")
+      print(f"work_top_level = {work_top_level}")
+
+      use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
+      if use_parameters is None or start_delimiter is None or stop_delimiter is None:
+        return None
+
+      design_path, design_path_defined = get_from_dict('design_path', settings_data, settings_filename, silent=True, script_name=script_name)
       if not defined:
-        design_path = -1
+        design_path = None
         if generate_rtl:
           printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
           self.banned_arch_param.append(arch_param_dir)
@@ -494,24 +516,9 @@ class ArchitectureHandler:
       
       design_path_whitelist, _ = get_from_dict("design_path_whitelist", settings_data, settings_filename, type=list, default_value=[], silent=True, script_name=script_name)
       design_path_blacklist, _ = get_from_dict("design_path_blacklist", settings_data, settings_filename, type=list, default_value=[], silent=True, script_name=script_name)
-      try:
-        param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, optional=True, print_error=False, script_name=script_name)
-        if design_path == -1:
-          printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while param_target_file is defined", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          return None
-        # check if param target file path exists
-        param_target_file = design_path + '/' + param_target_filename
-        if not isfile(param_target_file): 
-          printc.error("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
-          self.banned_arch_param.append(arch_param_dir)
-          return None
-      except (KeyNotInListError, BadValueInListError):
-        if not generate_rtl:
-          param_target_filename = os.path.join("rtl", top_level_filename)
-        else:
-          printc.error("Cannot find key \"param_target_file\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-          printc.note("\"param_target_file\" is the file in which parameters will be replaced before running the generate command", script_name)
+      # if param_target_file is None:
+      #   printc.error("Cannot find key \"param_target_file\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
+      #   printc.note("\"param_target_file\" is the file in which parameters will be replaced before running the generate command", script_name)
 
     if not generate_rtl:
       # check if rtl path exists
@@ -522,7 +529,6 @@ class ArchitectureHandler:
         return None
 
       # check if top level file path exists
-      top_level = rtl_path + '/' + top_level_filename
       if not isfile(top_level):
         printc.error("The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
         self.banned_arch_param.append(arch_param_dir)
@@ -561,12 +567,20 @@ class ArchitectureHandler:
 
     # check if param file exists
     if not no_configuration:
-      if not isfile(self.arch_path + '/' + arch + '.txt'):
-        printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + self.arch_path + "/" + arch_param_dir + "\"", script_name)
+      if not isfile(os.path.join(self.arch_path, arch + '.txt')):
+        printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + os.path.join(self.arch_path, arch_param_dir) + "\"", script_name)
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
         return None
-
+    
+    if len(requested_param_domains) > 0:
+      param_domains = ParamDomain.get_param_domains(requested_param_domains, self.param_settings_filename, arch_param, work_top_level)
+      if param_domains is None:
+        self.banned_arch_param.append(arch_param_dir)
+        self.error_archs.append(arch_display_name)
+    else:
+      param_domains = []
+      
     # optional settings
     formatted_bound = ""
     fmax_lower_bound_ok = False
@@ -593,7 +607,7 @@ class ArchitectureHandler:
         if fmax_synthesis:
           architectures_bounds = read_from_list('architectures', fmax_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
           if architectures_bounds:
-            this_architecture_bounds = read_from_list(arch_suffix, architectures_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+            this_architecture_bounds = read_from_list(arch_config, architectures_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
             if this_architecture_bounds:
               fmax_lower_bound = read_from_list('lower_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
               if fmax_lower_bound:
@@ -781,10 +795,10 @@ class ArchitectureHandler:
     tmp_log_path = os.path.join(tmp_dir, self.work_log_path)
 
     arch_instance = Architecture(
-      arch_name = arch,
-      arch_display_name = arch_display_name,
-      lib_name = lib_name,
-      target = target,
+      arch_name=arch,
+      arch_display_name=arch_display_name,
+      lib_name=lib_name,
+      target=target,
       local_rtl_path=local_rtl_path,
       tmp_script_path=tmp_script_path,
       tmp_log_path=tmp_log_path,
@@ -817,58 +831,29 @@ class ArchitectureHandler:
       generate_command=generate_command,
       constraint_filename=constraint_filename,
       install_path=install_path,
+      param_domains=param_domains,
       continue_on_error=self.continue_on_error,
     )
 
     return arch_instance
 
-  def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, no_configuration=False, add_to_error_list=True, arch_param_dir=""):
-    # get use_parameters
-    try:
-      use_parameters = read_from_list('use_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      if add_to_error_list:
-        self.banned_arch_param.append(arch_param_dir)
-        self.error_archs.append(arch_display_name)
-      return None, None, None
+  def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, top_level_file, no_configuration=False, add_to_error_list=True, arch_param_dir=""):
 
-    param_filename = arch + ".txt"
+    use_parameters, start_delimiter, stop_delimiter, param_target_filename = ParamDomain.get_param_delimiters(settings_data, settings_filename, top_level_file)
+
     if no_configuration:
       use_parameters = False
     else:
       if use_parameters:
         # check if parameter file exists
-        if not isfile(self.arch_path + '/' + param_filename):
-          printc.error("There is no parameter file \"" + self.arch_path + '/' + param_filename + "\", while use_parameters=true", script_name)
+        param_file = os.path.join(self.arch_path, arch + ".txt")
+        if not isfile(param_file):
+          printc.error("There is no parameter file \"" + param_file + "\", while \"use_parameters\" is true", script_name)
           if add_to_error_list:
             self.error_archs.append(arch_display_name)
-          return True, None, None
-    
-    if use_parameters:
-      # get start delimiter
-      try:
-        start_delimiter = read_from_list('start_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError):
-        printc.error("Cannot find key \"start_delimiter\" in \"" + settings_filename + "\", while \"use_parameters\" is true", script_name)
-        if add_to_error_list:
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-        return None, None, None
+          return True, None, None, None
 
-      # get stop delimiter
-      try:
-        stop_delimiter = read_from_list('stop_delimiter', settings_data, settings_filename, print_error=False, script_name=script_name)
-      except (KeyNotInListError, BadValueInListError):
-        printc.error("Cannot find key \"stop_delimiter\" in \"" + settings_filename + "\", while \"use_parameters\" is true", script_name)
-        if add_to_error_list:
-          self.banned_arch_param.append(arch_param_dir)
-          self.error_archs.append(arch_display_name)
-        return None, None, None
-    else:
-      start_delimiter = ""
-      stop_delimiter = ""
-
-    return use_parameters, start_delimiter, stop_delimiter
+    return use_parameters, start_delimiter, stop_delimiter, param_target_filename
 
   def print_summary(self):
     ArchitectureHandler.print_arch_list(self.new_archs, "New architectures", printc.colors.ENDC)
@@ -876,18 +861,6 @@ class ArchitectureHandler:
     ArchitectureHandler.print_arch_list(self.cached_archs, "Existing results (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
     ArchitectureHandler.print_arch_list(self.overwrite_archs, "Existing results (will be overwritten)", printc.colors.YELLOW)
     ArchitectureHandler.print_arch_list(self.error_archs, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
-
-  def get_chuncks(self, nb_jobs):
-    if len(self.architecture_instances) > nb_jobs:
-      nb_chunks = math.ceil(len(self.architecture_instances) / nb_jobs)
-      print()
-      printc.note("Current maximum number of jobs is " + str(nb_jobs) + ". Architectures will be split in " + str(nb_chunks) + " chunks")
-      self.architecture_instances_chunks = list(chunk_list(self.architecture_instances, nb_jobs))
-    else:
-      nb_chunks = 1
-      self.architecture_instances_chunks = []
-    return self.architecture_instances_chunks, nb_chunks
-
 
   def get_valid_arch_count(self):
     return len(self.valid_archs)
