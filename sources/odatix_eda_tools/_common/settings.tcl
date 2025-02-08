@@ -80,7 +80,7 @@ set continue_on_error  0
 set lib_name           WORK
 
 ######################################
-# Procedure
+# Procedures
 ######################################
 
 proc report_progress {progress progressfile {comment ""}} {
@@ -91,4 +91,16 @@ proc report_progress {progress progressfile {comment ""}} {
         puts $progressfile_handler "In progress: $progress% $comment"
     }
     close $progressfile_handler
+}
+
+proc get_files_recursive {path patterns} {
+    set file_list {}
+    foreach pattern $patterns {
+        set files [glob -nocomplain -directory $path -types f $pattern]
+        lappend file_list {*}$files
+    }
+    foreach subdir [glob -nocomplain -directory $path -types d *] {
+        lappend file_list {*}[get_files_recursive $subdir $patterns]
+    }
+    return $file_list
 }
