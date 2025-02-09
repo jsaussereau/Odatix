@@ -80,6 +80,8 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
         else:
             printc.say("nothing to be done, input copied to \"" + output_file + "\"", script_name)
 
+    return match_found
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Replace content between delimiters in a text file.")
     parser.add_argument("-s", "--startdel", dest="start_delimiter", required=True, help="Start delimiter")
