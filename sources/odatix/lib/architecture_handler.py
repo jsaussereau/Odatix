@@ -499,8 +499,6 @@ class ArchitectureHandler:
 
       top_level = os.path.join(rtl_path, top_level_filename)
       work_top_level = os.path.join(tmp_dir, local_rtl_path, top_level_filename)
-      print(f"top_level = {top_level}")
-      print(f"work_top_level = {work_top_level}")
 
       use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
       if use_parameters is None or start_delimiter is None or stop_delimiter is None:
