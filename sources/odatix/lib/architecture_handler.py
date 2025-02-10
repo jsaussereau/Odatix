@@ -601,17 +601,17 @@ class ArchitectureHandler:
         fmax_upper_bound = self.default_fmax_upper_bound
         range_list = self.default_custom_freq_list
       else:
-        fmax_synthesis = read_from_list('fmax_synthesis', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+        fmax_synthesis = read_from_list('fmax_synthesis', target_options, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
         if fmax_synthesis:
-          architectures_bounds = read_from_list('architectures', fmax_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          architectures_bounds = read_from_list('architectures', fmax_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
           if architectures_bounds:
-            this_architecture_bounds = read_from_list(arch_config, architectures_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+            this_architecture_bounds = read_from_list(arch_config, architectures_bounds, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
             if this_architecture_bounds:
-              fmax_lower_bound = read_from_list('lower_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+              fmax_lower_bound = read_from_list('lower_bound', this_architecture_bounds, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
               if fmax_lower_bound:
                 fmax_lower_bound_ok = True
               
-              fmax_upper_bound = read_from_list('upper_bound', this_architecture_bounds, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+              fmax_upper_bound = read_from_list('upper_bound', this_architecture_bounds, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
               if fmax_upper_bound:
                 fmax_upper_bound_ok = True
 
@@ -621,7 +621,7 @@ class ArchitectureHandler:
                 self.error_archs.append(arch_display_name)
                 return None
           if fmax_lower_bound_ok == False:
-            fmax_lower_bound = read_from_list('lower_bound', fmax_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
+            fmax_lower_bound = read_from_list('lower_bound', fmax_synthesis, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
             if fmax_lower_bound == False:
               printc.note("Cannot find optional key \"lower_bound\" in \"fmax_synthesis\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
               fmax_lower_bound = self.default_fmax_lower_bound
@@ -629,7 +629,7 @@ class ArchitectureHandler:
               #printc.note("Cannot find optional key \"fmax_lower_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
 
           if fmax_upper_bound_ok == False:
-            fmax_upper_bound = read_from_list('upper_bound', fmax_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
+            fmax_upper_bound = read_from_list('upper_bound', fmax_synthesis, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
             if fmax_upper_bound == False:
               printc.note("Cannot find optional key \"upper_bound\" in \"fmax_synthesis\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
               fmax_upper_bound = self.default_fmax_upper_bound
@@ -638,7 +638,7 @@ class ArchitectureHandler:
         else:
           # backward compatibility
           if fmax_lower_bound_ok == False:
-            fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
+            fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
             if fmax_lower_bound == False:
               printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
               fmax_lower_bound = self.default_fmax_lower_bound
@@ -647,7 +647,7 @@ class ArchitectureHandler:
 
           # backward compatibility
           if fmax_upper_bound_ok == False:
-            fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, script_name=script_name)
+            fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
             if fmax_upper_bound == False:
               printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
               fmax_upper_bound = self.default_fmax_upper_bound
@@ -661,17 +661,17 @@ class ArchitectureHandler:
             printc.cyan("  lower_bound: XXX")
             printc.cyan("  upper_bound: XXX")
 
-        range_synthesis = read_from_list('custom_freq_synthesis', target_options, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-        if range_synthesis:
-          range_list = read_from_list('list', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+        custom_freq_synthesis = read_from_list('custom_freq_synthesis', target_options, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+        if custom_freq_synthesis:
+          range_list = read_from_list('list', custom_freq_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
           if range_list == False:
             range_list = []
           else:
             range_list = list(range_list)
 
-          range_lower_bound = read_from_list('lower_bound', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-          range_upper_bound = read_from_list('upper_bound', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-          step = read_from_list('step', range_synthesis, self.eda_target_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          range_lower_bound = read_from_list('lower_bound', custom_freq_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          range_upper_bound = read_from_list('upper_bound', custom_freq_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
+          step = read_from_list('step', custom_freq_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
           
           missing_keys = []
           if range_lower_bound == False or range_upper_bound == False or step == False:
@@ -684,7 +684,7 @@ class ArchitectureHandler:
 
           if missing_keys:
             if len(missing_keys) < 3:
-              printc.error("The following keys are missing inside \"range_synthesis\" in {}: {}. All three keys ('lower_bound', 'upper_bound', 'step') are required to compute the range.".format(settings_filename, ", ".join(missing_keys)), script_name)
+              printc.error("The following keys are missing inside \"custom_freq_synthesis\" in {}: {}. All three keys ('lower_bound', 'upper_bound', 'step') are required to compute the range.".format(settings_filename, ", ".join(missing_keys)), script_name)
               return None
           else:
             if range_lower_bound >= range_upper_bound:
@@ -693,17 +693,16 @@ class ArchitectureHandler:
             computed_range = list(range(range_lower_bound, range_upper_bound + 1, step))
             range_list = range_list + computed_range
         elif range_mode:
-          printc.error("Could not find key \"range_synthesis\" in \"{}\"".format(self.eda_target_filename), script_name)
-          return None
+          printc.warning("Could not find key \"custom_freq_synthesis\" in \"{}\"".format(settings_filename), script_name)
         if range_mode and not range_list:
-          printc.error("Could not find any valid range in \"{}\"".format(self.eda_target_filename), script_name)
+          printc.error("Could not find any valid custom frequency definition in \"{}\"".format(settings_filename), script_name)
           printc.note("Supported syntax:", script_name)
-          printc.cyan("range_synthesis:")
+          printc.cyan("custom_freq_synthesis:")
           printc.cyan("  lower_bound: XXX")
           printc.cyan("  upper_bound: XXX")
           printc.cyan("  step: XXX")
           printc.cyan("or ")
-          printc.cyan("range_synthesis:")
+          printc.cyan("custom_freq_synthesis:")
           printc.cyan("  list: [XXX, XXX, XXX]")
           return None
           
@@ -749,10 +748,10 @@ class ArchitectureHandler:
     # target specific file copy
     if target_options:
       try:
-        _file_copy_enable = read_from_list('file_copy_enable', target_options, self.eda_target_filename, optional=True, print_error=False, type=bool, script_name=script_name)
+        _file_copy_enable = read_from_list('file_copy_enable', target_options, settings_filename, optional=True, print_error=False, type=bool, script_name=script_name)
         try:
-          _file_copy_source = read_from_list('file_copy_source', target_options, self.eda_target_filename, optional=True, script_name=script_name)
-          _file_copy_dest = read_from_list('file_copy_dest', target_options, self.eda_target_filename, optional=True, script_name=script_name)
+          _file_copy_source = read_from_list('file_copy_source', target_options, settings_filename, optional=True, script_name=script_name)
+          _file_copy_dest = read_from_list('file_copy_dest', target_options, settings_filename, optional=True, script_name=script_name)
           file_copy_enable = _file_copy_enable
           file_copy_source = _file_copy_source
           file_copy_dest = _file_copy_dest
@@ -761,7 +760,7 @@ class ArchitectureHandler:
       except KeyNotInListError:
         pass
       except BadValueInListError:
-        printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + "target_settings/" + target + "\"," + " in \"" + self.eda_target_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
+        printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + "target_settings/" + target + "\"," + " in \"" + settings_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
     
     # Define user accessible variables
     variables = Variables(
