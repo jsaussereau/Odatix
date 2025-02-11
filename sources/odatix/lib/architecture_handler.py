@@ -201,8 +201,9 @@ class ArchitectureHandler:
     param_settings_filename,
     valid_status,
     valid_frequency_search,
-    default_fmax_lower_bound,
-    default_fmax_upper_bound,
+    forced_fmax_lower_bound,
+    forced_fmax_upper_bound,
+    forced_custom_freq_list,
     overwrite,
     continue_on_error=False
   ):
@@ -226,9 +227,10 @@ class ArchitectureHandler:
     self.valid_status = valid_status
     self.valid_frequency_search = valid_frequency_search
 
-    self.default_fmax_lower_bound = default_fmax_lower_bound
-    self.default_fmax_upper_bound = default_fmax_upper_bound
-    self.default_custom_freq_list = [50, 100]
+    self.forced_fmax_lower_bound = forced_fmax_lower_bound
+    self.forced_fmax_upper_bound = forced_fmax_upper_bound
+    self.forced_custom_freq_list = forced_custom_freq_list
+    self.default_custom_freq_list = []
 
     self.overwrite = overwrite
     self.continue_on_error = continue_on_error
@@ -246,6 +248,7 @@ class ArchitectureHandler:
     self.error_archs = []
     self.incomplete_archs = []
     self.new_archs = []
+    self.deprecation_notice_archs = []
 
   def get_architectures(self, architectures, targets, constraint_filename="", install_path="", range_mode=False):
 
@@ -581,137 +584,44 @@ class ArchitectureHandler:
       
     # optional settings
     formatted_bound = ""
-    fmax_lower_bound_ok = False
-    fmax_upper_bound_ok = False
     fmax_lower_bound = 0
     fmax_upper_bound = 0
     range_list = []
 
-    warn_fmax_obsolete = False
-
-    target_options = read_from_list(target, settings_data, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-    
     if synthesis:
-      if target_options == False:
-        if range_mode:
-          printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency list instead: " + "{} MHz.".format(self.default_custom_freq_list), script_name)
-        else:
-          printc.note("Cannot find optional target-specific options for target \"" + target + "\" in \"" + settings_filename + "\". Using default fmax frequency bounds instead: " + "[{},{}] MHz.".format(self.default_fmax_lower_bound, self.default_fmax_upper_bound), script_name)
-        fmax_lower_bound = self.default_fmax_lower_bound
-        fmax_upper_bound = self.default_fmax_upper_bound
-        range_list = self.default_custom_freq_list
-      else:
-        fmax_synthesis = read_from_list('fmax_synthesis', target_options, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-        if fmax_synthesis:
-          architectures_bounds = read_from_list('architectures', fmax_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-          if architectures_bounds:
-            this_architecture_bounds = read_from_list(arch_config, architectures_bounds, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-            if this_architecture_bounds:
-              fmax_lower_bound = read_from_list('lower_bound', this_architecture_bounds, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-              if fmax_lower_bound:
-                fmax_lower_bound_ok = True
-              
-              fmax_upper_bound = read_from_list('upper_bound', this_architecture_bounds, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-              if fmax_upper_bound:
-                fmax_upper_bound_ok = True
+      fmax_lower_bound, fmax_upper_bound, range_list, warn_fmax_obsolete = self.get_frequency_settings(
+        arch_config=arch_config,
+        target=target, 
+        settings_data=settings_data, 
+        settings_filename=settings_filename, 
+        range_mode=range_mode
+      )
 
-              # check if bounds are valid
-              if (fmax_upper_bound <= fmax_lower_bound) : 
-                printc.error("The upper bound (" + str(fmax_upper_bound) + ") must be strictly superior to the lower bound (" + str(fmax_lower_bound) + ")", script_name)
-                self.error_archs.append(arch_display_name)
-                return None
-          if fmax_lower_bound_ok == False:
-            fmax_lower_bound = read_from_list('lower_bound', fmax_synthesis, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-            if fmax_lower_bound == False:
-              printc.note("Cannot find optional key \"lower_bound\" in \"fmax_synthesis\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
-              fmax_lower_bound = self.default_fmax_lower_bound
-            #else:
-              #printc.note("Cannot find optional key \"fmax_lower_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
+      # Override by bounds from --from and --to if used
+      if self.forced_fmax_lower_bound is not None:
+        fmax_lower_bound = self.forced_fmax_lower_bound
+      if self.forced_fmax_upper_bound is not None:
+        fmax_upper_bound = self.forced_fmax_upper_bound
 
-          if fmax_upper_bound_ok == False:
-            fmax_upper_bound = read_from_list('upper_bound', fmax_synthesis, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-            if fmax_upper_bound == False:
-              printc.note("Cannot find optional key \"upper_bound\" in \"fmax_synthesis\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
-              fmax_upper_bound = self.default_fmax_upper_bound
-            #else:
-              #printc.note("Cannot find optional key \"fmax_upper_bound\" for architecture \"" + arch + "\" with target \"" + target + "\" in \"" + settings_filename + "\". Using target frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
-        else:
-          # backward compatibility
-          if fmax_lower_bound_ok == False:
-            fmax_lower_bound = read_from_list('fmax_lower_bound', target_options, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-            if fmax_lower_bound == False:
-              printc.note("Cannot find optional key \"fmax_lower_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency lower bound instead: " + "{} MHz.".format(self.default_fmax_lower_bound), script_name)
-              fmax_lower_bound = self.default_fmax_lower_bound
-            elif arch_param_dir not in self.checked_arch_param:
-              warn_fmax_obsolete = True
+      if warn_fmax_obsolete and not arch_param_dir in self.deprecation_notice_archs:
+        self.deprecation_notice_archs.append(arch_param_dir)
+        printc.warning("{} -> 'fmax_lower_bound' and 'fmax_upper_bound' are deprecated".format(settings_filename), script_name)
+        printc.note("Use this syntax instead:", script_name)
+        printc.cyan("fmax_synthesis:")
+        printc.cyan("  lower_bound: XXX")
+        printc.cyan("  upper_bound: XXX")
 
-          # backward compatibility
-          if fmax_upper_bound_ok == False:
-            fmax_upper_bound = read_from_list('fmax_upper_bound', target_options, settings_filename, optional=True, raise_if_missing=False, script_name=script_name)
-            if fmax_upper_bound == False:
-              printc.note("Cannot find optional key \"fmax_upper_bound\" for target \"" + target + "\" in \"" + settings_filename + "\". Using default frequency upper bound instead: " + "{} MHz.".format(self.default_fmax_upper_bound), script_name)
-              fmax_upper_bound = self.default_fmax_upper_bound
-            elif arch_param_dir not in self.checked_arch_param:
-              warn_fmax_obsolete = True
-
-          if warn_fmax_obsolete:
-            printc.warning(settings_filename + " -> \"fmax_lower_bound\" and \"fmax_upper_bound\" are deprecated.", script_name)
-            printc.note("Use this syntax instead:", script_name)
-            printc.cyan("fmax_synthesis:")
-            printc.cyan("  lower_bound: XXX")
-            printc.cyan("  upper_bound: XXX")
-
-        custom_freq_synthesis = read_from_list('custom_freq_synthesis', target_options, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-        if custom_freq_synthesis:
-          range_list = read_from_list('list', custom_freq_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-          if range_list == False:
-            range_list = []
-          else:
-            range_list = list(range_list)
-
-          range_lower_bound = read_from_list('lower_bound', custom_freq_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-          range_upper_bound = read_from_list('upper_bound', custom_freq_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-          step = read_from_list('step', custom_freq_synthesis, settings_filename, optional=True, raise_if_missing=False, print_error=False, script_name=script_name)
-          
-          missing_keys = []
-          if range_lower_bound == False or range_upper_bound == False or step == False:
-            if range_lower_bound == False:
-              missing_keys.append('lower_bound')
-            if range_upper_bound == False:
-              missing_keys.append('upper_bound')
-            if step == False:
-              missing_keys.append('step')
-
-          if missing_keys:
-            if len(missing_keys) < 3:
-              printc.error("The following keys are missing inside \"custom_freq_synthesis\" in {}: {}. All three keys ('lower_bound', 'upper_bound', 'step') are required to compute the range.".format(settings_filename, ", ".join(missing_keys)), script_name)
-              return None
-          else:
-            if range_lower_bound >= range_upper_bound:
-              printc.error("The upper bound ({}) must be strictly greater than the lower bound ({}) in range_synthesis".format(range_upper_bound, range_lower_bound), script_name)
-              return None
-            computed_range = list(range(range_lower_bound, range_upper_bound + 1, step))
-            range_list = range_list + computed_range
-        elif range_mode:
-          printc.warning("Could not find key \"custom_freq_synthesis\" in \"{}\"".format(settings_filename), script_name)
-        if range_mode and not range_list:
-          printc.error("Could not find any valid custom frequency definition in \"{}\"".format(settings_filename), script_name)
-          printc.note("Supported syntax:", script_name)
-          printc.cyan("custom_freq_synthesis:")
-          printc.cyan("  lower_bound: XXX")
-          printc.cyan("  upper_bound: XXX")
-          printc.cyan("  step: XXX")
-          printc.cyan("or ")
-          printc.cyan("custom_freq_synthesis:")
-          printc.cyan("  list: [XXX, XXX, XXX]")
+      # check if frequencies are valid
+      if range_mode:
+        if range_list is None or range_list == []: 
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
           return None
-          
-      # check if bounds are valid
-      if (fmax_upper_bound <= fmax_lower_bound) : 
-        printc.error("The upper bound (" + str(fmax_upper_bound) + ") must be strictly superior to the lower bound (" + str(fmax_lower_bound) + ")", script_name)
-        self.banned_arch_param.append(arch_param_dir)
-        self.error_archs.append(arch_display_name)
-        return None
+      else:
+        if not ArchitectureHandler.check_bounds(fmax_lower_bound, fmax_upper_bound):
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+          return None
 
       fmax_lower_bound = str(fmax_lower_bound)
       fmax_upper_bound = str(fmax_upper_bound)
@@ -745,13 +655,17 @@ class ArchitectureHandler:
           if not range_mode:
             self.new_archs.append(arch_display_name + formatted_bound)
 
+
+    # Retrieve target-specific settings if they exist
+    target_specific_data, target_specific_defined = get_from_dict(target, settings_data, settings_filename, silent=True)
+
     # target specific file copy
-    if target_options:
+    if target_specific_defined:
       try:
-        _file_copy_enable = read_from_list('file_copy_enable', target_options, settings_filename, optional=True, print_error=False, type=bool, script_name=script_name)
+        _file_copy_enable = read_from_list('file_copy_enable', target_specific_data, settings_filename, optional=True, print_error=False, type=bool, script_name=script_name)
         try:
-          _file_copy_source = read_from_list('file_copy_source', target_options, settings_filename, optional=True, script_name=script_name)
-          _file_copy_dest = read_from_list('file_copy_dest', target_options, settings_filename, optional=True, script_name=script_name)
+          _file_copy_source = read_from_list('file_copy_source', target_specific_data, settings_filename, optional=True, script_name=script_name)
+          _file_copy_dest = read_from_list('file_copy_dest', target_specific_data, settings_filename, optional=True, script_name=script_name)
           file_copy_enable = _file_copy_enable
           file_copy_source = _file_copy_source
           file_copy_dest = _file_copy_dest
@@ -851,6 +765,208 @@ class ArchitectureHandler:
           return True, None, None, None
 
     return use_parameters, start_delimiter, stop_delimiter, param_target_filename
+
+  @staticmethod
+  def get_frequency_settings(arch_config, target, settings_data, settings_filename, range_mode):
+    """
+    Retrieves frequency synthesis settings from the YAML configuration.
+
+    Args:
+        arch_config (str): The architecture configuration.
+        target (str): The target FPGA/ASIC.
+        settings_data (dict): The parsed YAML settings data.
+        settings_filename (str): Name of the YAML file.
+        range_mode (bool): Whether to use custom frequency synthesis.
+
+    Returns:
+        tuple: (fmax_lower_bound, fmax_upper_bound, custom_freq_list, warn_fmax_obsolete).
+    """
+
+    # Defaults
+    fmax_lower_bound = None
+    fmax_upper_bound = None
+    custom_freq_list = []
+    warn_fmax_obsolete = False
+
+    target_fmax_defined = False
+    target_custom_freq_defined = False
+    arch_specific_defined = False
+    arch_fmax_defined = False
+    arch_custom_freq_defined = False
+
+    # Retrieve general settings
+    global_fmax_data, global_fmax_defined =  get_from_dict("fmax_synthesis", settings_data, settings_filename, silent=True)
+    global_custom_freq_data, global_custom_freq_defined = get_from_dict("custom_freq_synthesis", settings_data, settings_filename, silent=True)
+
+    # Retrieve target-specific settings
+    target_specific_data, target_specific_defined = get_from_dict(target, settings_data, settings_filename, silent=True)
+    if target_specific_defined:
+      target_fmax_data, target_fmax_defined =  get_from_dict("fmax_synthesis", target_specific_data, settings_filename, silent=True)
+      target_custom_freq_data, target_custom_freq_defined = get_from_dict("custom_freq_synthesis", target_specific_data, settings_filename, silent=True)
+
+      # Retrieve architecture-specific settings
+      arch_specific_data, arch_specific_defined = get_from_dict(arch_config, target_specific_data, settings_filename, silent=True)
+      if arch_specific_defined:
+        arch_fmax_data, arch_fmax_defined =  get_from_dict("fmax_synthesis", arch_specific_data, settings_filename, silent=True)
+        arch_custom_freq_data, arch_custom_freq_defined = get_from_dict("custom_freq_synthesis", arch_specific_data, settings_filename, silent=True)
+
+    if range_mode: # Custom frequency synthesis
+
+      # Get lower bound
+      lower_bound_defined = False
+      if arch_custom_freq_defined:
+        range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
+      if not lower_bound_defined and target_custom_freq_defined:
+        range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", target_custom_freq_data, settings_filename, default_value=None, silent=True)
+      if not lower_bound_defined and global_custom_freq_defined:
+        range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", global_custom_freq_data, settings_filename, default_value=None, silent=True)
+
+      # Get upper bound
+      upper_bound_defined = False
+      if arch_custom_freq_defined:
+        range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
+      if not upper_bound_defined and target_custom_freq_defined:
+        range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", target_custom_freq_data, settings_filename, default_value=None, silent=True)
+      if not upper_bound_defined and global_custom_freq_defined:
+        range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", global_custom_freq_data, settings_filename, default_value=None, silent=True)
+
+      # Get step
+      step_defined = False
+      if arch_custom_freq_defined:
+        range_step, step_defined = get_from_dict("step", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
+      if not step_defined and target_custom_freq_defined:
+        range_step, step_defined = get_from_dict("step", target_custom_freq_data, settings_filename, default_value=None, silent=True)
+      if not step_defined and global_custom_freq_defined:
+        range_step, step_defined = get_from_dict("step", global_custom_freq_data, settings_filename, default_value=None, silent=True)
+
+      # Get list
+      list_defined = False
+      list_defined_arch = False
+      list_defined_target = False
+      list_defined_global = False
+      list_append = False
+      if arch_custom_freq_defined:
+        custom_freq_list, list_defined_arch = get_from_dict("list", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
+        if list_defined_arch:
+          list_append, _ = get_from_dict("list_append", arch_custom_freq_data, settings_filename, default_value=False, silent=True)
+      if target_custom_freq_defined:
+        tmp_list, list_defined_target = get_from_dict("list", target_custom_freq_data, settings_filename, default_value=None, silent=True)
+        if list_defined_target:
+          if not list_defined_arch:
+            custom_freq_list = tmp_list
+          elif list_append:
+            custom_freq_list = custom_freq_list + tmp_list
+          list_append, _ = get_from_dict("list_append", target_custom_freq_data, settings_filename, default_value=False, silent=True)
+      if global_custom_freq_defined:
+        tmp_list, list_defined_global = get_from_dict("list", global_custom_freq_data, settings_filename, default_value=None, silent=True)
+        if list_defined_global:
+          if not list_defined_target:
+            custom_freq_list = tmp_list
+          elif list_append:
+            custom_freq_list = custom_freq_list + tmp_list
+
+      list_defined = list_defined_global or list_defined_target or list_defined_arch
+      if not list_defined:
+        custom_freq_list = []
+
+      if not step_defined or (step_defined and (range_step == 0 or range_step == False)): # Check if range is deactivated
+        range_list = []
+      else:
+        if lower_bound_defined and upper_bound_defined and step_defined:
+          if ArchitectureHandler.check_bounds(range_lower_bound, range_upper_bound, range_step, synth_type="custom frequency synthesis"):
+            range_list = ArchitectureHandler.create_list_from_range(range_lower_bound, range_upper_bound, range_step)
+            custom_freq_list = custom_freq_list + range_list
+
+      # Check if a list is defined
+      if len(custom_freq_list) == 0:
+        printc.error('Could not find any valid custom frequency definition in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
+        printc.note('You can define custom synthesis frequencies like this:', script_name)
+        printc.cyan("custom_freq_synthesis:")
+        printc.cyan("  lower_bound: XXX")
+        printc.cyan("  upper_bound: XXX")
+        printc.cyan("  step: XXX")
+        printc.cyan("or ")
+        printc.cyan("custom_freq_synthesis:")
+        printc.cyan("  step: No")
+        printc.cyan("  list: [XXX, XXX, XXX]")
+        printc.cyan("or ")
+        printc.cyan("custom_freq_synthesis:")
+        printc.cyan("  lower_bound: XXX")
+        printc.cyan("  upper_bound: XXX")
+        printc.cyan("  step: XXX")
+        printc.cyan("  list: [XXX, XXX, XXX] # append to the list generated by range")
+
+      return None, None, custom_freq_list, warn_fmax_obsolete
+
+    else: # fmax synthesis
+
+      # Legacy fallback for older odatix version
+      lower_defined = False
+      if target_specific_defined:
+        fmax_lower_bound, lower_defined = get_from_dict("fmax_lower_bound", target_specific_data, settings_filename, silent=True)
+      if not lower_defined and arch_specific_defined:
+        fmax_lower_bound, lower_defined = get_from_dict("fmax_lower_bound", arch_specific_data, settings_filename, silent=True)
+      upper_defined = False
+      if target_specific_defined:
+        fmax_upper_bound, upper_defined = get_from_dict("fmax_upper_bound", target_specific_data, settings_filename, silent=True)
+      if not upper_defined and arch_specific_defined:
+        fmax_upper_bound, upper_defined = get_from_dict("fmax_upper_bound", arch_specific_data, settings_filename, silent=True)
+      
+      # Deprecation warning
+      if lower_defined or upper_defined:
+        warn_fmax_obsolete = True
+
+      # Get lower bound
+      defined = False
+      if arch_fmax_defined:
+        fmax_lower_bound, defined = get_from_dict("lower_bound", arch_fmax_data, settings_filename, default_value=None, silent=True)
+      if not defined and target_fmax_defined:
+        fmax_lower_bound, defined = get_from_dict("lower_bound", target_fmax_data, settings_filename, default_value=None, silent=True)
+      if not defined and global_fmax_defined:
+        fmax_lower_bound, defined = get_from_dict("lower_bound", global_fmax_data, settings_filename, default_value=None, silent=True)
+
+      # Get upper bound
+      defined = False
+      if arch_fmax_defined:
+        fmax_upper_bound, defined = get_from_dict("upper_bound", arch_fmax_data, settings_filename, default_value=None, silent=True)
+      if not defined and target_fmax_defined:
+        fmax_upper_bound, defined = get_from_dict("upper_bound", target_fmax_data, settings_filename, default_value=None, silent=True)
+      if not defined and global_fmax_defined:
+        fmax_upper_bound, defined = get_from_dict("upper_bound", global_fmax_data, settings_filename, default_value=None, silent=True)
+
+      # Check if bounds are defined
+      if fmax_lower_bound is None:
+        printc.error('Lower bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
+      if fmax_upper_bound is None:
+        printc.error('Upper bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
+      if fmax_lower_bound is None or fmax_upper_bound is None:
+        printc.note('You can define fmax synthesis frequency bounds like this:', script_name)
+        printc.cyan("fmax_synthesis:")
+        printc.cyan("  lower_bound: XXX")
+        printc.cyan("  upper_bound: XXX")
+        return None, None, None, warn_fmax_obsolete
+
+      return fmax_lower_bound, fmax_upper_bound, None, warn_fmax_obsolete
+
+  def create_list_from_range(lower_bound, upper_bound, step):
+    return list(range(lower_bound, upper_bound + 1, step))
+
+  def check_bounds(lower_bound, upper_bound, step=0, synth_type="fmax synthesis"):
+    success = True
+    if not isinstance(lower_bound, int):
+      printc.error('Lower bound for {} is "{}" which is a "{}" while it should be an integer'.format(synth_type, lower_bound, type(lower_bound).__name__), script_name)
+      success =  False
+    if not isinstance(upper_bound, int):
+      printc.error('Upper bound for {} is "{}" which is a "{}" while it should be an integer'.format(synth_type, upper_bound, type(upper_bound).__name__), script_name)
+      success =  False
+    if not isinstance(step, int):
+      printc.error('Step for {} is "{}" which is a "{}" while it should be an integer or "No"'.format(synth_type, upper_bound, type(upper_bound).__name__), script_name)
+      success =  False
+    if success:
+      if upper_bound <= lower_bound:
+        printc.error("The upper bound ({}) for {} must be strictly greater than the lower bound ({})".format(synth_type, upper_bound, lower_bound), script_name)
+        success =  False
+    return success
 
   def print_summary(self):
     ArchitectureHandler.print_arch_list(self.new_archs, "New architectures", printc.colors.ENDC)
