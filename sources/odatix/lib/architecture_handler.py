@@ -230,7 +230,6 @@ class ArchitectureHandler:
     self.forced_fmax_lower_bound = forced_fmax_lower_bound
     self.forced_fmax_upper_bound = forced_fmax_upper_bound
     self.forced_custom_freq_list = forced_custom_freq_list
-    self.default_custom_freq_list = []
 
     self.overwrite = overwrite
     self.continue_on_error = continue_on_error
@@ -501,7 +500,7 @@ class ArchitectureHandler:
           return None
 
       top_level = os.path.join(rtl_path, top_level_filename)
-      work_top_level = os.path.join(tmp_dir, local_rtl_path, top_level_filename)
+      work_top_level = os.path.join(local_rtl_path, top_level_filename)
 
       use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
       if use_parameters is None or start_delimiter is None or stop_delimiter is None:
@@ -602,6 +601,8 @@ class ArchitectureHandler:
         fmax_lower_bound = self.forced_fmax_lower_bound
       if self.forced_fmax_upper_bound is not None:
         fmax_upper_bound = self.forced_fmax_upper_bound
+      if self.forced_custom_freq_list is not None and self.forced_custom_freq_list != []:
+        range_list = self.forced_custom_freq_list
 
       if warn_fmax_obsolete and not arch_param_dir in self.deprecation_notice_archs:
         self.deprecation_notice_archs.append(arch_param_dir)

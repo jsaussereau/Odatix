@@ -53,6 +53,7 @@ nb_jobs = 4
 
 param_settings_filename = "_settings.yml"
 sim_settings_filename = "_settings.yml"
+param_domains_filename = "param_domains.yml"
 sim_makefile_filename = "Makefile"
 sim_rule = "sim"
 sim_progress_filename = "progress.log"
@@ -180,7 +181,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       copytree(sim_instance.source_sim_dir, sim_instance.tmp_dir, dirs_exist_ok = True)
      
       # copy design 
-      if sim_instance.architecture.design_path != -1:
+      if sim_instance.architecture.design_path is not None:
         try:
           copytree(
             src=arch_instance.design_path,
@@ -200,7 +201,8 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
 
       # replace parameters
       if sim_instance.architecture.use_parameters:
-        #printc.subheader("Replace parameters")
+        if debug: 
+          printc.subheader("Replace main parameters")
         param_target_file = sim_instance.tmp_dir + '/' + sim_instance.architecture.param_target_filename
         param_filename = arch_path + '/' + sim_instance.architecture.arch_name + '.txt'
         replace_params(
@@ -212,7 +214,35 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
           replace_all_occurrences=False,
           silent=True
         )
-        #print()
+        if debug: 
+          print()
+
+      # Replace domain parameters
+      domain_dict=dict()
+      nb_domain = 0
+      for param_domain in sim_instance.architecture.param_domains:
+        if param_domain.use_parameters:
+          param_target_file = arch_instance.tmp_dir + "/" + arch_instance.param_target_filename
+          if debug: 
+            printc.subheader("Replace parameters for \"" + param_domain.domain + "/" + param_domain.domain_value+ "\"")
+          success = replace_params(
+            base_text_file=param_target_file,
+            replacement_text_file=param_domain.param_file,
+            output_file=param_target_file,
+            start_delimiter=param_domain.start_delimiter,
+            stop_delimiter=param_domain.stop_delimiter,
+            replace_all_occurrences=False,
+            silent=False if debug else True,
+          )
+          if success:
+            nb_domain = nb_domain + 1
+            domain_dict[param_domain.domain] = param_domain.domain_value
+          if debug: 
+            print()
+      
+      if nb_domain > 0:
+        with open(os.path.join(arch_instance.tmp_dir, param_domains_filename), 'w') as param_domains_file:
+          yaml.dump(domain_dict, param_domains_file, default_flow_style=False)
 
       # replace parameters again (override)
       if sim_instance.override_parameters:

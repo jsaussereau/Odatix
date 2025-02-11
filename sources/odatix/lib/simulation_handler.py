@@ -94,8 +94,9 @@ class SimulationHandler:
       param_settings_filename = self.param_settings_filename,
       valid_status = "",
       valid_frequency_search = "",
-      default_fmax_lower_bound = 0,
-      default_fmax_upper_bound = 1000,
+      forced_fmax_lower_bound = None,
+      forced_fmax_upper_bound = None,
+      forced_custom_freq_list = None,
       overwrite = self.overwrite
     )
 
@@ -194,7 +195,7 @@ class SimulationHandler:
             return None # if an identifier is missing
 
           # get use_parameters, start_delimiter and stop_delimiter
-          use_parameters, start_delimiter, stop_delimiter = arch_handler.get_use_parameters(arch, arch, settings_data, settings_filename, add_to_error_list=False)
+          use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch, settings_data, settings_filename, None, add_to_error_list=False)
           if use_parameters is None:
             self.banned_sim_param.append(sim)
             self.error_sims.append(sim_display_name)
@@ -210,8 +211,11 @@ class SimulationHandler:
 
           # get param_target_file
           if use_parameters:
-            try:
-              param_target_filename = read_from_list('param_target_file', settings_data, settings_filename, script_name=script_name)
+            if param_target_filename is None:
+              self.banned_sim_param.append(sim)
+              self.error_sims.append(sim_display_name)
+              return None
+            else:
               # check if param target file path exists
               param_target_file_rtl = architecture.rtl_path + '/' + param_target_filename
               param_target_file_sim = source_sim_dir + '/' + param_target_filename
@@ -219,10 +223,6 @@ class SimulationHandler:
                 #printc.warning("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
               # overwrite architecture settings
               architecture.param_target_filename = param_target_filename
-            except (KeyNotInListError, BadValueInListError):
-              self.banned_sim_param.append(sim)
-              self.error_sims.append(sim_display_name)
-              return None
 
           # get override_parameters
           try:
@@ -323,18 +323,6 @@ class SimulationHandler:
     SimulationHandler.print_sim_list(self.cached_sims, "Existing results (skipped)", printc.colors.CYAN)
     SimulationHandler.print_sim_list(self.overwrite_sims, "Existing results (will be overwritten)", printc.colors.YELLOW)
     SimulationHandler.print_sim_list(self.error_sims, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
-
-  def get_chuncks(self, nb_jobs):
-    if len(self.simulation_instances) > nb_jobs:
-      nb_chunks = math.ceil(len(self.simulation_instances) / nb_jobs)
-      print()
-      printc.note("Current maximum number of jobs is " + str(nb_jobs) + ". Simulations will be split in " + str(nb_chunks) + " chunks")
-      self.simulation_instances_chunks = list(chunk_list(self.simulation_instances, nb_jobs))
-    else:
-      nb_chunks = 1
-      self.simulation_instances_chunks = []
-    return self.simulation_instances_chunks, nb_chunks
-
 
   def get_valid_sim_count(self):
     return len(self.valid_sims)

@@ -76,6 +76,7 @@ synth_status_filename = "synth_status.log"
 frequency_search_filename = "frequency_search.log"
 tool_makefile_filename = "makefile.mk"
 constraint_filename = "constraints.txt"
+param_domains_filename = "param_domains.yml"
 source_tcl = "source scripts/"
 synth_range_rule = "synth"
 test_tool_rule = "test_tool"
@@ -86,9 +87,6 @@ valid_frequency_search = "Highest frequency with timing constraints being met"
 
 progress_bar_size = 50
 refresh_time = 5
-
-default_fmax_lower_bound = 50
-default_fmax_upper_bound = 500
 
 fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
 synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
@@ -114,6 +112,10 @@ def add_arguments(parser):
   parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
   parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
   parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
+  parser.add_argument("--from", dest="from_freq", type=int, help="override range lower bound for custom frequency synthesis (in MHz)")
+  parser.add_argument("--to", dest="to_freq", type=int, help="override range upper bound for custom frequency synthesis (in MHz)")
+  parser.add_argument("--step", dest="step_freq", type=int, help="override range step bound for custom frequency synthesis (in MHz)")
+  parser.add_argument("--at", dest="at_freq", action='append', type=int, help="override freqency at which custom frequency synthesis should be run (in MHz)")
   parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument(
     "-c",
@@ -134,7 +136,7 @@ def parse_arguments():
 ######################################
 
 
-def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False):
+def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, custom_freq_list=[], debug=False):
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
@@ -265,8 +267,9 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     param_settings_filename=param_settings_filename,
     valid_status=valid_status,
     valid_frequency_search=valid_frequency_search,
-    default_fmax_lower_bound=default_fmax_lower_bound,
-    default_fmax_upper_bound=default_fmax_upper_bound,
+    forced_fmax_lower_bound=None,
+    forced_fmax_upper_bound=None,
+    forced_custom_freq_list=custom_freq_list,
     overwrite=overwrite,
   )
 
@@ -306,7 +309,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       copytree(script_path + "/" + tool + "/tcl", arch_instance.tmp_script_path, dirs_exist_ok=True)
 
       # Copy design
-      if arch_instance.design_path != -1:
+      if arch_instance.design_path is not None:
         copytree(
           src=arch_instance.design_path,
           dst=arch_instance.tmp_dir,
@@ -321,7 +324,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
 
       # Replace parameters
       if arch_instance.use_parameters:
-        # printc.subheader("Replace parameters")
+        if debug: 
+          printc.subheader("Replace main parameters")
         param_target_file = arch_instance.tmp_dir + "/" + arch_instance.param_target_filename
         param_filename = arch_path + "/" + arch_instance.arch_name + ".txt"
         replace_params(
@@ -331,9 +335,37 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
           start_delimiter=arch_instance.start_delimiter,
           stop_delimiter=arch_instance.stop_delimiter,
           replace_all_occurrences=False,
-          silent=True,
+          silent=False if debug else True,
         )
-        # print()
+        if debug: 
+          print()
+
+      # Replace domain parameters
+      domain_dict=dict()
+      nb_domain = 0
+      for param_domain in arch_instance.param_domains:
+        if param_domain.use_parameters:
+          param_target_file = arch_instance.tmp_dir + "/" + param_domain.param_target_file
+          if debug: 
+            printc.subheader("Replace parameters for \"" + param_domain.domain + "/" + param_domain.domain_value+ "\"")
+          success = replace_params(
+            base_text_file=param_target_file,
+            replacement_text_file=param_domain.param_file,
+            output_file=param_target_file,
+            start_delimiter=param_domain.start_delimiter,
+            stop_delimiter=param_domain.stop_delimiter,
+            replace_all_occurrences=False,
+            silent=False if debug else True,
+          )
+          if success:
+            nb_domain = nb_domain + 1
+            domain_dict[param_domain.domain] = param_domain.domain_value
+          if debug: 
+            print()
+
+      if nb_domain > 0:
+        with open(os.path.join(arch_instance.tmp_dir, param_domains_filename), 'w') as param_domains_file:
+          yaml.dump(domain_dict, param_domains_file, default_flow_style=False)
 
       # Create target and architecture files
       f = open(os.path.join(arch_instance.tmp_dir, target_filename), "w")
@@ -492,7 +524,28 @@ def main(args, settings=None):
   check_eda_tool = not args.trust
   debug = args.debug
 
-  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug)
+  if args.at_freq is None:
+    custom_freq_list = []
+  else:
+    custom_freq_list = args.at_freq
+
+  if args.to_freq is not None and (args.from_freq is None or args.step_freq is None):
+    printc.error("--to cannot be used without --from and --step", script_name=script_name)
+    sys.exit(-1)
+  elif args.from_freq is not None and (args.to_freq is None or args.step_freq is None):
+    printc.error("--from cannot be used without --to and --step", script_name=script_name)
+    sys.exit(-1)
+  elif args.step_freq is not None and (args.to_freq is None or args.from_freq is None):
+    printc.error("--step cannot be used without --from and --to", script_name=script_name)
+    sys.exit(-1)
+  elif args.from_freq is not None and args.to_freq is not None and args.step_freq is not None:
+    if ArchitectureHandler.check_bounds(args.from_freq, args.to_freq, args.step_freq, synth_type="custom frequency synthesis"):
+      range_list = ArchitectureHandler.create_list_from_range(args.from_freq, args.to_freq, args.step_freq)
+      custom_freq_list = custom_freq_list + range_list
+    else:
+      sys.exit(-1)
+
+  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, custom_freq_list, debug)
 
 
 if __name__ == "__main__":
