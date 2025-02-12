@@ -356,7 +356,11 @@ class ParallelJobHandler:
     self.job_index_start = 0
     self.job_index_end = max_displayed_jobs
 
-    self.theme = Theme('ASCII_Highlight')
+    try:
+      print("█")
+      self.theme = Theme('Color_Boxes')
+    except:
+      self.theme = Theme('ASCII_Highlight')
 
   @staticmethod
   def set_nonblocking(fd):
