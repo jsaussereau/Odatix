@@ -78,7 +78,20 @@ REVERSE_CYAN = 16
 
 class Theme:
   theme = {
-    'ASCII_HIGHLIGHT': {
+    'Color_Boxes': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : '▅',
+      'progress_full'     : '▅',
+      'ballot_check'      : ' ➜ ',
+      'ballot_empty'      : '   ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+      'colored_bar'       : True,
+      'dim_empty_bar'     : True,
+    },
+    'ASCII_Highlight': {
       'bar'               : '-',
       'border_left'       : ' [',
       'border_right'      : ']',
@@ -88,6 +101,34 @@ class Theme:
       'ballot_empty'      : ' ',
       'selected_bold'     : True,
       'selected_reverse'  : True,
+      'colored_bar'       : False,
+      'dim_empty_bar'     : False,
+    },
+    'ASCII_Highlight_Color': {
+      'bar'               : '-',
+      'border_left'       : ' [',
+      'border_right'      : ']',
+      'progress_empty'    : ' ',
+      'progress_full'     : '#',
+      'ballot_check'      : ' ',
+      'ballot_empty'      : ' ',
+      'selected_bold'     : True,
+      'selected_reverse'  : True,
+      'colored_bar'       : True,
+      'dim_empty_bar'     : False,
+    },
+    'Color_Lines': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : '━',
+      'progress_full'     : '━',
+      'ballot_check'      : ' ➜ ',
+      'ballot_empty'      : '   ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+      'colored_bar'       : True,
+      'dim_empty_bar'     : True,
     },
     'ASCII': {
       'bar'               : '-',
@@ -99,6 +140,21 @@ class Theme:
       'ballot_empty'      : '[ ] ',
       'selected_bold'     : False,
       'selected_reverse'  : False,
+      'colored_bar'       : False,
+      'dim_empty_bar'     : False,
+    },
+    'Color_Boxes': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : '▅',
+      'progress_full'     : '▅',
+      'ballot_check'      : ' ➜ ',
+      'ballot_empty'      : '   ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+      'colored_bar'       : True,
+      'dim_empty_bar'     : True,
     },
     'Legacy': {
       'bar'               : '─',
@@ -110,8 +166,10 @@ class Theme:
       'ballot_empty'      : ' ❏ ',
       'selected_bold'     : True,
       'selected_reverse'  : False,
+      'colored_bar'       : False,
+      'dim_empty_bar'     : False,
     },
-    'Arrow': {
+    'Rectangles': {
       'bar'               : '─',
       'border_left'       : ' ┊',
       'border_right'      : '┊',
@@ -121,6 +179,21 @@ class Theme:
       'ballot_empty'      : '   ',
       'selected_bold'     : True,
       'selected_reverse'  : False,
+      'colored_bar'       : False,
+      'dim_empty_bar'     : False,
+    },
+    'Rectangles_Color': {
+      'bar'               : '─',
+      'border_left'       : ' ┊',
+      'border_right'      : '┊',
+      'progress_empty'    : '▮',
+      'progress_full'     : '▮',
+      'ballot_check'      : ' ➜ ',
+      'ballot_empty'      : '   ',
+      'selected_bold'     : True,
+      'selected_reverse'  : False,
+      'colored_bar'       : True,
+      'dim_empty_bar'     : True,
     },
     'Lines': {
       'bar'               : '─',
@@ -132,6 +205,8 @@ class Theme:
       'ballot_empty'      : '   ',
       'selected_bold'     : True,
       'selected_reverse'  : False,
+      'colored_bar'       : False,
+      'dim_empty_bar'     : False,
     },
     'Slanted': {
       'bar'               : '─',
@@ -143,6 +218,8 @@ class Theme:
       'ballot_empty'      : '   ',
       'selected_bold'     : True,
       'selected_reverse'  : False,
+      'colored_bar'       : False,
+      'dim_empty_bar'     : False,
     },
     'Circle': {
       'bar'               : '─',
@@ -154,6 +231,8 @@ class Theme:
       'ballot_empty'      : '   ',
       'selected_bold'     : True,
       'selected_reverse'  : False,
+      'colored_bar'       : False,
+      'dim_empty_bar'     : False,
     },
     'Simple': {
       'bar'               : '─',
@@ -165,6 +244,8 @@ class Theme:
       'ballot_empty'      : ' ❏ ',
       'selected_bold'     : True,
       'selected_reverse'  : False,
+      'colored_bar'       : False,
+      'dim_empty_bar'     : False,
     },
   }
   
@@ -340,7 +421,7 @@ class ParallelJobHandler:
     self.job_index_start = 0
     self.job_index_end = max_displayed_jobs
 
-    self.theme = Theme('ASCII_HIGHLIGHT')
+    self.theme = Theme('ASCII_Highlight')
 
   @staticmethod
   def set_nonblocking(fd):
@@ -373,7 +454,7 @@ class ParallelJobHandler:
     real_id = self.job_index_start  + id
 
     try:
-      if real_id == self.selected_job_index and self.theme.get('selected_reverse'):
+      if real_id == self.selected_job_index and self.theme.get('selected_reverse') and self.job_count > 1:
         window.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
         attr = curses.A_REVERSE | curses.A_BOLD
         offset = REVERSE
@@ -388,17 +469,36 @@ class ParallelJobHandler:
       border_right = self.theme.get('border_right')
 
       window.addstr(id, 0, f"{button}")
-      if real_id == self.selected_job_index and self.theme.get('selected_bold'):
+      if real_id == self.selected_job_index and self.theme.get('selected_bold') and self.job_count > 1:
         window.attron(curses.color_pair(NORMAL) | curses.A_BOLD)
+        attr = attr | curses.A_BOLD
       window.addstr(id, len(button), f"{title}")
       window.attroff(curses.A_BOLD)
       window.addstr(id, len(button) + len(title), f"{border_left}")
+      if self.theme.get('colored_bar'):
+        if status == "failed" or status == "killed" or status == "canceled":
+          window.attron(curses.color_pair(RED + offset))
+        elif status == "running":
+          window.attron(curses.color_pair(YELLOW + offset))
+        elif status == "success":
+          window.attron(curses.color_pair(GREEN + offset))
+        elif status == "queued":
+          window.attron(curses.color_pair(BLUE + offset))
+        elif status == "starting":
+          window.attron(curses.color_pair(CYAN + offset))
+        else:
+          window.attron(curses.color_pair(NORMAL + offset))
       window.addstr(id, len(button) + len(title) + len(border_left), self.theme.get('progress_full') * bar_length)
+      window.attroff(curses.color_pair(NORMAL + offset))
+      if self.theme.get('dim_empty_bar'):
+        window.attron(curses.A_DIM)
       window.addstr(id, len(button) + len(title) + len(border_left) + bar_length, self.theme.get('progress_empty') * (bar_width - bar_length))
+      if not self.showing_help:
+        window.attroff(curses.A_DIM)
 
       pos = len(button) + len(title) + len(border_left) + bar_width + len(border_right)
       window.addstr(id, pos, " "*(width-pos-1))
-      window.addstr(id, len(button) + len(title) + len(border_left) + bar_width, f"{border_right} {percentage}")
+      window.addstr(id, len(button) + len(title) + len(border_left) + bar_width, f"{border_right} {percentage}", attr)
 
       comment_position = len(button) + len(title) + 3 + bar_width + 8
       if status == "failed" or status == "killed" or status == "canceled":
