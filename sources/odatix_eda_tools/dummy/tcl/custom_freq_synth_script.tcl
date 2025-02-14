@@ -21,42 +21,11 @@
 
 if {[catch {
 
-    set signature "<grey>\[synth_script.tcl\]<end>"
+    set signature "<grey>\[custom_freq_synth_script.tcl\]<end>"
 
     source scripts/settings.tcl
-
-    puts "$signature <yellow>warning: this is a dummy script, nothing is being done here!<end>"
-    puts "$signature dummy synthesis script for $lib_name"
-
-    report_progress 0 $synth_statusfile
-    
-    set step [expr {rand() * 10}]
-    for { set i 0 } { $i < $step } { incr i } {
-
-        set duration [expr { rand() * 5 }]
-        for { set j 0 } { $j < $duration } { incr j } {
-            after 250
-            
-            set progress [expr { 100 * ($i + $j / $duration) / $step }]
-            if {$progress > 100} { set progress 100 }
-            
-            report_progress $progress $synth_statusfile
-        }
-    }
-
-    if {[expr {rand() > 0.5}]} {
-        set stiming_rep_handler [open $timing_rep w]
-        puts "Dummy synthesis script: Slack (MET)"
-        puts $stiming_rep_handler "Slack (MET)"
-        close $stiming_rep_handler
-    } else {
-        set stiming_rep_handler [open $timing_rep w]
-        puts "Dummy synthesis script: Slack (VIOLATED)"
-        puts $stiming_rep_handler "Slack (VIOLATED)"
-        close $stiming_rep_handler
-    }
-
-    report_progress 100 $synth_statusfile
+    source scripts/init_script.tcl
+    source scripts/synth_script.tcl
 
 } gblerrmsg ]} {
     puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"
