@@ -2,24 +2,17 @@
 # Settings for dummy tool
 ##############################################
 
+# Group processes
 process_group: True
 
-fmax_synthesis_metrics:
-  Fmax:
-    type: regex
-    settings:
-      file: log/frequency_search.log
-      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
-      group_id: 2
-    format: "%.0f"
-    unit: MHz
+# Default metrics file for this tool
+default_metrics_file: "$eda_tools_path/dummy/metrics.yml"
 
-custom_freq_synthesis_metrics:
-  Frequency:
-    type: regex
-    settings:
-      file: frequency.txt
-      pattern: "([0-9_]+) MHz"
-      group_id: 1
-    format: "%.0f"
-    unit: MHz
+unix:
+  # This command is used to check if the tool is installed
+  tool_test_command: echo 'exit 0' | tclsh
+
+  # You can use lists to define your command with multiple lines
+  fmax_synthesis_command: tclsh $script_path/find_fmax.tcl
+
+  custom_freq_synthesis_command: tclsh $script_path/custom_freq_synth_script.tcl
