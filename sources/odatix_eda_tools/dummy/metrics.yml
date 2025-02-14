@@ -1,0 +1,23 @@
+##############################################
+# Metrics for dummy tool
+##############################################
+
+fmax_synthesis_metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: log/frequency_search.log
+      pattern: ".*Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 1
+    format: "%.0f"
+    unit: MHz
+
+custom_freq_synthesis_metrics:
+  Frequency:
+    type: regex
+    settings:
+      file: frequency.txt
+      pattern: "([0-9_]+) MHz"
+      group_id: 1
+    format: "%.0f"
+    unit: MHz
