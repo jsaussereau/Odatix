@@ -19,6 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import re
 import os
 import yaml
 from enum import Enum
@@ -30,6 +31,12 @@ import odatix.lib.printc as printc
 class JobOutputFormatter:
   """
   Class to load and manage formatting settings from a YAML file.
+
+  This class provides functionality to:
+    - Load format settings from a YAML file.
+    - Apply ANSI escape codes to text based on defined format rules.
+    - Process log message tags (e.g., "ERROR:", "WARNING:").
+    - Perform regex-based replacements on input text.
   """
 
   # ANSI escape codes for terminal color formatting
@@ -55,7 +62,7 @@ class JobOutputFormatter:
     "light_white"   : "97",
   }
 
-  # Mapping of message types to color codes
+  # Mapping of message types to corresponding ANSI color codes
   message_types = {
     "error"         : "light_red",
     "crit_warning"  : "light_yellow",
@@ -71,16 +78,16 @@ class JobOutputFormatter:
     Args:
         filename (str): Path to the YAML configuration file.
     """
-    self.initialized = False  # Indicates if formatting settings are successfully loaded
+    self.initialized = False  # Flag to indicate if formatting settings are loaded
     self.filename = filename
-    self._load_format_settings()  # Load formatting rules
+    self._load_format_settings()  # Load format settings from the YAML file
 
   def _load_yaml(self):
     """
     Load YAML file and return its content as a dictionary.
 
     Returns:
-        dict: Parsed YAML content.
+        dict: Parsed YAML content, or an empty dictionary if an error occurs.
     """
     try:
       with open(self.filename, 'r', encoding='utf-8') as file:
@@ -91,16 +98,17 @@ class JobOutputFormatter:
 
   def _load_format_settings(self):
     """
-    Load format settings from the YAML file using `get_from_dict`, and store them
-    as class attributes for easier access.
+    Load format settings from the YAML file and store them as class attributes.
 
-    The function:
-      - Retrieves the format dictionary from the YAML file.
-      - Populates attributes dynamically based on ANSI color codes and message types.
+    Extracts three sections from the YAML:
+      - `logs`: Defines message types and their associated keywords (e.g., "ERROR:", "INFO:").
+      - `tags`: Defines inline format tags (e.g., "<red>", "<bold>").
+      - `replace`: Defines regex-based replacements.
 
-    Sets:
-        - self.black, self.red, self.green, etc. (one per `ansi_codes` keys)
-        - self.info, self.crit_warning, self.warning, self.error (from `message_types`)
+    Attributes:
+        log_tags (dict): Stores log categories and their associated keywords.
+        format_tags (dict): Stores format tags and their corresponding escape codes.
+        replace_rules (list): Stores regex-based replacement rules.
     """
     yaml_data = self._load_yaml()
 
@@ -116,34 +124,19 @@ class JobOutputFormatter:
       default_value={}
     )
 
-    # Assign values dynamically based on ansi_codes
-    for key in JobOutputFormatter.ansi_codes.keys():
-      setattr(self, key.lower(), format_data.get(key, []))
+    # Extract format configuration
+    self.log_tags = format_data.get("logs", {})
+    self.format_tags = format_data.get("tags", {})
+    self.replace_rules = format_data.get("replace", [])
 
-    # Assign values dynamically based on message_types
-    for key in JobOutputFormatter.message_types.keys():
-      setattr(self, key.lower(), format_data.get(key, []))
-
-    # Mark as initialized if data is successfully loaded
+    # Mark as initialized if data was successfully loaded
     if defined:
       self.initialized = True
-
-  def get_format_keys(self, category):
-    """
-    Retrieve the list of formatting keywords for a given category.
-
-    Args:
-        category (str): The formatting category (e.g., 'error', 'warning', 'red').
-
-    Returns:
-        list: List of associated formatting tags, or an empty list if not found.
-    """
-    return getattr(self, category.lower(), [])
 
   @staticmethod
   def code_to_escape_code(code):
     """
-    Convert an ANSI code to an escape sequence.
+    Convert an ANSI code to its corresponding escape sequence.
 
     Args:
         code (str): ANSI color code.
@@ -155,18 +148,33 @@ class JobOutputFormatter:
 
   def replace_in_line(self, line):
     """
-    Apply formatting to a given line based on defined message types and ANSI codes.
+    Apply formatting and replacements to a given line.
+
+    This method processes the following transformations:
+      - Applies regex replacements from the `replace_rules` section.
+      - Formats log messages (e.g., "ERROR:", "WARNING:") using ANSI escape codes.
+      - Replaces inline format tags (e.g., "<red>", "<bold>") with ANSI escape codes.
 
     Args:
         line (str): Input string to format.
 
     Returns:
-        str: Formatted string with ANSI color codes.
+        str: Formatted string with ANSI escape codes applied.
     """
     if self.initialized:
       replaced = False
 
-      # Iterate over message types (error, warning, etc.)
+      # Apply regex-based replacements
+      for rule in self.replace_rules:
+        if isinstance(rule, dict):
+          for pattern, replacement in rule.items():
+            line = re.sub(pattern, lambda match: re.sub(r'\$(\d+)', lambda m: match.group(int(m.group(1))), replacement), line)
+        else:
+          printc.warning(f"Invalid replacement rule: {rule} (ignored)")
+
+      replaced = False
+
+      # Apply log message formatting (e.g., "ERROR:", "WARNING:")
       for key in JobOutputFormatter.message_types.keys():
         escape_code = JobOutputFormatter.ansi_codes[JobOutputFormatter.message_types[key]]
         head = JobOutputFormatter.code_to_escape_code(escape_code)
@@ -177,8 +185,8 @@ class JobOutputFormatter:
           head += JobOutputFormatter.code_to_escape_code(JobOutputFormatter.ansi_codes["bold"])
           tail = JobOutputFormatter.code_to_escape_code(JobOutputFormatter.ansi_codes["end_bold"])
 
-        # Apply formatting if a match is found
-        for entry in self.get_format_keys(key):
+        # Apply formatting if a match is found in log tags
+        for entry in self.log_tags.get(key, {}):
           if entry in line:
             line = line.replace(entry, head + entry + tail)
             replaced = True
@@ -193,7 +201,7 @@ class JobOutputFormatter:
       for key in JobOutputFormatter.ansi_codes.keys():
         code = JobOutputFormatter.ansi_codes[key]
         escape_code = JobOutputFormatter.code_to_escape_code(code)
-        for entry in self.get_format_keys(key):
+        for entry in self.format_tags.get(key, []):
           line = line.replace(entry, escape_code)
 
     return line
@@ -203,7 +211,7 @@ if __name__ == "__main__":
   yaml_file = os.path.join(OdatixSettings.odatix_eda_tools_path, "vivado", "tool.yml")
   formatter = JobOutputFormatter(yaml_file)
 
-  # Test text with different formatting tags
+  # Example input lines to format
   text = [
     " default_text",
     " <bold><red>bold_red_text<end>",
@@ -215,6 +223,8 @@ if __name__ == "__main__":
     " CRITICAL WARNING: critical_warning_text",
     " WARNING: warning_text",
     " INFO: info_text",
+    " Slack (VIOLATED)",
+    " Slack (MET)",
   ]
 
   # Apply formatting and print results
