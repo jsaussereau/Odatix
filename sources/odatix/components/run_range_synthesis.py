@@ -482,6 +482,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     nb_jobs,
     arch_handler.process_group,
     auto_exit=exit_when_done,
+    format_yaml= tool_settings_file,
     log_size_limit=log_size_limit,
   )
   job_exit_success = parallel_jobs.run()

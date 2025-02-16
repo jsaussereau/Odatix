@@ -43,6 +43,7 @@ else:
 from odatix.components.motd import read_version
 
 from odatix.lib.ansi_to_curses import AnsiToCursesConverter
+from odatix.lib.job_output_formatter import JobOutputFormatter
 from odatix.lib.utils import open_path_in_explorer
 import odatix.lib.printc as printc
 
@@ -328,7 +329,7 @@ class ParallelJob:
 ######################################
 
 class ParallelJobHandler:
-  def __init__(self, job_list, nb_jobs=4, process_group=True, auto_exit=False, log_size_limit=200):
+  def __init__(self, job_list, nb_jobs=4, process_group=True, auto_exit=False, format_yaml=None, log_size_limit=200):
     self.job_list = job_list
     self.nb_jobs = nb_jobs
     self.process_group = process_group
@@ -345,6 +346,10 @@ class ParallelJobHandler:
     self.max_title_length = max(len(job.display_name) for job in job_list)
 
     self.converter = AnsiToCursesConverter()
+    if format_yaml is not None:
+      self.formatter = JobOutputFormatter(format_yaml)
+    else:
+      self.formatter = None
 
     # Initial calculation of max displayed jobs
     height, _ = curses.initscr().getmaxyx()
@@ -615,7 +620,8 @@ class ParallelJobHandler:
     for i, line in enumerate(history[selected_job.log_position : selected_job.log_position + logs_height]):
       try:
         logs_win.move(i, 0)
-        logs_win.clrtoeol()
+        if self.formatter is not None:
+          line = self.formatter.replace_in_line(line)
         self.converter.add_ansi_str(logs_win, line, width=width, dim=self.showing_help)
       except curses.error:
         pass
