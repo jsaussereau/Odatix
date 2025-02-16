@@ -22,14 +22,13 @@
 import curses
 import re
 
-
 A_NORMAL = 0
 
 
 class AnsiToCursesConverter:
   LIGHT_OFFSET = 8
 
-  # Define ANSI codes for colors and attributes
+  # Mapping of ANSI color codes to curses color pairs
   ANSI_COLORS = {
     "30": curses.COLOR_BLACK,
     "31": curses.COLOR_RED,
@@ -55,6 +54,9 @@ class AnsiToCursesConverter:
     self.initialized = False
 
   def initialize_colors(self):
+    """
+    Initialize color pairs in curses.
+    """
     if not self.initialized:
       curses.start_color()
       curses.use_default_colors()
@@ -83,12 +85,22 @@ class AnsiToCursesConverter:
     self.current_intensity = A_NORMAL
 
   def add_ansi_str(self, win, text, debug_win=None, width=-1, dim=False):
+    """
+    Add a string with ANSI escape sequences to a curses window.
+
+    Args:
+        win (curses.window): The window where text is displayed.
+        text (str): The text containing ANSI escape sequences.
+        debug_win (curses.window, optional): Window for debugging output.
+        width (int, optional): Maximum width of the displayed text.
+        dim (bool, optional): Apply dim effect.
+    """
     self.initialize_colors()
 
-    # Regular expression to find ANSI escape sequences
+    # Regex to match ANSI escape sequences
     ansi_escape = re.compile(r"\x1b\[([0-9;]*)m")
 
-    # Find all ANSI codes and normal text
+    # Split text by ANSI codes
     segments = ansi_escape.split(text)
 
     current_width = 0
@@ -100,7 +112,7 @@ class AnsiToCursesConverter:
 
     for i, segment in enumerate(segments):
       if i % 2 == 0:
-        # Normal text segment
+        # Normal text
         if width > 0:
           remaining_width = width - current_width
           if remaining_width > 0:
@@ -114,28 +126,35 @@ class AnsiToCursesConverter:
         else:
           win.addstr(segment, self.current_color | self.current_intensity | dim)
       else:
-        # ANSI code segment
+        # ANSI code processing
         codes = segment.split(";")
         for code in codes:
           if code in AnsiToCursesConverter.ANSI_COLORS:
             color_pair = curses.color_pair(int(code))
-            self.current_color = color_pair  # Use the new color
-          elif code == "0":  # Reset code
-            self.current_color = curses.color_pair(0)  # Reset to default color and attributes
+            self.current_color = color_pair
+          elif code == "0":  # Reset all attributes
+            self.current_color = curses.color_pair(0)
             self.current_intensity = A_NORMAL
-          elif code == "1":  # Bold code
+          elif code == "1":  # Bold
             self.current_intensity = curses.A_BOLD
           elif code == "22":  # Normal intensity
             self.current_intensity = A_NORMAL
           else:
             if debug_win is not None:
-              debug_win.addstr("{Unsupported ANSI escape code:" + code + "}", curses.color_pair(31) | dim)
+              debug_win.addstr(f"Unsupported ANSI code: {code}", curses.color_pair(31) | dim)
 
+    # Refresh the window after updates
     win.refresh()
     if debug_win is not None:
       debug_win.refresh()
 
   def test(self, stdscr):
+    """
+    Test function to display formatted text with ANSI escape sequences.
+
+    Args:
+        stdscr (curses.window): The standard screen window.
+    """
     stdscr.clear()
     text = " default_text\n \x1b[1m\x1b[31mbold_red_text\x1b[0m\n \x1b[34mblue_and_\x1b[32mgreen_text\n \x1b[31mred_text\n \x1b[0mdefault_text\n \x1b[52merror_text"
     height, width = stdscr.getmaxyx()
@@ -143,7 +162,7 @@ class AnsiToCursesConverter:
     # Ensure the text fits within the window width
     self.add_ansi_str(stdscr, text, width=width)
 
-    # Wait for a key press to exit
+    # Wait for user input
     stdscr.getch()
 
 
