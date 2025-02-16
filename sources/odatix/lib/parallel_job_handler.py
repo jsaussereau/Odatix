@@ -362,7 +362,7 @@ class ParallelJobHandler:
     self.job_index_end = max_displayed_jobs
 
     try:
-      print("█")
+      print(" ")
       self.theme = Theme('Color_Boxes')
     except:
       self.theme = Theme('ASCII_Highlight')
@@ -607,7 +607,7 @@ class ParallelJobHandler:
     history = selected_job.log_history
     log_length = len(history)
 
-    # Erase lines extra lines from previous selected job
+    # Erase extra lines from previous selected job
     if log_length < self.previous_log_size:
       for i in range(log_length, self.previous_log_size):
         try:
@@ -615,6 +615,8 @@ class ParallelJobHandler:
           logs_win.clrtoeol()
         except curses.error:
           pass
+
+    self.converter.reset_format()
 
     # Logs from selected job
     for i, line in enumerate(history[selected_job.log_position : selected_job.log_position + logs_height]):

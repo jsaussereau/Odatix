@@ -64,6 +64,24 @@ class AnsiToCursesConverter:
       self.current_color = curses.color_pair(0)
       self.initialized = True
 
+  def reset_format(self):
+    """
+    Reset the current formatting attributes.
+
+    This method resets both the color and intensity attributes to their default values,
+    ensuring that subsequent text is displayed without inherited styles.
+
+    Effects:
+        - Sets `self.current_color` to the default color pair (curses.color_pair(0)).
+        - Sets `self.current_intensity` to `A_NORMAL`.
+
+    Use this method when:
+        - Resetting styles after processing ANSI escape sequences.
+        - Ensuring consistent formatting when switching contexts.
+    """
+    self.current_color = curses.color_pair(0)
+    self.current_intensity = A_NORMAL
+
   def add_ansi_str(self, win, text, debug_win=None, width=-1, dim=False):
     self.initialize_colors()
 
@@ -76,6 +94,9 @@ class AnsiToCursesConverter:
     current_width = 0
     truncated = False
     dim = dim and curses.A_DIM
+
+    # Clear line before writing new text to prevent color bleeding
+    win.clrtoeol()
 
     for i, segment in enumerate(segments):
       if i % 2 == 0:
