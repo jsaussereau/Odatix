@@ -75,3 +75,39 @@ windows:
     - *source_analyze_script_windows
     - *source_synth_script_windows
     - *source_exit_script_windows
+
+# Log formatting
+format:
+
+  # Format the whole log line
+  logs:
+    error:         ['<error>', 'ERROR:']
+    crit_warning:  ['<crit_warning>', 'CRITICAL WARNING:']
+    warning:       ['<warning>', 'WARNING:']
+    info:          ['<note>', 'INFO:']
+    trace:         ['<trace>', 'Command:']
+  
+  # Format tags (replaced by the corresponding format escape code)
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    black:         ['<black>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    blue:          ['<blue>']
+    magenta:       ['<magenta>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+    white:         ['<lgrey>']
+    light_red:     ['<lred>']
+    light_green:   ['<lgreen>']
+    light_yellow:  ['<lyellow>']
+    light_blue:    ['<lblue>']
+    light_magenta: ['<lmagenta>']
+    light_cyan:    ['<lcyan>']
+    light_white:   ['<white>']
+  
+  # Replace sequences (regular expressions)
+  replace:
+    - "(.* completed successfully)": "<green>$1<end>"

@@ -16,3 +16,21 @@ unix:
   fmax_synthesis_command: tclsh $script_path/find_fmax.tcl
 
   custom_freq_synthesis_command: tclsh $script_path/custom_freq_synth_script.tcl
+
+# Log formatting
+format:
+
+  # Format tags (replaced by the corresponding format escape code)
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+  
+  # Replace sequences (regular expressions)
+  replace:
+    - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
+    - "(Slack \\(MET\\))": "<green>$1<end>"
