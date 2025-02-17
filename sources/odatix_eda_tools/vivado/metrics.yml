@@ -99,3 +99,7 @@ metrics:
       op: DMIPS_per_MHz * Fmax
     format: "%.0f"
 
+  Param_Domains:
+    type: yaml
+    settings:
+      file: param_domains.yml

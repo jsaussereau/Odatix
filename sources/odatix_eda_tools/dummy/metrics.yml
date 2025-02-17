@@ -21,3 +21,9 @@ custom_freq_synthesis_metrics:
       group_id: 1
     format: "%.0f"
     unit: MHz
+
+metrics:
+  Param_Domains:
+    type: yaml
+    settings:
+      file: param_domains.yml
