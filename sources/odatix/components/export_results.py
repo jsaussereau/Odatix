@@ -163,8 +163,7 @@ def parse_csv(file, key, error_prefix=""):
 
   return None
 
-
-def parse_yaml(file, key, error_prefix=""):
+def parse_yaml(file, key=None, error_prefix=""):
   """
   Parse a YAML file to extract a value associated with a key.
 
@@ -183,18 +182,19 @@ def parse_yaml(file, key, error_prefix=""):
   with open(file, "r") as yaml_file:
     try:
       data = yaml.safe_load(yaml_file)
-      keys = key.split("[")
-      for k in keys:
-        k = k.rstrip("]")
-        if k in data:
-          data = data[k]
-        else:
-          printc.error(error_prefix + 'Could not find key "' + k + '" in yaml "' + file + '"', script_name=script_name)
-          return None
+      if key:
+        value = data.get(key, None)
+        if value is None:
+          printc.error(error_prefix + 'Could not find key "' + key + '" in yaml "' + file + '"', script_name=script_name)
+        return value
       return data
     except yaml.YAMLError as e:
-      printc.error(error_prefix + 'Could not parse yaml file "' + file + '": ' + str(e), script_name=script_name)
+      printc.error(f'{error_prefix}Could not parse yaml file "{file}": {str(e)}')
       return None
+
+  if not os.path.isfile(file):
+    printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+    return None
 
 
 ######################################
@@ -328,10 +328,10 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
     elif type == "yaml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
-        key = read_from_list("key", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
+      key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
       value = parse_yaml(os.path.join(cur_path, file), key, error_prefix)
     elif type == "benchmark":
       if not use_benchmark:
