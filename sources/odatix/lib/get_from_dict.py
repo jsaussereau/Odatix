@@ -106,8 +106,10 @@ def get_from_dict(
   """
   raise_on_error = behavior == Key.OPTIONAL_RAISE or behavior == Key.MANTADORY_RAISE
   optional = behavior == Key.OPTIONAL or behavior == Key.OPTIONAL_RAISE
-  parent_string = "" if parent == None else ", inside list \"" + parent + "\","  
-
+  parent_string = "" if parent == None else ", inside parent key \"" + parent + "\","  
+  if not isinstance(input_dict, dict):
+    printc.error("Cannot find key \"" + key + "\"" + parent_string + " because the parent key is not a dictionnary but a \"" + input_dict.__class__.__name__ + "\", in \"" + filename + "\".", script_name)
+    return default_value, False
   if key in input_dict:
     value = input_dict[key]
     if type is None:
