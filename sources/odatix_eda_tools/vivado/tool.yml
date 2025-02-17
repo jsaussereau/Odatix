@@ -110,4 +110,6 @@ format:
   
   # Replace sequences (regular expressions)
   replace:
+    - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
+    - "(Slack \\(MET\\))": "<green>$1<end>"
     - "(.* completed successfully)": "<green>$1<end>"
