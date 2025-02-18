@@ -258,6 +258,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
         status_file="",
         progress_file=sim_progress_file,
         tmp_dir=sim_instance.tmp_dir,
+        log_size_limit=log_size_limit,
         status="idle",
       )
 

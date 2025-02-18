@@ -88,6 +88,7 @@ class SimulationHandler:
       work_report_path = "",
       log_path = self.log_path,
       process_group=True,
+      command="",
       eda_target_filename = "",
       fmax_status_filename = "",
       frequency_search_filename = "",
