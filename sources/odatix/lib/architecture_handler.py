@@ -503,7 +503,7 @@ class ArchitectureHandler:
       work_top_level = os.path.join(local_rtl_path, top_level_filename)
 
       use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
-      if use_parameters is None or start_delimiter is None or stop_delimiter is None:
+      if use_parameters is None or start_delimiter is None or stop_delimiter is None or param_target_filename is None:
         return None
 
       design_path, design_path_defined = get_from_dict('design_path', settings_data, settings_filename, silent=True, script_name=script_name)
@@ -578,6 +578,7 @@ class ArchitectureHandler:
       if param_domains is None:
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
+        return None
     else:
       param_domains = []
       
@@ -763,7 +764,7 @@ class ArchitectureHandler:
           printc.error("There is no parameter file \"" + param_file + "\", while \"use_parameters\" is true", script_name)
           if add_to_error_list:
             self.error_archs.append(arch_display_name)
-          return True, None, None, None
+          return None, None, None, None
 
     return use_parameters, start_delimiter, stop_delimiter, param_target_filename
 
