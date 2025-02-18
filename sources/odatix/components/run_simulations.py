@@ -22,10 +22,12 @@
 import os
 import re
 import sys
+import yaml
 import argparse
 import subprocess
 
 import odatix.lib.printc as printc
+import odatix.lib.hard_settings as hard_settings
 from odatix.lib.replace_params import replace_params
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
@@ -35,38 +37,10 @@ from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import check_tool
 from odatix.lib.run_settings import get_sim_settings
 
-######################################
-# Settings
-######################################
+script_name = os.path.basename(__file__)
 
-work_rtl_path = "rtl"
-work_path = "work/simulation"
-work_script_path = "scripts"
-work_log_path = "log"
-common_script_path = "_common"
-log_path = "log"
-arch_path = "architectures"
-sim_path = "simulations"
-rtl_path = "rtl"
-
-nb_jobs = 4
-
-param_settings_filename = "_settings.yml"
-sim_settings_filename = "_settings.yml"
-param_domains_filename = "param_domains.yml"
 sim_makefile_filename = "Makefile"
 sim_rule = "sim"
-sim_progress_filename = "progress.log"
-
-progress_bar_size = 50
-refresh_time = 5
-
-default_fmax_lower_bound = 50
-default_fmax_upper_bound = 500
-
-sim_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
-
-script_name = os.path.basename(__file__)
 
 ######################################
 # Parse Arguments
@@ -127,19 +101,19 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
   if noask:
     ask_continue = False
 
-  ParallelJob.set_patterns(sim_status_pattern)
+  ParallelJob.set_patterns(hard_settings.sim_status_pattern)
 
   sim_handler = SimulationHandler(
     work_path = work_path,
     arch_path = arch_path,
     sim_path = sim_path,
-    work_rtl_path = work_rtl_path,
-    work_script_path = work_script_path,
-    work_log_path = work_log_path,
-    log_path = log_path,
+    work_rtl_path = hard_settings.work_rtl_path,
+    work_script_path = hard_settings.work_script_path,
+    work_log_path = hard_settings.work_log_path,
+    log_path = hard_settings.work_log_path,
     overwrite = overwrite,
-    param_settings_filename = param_settings_filename,
-    sim_settings_filename = sim_settings_filename,
+    param_settings_filename = hard_settings.param_settings_filename,
+    sim_settings_filename = hard_settings.sim_settings_filename,
     sim_makefile_filename = sim_makefile_filename
   )
 
@@ -149,7 +123,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
     
   try:
     simulation_instances = sim_handler.get_simulations(simulations)
-  except Exception as e:
+  except yaml.YAMLError as e:
     printc.error("Could not get list \"simulations\" from \"" + run_config_settings_filename + "\".", script_name=script_name)
     printc.note("Is the YAML file valid? Are you missing a ':'? Is the indentation correct?", script_name=script_name)
     printc.cyan("error details: ", end="", script_name=script_name)
@@ -197,14 +171,14 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
 
       # copy rtl (if exists) 
       if not sim_instance.architecture.generate_rtl:
-        copytree(sim_instance.architecture.rtl_path, sim_instance.tmp_dir + '/' + 'rtl', dirs_exist_ok = True)
+        copytree(sim_instance.architecture.rtl_path, os.path.join(sim_instance.tmp_dir, 'rtl'), dirs_exist_ok = True)
 
       # replace parameters
       if sim_instance.architecture.use_parameters:
         if debug: 
           printc.subheader("Replace main parameters")
-        param_target_file = sim_instance.tmp_dir + '/' + sim_instance.architecture.param_target_filename
-        param_filename = arch_path + '/' + sim_instance.architecture.arch_name + '.txt'
+        param_target_file = os.path.join(sim_instance.tmp_dir, sim_instance.architecture.param_target_filename)
+        param_filename = os.path.join(arch_path, sim_instance.architecture.arch_name + '.txt')
         replace_params(
           base_text_file=param_target_file, 
           replacement_text_file=param_filename, 
@@ -222,7 +196,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       nb_domain = 0
       for param_domain in sim_instance.architecture.param_domains:
         if param_domain.use_parameters:
-          param_target_file = arch_instance.tmp_dir + "/" + arch_instance.param_target_filename
+          param_target_file = os.path.join(arch_instance.tmp_dir, arch_instance.param_target_filename)
           if debug: 
             printc.subheader("Replace parameters for \"" + param_domain.domain + "/" + param_domain.domain_value+ "\"")
           success = replace_params(
@@ -241,14 +215,14 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
             print()
       
       if nb_domain > 0:
-        with open(os.path.join(arch_instance.tmp_dir, param_domains_filename), 'w') as param_domains_file:
+        with open(os.path.join(arch_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
           yaml.dump(domain_dict, param_domains_file, default_flow_style=False)
 
       # replace parameters again (override)
       if sim_instance.override_parameters:
         #printc.subheader("Replace parameters")
-        param_target_file = sim_instance.tmp_dir + '/' + sim_instance.override_param_target_filename
-        param_file = sim_instance.tmp_dir + '/' + sim_instance.override_param_filename
+        param_target_file = os.path.join(sim_instance.tmp_dir, sim_instance.override_param_target_filename)
+        param_file = os.path.join(sim_instance.tmp_dir, sim_instance.override_param_filename)
         replace_params(
           base_text_file=param_target_file, 
           replacement_text_file=param_file, 
@@ -262,15 +236,15 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       # run simulation command
       command = (
         "make {}".format(sim_rule)
-        + ' RTL_DIR="{}"'.format(rtl_path)
+        + ' RTL_DIR="{}"'.format(hard_settings.work_rtl_path)
         + ' ODATIX_DIR="{}"'.format(OdatixSettings.odatix_path)
-        + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(sim_instance.tmp_dir, log_path)))
+        + ' LOG_DIR="{}"'.format(os.path.realpath(os.path.join(sim_instance.tmp_dir, hard_settings.work_log_path)))
         + ' CLOCK_SIGNAL="{}"'.format(sim_instance.architecture.clock_signal)
         + ' TOP_LEVEL_MODULE="{}"'.format(sim_instance.architecture.top_level_module)
         + " --no-print-directory"
       )
 
-      sim_progress_file = os.path.join(sim_instance.tmp_dir, log_path, sim_progress_filename)
+      sim_progress_file = os.path.join(sim_instance.tmp_dir, hard_settings.work_log_path, hard_settings.sim_progress_filename)
 
       running_sim = ParallelJob(
         process=None,

@@ -28,6 +28,7 @@ import argparse
 import subprocess
 
 import odatix.lib.printc as printc
+import odatix.lib.hard_settings as hard_settings
 from odatix.lib.replace_params import replace_params
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
@@ -38,60 +39,6 @@ from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import check_tool
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-
-######################################
-# Settings
-######################################
-
-work_path = "work"
-
-# Get eda_tools folder
-if getattr(sys, "frozen", False):
-  base_path = os.path.dirname(sys.executable)
-else:
-  base_path = current_dir
-script_path = os.path.realpath(os.path.join(base_path, os.pardir, os.pardir, "odatix_eda_tools"))
-
-work_rtl_path = "rtl"
-work_script_path = "scripts"
-work_report_path = "report"
-work_result_path = "result"
-work_log_path = "log"
-common_script_path = "_common"
-log_path = "log"
-arch_path = "architectures"
-
-nb_jobs = 4
-
-param_settings_filename = "_settings.yml"
-tool_settings_filename = "tool.yml"
-arch_filename = "architecture.txt"
-target_filename = "target.txt"
-tcl_config_filename = "settings.tcl"
-yaml_config_filename = "settings.yml"
-fmax_status_filename = "status.log"
-synth_status_filename = "synth_status.log"
-frequency_search_filename = "frequency_search.log"
-tool_makefile_filename = "makefile.mk"
-constraint_filename = "constraints.txt"
-param_domains_filename = "param_domains.yml"
-source_tcl = "source scripts/"
-synth_fmax_rule = "synth_fmax"
-test_tool_rule = "test_tool"
-
-settings_ini_section = "SETTINGS"
-valid_status = "Done: 100%"
-valid_frequency_search = "Highest frequency with timing constraints being met"
-
-progress_bar_size = 50
-refresh_time = 5
-
-fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
-synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
-
-default_supported_tools = ["vivado", "design_compiler", "openlane"]
 
 script_name = os.path.basename(__file__)
 
@@ -178,13 +125,13 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     )
     sys.exit(-1)
 
-  # Check if the tool has a dedicated directory in script_path
-  eda_tool_dir = script_path + "/" + tool
+  # Check if the tool has a dedicated directory in odatix_eda_tools path
+  eda_tool_dir = os.path.join(OdatixSettings.odatix_eda_tools_path, tool)
   if not os.path.isdir(eda_tool_dir):
     printc.error(
       'The directory "' + eda_tool_dir + '", for the selected eda tool "' + tool + '" does not exist', script_name
     )
-    if tool not in default_supported_tools:
+    if tool not in hard_settings.default_supported_tools:
       printc.note(
         'The selected eda tool "'
         + tool
@@ -194,7 +141,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     sys.exit(-1)
 
   # Get tool settings
-  tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, tool_settings_filename))
+  tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
   process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file)
 
   with open(eda_target_filename, "r") as f:
@@ -244,28 +191,28 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
   # Try launching eda tool
   if check_eda_tool:
     check_tool(
-      tool, command=tool_test_command, supported_tools=default_supported_tools, tool_install_path=install_path, debug=debug
+      tool, command=tool_test_command, supported_tools=hard_settings.default_supported_tools, tool_install_path=install_path, debug=debug
     )
 
-  ParallelJob.set_patterns(synth_status_pattern, fmax_status_pattern)
+  ParallelJob.set_patterns(hard_settings.synth_status_pattern, hard_settings.fmax_status_pattern)
 
   arch_handler = ArchitectureHandler(
     work_path=work_path,
     arch_path=arch_path,
-    script_path=script_path,
-    log_path=log_path,
-    work_rtl_path=work_rtl_path,
-    work_script_path=work_script_path,
-    work_log_path=work_log_path,
-    work_report_path=work_report_path,
+    script_path=OdatixSettings.odatix_eda_tools_path,
+    log_path=hard_settings.work_log_path,
+    work_rtl_path=hard_settings.work_rtl_path,
+    work_script_path=hard_settings.work_script_path,
+    work_log_path=hard_settings.work_log_path,
+    work_report_path=hard_settings.work_report_path,
     process_group=process_group,
     command=run_command,
     eda_target_filename=eda_target_filename,
-    fmax_status_filename=fmax_status_filename,
-    frequency_search_filename=frequency_search_filename,
-    param_settings_filename=param_settings_filename,
-    valid_status=valid_status,
-    valid_frequency_search=valid_frequency_search,
+    fmax_status_filename=hard_settings.fmax_status_filename,
+    frequency_search_filename=hard_settings.frequency_search_filename,
+    param_settings_filename=hard_settings.param_settings_filename,
+    valid_status=hard_settings.valid_status,
+    valid_frequency_search=hard_settings.valid_frequency_search,
     forced_fmax_lower_bound=forced_fmax_lower_bound,
     forced_fmax_upper_bound=forced_fmax_upper_bound,
     forced_custom_freq_list=None,
@@ -302,11 +249,11 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       
       # Copy scripts
       try:
-        copytree(script_path + "/" + common_script_path, arch_instance.tmp_script_path)
+        copytree(os.path.join(OdatixSettings.odatix_eda_tools_path, hard_settings.common_script_path), arch_instance.tmp_script_path)
       except:
         printc.error('"' + arch_instance.tmp_script_path + '" exists while it should not', script_name)
 
-      copytree(script_path + "/" + tool + "/tcl", arch_instance.tmp_script_path, dirs_exist_ok=True)
+      copytree(os.path.join(OdatixSettings.odatix_eda_tools_path, tool, hard_settings.tool_tcl_path), arch_instance.tmp_script_path, dirs_exist_ok=True)
 
       # Copy design
       if arch_instance.design_path is not None:
@@ -320,14 +267,14 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
 
       # Copy rtl (if exists)
       if not arch_instance.generate_rtl:
-        copytree(arch_instance.rtl_path, arch_instance.tmp_dir + "/" + work_rtl_path, dirs_exist_ok=True)
+        copytree(arch_instance.rtl_path, os.path.join(arch_instance.tmp_dir, hard_settings.work_rtl_path), dirs_exist_ok=True)
 
       # Replace parameters
       if arch_instance.use_parameters:
         if debug: 
           printc.subheader("Replace main parameters")
-        param_target_file = arch_instance.tmp_dir + "/" + arch_instance.param_target_filename
-        param_filename = arch_path + "/" + arch_instance.arch_name + ".txt"
+        param_target_file = os.path.join(arch_instance.tmp_dir, arch_instance.param_target_filename)
+        param_filename = os.path.join(arch_path, arch_instance.arch_name + ".txt")
         replace_params(
           base_text_file=param_target_file,
           replacement_text_file=param_filename,
@@ -345,7 +292,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       nb_domain = 0
       for param_domain in arch_instance.param_domains:
         if param_domain.use_parameters:
-          param_target_file = arch_instance.tmp_dir + "/" + arch_instance.param_target_filename
+          param_target_file = os.path.join(arch_instance.tmp_dir, param_domain.param_target_file)
           if debug: 
             printc.subheader("Replace parameters for \"" + param_domain.domain + "/" + param_domain.domain_value+ "\"")
           success = replace_params(
@@ -364,14 +311,14 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
             print()
 
       if nb_domain > 0:
-        with open(os.path.join(arch_instance.tmp_dir, param_domains_filename), 'w') as param_domains_file:
+        with open(os.path.join(arch_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
           yaml.dump(domain_dict, param_domains_file, default_flow_style=False)
 
       # Create target and architecture files
-      f = open(os.path.join(arch_instance.tmp_dir, target_filename), "w")
+      f = open(os.path.join(arch_instance.tmp_dir, hard_settings.target_filename), "w")
       print(arch_instance.target, file=f)
       f.close()
-      f = open(os.path.join(arch_instance.tmp_dir, arch_filename), "w")
+      f = open(os.path.join(arch_instance.tmp_dir, hard_settings.arch_filename), "w")
       print(arch_instance.arch_name, file=f)
       f.close()
 
@@ -407,12 +354,12 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
           return
 
       # Edit tcl config script
-      tcl_config_file = os.path.join(arch_instance.tmp_script_path, tcl_config_filename)
-      report_path = os.path.join(arch_instance.tmp_dir, work_report_path)
+      tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
+      report_path = os.path.join(arch_instance.tmp_dir, hard_settings.work_report_path)
       edit_config_file(arch_instance, tcl_config_file)
 
       # Write yaml config script
-      yaml_config_file = os.path.join(arch_instance.tmp_dir, yaml_config_filename)
+      yaml_config_file = os.path.join(arch_instance.tmp_dir, hard_settings.yaml_config_filename)
       Architecture.write_yaml(arch_instance, yaml_config_file)
 
       # Link all scripts to config script
@@ -420,7 +367,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
         if filename.endswith(".tcl"):
           with open(os.path.join(arch_instance.tmp_script_path, filename), "r") as f:
             tcl_content = f.read()
-          pattern = re.escape(source_tcl) + r"(.+?\.tcl)"
+          pattern = re.escape(hard_settings.source_tcl) + r"(.+?\.tcl)"
 
           def replace_path(match):
             return "source " + os.path.join(os.path.realpath(arch_instance.tmp_script_path), match.group(1)).replace('\\','/')
@@ -441,8 +388,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
         tool_install_path=os.path.realpath(arch_instance.install_path),
         odatix_path=OdatixSettings.odatix_path,
         odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
-        script_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, work_script_path)),
-        log_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, log_path)),
+        script_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_script_path)),
+        log_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path)),
         clock_signal=arch_instance.clock_signal,
         top_level_module=arch_instance.top_level_module,
         lib_name=arch_instance.lib_name,
@@ -451,8 +398,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       # Replace variables in command
       command = replace_variables(command, variables)
 
-      fmax_status_file = os.path.join(arch_instance.tmp_dir, log_path, fmax_status_filename)
-      synth_status_file = os.path.join(arch_instance.tmp_dir, log_path, synth_status_filename)
+      fmax_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.fmax_status_filename)
+      synth_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.synth_status_filename)
 
       # Run binary search script
       running_arch = ParallelJob(
@@ -491,8 +438,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
   if job_exit_success:
     print()
     for running_arch in job_list:
-      tmp_dir = work_path + "/" + running_arch.target + "/" + running_arch.arch
-      frequency_search_file = tmp_dir + "/" + log_path + "/" + frequency_search_filename
+      tmp_dir = os.path.join(work_path, running_arch.target, running_arch.arch)
+      frequency_search_file = os.path.join(tmp_dir, hard_settings.work_log_path, hard_settings.frequency_search_filename)
       try:
         with open(frequency_search_file, "r") as file:
           lines = file.readlines()
