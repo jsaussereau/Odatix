@@ -48,7 +48,9 @@ class ResultExplorer:
     self.old_settings = old_settings
     self.safe_mode = safe_mode
 
-    if theme is None or theme not in themes.templates:
+    if theme is None:
+      self.start_theme = themes.default_theme
+    elif theme not in themes.templates:
       printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.')
       self.start_theme = themes.default_theme
     else:
