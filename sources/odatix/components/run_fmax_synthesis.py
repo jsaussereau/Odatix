@@ -35,6 +35,7 @@ from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
 from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
+from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import check_tool
 from odatix.lib.run_settings import get_synth_settings
@@ -174,6 +175,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       printc.note('No tool_install_path specified for "' + tool + '"', script_name=script_name)
       install_path = "/"
 
+    force_single_thread, _ = get_from_dict("force_single_thread", settings_data, eda_target_filename, default_value=False, script_name=script_name)
+
   # Concat all strings if it is a list
   if isinstance(tool_test_command, list):
     tool_test_command = " ".join(map(str, tool_test_command)) 
@@ -218,6 +221,7 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     forced_custom_freq_list=None,
     overwrite=overwrite,
     continue_on_error=continue_on_error,
+    force_single_thread=force_single_thread,
   )
 
   architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path)

@@ -25,21 +25,17 @@ if {[catch {
 
     set signature "<grey>\[synth_script.tcl\]<end>"
 
-    report_progress 0 $synth_statusfile
-
-    ######################################
-    # Analyze source files
-    ######################################
-    if {[info exists ::env(DO_NOT_ANALYZE_RTL)]} {
-        if {[$::env(DO_NOT_ANALYZE_RTL) == 0]} {
-            #source $analyze_script
-            #puts "analyzing" 
+    if {$single_thread == 1} {
+        if {[catch {
+            set_param synth.maxThreads 1
+            set_param general.maxThreads 1
+        } errmsg]} {
+            puts "$signature <bold><red>error: failed setting vivado to single thread<end>"
+            puts -nonewline "$signature tool says -> $errmsg"
         }
-    } else {
-        #source $analyze_script
-        #puts "analyzing" 
     }
-    #source $analyze_script
+
+    report_progress 0 $synth_statusfile
 
     ######################################
     # Read constraints
@@ -130,6 +126,15 @@ if {[catch {
             exit -1
         }
     }
+    if {[catch {
+        puts "$signature <cyan>report_route_status:<end>"
+        report_route_status
+    } errmsg]} {
+        puts "$signature <bold><red>error: failed report_route_status, exiting<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+    }
+
     report_progress 85 $synth_statusfile
     if {[catch {
         place_design -post_place_opt

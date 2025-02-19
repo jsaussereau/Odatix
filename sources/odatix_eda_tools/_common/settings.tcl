@@ -76,6 +76,7 @@ set fmax_mindiff       1
 set fmax_safezone      5
 
 set continue_on_error  0
+set single_thread      1
 
 set lib_name           WORK
 

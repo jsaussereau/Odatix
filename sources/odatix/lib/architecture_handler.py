@@ -46,7 +46,7 @@ class Architecture:
     file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
     fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
     param_target_filename, generate_rtl, generate_command, constraint_filename, install_path, 
-    param_domains, continue_on_error=False,
+    param_domains, continue_on_error=False, force_single_thread=False,
   ):
     self.arch_name = arch_name
     self.arch_display_name = arch_display_name
@@ -86,6 +86,7 @@ class Architecture:
     self.install_path = install_path
     self.param_domains = param_domains
     self.continue_on_error = continue_on_error
+    self.force_single_thread = force_single_thread
 
   def write_yaml(arch, config_file): 
     yaml_data = {
@@ -125,6 +126,7 @@ class Architecture:
       'constraint_filename': arch.constraint_filename,
       'install_path': arch.install_path,
       'continue_on_error': arch.continue_on_error,
+      'force_single_thread': arch.force_single_thread,
     }
       
     with open(config_file, 'w') as f:
@@ -176,6 +178,7 @@ class Architecture:
         constraint_filename      = get_from_dict("constraint_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
         install_path             = get_from_dict("install_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
         continue_on_error        = get_from_dict("continue_on_error", yaml_data, config_file, behavior=Key.OPTIONAL_DEFAULT, default_value=False, script_name=script_name)[0],
+        force_single_thread      = get_from_dict("force_single_thread", yaml_data, config_file, behavior=Key.OPTIONAL_DEFAULT, default_value=False, script_name=script_name)[0],
       )
     except (KeyNotInListError, BadValueInListError):
       return None
@@ -205,7 +208,8 @@ class ArchitectureHandler:
     forced_fmax_upper_bound,
     forced_custom_freq_list,
     overwrite,
-    continue_on_error=False
+    continue_on_error=False,
+    force_single_thread=False,
   ):
     self.work_path = work_path
     self.arch_path = arch_path
@@ -233,6 +237,7 @@ class ArchitectureHandler:
 
     self.overwrite = overwrite
     self.continue_on_error = continue_on_error
+    self.force_single_thread = force_single_thread
 
     self.reset_lists()
 
@@ -746,6 +751,7 @@ class ArchitectureHandler:
       install_path=install_path,
       param_domains=param_domains,
       continue_on_error=self.continue_on_error,
+      force_single_thread=self.force_single_thread,
     )
 
     return arch_instance
