@@ -69,6 +69,8 @@ YELLOW = 3
 GREEN = 4
 BLUE = 5
 CYAN = 6
+BLACK = 7
+WHITE = 8
 
 REVERSE = 10
 REVERSE_RED = 12
@@ -76,6 +78,8 @@ REVERSE_YELLOW = 13
 REVERSE_GREEN = 14
 REVERSE_BLUE = 15
 REVERSE_CYAN = 16
+REVERSE_BLACK = 17
+REVERSE_WHITE = 18
 
 class Theme:
   theme = {
@@ -423,7 +427,7 @@ class ParallelJobHandler:
         if status == "failed" or status == "killed" or status == "canceled":
           window.attron(curses.color_pair(RED + offset))
         elif status == "running":
-          window.attron(curses.color_pair(YELLOW + offset))
+          window.attron(curses.color_pair(WHITE + offset))
         elif status == "success":
           window.attron(curses.color_pair(GREEN + offset))
         elif status == "queued":
@@ -828,6 +832,8 @@ class ParallelJobHandler:
     curses.init_pair(GREEN, curses.COLOR_GREEN, -1)
     curses.init_pair(BLUE, curses.COLOR_BLUE, -1)
     curses.init_pair(CYAN, curses.COLOR_CYAN, -1)
+    curses.init_pair(BLACK, curses.COLOR_BLACK, -1)
+    curses.init_pair(WHITE, curses.COLOR_WHITE, -1)
 
     curses.init_pair(REVERSE, curses.COLOR_BLACK, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
     curses.init_pair(REVERSE_RED, -1, curses.COLOR_RED + AnsiToCursesConverter.LIGHT_OFFSET)
@@ -835,6 +841,8 @@ class ParallelJobHandler:
     curses.init_pair(REVERSE_GREEN, -1, curses.COLOR_GREEN + AnsiToCursesConverter.LIGHT_OFFSET)
     curses.init_pair(REVERSE_BLUE, -1, curses.COLOR_BLUE + AnsiToCursesConverter.LIGHT_OFFSET)
     curses.init_pair(REVERSE_CYAN, -1, curses.COLOR_CYAN + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(REVERSE_BLACK, -1, curses.COLOR_BLACK + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(REVERSE_WHITE, -1, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
 
     height, width = stdscr.getmaxyx()
     old_width = width
