@@ -98,7 +98,9 @@ class ConfigGenerator:
     safe_env = {var: values_map[var] for var in values_map}
     safe_env["math"] = math
     expr = expr.replace("^", "**")  # Replace '^' with '**' for Python exponentiation
-
+    expr = expr.replace("$", "")
+    expr = expr.replace("{", "")
+    expr = expr.replace("}", "")
     try:
       return eval(expr, {"__builtins__": None}, safe_env)
     except Exception as e:
