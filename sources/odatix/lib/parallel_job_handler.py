@@ -72,6 +72,7 @@ BLUE = 5
 CYAN = 6
 BLACK = 7
 WHITE = 8
+GREY = 9
 
 REVERSE = 10
 REVERSE_RED = 12
@@ -81,13 +82,14 @@ REVERSE_BLUE = 15
 REVERSE_CYAN = 16
 REVERSE_BLACK = 17
 REVERSE_WHITE = 18
+REVERSE_GREY = 19
 
 class Theme:
   theme = {
     'Color_Boxes': {
       'bar'               : '─',
       'border_left'       : ' ┊',
-      'border_right'      : '┊',
+      'border_right'      : '┊ ',
       'progress_empty'    : '▅',
       'progress_full'     : '▅',
       'ballot_check'      : ' ➜ ',
@@ -100,7 +102,7 @@ class Theme:
     'ASCII_Highlight': {
       'bar'               : '-',
       'border_left'       : ' [',
-      'border_right'      : ']',
+      'border_right'      : '] ',
       'progress_empty'    : ' ',
       'progress_full'     : '#',
       'ballot_check'      : ' ',
@@ -113,7 +115,7 @@ class Theme:
     'ASCII_Highlight_Color': {
       'bar'               : '-',
       'border_left'       : ' [',
-      'border_right'      : ']',
+      'border_right'      : '] ',
       'progress_empty'    : ' ',
       'progress_full'     : '#',
       'ballot_check'      : ' ',
@@ -126,7 +128,7 @@ class Theme:
     'Color_Lines': {
       'bar'               : '─',
       'border_left'       : ' ┊',
-      'border_right'      : '┊',
+      'border_right'      : '┊ ',
       'progress_empty'    : '━',
       'progress_full'     : '━',
       'ballot_check'      : ' ➜ ',
@@ -139,7 +141,7 @@ class Theme:
     'Legacy': {
       'bar'               : '─',
       'border_left'       : ' ┊',
-      'border_right'      : '┊',
+      'border_right'      : '┊ ',
       'progress_empty'    : '🮏',
       'progress_full'     : '▅',
       'ballot_check'      : ' ✔ ',
@@ -152,7 +154,7 @@ class Theme:
     'Rectangles': {
       'bar'               : '─',
       'border_left'       : ' ┊',
-      'border_right'      : '┊',
+      'border_right'      : '┊ ',
       'progress_empty'    : ' ',
       'progress_full'     : '▮',
       'ballot_check'      : ' ➜ ',
@@ -165,7 +167,7 @@ class Theme:
     'Rectangles_Color': {
       'bar'               : '─',
       'border_left'       : ' ┊',
-      'border_right'      : '┊',
+      'border_right'      : '┊ ',
       'progress_empty'    : '▮',
       'progress_full'     : '▮',
       'ballot_check'      : ' ➜ ',
@@ -178,7 +180,7 @@ class Theme:
     'Simple': {
       'bar'               : '─',
       'border_left'       : ' ┊',
-      'border_right'      : '┊',
+      'border_right'      : '┊ ',
       'progress_empty'    : '▭',
       'progress_full'     : '■',
       'ballot_check'      : ' ✔ ',
@@ -425,47 +427,58 @@ class ParallelJobHandler:
       if real_id == self.selected_job_index and self.theme.get('selected_bold') and self.job_count > 1:
         window.attron(curses.color_pair(NORMAL) | curses.A_BOLD)
         attr = attr | curses.A_BOLD
-      window.addstr(id, len(button), f"{title}")
+      pos = len(button)
+      window.addstr(id, pos, f"{title}")
       window.attroff(curses.A_BOLD)
-      window.addstr(id, len(button) + len(title), f"{border_left}")
+      pos = pos + len(title)
+      window.addstr(id, pos, f"{border_left}")
+
       if self.theme.get('colored_bar'):
         if status == "failed" or status == "killed" or status == "canceled":
-          window.attron(curses.color_pair(RED + offset))
+          color = curses.color_pair(RED + offset)
         elif status == "running":
-          window.attron(curses.color_pair(WHITE + offset))
+          color = curses.color_pair(WHITE + offset)
         elif status == "success":
-          window.attron(curses.color_pair(GREEN + offset))
+          color = curses.color_pair(GREEN + offset)
         elif status == "queued":
-          window.attron(curses.color_pair(BLUE + offset))
+          color = curses.color_pair(BLUE + offset)
         elif status == "starting":
-          window.attron(curses.color_pair(CYAN + offset))
+          color = curses.color_pair(CYAN + offset)
         else:
-          window.attron(curses.color_pair(NORMAL + offset))
-      window.addstr(id, len(button) + len(title) + len(border_left), self.theme.get('progress_full') * bar_length)
-      window.attroff(curses.color_pair(NORMAL + offset))
-      if self.theme.get('dim_empty_bar'):
-        window.attron(curses.A_DIM)
-      window.addstr(id, len(button) + len(title) + len(border_left) + bar_length, self.theme.get('progress_empty') * (bar_width - bar_length))
-      if not self.showing_help:
-        window.attroff(curses.A_DIM)
-
-      pos = len(button) + len(title) + len(border_left) + bar_width + len(border_right)
-      window.addstr(id, pos, " "*(width-pos-1))
-      window.addstr(id, len(button) + len(title) + len(border_left) + bar_width, f"{border_right} {percentage} {time}", attr)
-
-      comment_position = len(button) + len(title) + bar_width + 10 + len(time)
-      if status == "failed" or status == "killed" or status == "canceled":
-        window.addstr(id, comment_position, comment, curses.color_pair(RED + offset) | attr)
-      elif status == "running":
-        window.addstr(id, comment_position, comment, curses.color_pair(YELLOW + offset) | attr)
-      elif status == "success":
-        window.addstr(id, comment_position, comment, curses.color_pair(GREEN + offset) | attr)
-      elif status == "queued":
-        window.addstr(id, comment_position, comment, curses.color_pair(BLUE + offset) | attr)
-      elif status == "starting":
-        window.addstr(id, comment_position, comment, curses.color_pair(CYAN + offset) | attr)
+          color = curses.color_pair(NORMAL + offset)
       else:
-        window.addstr(id, comment_position, comment, curses.color_pair(NORMAL + offset) | attr)
+        color = 0
+
+      pos = pos + len(border_left)
+      window.addstr(id, pos, self.theme.get('progress_full') * bar_length, attr | color)
+      
+      if self.theme.get('dim_empty_bar'):
+        dim = curses.color_pair(GREY + offset)
+      else:
+        dim = 0
+      window.addstr(id, pos + bar_length, self.theme.get('progress_empty') * (bar_width - bar_length), attr | dim)
+
+      pos = pos + bar_width
+      # window.addstr(id, pos + len(border_right), " "*(width-pos-1))
+      window.addstr(id, pos, border_right + " ", attr)
+      pos = pos + len(border_right)
+      window.addstr(id, pos, percentage + " ", attr)
+      pos = pos + len(percentage) + 1
+      window.addstr(id, pos, time + " ", attr | curses.color_pair(GREY + offset))
+
+      pos = pos + len(time) + 1
+      if status == "failed" or status == "killed" or status == "canceled":
+        window.addstr(id, pos, comment, curses.color_pair(RED + offset) | attr)
+      elif status == "running":
+        window.addstr(id, pos, comment, curses.color_pair(YELLOW + offset) | attr)
+      elif status == "success":
+        window.addstr(id, pos, comment, curses.color_pair(GREEN + offset) | attr)
+      elif status == "queued":
+        window.addstr(id, pos, comment, curses.color_pair(BLUE + offset) | attr)
+      elif status == "starting":
+        window.addstr(id, pos, comment, curses.color_pair(CYAN + offset) | attr)
+      else:
+        window.addstr(id, pos, comment, curses.color_pair(NORMAL + offset) | attr)
 
     except curses.error as e:
       pass
@@ -857,6 +870,7 @@ class ParallelJobHandler:
     curses.init_pair(CYAN, curses.COLOR_CYAN, -1)
     curses.init_pair(BLACK, curses.COLOR_BLACK, -1)
     curses.init_pair(WHITE, curses.COLOR_WHITE, -1)
+    curses.init_pair(GREY, curses.COLOR_BLACK + AnsiToCursesConverter.LIGHT_OFFSET, -1)
 
     curses.init_pair(REVERSE, curses.COLOR_BLACK, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
     curses.init_pair(REVERSE_RED, -1, curses.COLOR_RED + AnsiToCursesConverter.LIGHT_OFFSET)
@@ -866,6 +880,7 @@ class ParallelJobHandler:
     curses.init_pair(REVERSE_CYAN, -1, curses.COLOR_CYAN + AnsiToCursesConverter.LIGHT_OFFSET)
     curses.init_pair(REVERSE_BLACK, -1, curses.COLOR_BLACK + AnsiToCursesConverter.LIGHT_OFFSET)
     curses.init_pair(REVERSE_WHITE, -1, curses.COLOR_WHITE + AnsiToCursesConverter.LIGHT_OFFSET)
+    curses.init_pair(REVERSE_GREY, -1, curses.COLOR_BLACK)
 
     height, width = stdscr.getmaxyx()
     old_width = width
