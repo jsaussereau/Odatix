@@ -92,12 +92,15 @@ class Theme:
       'border_right'      : '┊ ',
       'progress_empty'    : '▅',
       'progress_full'     : '▅',
-      'ballot_check'      : ' ➜ ',
-      'ballot_empty'      : '   ',
+      'ballot_check'      : '➜ ',
+      'ballot_empty'      : '  ',
+      'spacer'            : ' ∙ ',
+      'ellipsis'          : '…',
       'selected_bold'     : True,
       'selected_reverse'  : False,
       'colored_bar'       : True,
       'dim_empty_bar'     : True,
+      'reserved_space'    : 32,
     },
     'ASCII_Highlight': {
       'bar'               : '-',
@@ -107,10 +110,13 @@ class Theme:
       'progress_full'     : '#',
       'ballot_check'      : ' ',
       'ballot_empty'      : ' ',
+      'spacer'            : '  ',
+      'ellipsis'          : '...',
       'selected_bold'     : True,
       'selected_reverse'  : True,
       'colored_bar'       : False,
       'dim_empty_bar'     : False,
+      'reserved_space'    : 29,
     },
     'ASCII_Highlight_Color': {
       'bar'               : '-',
@@ -120,10 +126,13 @@ class Theme:
       'progress_full'     : '#',
       'ballot_check'      : ' ',
       'ballot_empty'      : ' ',
+      'spacer'            : '  ',
+      'ellipsis'          : '...',
       'selected_bold'     : True,
       'selected_reverse'  : True,
       'colored_bar'       : True,
       'dim_empty_bar'     : False,
+      'reserved_space'    : 29,
     },
     'Color_Lines': {
       'bar'               : '─',
@@ -133,10 +142,13 @@ class Theme:
       'progress_full'     : '━',
       'ballot_check'      : ' ➜ ',
       'ballot_empty'      : '   ',
+      'spacer'            : '  ',
+      'ellipsis'          : '…',
       'selected_bold'     : True,
       'selected_reverse'  : False,
       'colored_bar'       : True,
       'dim_empty_bar'     : True,
+      'reserved_space'    : 31,
     },
     'Legacy': {
       'bar'               : '─',
@@ -146,10 +158,13 @@ class Theme:
       'progress_full'     : '▅',
       'ballot_check'      : ' ✔ ',
       'ballot_empty'      : ' ❏ ',
+      'spacer'            : '  ',
+      'ellipsis'          : '…',
       'selected_bold'     : True,
       'selected_reverse'  : False,
       'colored_bar'       : False,
       'dim_empty_bar'     : False,
+      'reserved_space'    : 31,
     },
     'Rectangles': {
       'bar'               : '─',
@@ -159,10 +174,13 @@ class Theme:
       'progress_full'     : '▮',
       'ballot_check'      : ' ➜ ',
       'ballot_empty'      : '   ',
+      'spacer'            : '  ',
+      'ellipsis'          : '…',
       'selected_bold'     : True,
       'selected_reverse'  : False,
       'colored_bar'       : False,
       'dim_empty_bar'     : False,
+      'reserved_space'    : 31,
     },
     'Rectangles_Color': {
       'bar'               : '─',
@@ -172,10 +190,13 @@ class Theme:
       'progress_full'     : '▮',
       'ballot_check'      : ' ➜ ',
       'ballot_empty'      : '   ',
+      'spacer'            : '  ',
+      'ellipsis'          : '…',
       'selected_bold'     : True,
       'selected_reverse'  : False,
       'colored_bar'       : True,
       'dim_empty_bar'     : True,
+      'reserved_space'    : 31,
     },
     'Simple': {
       'bar'               : '─',
@@ -185,10 +206,13 @@ class Theme:
       'progress_full'     : '■',
       'ballot_check'      : ' ✔ ',
       'ballot_empty'      : ' ❏ ',
+      'spacer'            : '  ',
+      'ellipsis'          : '…',
       'selected_bold'     : True,
       'selected_reverse'  : False,
       'colored_bar'       : False,
       'dim_empty_bar'     : False,
+      'reserved_space'    : 31,
     },
   }
   
@@ -387,28 +411,36 @@ class ParallelJobHandler:
         pass
 
   def progress_bar(self, window, id, progress, time, title, title_size, width, status="", selected=False):
-    misc_info_width = 33
-    bar_width = width - title_size - misc_info_width
+    reserved_space = self.theme.get('reserved_space')
+    spacer = self.theme.get('spacer')
+    ellipsis = self.theme.get('ellipsis')
+
+    if width > 100:
+      display_time = True
+    else:
+      display_time = False
+      reserved_space = reserved_space - (len(time) + len(spacer))
+
+    bar_width = width - title_size - reserved_space
     if bar_width < 4:
       bar_width = 4
-      title_size = width - bar_width - misc_info_width
+      title_size = width - bar_width - reserved_space
       if title_size < 0:
         title_size = 0
 
       if len(title) > title_size:
-        title = title[: title_size - 3] + "..."
+        title = title[: title_size - len(ellipsis)] + ellipsis
       else:
         title = title.ljust(title_size)
     else:
       title = title.ljust(title_size)
 
     bar_length = int(bar_width * progress / 100.0)
-    percentage = f"{progress:3.0f}%"
-    comment = f"({status})"
 
     real_id = self.job_index_start  + id
 
     try:
+      # Style
       if real_id == self.selected_job_index and self.theme.get('selected_reverse') and self.job_count > 1:
         window.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
         attr = curses.A_REVERSE | curses.A_BOLD
@@ -417,22 +449,28 @@ class ParallelJobHandler:
         attr = 0
         offset = 0
 
+      # Dim if popup menu opened
       attr = attr | curses.A_DIM if self.showing_help else attr
 
-      button = self.theme.get('ballot_check') if selected else self.theme.get('ballot_empty')
-      border_left = self.theme.get('border_left')
-      border_right = self.theme.get('border_right')
-
-      window.addstr(id, 0, f"{button}")
+      # Ballot
+      ballot = self.theme.get('ballot_check') if selected else self.theme.get('ballot_empty')
+      window.addstr(id, 0, f"{ballot}")
+      pos = len(ballot)
+      
+      # Title
       if real_id == self.selected_job_index and self.theme.get('selected_bold') and self.job_count > 1:
         window.attron(curses.color_pair(NORMAL) | curses.A_BOLD)
         attr = attr | curses.A_BOLD
-      pos = len(button)
       window.addstr(id, pos, f"{title}")
       window.attroff(curses.A_BOLD)
       pos = pos + len(title)
-      window.addstr(id, pos, f"{border_left}")
 
+      # Border (left)
+      border_left = self.theme.get('border_left')
+      window.addstr(id, pos, f"{border_left}")
+      pos = pos + len(border_left)
+
+      # Progress bar (full)
       if self.theme.get('colored_bar'):
         if status == "failed" or status == "killed" or status == "canceled":
           color = curses.color_pair(RED + offset)
@@ -448,38 +486,50 @@ class ParallelJobHandler:
           color = curses.color_pair(NORMAL + offset)
       else:
         color = 0
-
-      pos = pos + len(border_left)
       window.addstr(id, pos, self.theme.get('progress_full') * bar_length, attr | color)
       
+      # Progress bar (empty)
       if self.theme.get('dim_empty_bar'):
         dim = curses.color_pair(GREY + offset)
       else:
         dim = 0
       window.addstr(id, pos + bar_length, self.theme.get('progress_empty') * (bar_width - bar_length), attr | dim)
-
       pos = pos + bar_width
-      # window.addstr(id, pos + len(border_right), " "*(width-pos-1))
+
+      # Border
+      border_right = self.theme.get('border_right')
       window.addstr(id, pos, border_right + " ", attr)
       pos = pos + len(border_right)
-      window.addstr(id, pos, percentage + " ", attr)
-      pos = pos + len(percentage) + 1
-      window.addstr(id, pos, time + " ", attr | curses.color_pair(GREY + offset))
+      
+      # Percentage
+      percentage = f"{progress:3.0f}%"
+      window.addstr(id, pos, percentage + spacer, attr)
+      pos = pos + len(percentage) + len(spacer)
+      
+      # Elapsed time
+      if display_time:
+        window.addstr(id, pos, time + spacer, attr | curses.color_pair(GREY + offset))
+        pos = pos + len(time) + len(spacer)
 
-      pos = pos + len(time) + 1
+      # Status
       if status == "failed" or status == "killed" or status == "canceled":
-        window.addstr(id, pos, comment, curses.color_pair(RED + offset) | attr)
+        window.addstr(id, pos, status, curses.color_pair(RED + offset) | attr)
       elif status == "running":
-        window.addstr(id, pos, comment, curses.color_pair(YELLOW + offset) | attr)
+        window.addstr(id, pos, status, curses.color_pair(YELLOW + offset) | attr)
       elif status == "success":
-        window.addstr(id, pos, comment, curses.color_pair(GREEN + offset) | attr)
+        window.addstr(id, pos, status, curses.color_pair(GREEN + offset) | attr)
       elif status == "queued":
-        window.addstr(id, pos, comment, curses.color_pair(BLUE + offset) | attr)
+        window.addstr(id, pos, status, curses.color_pair(BLUE + offset) | attr)
       elif status == "starting":
-        window.addstr(id, pos, comment, curses.color_pair(CYAN + offset) | attr)
+        window.addstr(id, pos, status, curses.color_pair(CYAN + offset) | attr)
       else:
-        window.addstr(id, pos, comment, curses.color_pair(NORMAL + offset) | attr)
+        window.addstr(id, pos, status, curses.color_pair(NORMAL + offset) | attr)
+      pos = pos + len(status)
 
+      # Padding
+      remainder = width-pos
+      if remainder > 0:
+        window.addstr(id, pos, " "*(remainder), attr)
     except curses.error as e:
       pass
     
