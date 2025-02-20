@@ -84,6 +84,27 @@ class ConfigGenerator:
         printc.error(f"Invalid YAML file '{self.yaml_file}': {e}")
         sys.exit(-1)
 
+  def evaluate_expression(self, expr, values_map):
+    """
+    Evaluate a mathematical expression using the current values of variables.
+
+    Args:
+        expr (str): The expression to evaluate.
+        values_map (dict): A dictionary containing values for referenced variables.
+
+    Returns:
+        Any: The result of evaluating the expression.
+    """
+    safe_env = {var: values_map[var] for var in values_map}
+    safe_env["math"] = math
+    expr = expr.replace("^", "**")  # Replace '^' with '**' for Python exponentiation
+
+    try:
+      return eval(expr, {"__builtins__": None}, safe_env)
+    except Exception as e:
+      printc.error(f"Failed to evaluate expression '{expr}': {e}", script_name)
+      return None
+
   def generate(self):
     """
     Generate all possible parameter combinations based on the configuration.
@@ -96,11 +117,11 @@ class ConfigGenerator:
     if not self.valid or not self.enabled:
       return values_dict
 
-    # Generate all possible values for each variable except concatenation
-    generated_values = {var: self.generate_values(var_config, var) for var, var_config in self.variables.items() if var_config["type"] != "concatenate"}
+    # Generate all possible values for each variable except function and concatenate types
+    generated_values = {var: self.generate_values(var_config, var) for var, var_config in self.variables.items() if var_config["type"] not in ["function", "concatenate"]}
     
     if self.debug:
-      print(f"Generated values per variable (before concatenation): {generated_values}")
+      print(f"Generated values per variable: {generated_values}")
 
     # Create cartesian product of all variable values
     variable_names = list(generated_values.keys())
@@ -111,6 +132,12 @@ class ConfigGenerator:
     # Generate the final dictionary
     for combination in all_combinations:
       value_map = dict(zip(variable_names, combination))
+
+      # Handle function type variables
+      for var, config in self.variables.items():
+        if config["type"] == "function":
+          expr = config["settings"]["op"]
+          value_map[var] = self.evaluate_expression(expr, value_map)
 
       # Handle concatenation type
       for var, config in self.variables.items():
