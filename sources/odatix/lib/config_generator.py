@@ -27,10 +27,14 @@ import math
 import itertools
 
 import odatix.lib.printc as printc
-from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.hard_settings as hard_settings
+from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 
 script_name = os.path.basename(__file__)
+
+######################################
+# Generator
+######################################
 
 class ConfigGenerator:
   """
@@ -48,20 +52,21 @@ class ConfigGenerator:
     self.path = path
     self.yaml_file = os.path.join(self.path, hard_settings.param_settings_filename)
     settings = self._load_yaml()
-    generate_enabled, generate_defined = get_from_dict("generate", settings, self.yaml_file, default_value=False, silent=True, script_name=script_name)
-    generate_settings, generate_settings_defined = get_from_dict("generate_settings", settings, self.yaml_file, silent=True, script_name=script_name)
+    generate_enabled, generate_defined = get_from_dict("generate_configutations", settings, self.yaml_file, default_value=False, silent=True, script_name=script_name)
+    generate_settings, generate_settings_defined = get_from_dict("generate_configutations_settings", settings, self.yaml_file, silent=True, script_name=script_name)
+    
     if generate_settings_defined:
-      self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_settings", behavior=Key.MANTADORY, script_name=script_name)
-      self.name_template, name_template_defined = get_from_dict("name", generate_settings, self.yaml_file, parent="generate_settings", behavior=Key.MANTADORY, script_name=script_name)
-      self.variables, variables_defined = get_from_dict("variables", generate_settings, self.yaml_file, parent="generate_settings", behavior=Key.MANTADORY, script_name=script_name)
+      self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_configutations_settings", behavior=Key.MANTADORY, script_name=script_name)
+      self.name_template, name_template_defined = get_from_dict("name", generate_settings, self.yaml_file, parent="generate_configutations_settings", behavior=Key.MANTADORY, script_name=script_name)
+      self.variables, variables_defined = get_from_dict("variables", generate_settings, self.yaml_file, parent="generate_configutations_settings", behavior=Key.MANTADORY, script_name=script_name)
       self.valid = generate_settings_defined and template_defined and name_template_defined and variables_defined and generate_defined
     else:
       self.valid = False
 
     if not generate_defined and generate_settings_defined:
-      printc.warning('"generate_settings" is defined while "generate" is not. Disabling configuration generation.', script_name)
+      printc.warning('"generate_configutations_settings" is defined while "generate_configutations" is not. Disabling configuration generation.', script_name)
     if generate_defined and generate_enabled and not generate_settings_defined:
-      printc.error('Configuration generation is enabled while "generate_settings" is not defined.', script_name)
+      printc.error('Configuration generation is enabled while "generate_configutations_settings" is not defined.', script_name)
 
     self.enabled = generate_enabled
     self.debug = debug
@@ -187,10 +192,10 @@ class ConfigGenerator:
     blacklist, _ = get_from_dict("blacklist", settings, self.yaml_file, parent=name + "[settings]", silent=True, default_value=None, script_name=script_name)
 
     if value_type == "range":
-      from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=MANTADORY, script_name=script_name)
+      from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
-      step_value, step_defined = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
-      if to_defined and from_defined and step_defined:
+      step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", default_value=1, script_name=script_name)
+      if to_defined and from_defined:
         values = list(range(from_value, to_value + 1, step_value))
       else:
         printc.note('You can define it like this:', script_name)
@@ -236,7 +241,7 @@ class ConfigGenerator:
         printc.magenta("  list: [XXX, XXX, XXX]")
         return []
     elif value_type == "multiples":
-      from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=MANTADORY, script_name=script_name)
+      from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       base_value, base_defined = get_from_dict("base", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       if to_defined and from_defined and base_defined:
@@ -277,3 +282,4 @@ class ConfigGenerator:
       return format_string % value
     except TypeError:
       return str(value)
+
