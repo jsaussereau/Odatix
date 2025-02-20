@@ -22,6 +22,7 @@
 import os
 import sys
 import re
+import time
 import queue
 import select
 import signal
@@ -271,6 +272,9 @@ class ParallelJob:
     self.log_changed = False
     self.autoscroll = True
 
+    self.start_time = None
+    self.stop_time = None
+
   @staticmethod
   def set_patterns(progress_file_pattern, status_file_pattern=None):
     ParallelJob.status_file_pattern = status_file_pattern
@@ -380,11 +384,12 @@ class ParallelJobHandler:
       except TypeError:
         pass
 
-  def progress_bar(self, window, id, progress, bar_width, title, title_size, width, status="", selected=False):
-    bar_width = bar_width - title_size
+  def progress_bar(self, window, id, progress, time, title, title_size, width, status="", selected=False):
+    misc_info_width = 33
+    bar_width = width - title_size - misc_info_width
     if bar_width < 4:
       bar_width = 4
-      title_size = width - bar_width - 25
+      title_size = width - bar_width - misc_info_width
       if title_size < 0:
         title_size = 0
 
@@ -396,7 +401,7 @@ class ParallelJobHandler:
       title = title.ljust(title_size)
 
     bar_length = int(bar_width * progress / 100.0)
-    percentage = f"{progress:.0f}%"
+    percentage = f"{progress:3.0f}%"
     comment = f"({status})"
 
     real_id = self.job_index_start  + id
@@ -446,9 +451,9 @@ class ParallelJobHandler:
 
       pos = len(button) + len(title) + len(border_left) + bar_width + len(border_right)
       window.addstr(id, pos, " "*(width-pos-1))
-      window.addstr(id, len(button) + len(title) + len(border_left) + bar_width, f"{border_right} {percentage}", attr)
+      window.addstr(id, len(button) + len(title) + len(border_left) + bar_width, f"{border_right} {percentage} {time}", attr)
 
-      comment_position = len(button) + len(title) + 3 + bar_width + 8
+      comment_position = len(button) + len(title) + bar_width + 10 + len(time)
       if status == "failed" or status == "killed" or status == "canceled":
         window.addstr(id, comment_position, comment, curses.color_pair(RED + offset) | attr)
       elif status == "running":
@@ -509,12 +514,28 @@ class ParallelJobHandler:
     # Display the jobs within the visible range
     for id, job in enumerate(self.job_list[self.job_index_start:self.job_index_end]):
       selected = (self.selected_job_index == self.job_index_start + id)
+      if job.start_time is not None:
+        if job.stop_time is not None:
+          stop_time = job.stop_time
+        else:
+          stop_time = time.time()
+        elapsed_seconds = int(stop_time - job.start_time)
+        days = elapsed_seconds // 86400
+        hours = (elapsed_seconds % 86400) // 3600
+        minutes = (elapsed_seconds % 3600) // 60
+        seconds = elapsed_seconds % 60
+        if days > 0:
+          elapsed_time = f"{days}d+{hours:02}:{minutes:02}" # Format Days+HH:MM
+        else:
+          elapsed_time = f"{hours:02}:{minutes:02}:{seconds:02}" # Format HH:MM:SS
+      else:
+        elapsed_time = "00:00:00"
       try:
         self.progress_bar(
           id=id,
           window=progress_win,
           progress=job.progress,
-          bar_width=(width - 25),
+          time=elapsed_time,
           title=job.display_name,
           title_size=self.max_title_length,
           width=width,
@@ -754,6 +775,7 @@ class ParallelJobHandler:
       errors='replace',
     )
 
+    job.start_time = time.time()
     job.process = process
     job.status = "running"
     
@@ -769,6 +791,7 @@ class ParallelJobHandler:
     self.job_queue.put(job)
 
   def retire_job(self, job, progress=100):
+    job.stop_time = time.time()
     self.running_job_list.remove(job)
     job.progress = progress
     self.retired_job_list.append(job)
