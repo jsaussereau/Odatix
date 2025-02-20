@@ -36,6 +36,7 @@ import odatix.components.run_range_synthesis as run_range
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
 import odatix.components.clean as cln
+import odatix.components.generate_configs as gen_configs
 
 import odatix.lib.settings as settings
 from odatix.lib.settings import OdatixSettings
@@ -80,6 +81,11 @@ class ArgParser:
     # Define parser for the 'init' command
     ArgParser.init_parser = subparsers.add_parser("init", help="init current directory by adding all the necessary config files (without any prompt)", formatter_class=formatter)
     ArgParser.init_parser.add_argument("-e", "--examples", action="store_true", help="Include examples")
+
+    # Define parser for the 'generate' command
+    ArgParser.gen_configs_parser = subparsers.add_parser("generate", help="generate configurations", formatter_class=formatter)
+    gen_configs.add_arguments(ArgParser.gen_configs_parser)
+    ArgParser.add_nobanner(ArgParser.gen_configs_parser)
 
     # Define parser for the 'fmax' command
     ArgParser.fmax_parser = subparsers.add_parser("fmax", help="run fmax synthesis", formatter_class=formatter)
@@ -135,6 +141,9 @@ class ArgParser:
     printc.bold("Global:\n  ", printc.colors.CYAN, end="")
     ArgParser.parser.print_help()
     print()
+    printc.bold("Generate Configurations:\n  ", printc.colors.CYAN, end="")
+    ArgParser.gen_configs_parser.print_help()
+    print()
     printc.bold("Fmax Synthesis:\n  ", printc.colors.CYAN, end="")
     ArgParser.fmax_parser.print_help()
     print()
@@ -189,6 +198,17 @@ class OdatixHelpFormatter(argparse.HelpFormatter):
 ######################################
 # Run functions
 ######################################
+
+def generate_configs(args):
+  success = True
+  try:
+    gen_configs.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
 
 def run_simulations(args):
   success = True
@@ -396,6 +416,8 @@ def main(args=None):
     success = export_benchmark(args)
   elif args.command in "res_synth":
     success = export_results(args)
+  elif args.command in "generate":
+    success = generate_configs(args)
   elif args.command in "clean":
     success = clean(args)
 
