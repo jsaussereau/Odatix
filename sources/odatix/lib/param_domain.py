@@ -74,19 +74,24 @@ class ParamDomain:
     return out
 
   @staticmethod
-  def check_parameter_file(parameter_file, arch_param_dir):
+  def check_parameter_file(parameter_file, arch_param_dir, generate_enabled=False):
     """
     Checks if the parameter file exists.
 
     Args:
         parameter_file (str): Path to the parameter file.
         arch_param_dir (str): Directory of the architecture parameters.
+        generate_enabled (bool): Whether configuration generation generation is enabled.
 
     Returns:
         bool: True if the file exists, False otherwise.
     """
     if not os.path.isfile(parameter_file):
       printc.error("The parameter file \"" + parameter_file + "\" does not exist in directory \"" + arch_param_dir + "\"", script_name)
+      if generate_enabled:
+        printc.note("Since \"generate_configutations\" is enabled:", script_name)
+        printc.note("Did you run \"odatix generate\"?", script_name)
+        printc.note("Are your generation settings correct?", script_name)
       return False
     return True
 
@@ -159,10 +164,6 @@ class ParamDomain:
 
     parameter_file = os.path.join(param_domain_path, arch_config + '.txt')
 
-    success = ParamDomain.check_parameter_file(parameter_file, param_domain_path)
-    if not success:
-      return None
-
     settings_file = os.path.join(param_domain_path, param_settings_filename)
     success = ParamDomain.check_settings_file(settings_file, param_domain_path)
     if not success:
@@ -177,6 +178,11 @@ class ParamDomain:
         printc.cyan("error details: ", end="", script_name=script_name)
         print(str(e))
         return None
+
+    generate_enabled, _ = get_from_dict("generate_configutations", settings_data, settings_file, default_value=False, silent=True, script_name=script_name)
+    success = ParamDomain.check_parameter_file(parameter_file, param_domain_path, generate_enabled)
+    if not success:
+      return None
 
     # Retrieve parameter delimiters and usage details
     use_parameters, start_delimiter, stop_delimiter, param_target_filename = ParamDomain.get_param_delimiters(
