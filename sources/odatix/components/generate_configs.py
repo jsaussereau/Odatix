@@ -122,7 +122,7 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
   ArchitectureHandler.print_arch_list(existing_configs, "Existing configurations (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
   ArchitectureHandler.print_arch_list(overwrite_configs, "Existing configurations (will be overwritten)", printc.colors.YELLOW)
   ArchitectureHandler.print_arch_list(error_configs, "Invalid settings (skipped, see errors above)", printc.colors.RED)
-
+  
   valid_configs = new_configs + overwrite_configs
 
   # Ask user confirmation 
@@ -132,6 +132,7 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
       ask_to_continue()
   else:
     sys.exit(-1)
+  print()
 
   # Second pass: Actually write the configuration files
   for config_file_path in valid_configs:
@@ -139,14 +140,14 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
     root = os.path.dirname(config_file_path)
 
     # Reload the generator for this directory
-    generator = ConfigGenerator(root)
+    generator = ConfigGenerator(root, silent=True)
     generated_params = generator.generate()
 
     if config_name in generated_params:
       try:
         with open(config_file_path, "w") as config_file:
           config_file.write(generated_params[config_name] + "\n")
-        printc.note(f"Generated: {config_file_path}", script_name)
+        printc.note(f"Generated {config_file_path}", script_name)
       except Exception as e:
         printc.error(f"Failed to write {config_file_path}: {e}", script_name)
 
