@@ -42,7 +42,7 @@ class ConfigGenerator:
   ranges, and naming templates.
   """
 
-  def __init__(self, path, debug=False):
+  def __init__(self, path, silent=False, debug=False):
     """
     Initialize the configuration generator by loading the YAML settings.
     
@@ -63,13 +63,14 @@ class ConfigGenerator:
     else:
       self.valid = False
 
-    if not generate_defined and generate_settings_defined:
+    if not generate_defined and generate_settings_defined and not self.silent:
       printc.warning('"generate_configutations_settings" is defined while "generate_configutations" is not. Disabling configuration generation.', script_name)
-    if generate_defined and generate_enabled and not generate_settings_defined:
+    if generate_defined and generate_enabled and not generate_settings_defined and not self.silent:
       printc.error('Configuration generation is enabled while "generate_configutations_settings" is not defined.', script_name)
 
     self.enabled = generate_enabled
     self.debug = debug
+    self.silent = silent
 
   def _load_yaml(self):
     """
@@ -142,15 +143,21 @@ class ConfigGenerator:
 
       # Handle function type variables
       for var, config in self.variables.items():
-        if config["type"] == "function":
-          expr = config["settings"]["op"]
-          value_map[var] = self.evaluate_expression(expr, value_map)
+        value_type, _ = get_from_dict("type", config, self.yaml_file, silent=True, default_value="", script_name=script_name)
+        if value_type == "function":
+          settings, settings_defined = get_from_dict("settings", config, self.yaml_file, behavior=Key.MANTADORY, script_name=script_name)
+          if settings_defined:
+            op, _ = get_from_dict("op", settings, self.yaml_file, behavior=Key.MANTADORY, script_name=script_name)
+            value_map[var] = self.evaluate_expression(op, value_map)
 
       # Handle concatenation type
       for var, config in self.variables.items():
-        if config["type"] == "concatenate":
-          sources = config["settings"]["sources"]
-          value_map[var] = "".join(str(value_map[source]) for source in sources)
+        value_type, value_type_defined = get_from_dict("type", config, self.yaml_file, silent=True, default_value="", script_name=script_name)
+        if value_type == "concatenate":
+          settings, settings_defined = get_from_dict("settings", config, self.yaml_file, behavior=Key.MANTADORY, script_name=script_name)
+          if settings_defined:
+            sources, _ = get_from_dict("sources", settings, self.yaml_file, behavior=Key.MANTADORY, script_name=script_name)
+            value_map[var] = "".join(str(value_map[source]) for source in sources)
 
       # Format values
       formatted_values = {var: self.format_value(value_map[var], self.variables[var].get("format", "{}")) for var in value_map}
@@ -194,7 +201,7 @@ class ConfigGenerator:
     if value_type == "range":
       from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
-      step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", default_value=1, script_name=script_name)
+      step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", default_value=1, silent=self.silent, script_name=script_name)
       if to_defined and from_defined:
         values = list(range(from_value, to_value + 1, step_value))
       else:
