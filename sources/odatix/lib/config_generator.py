@@ -97,9 +97,9 @@ class ConfigGenerator:
     else:
       self.valid = False
 
-    if not generate_defined and generate_settings_defined and not silent:
+    if not generate_defined and generate_settings_defined and not self.silent:
       printc.warning('"generate_configurations_settings" is defined while "generate_configurations" is not. Disabling configuration generation.', script_name)
-    if generate_defined and generate_enabled and not generate_settings_defined and not silent:
+    if generate_defined and generate_enabled and not generate_settings_defined and not self.silent:
       printc.error('Configuration generation is enabled while "generate_configurations_settings" is not defined.', script_name)
 
     self.enabled = generate_enabled
@@ -130,7 +130,7 @@ class ConfigGenerator:
   def generate(self):
     """
     Generate all possible parameter combinations based on the configuration.
-    If a variable is 'union', it merges the union of its sources into a single dimension.
+    Includes support for union, disjunctive_union, intersection, and difference.
     
     Returns:
         dict: A dictionary where keys are generated names and values are formatted templates.
@@ -138,63 +138,62 @@ class ConfigGenerator:
     if not self.valid or not self.enabled:
       return {}
 
-    # Identify which variables are sources for 'union'
     sources_used = set()
     for variable, config in self.variables.items():
       value_type, value_type_defined = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
-      if value_type == "union":
-        settings, _ = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
-        if settings:
-          sources, _ = get_from_dict("sources", settings, self.yaml_file, silent=True, script_name=script_name)
-          for source in sources:
-            sources_used.add(source)
+      if value_type in ("union", "disjunctive_union", "intersection", "difference"):
+        settings, settings_defined = get_from_dict("settings", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
+        if not settings_defined:
+          return {}
+        sources, sources_defined = get_from_dict("sources", settings, self.yaml_file, parent=f"{variable}[settings]", behavior=Key.MANTADORY, type=list, script_name=script_name)
+        if not sources_defined:
+          return {}
+        for source in sources:
+          sources_used.add(source)
 
-    #  Create dimension_vars for variables that are NOT used as sources in 'union' AND are not type='union'/'function'
     dimension_vars = {}
     for variable, config in self.variables.items():
-      value_type, value_type_defined = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
+      value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
       if value_type in ("range", "list", "multiples", "power_of_two") and variable not in sources_used:
-        # This is a dimension variable
         dimension_vars[variable] = self.generate_values_for_dim(variable, config)
 
-    # Create dimension for each 'union' variable => union of its sources
+    result_set = set()
     for variable, config in self.variables.items():
-      value_type, value_type_defined = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
-      if value_type == "union":
-        settings, settings_defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
+      value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
+      if value_type in ("union", "disjunctive_union", "intersection", "difference"):
+        settings, settings_defined = get_from_dict("settings", config, self.yaml_file, behavior=Key.MANTADORY, script_name=script_name)
         if settings_defined:
-          sources, _ = get_from_dict("sources", settings, self.yaml_file, silent=True, script_name=script_name)
-          union_set = set()
-          for source in sources:
-            # Generate or retrieve the values from the source
-            config = self.variables.get(source)
-            if config:
-              # If the source has not been put in dimension_vars, we generate now
-              vals = self.generate_values_for_dim(source, config)
-              for val in vals:
-                union_set.add(val)
+          sources, sources_defined = get_from_dict("sources", settings, self.yaml_file, behavior=Key.MANTADORY, default_value=[], type=list, script_name=script_name)
+          if sources_defined:
+            sets = [set(self.generate_values_for_dim(source, self.variables.get(source, {}))) for source in sources if source in self.variables]
+            
+            if value_type == "union":
+              result_set = set.union(*sets)
+            elif value_type == "disjunctive_union":
+              result_set = set.union(*sets) - set.intersection(*sets)
+            elif value_type == "intersection":
+              result_set = set.intersection(*sets)
+            elif value_type == "difference":
+              if len(sets) == 2:
+                result_set = sets[0] - sets[1]
+              else:
+                result_set = set()
+                printc.error(f'{variable} -> The\"difference\" operation only supports \"sources\" having exactly two elements, in ' + self.yaml_file + '".', script_name)       
             else:
-              printc.warning(f"Unknown source '{source}' in variable '{variable}'", script_name)
-              continue
-          union_list = sorted(union_set)
-          dimension_vars[variable] = union_list
+              result_set = set()
+              printc.warning(f'Invalid operation for variable "{variable}", in ' + self.yaml_file + '".', script_name)
+
+            dimension_vars[variable] = sorted(result_set)
 
     if self.debug:
-      printc.note(f"dimension_vars after union: {dimension_vars}", script_name)
+      printc.note(f"dimension_vars after set operations: {dimension_vars}", script_name)
 
-    # Build the product of all dimension_vars
     var_names = list(dimension_vars.keys())
     combos = list(itertools.product(*(dimension_vars[k] for k in var_names)))
-    if self.debug:
-      printc.note(f"total dimension combos = {len(combos)} from {list(dimension_vars.keys())}", script_name)
-
     final_configs = {}
 
-    # For each combination, build a value_map
     for combo in combos:
       value_map = dict(zip(var_names, combo))
-
-      # Evaluate 'function' variables => single pass
       for fn, fc in self.variables.items():
         if fc.get("type") == "function":
           settings, ok = get_from_dict("settings", fc, self.yaml_file, silent=True, script_name=script_name)
@@ -202,13 +201,7 @@ class ConfigGenerator:
             op, _ = get_from_dict("op", settings, self.yaml_file, silent=True, script_name=script_name)
             value_map[fn] = self.evaluate_expression(op, value_map)
 
-      # Format all variables
-      formatted_values = {}
-      for k, v in value_map.items():
-        fmt = self.variables.get(k, {}).get("format", "{}")
-        formatted_values[k] = self.format_value(v, fmt)
-
-      # Replace placeholders in template / name
+      formatted_values = {k: self.format_value(v, self.variables.get(k, {}).get("format", "{}")) for k, v in value_map.items()}
       final_template = self.template
       final_name = self.name_template
       for k, v in formatted_values.items():
