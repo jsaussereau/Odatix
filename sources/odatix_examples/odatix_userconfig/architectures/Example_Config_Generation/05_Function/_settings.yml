@@ -1,0 +1,19 @@
+
+start_delimiter: "  // test parameters begin"
+stop_delimiter: "  // test parameters end"
+
+generate_configurations: Yes
+generate_configurations_settings:
+  template: "parameter VALUE_START = $var;\n parameter VALUE_END = ${var_func};"
+  name: "config_${var}..${var_func}"
+  variables:
+    var:
+      type: multiples
+      settings:
+        from: 0
+        to: 56
+        base: 8
+    var_func:
+      type: function
+      settings:
+        op: ${var}+7

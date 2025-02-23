@@ -1,0 +1,25 @@
+
+start_delimiter: "  // test parameters begin"
+stop_delimiter: "  // test parameters end"
+
+generate_configurations: Yes
+generate_configurations_settings:
+  template: "parameter VALUE = ${diff_var};"
+  name: "config_${diff_var}"
+  variables:
+    mult_3:
+      type: multiples
+      settings:
+        base: 3
+        from: 1
+        to: 50
+    mult_4:
+      type: multiples
+      settings:
+        base: 4
+        from: 1
+        to: 50
+    diff_var:
+      type: difference
+      settings:
+        sources: [mult_4, mult_3]

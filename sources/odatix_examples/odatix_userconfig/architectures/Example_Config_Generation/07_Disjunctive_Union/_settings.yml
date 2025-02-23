@@ -1,0 +1,21 @@
+
+start_delimiter: "  // test parameters begin"
+stop_delimiter: "  // test parameters end"
+
+generate_configurations: Yes
+generate_configurations_settings:
+  template: "parameter VALUE = ${union_var};"
+  name: "config_${union_var}"
+  variables:
+    var_1:
+      type: list
+      settings:
+        list: [50, 60]
+    var_2:
+      type: list
+      settings:
+        list: [10, 50, 100]
+    union_var:
+      type: disjunctive_union
+      settings:
+        sources: [var_1, var_2]

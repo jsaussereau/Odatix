@@ -1,0 +1,18 @@
+###################################################################
+#              THIS EXAMPLE CANNOT BE SYNTHETIZED                 #
+# ITS ONLY PURPOSE IS GIVE SOME CONFIGURATION GENERATION EXAMPLES #
+###################################################################
+
+rtl_path: ""
+
+top_level_file: ""
+top_level_module: ""
+rtl_file_format: ""
+
+clock_signal: ""
+reset_signal: ""
+
+# delimiters for parameter files
+use_parameters: Yes
+start_delimiter: "  // <main>"
+stop_delimiter: "  // </main>"

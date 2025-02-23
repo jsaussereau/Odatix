@@ -1,0 +1,27 @@
+
+start_delimiter: "  // test parameters begin"
+stop_delimiter: "  // test parameters end"
+
+generate_configurations: Yes
+generate_configurations_settings:
+  template: "\n  parameter p_dmem_depth_pw2  = $dmem_depth,\n  parameter p_imem_depth_pw2  = $imem_depth,\n"
+  name: "DMEM_${dmem_depth_pw2}-IMEM_${imem_depth_pw2}"
+  variables:
+    dmem_depth:
+      type: range
+      settings:
+        from: 8
+        to: 10
+    dmem_depth_pw2:
+      type: function
+      settings:
+        op: 2^$dmem_depth
+    imem_depth:
+      type: range
+      settings:
+        from: 8
+        to: 10
+    imem_depth_pw2:
+      type: function
+      settings:
+        op: 2^$imem_depth

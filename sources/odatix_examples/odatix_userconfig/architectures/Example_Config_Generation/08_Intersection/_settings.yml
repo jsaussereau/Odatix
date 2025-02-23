@@ -1,0 +1,25 @@
+
+start_delimiter: "  // test parameters begin"
+stop_delimiter: "  // test parameters end"
+
+generate_configurations: Yes
+generate_configurations_settings:
+  template: "parameter VALUE = ${inter_var};"
+  name: "config_${inter_var}"
+  variables:
+    mult_3:
+      type: multiples
+      settings:
+        base: 3
+        from: 1
+        to: 50
+    mult_4:
+      type: multiples
+      settings:
+        base: 4
+        from: 1
+        to: 50
+    inter_var:
+      type: intersection
+      settings:
+        sources: [mult_3, mult_4]
