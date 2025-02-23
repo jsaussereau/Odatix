@@ -87,19 +87,21 @@ Step 3: Configure a virtual environment [*Optional*]
 Step 4: Install the package
 ----------------------------
 
-Depending of if you just want to use Odatix or modify it:
+Depending of if you want to install Odatix in editable mode or not:
 
-.. tab:: Use Odatix
-
-   .. code-block:: bash
-
-      python3 -m pip install ./sources
-
-.. tab:: Use and modify Odatix
+.. tab:: Install Odatix (editable mode)
 
    .. code-block:: bash
-
+      
+      python3 -m pip install --upgrade pip setuptools wheel
       python3 -m pip install -e ./sources
+
+.. tab:: Install Odatix (without editable mode)
+
+   .. code-block:: bash
+
+      python3 -m pip install --upgrade pip setuptools wheel
+      python3 -m pip install ./sources
 
 Step 5: Install one of the supported EDA tools
 ----------------------------------------------
