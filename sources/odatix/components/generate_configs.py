@@ -91,6 +91,8 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
         generator = ConfigGenerator(root, debug)
         
         if not generator.enabled:
+          if debug:
+            printc.note(f"Generation is not enabled for {settings_file_path}", script_name)
           continue
 
         if not generator.valid:
