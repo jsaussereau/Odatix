@@ -79,7 +79,7 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
   error_configs = []       # List of configurations skipped due to invalid settings
 
   # First pass: Collect information about which files will be generated
-  for root, _, files in os.walk(arch_path):
+  for root, _, files in sorted(os.walk(arch_path, topdown=True), key=lambda x: x[0].lower()):
     for file in files:
       if file == hard_settings.param_settings_filename:  # "_settings.yml"
         settings_file_path = os.path.join(root, file)
