@@ -202,7 +202,7 @@ class ConfigGenerator:
     if value_type == "range":
       from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
-      step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", default_value=1, silent=self.silent, script_name=script_name)
+      step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", default_value=1, silent=True, script_name=script_name)
       if to_defined and from_defined:
         values = list(range(from_value, to_value + 1, step_value))
       else:
