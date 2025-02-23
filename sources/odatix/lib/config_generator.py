@@ -51,22 +51,23 @@ class ConfigGenerator:
     """
     self.path = path
     self.yaml_file = os.path.join(self.path, hard_settings.param_settings_filename)
+    hide = not debug
     settings = self._load_yaml()
-    generate_enabled, generate_defined = get_from_dict("generate_configutations", settings, self.yaml_file, default_value=False, silent=True, script_name=script_name)
-    generate_settings, generate_settings_defined = get_from_dict("generate_configutations_settings", settings, self.yaml_file, silent=True, script_name=script_name)
+    generate_enabled, generate_defined = get_from_dict("generate_configurations", settings, self.yaml_file, default_value=False, silent=hide, script_name=script_name)
+    generate_settings, generate_settings_defined = get_from_dict("generate_configurations_settings", settings, self.yaml_file, silent=hide, script_name=script_name)
     
     if generate_settings_defined:
-      self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_configutations_settings", behavior=Key.MANTADORY, script_name=script_name)
-      self.name_template, name_template_defined = get_from_dict("name", generate_settings, self.yaml_file, parent="generate_configutations_settings", behavior=Key.MANTADORY, script_name=script_name)
-      self.variables, variables_defined = get_from_dict("variables", generate_settings, self.yaml_file, parent="generate_configutations_settings", behavior=Key.MANTADORY, script_name=script_name)
+      self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=str, behavior=Key.MANTADORY, script_name=script_name)
+      self.name_template, name_template_defined = get_from_dict("name", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=str, behavior=Key.MANTADORY, script_name=script_name)
+      self.variables, variables_defined = get_from_dict("variables", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=dict, behavior=Key.MANTADORY, script_name=script_name)
       self.valid = generate_settings_defined and template_defined and name_template_defined and variables_defined and generate_defined
     else:
       self.valid = False
 
     if not generate_defined and generate_settings_defined and not self.silent:
-      printc.warning('"generate_configutations_settings" is defined while "generate_configutations" is not. Disabling configuration generation.', script_name)
+      printc.warning('"generate_configurations_settings" is defined while "generate_configurations" is not. Disabling configuration generation.', script_name)
     if generate_defined and generate_enabled and not generate_settings_defined and not self.silent:
-      printc.error('Configuration generation is enabled while "generate_configutations_settings" is not defined.', script_name)
+      printc.error('Configuration generation is enabled while "generate_configurations_settings" is not defined.', script_name)
 
     self.enabled = generate_enabled
     self.debug = debug
