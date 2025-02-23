@@ -79,5 +79,7 @@ Contents
   
   quick_start/index
 
+  userguide/index
+
   documentation/commands
   documentation/settings
