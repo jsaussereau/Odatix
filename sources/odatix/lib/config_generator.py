@@ -86,11 +86,15 @@ class ConfigGenerator:
 
     with open(self.yaml_file, "r") as f:
       try:
-        return yaml.safe_load(f)
+        data = yaml.safe_load(f)
+        if data is None:
+          printc.error(f"YAML file \"{self.yaml_file}\" is empty!")
+          sys.exit(-1)
+        return data
       except yaml.YAMLError as e:
-        printc.error(f"Invalid YAML file '{self.yaml_file}': {e}")
+        printc.error(f"Invalid YAML file \"{self.yaml_file}\": {e}")
         sys.exit(-1)
-
+    
   def evaluate_expression(self, expr, values_map):
     """
     Evaluate a mathematical expression using the current values of variables.
