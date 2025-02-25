@@ -149,7 +149,7 @@ if {[catch {
         puts $logfile_handler  "MET"
         close $logfile_handler
         foreach file [glob -nocomplain -directory $report_path *] {
-          file copy -force $file "$tmp_path/report_MET/[file tail $file]"
+          file copy -force $file "${report_path}_MET/[file tail $file]"
         }
       } else {
         set upper_bound $cur_freq
@@ -171,7 +171,7 @@ if {[catch {
           close $logfile_handler
         }
         foreach file [glob -nocomplain -directory $report_path *] {
-          file copy -force $file "$tmp_path/report_VIOLATED/[file tail $file]"
+          file copy -force $file "${report_path}_VIOLATED/[file tail $file]"
         }
       }
     } else {
@@ -227,8 +227,8 @@ if {[catch {
 
   if {$got_met == 1 && $got_violated == 1} {
     #restore reports and results from the synthesis meeting timing requirements
-    foreach file [glob -nocomplain -directory $report_path/report_MET *] {
-      file copy -force $file "$tmp_path/report/[file tail $file]"
+    foreach file [glob -nocomplain -directory ${report_path}_MET *] {
+      file copy -force $file "$report_path/[file tail $file]"
     }
 
     update_freq $lower_bound $constraints_file
