@@ -41,7 +41,7 @@ def check_tool(tool, command, supported_tools, tool_install_path, debug=False):
   test_process = subprocess.Popen(
     command,
     stdout=None if debug else subprocess.DEVNULL,
-    stderr=None,
+    stderr=None if debug else subprocess.DEVNULL,
     shell=True,
   )
   while test_process.poll() is None:
@@ -52,13 +52,19 @@ def check_tool(tool, command, supported_tools, tool_install_path, debug=False):
     printc.green(" success!")
   else:
     printc.red(" failed!")
-    error_message = test_process.stderr.read()
-    error_message = error_message.decode("utf-8", errors="replace")
+    error_message = ""
+    if test_process.stderr is not None:
+      error_message = test_process.stderr.read()
+      error_message = error_message.decode("utf-8", errors="replace")
     printc.error('Could not launch eda tool "' + tool + '"', script_name)
-    printc.cyan("error details: ", script_name, end="")
-    printc.red(error_message, end="")
+    if error_message:
+      printc.cyan("error details: ", script_name, end="")
+      printc.red(error_message, end="")
+    if not debug:
+      printc.note("Use '-D' option for more details", script_name)
     printc.note("Did you add the tool path to your PATH environment variable?", script_name)
-    printc.note("Example -> PATH=$PATH:/opt/xilinx/2022/Vivado/2022.2/bin", script_name)
+    printc.note("Example -> PATH=$PATH:/tools/xilinx/Vivado/2024.2/bin", script_name)
+    printc.note("or correctly defined your tool_install_path, for tools needing it to be defined?", script_name)
     if tool not in supported_tools:
       printc.note(
         'The selected eda tool "{}" is not one of the supported tool. '.format(tool)
