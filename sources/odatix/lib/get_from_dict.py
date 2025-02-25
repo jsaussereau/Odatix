@@ -118,7 +118,7 @@ def get_from_dict(
       if isinstance(value, type):
         return value, True
       else:
-        if not silent:
+        if silent is not None:
           if optional:
             printc.note("Value \"" + str(value) + "\" for key \"" + key + "\"" + parent_string + " in \"" + filename + "\" is of type \"" + value.__class__.__name__ + "\" while it should be of type \"" + type.__name__ + "\". Using default value (" + str(default_value) + ") instead", script_name)
           else:
