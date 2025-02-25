@@ -29,7 +29,7 @@ proc update_freq {freq constraints_file} {
   close $file
 
   # Change CLOCK_PERIOD
-  set updated_json_data [regsub -all {("CLOCK_PERIOD":\s*)[0-9.]+} $json_data "\\1$clock_period"]
+  set updated_json_data [regsub -all {("CLOCK_PERIOD":\s*)[0-9.]+|Inf} $json_data "\\1$clock_period"]
 
   # Save new constraints
   set file [open $constraints_file w]
