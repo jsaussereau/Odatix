@@ -364,6 +364,7 @@ class ArchitectureHandler:
                 freq_arch.tmp_dir = os.path.join(freq_arch.tmp_dir, str(freq) + "MHz")
                 freq_arch.tmp_script_path = os.path.join(freq_arch.tmp_dir, self.work_script_path)
                 freq_arch.tmp_report_path = os.path.join(freq_arch.tmp_dir, self.work_report_path)
+                freq_arch.tmp_log_path = os.path.join(freq_arch.tmp_dir, self.work_log_path)
                 freq_arch.target_frequency = freq
 
                 # check if the architecture is in cache and has a status file
@@ -738,7 +739,7 @@ class ArchitectureHandler:
       design_path_whitelist=design_path_whitelist,
       design_path_blacklist=design_path_blacklist,
       rtl_path=rtl_path,
-      log_path=self.log_path,
+      log_path=tmp_log_path,
       arch_path=self.arch_path,
       clock_signal=clock_signal,
       reset_signal=reset_signal,
