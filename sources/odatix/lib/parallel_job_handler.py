@@ -50,6 +50,10 @@ import odatix.lib.printc as printc
 
 ENCODING = locale.getpreferredencoding()
 
+# Handle BUTTON5_PRESSED missing in some curses versions
+if not hasattr(curses, "BUTTON5_PRESSED"):
+  curses.BUTTON5_PRESSED = 2097152
+
 if sys.platform == "win32":
   ENCODING = "utf-8"
   old_stdout = sys.stdout
@@ -1169,25 +1173,21 @@ class ParallelJobHandler:
             resize_hold = False
 
           # Scroll up
-          else:
-            try: # on some curses versions, BUTTON4_PRESSED and BUTTON5_PRESSED are not supported
-              if button & curses.BUTTON4_PRESSED:
-                if progress_win.enclose(y, x):
-                  if self.job_index_start > 0:
-                    scroll_up_progress()
-                elif logs_win.enclose(y, x):
-                  scroll_up_logs(selected_job)
+          elif button & curses.BUTTON4_PRESSED:
+            if progress_win.enclose(y, x):
+              if self.job_index_start > 0:
+                scroll_up_progress()
+            elif logs_win.enclose(y, x):
+              scroll_up_logs(selected_job)
 
-              # Scroll down
-              elif button & curses.BUTTON5_PRESSED:
-                if progress_win.enclose(y, x):
-                  if self.job_index_end <= len(self.job_list) - 1:
-                    scroll_down_progress()
-                elif logs_win.enclose(y, x):
-                  scroll_down_logs(selected_job)
-            except curses.error:
-              pass
-          
+          # Scroll down
+          elif button & curses.BUTTON5_PRESSED:
+            if progress_win.enclose(y, x):
+              if self.job_index_end <= len(self.job_list) - 1:
+                scroll_down_progress()
+            elif logs_win.enclose(y, x):
+              scroll_down_logs(selected_job)
+
         # Page Up
         elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  
           if self.selected_job_index > 0:
