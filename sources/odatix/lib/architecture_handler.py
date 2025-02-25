@@ -125,6 +125,7 @@ class Architecture:
       'generate_command': arch.generate_command,
       'constraint_filename': arch.constraint_filename,
       'install_path': arch.install_path,
+      'param_domains': arch.param_domains,
       'continue_on_error': arch.continue_on_error,
       'force_single_thread': arch.force_single_thread,
     }
@@ -150,6 +151,7 @@ class Architecture:
         tmp_script_path          = get_from_dict("script_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
         tmp_report_path          = get_from_dict("report_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
         tmp_log_path             = get_from_dict("log_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
+        log_path                 = get_from_dict("log_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
         tmp_dir                  = get_from_dict("tmp_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
         design_path              = get_from_dict("design_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
         design_path_whitelist    = get_from_dict("design_path_whitelist", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
@@ -177,8 +179,9 @@ class Architecture:
         generate_command         = get_from_dict("generate_command", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
         constraint_filename      = get_from_dict("constraint_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
         install_path             = get_from_dict("install_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
-        continue_on_error        = get_from_dict("continue_on_error", yaml_data, config_file, behavior=Key.OPTIONAL_DEFAULT, default_value=False, script_name=script_name)[0],
-        force_single_thread      = get_from_dict("force_single_thread", yaml_data, config_file, behavior=Key.OPTIONAL_DEFAULT, default_value=False, script_name=script_name)[0],
+        param_domains            = get_from_dict("install_path", yaml_data, config_file, default_value={}, script_name=script_name)[0],
+        continue_on_error        = get_from_dict("continue_on_error", yaml_data, config_file, default_value=False, script_name=script_name)[0],
+        force_single_thread      = get_from_dict("force_single_thread", yaml_data, config_file, default_value=False, script_name=script_name)[0],
       )
     except (KeyNotInListError, BadValueInListError):
       return None
