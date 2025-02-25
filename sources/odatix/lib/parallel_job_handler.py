@@ -1169,21 +1169,25 @@ class ParallelJobHandler:
             resize_hold = False
 
           # Scroll up
-          elif button & curses.BUTTON4_PRESSED:
-            if progress_win.enclose(y, x):
-              if self.job_index_start > 0:
-                scroll_up_progress()
-            elif logs_win.enclose(y, x):
-              scroll_up_logs(selected_job)
+          else:
+            try: # on some curses versions, BUTTON4_PRESSED and BUTTON5_PRESSED are not supported
+              if button & curses.BUTTON4_PRESSED:
+                if progress_win.enclose(y, x):
+                  if self.job_index_start > 0:
+                    scroll_up_progress()
+                elif logs_win.enclose(y, x):
+                  scroll_up_logs(selected_job)
 
-          # Scroll down
-          elif button & curses.BUTTON5_PRESSED:
-            if progress_win.enclose(y, x):
-              if self.job_index_end <= len(self.job_list) - 1:
-                scroll_down_progress()
-            elif logs_win.enclose(y, x):
-              scroll_down_logs(selected_job)
-        
+              # Scroll down
+              elif button & curses.BUTTON5_PRESSED:
+                if progress_win.enclose(y, x):
+                  if self.job_index_end <= len(self.job_list) - 1:
+                    scroll_down_progress()
+                elif logs_win.enclose(y, x):
+                  scroll_down_logs(selected_job)
+            except curses.error:
+              pass
+          
         # Page Up
         elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):  
           if self.selected_job_index > 0:
