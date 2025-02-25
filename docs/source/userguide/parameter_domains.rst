@@ -12,7 +12,7 @@ This is particularly useful when dealing with a large set of parameters.
 
 .. Important::
 
-Before defining a parameter domain, make sure you have already defined your architecture folder in ``odatix_userconfig/architectures``.
+  Before defining a parameter domain, make sure you have already defined your architecture folder in ``odatix_userconfig/architectures``.
 
 **************
 File Structure
