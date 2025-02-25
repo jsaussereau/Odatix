@@ -802,6 +802,7 @@ class ParallelJobHandler:
 
       job.process = process
       job.status = "starting"
+      job.start_time = time.time()
       self.running_job_list.append(job)
     except subprocess.CalledProcessError:
       job.status = "failed"
@@ -842,7 +843,8 @@ class ParallelJobHandler:
       errors='replace',
     )
 
-    job.start_time = time.time()
+    if job.start_time is None:
+      job.start_time = time.time()
     job.process = process
     job.status = "running"
     
