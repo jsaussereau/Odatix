@@ -26,9 +26,9 @@ import yaml
 import argparse
 import subprocess
 
+from odatix.components.replace_params import replace_params
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.replace_params import replace_params
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.simulation_handler import SimulationHandler

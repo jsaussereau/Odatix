@@ -40,15 +40,19 @@ import odatix.lib.printc as printc
 
 script_name = os.path.basename(__file__)
 
-def parse_arguments():
-    """Parses command-line arguments for delimiter-based text replacement."""
-    parser = argparse.ArgumentParser(description="Replace content between delimiters in a text file.")
+def add_arguments(parser):
+    """Add command-line arguments."""
     parser.add_argument("-s", "--startdel", dest="start_delimiter", required=True, help="Start delimiter")
     parser.add_argument("-S", "--stopdel", dest="stop_delimiter", required=True, help="Stop delimiter")
     parser.add_argument("-i", "--input", dest="base_text_file", required=True, help="Input base text file")
     parser.add_argument("-o", "--output", dest="output_file", required=True, help="Output text file")
     parser.add_argument("-r", "--replace", dest="replacement_text_file", required=True, help="Replacement text file")
     parser.add_argument("-a", "--all", dest="replace_all_occurrences", action="store_true", help="Replace all occurrences")
+
+def parse_arguments():
+    """Parses command-line arguments."""
+    parser = argparse.ArgumentParser(description="Replace content between delimiters in a text file.")
+    add_arguments(parser)
     return parser.parse_args()
 
 def read_file(file_path):
@@ -82,9 +86,19 @@ def replace_content(base_text, replacement_text, start_delim, stop_delim, replac
     return new_text, match_found
 
 def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False, silent=False):
-    """Reads input files, replaces text between delimiters, and writes the updated content to an output file."""
-    
-    # Read the contents of text files
+    """
+    Reads the base file, replaces the text between delimiters by the text from the replacement file, and writes the updated content to the output file.
+
+    Args:
+        base_text_file (str): Path to the input text file where replacements will be made.
+        replacement_text_file (str): Path to the file containing the replacement text.
+        output_file (str): Path to the output text file where the modified content will be saved.
+        start_delimiter (str): The starting delimiter marking the beginning of the replaceable section.
+        stop_delimiter (str): The ending delimiter marking the end of the replaceable section.
+        replace_all_occurrences (bool, optional): If True, replaces all occurrences of the pattern in the text. Defaults to False (only replaces the first occurrence).
+        silent (bool, optional): If True, suppresses output messages. Defaults to False.
+    """    
+    # Read the contents of base and replacement files
     base_text = read_file(base_text_file)
     replacement_text = read_file(replacement_text_file)
 
@@ -113,10 +127,10 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
 # Main
 ######################################
 
-def main():
+def main(args):
     """Main function to handle argument parsing and execution of text replacement."""
-    args = parse_arguments()
     replace_params(args.base_text_file, args.replacement_text_file, args.output_file, args.start_delimiter, args.stop_delimiter, args.replace_all_occurrences)
 
 if __name__ == "__main__":
-    main()
+    args = parse_arguments()
+    main(args)
