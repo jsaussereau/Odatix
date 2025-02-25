@@ -2,27 +2,29 @@
 ##############################################
 # Settings for counter example
 ##############################################
----
 
+# Source files
 rtl_path: "examples/counter_vhdl"
-
 top_level_file: "counter.vhdl"
 top_level_module: "counter"
 
+# Signals
 clock_signal: "clock"
 reset_signal: "reset"
 
-# copy a file into synthesis directory?
-file_copy_enable: No
-file_copy_source: "/dev/null"
-file_copy_dest: "/dev/null"
-
-# delimiters for parameter files
+# Delimiters for parameter files
 use_parameters: Yes
 start_delimiter: "generic ("
 stop_delimiter: "  );"
 
-# optional target-specific bounds (in MHz) to speed up fmax search
+# Default frequencies (in MHz)
+fmax_synthesis:
+  lower_bound: 50
+  upper_bound: 1500
+custom_freq_synthesis:
+  list: [50, 100]
+
+# Optional target-specific frequencies (in MHz)
 xc7s25-csga225-1:
   fmax_synthesis:
     lower_bound: 100
@@ -33,28 +35,6 @@ xc7a100t-csg324-1:
   fmax_synthesis:
     lower_bound: 250
     upper_bound: 900
-    architectures: # optional architecture-specific bounds
-      04bits:
-        lower_bound: 560
-        upper_bound: 860
-      08bits:
-        lower_bound: 490
-        upper_bound: 510
-      16bits:
-        lower_bound: 455
-        upper_bound: 495
-      24bits:
-        lower_bound: 410
-        upper_bound: 430
-      32bits:
-        lower_bound: 365
-        upper_bound: 405
-      48bits:
-        lower_bound: 325
-        upper_bound: 345
-      64bits:
-        lower_bound: 280
-        upper_bound: 300
   custom_freq_synthesis:
     list: [50, 100]
 xc7k70t-fbg676-2:
@@ -75,4 +55,3 @@ AMS350CMOS:
     upper_bound: 160
   custom_freq_synthesis:
     list: [50, 100]
-...

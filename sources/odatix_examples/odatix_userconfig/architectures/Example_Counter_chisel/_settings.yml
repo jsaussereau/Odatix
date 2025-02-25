@@ -2,35 +2,37 @@
 ##############################################
 # Settings for counter example
 ##############################################
----
 
+# Source files
 design_path: "examples/counter_chisel"
 design_path_whitelist: ['project', 'src', 'build.sbt'] # path/pattern of what should be copied from design_path
 design_path_blacklist: [] # path/pattern of what should NOT be copied from design_path
 
-# generate the rtl (from chisel for example)
+# Generate the rtl (from chisel for example)
 generate_rtl: Yes
 generate_command: "sbt 'runMain example.Counter --o=rtl'" # this requires sbt and firtool
 generate_output: "rtl" # path of the generated rtl
 
-# generated design settings
+# Generated design settings
 top_level_file: "counter.sv"
 top_level_module: "counter"
 clock_signal: "clock"
 reset_signal: "reset"
 
-# copy a file into synthesis directory?
-file_copy_enable: No
-file_copy_source: "/dev/null"
-file_copy_dest: "/dev/null"
-
-# delimiters for parameter files
+# Delimiters for parameter files
 use_parameters: Yes
 param_target_file: "src/main/scala/counter.scala"
 start_delimiter: "new Counter("
 stop_delimiter: ")"
 
-# optional target-specific bounds (in MHz) to speed up fmax search
+# Default frequencies (in MHz)
+fmax_synthesis:
+  lower_bound: 50
+  upper_bound: 1500
+custom_freq_synthesis:
+  list: [50, 100]
+
+# Optional target-specific frequencies (in MHz)
 xc7s25-csga225-1:
   fmax_synthesis:
     lower_bound: 100
@@ -61,4 +63,3 @@ AMS350CMOS:
     upper_bound: 160
   custom_freq_synthesis:
     list: [50, 100]
-...

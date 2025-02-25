@@ -2,27 +2,29 @@
 ##############################################
 # Settings for Shift Register example
 ##############################################
----
 
+# Source files
 rtl_path: "examples/shift_register_sv"
-
 top_level_file: "shift_register.sv"
 top_level_module: "shift_register"
 
+# Signals
 clock_signal: "i_clk"
 reset_signal: "i_rst"
 
-# copy a file into synthesis directory?
-file_copy_enable: No
-file_copy_source: "/dev/null"
-file_copy_dest: "/dev/null"
-
-# delimiters for parameter files
+# Delimiters for parameter files
 use_parameters: Yes
 start_delimiter: "#("
 stop_delimiter: ")("
 
-# optional target-specific bounds (in MHz) to speed up fmax search
+# Default frequencies (in MHz)
+fmax_synthesis:
+  lower_bound: 50
+  upper_bound: 1500
+custom_freq_synthesis:
+  list: [50, 100]
+
+# Optional target-specific frequencies (in MHz)
 xc7a100t-csg324-1:
   fmax_synthesis:
     lower_bound: 650
@@ -47,4 +49,3 @@ AMS350CMOS:
     upper_bound: 500
   custom_freq_synthesis:
     list: [50, 100]
-...

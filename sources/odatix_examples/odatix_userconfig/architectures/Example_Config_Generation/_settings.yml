@@ -12,7 +12,7 @@ rtl_file_format: ""
 clock_signal: ""
 reset_signal: ""
 
-# delimiters for parameter files
+# Delimiters for parameter files
 use_parameters: Yes
 start_delimiter: "  // <main>"
 stop_delimiter: "  // </main>"
