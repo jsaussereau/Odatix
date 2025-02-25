@@ -366,6 +366,7 @@ class ArchitectureHandler:
                 freq_arch.tmp_report_path = os.path.join(freq_arch.tmp_dir, self.work_report_path)
                 freq_arch.tmp_log_path = os.path.join(freq_arch.tmp_dir, self.work_log_path)
                 freq_arch.target_frequency = freq
+                freq_arch.lib_name = freq_arch.lib_name + "_" + str(freq) + "MHz"
 
                 # check if the architecture is in cache and has a status file
                 status_file = os.path.join(freq_arch.tmp_dir, self.work_log_path, self.fmax_status_filename)
