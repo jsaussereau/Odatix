@@ -62,16 +62,15 @@ proc timing_summary {freq_rep timing_rep} {
     }
 
     puts ""
-    set pwd [pwd]
-    puts "Complete timning report can be found in \"$pwd/$timing_rep\""
+    puts "Complete timning report can be found in \"$timing_rep\""
 }
 
 
-proc area_summary {area_rep} {
+proc area_summary {area_rep utilization_rep} {
     puts ""
     puts "<bold>Area summary<end>:"
 
-    set afile [open $$area_rep r]
+    set afile [open $area_rep r]
     while {[gets $afile data] != -1} {
         if {[string match *[string toupper "Total cell area"]* [string toupper $data]]} {
             puts -nonewline "  "
@@ -81,10 +80,9 @@ proc area_summary {area_rep} {
     close $afile
 
     puts -nonewline "  "
-    puts [read [open $report_dir/cell_count.rep r]]
+    puts [read [open $utilization_rep r]]
 
-    set pwd [pwd]
-    puts "Complete area report can be found in \"$pwd/$$area_rep\""
+    puts "Complete area report can be found in \"$area_rep\""
 }
 
 ######################################
@@ -92,5 +90,5 @@ proc area_summary {area_rep} {
 ######################################
 
 timing_summary $freq_rep $timing_rep
-area_summary $utilization_rep
+area_summary $area_rep $utilization_rep
 #power_summary $power_rep
