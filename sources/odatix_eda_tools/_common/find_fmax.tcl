@@ -126,11 +126,11 @@ if {[catch {
     # run synthesis script with the current frequency
     update_freq $cur_freq $constraints_file
     puts ""  
-    puts "<bold><cyan>"
-    puts "######################################"
-    puts "   Running synthesis at $cur_freq MHz "
-    puts "######################################"
-    puts "<end>"
+    puts ""
+    puts "<bold><cyan>######################################<end>"
+    puts "<bold><cyan>   Running synthesis at $cur_freq MHz <end>"
+    puts "<bold><cyan>######################################<end>"
+    puts ""
 
     set synth_succeeded [run_synth_script $synth_script]
 
