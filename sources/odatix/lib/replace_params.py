@@ -19,6 +19,18 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+"""
+This script allows replacing content between specified delimiters in a text file.
+
+Functions:
+    - parse_arguments: Parses command-line arguments.
+    - read_file: Reads the contents of a file.
+    - write_file: Writes content to a file.
+    - replace_content: Replaces text between specified delimiters.
+    - replace_params: Reads input, replaces content, and writes output.
+    - main: Executes the script logic based on command-line arguments.
+"""
+
 import os
 import re
 import sys
@@ -28,24 +40,37 @@ import odatix.lib.printc as printc
 
 script_name = os.path.basename(__file__)
 
+def parse_arguments():
+    """Parses command-line arguments for delimiter-based text replacement."""
+    parser = argparse.ArgumentParser(description="Replace content between delimiters in a text file.")
+    parser.add_argument("-s", "--startdel", dest="start_delimiter", required=True, help="Start delimiter")
+    parser.add_argument("-S", "--stopdel", dest="stop_delimiter", required=True, help="Stop delimiter")
+    parser.add_argument("-i", "--input", dest="base_text_file", required=True, help="Input base text file")
+    parser.add_argument("-o", "--output", dest="output_file", required=True, help="Output text file")
+    parser.add_argument("-r", "--replace", dest="replacement_text_file", required=True, help="Replacement text file")
+    parser.add_argument("-a", "--all", dest="replace_all_occurrences", action="store_true", help="Replace all occurrences")
+    return parser.parse_args()
+
 def read_file(file_path):
+    """Reads the contents of a text file and returns it as a string."""
     try:
         with open(file_path, 'r') as file:
-            content = file.read()
-        return content
-    except:
-        printc.error("could not open input file \"" + file_path + "\"", script_name)
+            return file.read()
+    except Exception:
+        printc.error("Could not open input file \"" + file_path + "\"", script_name)
         sys.exit(1)
 
 def write_file(file_path, content):
+    """Writes content to a specified text file."""
     try:
         with open(file_path, 'w') as file:
             file.write(content)
     except Exception as e:
-        printc.error("could not write output file \"" + file_path + "\": " + str(e), script_name)
+        printc.error("Could not write output file \"" + file_path + "\": " + str(e), script_name)
         sys.exit(1)
 
 def replace_content(base_text, replacement_text, start_delim, stop_delim, replace_all_occurrences):
+    """Replaces text between specified delimiters in the base text with the replacement text."""
     pattern = re.escape(start_delim) + '.*?' + re.escape(stop_delim)
 
     match_found = re.search(pattern, base_text, flags=re.DOTALL) is not None
@@ -57,6 +82,8 @@ def replace_content(base_text, replacement_text, start_delim, stop_delim, replac
     return new_text, match_found
 
 def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False, silent=False):
+    """Reads input files, replaces text between delimiters, and writes the updated content to an output file."""
+    
     # Read the contents of text files
     base_text = read_file(base_text_file)
     replacement_text = read_file(replacement_text_file)
@@ -68,7 +95,7 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
     write_file(output_file, new_text)
 
     if not match_found:
-        printc.warning("could not find pattern \"", script_name=script_name, end="")
+        printc.warning("Could not find pattern ", script_name=script_name, end="")
         printc.red(start_delimiter, end="")
         printc.grey("[…]", end="")
         printc.red(stop_delimiter, end="")
@@ -76,28 +103,18 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
 
     if not silent and match_found:
         if new_text != base_text:
-            printc.say("content replaced successfully, output saved to \"" + output_file + "\"", script_name)
+            printc.say("Content replaced successfully, output saved to \"" + output_file + "\"", script_name)
         else:
-            printc.say("nothing to be done, input copied to \"" + output_file + "\"", script_name)
+            printc.say("Nothing to be done, input copied to \"" + output_file + "\"", script_name)
 
     return match_found
-
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Replace content between delimiters in a text file.")
-    parser.add_argument("-s", "--startdel", dest="start_delimiter", required=True, help="Start delimiter")
-    parser.add_argument("-S", "--stopdel", dest="stop_delimiter", required=True, help="Stop delimiter")
-    parser.add_argument("-i", "--input", dest="base_text_file", required=True, help="Input base text file")
-    parser.add_argument("-o", "--output", dest="output_file", required=True, help="Output text file")
-    parser.add_argument("-r", "--replace", dest="replacement_text_file", required=True, help="Replacement text file")
-    parser.add_argument("-a", "--all", dest="replace_all_occurrences", action="store_true", help="Replace all occurrences")
-    return parser.parse_args()
-
 
 ######################################
 # Main
 ######################################
 
 def main():
+    """Main function to handle argument parsing and execution of text replacement."""
     args = parse_arguments()
     replace_params(args.base_text_file, args.replacement_text_file, args.output_file, args.start_delimiter, args.stop_delimiter, args.replace_all_occurrences)
 
