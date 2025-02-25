@@ -2,7 +2,7 @@
 Define Parameter Domains
 ##########################
 
-In Odatix, a *parameter domain* defines a set of parameters for a given hardware architecture. 
+In Odatix, a **parameter domain** defines a set of parameters for a given hardware architecture. 
 The goal is to streamline the implementation of parameter combinations. This way, users do not have to manually create a configuration file for each parameter combination.
 This is particularly useful when dealing with a large set of parameters.
 
@@ -12,13 +12,14 @@ This is particularly useful when dealing with a large set of parameters.
 
 .. Important::
 
-  Before defining a parameter domain, make sure you have already defined your architecture folder in `odatix_userconfig/architectures`.
+Before defining a parameter domain, make sure you have already defined your architecture folder in ``odatix_userconfig/architectures``.
 
 **************
 File Structure
 **************
 
-To define parameter domains, users must create a dedicated folder in `odatix_userconfig/architectures/`.
+To define parameter domains, users must create dedicated sub-folders for each parameter domain inside their architecture directory in ``odatix_userconfig/architectures/``.
+Each sub folder must contain a parameter domain definition file ``_settings.yml`` and parameter files. This is similar to how the main paramater domain work (see :doc:`/quick_start/add_design`)
 
 Example of file structure:
 
@@ -58,7 +59,9 @@ Example of file structure:
   ├── ...
   └── M0111.txt                     # Main architecture configuration
 
-Each subfolder corresponds to a different **parameter domain** (e.g., `DMEM`, `IMEM`, `Mul`), and inside each, different values for that parameter are specified (e.g., `1024.txt`, `2048.txt`).
+Each subfolder corresponds to a different **parameter domain** (e.g., ``DMEM``, ``IMEM``, ``Mul``). 
+Inside each, different values for that parameter are specified in paramter files (e.g., ``1024.txt``, ``2048.txt``) 
+and a parameter domain definition file ``_settings.yml`` defines how the parameter files should be used within the rtl sources files.
 
 ***************
 YAML Definition

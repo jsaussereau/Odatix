@@ -1,5 +1,5 @@
-User Guide
-==========
+Advanced Functionalities
+========================
 
 .. toctree::
     :maxdepth: 1
@@ -8,7 +8,7 @@ User Guide
     parameter_domains
     configuration_generation
 
-This sections presents advances Odatix functionalities.
+This sections presents advanced Odatix functionalities.
 
 .. grid::
 

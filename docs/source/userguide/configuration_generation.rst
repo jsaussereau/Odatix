@@ -388,15 +388,31 @@ In this example, both instruction memory (`IMEM`) and data memory (`DMEM`) depth
         settings:
           op: 2^$imem_depth
 
-🔹 This generates configurations such as:
+🔹 This will generate configurations:
 
 - `DMEM_256-IMEM_256`
 - `DMEM_256-IMEM_512`
+- `DMEM_256-IMEM_1024`
+- `DMEM_512-IMEM_256`
 - `DMEM_512-IMEM_512`
-- `DMEM_1024-IMEM_2048`
-- etc.
+- `DMEM_512-IMEM_1024`
+- `DMEM_1024-IMEM_256`
+- `DMEM_1024-IMEM_512`
+- `DMEM_1024-IMEM_1024`
 
-Each configuration automatically computes both `p_dmem_depth_pw2` and `p_imem_depth_pw2` using the power-of-two function.
+---
+
+***********************************
+Generate Configurations
+***********************************
+
+To generate your configuration, simply run :
+
+.. code-block:: bash
+
+  odatix generate
+
+Odatix will list all configurations to generate and will ask for your confirmation before actually generating them.
 
 ---
 
