@@ -11,7 +11,7 @@ overwrite:        No   # overridden by -o / --overwrite
 ask_continue:     Yes  # overridden by -y / --noask
 
 # exit monitor when all jobs are done
-exit_when_done:   Yes  # overridden by -E / --exit
+exit_when_done:   No   # overridden by -E / --exit
 
 # size of the log history per job in the monitor
 log_size_limit:   300  # overridden by --logsize
