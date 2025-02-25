@@ -60,7 +60,7 @@ class ResultExplorer:
 
     # Check paths
     if not os.path.exists(result_path):
-      printc.error('Could not find result path "' + result_path + '"')
+      printc.error('Could not find result path "' + result_path + '"', script_name=script_name)
       if self.old_settings is not None:
         term_mode.restore_mode(self.old_settings)
       sys.exit(-1)
@@ -99,7 +99,6 @@ class ResultExplorer:
 
     self.app = app = dash.Dash(__name__, use_pages=True)
     self.app.title = "Odatix"
-    # self.app.add_url_rule('/favicon.ico', redirect_to=url_for('static', filename='favicon.ico'))
 
     self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 
