@@ -24,7 +24,7 @@
 # Paths
 ########################################################
 
-TOOL_INSTALL_PATH       = ~/ASIC/OpenLane
+TOOL_INSTALL_PATH       = ~/OpenLane
 SCRIPT_DIR              = ./scripts
 LOG_DIR                 = ./log
 REPORT_DIR              = ./report
@@ -36,8 +36,7 @@ WORK_DIR                = ./tmp
 
 SYNTH_FREQ_SCRIPT       = find_fmax.tcl
 LOG_FILE                = $(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log
-ODATIX_DIR              = ../..
-GEN_CONFIG_SCRIPT       = $(ODATIX_DIR)/../odatix_eda_tools/openlane/scripts/gen_config.py
+GEN_CONFIG_SCRIPT       = $(EDA_TOOLS_PATH)/openlane/scripts/gen_config.py
 
 ########################################################
 # Tool specific
@@ -50,9 +49,6 @@ FLOW_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'cd $(WORK_DIR); tc
 GEN_CONFIG_CMD          = python3 $(GEN_CONFIG_SCRIPT) --basepath $(WORK_DIR)
 TEST_CMD                = docker exec $(LIB_NAME) /bin/sh -c 'exit'
 
-CLOCK_SIGNAL            = clock
-TOP_LEVEL_MODULE        = module
-
 WAIT_TIME ?= 10
 INTERVAL ?= 1
 
@@ -63,14 +59,14 @@ INTERVAL ?= 1
 _BOLD                   =\x1b[1m
 _END                    =\x1b[0m
 _BLACK                  =\x1b[30m
-_RED                    =\x1b[31m
-_GREEN                  =\x1b[32m
-_YELLOW                 =\x1b[33m
-_BLUE                   =\x1b[34m
-_MAGENTA                =\x1b[35m
-_CYAN                   =\x1b[36m
-_WHITE                  =\x1b[37m
 _GREY                   =\x1b[90m
+_RED                    =\x1b[91m
+_GREEN                  =\x1b[92m
+_YELLOW                 =\x1b[93m
+_BLUE                   =\x1b[94m
+_MAGENTA                =\x1b[95m
+_CYAN                   =\x1b[96m
+_WHITE                  =\x1b[97m
 
 OPENLANE_COLOR          = "s/INFO/$(_CYAN)INFO$(_END)/;s/WARNING/$(_YELLOW)WARNING$(_END)/;s/ERROR/$(_RED)$(_BOLD)ERROR$(_END)/;s/<green>/$(_GREEN)/;s/<red>/$(_RED)/;s/<yellow>/$(_YELLOW)/;s/<cyan>/$(_CYAN)/;s/<blue>/$(_BLUE)/;s/<magenta>/$(_MAGENTA)/;s/<grey>/$(_GREY)/;s/<bold>/$(_BOLD)/;s/<end>/$(_END)/g"
 
@@ -102,6 +98,7 @@ synth_fmax: dirs
 		printf "\n$(SIGNATURE) $(_BOLD)$(_RED)error:$(_END) $(_RED) Docker container not ready after $(WAIT_TIME) seconds\n"; \
 		exit 1; \
 	fi
+	@printf "$(_BOLD) > $(GEN_CONFIG_CMD)$(_END)"
 	@$(GEN_CONFIG_CMD)
 	@printf "$(SIGNATURE) $(_CYAN)Run Fmax synthesis flow$(_END)"
 	@printf "$(_BOLD) > $(FLOW_CMD)$(_END)"

@@ -2,104 +2,27 @@
 # Settings for OpenLane
 ##############################################
 
+# Group processes
 process_group: False
 report_path: runs/odatix/reports
 
-fmax_synthesis_metrics:
-  Fmax:
-    type: regex
-    settings:
-      file: log/frequency_search.log
-      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
-      group_id: 2
-    format: "%.0f"
-    unit: MHz
+# Default metrics file for this tool
+default_metrics_file: $eda_tools_path/openlane/metrics.yml
 
-custom_freq_synthesis_metrics:
-  Frequency:
-    type: regex
-    settings:
-      file: frequency.txt
-      pattern: "([0-9_]+) MHz"
-      group_id: 1
-    format: "%.0f"
-    unit: MHz
+unix:
 
-metrics:
-  Cell_Area:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: CoreArea_um^2
-    format: "%.3f"
-    unit: um^2
+  # Command to check if the tool is installed
+  tool_test_command: 
+    - make -f $eda_tools_path/openlane/makefile.mk test_tool
+    - TOOL_INSTALL_PATH=$tool_install_path
 
-  Synth_Cell_Count:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: synth_cell_count
-    format: "%.0f"
-
-  WNS:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: wns
-    format: "%.2f"
-    unit: "ns"
-
-  TNS:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: tns
-    format: "%.2f"
-    unit: "ns"
-
-  Wire_Length:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: wire_length
-    format: "%.0f"
-    unit: "um"
-
-  Vias:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: vias
-    format: "%.0f"
-
-  Clock_Period:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: CLOCK_PERIOD
-    format: "%.2f"
-    unit: "ns"
-
-  Power_Slowest_Internal:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: power_slowest_internal_uW
-    format: "%.6f"
-    unit: "W"
-
-  Power_Typical_Switching:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: power_typical_switching_uW
-    format: "%.6f"
-    unit: "W"
-
-  Power_Fastest_Leakage:
-    type: csv
-    settings:
-      file: runs/odatix/reports/metrics.csv
-      key: power_fastest_leakage_uW
-    format: "%.9f"
-    unit: "W"
+  # Command for fmax synthesis
+  fmax_synthesis_command: 
+    - make -f $eda_tools_path/openlane/makefile.mk synth_fmax
+    - EDA_TOOLS_PATH=$eda_tools_path
+    - TOOL_INSTALL_PATH=$tool_install_path
+    - WORK_DIR=$work_path
+    - REPORT_DIR=$work_path/runs/odatix/reports
+    - SCRIPT_DIR=$script_path
+    - LOG_DIR=$log_path
+    - LIB_NAME=$lib_name
