@@ -25,5 +25,6 @@ custom_freq_synthesis_metrics:
 metrics:
   Param_Domains:
     type: yaml
+    error_if_missing: No
     settings:
       file: param_domains.yml

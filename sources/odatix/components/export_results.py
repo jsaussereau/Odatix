@@ -102,7 +102,7 @@ def parse_arguments():
 ######################################
 
 
-def parse_regex(file, pattern, group_id, error_prefix=""):
+def parse_regex(file, pattern, group_id, error_if_missing=True, error_prefix=""):
   """
   Parse a file with a regex to extract a specific value.
 
@@ -116,7 +116,8 @@ def parse_regex(file, pattern, group_id, error_prefix=""):
       str | None: The matched value, or None if not found or on error.
   """
   if not os.path.isfile(file):
-    printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+    if error_if_missing:
+      printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
   with open(file, "r") as f:
     try:
@@ -134,7 +135,7 @@ def parse_regex(file, pattern, group_id, error_prefix=""):
   return None
 
 
-def parse_csv(file, key, error_prefix=""):
+def parse_csv(file, key, error_if_missing=True, error_prefix=""):
   """
   Parse a CSV file to extract a value associated with a specific key.
 
@@ -147,7 +148,8 @@ def parse_csv(file, key, error_prefix=""):
       str | None: The value corresponding to the key, or None if not found.
   """
   if not os.path.isfile(file):
-    printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+    if error_if_missing:
+      printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
   with open(file, mode="r") as csv_file:
     try:
@@ -163,7 +165,7 @@ def parse_csv(file, key, error_prefix=""):
 
   return None
 
-def parse_yaml(file, key=None, error_prefix=""):
+def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
   """
   Parse a YAML file to extract a value associated with a key.
 
@@ -176,7 +178,8 @@ def parse_yaml(file, key=None, error_prefix=""):
       Any | None: Extracted value, or None if not found or on error.
   """
   if not os.path.isfile(file):
-    printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+    if error_if_missing:
+      printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
     return None
 
   with open(file, "r") as yaml_file:
@@ -308,6 +311,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       banned_metrics.append(metric)
       continue
 
+    error_if_missing, _ = get_from_dict("error_if_missing", content, metrics_file, parent=metric, default_value=True, type=bool, silent=True, script_name=script_name)
+
     if type == "regex":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -316,7 +321,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_regex(os.path.join(cur_path, file), pattern, group_id, error_prefix)
+      value = parse_regex(os.path.join(cur_path, file), pattern, group_id, error_if_missing, error_prefix)
     elif type == "csv":
       try:
         file = read_from_list( "file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -324,7 +329,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_csv(os.path.join(cur_path, file), key, error_prefix)
+      value = parse_csv(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
     elif type == "yaml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -332,7 +337,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_yaml(os.path.join(cur_path, file), key, error_prefix)
+      value = parse_yaml(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
     elif type == "benchmark":
       if not use_benchmark:
         banned_metrics.append(metric)
@@ -345,7 +350,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key = arch + "[" + key + "]"
-      value = parse_yaml(benchmark_file, key, error_prefix)
+      value = parse_yaml(benchmark_file, key, error_if_missing, error_prefix)
       if value is None:
         banned_arch.append(arch)
     elif type == "operation":
@@ -354,7 +359,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = calculate_operation(op, results, error_prefix)
+      value = calculate_operation(op, results, error_if_missing, error_prefix)
     else:
       printc.error(
         'Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + metrics_file + '"',
@@ -417,7 +422,7 @@ def convert_to_numeric(data):
     return data
 
 
-def calculate_operation(op_str, results, error_prefix=""):
+def calculate_operation(op_str, results, error_if_missing=True, error_prefix=""):
   """
   Evaluate a mathematical operation on the extracted results.
 
@@ -433,7 +438,8 @@ def calculate_operation(op_str, results, error_prefix=""):
     local_vars = {k: v for k, v in results.items() if v is not None}
     return eval(op_str, {}, local_vars)
   except (NameError, SyntaxError, TypeError, ZeroDivisionError) as e:
-    printc.error(error_prefix + 'Failed to evaluate operation "' + op_str + '": ' + str(e) , script_name)
+    if error_if_missing:
+      printc.error(error_prefix + 'Failed to evaluate operation "' + op_str + '": ' + str(e) , script_name)
     return None
 
 
