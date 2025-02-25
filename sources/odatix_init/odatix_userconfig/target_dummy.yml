@@ -2,11 +2,12 @@
 ##############################################
 # Target settings for dummy test tool
 ##############################################
----
 
 constraint_file: constraints.txt
 
 tool_install_path: "" # tclsh should be in your $PATH
+
+force_single_thread: No
 
 script_copy_enable: No
 script_copy_source: "/dev/null"
@@ -14,5 +15,3 @@ script_copy_source: "/dev/null"
 # FPGA target
 targets:
   - dummy_target
-
-...

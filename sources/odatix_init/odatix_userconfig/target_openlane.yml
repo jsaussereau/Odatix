@@ -2,12 +2,13 @@
 ##############################################
 # Target Settings for OpenLane
 ##############################################
----
 
 constraint_file: config.json
 
 # /!\ UPDATE WITH YOUR OWN INSTALL PATH HERE /!\ 
 tool_install_path: ~/OpenLane
+
+force_single_thread: No # Single thread is not supported yet with openlane
 
 script_copy_enable: No
 script_copy_source: "/dev/null"
@@ -19,5 +20,3 @@ targets:
   # - gf180mcuA
   # - gf180mcuB
   # - gf180mcuC
-
-...

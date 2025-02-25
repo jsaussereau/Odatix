@@ -2,7 +2,6 @@
 ##############################################
 # Target settings for vivado
 ##############################################
----
 
 constraint_file: constraints.xdc
 
@@ -35,5 +34,3 @@ targets:
   # - xcku3p-ffva676-3-e
   # - xcvu3p-ffvc1517-2-e
   # - xcvu3p-ffvc1517-3-e
-
-...
