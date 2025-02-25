@@ -68,10 +68,20 @@ DC_COLOR				= "s/Information/$(_CYAN)Information$(_END)/;s/Warning/$(_YELLOW)War
 synth_fmax: logdir
 	@cd $(WORK_DIR); \
 	$(DC_COMPILER) -no_gui -x "cd ../../../../../; source $(SCRIPT_DIR)/$(SYNTH_FREQ_SCRIPT); quit" \
-	| tee ../../../../../$(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log \
+	| tee $(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log \
 	| sed $(DC_COLOR); \
 	EXIT_CODE=$${PIPESTATUS[0]}; \
 	echo "result logged to \"$(LOG_DIR)/$(SYNTH_FREQ_SCRIPT).log\""; \
+	exit $$EXIT_CODE
+
+.PHONY: synth
+synth: logdir
+	@cd $(WORK_DIR); \
+	$(DC_COMPILER) -no_gui -x "cd ../../../../../../; source $(SCRIPT_DIR)/$(INIT_SCRIPT); source $(SCRIPT_DIR)/$(ANALYZE_SCRIPT); source $(SCRIPT_DIR)/$(SYNTH_SCRIPT); quit" \
+	| tee $(LOG_DIR)/$(SYNTH_SCRIPT).log \
+	| sed $(DC_COLOR); \
+	EXIT_CODE=$${PIPESTATUS[0]}; \
+	echo "result logged to \"$(LOG_DIR)/$(SYNTH_SCRIPT).log\""; \
 	exit $$EXIT_CODE
 
 .PHONY: test_tool

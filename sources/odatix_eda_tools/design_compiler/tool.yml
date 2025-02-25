@@ -20,3 +20,10 @@ unix:
     - WORK_DIR=$work_path
     - SCRIPT_DIR=$script_path
     - LOG_DIR=$log_path
+
+  # Command for custom frequency synthesis
+  custom_freq_synthesis_command: 
+    - make -f $eda_tools_path/design_compiler/makefile.mk synth
+    - WORK_DIR=$work_path
+    - SCRIPT_DIR=$script_path
+    - LOG_DIR=$log_path
