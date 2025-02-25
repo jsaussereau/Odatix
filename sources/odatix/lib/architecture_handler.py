@@ -471,14 +471,23 @@ class ArchitectureHandler:
         top_level_module   = read_from_list('top_level_module', settings_data, settings_filename, script_name=script_name)
         clock_signal       = read_from_list('clock_signal', settings_data, settings_filename, script_name=script_name)
         reset_signal       = read_from_list('reset_signal', settings_data, settings_filename, script_name=script_name)
-        file_copy_enable   = read_from_list('file_copy_enable', settings_data, settings_filename, type=bool, script_name=script_name)
-        file_copy_source   = read_from_list('file_copy_source', settings_data, settings_filename, script_name=script_name)
-        file_copy_dest     = read_from_list('file_copy_dest', settings_data, settings_filename, script_name=script_name)
       except (KeyNotInListError, BadValueInListError):
         self.banned_arch_param.append(arch_param_dir)
         self.error_archs.append(arch_display_name)
         return None # if an identifier is missing
 
+      file_copy_enable, defined = get_from_dict('file_copy_enable', settings_data, settings_filename, type=bool, silent=True, default_value=False, script_name=script_name)
+      if defined:
+        file_copy_source, source_defined = get_from_dict('file_copy_source', settings_data, settings_filename, behavior=Key.MANTADORY, script_name=script_name)
+        file_copy_dest, dest_defined = get_from_dict('file_copy_dest', settings_data, settings_filename, behavior=Key.MANTADORY, script_name=script_name)
+        if not source_defined or not dest_defined:
+          self.banned_arch_param.append(arch_param_dir)
+          self.error_archs.append(arch_display_name)
+          return None
+      else:
+        file_copy_source = ""
+        file_copy_dest = ""
+      
       generate_command = ""
       generate_rtl, defined = get_from_dict('generate_rtl', settings_data, settings_filename, type=bool, silent=True, script_name=script_name)
       if not defined:
