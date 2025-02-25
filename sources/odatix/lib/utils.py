@@ -246,7 +246,16 @@ def ask_yes_no():
 def create_dir(dir):
   """Creates a directory, removing it first if it exists."""
   if os.path.isdir(dir):
-    shutil.rmtree(dir)
+    for attempt in range(5):  # Try multiple times in case of latency or locked files
+      try:
+        shutil.rmtree(dir)
+        if not os.path.exists(dir):  # Check if deletion was successful
+          break
+      except (PermissionError, OSError):
+        time.sleep(0.5)  # Wait before retrying
+    else:
+      printc.error(f"Unable to delete {dir} after 5 attempts")
+
   os.makedirs(dir)
 
 def internal_error(e, error_logfile, script_name):
