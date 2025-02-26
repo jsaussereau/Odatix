@@ -64,6 +64,12 @@ def add_arguments(parser):
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
   add_arguments(parser)
+  # Try enabling autocompletion if argcomplete is installed
+  try:
+    import argcomplete
+    argcomplete.autocomplete(parser)
+  except ImportError:
+    pass  # No error if argcomplete is missing
   return parser.parse_args()
 
 ######################################

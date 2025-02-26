@@ -1,7 +1,8 @@
+PyYAML
+argcomplete
 dash
 Flask
 numpy
 pandas
 plotly
-PyYAML
 waitress

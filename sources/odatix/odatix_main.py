@@ -133,6 +133,13 @@ class ArgParser:
     cln.add_arguments(ArgParser.clean_parser)
     ArgParser.add_nobanner(ArgParser.clean_parser)
 
+    # Try enabling autocompletion if argcomplete is installed
+    try:
+      import argcomplete
+      argcomplete.autocomplete(ArgParser.parser)
+    except ImportError:
+      pass  # No error if argcomplete is missing
+
     # Parse arguments
     return ArgParser.parser.parse_args()
 
