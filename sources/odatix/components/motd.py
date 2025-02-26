@@ -22,6 +22,7 @@
 import os
 import sys
 import argparse
+import requests
 
 import odatix.lib.printc as printc
 
@@ -76,6 +77,7 @@ def motd():
     print(r" ######  | \####### | \####### |  \####  | ## | ##  /\##\ ", end='\r\n')
     print(r" \______/   \_______|  \_______|   \____/  \__| \__/  \__|", end='\r\n')
     print()
+  check_for_update()
 
 def full_header(description=True):
   motd()
@@ -104,6 +106,25 @@ def read_version():
 def print_version():
   version = read_version()
   print("Odatix " + str(version))
+
+def check_for_update():
+  installed_version = read_version()
+  try:
+    # Get last version code from PyPI
+    response = requests.get("https://pypi.org/pypi/odatix/json", timeout=2)
+    response.raise_for_status()
+    latest_version = response.json()["info"]["version"]
+
+    # Comparer les versions
+    if installed_version < latest_version:
+      printc.green(f"\nA new version of Odatix ({latest_version}) is available!")
+      printc.note(f"You currently have Odatix {installed_version}.")
+      printc.note("You can run ", end="")
+      printc.grey("python3 -m pip install -U odatix", end="")
+      printc.cyan(" to update.\n")
+
+  except Exception as e:
+    printc.warning("Could not check for updates")
 
 ######################################
 # Main
