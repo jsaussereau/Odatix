@@ -1,11 +1,50 @@
 # Change Log
 All notable changes to this project will be documented in this file.
- 
+
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
+
+## [3.4.0] - 2025-02-26
+
+### Added
+
+#### Odatix
+- Add support for parameter domains
+- Add support for configurations automatically defined by rules
+- Add custom frequency synthesis support for design compiler
+- Add a message after the motd if an update is available
+- Add a help menu in the monitor
+- Add the elapsed time for each job in the monitor
+- Open work path in file explorer when key 'o' is pressed and when double-clicking on a job in the monitor
+- Add an option to force single threading for each job
+- Add '--from' and '--to' options to 'odatix fmax' to override fmax bounds
+- Add '--from', '--to' and '--step' options to 'odatix freq' to override frequency list
+- Add '--at' option to 'odatix freq' to override frequency list
+- Add support for configuration-specific custom frequency definition
+
+#### Odatix Explorer
+- Add favicon
+
+### Changed
+
+#### Odatix
+- Rework tool definition
+- Replace shell calls with pure tcl in tcl script
+- Improve log colors
+- Set exit_when_done default value back to 'No'
+- Improve compatibility with windows (still incomplete)
+- Change default theme
+
+### Fixed
+
+#### Odatix
+- Fix out-of-date documentation
+
+#### Odatix Explorer
+- Fix "warning: Theme "None" does not exist. Using default theme."
 
 ## [3.3.0] - 2025-01-29
 
-### Added 
+### Added
 
 #### Odatix
 - Add 's' keybinding to force a job to start
@@ -46,7 +85,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ## [3.2.0] - 2025-01-23
 
-### Added 
+### Added
 
 #### Odatix
 - Add support for synthesis at custom frequencies (list and/or range)
@@ -86,7 +125,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ## [3.1.0] - 2024-09-10
 
-### Added 
+### Added
 
 #### Odatix
 - Add a tool_install_path key to target files
@@ -144,7 +183,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - Add display and export settings to odatix-explorer
  
 ### Changed
-  
+
 - Change Asterism's name to Odatix
 - Change config files directory 
 - Change results format 
