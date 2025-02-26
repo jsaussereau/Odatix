@@ -19,6 +19,21 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+"""
+This script displays the message of the day (MOTD) for Odatix, checks for updates,
+and prints version information.
+
+Functions:
+    - add_arguments: Adds command-line arguments for the script.
+    - parse_arguments: Parses command-line arguments.
+    - motd: Displays the message of the day for Odatix.
+    - full_header: Prints the full MOTD along with version and copyright.
+    - print_copyright: Displays copyright information.
+    - read_version: Reads the installed version of Odatix.
+    - print_version: Prints the installed version.
+    - check_for_update: Checks PyPI for a newer version of Odatix.
+"""
+
 import os
 import sys
 import argparse
@@ -58,6 +73,7 @@ def parse_arguments():
 ######################################
 
 def motd():
+  """Displays the message of the day (MOTD)."""
   try:
     print()
     print(" ██████╗  ██████╗   █████╗ ████████╗ ██╗ ██╗  ██╗", end="\r\n")
@@ -80,6 +96,7 @@ def motd():
   check_for_update()
 
 def full_header(description=True):
+  """Displays the full header, including MOTD, version, and copyright."""
   motd()
   if description:
     print("Odatix - a FPGA/ASIC toolbox for design space exploration")
@@ -89,6 +106,7 @@ def full_header(description=True):
   print()
 
 def print_copyright():
+  """Prints the copyright information."""
   print("Copyright (C) 2022-2025 Jonathan Saussereau")
 
 ######################################
@@ -96,6 +114,7 @@ def print_copyright():
 ######################################
 
 def read_version():
+  """Reads and returns the current installed version of Odatix."""
   try:
     with open(version_file, 'r') as file:
       return file.read().strip()
@@ -104,10 +123,12 @@ def read_version():
     return "Unknown"
 
 def print_version():
+  """Prints the current installed version of Odatix."""
   version = read_version()
   print("Odatix " + str(version))
 
 def check_for_update():
+  """Checks for a newer version of Odatix on PyPI."""
   installed_version = read_version()
   try:
     # Get last version code from PyPI
