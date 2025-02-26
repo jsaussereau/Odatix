@@ -20,7 +20,7 @@ setup(
     author="Jonathan Saussereau",
     author_email="jonathan.saussereau@ims-bordeaux.fr",
     description="A FPGA/ASIC toolbox for design space exploration",
-    long_description=open(os.path.join(os.getcwd(), os.pardir, "README.md"), encoding="utf-8").read(),
+    long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/jsaussereau/Asterism",
     packages=package_list,
