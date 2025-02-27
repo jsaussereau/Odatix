@@ -361,6 +361,22 @@ class ParallelJob:
       progress = 100
     return progress
 
+  def pause(self):
+    """Suspend the job execution."""
+    if self.process and self.status == "running":
+      os.killpg(os.getpgid(self.process.pid), signal.SIGSTOP) # Suspend process
+      self.status = "paused"
+      self.stop_time = time.time()
+      self.log_history.append(printc.colors.BLUE + "Job paused by user" + printc.colors.ENDC)
+
+  def resume(self):
+    """Resume the job execution."""
+    if self.process and self.status == "paused":
+      os.killpg(os.getpgid(self.process.pid), signal.SIGCONT) # Resume execution
+      self.status = "running"
+      self.start_time += time.time() - self.stop_time # Adjust the start time to reflect the paused duration
+      self.stop_time = None
+      self.log_history.append(printc.colors.GREEN + "Job resumed by user" + printc.colors.ENDC)
 
 ######################################
 # ParallelJobHandler
@@ -482,7 +498,7 @@ class ParallelJobHandler:
           color = curses.color_pair(WHITE + offset)
         elif status == "success":
           color = curses.color_pair(GREEN + offset)
-        elif status == "queued":
+        elif status == "queued" or "paused":
           color = curses.color_pair(BLUE + offset)
         elif status == "starting":
           color = curses.color_pair(CYAN + offset)
@@ -522,7 +538,7 @@ class ParallelJobHandler:
         window.addstr(id, pos, status, curses.color_pair(YELLOW + offset) | attr)
       elif status == "success":
         window.addstr(id, pos, status, curses.color_pair(GREEN + offset) | attr)
-      elif status == "queued":
+      elif status == "queued" or "paused":
         window.addstr(id, pos, status, curses.color_pair(BLUE + offset) | attr)
       elif status == "starting":
         window.addstr(id, pos, status, curses.color_pair(CYAN + offset) | attr)
@@ -728,17 +744,18 @@ class ParallelJobHandler:
 
     help_text = [
       ("q"          , "Quit"),
-      ("PageUp    n", "Select next Job"),
-      ("PageDown  p", "Select previous Job"),
-      ("Up        u", "Scroll Log"),
-      ("Down      d", "Scroll Log"),
-      ("Home/End"   , "Scroll to Top/Bottom"),
-      ("+/-"        , "Change Progress Window Size"),
+      ("PageUp    n", "Select next job"),
+      ("PageDown  p", "Select previous job"),
+      ("Up        u", "Scroll log"),
+      ("Down      d", "Scroll log"),
+      ("Home/End"   , "Scroll to top/bottom"),
+      ("+/-"        , "Change progress window zize"),
+      ("Space"      , "Pause selected job"),
       ("k"          , "Kill selected job"),
-      ("s"          , "Start selected job immediately"),
+      ("s"          , "Start/resume selected job"),
       ("o"          , "Open current job work path"),
-      ("t"          , "Switch Theme"),
-      ("h         ?", "Show Help"),
+      ("t"          , "Switch theme"),
+      ("h         ?", "Show help"),
     ]
     
     if popup_height <= 7:
@@ -998,7 +1015,7 @@ class ParallelJobHandler:
       # If window size changes, adjust the layout
       if height != old_height or width != old_width or resize:
         popup_width = min(50, width - 4)
-        popup_height = min(19, height - 4)
+        popup_height = min(20, height - 4)
         popup_height = max(popup_height, 3)
         start_x = (width - popup_width) // 2
         start_y = (height - popup_height) // 2
@@ -1268,12 +1285,19 @@ class ParallelJobHandler:
             except ValueError:
               pass
 
+        # Pause the selected job
+        elif key == ord(' '):
+          if selected_job.status == "running":
+            selected_job.pause()
+
         # Start the selected job
         elif key == ord('s') or key == ord('S'): 
           if selected_job.status == "queued":
             self.job_queue.queue.remove(selected_job)
           if selected_job.status == "queued" or selected_job.status == "canceled":  # Start a queued job immediately
             self.start_job(selected_job)
+          if selected_job.status == "paused":
+            selected_job.resume()
 
         # Open job work directory in system file explorer
         elif key == ord('o') or key == ord('O'): 
