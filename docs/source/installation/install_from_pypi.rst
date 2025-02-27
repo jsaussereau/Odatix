@@ -26,13 +26,6 @@ Step 1: Install Python 3.6+ and make
       sudo pacman -Syu
       sudo pacman -S python3 make --noconfirm
 
-.. tab:: Windowws
-
-   .. code-block:: bash
-
-      sudo pacman -Syu
-      sudo pacman -S python3 make --noconfirm
-
 Step 2: Configure a `virtual environment <https://docs.python.org/3/library/venv.html>`_ [*Optional*]
 ------------------------------------------------------------------------------------------------------
 
