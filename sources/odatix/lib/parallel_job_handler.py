@@ -1305,8 +1305,8 @@ class ParallelJobHandler:
       else: # help window
         if key == curses.KEY_MOUSE:
           _, mouse_x, mouse_y, _, button = curses.getmouse()
-          close_x = (width - min(50, width - 4)) // 2 + min(50, width - 4) - 5
-          close_y = (height - min(17, height - 4)) // 2 + 1
+          close_x = start_x + popup_width - 5
+          close_y = start_y + 1
 
           if button & curses.BUTTON1_CLICKED and mouse_y == close_y and close_x <= mouse_x <= close_x + 2:
             self.showing_help = False
