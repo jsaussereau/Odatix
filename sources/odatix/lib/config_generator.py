@@ -31,7 +31,7 @@ from odatix.lib.get_from_dict import get_from_dict, Key
 
 script_name = os.path.basename(__file__)
 
-dimension_types = ("range", "list", "multiples", "power_of_two")
+dimension_types = ("bool", "range", "list", "multiples", "power_of_two")
 modification_types = ("union", "disjunctive_union", "intersection", "difference")
 
 ######################################
@@ -227,7 +227,7 @@ class ConfigGenerator:
 
   def generate_values_for_dim(self, var_name, var_config):
     """
-    Generate the list of values for a dimension variable (range/list/multiples/power_of_two).
+    Generate the list of values for a dimension variable (bool/range/list/multiples/power_of_two).
     If it's 'function' or 'union', we skip for dimension creation here.
     """
     value_type, value_type_defined = get_from_dict("type", var_config, self.yaml_file, behavior=Key.MANTADORY, script_name=script_name)
@@ -249,15 +249,23 @@ class ConfigGenerator:
     values = []
 
     value_type, value_type_defined = get_from_dict("type", config, self.yaml_file, parent=name, behavior=Key.MANTADORY, script_name=script_name)
-    settings, settings_defined = get_from_dict("settings", config, self.yaml_file, parent=name, behavior=Key.MANTADORY, script_name=script_name)
-    if not value_type_defined or not settings_defined:
+    
+    no_settings_var = value_type == "bool"
+    settings, settings_defined = get_from_dict("settings", config, self.yaml_file, parent=name, behavior=Key.MANTADORY, silent=no_settings_var, script_name=script_name)
+    if not value_type_defined or (not settings_defined and value_type != "bool"):
       return values
 
+    if no_settings_var:
+      whitelist = None
+      blacklist = None
+    else:
+      whitelist, _ = get_from_dict("whitelist", settings, self.yaml_file, parent=name + "[settings]", silent=True, default_value=None, script_name=script_name)
+      blacklist, _ = get_from_dict("blacklist", settings, self.yaml_file, parent=name + "[settings]", silent=True, default_value=None, script_name=script_name)
 
-    whitelist, _ = get_from_dict("whitelist", settings, self.yaml_file, parent=name + "[settings]", silent=True, default_value=None, script_name=script_name)
-    blacklist, _ = get_from_dict("blacklist", settings, self.yaml_file, parent=name + "[settings]", silent=True, default_value=None, script_name=script_name)
+    if value_type == "bool":
+      values = [0, 1]
 
-    if value_type == "range":
+    elif value_type == "range":
       from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", default_value=1, silent=True, script_name=script_name)
