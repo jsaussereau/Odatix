@@ -90,12 +90,16 @@ class ConfigGenerator:
     generate_settings, generate_settings_defined = get_from_dict("generate_configurations_settings", data, self.yaml_file, silent=hide, script_name=script_name)
     
     if generate_settings_defined:
-      self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=str, behavior=Key.MANTADORY, script_name=script_name)
+      self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_configurations_settings", behavior=Key.MANTADORY, script_name=script_name)
       self.name_template, name_template_defined = get_from_dict("name", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=str, behavior=Key.MANTADORY, script_name=script_name)
       self.variables, variables_defined = get_from_dict("variables", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=dict, behavior=Key.MANTADORY, script_name=script_name)
       self.valid = generate_settings_defined and template_defined and name_template_defined and variables_defined and generate_defined
     else:
       self.valid = False
+
+    # Concat all strings if template is a list
+    if isinstance(self.template, list):
+      self.template = " ".join(map(str, self.template)) 
 
     if not generate_defined and generate_settings_defined and not self.silent:
       printc.warning('"generate_configurations_settings" is defined while "generate_configurations" is not. Disabling configuration generation.', script_name)
