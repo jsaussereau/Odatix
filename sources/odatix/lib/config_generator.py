@@ -31,6 +31,9 @@ from odatix.lib.get_from_dict import get_from_dict, Key
 
 script_name = os.path.basename(__file__)
 
+dimension_types = ("range", "list", "multiples", "power_of_two")
+modification_types = ("union", "disjunctive_union", "intersection", "difference")
+
 ######################################
 # Generator
 ######################################
@@ -145,7 +148,7 @@ class ConfigGenerator:
     sources_used = set()
     for variable, config in self.variables.items():
       value_type, value_type_defined = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
-      if value_type in ("union", "disjunctive_union", "intersection", "difference"):
+      if value_type in modification_types:
         settings, settings_defined = get_from_dict("settings", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
         if not settings_defined:
           return {}
@@ -154,17 +157,20 @@ class ConfigGenerator:
           return {}
         for source in sources:
           sources_used.add(source)
+      elif value_type not in dimension_types and value_type != "function":
+        printc.error(f'Invalid type \"{value_type}\" for variable "{variable}", in ' + self.yaml_file + '".', script_name)
+        return {}
 
     dimension_vars = {}
     for variable, config in self.variables.items():
       value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
-      if value_type in ("range", "list", "multiples", "power_of_two") and variable not in sources_used:
+      if value_type in dimension_types and variable not in sources_used:
         dimension_vars[variable] = self.generate_values_for_dim(variable, config)
 
     result_set = set()
     for variable, config in self.variables.items():
       value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
-      if value_type in ("union", "disjunctive_union", "intersection", "difference"):
+      if value_type in modification_types:
         settings, settings_defined = get_from_dict("settings", config, self.yaml_file, behavior=Key.MANTADORY, script_name=script_name)
         if settings_defined:
           sources, sources_defined = get_from_dict("sources", settings, self.yaml_file, behavior=Key.MANTADORY, default_value=[], type=list, script_name=script_name)
