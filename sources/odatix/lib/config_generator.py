@@ -176,6 +176,7 @@ class ConfigGenerator:
         if settings_defined:
           sources, sources_defined = get_from_dict("sources", settings, self.yaml_file, behavior=Key.MANTADORY, default_value=[], type=list, script_name=script_name)
           if sources_defined:
+            sources = [source.replace("$", "").replace("{", "").replace("}", "") for source in sources]
             sets = [set(self.generate_values_for_dim(source, self.variables.get(source, {}))) for source in sources if source in self.variables]
             
             if value_type == "union":
@@ -220,6 +221,17 @@ class ConfigGenerator:
             for name, value in formatted_values.items():
               source = source.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
             value_map[variable] = source
+        elif value_type == "conversion":
+          settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
+          if defined:
+            from_type, _ = get_from_dict("from", settings, self.yaml_file, silent=True, script_name=script_name)
+            to_type, _ = get_from_dict("to", settings, self.yaml_file, silent=True, script_name=script_name)
+            source, _ = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
+            source = source.replace("$", "").replace("{", "").replace("}", "")
+            if source in value_map:
+              value_map[variable] = self.apply_conversion(value_map[source], from_type, to_type)
+            else:
+              printc.warning(f'Source "{source}" not found for conversion variable "{variable}"', script_name)
 
       formatted_values = {k: self.format_value(v, self.variables.get(k, {}).get("format", "{}")) for k, v in value_map.items()}
       final_template = self.template
@@ -347,6 +359,42 @@ class ConfigGenerator:
       values = [v for v in values if v not in blacklist]
 
     return values
+
+  def apply_conversion(self, value, from_type, to_type):
+    """
+    Apply number base conversions.
+
+    Args:
+        value (str): The value to convert.
+        from_type (str): What to convert from.
+        to_type (str): What to convert to.
+
+    Returns:
+        str: Converted value.
+    """
+    try:
+      if from_type == "bin":
+        dec_value = int(value, 2)
+        if to_type == "dec":
+          return str(dec_value)
+        elif conversion_type == "hex":
+          return hex(dec_value)[2:]
+      elif from_type == "dec":
+        dec_value = int(value)
+        if to_type == "bin":
+          return bin(dec_value)[2:]
+        elif to_type == "hex":
+          return hex(dec_value)[2:]
+      elif conversion_type == "hex":
+        dec_value = int(value, 16)
+        if to_type == "bin":
+          return bin(dec_value)[2:]
+        elif to_type == "dec":
+          return str(dec_value)
+      printc.warning(f'Conversion from "{from_type}" to "{to_type}" is not supported', script_name)
+    except ValueError:
+      printc.error(f'Invalid value "{value}" for conversion from "{from_type}" to "{to_type}"', script_name)
+    return value
 
   def format_value(self, value, format_string):
     """
