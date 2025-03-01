@@ -408,11 +408,12 @@ class ConfigGenerator:
         str: Formatted value as a string.
     """
     if format_string is None:
-      return value
+      value = value
     if isinstance(value, list):
-      return "".join(str(v) for v in value)
+      value = "".join(str(v) for v in value)
 
     try:
-      return format_string % value
+      formatted_value = format_string % float(value)
+      return formatted_value
     except TypeError:
       return str(value)
