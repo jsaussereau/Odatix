@@ -33,6 +33,7 @@ script_name = os.path.basename(__file__)
 
 dimension_types = ("bool", "range", "list", "multiples", "power_of_two")
 modification_types = ("union", "disjunctive_union", "intersection", "difference")
+combo_types = ("function", "conversion", "format")
 
 ######################################
 # Generator
@@ -157,7 +158,7 @@ class ConfigGenerator:
           return {}
         for source in sources:
           sources_used.add(source)
-      elif value_type not in dimension_types and value_type != "function":
+      elif value_type not in dimension_types and value_type not in combo_types:
         printc.error(f'Invalid type \"{value_type}\" for variable "{variable}", in ' + self.yaml_file + '".', script_name)
         return {}
 
@@ -204,19 +205,28 @@ class ConfigGenerator:
 
     for combo in combos:
       value_map = dict(zip(var_names, combo))
-      for fn, fc in self.variables.items():
-        if fc.get("type") == "function":
-          settings, ok = get_from_dict("settings", fc, self.yaml_file, silent=True, script_name=script_name)
-          if ok:
+      for variable, config in self.variables.items():
+        value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
+        if value_type == "function":
+          settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
+          if defined:
             op, _ = get_from_dict("op", settings, self.yaml_file, silent=True, script_name=script_name)
-            value_map[fn] = self.evaluate_expression(op, value_map)
+            value_map[variable] = self.evaluate_expression(op, value_map)
+        elif value_type == "format":
+          settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
+          if defined:
+            source, _ = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
+            formatted_values = {k: self.format_value(v, self.variables.get(k, {}).get("format", "{}")) for k, v in value_map.items()}
+            for name, value in formatted_values.items():
+              source = source.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
+            value_map[variable] = source
 
       formatted_values = {k: self.format_value(v, self.variables.get(k, {}).get("format", "{}")) for k, v in value_map.items()}
       final_template = self.template
       final_name = self.name_template
-      for k, v in formatted_values.items():
-        final_template = final_template.replace(f"${k}", str(v)).replace(f"${{{k}}}", str(v))
-        final_name = final_name.replace(f"${k}", str(v)).replace(f"${{{k}}}", str(v))
+      for name, value in formatted_values.items():
+        final_template = final_template.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
+        final_name = final_name.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
 
       final_configs[final_name] = final_template
 
