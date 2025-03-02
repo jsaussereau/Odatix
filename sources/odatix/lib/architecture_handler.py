@@ -996,10 +996,10 @@ class ArchitectureHandler:
     return success
 
   def print_summary(self):
-    ArchitectureHandler.print_arch_list(self.new_archs, "New architectures", printc.colors.ENDC)
-    ArchitectureHandler.print_arch_list(self.incomplete_archs, "Incomplete results (will be overwritten)", printc.colors.YELLOW)
     ArchitectureHandler.print_arch_list(self.cached_archs, "Existing results (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
     ArchitectureHandler.print_arch_list(self.overwrite_archs, "Existing results (will be overwritten)", printc.colors.YELLOW)
+    ArchitectureHandler.print_arch_list(self.incomplete_archs, "Incomplete results (will be overwritten)", printc.colors.YELLOW)
+    ArchitectureHandler.print_arch_list(self.new_archs, "New architectures", printc.colors.ENDC)
     ArchitectureHandler.print_arch_list(self.error_archs, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
 
   def get_valid_arch_count(self):

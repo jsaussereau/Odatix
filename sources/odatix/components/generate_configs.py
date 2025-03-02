@@ -120,9 +120,9 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
 
   # Print summary before proceeding
   print()
-  ArchitectureHandler.print_arch_list(new_configs, "New configurations", printc.colors.ENDC)
   ArchitectureHandler.print_arch_list(existing_configs, "Existing configurations (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
   ArchitectureHandler.print_arch_list(overwrite_configs, "Existing configurations (will be overwritten)", printc.colors.YELLOW)
+  ArchitectureHandler.print_arch_list(new_configs, "New configurations", printc.colors.ENDC)
   ArchitectureHandler.print_arch_list(error_configs, "Invalid settings (skipped, see errors above)", printc.colors.RED)
   
   valid_configs = new_configs + overwrite_configs
