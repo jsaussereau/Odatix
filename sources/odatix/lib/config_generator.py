@@ -103,7 +103,7 @@ class ConfigGenerator:
 
     # Concat all strings if template is a list
     if isinstance(self.template, list):
-      self.template = " ".join(map(str, self.template)) 
+      self.template = "\n".join(map(str, self.template)) 
 
     if not generate_defined and generate_settings_defined and not self.silent:
       printc.warning('"generate_configurations_settings" is defined while "generate_configurations" is not. Disabling configuration generation.', script_name)
