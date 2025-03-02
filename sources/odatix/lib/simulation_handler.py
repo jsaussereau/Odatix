@@ -29,6 +29,7 @@ from os.path import isdir
 
 from odatix.lib.architecture_handler import ArchitectureHandler
 from odatix.lib.utils import *
+from odatix.lib.param_domain import ParamDomain
 
 script_name = os.path.basename(__file__)
 
@@ -128,11 +129,14 @@ class SimulationHandler:
     return self.simulation_instances
     
   
-  def get_simulation(self, sim, arch, arch_handler):
-    tmp_dir = self.work_path + '/' + sim + '/' + arch 
+  def get_simulation(self, sim, arch_full, arch_handler):
+    
+    arch, arch_param, arch_config, arch_display_name, arch_param_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch_full)
+
+    tmp_dir = os.path.join(self.work_path, sim, arch_param_dir_work, arch_config) 
 
     sim_name = sim
-    sim_display_name = sim + " (" + arch + ")"
+    sim_display_name = sim + ": " + arch_display_name 
     simulation_command = None
 
     # check if sim has been banned
@@ -157,7 +161,7 @@ class SimulationHandler:
       return None
 
     # get architecture
-    architecture = arch_handler.get_architecture(arch)
+    architecture = arch_handler.get_architecture(arch_full)
     if architecture is None:
       self.error_sims.append(sim_display_name)
       return None
@@ -196,7 +200,7 @@ class SimulationHandler:
             return None # if an identifier is missing
 
           # get use_parameters, start_delimiter and stop_delimiter
-          use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch, settings_data, settings_filename, None, add_to_error_list=False)
+          use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, None, add_to_error_list=False)
           if use_parameters is None:
             self.banned_sim_param.append(sim)
             self.error_sims.append(sim_display_name)

@@ -158,10 +158,10 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       if sim_instance.architecture.design_path is not None:
         try:
           copytree(
-            src=arch_instance.design_path,
-            dst=arch_instance.tmp_dir,
-            whitelist=arch_instance.design_path_whitelist,
-            blacklist=arch_instance.design_path_blacklist,
+            src=sim_instance.architecture.design_path,
+            dst=sim_instance.architecture.tmp_dir,
+            whitelist=sim_instance.architecture.design_path_whitelist,
+            blacklist=sim_instance.architecture.design_path_blacklist,
             dirs_exist_ok=True
           )
         except:
@@ -196,7 +196,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       nb_domain = 0
       for param_domain in sim_instance.architecture.param_domains:
         if param_domain.use_parameters:
-          param_target_file = os.path.join(arch_instance.tmp_dir, arch_instance.param_target_filename)
+          param_target_file = os.path.join(sim_instance.tmp_dir, sim_instance.architecture.param_target_filename)
           if debug: 
             printc.subheader("Replace parameters for \"" + param_domain.domain + "/" + param_domain.domain_value+ "\"")
           success = replace_params(
@@ -215,7 +215,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
             print()
       
       if nb_domain > 0:
-        with open(os.path.join(arch_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
+        with open(os.path.join(sim_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
           yaml.dump(domain_dict, param_domains_file, default_flow_style=False)
 
       # replace parameters again (override)

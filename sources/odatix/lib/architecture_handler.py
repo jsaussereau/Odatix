@@ -394,9 +394,8 @@ class ArchitectureHandler:
                   self.valid_archs.append(unformatted_display_name + formatted_freq)
 
     return self.architecture_instances
-  
-  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", range_mode=False):
 
+  def get_basic(arch, target="", only_one_target=True):
     arch_full = arch.replace(" ", "")
 
     parts = [part.strip() for part in arch_full.split('+')]
@@ -426,6 +425,12 @@ class ArchitectureHandler:
 
     # get configuration (arch name after '/')
     arch_config = re.sub('.*/', '', arch)
+
+    return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, requested_param_domains
+  
+  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", range_mode=False):
+    
+    arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
 
     # check if there is a configuration specified
     if arch_config == arch_param_dir:
