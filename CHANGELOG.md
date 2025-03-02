@@ -3,6 +3,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.5.0] - 2025-03-02
+
+### Added
+
+- Add support for parameter domain wildcard
+- Add ' ' keybinding to pause a job
+- Add bool type for configuration generation 
+- Add format type for configuration generation 
+- Add conversion (bin/dec/hex) type for configuration generation 
+- Add support for multi-line definition for configuration generation templates
+
+### Fixed
+
+- Fix help menu close button not working
+- Fix invalid types for configuration generation not being detected 
+
 ## [3.4.0] - 2025-02-26
 
 ### Added
