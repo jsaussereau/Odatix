@@ -3,6 +3,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.5.1] - 2025-03-03
+
+### Fixed
+
+- Fix wildcard not working without parameter domains
+- Fix parameter domains only being applied on the first target
+- Fix parameter domains wildcard not working withouy main domain wildward
+
 ## [3.5.0] - 2025-03-02
 
 ### Added
