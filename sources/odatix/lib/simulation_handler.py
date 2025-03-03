@@ -108,7 +108,7 @@ class SimulationHandler:
         if sim_dict is not None:
           for sim, arch_list in sim_dict.items():
             if arch_list is not None and arch_list is not None:
-              # Handle joker
+              # Handle wildcard
               architectures = []
               for arch in arch_list:
                 arch, arch_param_dir, arch_config, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, "", False)

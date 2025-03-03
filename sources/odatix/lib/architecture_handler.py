@@ -301,6 +301,7 @@ class ArchitectureHandler:
       except (KeyNotInListError, BadValueInListError):
         target_settings = {}
 
+      full_architectures = architectures
       for target in targets:
         # Overwrite existing script copy settings if there are target specific settings
         if target_settings != {}:
@@ -324,7 +325,6 @@ class ArchitectureHandler:
               script_copy_source = "/dev/null"
 
         # Handle wildcard
-        full_architectures = architectures
         architectures = []
         for arch in full_architectures:
           arch, arch_param_dir, arch_config, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, target, False)
