@@ -110,7 +110,9 @@ A basic parameter domain settings file only contains delimiters for replacement 
   start_delimiter: "  // <baseline>"
   stop_delimiter: "  // </baseline>"
 
-If parameter replacements are needed in a different file from the top-level module, specify it with `param_target_file`:
+.. important::
+
+  If parameter replacements are needed in a different file from the top-level module, specify it with ``param_target_file``:
 
 .. code-block:: yaml
   :caption: other_domain/_settings.yml
@@ -118,9 +120,16 @@ If parameter replacements are needed in a different file from the top-level modu
 
   start_delimiter: "// start"
   stop_delimiter: "// end"
-  param_target_file: "top.v"
+  param_target_file: "src/main/scala/counter.scala"
 
-#### **Dynamic Configuration Generation**
+.. warning::
+
+  With RTL generation (HLS or Chisel for example), ``param_target_file`` is mandatory. Indeed, the destination file is not the top-level (which is not generated yet at the time of replacement)
+
+********************************
+Dynamic Configuration Generation
+********************************
+
 Parameter domains can also **dynamically generate configurations**.  
 
 For example, `DMEM` can generate multiple configurations for different memory sizes:
@@ -131,6 +140,7 @@ For example, `DMEM` can generate multiple configurations for different memory si
 
   start_delimiter: "  // <dmem>"
   stop_delimiter: "  // </dmem>"
+  param_target_file: "top.v"
 
   generate_configurations: Yes
   generate_configurations_settings:
@@ -175,6 +185,35 @@ Example YAML file:
     - AsteRISC/M0024 + DMEM/1024 + IMEM/1024 + Baseline/I + Mul/Fast
 
 Each line describes a **design variant**, where different **parameter domains** are combined dynamically.
+
+You can also use wildcard to run all matching architecture configurations:
+
+- On main architecture configurations:
+
+.. code-block:: yaml
+  :caption: odatix_userconfig/fmax_synthesis_settings.yml
+  :linenos:
+   
+  architectures: 
+    - AsteRISC/* + DMEM/1024 + IMEM/1024 + Baseline/I + Mul/Off
+
+- On any parameter domain:
+
+.. code-block:: yaml
+  :caption: odatix_userconfig/fmax_synthesis_settings.yml
+  :linenos:
+   
+  architectures: 
+    - AsteRISC/M0000 + DMEM/* + IMEM/* + Baseline/* + Mul/*
+
+- On both:
+
+.. code-block:: yaml
+  :caption: odatix_userconfig/fmax_synthesis_settings.yml
+  :linenos:
+   
+  architectures: 
+    - AsteRISC/* + DMEM/* + IMEM/* + Baseline/* + Mul/*
 
 .. Tip:: 
 
