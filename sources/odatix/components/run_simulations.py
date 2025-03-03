@@ -134,9 +134,10 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
   sim_handler.print_summary()
 
   # ask to quit or continue
-  if sim_handler.get_valid_sim_count() > 0:
+  valid_sim_count = sim_handler.get_valid_sim_count()
+  if valid_sim_count > 0:
     if ask_continue:
-      print()
+      print("\nTotal: " + str(valid_sim_count))
       ask_to_continue()
   else:
     sys.exit(-1)

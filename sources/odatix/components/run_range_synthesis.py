@@ -229,9 +229,11 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
   # Print checklist summary
   arch_handler.print_summary()
 
-  if arch_handler.get_valid_arch_count() > 0:
+  # ask to quit or continue
+  valid_arch_count = arch_handler.get_valid_arch_count()
+  if valid_arch_count > 0:
     if ask_continue:
-      print()
+      print("\nTotal: " + str(valid_arch_count))
       ask_to_continue()
   else:
     sys.exit(-1)
