@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 - Fix wildcard not working without parameter domains
 - Fix parameter domains only being applied on the first target
-- Fix parameter domains wildcard not working withouy main domain wildward
+- Fix parameter domains wildcard not working without main domain wildcard
 
 ## [3.5.0] - 2025-03-02
 
