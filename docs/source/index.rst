@@ -18,8 +18,6 @@ Odatix
 
 |GitHub| |PyPi| |Cite| |License| |Docs|
 
-What is Odatix?
----------------
 
 **Odatix** is a **powerful tool** designed to facilitate **implementation** and **validation** of configurable digital designs across multiple **FPGA** and **ASIC** tools, including **Vivado**, **OpenLane** and **Design Compiler**.
 
@@ -39,8 +37,8 @@ Odatix enables designers to:
 
 - **Visualize results interactively** in a web-based dashboard.
 
-Key Features
-------------
+🚀 Key Features
+----------------
 
 ✅ **Architecture Exploration**
    - Easily define and generate multiple design configurations, regardless of the HDL used (**VHDL, Verilog, SystemVerilog** and even **Chisel or HLS**).
@@ -68,11 +66,11 @@ Key Features
    - Use **built-in examples** and :doc:`step-by-step tutorials </quick_start/index>` to get started quickly.
    - Need help? `Contact us <mailto:jonathan.saussereau@ims-bordeaux.fr?Subject=[Odatix]>`_ or open an issue on `GitHub <https://github.com/jsaussereau/Odatix>`_ for support.
 
-Highlights
-----------
+💡 Highlights
+--------------
 
-Job Monitor
-~~~~~~~~~~~
+🖥️ Job Monitor
+~~~~~~~~~~~~~~~
 - Track **all running jobs** (synthesis or simulation) in a user-friendly interactive interface.
 - **Live updates** of job progress and logs.
 - **Full control**: start, pause, resume, or kill jobs at any time.
@@ -82,8 +80,8 @@ Job Monitor
 
   **Job Monitor** running an Fmax synthesis of various configurations of `AsteRISC <https://github.com/jsaussereau/AsteRISC>`_ on Vivado, targeting multiple FPGA architectures.
 
-Odatix Explorer
-~~~~~~~~~~~~~~~
+📊 Odatix Explorer
+~~~~~~~~~~~~~~~~~~~
 
 - **Interactive web interface** for deep result exploration.
 - Compare architectures visually using **line, column, scatter, or radar charts**.
@@ -114,8 +112,8 @@ Odatix Explorer
 
   **Radar chart**: Comparative analysis of **multiple implementation metrics** of multiple ALU configurations across two different FPGA targets
 
-Supported EDA Tools
--------------------
+🛠 Supported EDA Tools
+----------------------
 
 .. note::
   Please note that these tools are not included in Odatix and must be obtained separately.
@@ -149,8 +147,8 @@ By default, **examples for Verilator and GHDL** are provided.
 
 For more details, check the guide: :doc:`/quick_start/add_simulation`.
 
-Get Started Today!
-------------------
+🏁 Get Started Today!
+----------------------
 
 1️⃣ **Install Odatix and one of the supported EDA Tools**  
 
@@ -168,8 +166,20 @@ Use the :doc:`guide </quick_start/index>` to configure and run your own designs.
 
 Visualize your synthesis and simulation results with **Odatix Explorer**.
 
-Citation
---------
+📖 Documentation Contents
+--------------------------
+
+.. toctree::
+  :maxdepth: 2
+
+  installation/index
+  quick_start/index
+  userguide/index
+  documentation/commands
+  documentation/settings
+  
+📰 Citation
+------------
 
 **DOI**: `https://doi.org/10.1016/j.softx.2024.101970 <https://www.sciencedirect.com/science/article/pii/S2352711024003406>`_
 
@@ -235,14 +245,7 @@ Citation
     AB  - In modern hardware digital design, optimizing performance, resource utilization, and power consumption across different technological targets remains a critical challenge. Indeed, the drive for greater computational power, alongside the need to reduce power consumption, stems from a wide range of applications, from data centers to mobile devices. However, this push encounters significant cost barriers, as the manufacturing cost is closely tied to the technological nodes used and the area for integrated circuits, and is particularly influenced by the amount of available resources for FPGAs. These three criteria are inherently conflicting, as improving one often negatively impacts the others. Finding the best balance between these factors requires significant effort. To address these complexities, design automation tools are increasingly valuable. Odatix is an open-source toolbox designed for the automated implementation and validation of parametrizable digital architectures. It supports synthesis, placement and routing for various FPGA and ASIC tools and simulators. It simplifies key stages such as synthesis, place and route, simulation, and validation, allowing designers to efficiently navigate multiple configurations and identify optimal solutions tailored to specific application constraints. Indeed, Odatix enables comparative analysis of multiple architectural configurations through various metrics such as maximum operating frequency, resource utilization, and power consumption. This paper presents an overview of Odatix’s capabilities and its application to the AsteRISC processor, demonstrating its utility in choosing the best architectural configuration, technological target and EDA tool for specific application constraints.
     ER  - 
 
-Documentation Contents
-----------------------
+📧 Contact
+-----------
 
-.. toctree::
-  :maxdepth: 2
-
-  installation/index
-  quick_start/index
-  userguide/index
-  documentation/commands
-  documentation/settings
+For any inquiries or support, feel free to contact me at `jonathan.saussereau@ims-bordeaux.fr <mailto:jonathan.saussereau@ims-bordeaux.fr?Subject=[Odatix]>`_.
