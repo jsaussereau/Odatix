@@ -42,8 +42,8 @@ Odatix enables designers to:
    - Customize the appearance of your figures with different **themes**.
 
 ✅ **Quick Start**  
-   - Install Odatix **easily** from PyPi with `pip install odatix`.
-   - Use **built-in examples** and **step-by-step tutorials** to get started quickly.
+   - [Install](https://odatix.readthedocs.io/en/latest/installation/index.html) Odatix **easily** from PyPi with `pip`.
+   - Use **built-in examples** and [step-by-step tutorials](https://odatix.readthedocs.io/en/latest/quick_start/index.html) to get started quickly.
    - Need help? [Contact us](mailto:jonathan.saussereau@ims-bordeaux.fr?Subject=[Odatix]) or open an issue on [GitHub](https://github.com/jsaussereau/Odatix/issues).
 
 ## 💡 Highlights
