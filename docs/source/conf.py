@@ -39,6 +39,9 @@ templates_path = ['_templates']
 
 # -- Options for HTML output
 
+html_favicon = "../../sources/images/odatix_logo_white.png"
+html_logo = "../../sources/images/odatix_logo_white.png"
+
 html_theme = 'furo'
 
 html_static_path = ['_static']

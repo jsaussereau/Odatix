@@ -1,6 +1,16 @@
 
 /* Misc */
 
+
+.sidebar-logo {
+    max-width: 40%;
+    height: auto;
+}
+
+.sidebar-brand-text {
+    text-align: center;
+} 
+
 h1 {
     text-align: center;
     padding-left: 3em;
