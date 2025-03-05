@@ -195,6 +195,8 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       # Replace domain parameters
       domain_dict=dict()
       nb_domain = 0
+      arch_config = re.sub('.*/', '', sim_instance.architecture.arch_name)
+      domain_dict["__main__"] = arch_config
       for param_domain in sim_instance.architecture.param_domains:
         if param_domain.use_parameters:
           param_target_file = os.path.join(sim_instance.tmp_dir, sim_instance.architecture.param_target_filename)
@@ -215,9 +217,9 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
           if debug: 
             print()
       
-      if nb_domain > 0:
-        with open(os.path.join(sim_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
-          yaml.dump(domain_dict, param_domains_file, default_flow_style=False)
+      with open(os.path.join(sim_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
+        yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False
+      )
 
       # replace parameters again (override)
       if sim_instance.override_parameters:

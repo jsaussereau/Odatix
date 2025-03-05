@@ -296,6 +296,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       # Replace domain parameters
       domain_dict=dict()
       nb_domain = 0
+      arch_config = re.sub('.*/', '', arch_instance.arch_name)
+      domain_dict["__main__"] = arch_config
       for param_domain in arch_instance.param_domains:
         if param_domain.use_parameters:
           param_target_file = os.path.join(arch_instance.tmp_dir, param_domain.param_target_file)
@@ -316,9 +318,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
           if debug: 
             print()
 
-      if nb_domain > 0:
-        with open(os.path.join(arch_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
-          yaml.dump(domain_dict, param_domains_file, default_flow_style=False)
+      with open(os.path.join(arch_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
+        yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False)
 
       # Create target and architecture files
       f = open(os.path.join(arch_instance.tmp_dir, hard_settings.target_filename), "w")
