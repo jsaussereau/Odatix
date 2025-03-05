@@ -330,7 +330,7 @@ class ArchitectureHandler:
         # Handle wildcard
         architectures = []
         for arch in full_architectures:
-          arch, arch_param_dir, arch_config, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, target, False)
+          arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, target, False)
           if arch.endswith("/*"):
             # get param dir (arch name before '/*')
             arch_param_dir = re.sub(r'/\*', '', arch)
@@ -452,7 +452,7 @@ class ArchitectureHandler:
     arch_param_dir = re.sub('/.*', '', arch)
 
     if len(requested_param_domains) > 0: 
-      arch_param_dir_work = arch_param_dir + "-" + "-".join(map(str, requested_param_domains)).replace("/", "_")
+      arch_param_dir_work = arch_param_dir
       arch_display_name = arch + " [" + ", ".join(map(str, requested_param_domains)).replace("/", ":") + "]"
     else:
       arch_param_dir_work = arch_param_dir
@@ -463,12 +463,13 @@ class ArchitectureHandler:
 
     # get configuration (arch name after '/')
     arch_config = re.sub('.*/', '', arch)
+    arch_config_dir_work = arch_config + "+" + "+".join(map(str, requested_param_domains)).replace("/", "_")
 
-    return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, requested_param_domains
+    return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains
   
   def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", range_mode=False):
     
-    arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
+    arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
 
     # check if there is a configuration specified
     if arch_config == arch_param_dir:
@@ -478,7 +479,7 @@ class ArchitectureHandler:
     else:
       no_configuration = False
 
-    tmp_dir = os.path.join(self.work_path, target, arch_param_dir_work, arch_config)
+    tmp_dir = os.path.join(self.work_path, target, arch_param_dir_work, arch_config_dir_work)
     fmax_status_file = os.path.join(tmp_dir, self.log_path, self.fmax_status_filename)
     frequency_search_file = os.path.join(tmp_dir, self.log_path, self.frequency_search_filename)
 

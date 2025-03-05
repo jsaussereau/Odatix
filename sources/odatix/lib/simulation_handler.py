@@ -111,7 +111,7 @@ class SimulationHandler:
               # Handle wildcard
               architectures = []
               for arch in arch_list:
-                arch, arch_param_dir, arch_config, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, "", False)
+                arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, "", False)
                 if arch.endswith("/*"):
                   # get param dir (arch name before '/*')
                   arch_param_dir = re.sub(r'/\*', '', arch)
@@ -168,9 +168,9 @@ class SimulationHandler:
   
   def get_simulation(self, sim, arch_full, arch_handler):
     
-    arch, arch_param, arch_config, arch_display_name, arch_param_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch_full)
+    arch, arch_param, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch_full)
 
-    tmp_dir = os.path.join(self.work_path, sim, arch_param_dir_work, arch_config) 
+    tmp_dir = os.path.join(self.work_path, sim, arch_param_dir_work, arch_config_dir_work) 
 
     sim_name = sim
     sim_display_name = sim + ": " + arch_display_name 
