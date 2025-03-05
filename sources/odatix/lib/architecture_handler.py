@@ -90,6 +90,9 @@ class Architecture:
     self.force_single_thread = force_single_thread
 
   def write_yaml(arch, config_file): 
+    domain_dict=dict()
+    for param_domain in arch.param_domains:
+      domain_dict[param_domain.domain] = param_domain.domain_value
     yaml_data = {
       'arch_name': arch.arch_name,
       'arch_display_name': arch.arch_display_name,
@@ -126,7 +129,7 @@ class Architecture:
       'generate_command': arch.generate_command,
       'constraint_filename': arch.constraint_filename,
       'install_path': arch.install_path,
-      'param_domains': arch.param_domains,
+      'param_domains': domain_dict,
       'continue_on_error': arch.continue_on_error,
       'force_single_thread': arch.force_single_thread,
     }
