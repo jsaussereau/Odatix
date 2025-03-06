@@ -27,22 +27,7 @@ import re
 
 plot_colors = px.colors.qualitative.Plotly
 marker_symbols = ["circle", "square", "diamond", "triangle-up", "cross", "triangle-down", "pentagon", "x", "star"]
-patterns = ['', '/', '\\', 'x', '-', '|', '+', '.']
-
-def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target"):
-  legend_items = [
-    create_legend_item(
-      label=architecture, 
-      value=[architecture],
-      line_style="2px dashed",
-      color=get_color(i) if color_mode == "Architecture" else "#000",  # Appliquer la couleur en fonction du mode
-      type="arch",
-      marker_symbol=i if symbol_mode == "Architecture" else 0,  # Appliquer le symbole en fonction du mode
-    )
-    for i, architecture in enumerate(explorer.all_architectures)
-  ]
-  return legend_items
-
+patterns = ['', '/', 'x', '-', '|', '+', '.', '\\']
 
 def create_legend_item(label, value, line_style, color, type="arch", marker_symbol=0, draw_line=True, display=True):  
   line_color = color if draw_line else "00000000"
@@ -71,6 +56,20 @@ def create_legend_item(label, value, line_style, color, type="arch", marker_symb
     style={"display": "block" if display else "none", "margin-top": "2.5px", "margin-bottom": "2.5px"},
   )
 
+def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target"):
+  legend_items = [
+    create_legend_item(
+      label=architecture, 
+      value=[architecture],
+      line_style="2px dashed",
+      color=get_color(i) if color_mode == "Architecture" else "#000",
+      type="arch",
+      marker_symbol=i if symbol_mode == "Architecture" else 0,
+    )
+    for i, architecture in enumerate(explorer.all_architectures)
+  ]
+  return legend_items
+
 def create_target_legend_items(explorer, color_mode="Target", symbol_mode="Target"):
   legend_items = [
     create_legend_item(
@@ -85,6 +84,24 @@ def create_target_legend_items(explorer, color_mode="Target", symbol_mode="Targe
     for i, target in enumerate(explorer.all_targets)
   ]
   return legend_items
+
+def create_domain_legend_items(explorer, color_mode="Domain", symbol_mode="Domain"):
+  legend_items = []
+  for domain in explorer.all_param_domains.keys():
+    for i, config in enumerate(explorer.all_param_domains[domain]):
+      legend_items.append(
+        create_legend_item(
+          label=config,
+          value=[config],
+          line_style="2px dashed",
+          color=get_color(i) if color_mode == "Domain" else "#fff", 
+          type=f"domains-{domain}",
+          marker_symbol=i if symbol_mode == "Domain" else 0,
+          draw_line=False,
+        )
+      )
+  return legend_items
+
 
 def setup_callbacks(explorer):
 
@@ -216,6 +233,107 @@ def setup_callbacks(explorer):
       legend_items.append(legend_item)
 
     return legend_items
+
+  # Domains
+  @explorer.app.callback(
+    Output("domain-legend", "children"),
+    [
+      Input("yaml-dropdown", "value"),
+      Input("color-mode-dropdown", "value"),
+      Input("symbol-mode-dropdown", "value"),
+      Input("param-domain-dropdown", "value")
+    ],
+    [
+      State(f"checklist-domains-{domain}-{config}", "value") 
+      for domain in explorer.all_param_domains.keys()
+      for config in explorer.all_param_domains[domain]
+    ],
+    )
+  def update_domain_legend(selected_yaml, color_mode, symbol_mode, selected_domain, *current_values):
+    if not selected_yaml or selected_yaml not in explorer.dfs:
+      return []
+
+    legend_items = []
+
+    i_existing = -1 
+    i_current_value = 0
+    for domain in explorer.all_param_domains.keys():
+      for i, config in enumerate(explorer.all_param_domains[domain]):
+        if domain == selected_domain:
+          display = True
+          i_existing += 1
+        else:
+          display = False
+
+        # trace_id = i if unique_domains else i_existing
+        trace_id = i
+        
+        color = get_color(trace_id) if color_mode == "domain" else "#fff"
+        marker_symbol = trace_id if symbol_mode == "domain" else 0
+
+        legend_item = create_legend_item(
+          label=config,
+          value=current_values[i_current_value],
+          line_style="2px dashed",
+          color=color,
+          type=f"domains-{domain}",
+          marker_symbol=marker_symbol,
+          draw_line=False,
+          display=display
+        )
+        legend_items.append(legend_item)
+        i_current_value = i_current_value + 1
+
+    return legend_items
+
+  # Parameter domains 
+  @explorer.app.callback(
+    [
+      Output(f"checklist-domains-{domain}-{config}", "value")
+      for domain in explorer.all_param_domains.keys()
+      for config in explorer.all_param_domains[domain]
+    ],
+    [
+      Input("show-all-domains", "n_clicks"),
+      Input("hide-all-domains", "n_clicks"),
+      Input("param-domain-dropdown", "value")
+    ],
+    [
+      State(f"checklist-domains-{domain}-{config}", "value") 
+      for domain in explorer.all_param_domains.keys()
+      for config in explorer.all_param_domains[domain]
+    ],
+  )
+  def update_domain_checklist_states(show_all_clicks, hide_all_clicks, selected_domain, *current_values):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+      return current_values
+
+    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    if button_id == "show-all-domains":
+      new_values = []
+      i_current_value = 0
+      for domain in explorer.all_param_domains.keys():
+        for config in explorer.all_param_domains[domain]:
+          if domain == selected_domain:
+            new_values.append([config])
+          else:
+            new_values.append(current_values[i_current_value])
+          i_current_value += 1
+      return new_values
+    elif button_id == "hide-all-domains":
+      new_values = []
+      i_current_value = 0
+      for domain in explorer.all_param_domains.keys():
+        for config in explorer.all_param_domains[domain]:
+          if domain == selected_domain:
+            new_values.append([])
+          else:
+            new_values.append(current_values[i_current_value])
+          i_current_value += 1
+      return new_values
+
+    return current_values
 
 def get_color(i):
   return plot_colors[i % len(plot_colors)]

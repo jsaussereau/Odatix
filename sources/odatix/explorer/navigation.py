@@ -73,6 +73,7 @@ def top_bar():
 def side_bar(explorer):
   legend_items = legend.create_legend_items(explorer, "")
   target_legend_items = legend.create_target_legend_items(explorer, "")
+  domain_legend_items = legend.create_domain_legend_items(explorer, "")
 
   return html.Div(
     [
@@ -182,6 +183,48 @@ def side_bar(explorer):
                       ]
                     ),
                     html.Div(legend_items, id="custom-legend", style={"margin-top": "15px", "margin-bottom": "15px"}),
+                  ],
+                  style={"display": "inline-block", "margin-left": "20px"},
+                ),
+                html.H2("Parameter Domains"),
+                html.Div(
+                  className="title-dropdown",
+                  id="title-dissociate-dropdown",
+                  children=[
+                    html.Div(className="dropdown-label", children=[html.Label("Dissociate Domain")]),
+                    dcc.Dropdown(
+                      id="dissociate-domain-dropdown",
+                      options=[{"label": param, "value": param} for param in ["None"] + list(explorer.all_param_domains.keys())],
+                      value="None",
+                      placeholder="Domain",
+                      clearable=True
+                    ),
+                  ],
+                  style={"margin-bottom": "5px"},
+                ),
+                html.Div(
+                  className="title-dropdown",
+                  children=[
+                    html.Div(className="dropdown-label", children=[html.Label("Domain")]),
+                    dcc.Dropdown(
+                      id="param-domain-dropdown",
+                      options=[{"label": param, "value": param} for param in explorer.all_param_domains.keys()],
+                      value="__main__",
+                      placeholder="Domain",
+                      clearable=True
+                    ),
+                  ],
+                  style={"margin-bottom": "5px"},
+                ),
+                html.Div(
+                  [
+                    html.Div(
+                      [
+                        html.Button("Show All", id="show-all-domains", n_clicks=0),
+                        html.Button("Hide All", id="hide-all-domains", n_clicks=0),
+                      ]
+                    ),
+                    html.Div(domain_legend_items, id="domain-legend", style={"margin-top": "15px", "margin-bottom": "15px"}),
                   ],
                   style={"display": "inline-block", "margin-left": "20px"},
                 ),
