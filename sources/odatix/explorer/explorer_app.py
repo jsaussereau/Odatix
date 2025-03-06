@@ -196,33 +196,44 @@ class ResultExplorer:
     Combine 'fmax' and 'custom freq' data into a single hierarchical DataFrame.
     """
     data = []
-    
+    all_param_domains = {}
+
     for result_type, target_data in yaml_data.items():
       for target, architectures in target_data.items():
         for architecture, configurations in architectures.items():
           for config, metrics in configurations.items():
+            param_domains = metrics.pop("Param_Domains", {})
+
+            if param_domains is not None:
+              for param, value in param_domains.items():
+                if param not in all_param_domains:
+                  all_param_domains[param] = set()
+                all_param_domains[param].add(value)
+            else:
+              param_domains = {}
+
             if result_type == "Custom Freq":
-              # For 'custom freq', include frequency as a sub-level
               for frequency, freq_metrics in metrics.items():
                 row = {
                   "Target": target,
                   "Architecture": architecture,
                   "Configuration": config,
                   "Frequency": frequency,
-                  "Type": result_type
+                  "Type": result_type,
+                  **freq_metrics,
+                  **param_domains
                 }
-                row.update(freq_metrics)
                 data.append(row)
             else:
-              # For 'fmax', use a single 'Frequency' entry
               row = {
                 "Target": target,
                 "Architecture": architecture,
                 "Configuration": config,
-                "Frequency": "fmax",  # Set a constant for fmax frequency
-                "Type": result_type
+                "Frequency": "fmax",
+                "Type": result_type,
+                **metrics,
+                **param_domains
               }
-              row.update(metrics)
               data.append(row)
 
     # Create DataFrame and set multi-index
@@ -232,6 +243,8 @@ class ResultExplorer:
     required_columns = ["Target", "Architecture", "Configuration"]
     if not all(column in df.columns and not df[column].empty for column in required_columns):
       return None
+
+    self.all_param_domains = {k: sorted(v) for k, v in all_param_domains.items()}  # Stocker les valeurs triées
     return df
 
   def update_metrics(self, yaml_data):
