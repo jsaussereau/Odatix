@@ -408,3 +408,11 @@ def unit_to_html(unit):
   unit_with_sub = re.sub(pattern_sub, r'<sub>\1</sub>', html_unit)
 
   return unit_with_sub
+
+
+def clean_configuration_name(config_name, dissociate_domain):
+  if dissociate_domain != "none":
+    parts = config_name.split("+")
+    cleaned_parts = [p for p in parts if not p.startswith(f"{dissociate_domain}_")]
+    return "+".join(cleaned_parts)
+  return config_name

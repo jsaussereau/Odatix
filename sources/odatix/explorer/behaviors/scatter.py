@@ -29,7 +29,7 @@ import odatix.explorer.legend as legend
 import odatix.explorer.content_lib as content_lib
 import odatix.explorer.figures as figures
 
-def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs):
+def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs):
 
   @explorer.app.callback(
     Output("graph-scatter", "children"),
@@ -52,6 +52,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("theme-dropdown", "value"),
       Input("toggle-unique-architectures", "value"),
       Input("toggle-unique-targets", "value"),
+      Input("dissociate-domain-dropdown", "value"),
     ]
     + all_checklist_inputs  
   )
@@ -74,11 +75,13 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     theme,
     toggle_unique_architectures,
     toggle_unique_targets,
+    dissociate_domain,
     *checklist_values,
   ):
     try:
       arch_checklist_values = checklist_values[:len(all_architecture_inputs)]
-      target_checklist_values = checklist_values[len(all_architecture_inputs):]
+      target_checklist_values = checklist_values[len(all_architecture_inputs):len(all_architecture_inputs) + len(all_target_inputs)]
+      domain_checklist_values = checklist_values[len(all_architecture_inputs) + len(all_target_inputs):]
 
       if not selected_yaml or selected_yaml not in explorer.dfs:
         return html.Div(className="error", children=[html.Div("Please select a YAML file.")])
@@ -117,9 +120,27 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
           target for i, target in enumerate(explorer.all_targets) if target_checklist_values[i] and target in explorer.dfs[selected_yaml]["Target"].unique()
         )
       
+      i_current_value = 0
+      domains = {}
+      for domain in explorer.all_param_domains.keys():
+        domains[domain] = {}
+        for config in explorer.all_param_domains[domain]:
+          visible = True if domain_checklist_values[i_current_value] else False
+          domains[domain].update({f'{config}': visible})
+          i_current_value += 1
+
       filtered_df = explorer.dfs[selected_yaml][
         explorer.dfs[selected_yaml]["Architecture"].isin(visible_architectures)
       ]
+
+      for domain, configs in domains.items():
+        if domain in filtered_df.columns:
+          filtered_df[domain] = filtered_df[domain].fillna("None")
+          excluded_values = [config for config, is_visible in configs.items() if not is_visible]
+
+          # Apply exclusion only if there are forbidden values in the column
+          if any(filtered_df[domain].isin(excluded_values)):
+            filtered_df = filtered_df[~filtered_df[domain].isin(excluded_values)]
 
       fig = go.Figure()
 
@@ -144,86 +165,109 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
 
             mode = "lines+markers" if toggle_lines else "markers"
 
-            df_fmax = df_architecture_target[df_architecture_target["Type"] == "Fmax"]
-            if selected_results in ["All", "Fmax"] and not df_fmax.empty:
-              if selected_metric_x is None or selected_metric_x not in df_fmax.columns:
-                return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
-              if selected_metric_y is None or selected_metric_y not in df_fmax.columns:
-                return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
+            if dissociate_domain != "None" and dissociate_domain in df_architecture_target.columns:
+              dissociation_values = df_architecture_target[dissociate_domain].dropna().unique()
+              # cleaned_configurations = [legend.clean_configuration_name(cfg, dissociate_domain) for cfg in unique_configurations]
+            else:
+              dissociation_values = [None]
+              # cleaned_configurations = unique_configurations
 
-              x_values = df_fmax[selected_metric_x].tolist()
-              y_values = df_fmax[selected_metric_y].tolist()
-              config_names = df_fmax["Configuration"].tolist()
-              targets = [target] * len(x_values)
-              frequencies = ["fmax"] * len(x_values)
-
-              if color_mode == "architecture":
-                color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
-              elif color_mode == "target":
-                color_id = i_unique_target if toggle_unique_targets else i_target
+            i_dissociate_domain = -1
+            for dissociation_value in dissociation_values:
+              df_filtered = df_architecture_target.copy()
+              if dissociation_value is not None:
+                df_filtered = df_filtered[df_filtered[dissociate_domain] == dissociation_value]
+                architecture_diplay = architecture + f" [{dissociate_domain}:{dissociation_value}]" 
               else:
-                color_id = 0
+                architecture_diplay = architecture
+              i_dissociate_domain += 1
 
-              if symbol_mode == "none":
-                symbol_id = 0
-              elif symbol_mode == "architecture":
-                symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
-              elif symbol_mode == "target":
-                symbol_id = i_unique_target if toggle_unique_targets else i_target
-              else:
-                symbol_id = 0
-
-              if toggle_labels:
-                mode += "+text"
-
-              figures.add_trace_to_scatter_fig(
-                fig, x_values, y_values, mode, architecture, frequencies, "fmax", config_names,
-                targets, target, selected_metric_x_display, selected_metric_y_display,
-                unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
-              )
-
-            df_range = df_architecture_target[df_architecture_target["Type"] == "Custom Freq"]
-            if selected_results in ["All", "Custom Freq"] and not df_range.empty:
-              for i_freq, frequency in enumerate(explorer.all_frequencies):
-                df_frequency = df_range[df_range["Frequency"] == frequency]
-                if df_frequency.empty:
-                  continue
-
-                if selected_metric_x is None or selected_metric_x not in df_frequency.columns:
+              df_fmax = df_filtered[df_filtered["Type"] == "Fmax"]
+              if selected_results in ["All", "Fmax"] and not df_fmax.empty:
+                if selected_metric_x is None or selected_metric_x not in df_fmax.columns:
                   return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
-                if selected_metric_y is None or selected_metric_y not in df_frequency.columns:
+                if selected_metric_y is None or selected_metric_y not in df_fmax.columns:
                   return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
 
-                x_values = df_frequency[selected_metric_x].tolist()
-                y_values = df_frequency[selected_metric_y].tolist()
-                config_names = df_frequency["Configuration"].tolist()
+                x_values = df_fmax[selected_metric_x].tolist()
+                y_values = df_fmax[selected_metric_y].tolist()
+                config_names = df_fmax["Configuration"].tolist()
+                cleaned_config_names = [legend.clean_configuration_name(cfg, dissociate_domain) for cfg in config_names]
                 targets = [target] * len(x_values)
-                frequencies = [f"{frequency} MHz"] * len(x_values)
+                frequencies = ["fmax"] * len(x_values)
 
                 if color_mode == "architecture":
-                  color_id = i_architecture
+                  color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
                 elif color_mode == "target":
-                  color_id = i_target
+                  color_id = i_unique_target if toggle_unique_targets else i_target
+                elif color_mode == "domain_value":
+                  color_id = i_dissociate_domain
                 else:
-                  color_id = i_freq + 1
-                  
+                  color_id = 0
+
                 if symbol_mode == "none":
                   symbol_id = 0
                 elif symbol_mode == "architecture":
                   symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
                 elif symbol_mode == "target":
                   symbol_id = i_unique_target if toggle_unique_targets else i_target
+                elif symbol_mode == "domain_value":
+                  symbol_mode = i_dissociate_domain
                 else:
-                  symbol_id = i_freq + 1
+                  symbol_id = 0
 
                 if toggle_labels:
                   mode += "+text"
 
                 figures.add_trace_to_scatter_fig(
-                  fig, x_values, y_values, mode, architecture, frequencies, f"{frequency} MHz", config_names,
+                  fig, x_values, y_values, mode, architecture_diplay, frequencies, "fmax", cleaned_config_names,
                   targets, target, selected_metric_x_display, selected_metric_y_display,
                   unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
                 )
+
+              df_range = df_filtered[df_filtered["Type"] == "Custom Freq"]
+              if selected_results in ["All", "Custom Freq"] and not df_range.empty:
+                for i_freq, frequency in enumerate(explorer.all_frequencies):
+                  df_frequency = df_range[df_range["Frequency"] == frequency]
+                  if df_frequency.empty:
+                    continue
+
+                  if selected_metric_x is None or selected_metric_x not in df_frequency.columns:
+                    return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
+                  if selected_metric_y is None or selected_metric_y not in df_frequency.columns:
+                    return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
+
+                  x_values = df_frequency[selected_metric_x].tolist()
+                  y_values = df_frequency[selected_metric_y].tolist()
+                  config_names = df_frequency["Configuration"].tolist()
+                  cleaned_config_names = [legend.clean_configuration_name(cfg, dissociate_domain) for cfg in config_names]
+                  targets = [target] * len(x_values)
+                  frequencies = [f"{frequency} MHz"] * len(x_values)
+
+                  if color_mode == "architecture":
+                    color_id = i_architecture
+                  elif color_mode == "target":
+                    color_id = i_target
+                  else:
+                    color_id = i_freq + 1
+                    
+                  if symbol_mode == "none":
+                    symbol_id = 0
+                  elif symbol_mode == "architecture":
+                    symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
+                  elif symbol_mode == "target":
+                    symbol_id = i_unique_target if toggle_unique_targets else i_target
+                  else:
+                    symbol_id = i_freq + 1
+
+                  if toggle_labels:
+                    mode += "+text"
+
+                  figures.add_trace_to_scatter_fig(
+                    fig, x_values, y_values, mode, architecture_diplay, frequencies, f"{frequency} MHz", cleaned_config_names,
+                    targets, target, selected_metric_x_display, selected_metric_y_display,
+                    unit_x, unit_y, color_id, symbol_id, toggle_lines, toggle_legendgroup
+                  )
 
       fig.update_layout(
         paper_bgcolor=background,

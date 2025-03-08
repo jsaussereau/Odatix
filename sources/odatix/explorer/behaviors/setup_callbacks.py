@@ -36,9 +36,15 @@ def setup_callbacks(explorer):
   all_target_inputs = [
     Input(f"checklist-target-{target}", "value") for target in explorer.all_targets
   ]
-  all_checklist_inputs = all_architecture_inputs + all_target_inputs
+  all_domains_inputs = [
+      Input(f"checklist-domains-{domain}-{config}", "value") 
+      for domain in explorer.all_param_domains.keys()
+      for config in explorer.all_param_domains[domain]
+  ]
 
-  behavior_lines.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs)
+  all_checklist_inputs = all_architecture_inputs + all_target_inputs + all_domains_inputs
+
+  behavior_lines.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
   behavior_columns.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs)
   behavior_scatter.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs)
   behavior_radar.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs)
