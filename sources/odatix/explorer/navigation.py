@@ -31,7 +31,7 @@ top_bar_height = "50px"
 side_bar_width = "400px"
 
 banned_pages = ["PageNotFound", "Home"]
-sidebar_urls = ["/lines", "/columns", "/scatter", "/radar"]
+sidebar_urls = ["/lines", "/columns", "/scatter", "/radar", "/overview"]
 
 def top_bar():
   return html.Div(
@@ -318,6 +318,12 @@ def side_bar(explorer):
                       labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                     ),
                     dcc.Checklist(
+                      id="toggle-connect-gaps",
+                      options=[{"label": " Connect Gaps", "value": True}],
+                      value=[True],
+                      labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
+                    ),
+                    dcc.Checklist(
                       id="toggle-labels",
                       options=[{"label": " Show Labels", "value": True}],
                       value=[True],
@@ -389,6 +395,7 @@ def setup_sidebar_callbacks(explorer):
       Output("title-legend-dropdown", "style"),
       Output("toggle-legend", "style"),
       Output("toggle-close-line", "style"),
+      Output("toggle-connect-gaps", "style"),
     ],
     [Input("url", "pathname")],
   )
@@ -400,7 +407,7 @@ def setup_sidebar_callbacks(explorer):
       dropdown_metric = hidden
       dropdown_metric_x = visible
       dropdown_metric_y = visible
-    elif pathname in ["/lines", "/columns"]:
+    elif pathname in ["/lines", "/columns", "/radar"]:
       dropdown_metric = visible
       dropdown_metric_x = hidden
       dropdown_metric_y = hidden
@@ -409,8 +416,12 @@ def setup_sidebar_callbacks(explorer):
       dropdown_metric_x = hidden
       dropdown_metric_y = hidden
 
-    if pathname in ["/radar"]:
+    if pathname in ["/radar", "/overview"]:
       toggle_close_line = visible
+    else:
+      toggle_close_line = hidden
+
+    if pathname in ["/overview"]:
       toggle_legend = hidden
       legend_dropdown = visible
     else:
@@ -418,8 +429,12 @@ def setup_sidebar_callbacks(explorer):
       toggle_legend = visible
       legend_dropdown = hidden
 
-    return dropdown_metric, dropdown_metric_x, dropdown_metric_y, legend_dropdown, toggle_legend, toggle_close_line
+    if pathname in ["/columns"]:
+      toggle_connect_gaps = hidden
+    else:
+      toggle_connect_gaps = visible
 
+    return dropdown_metric, dropdown_metric_x, dropdown_metric_y, legend_dropdown, toggle_legend, toggle_close_line, toggle_connect_gaps
   @explorer.app.callback(
     [
       Output("sidebar", "style"),

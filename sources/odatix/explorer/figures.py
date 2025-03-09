@@ -120,8 +120,34 @@ def add_trace_to_scatter_fig(fig, x_values, y_values, mode, architecture, freque
     )
   )
 
-# Radar 
+def add_trace_to_radar_fig(fig, theta_values, r_values, mode, architecture, frequency, targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup, toggle_connect_gaps):
+  fig.add_trace(
+  go.Scatterpolar(
+    theta=theta_values,
+    r=r_values,
+    mode=mode,
+    name=f"{architecture} @ {frequency}" if frequency else architecture,
+    customdata=targets,
+    legendgroup=target,
+    legendgrouptitle_text=str(target) if toggle_legendgroup else None,
+    connectgaps=True if toggle_connect_gaps else False,
+    marker_size=10,
+    marker_color=legend.get_color(color_id),
+    marker_symbol=legend.get_marker_symbol(symbol_id),
+    hovertemplate="<br>".join(
+      [
+        "Architecture: %{fullData.name}",
+        "Configuration: %{theta}",
+        "Target: %{customdata}",
+        selected_metric_display + ": %{y} " + unit,
+        "<extra></extra>",
+      ]
+    ),
+  )
+)
 
+
+# Overview 
 
 def make_legend_chart(
   explorer,
