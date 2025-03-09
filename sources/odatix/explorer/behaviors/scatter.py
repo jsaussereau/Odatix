@@ -43,7 +43,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("toggle-legend", "value"),
       Input("toggle-legendgroup", "value"),
       Input("toggle-title", "value"),
-      Input("toggle-lines", "value"),
+      Input("toggle-lines-scatter", "value"),
       Input("toggle-labels", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),

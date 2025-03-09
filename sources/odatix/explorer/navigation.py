@@ -312,6 +312,12 @@ def side_bar(explorer):
                       labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                     ),
                     dcc.Checklist(
+                      id="toggle-lines-scatter",
+                      options=[{"label": " Show Lines", "value": True}],
+                      value=[],
+                      labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
+                    ),
+                    dcc.Checklist(
                       id="toggle-close-line",
                       options=[{"label": " Close Lines", "value": True}],
                       value=[True],
@@ -395,6 +401,8 @@ def setup_sidebar_callbacks(explorer):
       Output("title-legend-dropdown", "style"),
       Output("toggle-legend", "style"),
       Output("toggle-close-line", "style"),
+      Output("toggle-lines", "style"),
+      Output("toggle-lines-scatter", "style"),
       Output("toggle-connect-gaps", "style"),
     ],
     [Input("url", "pathname")],
@@ -425,7 +433,6 @@ def setup_sidebar_callbacks(explorer):
       toggle_legend = hidden
       legend_dropdown = visible
     else:
-      toggle_close_line = hidden
       toggle_legend = visible
       legend_dropdown = hidden
 
@@ -434,7 +441,18 @@ def setup_sidebar_callbacks(explorer):
     else:
       toggle_connect_gaps = visible
 
-    return dropdown_metric, dropdown_metric_x, dropdown_metric_y, legend_dropdown, toggle_legend, toggle_close_line, toggle_connect_gaps
+    if pathname in ["/columns"]:
+      toggle_lines = hidden
+      toggle_lines_scatter = hidden
+    elif pathname in ["/scatter"]:
+      toggle_lines = hidden
+      toggle_lines_scatter = visible
+    else:
+      toggle_lines = visible
+      toggle_lines_scatter = hidden
+
+    return dropdown_metric, dropdown_metric_x, dropdown_metric_y, legend_dropdown, toggle_legend, toggle_close_line, toggle_lines, toggle_lines_scatter, toggle_connect_gaps
+
   @explorer.app.callback(
     [
       Output("sidebar", "style"),
