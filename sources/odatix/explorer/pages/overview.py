@@ -27,10 +27,10 @@ import odatix.explorer.navigation as navigation
 
 dash.register_page(
   __name__,
-  path='/radar',
-  title='Odatix - Radar',
-  name='Radar',
-  order=4,
+  path='/overview',
+  title='Odatix - Overview',
+  name='Overview',
+  order=5,
 )
 
 layout = html.Div(
