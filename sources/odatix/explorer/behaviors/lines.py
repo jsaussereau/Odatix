@@ -48,6 +48,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("toggle-legendgroup", "value"),
       Input("toggle-title", "value"),
       Input("toggle-lines", "value"),
+      Input("toggle-connect-gaps", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
@@ -73,6 +74,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     toggle_legendgroup,
     toggle_title,
     toggle_lines,
+    toggle_connect_gaps,
     color_mode,
     symbol_mode,
     dl_format,
@@ -222,7 +224,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
 
               figures.add_trace_to_lines_fig(
                 fig, cleaned_configurations, y_values, mode, architecture_diplay, "fmax",
-                targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
+                targets, target, selected_metric_display, unit, color_id, symbol_id, 
+                toggle_legendgroup, toggle_connect_gaps
               )
               
             df_range = df_filtered[df_filtered["Type"] == "Custom Freq"]
@@ -264,7 +267,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
 
                 figures.add_trace_to_lines_fig(
                   fig, cleaned_configurations, y_values, mode, architecture_diplay, f"{frequency} MHz",
-                  targets, target, selected_metric_display, unit, color_id, symbol_id, toggle_legendgroup
+                  targets, target, selected_metric_display, unit, color_id, symbol_id, 
+                  toggle_legendgroup, toggle_connect_gaps
                 )
 
       
