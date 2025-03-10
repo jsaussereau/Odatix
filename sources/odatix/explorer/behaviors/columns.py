@@ -42,6 +42,7 @@ def create_column_graph(
   toggle_legendgroup,
   toggle_title,
   toggle_lines,
+  toggle_labels,
   color_mode,
   symbol_mode,
   dl_format,
@@ -54,6 +55,7 @@ def create_column_graph(
   target_checklist_values,
   domain_checklist_values,
 ):
+
   fig = go.Figure()
 
   if not selected_yaml or selected_yaml not in explorer.dfs:
@@ -243,6 +245,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("toggle-legendgroup", "value"),
       Input("toggle-title", "value"),
       Input("toggle-lines", "value"),
+      Input("toggle-labels", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
@@ -266,6 +269,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     toggle_legendgroup,
     toggle_title,
     toggle_lines,
+    toggle_labels,
     color_mode,
     symbol_mode,
     dl_format,
@@ -298,6 +302,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         toggle_legendgroup,
         toggle_title,
         toggle_lines,
+        toggle_labels,
         color_mode,
         symbol_mode,
         dl_format,
@@ -323,9 +328,15 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         autosize=True,
         template=theme,
       )
+
+      fig.update_xaxes(
+        showticklabels=True if toggle_labels else False
+      )
+      
       filename = "Odatix-{}-{}-{}".format(
         os.path.splitext(selected_yaml)[0], __name__, selected_metric
       )
+
       return html.Div(
         [
           dcc.Graph(

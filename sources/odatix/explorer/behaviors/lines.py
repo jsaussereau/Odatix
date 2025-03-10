@@ -46,6 +46,7 @@ def create_line_graph(
   toggle_title,
   toggle_lines,
   toggle_connect_gaps,
+  toggle_labels,
   color_mode,
   symbol_mode,
   dl_format,
@@ -258,6 +259,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("toggle-title", "value"),
       Input("toggle-lines", "value"),
       Input("toggle-connect-gaps", "value"),
+      Input("toggle-labels", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
@@ -284,6 +286,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     toggle_title,
     toggle_lines,
     toggle_connect_gaps,
+    toggle_labels,
     color_mode,
     symbol_mode,
     dl_format,
@@ -319,6 +322,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         toggle_title,
         toggle_lines,
         toggle_connect_gaps,
+        toggle_labels,
         color_mode,
         symbol_mode,
         dl_format,
@@ -344,9 +348,15 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         autosize=True,
         template=theme,
       )
+
+      fig.update_xaxes(
+        showticklabels=True if toggle_labels else False
+      )
+
       filename = "Odatix-{}-{}-{}".format(
         os.path.splitext(selected_yaml)[0], __name__, selected_metric
       )
+      
       return html.Div(
         [
           dcc.Graph(
@@ -360,7 +370,6 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               "toImageButtonOptions": {
                 "format": dl_format,
                 "scale": 3,
-                
                 "filename": filename
               },
             },
