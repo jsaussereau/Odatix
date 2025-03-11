@@ -29,6 +29,7 @@ import plotly.graph_objs as go
 import odatix.explorer.legend as legend
 import odatix.explorer.content_lib as content_lib
 import odatix.explorer.figures as figures
+import odatix.explorer.themes as themes
 
 from odatix.lib.utils import safe_df_append
 
@@ -366,8 +367,13 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         title=selected_metric_display if toggle_title else None,
         title_x=0.5,
         autosize=True,
-        template=theme,
         polar_angularaxis_showticklabels=True if toggle_labels else False,
+        template=theme,
+        modebar={
+          "bgcolor": themes.get_page_bgcolor(theme, default=None),
+          "color": themes.get_button_color(theme, default=None),
+          "activecolor": themes.get_button_active_color(theme, default=None),
+        }
       )
 
       filename = "Odatix-{}-{}-{}".format(

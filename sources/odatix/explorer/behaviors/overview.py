@@ -363,6 +363,11 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
           height=height,
           template=theme,
           polar_angularaxis_showticklabels=True if toggle_labels else False,
+          modebar={
+            "bgcolor": themes.get_page_bgcolor(theme, default=None),
+            "color": themes.get_button_color(theme, default=None),
+            "activecolor": themes.get_button_active_color(theme, default=None),
+          }
         )
 
         filename = "Odatix-{}-{}-{}".format(yaml_name, __name__, metric)

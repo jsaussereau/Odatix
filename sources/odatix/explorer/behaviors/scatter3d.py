@@ -301,9 +301,11 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         title_x=0.5,
         autosize=True,
         template=theme,
-        # modebar={
-        #   "bgcolor": "#ff0000",
-        # }
+        modebar={
+          "bgcolor": themes.get_page_bgcolor(theme, default=None),
+          "color": themes.get_button_color(theme, default=None),
+          "activecolor": themes.get_button_active_color(theme, default=None),
+        }
       )
       filename = "Odatix-{}-{}-vs-{}-vs-{}".format(
         os.path.splitext(selected_yaml)[0], selected_metric_z, selected_metric_y, selected_metric_x

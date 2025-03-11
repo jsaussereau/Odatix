@@ -28,6 +28,7 @@ import plotly.graph_objs as go
 import odatix.explorer.legend as legend
 import odatix.explorer.content_lib as content_lib
 import odatix.explorer.figures as figures
+import odatix.explorer.themes as themes
 
 def create_column_graph(
   explorer,
@@ -327,6 +328,11 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         title_x=0.5,
         autosize=True,
         template=theme,
+        modebar={
+          "bgcolor": themes.get_page_bgcolor(theme, default=None),
+          "color": themes.get_button_color(theme, default=None),
+          "activecolor": themes.get_button_active_color(theme, default=None),
+        }
       )
 
       fig.update_xaxes(
