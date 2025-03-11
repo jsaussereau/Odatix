@@ -271,7 +271,7 @@ class ResultExplorer:
     """
     self.app.layout = html.Div(
       [
-        navigation.top_bar(),
+        navigation.top_bar(self),
         navigation.side_bar(self),
         dcc.Location(id="url", refresh=False),
         dcc.Store(id="previous-url", data=""),

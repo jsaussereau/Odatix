@@ -25,6 +25,7 @@ from dash.dependencies import Input, Output, State
 import odatix.explorer.behaviors.lines as behavior_lines
 import odatix.explorer.behaviors.columns as behavior_columns
 import odatix.explorer.behaviors.scatter as behavior_scatter
+import odatix.explorer.behaviors.scatter3d as behavior_scatter3d
 import odatix.explorer.behaviors.radar as behavior_radar
 import odatix.explorer.behaviors.overview as behavior_overview
 import odatix.explorer.legend as legend
@@ -47,8 +48,9 @@ def setup_callbacks(explorer):
 
   behavior_lines.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
   behavior_columns.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
-  behavior_scatter.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
   behavior_radar.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
+  behavior_scatter.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
+  behavior_scatter3d.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
   behavior_overview.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
   
   legend.setup_callbacks(explorer)
@@ -58,20 +60,23 @@ def setup_callbacks(explorer):
     Output("metric-dropdown", "options"),
     Output("metric-x-dropdown", "options"),
     Output("metric-y-dropdown", "options"),
+    Output("metric-z-dropdown", "options"),
     Output("metric-dropdown", "value"),
     Output("metric-x-dropdown", "value"),
     Output("metric-y-dropdown", "value"),
+    Output("metric-z-dropdown", "value"),
     Input("yaml-dropdown", "value"),
     State("metric-dropdown", "value"),
     State("metric-x-dropdown", "value"),
     State("metric-y-dropdown", "value"),
+    State("metric-z-dropdown", "value"),
   )
-  def update_dropdowns(selected_yaml, selected_metric, selected_metric_x, selected_metric_y):
+  def update_dropdowns(selected_yaml, selected_metric, selected_metric_x, selected_metric_y, selected_metric_z):
     if explorer is None:
-      return []*3 + []*3
+      return []*4 + []*4
 
     if not selected_yaml or selected_yaml not in explorer.dfs:
-      return []*3 + []*3
+      return []*4 + []*4
 
     df = explorer.dfs[selected_yaml]
     metrics_from_yaml = explorer.update_metrics(explorer.all_data[selected_yaml])
@@ -79,6 +84,7 @@ def setup_callbacks(explorer):
     
     metric0 = available_metrics[0]["value"] if len(available_metrics) > 0 else None
     metric1 = available_metrics[1]["value"] if len(available_metrics) > 1 else None
+    metric2 = available_metrics[2]["value"] if len(available_metrics) > 2 else None
     
     # Change current metrics if they are not available anymore
     if selected_metric not in metrics_from_yaml:
@@ -87,8 +93,10 @@ def setup_callbacks(explorer):
       selected_metric_x = metric0
     if selected_metric_y not in metrics_from_yaml:
       selected_metric_y = metric1
+    if selected_metric_z not in metrics_from_yaml:
+      selected_metric_z = metric2
 
-    return [available_metrics]*3 + [selected_metric, selected_metric_x, selected_metric_y]
+    return [available_metrics]*4 + [selected_metric, selected_metric_x, selected_metric_y, selected_metric_z]
 
   @explorer.app.callback(
     Output("main-container", "style"),

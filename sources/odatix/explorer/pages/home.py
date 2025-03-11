@@ -57,6 +57,12 @@ cards = [
     "description": "A scatter chart to draw a metric against another",
   },
   {
+    "name": "Scatter 3D",
+    "link": "/scatter3d",
+    "image": "assets/preview/scatter.svg",
+    "description": "A 3D scatter chart to draw a metric against another",
+  },
+  {
     "name": "Overview",
     "link": "/overview",
     "image": "assets/preview/radar.svg",

@@ -27,21 +27,20 @@ import odatix.explorer.navigation as navigation
 
 dash.register_page(
   __name__,
-  path='/overview',
-  title='Odatix - Overview',
-  name='Overview',
-  order=6,
+  path='/scatter3d',
+  title='Odatix - Scatter 3D',
+  name='Scatter 3D',
+  order=5,
 )
 
 layout = html.Div(
   [
-    html.Div(style={"height": "75px"}),
-    html.Div(id="radar-graphs"),
+    html.Div(
+      id="graph-scatter3d",
+      style={"width": "100%", "height": "100%"},
+      className="graph-container"
+    )
   ],
   id = f"{__name__}-content",
-  style={
-    "width": "100%",
-    "height": f"calc(100vh - {navigation.top_bar_height})",
-    "justify-content": "center",
-  },
+  style={"width": "100%", "height": f"calc(100vh - {navigation.top_bar_height})"},
 )

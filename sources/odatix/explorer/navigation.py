@@ -31,7 +31,7 @@ top_bar_height = "50px"
 side_bar_width = "400px"
 
 banned_pages = ["PageNotFound", "Home"]
-sidebar_urls = ["/lines", "/columns", "/scatter", "/radar", "/overview"]
+sidebar_urls = ["/lines", "/columns", "/scatter", "/scatter3d", "/radar", "/overview"]
 
 def top_bar(explorer):
   return html.Div(
@@ -158,6 +158,14 @@ def side_bar(explorer):
                   children=[
                     html.Div(className="dropdown-label", children=[html.Label("Metric Y")]),
                     dcc.Dropdown(id="metric-y-dropdown", value=""),
+                  ],
+                ),
+                html.Div(
+                  className="title-dropdown",
+                  id="title-metric-z-dropdown",
+                  children=[
+                    html.Div(className="dropdown-label", children=[html.Label("Metric Z")]),
+                    dcc.Dropdown(id="metric-z-dropdown", value=""),
                   ],
                 ),
                 html.Div(
@@ -438,6 +446,7 @@ def setup_sidebar_callbacks(explorer):
       Output("title-metric-dropdown", "style"),
       Output("title-metric-x-dropdown", "style"),
       Output("title-metric-y-dropdown", "style"),
+      Output("title-metric-z-dropdown", "style"),
       Output("title-legend-dropdown", "style"),
       Output("toggle-legend", "style"),
       Output("toggle-close-line", "style"),
@@ -466,7 +475,7 @@ def setup_sidebar_callbacks(explorer):
       legend_dropdown = hidden
       overview_options = hidden
 
-    if pathname in ["/scatter"]:
+    if pathname in ["/scatter", "/scatter3d"]:
       dropdown_metric = hidden
       dropdown_metric_x = visible
       dropdown_metric_y = visible
@@ -478,6 +487,11 @@ def setup_sidebar_callbacks(explorer):
       dropdown_metric = hidden
       dropdown_metric_x = hidden
       dropdown_metric_y = hidden
+
+    if pathname in ["/scatter3d"]:
+      dropdown_metric_z = visible
+    else:
+      dropdown_metric_z = hidden
 
     if pathname in ["/radar", "/overview"]:
       toggle_close_line = visible
@@ -492,7 +506,7 @@ def setup_sidebar_callbacks(explorer):
     if pathname in ["/columns"]:
       toggle_lines = hidden
       toggle_lines_scatter = hidden
-    elif pathname in ["/scatter"]:
+    elif pathname in ["/scatter", "/scatter3d"]:
       toggle_lines = hidden
       toggle_lines_scatter = visible
     else:
@@ -500,7 +514,7 @@ def setup_sidebar_callbacks(explorer):
       toggle_lines_scatter = hidden
 
     return (
-      dropdown_metric, dropdown_metric_x, dropdown_metric_y,
+      dropdown_metric, dropdown_metric_x, dropdown_metric_y, dropdown_metric_z,
       legend_dropdown, toggle_legend, toggle_close_line, toggle_lines,
       toggle_lines_scatter, toggle_connect_gaps, overview_options
     )
