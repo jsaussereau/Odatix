@@ -59,23 +59,23 @@ themes = {
   },
 }
 
-def get_page_bgcolor(theme):
+def get_page_bgcolor(theme, default=themes["default"]["page_bgcolor"]):
   if theme in themes:
     return themes[theme]["page_bgcolor"]
   else:
-    return themes["default"]["page_bgcolor"]
+    return default
 
-def get_nav_bgcolor(theme):
+def get_nav_bgcolor(theme, default=themes["default"]["nav_bgcolor"]):
   if theme in themes:
     return themes[theme]["nav_bgcolor"]
   else:
-    return themes["default"]["nav_bgcolor"]
+    return default
 
-def get_plot_bgcolor(theme):
+def get_plot_bgcolor(theme, default=themes["default"]["plot_bgcolor"]):
   if theme in themes:
     return themes[theme]["plot_bgcolor"]
   else:
-    return themes["default"]["plot_bgcolor"]
+    return default
 
 
 
