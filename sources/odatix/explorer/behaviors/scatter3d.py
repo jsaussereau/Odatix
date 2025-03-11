@@ -196,6 +196,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                   return html.Div(className="error", children=[html.Div("Please select a valid x metric.")])
                 if selected_metric_y is None or selected_metric_y not in df_fmax.columns:
                   return html.Div(className="error", children=[html.Div("Please select a valid y metric.")])
+                if selected_metric_z is None or selected_metric_z not in df_fmax.columns:
+                  return html.Div(className="error", children=[html.Div("Please select a valid z metric.")])
 
                 x_values = df_fmax[selected_metric_x].tolist()
                 y_values = df_fmax[selected_metric_y].tolist()
@@ -293,11 +295,15 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
           xaxis=axes,
           yaxis=axes,
           zaxis=axes,
+          camera_eye=dict(x=1, y=2.5, z=1.25)
         ),
         title=selected_metric_z_display + " vs " + selected_metric_y_display + " vs " + selected_metric_x_display if toggle_title else None,
         title_x=0.5,
         autosize=True,
         template=theme,
+        # modebar={
+        #   "bgcolor": "#ff0000",
+        # }
       )
       filename = "Odatix-{}-{}-vs-{}-vs-{}".format(
         os.path.splitext(selected_yaml)[0], selected_metric_z, selected_metric_y, selected_metric_x
