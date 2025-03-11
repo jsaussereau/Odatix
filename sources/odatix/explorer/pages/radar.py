@@ -30,7 +30,7 @@ dash.register_page(
   path='/radar',
   title='Odatix - Radar',
   name='Radar',
-  order=4,
+  order=3,
 )
 
 layout = html.Div(

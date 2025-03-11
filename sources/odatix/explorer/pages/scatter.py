@@ -30,7 +30,7 @@ dash.register_page(
   path='/scatter',
   title='Odatix - Scatter',
   name='Scatter',
-  order=3,
+  order=4,
 )
 
 layout = html.Div(
