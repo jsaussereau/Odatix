@@ -27,6 +27,8 @@ import plotly.io as pio
 import odatix.explorer.legend as legend
 import odatix.explorer.themes as themes
 
+from odatix.explorer.css_helper import Style
+
 top_bar_height = "50px"
 side_bar_width = "400px"
 
@@ -461,57 +463,54 @@ def setup_sidebar_callbacks(explorer):
     ],
   )
   def update_visibility(pathname, chart_type):
-    visible_div = {"display": "block"}
-    visible = {"display": "flex"}
-    hidden = {"display": "none"}
-
-    if pathname in ["/overview"]:
-      toggle_legend = hidden
-      legend_dropdown = visible
-      overview_options = visible_div
-      pathname = "/" + chart_type
-    else:
-      toggle_legend = visible
-      legend_dropdown = hidden
-      overview_options = hidden
 
     if pathname in ["/scatter", "/scatter3d"]:
-      dropdown_metric = hidden
-      dropdown_metric_x = visible
-      dropdown_metric_y = visible
+      dropdown_metric = Style.hidden
+      dropdown_metric_x = Style.visible
+      dropdown_metric_y = Style.visible
     elif pathname in ["/lines", "/columns", "/radar"]:
-      dropdown_metric = visible
-      dropdown_metric_x = hidden
-      dropdown_metric_y = hidden
+      dropdown_metric = Style.visible
+      dropdown_metric_x = Style.hidden
+      dropdown_metric_y = Style.hidden
     else:
-      dropdown_metric = hidden
-      dropdown_metric_x = hidden
-      dropdown_metric_y = hidden
+      dropdown_metric = Style.hidden
+      dropdown_metric_x = Style.hidden
+      dropdown_metric_y = Style.hidden
+
+    if pathname in ["/overview"]:
+      toggle_legend = Style.hidden
+      legend_dropdown = Style.visible
+      overview_options = Style.visible_div
+      pathname = "/" + chart_type
+    else:
+      toggle_legend = Style.visible
+      legend_dropdown = Style.hidden
+      overview_options = Style.hidden
 
     if pathname in ["/scatter3d"]:
-      dropdown_metric_z = visible
+      dropdown_metric_z = Style.visible
     else:
-      dropdown_metric_z = hidden
+      dropdown_metric_z = Style.hidden
 
     if pathname in ["/radar", "/overview"]:
-      toggle_close_line = visible
+      toggle_close_line = Style.visible
     else:
-      toggle_close_line = hidden
+      toggle_close_line = Style.hidden
 
     if pathname in ["/columns"]:
-      toggle_connect_gaps = hidden
+      toggle_connect_gaps = Style.hidden
     else:
-      toggle_connect_gaps = visible
+      toggle_connect_gaps = Style.visible
 
     if pathname in ["/columns"]:
-      toggle_lines = hidden
-      toggle_lines_scatter = hidden
+      toggle_lines = Style.hidden
+      toggle_lines_scatter = Style.hidden
     elif pathname in ["/scatter", "/scatter3d"]:
-      toggle_lines = hidden
-      toggle_lines_scatter = visible
+      toggle_lines = Style.hidden
+      toggle_lines_scatter = Style.visible
     else:
-      toggle_lines = visible
-      toggle_lines_scatter = hidden
+      toggle_lines = Style.visible
+      toggle_lines_scatter = Style.hidden
 
     return (
       dropdown_metric, dropdown_metric_x, dropdown_metric_y, dropdown_metric_z,
