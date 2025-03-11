@@ -305,8 +305,14 @@ def setup_callbacks(explorer):
     ],
   )
   def update_domain_checklist_states(show_all_clicks, hide_all_clicks, selected_domain, *current_values):
+    if len(explorer.all_param_domains) == 0:
+      return
+
     ctx = dash.callback_context
     if not ctx.triggered:
+      return current_values
+    
+    if selected_domain is None:
       return current_values
 
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
