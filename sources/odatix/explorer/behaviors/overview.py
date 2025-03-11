@@ -36,6 +36,7 @@ import odatix.explorer.behaviors.radar as bhv_radar
 
 dim = {
   "default": {
+    "page_wide": False,
     "lines": {
       "width_legend": 840,
       "width": 475,
@@ -53,6 +54,7 @@ dim = {
     }
   },
   "large": {
+    "page_wide": False,
     "lines": {
       "width_legend": 1000,
       "width": 635,
@@ -70,6 +72,7 @@ dim = {
     }
   },
   "default_tall": {
+    "page_wide": False,
     "lines": {
       "width_legend": 840,
       "width": 475,
@@ -87,6 +90,7 @@ dim = {
     }
   },
   "large_tall": {
+    "page_wide": False,
     "lines": {
       "width_legend": 1000,
       "width": 635,
@@ -100,6 +104,18 @@ dim = {
     "radar": {
       "width_legend": 1000,
       "width": 635,
+      "height": 735,
+    }
+  },
+  "page_wide": {
+    "page_wide": True,
+    "lines": {
+      "height": 770,
+    },
+    "columns": {
+      "height": 770,
+    },
+    "radar": {
       "height": 735,
     }
   },
@@ -326,9 +342,14 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
           metric_display = ""
           metric_display_unit = ""
           fig = go.Figure()
-        
-        width_legend = dim[layout][chart_type]["width_legend"]
-        width = dim[layout][chart_type]["width"]
+
+        page_wide =  dim[layout]["page_wide"]
+        if page_wide:
+          width = None
+        else:
+          width_legend = dim[layout][chart_type]["width_legend"]
+          width = dim[layout][chart_type]["width"]
+          width = width_legend if "show_legend" in legend_dropdown else width
         height = dim[layout][chart_type]["height"]
 
         fig.update_layout(
@@ -338,14 +359,14 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
           margin=dict(l=60, r=60, t=60, b=60),
           title=metric_display if toggle_title else None,
           title_x=0.5,
-          width=width_legend if "show_legend" in legend_dropdown else width,
+          width=width,
           height=height,
           template=theme,
           polar_angularaxis_showticklabels=True if toggle_labels else False,
         )
 
         filename = "Odatix-{}-{}-{}".format(yaml_name, __name__, metric)
-        radar_charts.append(figures.make_figure_div(fig, filename, dl_format))
+        radar_charts.append(figures.make_figure_div(fig, filename, dl_format, page_wide))
 
       # # Add legend chart
       # if "separate_legend" in legend_dropdown:
