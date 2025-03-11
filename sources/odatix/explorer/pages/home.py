@@ -59,13 +59,13 @@ cards = [
   {
     "name": "Scatter 3D",
     "link": "/scatter3d",
-    "image": "assets/preview/scatter.svg",
+    "image": "assets/preview/scatter3d.svg",
     "description": "A 3D scatter chart to draw a metric against another",
   },
   {
     "name": "Overview",
     "link": "/overview",
-    "image": "assets/preview/radar.svg",
+    "image": "assets/preview/overview.png",
     "description": "A collection of lines/columns/radar charts for all metrics",
   },
 ]
@@ -105,6 +105,8 @@ layout = html.Div(
         "flex-wrap": "wrap",
         "justify-content": "center",
         "gap": "20px",
+        "padding-left": "50px",
+        "padding-right": "50px",
       },
     ),
   ],
@@ -112,7 +114,7 @@ layout = html.Div(
   style={
     "width": "100%", 
     "background-color": "#f6f8fa",
-    "min-height": f"calc(100vh - {navigation.top_bar_height} - {2*padding}px)",
+    "min-height": f"calc(100vh - {navigation.top_bar_height} - {4*padding}px)",
     "display": "flex",
     "justify-content": "center",
     "align-items": "center",
