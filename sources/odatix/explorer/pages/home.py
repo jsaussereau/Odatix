@@ -45,16 +45,22 @@ cards = [
     "description": "A column chart to draw values for a specific metric",
   },
   {
+    "name": "Radar",
+    "link": "/radar",
+    "image": "assets/preview/radar.svg",
+    "description": "A radar chart to draw values for a specific metric",
+  },
+  {
     "name": "Scatter",
     "link": "/scatter",
     "image": "assets/preview/scatter.svg",
     "description": "A scatter chart to draw a metric against another",
   },
   {
-    "name": "Radar",
-    "link": "/radar",
+    "name": "Overview",
+    "link": "/overview",
     "image": "assets/preview/radar.svg",
-    "description": "A collection of radar charts for all metrics",
+    "description": "A collection of lines/columns/radar charts for all metrics",
   },
 ]
 
