@@ -26,6 +26,7 @@ import odatix.explorer.behaviors.lines as behavior_lines
 import odatix.explorer.behaviors.columns as behavior_columns
 import odatix.explorer.behaviors.scatter as behavior_scatter
 import odatix.explorer.behaviors.radar as behavior_radar
+import odatix.explorer.behaviors.overview as behavior_overview
 import odatix.explorer.legend as legend
 import odatix.explorer.themes as themes
 
@@ -45,9 +46,10 @@ def setup_callbacks(explorer):
   all_checklist_inputs = all_architecture_inputs + all_target_inputs + all_domains_inputs
 
   behavior_lines.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
-  behavior_columns.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs)
-  behavior_scatter.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs)
-  behavior_radar.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs)
+  behavior_columns.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
+  behavior_scatter.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
+  behavior_radar.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
+  behavior_overview.setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs)
   
   legend.setup_callbacks(explorer)
 

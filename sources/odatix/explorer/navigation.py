@@ -33,7 +33,7 @@ side_bar_width = "400px"
 banned_pages = ["PageNotFound", "Home"]
 sidebar_urls = ["/lines", "/columns", "/scatter", "/radar", "/overview"]
 
-def top_bar():
+def top_bar(explorer):
   return html.Div(
     [
       dcc.Link(
@@ -158,6 +158,46 @@ def side_bar(explorer):
                   children=[
                     html.Div(className="dropdown-label", children=[html.Label("Metric Y")]),
                     dcc.Dropdown(id="metric-y-dropdown", value=""),
+                  ],
+                ),
+                html.Div(
+                  id="overview-options",
+                  children=[
+                    html.H2("Overview Options"),
+                    html.Div(
+                      className="title-dropdown",
+                      children=[
+                        html.Div(className="dropdown-label", children=[html.Label("Chart Type")]),
+                        dcc.Dropdown(
+                          id="chart-type-dropdown",
+                          options=[
+                            {"label": "Lines", "value": "lines"},
+                            {"label": "Columns", "value": "columns"},
+                            {"label": "Radar", "value": "radar"}
+                          ],
+                          value="radar",
+                        ),
+                      ],
+                      style={"margin-bottom": "5px"},
+                    ),
+                    html.Div(
+                      className="title-dropdown",
+                      children=[
+                        html.Div(className="dropdown-label", children=[html.Label("Layout")]),
+                        dcc.Dropdown(
+                          id="overview-layout-dropdown",
+                          options=[
+                            {"label": "Default", "value": "default"},
+                            {"label": "Large", "value": "large"},
+                            {"label": "Default (Tall)", "value": "default_tall"},
+                            {"label": "Large (Tall)", "value": "large_tall"},
+                            {"label": "Page Wide", "value": "page_wide"}
+                          ],
+                          value="default",
+                        ),
+                      ],
+                      style={"margin-bottom": "5px"},
+                    ),
                   ],
                 ),
                 html.H2("Targets"),
@@ -404,12 +444,27 @@ def setup_sidebar_callbacks(explorer):
       Output("toggle-lines", "style"),
       Output("toggle-lines-scatter", "style"),
       Output("toggle-connect-gaps", "style"),
+      Output("overview-options", "style"),
     ],
-    [Input("url", "pathname")],
+    [
+      Input("url", "pathname"),
+      Input("chart-type-dropdown", "value"),
+    ],
   )
-  def update_visibility(pathname):
+  def update_visibility(pathname, chart_type):
+    visible_div = {"display": "block"}
     visible = {"display": "flex"}
     hidden = {"display": "none"}
+
+    if pathname in ["/overview"]:
+      toggle_legend = hidden
+      legend_dropdown = visible
+      overview_options = visible_div
+      pathname = "/" + chart_type
+    else:
+      toggle_legend = visible
+      legend_dropdown = hidden
+      overview_options = hidden
 
     if pathname in ["/scatter"]:
       dropdown_metric = hidden
@@ -429,13 +484,6 @@ def setup_sidebar_callbacks(explorer):
     else:
       toggle_close_line = hidden
 
-    if pathname in ["/overview"]:
-      toggle_legend = hidden
-      legend_dropdown = visible
-    else:
-      toggle_legend = visible
-      legend_dropdown = hidden
-
     if pathname in ["/columns"]:
       toggle_connect_gaps = hidden
     else:
@@ -451,7 +499,11 @@ def setup_sidebar_callbacks(explorer):
       toggle_lines = visible
       toggle_lines_scatter = hidden
 
-    return dropdown_metric, dropdown_metric_x, dropdown_metric_y, legend_dropdown, toggle_legend, toggle_close_line, toggle_lines, toggle_lines_scatter, toggle_connect_gaps
+    return (
+      dropdown_metric, dropdown_metric_x, dropdown_metric_y,
+      legend_dropdown, toggle_legend, toggle_close_line, toggle_lines,
+      toggle_lines_scatter, toggle_connect_gaps, overview_options
+    )
 
   @explorer.app.callback(
     [
