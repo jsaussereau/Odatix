@@ -297,3 +297,12 @@ def open_path_in_explorer(path):
     subprocess.run(["open", path])
   else:
     raise NotImplementedError(f"Unsupported platform: {platform}")
+
+def merge_dicts_of_lists(base_dict, merging_dict):
+  for key, new_list in merging_dict.items():
+    if key not in base_dict:
+      base_dict[key] = list(new_list)
+    else:
+      combined = set(base_dict[key]) | set(new_list)
+      base_dict[key] = sorted(combined)
+  return base_dict
