@@ -185,9 +185,9 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
             i_dissociate_domain = -1
             for dissociation_value in dissociation_values:
               df_filtered = df_architecture_target.copy()
-              if dissociation_value is not None:
+              if dissociation_value is not None and dissociation_value != "None":
                 df_filtered = df_filtered[df_filtered[dissociate_domain] == dissociation_value]
-                architecture_diplay = architecture + f" [{dissociate_domain}:{dissociation_value}]" 
+                architecture_diplay = architecture + f" [{dissociate_domain.replace("__main__", "main")}:{dissociation_value}]" 
               else:
                 architecture_diplay = architecture
               i_dissociate_domain += 1
@@ -214,7 +214,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                 elif color_mode == "target":
                   color_id = i_unique_target if toggle_unique_targets else i_target
                 elif color_mode == "domain_value":
-                  color_id = i_dissociate_domain
+                  color_id = i_dissociate_domain if dissociation_value != "None" else -1
                 else:
                   color_id = 0
 
@@ -262,6 +262,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                     color_id = i_architecture
                   elif color_mode == "target":
                     color_id = i_target
+                  elif color_mode == "domain_value":
+                    color_id = i_dissociate_domain if dissociation_value != "None" else -1
                   else:
                     color_id = i_freq + 1
                     
@@ -271,6 +273,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                     symbol_id = i_unique_architecture if toggle_unique_architectures else i_architecture
                   elif symbol_mode == "target":
                     symbol_id = i_unique_target if toggle_unique_targets else i_target
+                  elif symbol_mode == "domain_value":
+                    symbol_id = i_dissociate_domain
                   else:
                     symbol_id = i_freq + 1
 

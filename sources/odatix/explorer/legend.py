@@ -342,6 +342,8 @@ def setup_callbacks(explorer):
     return current_values
 
 def get_color(i):
+  if i == -1:
+    return greyed_color
   return plot_colors[i % len(plot_colors)]
 
 def get_marker_symbol(i):
