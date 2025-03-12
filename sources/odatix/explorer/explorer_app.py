@@ -34,7 +34,7 @@ import odatix.explorer.navigation as navigation
 import odatix.explorer.behaviors.setup_callbacks as setup_callbacks
 
 import odatix.lib.printc as printc
-from odatix.lib.utils import internal_error
+from odatix.lib.utils import internal_error, merge_dicts_of_lists
 import odatix.lib.term_mode as term_mode
 import odatix.explorer.themes as themes
 
@@ -47,6 +47,8 @@ class ResultExplorer:
     self.yaml_prefix = yaml_prefix
     self.old_settings = old_settings
     self.safe_mode = safe_mode
+    self.param_domains = {}
+    self.all_param_domains = {}
 
     if theme is None:
       self.start_theme = themes.default_theme
@@ -124,17 +126,17 @@ class ResultExplorer:
       try:
         fmax_data, range_data, units = self.get_yaml_data(file_path)
         all_data = {"Fmax": fmax_data, "Custom Freq": range_data}
-        df = self.update_dataframe(all_data)
+        df = self.update_dataframe(all_data, yaml_file)
 
         # Validate YAML data
         if fmax_data == {} and range_data == {}:
           printc.warning(
-              f'Result file "{yaml_file}" is empty or corrupted, skipping...', 
-              script_name=script_name
+            f'Result file "{yaml_file}" is empty or corrupted, skipping...', 
+            script_name=script_name
           )
           printc.note(
-              f'Run fmax synthesis or range synthesis with the correct settings to generate "{yaml_file}"',
-              script_name=script_name
+            f'Run fmax synthesis or range synthesis with the correct settings to generate "{yaml_file}"',
+            script_name=script_name
           )
           continue  # Skip to the next file
 
@@ -169,7 +171,7 @@ class ResultExplorer:
 
       except Exception as e:
         printc.warning(
-            f'YAML file "{yaml_file}" is not a valid result file, skipping...', script_name=script_name
+          f'YAML file "{yaml_file}" is not a valid result file, skipping...', script_name=script_name
         )
         printc.cyan("Error details: ", end="", script_name=script_name)
         print(str(e))
@@ -191,7 +193,7 @@ class ResultExplorer:
 
       return fmax_results, range_results, units
 
-  def update_dataframe(self, yaml_data):
+  def update_dataframe(self, yaml_data, yaml_file):
     """
     Combine 'fmax' and 'custom freq' data into a single hierarchical DataFrame.
     """
@@ -244,7 +246,8 @@ class ResultExplorer:
     if not all(column in df.columns and not df[column].empty for column in required_columns):
       return None
 
-    self.all_param_domains = {k: sorted(v) for k, v in all_param_domains.items()}  # Stocker les valeurs triées
+    self.param_domains[yaml_file] = {k: sorted(v) for k, v in all_param_domains.items()}
+    self.all_param_domains = merge_dicts_of_lists(self.all_param_domains, self.param_domains[yaml_file])
     return df
 
   def update_metrics(self, yaml_data):

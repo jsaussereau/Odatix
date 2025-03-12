@@ -28,6 +28,7 @@ import re
 plot_colors = px.colors.qualitative.Plotly
 marker_symbols = ["circle", "square", "diamond", "triangle-up", "cross", "triangle-down", "pentagon", "x", "star"]
 patterns = ['', '/', 'x', '-', '|', '+', '.', '\\']
+greyed_color = "#aaa"
 
 def create_legend_item(label, value, line_style, color, type="arch", marker_symbol=0, draw_line=True, display=True):  
   line_color = color if draw_line else "00000000"
@@ -260,7 +261,7 @@ def setup_callbacks(explorer):
     i_current_value = 0
     for domain in explorer.all_param_domains.keys():
       for i, config in enumerate(explorer.all_param_domains[domain]):
-        if domain == selected_domain:
+        if domain == selected_domain and domain in explorer.param_domains[selected_yaml] and config in explorer.param_domains[selected_yaml][domain]:
           display = True
           i_existing += 1
         else:
@@ -288,6 +289,37 @@ def setup_callbacks(explorer):
     return legend_items
 
   # Parameter domains 
+  @explorer.app.callback(
+    Output("param-domain-dropdown", "options"),
+    Output("param-domain-dropdown", "value"),
+    Output("dissociate-domain-dropdown", "options"),
+    Output("dissociate-domain-dropdown", "value"),
+    Input("yaml-dropdown", "value"),
+    State("param-domain-dropdown", "value"),
+    State("dissociate-domain-dropdown", "value"),
+  )
+  def update_param_domain_dropdown(selected_yaml, param_domain, dissociate_domain):
+    if len(explorer.all_param_domains) == 0:
+      return (
+        [], param_domain,
+        ["None"], dissociate_domain,
+      ) 
+    available_values = [{"label": param.replace("__main__", "main"), "value": param} for param in explorer.param_domains[selected_yaml].keys()]
+    available_dissociate_values = [{"label": "None", "value": "None"}] + available_values
+
+    valid_param_domains = [x["value"] for x in available_values]
+    valid_dissociate_values = [x["value"] for x in available_dissociate_values]
+
+    if param_domain not in valid_param_domains:
+      param_domain = valid_param_domains[0]
+    if dissociate_domain not in valid_dissociate_values:
+      dissociate_domain = "None"
+
+    return (
+      available_values, param_domain,
+      available_dissociate_values, dissociate_domain,
+    )
+
   @explorer.app.callback(
     [
       Output(f"checklist-domains-{domain}-{config}", "value")

@@ -548,11 +548,12 @@ def setup_sidebar_callbacks(explorer):
     Output("parameter-domains", "style"),
     Output("parameter-domains-error", "style"),
     [
-      Input("param-domain-dropdown", "value")
+      Input("param-domain-dropdown", "value"),
+      Input("yaml-dropdown", "value"),
     ],
   )
-  def update_domain_checklist_states(selected_domain):
-    if len(explorer.all_param_domains) == 0:
+  def update_domain_checklist_states(selected_domain, selected_yaml):
+    if len(explorer.param_domains[selected_yaml]) == 0:
       return Style.hidden, Style.visible_div
     return Style.visible_div, Style.hidden
 
