@@ -254,18 +254,20 @@ class ResultExplorer:
     """
     Update metrics based on YAML data.
     """
-    metrics_from_yaml = set()
-
+    metrics_from_yaml = []
     for type in yaml_data.keys():
       for target_data in yaml_data[type].values():
         for architecture_data in target_data.values():
           for configuration_data in architecture_data.values():
-            if type == "Fmax" :
-              metrics_from_yaml.update(configuration_data.keys())
+            if type == "Fmax":
+              for k in configuration_data.keys():
+                if k not in metrics_from_yaml:
+                  metrics_from_yaml.append(k)
             elif type == "Custom Freq":
               for frequency_data in configuration_data.values():
-                metrics_from_yaml.update(frequency_data.keys())
-          
+                for k in frequency_data.keys():
+                  if k not in metrics_from_yaml:
+                    metrics_from_yaml.append(k)
     return metrics_from_yaml
 
   def setup_layout(self):
