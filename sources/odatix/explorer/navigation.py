@@ -403,6 +403,12 @@ def side_bar(explorer):
                       labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
                     ),
                     dcc.Checklist(
+                      id="toggle-zero-axis",
+                      options=[{"label": " Start axis at zero", "value": True}],
+                      value=[True],
+                      labelStyle={"display": "block", "font-weight": "515", "margin-bottom": "5px"},
+                    ),
+                    dcc.Checklist(
                       id="toggle-unique-architectures",
                       options=[{"label": " Unique architectures color/symbol", "value": True}],
                       value=[True],
@@ -472,6 +478,7 @@ def setup_sidebar_callbacks(explorer):
       Output("toggle-lines", "style"),
       Output("toggle-lines-scatter", "style"),
       Output("toggle-connect-gaps", "style"),
+      Output("toggle-zero-axis", "style"),
       Output("overview-options", "style"),
     ],
     [
@@ -506,8 +513,10 @@ def setup_sidebar_callbacks(explorer):
 
     if pathname in ["/scatter3d"]:
       dropdown_metric_z = Style.visible
+      toggle_zero_axis = Style.visible
     else:
       dropdown_metric_z = Style.hidden
+      toggle_zero_axis = Style.hidden
 
     if pathname in ["/radar", "/overview"]:
       toggle_close_line = Style.visible
@@ -532,7 +541,7 @@ def setup_sidebar_callbacks(explorer):
     return (
       dropdown_metric, dropdown_metric_x, dropdown_metric_y, dropdown_metric_z,
       legend_dropdown, toggle_legend, toggle_close_line, toggle_lines,
-      toggle_lines_scatter, toggle_connect_gaps, overview_options
+      toggle_lines_scatter, toggle_connect_gaps, toggle_zero_axis, overview_options
     )
 
   @explorer.app.callback(

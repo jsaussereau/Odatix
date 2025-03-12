@@ -47,6 +47,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("toggle-title", "value"),
       Input("toggle-lines-scatter", "value"),
       Input("toggle-labels", "value"),
+      Input("toggle-zero-axis", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
@@ -71,6 +72,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     toggle_title,
     toggle_lines,
     toggle_labels,
+    toggle_zero_axis,
     color_mode,
     symbol_mode,
     dl_format,
@@ -281,7 +283,8 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                     unit_x, unit_y, unit_z, color_id, symbol_id, toggle_lines, toggle_legendgroup
                   )
       axes = {
-        "backgroundcolor": themes.get_plot_bgcolor(theme, default=None)
+        "backgroundcolor": themes.get_plot_bgcolor(theme, default=None),
+        "range": [0, None] if toggle_zero_axis else [None, None],
       }
 
       fig.update_layout(
