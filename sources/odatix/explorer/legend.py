@@ -241,15 +241,16 @@ def setup_callbacks(explorer):
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
-      Input("param-domain-dropdown", "value")
+      Input("param-domain-dropdown", "value"),
     ],
+    State("dissociate-domain-dropdown", "value"),
     [
       State(f"checklist-domains-{domain}-{config}", "value") 
       for domain in explorer.all_param_domains.keys()
       for config in explorer.all_param_domains[domain]
     ],
     )
-  def update_domain_legend(selected_yaml, color_mode, symbol_mode, selected_domain, *current_values):
+  def update_domain_legend(selected_yaml, color_mode, symbol_mode, selected_domain, dissociate_domain, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
@@ -268,8 +269,8 @@ def setup_callbacks(explorer):
         # trace_id = i if unique_domains else i_existing
         trace_id = i
         
-        color = get_color(trace_id) if color_mode == "domain" else "#fff"
-        marker_symbol = trace_id if symbol_mode == "domain" else 0
+        color = get_color(trace_id) if color_mode == "domain_value" and selected_domain == dissociate_domain else "#fff"
+        marker_symbol = trace_id if symbol_mode == "domain_value" and selected_domain == dissociate_domain else 0
 
         legend_item = create_legend_item(
           label=config,
