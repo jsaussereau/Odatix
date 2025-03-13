@@ -373,30 +373,59 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
         filename = "Odatix-{}-{}-{}".format(yaml_name, __name__, metric)
         radar_charts.append(figures.make_figure_div(fig, filename, dl_format, page_wide))
 
-      # # Add legend chart
-      # if "separate_legend" in legend_dropdown:
-      #   legend_fig = figures.make_legend_chart(
-      #     explorer,
-      #     filtered_df,
-      #     selected_results,
-      #     selected_yaml,
-      #     targets_for_yaml,
-      #     visible_architectures,
-      #     visible_targets,
-      #     toggle_legendgroup,
-      #     toggle_title,
-      #     color_mode,
-      #     symbol_mode,
-      #     background,
-      #     theme,
-      #     toggle_unique_architectures,
-      #     toggle_unique_targets,
-      #     dissociate_domain,
-      #     mode
-      #   )
-      #   radar_charts.append(
-      #     figures.make_figure_div(legend_fig, "Odatix-" + str(__name__) + "-legend", dl_format, remove_zoom=True)
-      #   )
+      # Add legend chart
+      if "separate_legend" in legend_dropdown:
+        fig = go.Figure()
+        fig, metric_display, metric_display_unit = bhv_radar.create_radar_graph(
+          explorer,
+          selected_yaml,
+          metric,
+          selected_results,
+          show_all,
+          hide_all,
+          show_all_targets,
+          hide_all_targets,
+          show_all_domains,
+          hide_all_domains,
+          toggle_legend,
+          toggle_legendgroup,
+          toggle_title,
+          toggle_lines,
+          toggle_close,
+          toggle_connect_gaps,
+          toggle_labels,
+          color_mode,
+          symbol_mode,
+          dl_format,
+          background,
+          theme,
+          toggle_unique_architectures,
+          toggle_unique_targets,
+          dissociate_domain,
+          arch_checklist_values,
+          target_checklist_values,
+          domain_checklist_values,
+          legend_mode=True,
+        )
+        fig.update_layout(
+          polar_bgcolor="rgba(255, 255, 255, 0)",
+          paper_bgcolor=background,
+          showlegend=True,
+          legend_groupclick="toggleitem",
+          margin=dict(l=60, r=60, t=60, b=60),
+          title="Legend" if toggle_title else "",
+          title_x=0.5,
+          polar=dict(radialaxis=dict(visible=False), angularaxis=dict(visible=False)),
+          autosize=True,
+          legend_x=0,
+          legend_y=1,
+          width=width,
+          height=height,
+          template=theme,
+        )
+        radar_charts.append(
+          figures.make_figure_div(fig, "Odatix-" + str(__name__) + "-legend", dl_format, remove_zoom=True)
+        )
 
       page_background = themes.get_page_bgcolor(theme)
       return html.Div(radar_charts, style={"display": "flex", "flex-wrap": "wrap", "justify-content": "space-evenly", "backgroundColor": page_background})

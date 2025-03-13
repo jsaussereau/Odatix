@@ -62,6 +62,7 @@ def create_radar_graph(
   arch_checklist_values,
   target_checklist_values,
   domain_checklist_values,
+  legend_mode=False,
 ):
 
   fig = go.Figure()
@@ -167,22 +168,25 @@ def create_radar_graph(
           if selected_metric is None or selected_metric not in df_fmax.columns:
             return html.Div(className="error", children=[html.Div("Please select a valid metric.")])
 
-          y_values = [
-            df_fmax[df_fmax["Configuration"] == config][selected_metric].values[0]
-            if config in df_fmax["Configuration"].values
-            else None
-            for config in unique_configurations
-          ]
-              
-          cleaned_configurations = [legend.clean_configuration_name(cfg, dissociate_domain) for cfg in unique_configurations]
+          if legend_mode:
+            y_values = [None]
+          else:
+            y_values = [
+              df_fmax[df_fmax["Configuration"] == config][selected_metric].values[0]
+              if config in df_fmax["Configuration"].values
+              else None
+              for config in unique_configurations
+            ]
+                
+            cleaned_configurations = [legend.clean_configuration_name(cfg, dissociate_domain) for cfg in unique_configurations]
 
-          if toggle_close:
-            if y_values:
-              # Get index of first not None value 
-              append_value_id = next((i for i, x in enumerate(cleaned_configurations) if y_values[i] is not None), None)
-              # Append corresponding r and theta
-              y_values.append(y_values[append_value_id])
-              cleaned_configurations.append(cleaned_configurations[append_value_id])
+            if toggle_close:
+              if y_values:
+                # Get index of first not None value 
+                append_value_id = next((i for i, x in enumerate(cleaned_configurations) if y_values[i] is not None), None)
+                # Append corresponding r and theta
+                y_values.append(y_values[append_value_id])
+                cleaned_configurations.append(cleaned_configurations[append_value_id])
           
           if color_mode == "architecture":
             color_id = i_unique_architecture if toggle_unique_architectures else i_architecture
@@ -240,17 +244,20 @@ def create_radar_graph(
             else:
               symbol_id = i_freq + 1
 
-            y_values = [
-              df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
-              if config in df_frequency["Configuration"].values
-              else None
-              for config in unique_configurations
-            ]
+            if legend_mode:
+              y_values = [None]
+            else:
+              y_values = [
+                df_frequency[df_frequency["Configuration"] == config][selected_metric].values[0]
+                if config in df_frequency["Configuration"].values
+                else None
+                for config in unique_configurations
+              ]
 
-            if toggle_close:
-              if y_values and y_values[0] is not None:
-                y_values.append(y_values[0])
-                cleaned_configurations.append(cleaned_configurations[0])
+              if toggle_close:
+                if y_values and y_values[0] is not None:
+                  y_values.append(y_values[0])
+                  cleaned_configurations.append(cleaned_configurations[0])
 
             figures.add_trace_to_radar_fig(
               fig, cleaned_configurations, y_values, mode, architecture_diplay, f"{frequency} MHz",
