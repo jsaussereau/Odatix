@@ -302,7 +302,12 @@ def side_bar(explorer):
                     html.Div(className="dropdown-label", children=[html.Label("Color Mode")]),
                     dcc.Dropdown(
                       id="color-mode-dropdown",
-                      options=[{"label": "Architecture", "value": "architecture"}, {"label": "Target", "value": "target"}, {"label": "Frequency", "value": "frequency"}, {"label": "Domain Value", "value": "domain_value"}],
+                      options=[
+                        {"label": "Target", "value": "target"},
+                        {"label": "Architecture", "value": "architecture"},
+                        {"label": "Domain Value", "value": "domain_value"},
+                        {"label": "Frequency", "value": "frequency"},
+                      ],
                       value="architecture",
                     ),
                   ],
@@ -314,7 +319,13 @@ def side_bar(explorer):
                     html.Div(className="dropdown-label", children=[html.Label("Symbol Mode")]),
                     dcc.Dropdown(
                       id="symbol-mode-dropdown",
-                      options=[{"label": "None", "value": "none"}, {"label": "Architecture", "value": "architecture"}, {"label": "Target", "value": "target"}, {"label": "Frequency", "value": "frequency"}, {"label": "Domain Value", "value": "domain_value"}],
+                      options=[
+                        {"label": "None", "value": "none"},
+                        {"label": "Target", "value": "target"},
+                        {"label": "Architecture", "value": "architecture"},
+                        {"label": "Domain Value", "value": "domain_value"},
+                        {"label": "Frequency", "value": "frequency"},
+                      ],
                       value="target",
                     ),
                   ],
