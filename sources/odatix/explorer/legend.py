@@ -243,8 +243,8 @@ def setup_callbacks(explorer):
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
       Input("param-domain-dropdown", "value"),
+      Input("dissociate-domain-dropdown", "value"),
     ],
-    State("dissociate-domain-dropdown", "value"),
     [
       State(f"checklist-domains-{domain}-{config}", "value") 
       for domain in explorer.all_param_domains.keys()
