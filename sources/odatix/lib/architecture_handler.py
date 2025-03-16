@@ -463,7 +463,10 @@ class ArchitectureHandler:
 
     # get configuration (arch name after '/')
     arch_config = re.sub('.*/', '', arch)
-    arch_config_dir_work = arch_config + "+" + "+".join(map(str, requested_param_domains)).replace("/", "_")
+    if len(requested_param_domains) > 0: 
+      arch_config_dir_work = arch_config + "+" + "+".join(map(str, requested_param_domains)).replace("/", "_")
+    else:
+      arch_config_dir_work = arch_config
 
     return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains
   
