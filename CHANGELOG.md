@@ -3,6 +3,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.6.0] - 2025-03-17
+
+### Added
+
+#### Odatix Explorer
+- Add support for parameter domains filters and colors
+- Add single radar charts
+- Add scatter 3D charts
+- Add multiple layouts and chart types to overview
+
+### Changed
+
+#### Odatix
+- Change parameter domains organization. Combinaisons are now considered as configurations instead of architectures
+
+### Fixed
+
+#### Odatix Explorer
+
+- Fix metrics not appearing in the same order as in the source yaml
+- Fix modebar not being affected by themes
+
 ## [3.5.1] - 2025-03-03
 
 ### Fixed
