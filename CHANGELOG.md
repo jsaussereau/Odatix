@@ -3,6 +3,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.6.1] - 2025-03-18
+
+### Changed
+
+#### Odatix Explorer
+
+- Change default marker size for 3D charts
+
+### Fixed
+
+#### Odatix Explorer
+
+- Fix crash with python versions prior to 3.12 
+- Fix internal error in scatter 3D charts with triangle-up markers (not supported by plotly 3D charts)
+- Fix internal error when symbol mode is set on domain values
+
 ## [3.6.0] - 2025-03-17
 
 ### Added
