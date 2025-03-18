@@ -213,7 +213,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
                 elif symbol_mode == "target":
                   symbol_id = i_unique_target if toggle_unique_targets else i_target
                 elif symbol_mode == "domain_value":
-                  symbol_mode = i_dissociate_domain
+                  symbol_id = i_dissociate_domain
                 else:
                   symbol_id = 0
 

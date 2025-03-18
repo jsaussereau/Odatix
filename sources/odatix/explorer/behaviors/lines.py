@@ -223,7 +223,7 @@ def create_line_graph(
             elif symbol_mode == "target":
               symbol_id = i_unique_target if toggle_unique_targets else i_target
             elif symbol_mode == "domain_value":
-              symbol_mode = i_dissociate_domain
+              symbol_id = i_dissociate_domain
             else:
               symbol_id = i_freq + 1
 
