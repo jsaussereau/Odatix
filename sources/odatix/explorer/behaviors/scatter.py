@@ -178,7 +178,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
               df_filtered = df_architecture_target.copy()
               if dissociation_value is not None and dissociation_value != "None":
                 df_filtered = df_filtered[df_filtered[dissociate_domain] == dissociation_value]
-                architecture_diplay = architecture + f" [{dissociate_domain.replace("__main__", "main")}:{dissociation_value}]" 
+                architecture_diplay = architecture + f" [{dissociate_domain.replace('__main__', 'main')}:{dissociation_value}]" 
               else:
                 architecture_diplay = architecture
               i_dissociate_domain += 1

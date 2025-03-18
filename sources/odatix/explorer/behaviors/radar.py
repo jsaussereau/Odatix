@@ -156,7 +156,7 @@ def create_radar_graph(
         df_filtered = df_architecture_target.copy()
         if dissociation_value is not None and dissociation_value != "None":
           df_filtered = df_filtered[df_filtered[dissociate_domain] == dissociation_value]
-          architecture_diplay = architecture + f" [{dissociate_domain.replace("__main__", "main")}:{dissociation_value}]" 
+          architecture_diplay = architecture + f" [{dissociate_domain.replace('__main__', 'main')}:{dissociation_value}]" 
           cleaned_configurations = [legend.clean_configuration_name(cfg, dissociate_domain) for cfg in unique_configurations]
         else:
           architecture_diplay = architecture
