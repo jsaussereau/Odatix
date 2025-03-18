@@ -314,9 +314,13 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
           "activecolor": themes.get_button_active_color(theme, default=None),
         }
       )
+
+      fig.update_traces(marker_size=3)
+
       filename = "Odatix-{}-{}-vs-{}-vs-{}".format(
         os.path.splitext(selected_yaml)[0], selected_metric_z, selected_metric_y, selected_metric_x
       )
+
       return html.Div(
         [
           dcc.Graph(
