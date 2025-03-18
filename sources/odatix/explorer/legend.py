@@ -26,11 +26,12 @@ import plotly.express as px
 import re
 
 plot_colors = px.colors.qualitative.Plotly
-marker_symbols = ["circle", "square", "diamond", "triangle-up", "cross", "triangle-down", "pentagon", "x", "star"]
+marker_symbols = ["circle", "square", "diamond", "cross", "x", "triangle-up", "triangle-down", "pentagon", "star"]
+marker_symbols_3d = ["circle", "square", "diamond", "cross", "x", "circle-open", "diamond-open", "square-open"]
 patterns = ['', '/', 'x', '-', '|', '+', '.', '\\']
 greyed_color = "#aaa"
 
-def create_legend_item(label, value, line_style, color, type="arch", marker_symbol=0, draw_line=True, display=True):  
+def create_legend_item(label, value, line_style, color, type="arch", marker_symbol=0, draw_line=True, display=True, marker_3d=False):  
   line_color = color if draw_line else "00000000"
   return html.Div(
     [
@@ -49,7 +50,7 @@ def create_legend_item(label, value, line_style, color, type="arch", marker_symb
           "border-top": f"{line_style} {line_color}",
           "position": "relative",
         },
-        children=get_legend_marker_symbol(marker_symbol, color),
+        children=get_legend_marker_symbol(marker_symbol, color, marker_3d=marker_3d),
       ),
       html.Div(f"{label}", style={"display": "inline-block", "margin-left": "5px"}),
     ],
@@ -57,7 +58,7 @@ def create_legend_item(label, value, line_style, color, type="arch", marker_symb
     style={"display": "block" if display else "none", "margin-top": "2.5px", "margin-bottom": "2.5px"},
   )
 
-def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target"):
+def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target", marker_3d=False):
   legend_items = [
     create_legend_item(
       label=architecture, 
@@ -66,12 +67,13 @@ def create_legend_items(explorer, color_mode="Architecture", symbol_mode="Target
       color=get_color(i) if color_mode == "Architecture" else "#000",
       type="arch",
       marker_symbol=i if symbol_mode == "Architecture" else 0,
+      marker_3d=marker_3d,
     )
     for i, architecture in enumerate(explorer.all_architectures)
   ]
   return legend_items
 
-def create_target_legend_items(explorer, color_mode="Target", symbol_mode="Target"):
+def create_target_legend_items(explorer, color_mode="Target", symbol_mode="Target", marker_3d=False):
   legend_items = [
     create_legend_item(
       label=target,
@@ -81,12 +83,13 @@ def create_target_legend_items(explorer, color_mode="Target", symbol_mode="Targe
       type="target",
       marker_symbol=i if symbol_mode == "Target" else 0,
       draw_line=False,
+      marker_3d=marker_3d,
     )
     for i, target in enumerate(explorer.all_targets)
   ]
   return legend_items
 
-def create_domain_legend_items(explorer, color_mode="Domain", symbol_mode="Domain"):
+def create_domain_legend_items(explorer, color_mode="Domain", symbol_mode="Domain", marker_3d=False):
   legend_items = []
   for domain in explorer.all_param_domains.keys():
     for i, config in enumerate(explorer.all_param_domains[domain]):
@@ -99,6 +102,7 @@ def create_domain_legend_items(explorer, color_mode="Domain", symbol_mode="Domai
           type=f"domains-{domain}",
           marker_symbol=i if symbol_mode == "Domain" else 0,
           draw_line=False,
+          marker_3d=marker_3d,
         )
       )
   return legend_items
@@ -149,6 +153,7 @@ def setup_callbacks(explorer):
   @explorer.app.callback(
     Output(f"custom-legend", "children"),
     [
+      Input("url", "pathname"),
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
@@ -156,7 +161,7 @@ def setup_callbacks(explorer):
     ],
     [State(f"checklist-arch-{architecture}", "value") for architecture in explorer.all_architectures]
   )
-  def update_architecture_legend(selected_yaml, color_mode, symbol_mode, unique_architectures, *current_values):
+  def update_architecture_legend(pathname, selected_yaml, color_mode, symbol_mode, unique_architectures, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
@@ -184,7 +189,8 @@ def setup_callbacks(explorer):
         type="arch",
         marker_symbol=marker_symbol,
         draw_line=True,
-        display=display
+        display=display,
+        marker_3d=pathname in ("/scatter3d"),
       )
       legend_items.append(legend_item)
 
@@ -194,6 +200,7 @@ def setup_callbacks(explorer):
   @explorer.app.callback(
     Output(f"target-legend", "children"),
     [
+      Input("url", "pathname"),
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
@@ -201,7 +208,7 @@ def setup_callbacks(explorer):
     ],
     [State(f"checklist-target-{target}", "value") for target in explorer.all_targets],
   )
-  def update_target_legend(selected_yaml, color_mode, symbol_mode, unique_targets, *current_values):
+  def update_target_legend(pathname, selected_yaml, color_mode, symbol_mode, unique_targets, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
@@ -229,7 +236,8 @@ def setup_callbacks(explorer):
         type="target",
         marker_symbol=marker_symbol,
         draw_line=True,
-        display=display
+        display=display,
+        marker_3d=pathname in ("/scatter3d"),
       )
       legend_items.append(legend_item)
 
@@ -239,6 +247,7 @@ def setup_callbacks(explorer):
   @explorer.app.callback(
     Output("domain-legend", "children"),
     [
+      Input("url", "pathname"),
       Input("yaml-dropdown", "value"),
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
@@ -251,7 +260,7 @@ def setup_callbacks(explorer):
       for config in explorer.all_param_domains[domain]
     ],
     )
-  def update_domain_legend(selected_yaml, color_mode, symbol_mode, selected_domain, dissociate_domain, *current_values):
+  def update_domain_legend(pathname, selected_yaml, color_mode, symbol_mode, selected_domain, dissociate_domain, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
@@ -281,7 +290,8 @@ def setup_callbacks(explorer):
           type=f"domains-{domain}",
           marker_symbol=marker_symbol,
           draw_line=False,
-          display=display
+          display=display,
+          marker_3d=pathname in ("/scatter3d"),
         )
         legend_items.append(legend_item)
         i_current_value = i_current_value + 1
@@ -382,10 +392,13 @@ def get_color(i):
 def get_marker_symbol(i):
   return marker_symbols[i % len(marker_symbols)]
 
+def get_marker_symbol_3d(i):
+  return marker_symbols_3d[i % len(marker_symbols_3d)]
+
 def get_pattern(i):
   return patterns[i % len(patterns)]
 
-def get_legend_marker_symbol(marker_symbol, color="white"):
+def get_legend_marker_symbol(marker_symbol_id, color="white", marker_3d=False):
   marker_symbol_styles = {
     "circle": {"background-color": color, "border-radius": "50%"},
     "square": {"background-color": color, "border-radius": "0"},
@@ -397,6 +410,9 @@ def get_legend_marker_symbol(marker_symbol, color="white"):
     "triangle-down": {"left": "45%", "top": "-18px"},
     "pentagon": {"left": "42%", "top": "-10px", "font-size": "15px",},
     "star": {"left": "35%", "top": "-12px", "font-size": "20px",},
+    "circle-open": {"border-color": color, "border-style": "solid", "box-sizing": "border-box", "border-radius": "50%"},
+    "square-open": {"border-color": color, "border-style": "solid", "box-sizing": "border-box", "border-radius": "0"},
+    "diamond-open": {"border-color": color, "border-style": "solid", "box-sizing": "border-box", "transform": "rotate(45deg)", "left": "33%"},
   }
 
   text = {
@@ -409,12 +425,15 @@ def get_legend_marker_symbol(marker_symbol, color="white"):
     "triangle-down": "▾",
     "pentagon": "⬟",
     "star": "★",
+    "circle-open": "",
+    "square-open": "",
+    "diamond-open": "",
   }
 
-
   try:
-    marker_style = marker_symbol_styles.get(marker_symbols[marker_symbol], marker_symbol_styles["circle"])
-    text = text.get(marker_symbols[marker_symbol], "")
+    marker_symbol = marker_symbols_3d[marker_symbol_id] if marker_3d else marker_symbols[marker_symbol_id] 
+    marker_style = marker_symbol_styles.get(marker_symbol, marker_symbol_styles["circle"])
+    text = text.get(marker_symbol, "")
   except Exception as e:
     marker_style = marker_symbol_styles["circle"]
     text = ""

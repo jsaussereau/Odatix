@@ -130,8 +130,8 @@ def add_trace_to_scatter3d_fig(fig, x_values, y_values, z_values, mode, architec
       line=dict(dash="dot") if toggle_lines else None,
       marker=dict(
         size=5,
-        color=legend.get_color(color_id ),
-        symbol=legend.get_marker_symbol(symbol_id),
+        color=legend.get_color(color_id),
+        symbol=legend.get_marker_symbol_3d(symbol_id),
       ),
       name=f"{architecture} @ {frequency}" if frequency else architecture,
       customdata=[list(a) for a in zip(targets, frequencies)],
