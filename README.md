@@ -66,8 +66,8 @@ Examples:
 
 - **Column chart** of a metric (Fmax here) for multiple designs and configurations on different targets (FPGA here):
 ![Column chart of Fmax for multiple ALU designs and configurations on different FPGA architectures](./sources/images/odatix-explorer/odatix-explorer-columns.png)
-
-- **Radar chart** of a metric (Fmax here) for multiple designs and configurations on different FPGA targets (FPGA here):
+FPGAFPGA
+- **Radar chart** of a metric (Fmax here) for multiple designs and configurations on different targets (FPGA here):
 ![Radar chart: Comparative analysis of multiple implementation metrics of multiple ALU configurations across two different FPGA targets](./sources/images/odatix-explorer/odatix-explorer-radar.png)
 
 - Compararison of a metric (power consumption here) **at different operating frequencies** for multiple designs and configurations on different targets (FPGA here):
