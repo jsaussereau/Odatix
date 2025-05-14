@@ -61,7 +61,7 @@ Odatix enables designers to:
 - **Export high-quality charts** in both **raster (PNG, JPEG, WEBP)** and **vector (SVG)** formats.
 
 Examples:
-- **Line charts**: of a metric (Fmax here) for multiple designs and configurations on different targets (FPGA here):
+- **Line chart** of a metric (Fmax here) for multiple designs and configurations on different targets (FPGA here):
 ![Fmax comparison for various ALU designs and configurations on two different FPGA targets](./sources/images/odatix-explorer/odatix-explorer-lines.png)
 
 - **Column chart** of a metric (Fmax here) for multiple designs and configurations on different targets (FPGA here):
