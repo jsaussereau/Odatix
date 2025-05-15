@@ -321,7 +321,10 @@ def setup_callbacks(explorer):
     valid_dissociate_values = [x["value"] for x in available_dissociate_values]
 
     if param_domain not in valid_param_domains:
-      param_domain = valid_param_domains[0]
+      if len(valid_param_domains) > 0:
+        param_domain = valid_param_domains[0]
+      else:
+        param_domain = "main"
     if dissociate_domain not in valid_dissociate_values:
       dissociate_domain = "None"
 
