@@ -90,27 +90,37 @@ Odatix enables designers to:
 .. figure:: ../../sources/images/odatix-explorer/odatix-explorer-lines.png
   :width: 100%
 
-  Fmax **comparison for various** ALU **designs and configurations** on two different FPGA targets
+  **Line chart** of a metric (Fmax here) for multiple designs and configurations on different targets (FPGA here)
 
 .. figure:: ../../sources/images/odatix-explorer/odatix-explorer-columns.png
   :width: 100%
 
-  **Column chart** of Fmax for multiple ALU designs and configurations on different FPGA architectures
-
-.. figure:: ../../sources/images/odatix-explorer/odatix-explorer-columns-freq.png
-  :width: 100%
-
-  Power analysis **at different operating frequencies** for a multiple configurations of a counter
-
-.. figure:: ../../sources/images/odatix-explorer/odatix-explorer-scatter.png
-  :width: 100%
-
-  **Scatter plot**: Correlation between power consumption and Fmax for various ALU designs
+  **Column chart** of a metric (Fmax here) for multiple designs and configurations on different targets (FPGA here)
 
 .. figure:: ../../sources/images/odatix-explorer/odatix-explorer-radar.png
   :width: 100%
 
-  **Radar chart**: Comparative analysis of **multiple implementation metrics** of multiple ALU configurations across two different FPGA targets
+  **Radar chart** of a metric (Fmax here) for multiple designs and configurations on different targets (FPGA here)
+
+.. figure:: ../../sources/images/odatix-explorer/odatix-explorer-columns-freq.png
+  :width: 100%
+
+  Compararison of a metric (power consumption here) **at different operating frequencies** for multiple designs and configurations on different targets (FPGA here)
+
+.. figure:: ../../sources/images/odatix-explorer/odatix-explorer-scatter.png
+  :width: 100%
+
+  **Scatter plot**: Correlation between 2 metrics (power consumption and Fmax here)for multiple designs and configurations on different targets (FPGA here)
+
+.. figure:: ../../sources/images/odatix-explorer/odatix-explorer-scatter3d.png
+  :width: 100%
+
+  **Scatter 3D plot**: Correlation between 3 metrics (LUT count, register counter and Fmax here) for multiple designs and configurations on different targets (FPGA here)
+
+.. figure:: ../../sources/images/odatix-explorer/odatix-explorer-overview.png
+  :width: 100%
+
+  **Overview**: Comparative analysis of **multiple implementation metrics** for multiple designs and configurations on different targets (FPGA here)
 
 🛠 Supported EDA Tools
 ----------------------
