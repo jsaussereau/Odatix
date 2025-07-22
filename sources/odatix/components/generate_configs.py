@@ -148,7 +148,7 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
     if config_name in generated_params:
       try:
         with open(config_file_path, "w") as config_file:
-          config_file.write(generated_params[config_name] + "\n")
+          config_file.write(generated_params[config_name])
         printc.note(f"Generated {config_file_path}", script_name)
       except Exception as e:
         printc.error(f"Failed to write {config_file_path}: {e}", script_name)
