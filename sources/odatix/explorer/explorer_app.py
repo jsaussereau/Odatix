@@ -204,18 +204,18 @@ class ResultExplorer:
       for target, architectures in target_data.items():
         for architecture, configurations in architectures.items():
           for config, metrics in configurations.items():
-            param_domains = metrics.pop("Param_Domains", {})
-
-            if param_domains is not None:
-              for param, value in param_domains.items():
-                if param not in all_param_domains:
-                  all_param_domains[param] = set()
-                all_param_domains[param].add(value)
-            else:
-              param_domains = {}
 
             if result_type == "Custom Freq":
               for frequency, freq_metrics in metrics.items():
+                param_domains = freq_metrics.pop("Param_Domains", {})
+                if param_domains is not None:
+                  for param, value in param_domains.items():
+                    if param not in all_param_domains:
+                      all_param_domains[param] = set()
+                    all_param_domains[param].add(value)
+                else:
+                  param_domains = {}
+                
                 row = {
                   "Target": target,
                   "Architecture": architecture,
@@ -227,6 +227,15 @@ class ResultExplorer:
                 }
                 data.append(row)
             else:
+              param_domains = metrics.pop("Param_Domains", {})
+              if param_domains is not None:
+                for param, value in param_domains.items():
+                  if param not in all_param_domains:
+                    all_param_domains[param] = set()
+                  all_param_domains[param].add(value)
+              else:
+                param_domains = {}
+
               row = {
                 "Target": target,
                 "Architecture": architecture,
