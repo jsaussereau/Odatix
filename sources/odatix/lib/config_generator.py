@@ -217,7 +217,16 @@ class ConfigGenerator:
           settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
           if defined:
             source, _ = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
-            formatted_values = {k: self.format_value(v, self.variables.get(k, {}).get("format", "{}")) for k, v in value_map.items()}
+            formatted_values = {}
+            for k, v in value_map.items():
+              var_cfg = self.variables.get(k, {})
+              format_str = None
+              if var_cfg.get("type") == "format":
+                settings = var_cfg.get("settings", {})
+                format_str = settings.get("format", "{}")
+              else:
+                format_str = var_cfg.get("format", "{}")
+              formatted_values[k] = self.format_value(v, format_str)
             for name, value in formatted_values.items():
               source = source.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
             value_map[variable] = source
@@ -233,7 +242,16 @@ class ConfigGenerator:
             else:
               printc.warning(f'Source "{source}" not found for conversion variable "{variable}"', script_name)
 
-      formatted_values = {k: self.format_value(v, self.variables.get(k, {}).get("format", "{}")) for k, v in value_map.items()}
+      formatted_values = {}
+      for k, v in value_map.items():
+        var_cfg = self.variables.get(k, {})
+        format_str = None
+        if var_cfg.get("type") == "format":
+          settings = var_cfg.get("settings", {})
+          format_str = settings.get("format", "{}")
+        else:
+          format_str = var_cfg.get("format", "{}")
+        formatted_values[k] = self.format_value(v, format_str)
       final_template = self.template
       final_name = self.name_template
       for name, value in formatted_values.items():
