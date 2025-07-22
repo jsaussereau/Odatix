@@ -112,7 +112,7 @@ def create_radar_graph(
 
   for domain, configs in domains.items():
     if domain in filtered_df.columns:
-      filtered_df[domain] = filtered_df[domain].fillna("None")
+      filtered_df.loc[:, domain] = filtered_df[domain].fillna("None")
       excluded_values = [config for config, is_visible in configs.items() if not is_visible]
 
       # Apply exclusion only if there are forbidden values in the column
