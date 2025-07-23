@@ -329,6 +329,7 @@ class ArchitectureHandler:
 
         # Handle wildcard
         architectures = []
+        joker_archs = []
         for arch in full_architectures:
           arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, target, False)
           if arch.endswith("/*"):
@@ -358,10 +359,21 @@ class ArchitectureHandler:
                 if isdir(param_domain_dir):
                   files = [f[:-4] for f in os.listdir(param_domain_dir) if os.path.isfile(os.path.join(param_domain_dir, f)) and f.endswith(".txt")]
                   joker_param_domain[param_domain] = sorted(files)
+                else:
+                  printc.error(f"The parameter domain directory \"{param_domain_dir}\" does not exist", script_name)
+                  existing_domains = [d for d in os.listdir(arch_param) if os.path.isdir(os.path.join(arch_param, d))]
+                  if len(existing_domains) == 0:
+                    printc.tip(f"No parameter domains found in \"{arch_param}\"", script_name)
+                  else:
+                    printc.tip(f"Available parameter domains found in \"{arch_param}\": {', '.join(existing_domains)}", script_name)
+                  continue
               else:
                 param_domain = re.sub(r'/.*', '', requested_param_domain)
                 value = re.sub(r'.*/', '', requested_param_domain)
                 joker_param_domain[param_domain] = [value]
+
+            if len(joker_param_domain) == 0:
+              return None
 
             # Generate combinations
             param_keys = list(joker_param_domain.keys())
@@ -476,7 +488,7 @@ class ArchitectureHandler:
 
     # check if there is a configuration specified
     if arch_config == arch_param_dir:
-      printc.note("No architecture configuration selected for \"" + arch +  "\". Using default parameters", script_name)
+      # printc.note("No architecture configuration selected for \"" + arch +  "\". Using default parameters", script_name)
       arch = arch + "/" + arch
       no_configuration = True
     else:
