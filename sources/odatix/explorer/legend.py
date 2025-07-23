@@ -301,37 +301,46 @@ def setup_callbacks(explorer):
   # Parameter domains 
   @explorer.app.callback(
     Output("param-domain-dropdown", "options"),
-    Output("param-domain-dropdown", "value"),
     Output("dissociate-domain-dropdown", "options"),
-    Output("dissociate-domain-dropdown", "value"),
     Input("yaml-dropdown", "value"),
-    State("param-domain-dropdown", "value"),
-    State("dissociate-domain-dropdown", "value"),
   )
-  def update_param_domain_dropdown(selected_yaml, param_domain, dissociate_domain):
+  def update_domain_dropdown_options(selected_yaml):
     if len(explorer.all_param_domains) == 0:
-      return (
-        [], param_domain,
-        ["None"], dissociate_domain,
-      ) 
+      return [], ["None"]
+    
     available_values = [{"label": param.replace("__main__", "main"), "value": param} for param in explorer.param_domains[selected_yaml].keys()]
     available_dissociate_values = [{"label": "None", "value": "None"}] + available_values
 
-    valid_param_domains = [x["value"] for x in available_values]
-    valid_dissociate_values = [x["value"] for x in available_dissociate_values]
+    return available_values, available_dissociate_values
+
+  @explorer.app.callback(
+    Output("param-domain-dropdown", "value"),
+    Output("dissociate-domain-dropdown", "value"),
+    Output("color-mode-dropdown", "value"),
+    Input("param-domain-dropdown", "options"),
+    Input("dissociate-domain-dropdown", "options"),
+    Input("dissociate-domain-dropdown", "value"),
+    State("param-domain-dropdown", "value"),
+    State("color-mode-dropdown", "value"),
+  )
+  def update_domain_dropdown_values(param_options, dissociate_options, dissociate_domain, param_domain, color_mode):
+    ctx = dash.callback_context
+
+    valid_param_domains = [x["value"] for x in param_options]
+    valid_dissociate_values = [x["value"] for x in dissociate_options]
+
+    # Synchronize param_domain if dissociate_domain changes
+    if ctx.triggered and "dissociate-domain-dropdown" in ctx.triggered[0]["prop_id"]:
+      if dissociate_domain in valid_param_domains and dissociate_domain != "None":
+        param_domain = dissociate_domain
+        color_mode = "domain_value"
 
     if param_domain not in valid_param_domains:
-      if len(valid_param_domains) > 0:
-        param_domain = valid_param_domains[0]
-      else:
-        param_domain = "main"
+      param_domain = valid_param_domains[0] if valid_param_domains else "main"
     if dissociate_domain not in valid_dissociate_values:
       dissociate_domain = "None"
 
-    return (
-      available_values, param_domain,
-      available_dissociate_values, dissociate_domain,
-    )
+    return param_domain, dissociate_domain, color_mode
 
   @explorer.app.callback(
     [
