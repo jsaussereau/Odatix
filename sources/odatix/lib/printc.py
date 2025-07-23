@@ -57,6 +57,11 @@ def note(message, script_name="", end="\n"):
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.CYAN + "note: " + message + colors.ENDC, end=end)
 
+def tip(message, script_name="", end="\n"):
+  if script_name != "":
+    script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
+  print(script_name + colors.MAGENTA + "tip: " + message + colors.ENDC, end=end)
+
 def header(message):
   print(colors.BOLD + colors.CYAN + message + colors.ENDC)
 
