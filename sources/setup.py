@@ -28,6 +28,7 @@ setup(
         'odatix': [
             'version.txt',
             'explorer/**/*',
+            'gui/**/*',
             'init/**/*',
             'eda_tools/**/*',
         ],
@@ -52,6 +53,7 @@ setup(
         "console_scripts": [
             "odatix=odatix.odatix_main:main",
             "odatix-explorer=odatix.odatix_explorer:main",
+            "odatix-gui=odatix.odatix_gui:main",
         ],
     },
 )
