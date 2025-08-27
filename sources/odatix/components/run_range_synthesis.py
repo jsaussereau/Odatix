@@ -34,7 +34,7 @@ from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
 from odatix.lib.read_tool_settings import read_tool_settings
-from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError
+from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError, get_timestamp_string
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import check_tool
@@ -64,6 +64,7 @@ def add_arguments(parser):
   parser.add_argument("--to", dest="to_freq", type=int, help="override range upper bound for custom frequency synthesis (in MHz)")
   parser.add_argument("--step", dest="step_freq", type=int, help="override range step bound for custom frequency synthesis (in MHz)")
   parser.add_argument("--at", dest="at_freq", action='append', type=int, help="override freqency at which custom frequency synthesis should be run (in MHz)")
+  parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
   parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument(
     "-c",
@@ -84,7 +85,7 @@ def parse_arguments():
 ######################################
 
 
-def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, custom_freq_list=[], debug=False):
+def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, custom_freq_list=[], debug=False, keep=False):
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
@@ -221,10 +222,11 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
     forced_fmax_upper_bound=None,
     forced_custom_freq_list=custom_freq_list,
     overwrite=overwrite,
-    force_single_thread=force_single_thread,
+    force_single_thread=force_single_thread
   )
 
-  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path, range_mode=True)
+  timestamp = get_timestamp_string()
+  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path, range_mode=True,  keep=keep, timestamp=timestamp)
 
   # Print checklist summary
   arch_handler.print_summary()
@@ -298,6 +300,8 @@ def run_synthesis(run_config_settings_filename, arch_path, tool, work_path, targ
       nb_domain = 0
       arch_config = re.sub('.*/', '', arch_instance.arch_name)
       domain_dict["__main__"] = arch_config
+      if timestamp is not None:
+        domain_dict["__timestamp__"] = timestamp 
       for param_domain in arch_instance.param_domains:
         if param_domain.use_parameters:
           param_target_file = os.path.join(arch_instance.tmp_dir, param_domain.param_target_file)
@@ -478,6 +482,7 @@ def main(args, settings=None):
   nb_jobs = args.jobs
   check_eda_tool = not args.trust
   debug = args.debug
+  keep = args.keep
 
   if args.at_freq is None:
     custom_freq_list = []
@@ -500,7 +505,7 @@ def main(args, settings=None):
     else:
       sys.exit(-1)
 
-  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, custom_freq_list, debug)
+  run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, custom_freq_list, debug, keep)
 
 
 if __name__ == "__main__":

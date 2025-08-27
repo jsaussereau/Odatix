@@ -32,7 +32,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.simulation_handler import SimulationHandler
-from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue
+from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, get_timestamp_string
 from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import check_tool
 from odatix.lib.run_settings import get_sim_settings
@@ -55,6 +55,7 @@ def add_arguments(parser):
   parser.add_argument('-w', '--work', help='simulation work directory')
   parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
   parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+  parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
   parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
   parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for Odatix (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
@@ -69,7 +70,7 @@ def parse_arguments():
 # Run Simulations
 ######################################
 
-def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug=False):
+def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug=False, keep=False):
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
 
   if simulations is None:
@@ -121,8 +122,10 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
     printc.note("No simulation selected. Exiting.", script_name)
     sys.exit(-1)
     
+  timestamp = get_timestamp_string()
+
   try:
-    simulation_instances = sim_handler.get_simulations(simulations)
+    simulation_instances = sim_handler.get_simulations(simulations, keep=keep, timestamp=timestamp)
   except yaml.YAMLError as e:
     printc.error("Could not get list \"simulations\" from \"" + run_config_settings_filename + "\".", script_name=script_name)
     printc.note("Is the YAML file valid? Are you missing a ':'? Is the indentation correct?", script_name=script_name)
@@ -197,6 +200,8 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
       nb_domain = 0
       arch_config = re.sub('.*/', '', sim_instance.architecture.arch_name)
       domain_dict["__main__"] = arch_config
+      # if timestamp is not None:
+      #   domain_dict["__timestamp__"] = timestamp 
       for param_domain in sim_instance.architecture.param_domains:
         if param_domain.use_parameters:
           param_target_file = os.path.join(sim_instance.tmp_dir, sim_instance.architecture.param_target_filename)
@@ -317,8 +322,9 @@ def main(args, settings=None):
   log_size_limit = args.logsize
   nb_jobs = args.jobs
   debug = args.debug
+  keep = args.keep
 
-  run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug)
+  run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug, keep)
 
 
 if __name__ == "__main__":

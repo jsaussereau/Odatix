@@ -261,7 +261,7 @@ class ArchitectureHandler:
     self.new_archs = []
     self.deprecation_notice_archs = []
 
-  def get_architectures(self, architectures, targets, constraint_filename="", install_path="", range_mode=False):
+  def get_architectures(self, architectures, targets, constraint_filename="", install_path="", range_mode=False, keep=False, timestamp=""):
 
     self.reset_lists()
     self.architecture_instances = []
@@ -399,7 +399,9 @@ class ArchitectureHandler:
             synthesis = True,
             constraint_filename = constraint_filename,
             install_path = install_path,
-            range_mode = range_mode
+            range_mode = range_mode,
+            keep=keep,
+            timestamp=timestamp,
           )
           if not range_mode:
             if architecture_instance is not None:
@@ -482,7 +484,7 @@ class ArchitectureHandler:
 
     return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains
   
-  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", range_mode=False):
+  def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", range_mode=False, keep=False, timestamp=""):
     
     arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
 
@@ -493,6 +495,8 @@ class ArchitectureHandler:
       no_configuration = True
     else:
       no_configuration = False
+    
+    arch_config_dir_work = arch_config_dir_work + "_" + timestamp if keep and timestamp != "" else arch_config_dir_work
 
     tmp_dir = os.path.join(self.work_path, target, arch_param_dir_work, arch_config_dir_work)
     fmax_status_file = os.path.join(tmp_dir, self.log_path, self.fmax_status_filename)

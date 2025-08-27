@@ -75,7 +75,7 @@ class SimulationHandler:
     self.incomplete_sims = []
     self.new_sims = []
 
-  def get_simulations(self, simulations):
+  def get_simulations(self, simulations, keep=False, timestamp=""):
 
     self.reset_lists()
     self.simulation_instances = []
@@ -111,6 +111,7 @@ class SimulationHandler:
               # Handle wildcard
               architectures = []
               for arch in arch_list:
+                print(f"arch: {arch}")
                 arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, "", False)
                 if arch.endswith("/*"):
                   # get param dir (arch name before '/*')
@@ -159,16 +160,18 @@ class SimulationHandler:
               architectures = list(dict.fromkeys(architectures))
               
               for arch in architectures:
-                simulation_instance = self.get_simulation(sim, arch, arch_handler)
+                simulation_instance = self.get_simulation(sim, arch, arch_handler, keep=keep, timestamp=timestamp)
                 if simulation_instance is not None:
                   self.simulation_instances.append(simulation_instance)
 
     return self.simulation_instances
     
   
-  def get_simulation(self, sim, arch_full, arch_handler):
+  def get_simulation(self, sim, arch_full, arch_handler, keep=False, timestamp=""):
     
     arch, arch_param, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch_full)
+
+    arch_config_dir_work = arch_config_dir_work + "_" + timestamp if keep and timestamp != "" else arch_config_dir_work
 
     tmp_dir = os.path.join(self.work_path, sim, arch_param_dir_work, arch_config_dir_work) 
 

@@ -306,3 +306,6 @@ def merge_dicts_of_lists(base_dict, merging_dict):
       combined = set(base_dict[key]) | set(new_list)
       base_dict[key] = sorted(combined)
   return base_dict
+
+def get_timestamp_string() -> str:
+  return datetime.now().strftime("%Y-%m-%d_%H-%M-%S") 
