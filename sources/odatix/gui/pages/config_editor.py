@@ -25,6 +25,7 @@ from dash import html, dcc, Input, Output, State, ctx
 import urllib.parse
 import yaml
 import odatix.gui.ui_components as ui
+import odatix.components.replace_params as replace_params
 
 dash.register_page(
     __name__,
@@ -199,20 +200,125 @@ def config_parameters_form(settings):
         ], style={"marginBottom": "12px"}),
         html.Button("Save", id="save-params-btn", n_clicks=0, className="save-button", style={"marginTop": "8px"}),
         html.Div(id="save-params-status", className="status", style={"marginLeft": "16px"}),
-    ], className="tile", style={"marginBottom": "24px", "marginLeft": "6px"})
+    ])
+
+
+def preview_pane(settings: dict, replacement_text: str):
+    param_target_file = settings.get("param_target_file", "")
+    if param_target_file == "":
+        param_target_file = settings.get("top_level_file", "")
+    generate_rtl = settings.get("generate_rtl", False)
+    if generate_rtl:
+        param_target_file = os.path.join(settings.get("design_path", ""), param_target_file)
+    else:
+        param_target_file = os.path.join(settings.get("rtl_path", ""), param_target_file)
+    if os.path.exists(param_target_file):
+        base_text = replace_params.read_file(param_target_file)
+        start_delimiter = settings.get("start_delimiter", "")
+        stop_delimiter = settings.get("stop_delimiter", "")
+        new_content, match_found = replace_params.replace_content(
+            base_text=base_text,
+            replacement_text=replacement_text,
+            start_delim=start_delimiter, 
+            stop_delim=stop_delimiter, 
+            replace_all_occurrences=False,
+        )
+        if not match_found:
+            preview_components=html.Span(base_text, style={"whiteSpace": "pre-wrap", "color": "#FA5252", "fontWeight": "800"}) 
+        else:
+            start_line, start_charater = replace_params.get_first_appearance(new_content, start_delimiter)
+            stop_line, stop_charater = replace_params.get_first_appearance(new_content, stop_delimiter, start_line=start_line, start_char=start_charater+len(start_delimiter)+1)
+            lines = new_content.splitlines()
+            preview_start = 0
+            preview_stop = len(lines)
+            preview_lines = lines[preview_start:preview_stop]
+            preview_components = []
+            # preview_components.append(html.Span("[...]\n", style={"color": "#888"}))
+            for idx, line in enumerate(preview_lines):
+                line_idx = preview_start + idx
+                line_parts = []
+
+                # Case where start and stop are on the same line
+                if start_line == stop_line and line_idx == start_line - 1:
+                    s_idx = start_charater
+                    e_idx = stop_charater
+                    if s_idx > 0:
+                        line_parts.append(line[:s_idx])
+                    line_parts.append(html.Span(start_delimiter, className="text-highlight yellow"))
+                    line_parts.append(html.Span(line[s_idx+len(start_delimiter):e_idx], className="text-highlight green"))
+                    line_parts.append(html.Span(stop_delimiter, className="text-highlight yellow"))
+                    if e_idx + len(stop_delimiter) < len(line):
+                        line_parts.append(line[e_idx+len(stop_delimiter):])
+                # Start delimiter line
+                elif line_idx == start_line - 1:
+                    if start_charater != -1:
+                        if start_charater > 0:
+                            line_parts.append(line[:start_charater])
+                        line_parts.append(html.Span(start_delimiter, className="text-highlight yellow"))
+                        line_parts.append(html.Span(line[start_charater+len(start_delimiter):], className="text-highlight green"))
+                    else:
+                        line_parts.append(line)
+                # Stop delimiter line
+                elif line_idx == stop_line - 1:
+                    if stop_charater != -1:
+                        if stop_charater > 0:
+                            line_parts.append(html.Span(line[:stop_charater], className="text-highlight green"))
+                        line_parts.append(html.Span(stop_delimiter, className="text-highlight yellow"))
+                        if stop_charater + len(stop_delimiter) < len(line):
+                            line_parts.append(line[stop_charater+len(stop_delimiter):])
+                    else:
+                        line_parts.append(line)
+                # Replaced content lines
+                elif start_line-1 < line_idx < stop_line-1:
+                    line_parts.append(html.Span(line, className="text-highlight green"))
+                else:
+                    line_parts.append(line)
+                preview_components.extend(line_parts)
+                preview_components.append(html.Br())
+            # preview_components.append(html.Span("[...]", style={"color": "#888"}))
+
+        preview_div = html.Pre(
+            children=preview_components,
+            id="preview-pre",
+            style={
+                "width": "95%",
+                "max-width": "600px",
+                "height": "235px",
+                "min-height": "235px",
+                "fontFamily": "monospace",
+                "fontSize": "0.9em",
+                "fontWeight": "normal",
+                "padding": "5px",
+                "overflow": "auto",
+                "whiteSpace": "pre-wrap",
+                "resize": "vertical",
+            }
+        )
+    else:
+        preview_div = html.Div("No preview available.", className="error")
+    return html.Div(
+        children=[
+            html.H3("Preview Pane"),
+            preview_div,
+        ], 
+    )
 
 layout = html.Div([
     dcc.Location(id="url"),
-    html.Div(id="config-parameters"),
+    html.Div(
+        children=[
+            html.Div(id="config-parameters", className="tile config"),
+            html.Div(id="preview-pane", className="tile config"),
+        ], 
+        className="card-matrix config",
+        style={"marginLeft": "-13px"},
+    ),
     html.Div([
-        html.Div(id="config-cards-row"),
-        # add_card(),
-    ], style={
-        "display": "flex",
-        "flexWrap": "wrap",
-        "gap": "10px",
-        "marginTop": "24px"
-    }),
+        html.Div(
+            id="config-cards-row",
+            className="card-matrix configs", 
+        ),
+    ]),
     dcc.Store(id="config-files-store"),
     dcc.Store(id="config-params-store"),
     dcc.Store(id="initial-configs-store"),
@@ -221,6 +327,23 @@ layout = html.Div([
     "padding": "20px 16%",
     "minHeight": "100vh"
 })
+
+
+@dash.callback(
+    Output("preview-pane", "children"),
+    Input("url", "search"),
+    Input("param_target_file", "value"),
+    Input("start_delimiter", "value"),
+    Input("stop_delimiter", "value"),
+    Input("config-params-store", "data"),
+    Input({"type": "config-content", "filename": dash.ALL}, "value"),
+)
+def update_preview(search, target_file, start_delim, stop_delim, settings, config_contents):
+    settings["param_target_file"] = target_file
+    settings["start_delimiter"] = start_delim
+    settings["stop_delimiter"] = stop_delim
+    replacement_text = config_contents[0] if config_contents else ""
+    return preview_pane(settings, replacement_text)
 
 @dash.callback(
     Output("config-parameters", "children"),
@@ -317,6 +440,8 @@ def update_config_cards(
                 save_config_file(arch_name, new_filename, configs[filename])
                 configs[new_filename] = configs[filename]
 
+    initial_configs = configs.copy()
+
     cards = [config_card(f, configs[f], initial_configs.get(f, "")) for f in configs] + [add_card()]
     return cards, configs, initial_configs
 
@@ -336,7 +461,6 @@ def update_save_status(title_values, content_values, initial_titles, initial_con
     status_texts = []
     for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
         if title != initial_title or content != initial_content:
-            print(f"spotted change: {title} != {initial_title} or {content} != {initial_content}")
             save_classes.append("color-button orange")
             status_classes.append("status warning")
             status_texts.append("Unsaved changes!")

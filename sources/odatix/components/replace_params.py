@@ -73,10 +73,23 @@ def write_file(file_path, content):
         printc.error("Could not write output file \"" + file_path + "\": " + str(e), script_name)
         sys.exit(1)
 
+def get_first_appearance(text, substring, start_line=1, start_char=1):
+    """Returns the line and character number of the first appearance of a substring in the text."""
+    lines = text.splitlines()
+    for line_number, line in enumerate(lines[start_line-1:], start=start_line-1):
+        start = start_char - 1 if line_number == start_line-1 else 0
+        char_index = line.find(substring, start)
+        if char_index != -1:
+            return line_number + 1, char_index
+    return -1, -1  # Not found
+
 def replace_content(base_text, replacement_text, start_delim, stop_delim, replace_all_occurrences):
     """Replaces text between specified delimiters in the base text with the replacement text."""
     pattern = re.escape(start_delim) + '.*?' + re.escape(stop_delim)
 
+    if start_delim == "" or stop_delim == "":
+        return base_text, False
+    
     match_found = re.search(pattern, base_text, flags=re.DOTALL) is not None
     
     if replace_all_occurrences:

@@ -197,6 +197,13 @@ input {
     box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04);
 }
 
+pre{
+    border-radius: 6px;
+    background-color: #f6f8fa;
+    border: 1px solid #d1d5da;
+    box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04);
+}
+
 textarea {
     background-color: #f6f8fa;
     border: 1px solid #d1d5da;
@@ -371,6 +378,14 @@ button:focus {
     gap: 10px;
     justify-content: center; 
 }
+.card-matrix.config {
+    grid-template-columns: repeat(auto-fit, 600px);
+    gap: 0px;
+}
+.card-matrix.configs {
+    grid-template-columns: repeat(auto-fit, 300px);
+    gap: 0px;
+}
 
 .home.card {
     width: 450px;
@@ -441,7 +456,6 @@ button:focus {
     width: 80%;
     max-width: 500px;
     background: #fff;
-    margin-top: 10px;
     margin-bottom: 16px;
     padding: 32px;
     border-radius: 10px;
@@ -452,6 +466,19 @@ button:focus {
         width 0.4s cubic-bezier(0.4, 0.2, 0.2, 1),
         height 0.4s cubic-bezier(0.4, 0.2, 0.2, 1),
         transform 0.4s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.tile.config {
+    justify-self: center;
+    max-width: 510px;
+    width: 510px;
+}
+
+@media screen and (max-width: 600px) {
+    .tile.config {
+        width: 60%;
+        max-width: 60%;
+    }
 }
 
 .tiles-container {
@@ -561,4 +588,24 @@ h3 {
     color: #868E964D;
     background-color: #868E9614;
     pointer-events: none;
+}
+
+.text-highlight {
+    border-radius: 6px;
+    font-weight: 700;
+}
+.text-highlight.green {
+    color: #21632D;
+}
+.text-highlight.blue {
+    border: 1px solid #228BE6;
+    color: #114168;
+    background-color: #228BE633;
+}
+.text-highlight.yellow {
+    border: 2px solid #FFE65E;
+    background-color: #FFE65E;
+}
+.text-highlight.orange {
+    background-color: #FD7E14aa;
 }
