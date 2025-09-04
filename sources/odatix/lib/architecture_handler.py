@@ -783,7 +783,7 @@ class ArchitectureHandler:
       self.valid_archs.append(arch_display_name)
       self.checked_arch_param.append(arch_param_dir)
 
-    lib_name = "LIB_" + target + "_" + arch.replace("/", "_")
+    lib_name = "LIB_" + target + "_" + arch_param_dir_work + "_" + arch_config_dir_work
 
     tmp_script_path = os.path.join(tmp_dir, self.work_script_path)
     tmp_report_path = os.path.join(tmp_dir, self.work_report_path)
