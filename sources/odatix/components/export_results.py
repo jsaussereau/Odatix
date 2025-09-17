@@ -686,18 +686,27 @@ def main(args, settings=None):
   # Get settings
   if settings is None:
     settings = OdatixSettings(args.config)
-    if not settings.valid:
+    if not settings.valid and (args.work is None or args.respath is None):
+      printc.error("Could not load settings from file \"" + args.config + "\"", script_name=script_name)
       sys.exit(-1)
 
   if args.use_benchmark is not None:
     use_benchmark = args.use_benchmark
   else:
-    use_benchmark = settings.use_benchmark
+    if settings.valid:
+      use_benchmark = settings.use_benchmark
+    else:
+      use_benchmark = False
+      benchmark_file = None
 
   if args.benchmark_file is not None:
     benchmark_file = args.benchmark_file
   else:
-    benchmark_file = settings.benchmark_file
+    if settings.valid:
+      benchmark_file = settings.benchmark_file
+    else:
+      use_benchmark = False
+      benchmark_file = None
 
   if args.work is not None:
     input = args.work
@@ -715,7 +724,19 @@ def main(args, settings=None):
   else:
     output = settings.result_path
 
-  result_types = settings.result_types
+  if settings.valid:
+    result_types = settings.result_types
+  else:
+    result_types =  {
+      "custom_freq_synthesis": {
+        "key": "custom_freq_synthesis",
+        "path": OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH
+      },
+      "fmax_synthesis": {
+        "key": "fmax_synthesis",
+        "path": OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH
+      },
+    }
 
   if args.tool == "all":
     tools = args.tool
