@@ -59,6 +59,14 @@ themes = {
     "button_color":" #aaaaaa",
     "button_active_color": "#ffffff",
   },
+  "candy": {
+    "base_template": "odatix_darker",
+    "nav_bgcolor":"#E156E8",
+    "page_bgcolor": "#954DC5",
+    "plot_bgcolor": "#6D13A8",
+    "button_color":"#DFA2FC",
+    "button_active_color": "#FCA2E7",
+  },
   "default": {
     "base_template": None,
     "nav_bgcolor":"#24292e",
@@ -99,6 +107,14 @@ def get_button_active_color(theme, default=themes["default"]["button_active_colo
   else:
     return default
 
+templates["candy"] = go.layout.Template(
+  layout = copy.deepcopy(templates["plotly"].layout).update(
+    paper_bgcolor=get_page_bgcolor("candy"),
+    plot_bgcolor=get_plot_bgcolor("candy"),
+    polar_bgcolor=get_plot_bgcolor("candy"),
+    barcornerradius=10000,
+  )
+)
 
 templates["code_dark"] = go.layout.Template(
   layout = copy.deepcopy(templates["plotly_dark"].layout).update(
