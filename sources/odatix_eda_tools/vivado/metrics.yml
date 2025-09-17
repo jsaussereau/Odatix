@@ -31,6 +31,14 @@ metrics:
       group_id: 2
     format: "%.0f"
 
+  LUT_percent:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "\\| (?:Slice|CLB) LUTs .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      group_id: 1
+    format: "%.2f"
+
   Reg_count:
     type: regex
     settings:
@@ -38,6 +46,14 @@ metrics:
       pattern: "\\| (Slice|CLB) Registers \\s*\\|\\s*([0-9]+).*"
       group_id: 2
     format: "%.0f"
+
+  Reg_percent:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "\\| (?:Slice|CLB) Registers .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      group_id: 1
+    format: "%.2f"
 
   LUT+Reg_count:
     type: operation
@@ -53,6 +69,14 @@ metrics:
       group_id: 3
     format: "%.0f"
 
+  BRAM_percent:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "\\| Block RAM Tile .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      group_id: 1
+    format: "%.2f"
+
   DSP_count:
     type: regex
     settings:
@@ -60,6 +84,14 @@ metrics:
       pattern: "\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)"
       group_id: 3
     format: "%.0f"
+
+  DSP_percent:
+    type: regex
+    settings:
+      file: report/utilization.rep
+      pattern: "\\| DSPs .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      group_id: 1
+    format: "%.2f"
 
   Static_Power:
     type: regex
