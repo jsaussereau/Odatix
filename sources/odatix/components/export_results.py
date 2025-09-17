@@ -687,7 +687,7 @@ def main(args, settings=None):
   if settings is None:
     settings = OdatixSettings(args.config)
     if not settings.valid and (args.work is None or args.respath is None):
-      printc.error("Could not load settings from file \"" + args.config + "\"", script_name=script_name)
+      printc.error("Could not load settings from file \"" + args.config + "\" and -w and/or -r options are not used", script_name=script_name)
       sys.exit(-1)
 
   if args.use_benchmark is not None:
