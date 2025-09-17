@@ -324,6 +324,9 @@ def setup_callbacks(explorer):
     State("color-mode-dropdown", "value"),
   )
   def update_domain_dropdown_values(param_options, dissociate_options, dissociate_domain, param_domain, color_mode):
+    if type(dissociate_options) is list:
+      return dash.no_update, dash.no_update, dash.no_update
+    
     ctx = dash.callback_context
 
     valid_param_domains = [x["value"] for x in param_options]
