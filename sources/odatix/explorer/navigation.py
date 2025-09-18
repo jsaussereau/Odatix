@@ -646,3 +646,12 @@ def setup_sidebar_callbacks(explorer):
 
     return sidebar_style, content_style, navbar_style, navbar_title_style, sidebar_top, toggle_style, url
 
+  @explorer.app.callback(
+    Output("main-container", "className"),
+    Input("theme-dropdown", "value"),
+  
+  )
+  def update_theme(
+    theme
+  ):
+    return f"main-container {theme if theme != 'plotly' else ''}"

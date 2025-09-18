@@ -1,0 +1,92 @@
+/**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+.main-container {
+  --main-bg-color: #ffffff;
+  --main-text-color: #ffffff;
+  --main-border-color: #24292e;
+  --main-border-color-hover: #24292e;
+  --main-border-radius: 10px;
+  --button-bg-color: #545c64;
+  --button-bg-color-hover: #2f567d;
+  --dropdown-bg-color: #636b71;
+  --dropdown-bg-color-hover: #2f567d;
+  --dropdown-menu-bg-color: #636b71;
+  --sidebar-button-bg-filter: none;
+}
+
+.main-container.code_dark {
+  --main-bg-color: #252526;
+  --main-text-color: #ffffff;
+  --main-border-color: #3c3c3c;
+  --main-border-color-hover: #0078d4;
+  --main-border-radius: 3px;
+  --button-bg-color: #0078d4;
+  --button-bg-color-hover: #026ec1;
+  --dropdown-bg-color: #313131;
+  --dropdown-bg-color-hover: #313131;
+  --dropdown-menu-bg-color: #313131;
+}
+
+.main-container.odatix_dark {
+  --main-bg-color: #252526;
+  --main-text-color: #ffffff;
+  --main-border-color: #24292e;
+  --main-border-color-hover: #24292e;
+  --button-bg-color: #24292e;
+  --button-bg-color-hover: #026ec1;
+  --dropdown-bg-color: #24292e;
+  --dropdown-bg-color-hover: #026ec1;
+  --dropdown-menu-bg-color: #24292e;
+}
+
+.main-container.odatix_darker {
+  --button-bg-color: #1b1e22;
+  --dropdown-bg-color: #1b1e22;
+  --dropdown-menu-bg-color: #1b1e22;
+}
+
+.main-container.odatix_light {
+  --main-bg-color: #ffffff;
+  --main-text-color: #24292e;
+  --main-border-color: #d1d5da;
+  --main-border-color-hover: #c6cbd1;
+  --main-border-radius: 6px;
+  --button-bg-color: #f6f8fa;
+  --button-bg-color-hover: #d1d5da;
+  --dropdown-bg-color: #f6f8fa;
+  --dropdown-bg-color-hover: #d1d5da;
+  --dropdown-menu-bg-color: #f6f8fa;
+  --sidebar-button-bg-filter: invert(0%) brightness(0%);
+}
+
+.main-container.candy {
+  --main-border-color: #00000000;
+  --main-border-color-hover: #00000000;
+  --main-border-radius: 20px;
+  --button-bg-color: #DFA2FC;
+  --button-bg-color-hover: #FCA2E7;
+  --dropdown-bg-color: #DFA2FC;
+  --dropdown-bg-color-hover: #FCA2E7;
+  --dropdown-menu-bg-color: #af58e9;
+}
+
