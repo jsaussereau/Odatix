@@ -78,31 +78,31 @@ themes = {
 }
 
 def get_page_bgcolor(theme, default=themes["default"]["page_bgcolor"]):
-  if theme in themes:
+  if theme in themes and "page_bgcolor" in themes[theme]:
     return themes[theme]["page_bgcolor"]
   else:
     return default
 
 def get_nav_bgcolor(theme, default=themes["default"]["nav_bgcolor"]):
-  if theme in themes:
+  if theme in themes and "nav_bgcolor" in themes[theme]:
     return themes[theme]["nav_bgcolor"]
   else:
     return default
 
 def get_plot_bgcolor(theme, default=themes["default"]["plot_bgcolor"]):
-  if theme in themes:
+  if theme in themes and "plot_bgcolor" in themes[theme]:
     return themes[theme]["plot_bgcolor"]
   else:
     return default
 
 def get_button_color(theme, default=themes["default"]["button_color"]):
-  if theme in themes:
+  if theme in themes and "button_color" in themes[theme]:
     return themes[theme]["button_color"]
   else:
     return default
 
 def get_button_active_color(theme, default=themes["default"]["button_active_color"]):
-  if theme in themes:
+  if theme in themes and "button_active_color" in themes[theme]:
     return themes[theme]["button_active_color"]
   else:
     return default
