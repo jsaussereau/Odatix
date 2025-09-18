@@ -19,11 +19,13 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import re
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.express as px
-import re
+
+import odatix.explorer.themes as themes
 
 plot_colors = px.colors.qualitative.Plotly
 marker_symbols = ["circle", "square", "diamond", "cross", "x", "triangle-up", "triangle-down", "pentagon", "star"]
@@ -55,6 +57,7 @@ def create_legend_item(label, value, line_style, color, type="arch", marker_symb
       html.Div(f"{label}", style={"display": "inline-block", "margin-left": "5px"}),
     ],
     id=f"legend-item-{type}-{label}",
+    className="legend-item",
     style={"display": "block" if display else "none", "margin-top": "2.5px", "margin-bottom": "2.5px"},
   )
 
@@ -151,22 +154,23 @@ def setup_callbacks(explorer):
 
   # Architectures 
   @explorer.app.callback(
-    Output(f"custom-legend", "children"),
-    [
-      Input("url", "pathname"),
-      Input("yaml-dropdown", "value"),
-      Input("color-mode-dropdown", "value"),
-      Input("symbol-mode-dropdown", "value"),
-      Input("toggle-unique-architectures", "value"),
-    ],
+    Output("custom-legend", "children"),
+    Input("url", "pathname"),
+    Input("yaml-dropdown", "value"),
+    Input("color-mode-dropdown", "value"),
+    Input("symbol-mode-dropdown", "value"),
+    Input("toggle-unique-architectures", "value"),
+    Input("theme-dropdown", "value"),
     [State(f"checklist-arch-{architecture}", "value") for architecture in explorer.all_architectures]
   )
-  def update_architecture_legend(pathname, selected_yaml, color_mode, symbol_mode, unique_architectures, *current_values):
+  def update_architecture_legend(pathname, selected_yaml, color_mode, symbol_mode, unique_architectures, theme, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
     yaml_architectures = explorer.dfs[selected_yaml]["Architecture"].unique()
     legend_items = []
+
+    legend_default_color = themes.get_legend_default_color(theme)
 
     i_existing = -1 
     for i, (architecture, value) in enumerate(zip(explorer.all_architectures, current_values)):
@@ -178,7 +182,7 @@ def setup_callbacks(explorer):
 
       trace_id = i if unique_architectures else i_existing
       
-      color = get_color(trace_id) if color_mode == "architecture" else "#fff"
+      color = get_color(trace_id) if color_mode == "architecture" else legend_default_color
       marker_symbol = trace_id if symbol_mode == "architecture" else 0
 
       legend_item = create_legend_item(
@@ -199,21 +203,22 @@ def setup_callbacks(explorer):
   # Targets
   @explorer.app.callback(
     Output(f"target-legend", "children"),
-    [
-      Input("url", "pathname"),
-      Input("yaml-dropdown", "value"),
-      Input("color-mode-dropdown", "value"),
-      Input("symbol-mode-dropdown", "value"),
-      Input("toggle-unique-targets", "value"),
-    ],
+    Input("url", "pathname"),
+    Input("yaml-dropdown", "value"),
+    Input("color-mode-dropdown", "value"),
+    Input("symbol-mode-dropdown", "value"),
+    Input("toggle-unique-targets", "value"),
+    Input("theme-dropdown", "value"),
     [State(f"checklist-target-{target}", "value") for target in explorer.all_targets],
   )
-  def update_target_legend(pathname, selected_yaml, color_mode, symbol_mode, unique_targets, *current_values):
+  def update_target_legend(pathname, selected_yaml, color_mode, symbol_mode, unique_targets, theme, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
     yaml_targets = explorer.dfs[selected_yaml]["Target"].unique()
     legend_items = []
+
+    legend_default_color = themes.get_legend_default_color(theme)
 
     i_existing = -1 
     for i, (target, value) in enumerate(zip(explorer.all_targets, current_values)):
@@ -225,7 +230,7 @@ def setup_callbacks(explorer):
 
       trace_id = i if unique_targets else i_existing
       
-      color = get_color(trace_id) if color_mode == "target" else "#fff"
+      color = get_color(trace_id) if color_mode == "target" else legend_default_color
       marker_symbol = trace_id if symbol_mode == "target" else 0
 
       legend_item = create_legend_item(
@@ -246,25 +251,26 @@ def setup_callbacks(explorer):
   # Domains
   @explorer.app.callback(
     Output("domain-legend", "children"),
-    [
-      Input("url", "pathname"),
-      Input("yaml-dropdown", "value"),
-      Input("color-mode-dropdown", "value"),
-      Input("symbol-mode-dropdown", "value"),
-      Input("param-domain-dropdown", "value"),
-      Input("dissociate-domain-dropdown", "value"),
-    ],
+    Input("url", "pathname"),
+    Input("yaml-dropdown", "value"),
+    Input("color-mode-dropdown", "value"),
+    Input("symbol-mode-dropdown", "value"),
+    Input("param-domain-dropdown", "value"),
+    Input("dissociate-domain-dropdown", "value"),
+    Input("theme-dropdown", "value"),
     [
       State(f"checklist-domains-{domain}-{config}", "value") 
       for domain in explorer.all_param_domains.keys()
       for config in explorer.all_param_domains[domain]
     ],
     )
-  def update_domain_legend(pathname, selected_yaml, color_mode, symbol_mode, selected_domain, dissociate_domain, *current_values):
+  def update_domain_legend(pathname, selected_yaml, color_mode, symbol_mode, selected_domain, dissociate_domain, theme, *current_values):
     if not selected_yaml or selected_yaml not in explorer.dfs:
       return []
 
     legend_items = []
+
+    legend_default_color = themes.get_legend_default_color(theme)
 
     i_existing = -1 
     i_current_value = 0
@@ -279,7 +285,7 @@ def setup_callbacks(explorer):
         # trace_id = i if unique_domains else i_existing
         trace_id = i
         
-        color = get_color(trace_id) if color_mode == "domain_value" and selected_domain == dissociate_domain else "#fff"
+        color = get_color(trace_id) if color_mode == "domain_value" and selected_domain == dissociate_domain else legend_default_color
         marker_symbol = trace_id if symbol_mode == "domain_value" and selected_domain == dissociate_domain else 0
 
         legend_item = create_legend_item(
