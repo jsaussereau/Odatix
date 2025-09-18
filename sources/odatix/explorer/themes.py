@@ -51,6 +51,15 @@ themes = {
     "button_color":" #aaaaaa",
     "button_active_color": "#ffffff",
   },
+  "odatix_light": { 
+    "base_template": None,
+    "nav_bgcolor": "#e5ecf6",
+    "page_bgcolor": "#ffffff",
+    "plot_bgcolor": "#ffffff",
+    "button_color":" #aaaaaa",
+    "button_active_color": "#ffffff",
+    "legend_default_color": "#24292e",
+  },
   "plotly_dark": {
     "base_template": None,
     "nav_bgcolor":"#0b0b0b",
