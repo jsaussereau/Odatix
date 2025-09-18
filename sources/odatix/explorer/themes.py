@@ -74,6 +74,7 @@ themes = {
     "plot_bgcolor": "#ffffff",
     "button_color":" #aaaaaa",
     "button_active_color": "#ffffff",
+    "legend_default_color": "#ffffff",
   },
 }
 
@@ -104,6 +105,12 @@ def get_button_color(theme, default=themes["default"]["button_color"]):
 def get_button_active_color(theme, default=themes["default"]["button_active_color"]):
   if theme in themes and "button_active_color" in themes[theme]:
     return themes[theme]["button_active_color"]
+  else:
+    return default
+
+def get_legend_default_color(theme, default=themes["default"]["legend_default_color"]):
+  if theme in themes and "legend_default_color" in themes[theme]:
+    return themes[theme]["legend_default_color"]
   else:
     return default
 
@@ -140,5 +147,10 @@ templates["odatix_dark"] = go.layout.Template(
   )
 )
 
-#2b2929
-#565c64
+templates["odatix_light"] = go.layout.Template(
+  layout = copy.deepcopy(templates["plotly"].layout).update(
+    paper_bgcolor=get_page_bgcolor("odatix_light"),
+    plot_bgcolor=get_plot_bgcolor("odatix_light"),
+    polar_bgcolor=get_plot_bgcolor("odatix_light"),
+  )
+)
