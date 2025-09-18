@@ -52,7 +52,7 @@ themes = {
     "button_active_color": "#ffffff",
   },
   "odatix_light": { 
-    "base_template": None,
+    "base_template": "plotly_white",
     "nav_bgcolor": "#e5ecf6",
     "page_bgcolor": "#ffffff",
     "plot_bgcolor": "#ffffff",
@@ -157,7 +157,7 @@ templates["odatix_dark"] = go.layout.Template(
 )
 
 templates["odatix_light"] = go.layout.Template(
-  layout = copy.deepcopy(templates["plotly"].layout).update(
+  layout = copy.deepcopy(templates["plotly_white"].layout).update(
     paper_bgcolor=get_page_bgcolor("odatix_light"),
     plot_bgcolor=get_plot_bgcolor("odatix_light"),
     polar_bgcolor=get_plot_bgcolor("odatix_light"),

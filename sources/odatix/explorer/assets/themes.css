@@ -26,6 +26,12 @@
   --main-border-color: #24292e;
   --main-border-color-hover: #24292e;
   --main-border-radius: 10px;
+  --home-bg-color: #f6f8fa;
+  --card-bg-color: #ffffff;
+  --card-text-color: #24292e;
+  --card-border: 1px solid #ddd;
+  --card-border-hover: 1px solid #ddd;
+  --card-border-radius: 8px;
   --button-bg-color: #545c64;
   --button-bg-color-hover: #2f567d;
   --dropdown-bg-color: #636b71;
@@ -40,6 +46,12 @@
   --main-border-color: #3c3c3c;
   --main-border-color-hover: #0078d4;
   --main-border-radius: 3px;
+  --home-bg-color: #252526;
+  --card-bg-color: #313131;
+  --card-text-color: #ffffff;
+  --card-border: 1px solid #00000000;
+  --card-border-hover: 1px solid #0078d4;
+  --card-border-radius: 3px;
   --button-bg-color: #0078d4;
   --button-bg-color-hover: #026ec1;
   --dropdown-bg-color: #313131;
@@ -52,6 +64,11 @@
   --main-text-color: #ffffff;
   --main-border-color: #24292e;
   --main-border-color-hover: #24292e;
+  --home-bg-color: #24292e;
+  --card-bg-color: #393c40;
+  --card-text-color: #ffffff;
+  --card-border: 1px solid #00000000;
+  --card-border-hover: 1px solid #00000000;
   --button-bg-color: #24292e;
   --button-bg-color-hover: #026ec1;
   --dropdown-bg-color: #24292e;
@@ -63,6 +80,11 @@
   --button-bg-color: #1b1e22;
   --dropdown-bg-color: #1b1e22;
   --dropdown-menu-bg-color: #1b1e22;
+  --home-bg-color: #181b20;
+  --card-bg-color: #24292e;
+  --card-text-color: #ffffff;
+  --card-border: 1px solid #00000000;
+  --card-border-hover: 1px solid #00000000;
 }
 
 .main-container.odatix_light {
@@ -80,9 +102,13 @@
 }
 
 .main-container.candy {
+  --home-bg-color: #af58e9;
   --main-border-color: #00000000;
   --main-border-color-hover: #00000000;
   --main-border-radius: 20px;
+  --card-bg-color: #DFA2FC;
+  --card-border: 1px solid #00000000;
+  --card-border-hover: 1px solid #00000000;
   --button-bg-color: #DFA2FC;
   --button-bg-color-hover: #FCA2E7;
   --dropdown-bg-color: #DFA2FC;
