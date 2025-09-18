@@ -56,15 +56,25 @@ def top_bar(explorer):
         ],
         style={"position": "fixed", "margin-left": "30px", "left": "75px", "z-index": "2", "transition": "margin-left 0.25s"},
       ),
-      html.Div(),
-      html.Div(
-        [
-          html.Div(
-            dcc.Link(f"{page['name']}", href=page["relative_path"], className="nav-link"),
-          ) for page in dash.page_registry.values() if page["name"] not in banned_pages
-        ],
-        className="nav-links",
-      ),
+      html.Div([
+        html.Div(
+          [
+            html.Div(
+              dcc.Link(f"{page['name']}", href=page["relative_path"], className="nav-link"),
+            ) for page in dash.page_registry.values() if page["name"] not in banned_pages
+          ],
+          className="nav-links",
+        ),
+        dcc.Dropdown(
+          id="theme-dropdown",
+          options=[{"label": f"{theme}", "value": f"{theme}"} for theme in reversed(list(themes.templates))],
+          value=explorer.start_theme,
+          className="theme-dropdown",
+          clearable=False,
+        ),
+      ],
+      id="nav-right",
+      style={"display": "flex", "position": "absolute", "right": "0", "alignItems": "center", "justifyContent": "right", "z-index": "1000"},)
     ],
     style={"height": f"{top_bar_height}"},
     className="navbar",
@@ -344,18 +354,6 @@ def side_bar(explorer):
                         {"label": "Separate", "value": "separate_legend"},
                       ],
                       value="separate_legend",
-                    ),
-                  ],
-                  style={"margin-bottom": "5px"},
-                ),
-                html.Div(
-                  className="title-dropdown",
-                  children=[
-                    html.Div(className="dropdown-label", children=[html.Label("Theme")]),
-                    dcc.Dropdown(
-                      id="theme-dropdown",
-                      options=[{"label": f"{theme}", "value": f"{theme}"} for theme in reversed(list(themes.templates))],
-                      value=explorer.start_theme,
                     ),
                   ],
                   style={"margin-bottom": "5px"},
