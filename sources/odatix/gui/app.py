@@ -23,34 +23,38 @@ import os
 import sys
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output
-import numpy as np
-import pandas as pd
-import yaml
-from flask import jsonify
-import traceback
 
 import odatix.gui.navigation as navigation
-import odatix.gui.behaviors.setup_callbacks as setup_callbacks
 import odatix.gui.themes as themes
 
-import odatix.lib.printc as printc
-from odatix.lib.utils import internal_error, merge_dicts_of_lists
+from odatix.lib.utils import internal_error
 import odatix.lib.term_mode as term_mode
+from odatix.lib.settings import OdatixSettings
 
 script_name = os.path.basename(__file__)
 error_logfile = "odatix-explorer_error.log"
 
 class OdatixApp:
-  def __init__(self,  old_settings=None, safe_mode=False, theme=themes.default_theme):
+  def __init__(self,  old_settings=None, safe_mode=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=themes.default_theme):
     
-    self.app = app = dash.Dash(__name__, use_pages=True)
-    self.app.title = "Odatix"
+    # Get settings
+    self.odatix_settings = OdatixSettings(config_file)
+    if not self.odatix_settings.valid:
+      sys.exit(-1)
+
+    self.old_settings = old_settings
+    self.safe_mode = safe_mode
+
+    self.app = dash.Dash(
+      name=__name__, 
+      use_pages=True,
+      title="Odatix",
+      update_title="Odatix - Updating...",
+    )
 
     self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 
     self.setup_layout()
-    self.setup_callbacks()
 
   def handle_flask_exception(self, e):
     """
@@ -72,6 +76,7 @@ class OdatixApp:
         navigation.side_bar(self),
         dcc.Location(id="url", refresh=False),
         dcc.Store(id="previous-url", data=""),
+        dcc.Store(id="odatix-settings", data=self.odatix_settings.to_dict()),
         html.Div(
           [dash.page_container],
           id="content",
@@ -91,13 +96,6 @@ class OdatixApp:
         "flex-direction": "column"
       },
     )
-
-  def setup_callbacks(self):
-    """
-    Setup Dash callbacks for interactivity.
-    """
-    # navigation.setup_sidebar_callbacks(self)
-    # setup_callbacks.setup_callbacks(self)
 
   def run(self):
     self.app.run(

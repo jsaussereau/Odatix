@@ -36,6 +36,7 @@ else:
 
 import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
+from odatix.lib.settings import OdatixSettings
 from odatix.gui.app import OdatixApp
 
 sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
@@ -60,6 +61,7 @@ def add_arguments(parser):
   parser.add_argument('--safe_mode', action='store_true', help='Do not exit on internal error')
   parser.add_argument('-B', '--nobrowser', action='store_true', help='Do not open browser')
   parser.add_argument('-T', '--theme', default=None, help='Use a specific theme')
+  parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
 
 def parse_arguments():
   parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
@@ -101,7 +103,7 @@ def find_free_port(host, start_port):
       port += 1
       attempts += 1
 
-def start_odatix_app(network=False, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, theme=None):
+def start_odatix_app(network=False, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None):
 
   global ip_address
   global port
@@ -141,6 +143,7 @@ def start_odatix_app(network=False, normal_term_mode=False, safe_mode=False, do_
   odatix_app = OdatixApp(
     old_settings=old_settings,
     safe_mode=safe_mode,
+    config_file=config_file,
     theme=theme,
   )
 
@@ -178,8 +181,9 @@ def main(args=None):
   normal_term_mode = args.normal_term_mode
   safe_mode = args.safe_mode
   do_not_open_browser = args.nobrowser
+  config_file = args.config
 
-  start_odatix_app(network, normal_term_mode, safe_mode, do_not_open_browser, args.theme)
+  start_odatix_app(network, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme)
 
 if __name__ == "__main__":
   main()
