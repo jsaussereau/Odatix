@@ -27,7 +27,6 @@ Functions:
     - copytree: Custom function to copy directories with filtering options.
     - chunk_list: Splits a list into smaller chunks of a given size.
     - read_from_list: Reads and validates values from a dictionary.
-    - read_from_config: Reads a value from a configuration file.
     - move_cursor_up: Moves the cursor up in the terminal.
     - progress_bar: Displays a progress bar in the terminal.
     - ask_to_continue: Prompts the user to continue or exit.
@@ -41,6 +40,7 @@ Functions:
 import os
 import sys
 import glob
+import time
 import shutil
 import fnmatch
 import platform
@@ -186,15 +186,7 @@ def read_from_list(key, input_list, filename, raise_if_missing=True, optional=Fa
     if raise_if_missing:
       raise KeyNotInListError
     return False
-
-def read_from_config(identifier, config, filename, script_name=""):
-  if identifier in config[settings_ini_section]:
-    return config[settings_ini_section][identifier]
-  else:
-    printc.error("Cannot find identifier \"" + identifier + "\" in \"" + filename + "\".", script_name)
-    raise
-    return False
-
+  
 def move_cursor_up():
   """Moves the terminal cursor up one line."""
   sys.stdout.write('\x1b[1A') # Move cursor up
