@@ -56,4 +56,7 @@ fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
 synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 sim_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 
+# Misc
+main_parameter_domain = "__main__"
+
 default_supported_tools = ["vivado", "design_compiler", "openlane"]
