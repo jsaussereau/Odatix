@@ -61,7 +61,7 @@ def get_index_from_trigger(trig_domain, trig_filename, metadata):
     )
     return index
 
-def config_card(domain, filename, content, initial_content):
+def config_card(domain, filename, content, initial_content, config_layout="normal"):
     display_name = filename[:-4] if filename.endswith(".txt") else filename
 
     save_class =  "color-button disabled"
@@ -75,7 +75,9 @@ def config_card(domain, filename, content, initial_content):
                 id={"type": "config-title", "domain": domain, "filename": filename},
                 className="title-input",
                 style={
-                    "width": "243px",
+                    "width": "calc(100% - 20px)",
+                    "marginLeft": "5px",
+                    "marginRight": "5px",
                     "fontWeight": "bold",
                     "fontSize": "1.1em",
                     "height": "10px",
@@ -88,11 +90,15 @@ def config_card(domain, filename, content, initial_content):
         dcc.Textarea(
             id={"type": "config-content", "domain": domain, "filename": filename},
             value=content,
+            className="auto-resize-textarea" if config_layout != "compact" else "",
             style={
-                "width": "243px",
-                "height": "50px",
-                "resize": "vertical",
-                "minHeight": "50px",
+                "width": "calc(100% - 20px)",
+                "marginLeft": "5px",
+                "marginRight": "5px",
+                "resize": "none" if config_layout != "compact" else "vertical",
+                "minHeight": "none" if config_layout != "compact" else "50px",
+                "height": "none" if config_layout != "compact" else "50px",
+                "fieldSizing": "border-box",
                 "fontFamily": "monospace",
                 "fontSize": "0.9em",
                 "fontWeight": "normal",
@@ -101,7 +107,7 @@ def config_card(domain, filename, content, initial_content):
         dcc.Store(id={"type": "config-metadata", "domain": domain, "filename": filename}, data={"domain": domain, "filename": filename}),
         html.Div([
             html.Div([
-                html.Button("Save", id={"type": "save-config", "domain": domain, "filename": filename}, n_clicks=0, className=save_class, style={"marginRight": "8px"}),
+                html.Button("Save", id={"type": "save-config", "domain": domain, "filename": filename}, n_clicks=0, className=save_class, style={"marginRight": "8px", "marginLeft": "5px"}),
                 html.Div(status_text, id={"type": "save-status", "domain": domain, "filename": filename}, className=status_class, style={"marginLeft": "0px", "textwrap": "wrap", "width": "80px", "font-size": "13px", "font-weight": "515"}),
             ], style={"display": "flex", "alignItems": "center"}),
             html.Div([
@@ -117,8 +123,10 @@ def config_card(domain, filename, content, initial_content):
         }),
         dcc.Store(id={"type": "initial-title", "domain": domain, "filename": filename}, data=display_name),
         dcc.Store(id={"type": "initial-content", "domain": domain, "filename": filename}, data=initial_content),
-    ], className="card", style={
-        "width": "256px", 
+    ], 
+    className="card configs", 
+    id={"type": "config-card", "domain": domain, "filename": filename},
+    style={
         "padding": "10px", 
         "margin": "5px", 
         "display": "inline-block", 
@@ -147,18 +155,47 @@ def add_card(text: str = "Add new config", domain: str = hard_settings.main_para
             n_clicks=0,
             style={"text-decoration": "none", "color": "black"},
         ),
-        className="card hover",
+        className=f"card configs add hover",
+        id={"type": "add-config-card", "domain": domain},
         style={
             "backgroundColor": "rgba(255, 255, 255, 0.31)",
             "border": "1px dashed #bbb",
-            "width": "277px",
             "padding": "10px",
             "margin": "5px",
             "display": "inline-block",
             "verticalAlign": "top",
-            "height": "170px",
             "boxSizing": "border-box"
         },
+    )
+
+def architecture_title(arch_name:str=""):
+    title_content = html.Div([
+        html.H3(arch_name, id=f"main_title", style={"marginBottom": "0px"}),
+        dcc.Dropdown(
+            id="config-layout-dropdown", 
+            options=[
+                {"label": "Compact Layout", "value": "compact"},
+                {"label": "Normal Layout", "value": "normal"},
+                {"label": "Wide Layout", "value": "wide"},
+            ],
+            value="normal",
+            clearable=False,
+            style={"width": "155px"},
+        )
+    ],
+    style={
+        "display": "flex",
+        "alignItems": "center",
+        "padding": "0px",
+        "justifyContent": "space-between",
+    })
+    return html.Div(
+        html.Div(
+            [title_content],
+            className="tile title",
+        ),
+        className="card-matrix config",
+        style={"marginLeft": "-13px", "marginBottom": "10px"},
     )
 
 def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_name:str=""):
@@ -381,7 +418,7 @@ def domain_section(domain: str, arch_name: str = ""):
         html.Div([
             html.Div(
                 id={"type": "config-cards-row", "domain": domain},
-                className="card-matrix configs", 
+                className=f"card-matrix configs", 
             ),
         ]),
         dcc.Store({"type": "config-files-store", "domain": domain}),
@@ -391,6 +428,7 @@ def domain_section(domain: str, arch_name: str = ""):
 
 layout = html.Div([
     dcc.Location(id="url"),
+    architecture_title(),
     domain_section(hard_settings.main_parameter_domain),
     html.Div(id="param-domains-section"),
 ], style={
@@ -401,7 +439,8 @@ layout = html.Div([
 
 
 @dash.callback(
-    Output(f"domain_title_{hard_settings.main_parameter_domain}", "children"),
+    # Output(f"domain_title_{hard_settings.main_parameter_domain}", "children"),
+    Output("main_title", "children"),
     Input("param-domains-section", "children"),
     State("url", "search"),
     preview_initial_call=True
@@ -409,7 +448,7 @@ layout = html.Div([
 def update_main_domain_title(_, search):
     arch_name = get_arch_name_from_url(search)
     if not arch_name:
-        return "Main parameter domain"
+        return "No architecture selected."
     return arch_name
 
 @dash.callback(
@@ -492,6 +531,7 @@ def update_param_domains(
     Output({"type": "initial-configs-store", "domain": dash.ALL}, "data"),
     State("url", "search"),
     Input("param-domains-section", "children"),
+    Input("config-layout-dropdown", "value"),
     Input({"type": "new-config", "domain": dash.ALL}, "n_clicks"),
     Input({"type": "save-config", "domain": dash.ALL, "filename": dash.ALL}, "n_clicks"),
     Input({"type": "delete-config", "domain": dash.ALL, "filename": dash.ALL}, "n_clicks"),
@@ -505,7 +545,7 @@ def update_param_domains(
 )
 def update_config_cards(
     search, param_domains_section,
-    add_click, save_clicks, delete_clicks, duplicate_clicks,
+    config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks,
     title_values, contents, metadata, configs_list, odatix_settings
 ):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
@@ -590,8 +630,7 @@ def update_config_cards(
             configs = {f: config_handler.load_config_file(arch_path, arch_name, domain, f) for f in files}
         initial_configs = configs.copy()
 
-        # Génère les cards pour chaque fichier
-        cards = [config_card(domain, f, configs[f], initial_configs.get(f, "")) for f in configs]
+        cards = [config_card(domain, f, configs[f], initial_configs.get(f, ""), config_layout) for f in configs]
         cards.append(add_card(domain=domain))
 
         all_cards.append(cards)
@@ -685,3 +724,23 @@ def update_save_status(param_domains_section, title_values, content_values, init
             status_classes.append("status")
             status_texts.append("")
     return save_classes, status_classes, status_texts
+
+@dash.callback(
+    Output({"type": "config-card", "domain": dash.ALL, "filename": dash.ALL}, "className"),
+    Output({"type": "add-config-card", "domain": dash.ALL}, "className"),
+    Output({"type": "config-cards-row", "domain": dash.ALL}, "className"),
+    Input("config-layout-dropdown", "value"),
+    State({"type": "config-card", "domain": dash.ALL, "filename": dash.ALL}, "className"),
+    State({"type": "add-config-card", "domain": dash.ALL}, "className"),
+    State({"type": "config-cards-row", "domain": dash.ALL}, "className"),
+)
+def update_layout_style(layout_value, config_card_classes, add_card_classes, config_row_classes):
+    if layout_value == "wide":
+        config_card_classes = ["card configs wide" for _ in range(len(config_card_classes))]
+        add_card_classes = ["card configs add wide hover" for _ in range(len(add_card_classes))]
+        config_row_classes = ["card-matrix configs wide" for _ in range(len(config_row_classes))]
+    else:
+        config_card_classes = ["card configs" for _ in range(len(config_card_classes))]
+        add_card_classes = ["card configs add hover" for _ in range(len(add_card_classes))]
+        config_row_classes = ["card-matrix configs" for _ in range(len(config_row_classes))]
+    return config_card_classes, add_card_classes, config_row_classes

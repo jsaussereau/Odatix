@@ -355,6 +355,19 @@ button:focus {
     text-decoration: none;
     transition: all .2s cubic-bezier(0.175, 0.885, 0, 1);
 }
+.card.configs {
+    width: 256px;
+    /* height: 200px; */
+}
+.card.configs.wide {
+    width: 554px;
+}
+.card.configs.add {
+    width: 277px;
+}
+.card.configs.add.wide {
+    width: 575px;
+}
 
 .card-img {
     margin: auto;
@@ -384,6 +397,10 @@ button:focus {
 }
 .card-matrix.configs {
     grid-template-columns: repeat(auto-fit, 300px);
+    gap: 0px;
+}
+.card-matrix.configs.wide {
+    grid-template-columns: repeat(auto-fit, 600px);
     gap: 0px;
 }
 
@@ -463,9 +480,15 @@ button:focus {
     box-shadow: 0 2px 12px #0001;
     break-inside: avoid;
     transition: 
-        width 0.4s cubic-bezier(0.4, 0.2, 0.2, 1),
+        /* width 0.4s cubic-bezier(0.4, 0.2, 0.2, 1), */
         height 0.4s cubic-bezier(0.4, 0.2, 0.2, 1),
         transform 0.4s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.tile.hover:hover {
+    cursor: pointer;
+    box-shadow: 0px 30px 18px -8px rgba(0, 0, 0, 0.1);
+    transform: scale(1.05, 1.05);
 }
 
 .tile.config {
@@ -474,8 +497,29 @@ button:focus {
     width: 510px;
 }
 
+.tile.title {
+    justify-self: center;
+    max-width: 1110px;
+    width: 1110px;
+    height: fit-content;
+}
+
+.tile.title.hover {
+    transition: all .2s cubic-bezier(0.175, 0.885, 0, 1);
+}
+
+@media screen and (max-width: 1710px) {
+    .tile.title {
+        width: 510px;
+        max-width: 510px;
+    }
+}
 @media screen and (max-width: 600px) {
     .tile.config {
+        width: 60%;
+        max-width: 60%;
+    }
+    .tile.title {
         width: 60%;
         max-width: 60%;
     }
