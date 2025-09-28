@@ -167,7 +167,7 @@ def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_
         if arch_name:
             text = text + f"{arch_name} - "
         text = text + "Main parameter domain"
-        title_content = html.H3(text, style={"marginBottom": "0px"})
+        title_content = html.H3(text, id=f"domain_title_{domain}", style={"marginBottom": "0px"})
     else:
         title_content = html.Div([
             html.Div([
@@ -361,11 +361,11 @@ def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_
         ], 
     )
 
-def domain_section(domain: str):
+def domain_section(domain: str, arch_name: str = ""):
     return html.Div([
         html.Div(
             children=[
-                parameter_domain_title(domain)
+                parameter_domain_title(domain, arch_name)
             ], 
             className="card-matrix config",
             style={"marginLeft": "-13px"},
@@ -399,6 +399,18 @@ layout = html.Div([
     "minHeight": "100vh"
 })
 
+
+@dash.callback(
+    Output(f"domain_title_{hard_settings.main_parameter_domain}", "children"),
+    Input("param-domains-section", "children"),
+    State("url", "search"),
+    preview_initial_call=True
+)
+def update_main_domain_title(_, search):
+    arch_name = get_arch_name_from_url(search)
+    if not arch_name:
+        return "Main parameter domain"
+    return arch_name
 
 @dash.callback(
     Output("param-domains-section", "children"),
@@ -462,7 +474,7 @@ def update_param_domains(
     for domain in domains:
         settings = config_handler.load_settings(arch_path, arch_name, domain)
         settings["arch_name"] = arch_name
-        domain_blocks.append(domain_section(domain))
+        domain_blocks.append(domain_section(domain, arch_name))
     domain_blocks.append(
         html.Div(
             children=[
