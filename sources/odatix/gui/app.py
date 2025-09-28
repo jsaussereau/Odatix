@@ -50,6 +50,7 @@ class OdatixApp:
       use_pages=True,
       title="Odatix",
       update_title="Odatix - Updating...",
+      suppress_callback_exceptions=True
     )
 
     self.app.server.register_error_handler(Exception, self.handle_flask_exception)
