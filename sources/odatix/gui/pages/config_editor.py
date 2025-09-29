@@ -369,6 +369,7 @@ def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_
         preview_div = html.Pre(
             children=preview_components,
             id={"type": "preview-pre", "domain": domain},
+            className="preview-pane",
             style={
                 "width": "95%",
                 "max-width": "600px",
