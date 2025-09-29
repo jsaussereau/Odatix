@@ -294,10 +294,15 @@ def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_
     generate_rtl = settings.get("generate_rtl", False)
     if generate_rtl:
         base_path = settings.get("design_path", "")
+        if not base_path:
+            return preview_div(html.Div("No design path specified in architecture settings. Unable to preview.", className="error"))
         if param_target_file == "":
             param_target_file = settings.get("top_level_file", "")
     else:
-        base_path = os.path.dirname(settings.get("rtl_path", ""))
+        rtl_path = settings.get("rtl_path", "")
+        if not rtl_path:
+            return preview_div(html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error"))
+        base_path = os.path.dirname(rtl_path)
         if param_target_file == "":
             param_target_file = os.path.join("rtl", settings.get("top_level_file", ""))
     param_target_file = os.path.join(base_path, param_target_file)
@@ -366,7 +371,7 @@ def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_
                 preview_components.append(html.Br())
             # preview_components.append(html.Span("[...]", style={"color": "#888"}))
 
-        preview_div = html.Pre(
+        pane_content = html.Pre(
             children=preview_components,
             id={"type": "preview-pre", "domain": domain},
             className="preview-pane",
@@ -391,11 +396,14 @@ def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_
             text = f"No settings found."
         else:
             text = f"Preview file '{os.path.realpath(param_target_file)}' not found. Unable to preview."
-        preview_div = html.Div(text, className="error")
+        pane_content = html.Div(text, className="error")
+    return preview_div(pane_content)
+
+def preview_div(content):
     return html.Div(
         children=[
             html.H3("Preview Pane"),
-            preview_div,
+            content,
         ], 
     )
 
