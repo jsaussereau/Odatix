@@ -21,34 +21,59 @@
 
 from dash import html
 
-def delete_button(id):
+def delete_button(id, large=False):
     return html.Button(
-        html.Img(
-            src="/assets/icons/delete.svg",
-            alt="Delete",
-            style={
-                "width": "25px",
-                "height": "25px",
-                "margin-left": "-130%",
-                "margin-top": "-40%",
-            }
+        html.Div(
+            children=[
+                html.Img(
+                    src="/assets/icons/delete.svg",
+                    alt="Delete",
+                    style={
+                        "width": "25px",
+                        "height": "25px",
+                        "marginLeft": "-10px",
+                    }
+                ),
+                html.Span(
+                    "Delete" if large else "",
+                    style={"fontWeight": "bold", "fontSize": "1em", "marginLeft": "5px"} if large else {}
+                ),
+            ],
+            style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start", "marginTop": "-3px",}
         ),
         id=id,
         n_clicks=0,
         className="color-button red icon-button",
+        style={"width": "120px"} if large else {},
     )
 
-def duplicate_button(id):
+
+def duplicate_button(id, large=False):
     return html.Button(
-        html.Img(
-            src="/assets/icons/duplicate.svg",
-            alt="Duplicate",
-            style={
-                "width": "25px",
-                "height": "25px",
-                "margin-left": "-130%",
-                "margin-top": "-40%",
-            }
+        html.Div(
+            children=[
+                html.Img(
+                    src="/assets/icons/duplicate.svg",
+                    alt="Duplicate",
+                    style={
+                        "width": "25px",
+                        "height": "25px",
+                        "marginLeft": "-10px",
+                    }
+                ),
+                html.Span(
+                    "Duplicate" if large else "",
+                    style={"fontWeight": "bold", "fontSize": "1em", "marginLeft": "5px"} if large else {}
+                ),
+            ],
+            style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start", "marginTop": "-3px",}
+        ),
+        id=id,
+        n_clicks=0,
+        className=f"color-button blue icon-button",
+        style={"width": "120px"} if large else {},
+    )
+
         ),
         id=id,
         n_clicks=0,
