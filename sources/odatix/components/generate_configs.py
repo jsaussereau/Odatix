@@ -88,7 +88,7 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
           printc.note(f"Processing settings file: {settings_file_path}", script_name)
 
         # Generate configurations using ConfigGenerator
-        generator = ConfigGenerator(root, debug)
+        generator = ConfigGenerator(path=root, debug=debug)
         
         if not generator.enabled:
           if debug:
@@ -142,7 +142,7 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
     root = os.path.dirname(config_file_path)
 
     # Reload the generator for this directory
-    generator = ConfigGenerator(root, silent=True)
+    generator = ConfigGenerator(path=root, silent=True)
     generated_params = generator.generate()
 
     if config_name in generated_params:

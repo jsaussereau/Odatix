@@ -24,6 +24,7 @@ import sys
 import yaml
 import math
 import itertools
+from typing import Optional
 
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
@@ -45,17 +46,17 @@ class ConfigGenerator:
   ranges, and naming templates.
   """
 
-  def __init__(self, path, silent=False, debug=False):
+  def __init__(self, path: str = "", data: Optional[dict] = None, silent: bool = False, debug: bool = False):
     """
-    Initialize the configuration generator by loading the YAML settings.
+    Initialize the configuration generator.
     
     Args:
         path (str): Path to the directory containing the "_settings.yml" file.
+        data (dict): Optional pre-loaded YAML data to use instead of reading from file.
         silent (bool): If True, suppress warnings for missing keys.
         debug (bool): If True, print debug information.
     """
     self.path = path
-    self.yaml_file = os.path.join(self.path, hard_settings.param_settings_filename)
     self.silent = silent
     self.debug = debug
 
@@ -65,7 +66,14 @@ class ConfigGenerator:
     self.valid = False
     self.enabled = False
 
-    self._load_yaml()
+    if data is not None:
+      self.yaml_file = "<provided_data>"
+      self.data = data
+    else:
+      self.yaml_file = os.path.join(self.path, hard_settings.param_settings_filename)
+      self._load_yaml()
+
+    self._validate_keys(self.data)
 
   def _load_yaml(self):
     """
@@ -74,6 +82,7 @@ class ConfigGenerator:
     Returns:
         dict: Parsed YAML data.
     """
+    self.data = {}
     if not os.path.isfile(self.yaml_file):
       printc.error(f"YAML file '{self.yaml_file}' does not exist.")
       sys.exit(-1)
@@ -87,7 +96,9 @@ class ConfigGenerator:
     except yaml.YAMLError as e:
       printc.error(f"Invalid YAML file \"{self.yaml_file}\": {e}")
       sys.exit(-1)
+    self.data = data
 
+  def _validate_keys(self, data):
     # Check main keys
     hide = not self.debug
     generate_enabled, generate_defined = get_from_dict("generate_configurations", data, self.yaml_file, default_value=False, silent=hide, script_name=script_name)
