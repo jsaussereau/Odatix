@@ -83,7 +83,11 @@ def duplicate_button(id, large=False):
         text="Duplicate" if large else "", 
         id=id,
     )
+
+def save_button(id, large=False):
+    return icon_button(
+        icon=icon("save", className="icon orange"),
+        color="orange",
+        text="Save All" if large else "", 
         id=id,
-        n_clicks=0,
-        className="color-button blue icon-button",
     )
