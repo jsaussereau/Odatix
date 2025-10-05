@@ -19,62 +19,70 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-from dash import html
+from dash_svg import Svg
+from dash import html, dcc
+
+from odatix.gui.icons import icon
+
+def icon_button(icon, color, text="", id=None, link=None, multiline=False, width="115px"):  
+    """
+    Create a button with an icon and optional text.
+    Args:
+        icon (str or Svg): The icon to display (filename in assets/icons or Svg component).
+        color (str): The color of the button (e.g., "red", "blue", "green").
+        text (str, optional): The text to display next to the icon. Defaults to "" (just the icon).
+        id (str, optional): The id of the button. Defaults to None.
+        link (str, optional): If provided, the button will be a link to this URL. Defaults to None.
+        multiline (bool, optional): If True, adjust vertical alignment for multiline text. Defaults to False.
+    """ 
+    content = html.Button(
+        html.Div(
+            children=[
+                icon if isinstance(icon, Svg) else html.Img(
+                    src=f"/assets/icons/{icon}",
+                    alt=text if text else icon.capitalize(),
+                    style={
+                        "width": "25px",
+                        "height": "25px",
+                        "marginLeft": "-10px",
+                    }
+                ),
+                html.Span(
+                    text,
+                    style={"fontWeight": "bold", "fontSize": "1em", "marginLeft": "5px"} if text else {}
+                ),
+            ],
+            style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start", "marginTop": "-9px" if multiline else "-4px", "width": "100%"},
+        ),
+        id=id,
+        n_clicks=0,
+        className=f"color-button {color} icon-button",
+        style={"min-width": width} if text else {},
+    )
+    if link is None:
+        return content
+    else:
+        return dcc.Link(
+            content,
+            href=link,
+            style={"textDecoration": "none"},
+        )
 
 def delete_button(id, large=False):
-    return html.Button(
-        html.Div(
-            children=[
-                html.Img(
-                    src="/assets/icons/delete.svg",
-                    alt="Delete",
-                    style={
-                        "width": "25px",
-                        "height": "25px",
-                        "marginLeft": "-10px",
-                    }
-                ),
-                html.Span(
-                    "Delete" if large else "",
-                    style={"fontWeight": "bold", "fontSize": "1em", "marginLeft": "5px"} if large else {}
-                ),
-            ],
-            style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start", "marginTop": "-3px",}
-        ),
+    return icon_button(
+        icon=icon("delete", width="25px", height="25px", className="icon red"),
+        color="red", 
+        text="Delete" if large else "", 
         id=id,
-        n_clicks=0,
-        className="color-button red icon-button",
-        style={"width": "120px"} if large else {},
     )
-
 
 def duplicate_button(id, large=False):
-    return html.Button(
-        html.Div(
-            children=[
-                html.Img(
-                    src="/assets/icons/duplicate.svg",
-                    alt="Duplicate",
-                    style={
-                        "width": "25px",
-                        "height": "25px",
-                        "marginLeft": "-10px",
-                    }
-                ),
-                html.Span(
-                    "Duplicate" if large else "",
-                    style={"fontWeight": "bold", "fontSize": "1em", "marginLeft": "5px"} if large else {}
-                ),
-            ],
-            style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start", "marginTop": "-3px",}
-        ),
+    return icon_button(
+        icon=icon("duplicate", className="icon blue"),
+        color="blue",
+        text="Duplicate" if large else "", 
         id=id,
-        n_clicks=0,
-        className=f"color-button blue icon-button",
-        style={"width": "120px"} if large else {},
     )
-
-        ),
         id=id,
         n_clicks=0,
         className="color-button blue icon-button",
