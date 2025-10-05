@@ -29,6 +29,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 import odatix.components.replace_params as replace_params
 import odatix.components.config_handler as config_handler
+from odatix.gui.icons import icon
 
 verbose = False
 
@@ -208,12 +209,11 @@ def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_
                     value=domain,
                     type="text",
                     id={"type": "domain-title-input", "domain": domain},
-                    className="title-input",
+                    className="title-input domain",
                     style={
                         "marginBottom": "0",
                         "marginTop": "0",
                         "verticalAlign": "middle",
-                        "max-width": "250px",
                         "position": "relative",
                         "top": "-4px",
                     }
@@ -223,9 +223,16 @@ def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_
                 "justifyContent": "flex-start"
             }),
             html.Div([
-                ui.duplicate_button(id={"action": "duplicate-domain", "domain": domain}),
-                ui.delete_button(id={"action": "delete-domain", "domain": domain}),
+                ui.duplicate_button(
+                    id={"action": "duplicate-domain", "domain": domain},
+                    large=True
+                ),
+                ui.delete_button(
+                    id={"action": "delete-domain", "domain": domain},
+                    large=True
+                )
             ],
+            className="inline-flex-buttons param-domain-title",
             style={
                 "display": "inline-flex",
                 "marginLeft": "16px",
@@ -235,6 +242,7 @@ def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_
                 "width": "100px",
             }),
         ],
+        className="title-tile-flex",
         style={
             "display": "flex",
             "alignItems": "center",
