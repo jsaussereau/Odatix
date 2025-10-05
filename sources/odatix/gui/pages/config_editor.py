@@ -22,8 +22,9 @@
 import os
 import dash
 from dash import html, dcc, Input, Output, State, ctx
-import urllib.parse
+
 import odatix.gui.ui_components as ui
+from odatix.gui.utils import get_key_from_url
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 import odatix.components.replace_params as replace_params
@@ -38,12 +39,6 @@ dash.register_page(
     name='Configuration Editor',
     order=4,
 )
-
-def get_arch_name_from_url(search):
-    if not search:
-        return None
-    params = urllib.parse.parse_qs(search.lstrip("?"))
-    return params.get("arch", [None])[0]
 
 def split_by_domain(flat_list, lengths):
     result = []
@@ -455,7 +450,7 @@ layout = html.Div([
     preview_initial_call=True
 )
 def update_main_domain_title(_, search):
-    arch_name = get_arch_name_from_url(search)
+    arch_name = get_key_from_url(search, "arch")
     if not arch_name:
         return "No architecture selected."
     return arch_name
@@ -475,7 +470,7 @@ def update_param_domains(
     odatix_settings, current_domains
 ):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_arch_name_from_url(search)
+    arch_name = get_key_from_url(search, "arch")
     if not arch_name:
         return html.Div("No architecture selected.", className="error")
 
@@ -558,7 +553,7 @@ def update_config_cards(
     title_values, contents, metadata, configs_list, odatix_settings
 ):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_arch_name_from_url(search)
+    arch_name = get_key_from_url(search, "arch")
     if not arch_name:
         return [html.Div("No architecture selected.", className="error")], {}, ""
 
@@ -662,7 +657,7 @@ def update_config_cards(
 )
 def update_preview_all(search, config_cards_rows, target_files, start_delims, stop_delims, settings_list, config_contents_list, configs_list, odatix_settings):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_arch_name_from_url(search)
+    arch_name = get_key_from_url(search, "arch")
     domains = [hard_settings.main_parameter_domain] + config_handler.get_param_domains(arch_path, arch_name)
 
     triggered = ctx.triggered_id
@@ -696,7 +691,7 @@ def update_preview_all(search, config_cards_rows, target_files, start_delims, st
 )
 def update_config_parameters_all(search, config_cards_rows, odatix_settings):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_arch_name_from_url(search)
+    arch_name = get_key_from_url(search, "arch")
     if not arch_name:
         return [html.Div("No architecture selected.", className="error")], [{}]
     domains = [hard_settings.main_parameter_domain] + config_handler.get_param_domains(arch_path, arch_name)
