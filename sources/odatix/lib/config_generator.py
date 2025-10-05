@@ -406,7 +406,7 @@ class ConfigGenerator:
         dec_value = int(value, 2)
         if to_type == "dec":
           return str(dec_value)
-        elif conversion_type == "hex":
+        elif to_type == "hex":
           return hex(dec_value)[2:]
       elif from_type == "dec":
         dec_value = int(value)
@@ -414,7 +414,7 @@ class ConfigGenerator:
           return bin(dec_value)[2:]
         elif to_type == "hex":
           return hex(dec_value)[2:]
-      elif conversion_type == "hex":
+      elif from_type == "hex":
         dec_value = int(value, 16)
         if to_type == "bin":
           return bin(dec_value)[2:]
