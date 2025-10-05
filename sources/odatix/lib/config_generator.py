@@ -153,6 +153,7 @@ class ConfigGenerator:
     
     Returns:
         dict: A dictionary where keys are generated names and values are formatted templates.
+        dict: A dictionary where keys are variable names and values are lists of all possible values for those variables.
     """
     if not self.valid or not self.enabled:
       return {}
@@ -214,6 +215,8 @@ class ConfigGenerator:
     var_names = list(dimension_vars.keys())
     combos = list(itertools.product(*(dimension_vars[k] for k in var_names)))
     final_configs = {}
+    all_vars_values= {}
+    values = set()
 
     for combo in combos:
       value_map = dict(zip(var_names, combo))
@@ -223,7 +226,10 @@ class ConfigGenerator:
           settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
           if defined:
             op, _ = get_from_dict("op", settings, self.yaml_file, silent=True, script_name=script_name)
-            value_map[variable] = self.evaluate_expression(op, value_map)
+            if op:
+              evaluated_expr = self.evaluate_expression(op, value_map)
+              value_map[variable] = evaluated_expr
+              values.add(evaluated_expr)
         elif value_type == "format":
           settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
           if defined:
@@ -241,6 +247,7 @@ class ConfigGenerator:
             for name, value in formatted_values.items():
               source = source.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
             value_map[variable] = source
+            values.add(source)
         elif value_type == "conversion":
           settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
           if defined:
@@ -249,9 +256,12 @@ class ConfigGenerator:
             source, _ = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
             source = source.replace("$", "").replace("{", "").replace("}", "")
             if source in value_map:
-              value_map[variable] = self.apply_conversion(value_map[source], from_type, to_type)
+              converted = self.apply_conversion(value_map[source], from_type, to_type)
+              value_map[variable] = converted
+              values.add(converted)
             else:
               printc.warning(f'Source "{source}" not found for conversion variable "{variable}"', script_name)
+        all_vars_values[variable] = sorted(values)
 
       formatted_values = {}
       for k, v in value_map.items():
@@ -274,7 +284,9 @@ class ConfigGenerator:
     if self.debug:
       printc.note(f"generated {len(final_configs)} configurations.", script_name)
 
-    return final_configs
+    all_dim_vard_values = {k: sorted(set(v)) if isinstance(v, list) else [v] for k, v in dimension_vars.items()}
+    all_vars_values.update(all_dim_vard_values)
+    return final_configs, all_vars_values
 
   def generate_values_for_dim(self, var_name, var_config):
     """

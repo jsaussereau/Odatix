@@ -100,7 +100,7 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
           error_configs.append(settings_file_path)
           continue
 
-        generated_params = generator.generate()
+        generated_params, _ = generator.generate()
 
         if not generated_params:
           error_configs.append(settings_file_path)
@@ -143,7 +143,7 @@ def generate_configs(arch_path, overwrite, noask, debug=False):
 
     # Reload the generator for this directory
     generator = ConfigGenerator(path=root, silent=True)
-    generated_params = generator.generate()
+    generated_params, _ = generator.generate()
 
     if config_name in generated_params:
       try:
