@@ -149,7 +149,7 @@ def add_card(text: str = "Add new config", domain: str = hard_settings.main_para
             ),
             id={"type": "new-config", "domain": domain},
             n_clicks=0,
-            style={"text-decoration": "none", "color": "black"},
+            style={"display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"}
         ),
         className=f"card configs add hover",
         id={"type": "add-config-card", "domain": domain},
