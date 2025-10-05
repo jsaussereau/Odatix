@@ -33,7 +33,7 @@ in their main architecture definition file or parameter domain definition file `
 - **name:** → Defines the naming convention for generated configurations.
 - **variables:** → Defines how values are generated (ranges, lists, functions, etc.).
 
-For more information about paramter domains see Section :doc:`/userguide/parameter_domains`
+For more information about parameter domains see Section :doc:`/userguide/parameter_domains`
 
 ***********************************
 Variable Definition Methods
