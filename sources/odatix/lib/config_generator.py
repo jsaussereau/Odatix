@@ -444,5 +444,5 @@ class ConfigGenerator:
     try:
       formatted_value = format_string % float(value)
       return formatted_value
-    except TypeError:
+    except (TypeError, ValueError):
       return str(value)
