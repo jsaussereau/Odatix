@@ -19,6 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
 import uuid
 import dash
 from dash import html, dcc, Input, Output, State, ctx
@@ -633,6 +634,10 @@ def update_generation(
         if page != page_path:
             return dash.no_update, dash.no_update, dash.no_update
     
+    nb_vars = len(titles)
+    if not (name and template and nb_vars > 0):
+        return [], [], "0 configurations to be generated"
+    
     gen_settings = get_gen_settings(
         name, template,
         titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals
@@ -641,10 +646,10 @@ def update_generation(
     generator = ConfigGenerator(data=gen_settings)
     generated_params, variables = generator.generate()
     
-    if trigger_id == {"action": "save-all"}:
-        arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-        domain = get_key_from_url(search, "domain")
-        arch_name = get_key_from_url(search, "arch")
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    domain = get_key_from_url(search, "domain")
+    arch_name = get_key_from_url(search, "arch")
+    if trigger_id == {"action": "save-all"} or trigger_id == {"action": "generate-all"}:
         if domain and arch_name:
             config_handler.update_domain_settings(
                 arch_path=arch_path,
@@ -652,12 +657,19 @@ def update_generation(
                 domain=domain, 
                 settings_to_update=gen_settings,
             )
-
+            return dash.no_update, dash.no_update, dash.no_update
+    
     if trigger_id == {"action": "generate-all"}:
-        print(f"Generated {len(generated_params)} configurations :")
         for config_name, config_content in generated_params.items():
-            print(f"  - {config_name}.txt: {config_content}")
-
+            arch_domain_path = config_handler.get_arch_domain_path(arch_path, arch_name, domain)
+            config_file_path = os.path.join(arch_domain_path, f"{config_name}.txt")
+            try:
+                with open(config_file_path, "w") as config_file:
+                    config_file.write(config_content)
+            except Exception as e:
+                pass
+        return dash.no_update, dash.no_update, dash.no_update
+        
     # Limit the number of previewed configurations
     if len(generated_params) > hard_settings.max_preview_values:
         preview_params = dict(list(generated_params.items())[:hard_settings.max_preview_values-2])
