@@ -452,6 +452,10 @@ def update_variable_fields_visibility(types):
 
 @dash.callback(
     Output({"type": "variable-cards-row"}, "children"),
+    Output("generator-name", "value"),
+    Output("generator-template", "value"),
+    Input("url", "search"),
+    Input("url", "pathname"),
     Input("new-variable", "n_clicks"),
     Input({"type": "duplicate-var", "name": dash.ALL}, "n_clicks"),
     Input({"type": "delete-var", "name": dash.ALL}, "n_clicks"),
@@ -469,13 +473,68 @@ def update_variable_fields_visibility(types):
     State({"type": "variable-field-list", "name": dash.ALL}, "value"),
     State({"type": "variable-field-source", "name": dash.ALL}, "value"),
     State({"type": "variable-field-sources", "name": dash.ALL}, "value"),
+    State("odatix-settings", "data"),
     prevent_initial_call=True
 )
-def update_variable_cards(
-    new_click, duplicate_clicks, delete_clicks, cards,
-    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals
+def update_form_and_variable_cards(
+    search, page, new_click, duplicate_clicks, delete_clicks, cards,
+    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
+    odatix_settings
 ):
-    ctx_id = ctx.triggered_id
+    trigger_id = ctx.triggered_id
+
+    if trigger_id == "url":
+        if page != page_path:
+            return dash.no_update, dash.no_update, dash.no_update
+
+        arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+        arch_name = get_key_from_url(search, "arch")
+        domain = get_key_from_url(search, "domain")
+        if not domain: domain = hard_settings.main_parameter_domain
+
+        if not arch_name:
+            return [], dash.no_update, dash.no_update
+
+        settings = config_handler.load_settings(arch_path, arch_name, domain)
+        variables = {}
+
+        generator_name = ""
+        generator_template = ""
+        if "generate_configurations_settings" in settings:
+            gen_settings = settings["generate_configurations_settings"]
+            variables = gen_settings.get("variables", {})
+            generator_name = gen_settings.get("name", "")
+            generator_template = gen_settings.get("template", "")
+            if isinstance(generator_template, list):
+                generator_template = "\n".join(generator_template)
+        
+        cards = []
+        # Create cards from existing variables
+        for var_name, var_settings in variables.items():
+            type_value = var_settings.get("type", "list")
+            settings = var_settings.get("settings", {})
+            card_kwargs = {
+                "name": var_name,
+                "type_value": type_value,
+                "base_value": str(settings.get("base", "")),
+                "from_value": str(settings.get("from", "")),
+                "to_value": str(settings.get("to", "")),
+                "from_2_pow_value": str(settings.get("from_2^", "")),
+                "to_2_pow_value": str(settings.get("to_2^", "")),
+                "step_value": str(settings.get("step", "")),
+                "from_type_value": str(settings.get("from", "")),
+                "to_type_value": str(settings.get("to", "")),
+                "op_value": str(settings.get("op", "")),
+                "list_value": ", ".join(map(str, settings.get("list", []))),
+                "source_value": str(settings.get("source", "")),
+                "sources_value": ", ".join(map(str, settings.get("sources", []))),
+            }
+            cards.append(variable_card(**card_kwargs))
+        
+        # Append Add card
+        cards.append(add_card())
+        return cards, generator_name, generator_template
+
     if cards is None:
         cards = []
 
@@ -484,13 +543,13 @@ def update_variable_cards(
         cards = cards[:-1]
 
     # Add new variable
-    if ctx_id == "new-variable" and new_click:
+    if trigger_id == "new-variable" and new_click:
         new_name = f"var_{uuid.uuid4().hex[:8]}"
         cards.append(variable_card(new_name))
 
-    if isinstance(ctx_id, dict):
-        trig_type = ctx_id.get("type")
-        trig_name = ctx_id.get("name")
+    if isinstance(trigger_id, dict):
+        trig_type = trigger_id.get("type")
+        trig_name = trigger_id.get("name")
 
         # Delete
         if trig_type == "delete-var":
@@ -514,7 +573,6 @@ def update_variable_cards(
             if trig_type == "duplicate-var":
 
                 if idx is not None:
-                    print(f"Duplicating variable '{trig_name}'")
                     new_name = f"var_{uuid.uuid4().hex[:8]}"
                     cards.append(variable_card(
                         name=new_name,
@@ -535,7 +593,7 @@ def update_variable_cards(
 
     # Append Add card
     cards.append(add_card())
-    return cards
+    return cards, dash.no_update, dash.no_update
 
 @dash.callback(
     Output({"type": "config-cards-row"}, "children"),
