@@ -274,17 +274,36 @@ def duplicate_parameter_domain(arch_path, source_arch_name, target_arch_name, so
     """
     Duplicate a parameter domain for a specific architecture.
     """
-    if source_domain == hard_settings.main_parameter_domain:
-        raise ValueError("Cannot duplicate the main parameter domain.")
     if target_domain == hard_settings.main_parameter_domain:
         raise ValueError("Cannot duplicate to the main parameter domain.")
-    source_path = os.path.join(arch_path, source_arch_name, source_domain)
-    target_path = os.path.join(arch_path, target_arch_name, target_domain)
+    if target_domain == source_domain and source_arch_name == target_arch_name:
+        raise ValueError("Source and target domain cannot be the same.")
+    
+    source_path = get_arch_domain_path(arch_path, source_arch_name, source_domain)
+    target_path = get_arch_domain_path(arch_path, target_arch_name, target_domain)
     if not os.path.isdir(source_path):
         return
     if os.path.exists(target_path):
         return
-    copytree(source_path, target_path)
+    
+    print(f"Duplicating domain '{source_domain}' from architecture '{source_arch_name}' to domain '{target_domain}' in architecture '{target_arch_name}'...")
+    if source_domain == hard_settings.main_parameter_domain:
+        # copy only the files in the main domain folder, not the folders
+        for item in os.listdir(source_path):
+            s = os.path.join(source_path, item)
+            d = os.path.join(target_path, item)
+            if os.path.isdir(s):
+                continue
+            os.makedirs(target_path, exist_ok=True)
+            with open(s, "rb") as fsrc:
+                with open(d, "wb") as fdst:
+                    fdst.write(fsrc.read())
+            # overwrite the settings file to remove unwanted keys
+            settings = load_settings(arch_path, source_arch_name, source_domain)
+            save_domain_settings(arch_path, target_arch_name, target_domain, settings)
+    else:
+        # copy the entire folder
+        copytree(source_path, target_path)
 
 def delete_parameter_domain(arch_path, arch_name, domain) -> None:
     """

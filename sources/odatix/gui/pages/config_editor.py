@@ -200,8 +200,50 @@ def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_
         if arch_name:
             text = text + f"{arch_name} - "
         text = text + "Main parameter domain"
-        title_content = html.H3(text, id=f"domain_title_{domain}", style={"marginBottom": "0px"})
+        buttons = html.Div(
+            children=[
+                ui.icon_button(
+                    id={"type": "generate-config", "domain": domain},
+                    icon=icon("generate", className="icon blue"),
+                    text="Config Generator",
+                    color="blue",
+                    link=f"/config_generator?arch={arch_name}",
+                    multiline=True,
+                ),
+                ui.icon_button(
+                    id={"action": "duplicate-domain", "domain": domain},
+                    icon=icon("duplicate", className="icon blue"),
+                    text="Duplicate as Domain",
+                    color="blue",
+                    multiline=True,
+                    width="140px",
+                ),
+            ],
+            className="inline-flex-buttons",
+        )
+        return ui.title_tile(text=text, id=f"domain_title_{domain}", buttons=buttons)
     else:
+        buttons = html.Div(
+            children=[
+                ui.icon_button(
+                    id={"type": "generate-config", "domain": domain},
+                    icon=icon("generate", className="icon blue"),
+                    text="Config Generator",
+                    color="blue",
+                    link=f"/config_generator?arch={arch_name}&domain={domain}",
+                    multiline=True,
+                ),
+                ui.duplicate_button(
+                    id={"action": "duplicate-domain", "domain": domain},
+                    large=True
+                ),
+                ui.delete_button(
+                    id={"action": "delete-domain", "domain": domain},
+                    large=False
+                )
+            ],
+            className="inline-flex-buttons param-domain-title",
+        )
         title_content = html.Div([
             html.Div([
                 html.H3("Parameter domain:", style={"display": "inline-block", "marginBottom": "0px", "marginRight": "10px"}),
@@ -222,25 +264,7 @@ def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_
             style={
                 "justifyContent": "flex-start"
             }),
-            html.Div([
-                ui.duplicate_button(
-                    id={"action": "duplicate-domain", "domain": domain},
-                    large=True
-                ),
-                ui.delete_button(
-                    id={"action": "delete-domain", "domain": domain},
-                    large=True
-                )
-            ],
-            className="inline-flex-buttons param-domain-title",
-            style={
-                "display": "inline-flex",
-                "marginLeft": "16px",
-                "verticalAlign": "middle",
-                "marginRight": "0",
-                "justifyContent": "flex-end",
-                "width": "100px",
-            }),
+            buttons,
         ],
         className="title-tile-flex",
         style={
@@ -501,8 +525,11 @@ def update_param_domains(
         # Duplicate domain
         elif trigger_action == "duplicate-domain":
             domain_to_duplicate = triggered.get("domain", "")
-            if domain_to_duplicate and domain_to_duplicate != hard_settings.main_parameter_domain:
-                base_name = f"{domain_to_duplicate}_copy"
+            if domain_to_duplicate:
+                if domain_to_duplicate == hard_settings.main_parameter_domain:
+                    base_name = "main_copy"
+                else:
+                    base_name = f"{domain_to_duplicate}_copy"
                 suffix = 1
                 new_domain = f"{base_name}{suffix}"
                 while new_domain in domains:
