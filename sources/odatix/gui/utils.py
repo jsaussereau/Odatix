@@ -22,6 +22,9 @@
 import urllib.parse
 
 def get_key_from_url(url, key):
+    """
+    Extract the value of a specific key from a URL query string.
+    """
     if not url:
         return None
     params = urllib.parse.parse_qs(url.lstrip("?"))
