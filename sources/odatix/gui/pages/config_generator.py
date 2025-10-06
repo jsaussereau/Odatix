@@ -139,15 +139,22 @@ def config_parameters_form(settings):
             html.H3(f"Configuration Generation Settings"),
             html.Div([
                 html.Label("Configuration name"),
-                dcc.Input(id="generator-name", value=defval("name", "config_${var}"), type="text", style={"width": "100%"}),
+                dcc.Input(
+                    id="generator-name",
+                    value=defval("name", "config_${var}"),
+                    type="text",
+                    style={"width": "100%", "fontSize": "1em", "fontFamily": "monospace", "fontWeight": "500"}
+                ),
             ], style={"marginBottom": "12px"}),
             html.Div([
                 html.Label("Content template"),
-                dcc.Input(id="generator-template", value=defval("template", "parameter VALUE = ${var};"), type="text", style={"width": "100%"}),
+                dcc.Textarea(
+                    id="generator-template",
+                    value=defval("template", "parameter VALUE = ${var};"),
+                    className="auto-resize-textarea",
+                    style={"width": "100%", "resize": "none", "fontSize": "1em", "fontFamily": "monospace", "fontWeight": "500"},
+                ),
             ], style={"marginBottom": "12px"}),
-        #     html.Button("Save", id="save-generator", n_clicks=0, className="save-button", style={"marginTop": "8px"}),
-        #     html.Button("Generate", id="save-generator", n_clicks=0, className="save-button", style={"marginTop": "8px"}),
-        #     html.Div(id="save-generator-status", className="status", style={"marginLeft": "16px"}),
         ],
         id="config-parameters",
         className="tile config",
