@@ -56,6 +56,13 @@ fmax_status_pattern = re.compile(r"(.*): ([0-9]+)% \(([0-9]+)\/([0-9]+)\)(.*)")
 synth_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 sim_status_pattern = re.compile(r"(.*): ([0-9]+)%(.*)")
 
+# Bounds
+default_fmax_lower_bound = 1  # in MHz
+default_fmax_upper_bound = 1000  # in MHz
+
+# GUI
+max_preview_values = 500
+
 # Misc
 main_parameter_domain = "__main__"
 
