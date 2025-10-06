@@ -641,7 +641,8 @@ def update_generation(
                 domain=domain, 
                 settings_to_update=gen_settings,
             )
-            return dash.no_update, dash.no_update, dash.no_update
+            if trigger_id == {"action": "save-all"}:
+                return dash.no_update, dash.no_update, dash.no_update
     
     if trigger_id == {"action": "generate-all"}:
         for config_name, config_content in generated_params.items():
