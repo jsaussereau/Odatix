@@ -109,29 +109,6 @@ def get_gen_settings(
 # UI Components
 ######################################
 
-def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div()):
-    title_content = html.Div([
-        html.H3(text, id=id, style={"marginBottom": "0px"}),
-        html.Div(
-            [buttons],
-        ),
-    ],
-    className="title-tile-flex",
-    style={
-        "display": "flex",
-        "alignItems": "center",
-        "padding": "0px",
-        "justifyContent": "space-between",
-    })
-    return html.Div(
-        html.Div(
-            [title_content],
-            className="tile title",
-        ),
-        className="card-matrix config",
-        style={"marginLeft": "-13px", "marginTop": "10px", "marginBottom": "0px"},
-    )
-
 def config_parameters_form(settings):
     defval = lambda k, v=None: settings.get(k, v)
     return html.Div(
@@ -773,7 +750,7 @@ preview_title_tile_buttons = html.Div(
 
 layout = html.Div([
     dcc.Location(id="url"),
-    title_tile(id="main-title-config-gen", buttons=variable_title_tile_buttons),
+    ui.title_tile(id="main-title-config-gen", buttons=variable_title_tile_buttons),
     html.Div(
         children=[
             config_parameters_form({}),
@@ -789,7 +766,7 @@ layout = html.Div([
         className="card-matrix config",
         style={"marginLeft": "-13px"},
     ),
-    title_tile(text="Variable Definition", id="variable-title"),
+    ui.title_tile(text="Variable Definition", id="variable-title"),
     html.Div([ 
         html.Div(
             children=[
@@ -800,7 +777,7 @@ layout = html.Div([
             className=f"card-matrix configs", 
         ),
     ]),
-    title_tile(text="Generation Preview", id="gen-preview", buttons=preview_title_tile_buttons),
+    ui.title_tile(text="Generation Preview", id="gen-preview", buttons=preview_title_tile_buttons),
     html.Div([ 
         html.Div(
             id={"type": "config-cards-row"},

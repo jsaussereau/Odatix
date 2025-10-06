@@ -91,3 +91,27 @@ def save_button(id, large=False):
         text="Save All" if large else "", 
         id=id,
     )
+
+
+def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div()):
+    title_content = html.Div([
+        html.H3(text, id=id, style={"marginBottom": "0px"}),
+        html.Div(
+            [buttons],
+        ),
+    ],
+    className="title-tile-flex",
+    style={
+        "display": "flex",
+        "alignItems": "center",
+        "padding": "0px",
+        "justifyContent": "space-between",
+    })
+    return html.Div(
+        html.Div(
+            [title_content],
+            className="tile title",
+        ),
+        className="card-matrix config",
+        style={"marginLeft": "-13px", "marginTop": "10px", "marginBottom": "0px"},
+    )
