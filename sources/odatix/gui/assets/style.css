@@ -357,6 +357,7 @@ button:focus {
 }
 .card.configs {
     width: 256px;
+    overflow: visible !important;
     /* height: 200px; */
 }
 .card.configs.wide {
@@ -367,6 +368,24 @@ button:focus {
 }
 .card.configs.add.wide {
     width: 575px;
+}
+
+@media screen and (max-width: 600px) {
+
+    .card.configs.wide {
+    justify-self: center;
+        display: block;
+        width: 67%;
+        max-width: 67%;
+        margin-right: 20px! important;
+    }
+    .card.configs.add.wide {
+    justify-self: center;
+        display: block;
+        width: 70%;
+        max-width: 70%;
+        margin-right: 20px! important;
+    }
 }
 
 .card-img {
@@ -508,23 +527,6 @@ button:focus {
     transition: all .2s cubic-bezier(0.175, 0.885, 0, 1);
 }
 
-@media screen and (max-width: 1710px) {
-    .tile.title {
-        width: 510px;
-        max-width: 510px;
-    }
-}
-@media screen and (max-width: 600px) {
-    .tile.config {
-        width: 60%;
-        max-width: 60%;
-    }
-    .tile.title {
-        width: 60%;
-        max-width: 60%;
-    }
-}
-
 .tiles-container {
     column-width: 450px;
     column-gap: 16px;
@@ -542,8 +544,15 @@ button:focus {
     box-shadow: none;
 }
 
+.title-input.domain {
+    width: 500px;
+}
+
 .title-input:hover {
     border: 1px solid #d1d5da;
+}
+.title-input.preview:hover {
+    border: 1px solid white;
 }
 
 .title-input:focus {
@@ -551,6 +560,58 @@ button:focus {
     border: 1px solid #d1d5da;
     outline: none;
 }
+.title-input.preview:focus {
+    background-color: transparent;
+    border: 1px solid white;
+}
+
+.inline-flex-buttons {
+    display: inline-flex;
+    margin-left: 16px;
+    vertical-align: middle;
+    margin-right: 0;
+    justify-content: flex-end;
+    width: 100px;
+}
+
+@media screen and (max-width: 1710px) {
+    .tile.title {
+        width: 510px;
+        max-width: 510px;
+    }
+    .title-input {
+        width: 275px;
+    }
+    .title-tile-flex {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px;
+    }
+    .title-tile-flex > div {
+        width: 100%;
+    }
+    .inline-flex-buttons {
+        justify-content: flex-start !important;
+        /* width: 100% !important; */
+        margin-top: 10px !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    .inline-flex-buttons.param-domain-title {
+        margin-top: 0 !important;
+    }
+}
+@media screen and (max-width: 600px) {
+    .tile.config {
+        width: 60%;
+        max-width: 60%;
+    }
+    .tile.title {
+        width: 60%;
+        max-width: 60%;
+    }
+}
+
 
 .animated-section {
     overflow: hidden;
@@ -587,6 +648,11 @@ h3 {
     width: 39px;
     height: 39px;
 }
+.icon-label-button {
+    min-width: 300px;
+    height: 39px;
+}
+
 .color-button.red {
     border-color: #FA5252;
     color: #FA5252;
@@ -632,6 +698,28 @@ h3 {
     color: #868E964D;
     background-color: #868E9614;
     pointer-events: none;
+}
+
+.icon {
+    fill: #24292e;
+}
+.icon.red {
+    fill: #FA5252;
+}
+.icon.blue {
+    fill: #228BE6;
+}
+.icon.orange {
+    fill: #FD7E14;
+}
+.icon.green {
+    fill: #40C057;
+}
+.icon.grey {
+    fill: #868E964D;
+}
+.icon.disabled {
+    fill: #868E964D;
 }
 
 .text-highlight {
