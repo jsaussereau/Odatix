@@ -668,6 +668,11 @@ variable_title_tile_buttons = html.Div(
             id={"action": "save-all"},
             large=True
         ),
+    ],
+    className="inline-flex-buttons",
+)
+preview_title_tile_buttons = html.Div(
+    children=[
         ui.icon_button(
             icon=icon("generate", className="icon blue"),
             color="blue",
@@ -708,7 +713,7 @@ layout = html.Div([
             className=f"card-matrix configs", 
         ),
     ]),
-    title_tile(text="Generation Preview", id="gen-preview"),
+    title_tile(text="Generation Preview", id="gen-preview", buttons=preview_title_tile_buttons),
     html.Div([ 
         html.Div(
             id={"type": "config-cards-row"},
