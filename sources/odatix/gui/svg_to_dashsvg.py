@@ -23,6 +23,7 @@ import sys
 import argparse
 from dash_svg import Svg, Path, Circle, Rect, Ellipse, Line, Polyline, Polygon
 from xml.etree import ElementTree
+from typing import Dict
 
 ######################################
 # SVG to Inline Dash SVG
@@ -45,7 +46,7 @@ def kebab_to_camel(s: str) -> str:
     """
     return re.sub(r'-([a-z])', lambda m: m.group(1).upper(), s)
 
-def parse_style(style_str):
+def parse_style(style_str: str) -> Dict[str, str]:
     """
     Convert a CSS style string to a dictionary.
     Args:
@@ -61,6 +62,28 @@ def parse_style(style_str):
             style_dict[k] = v.strip()
     return style_dict
 
+def normalize_attrib_keys(attrib: Dict[str, str]) -> Dict[str, str]:
+    """
+    Normalize SVG attribute names for Dash:
+    - kebab-case to camelCase (e.g. clip-rule -> clipRule)
+    - class -> className
+    - keep data-* and aria-* as-is
+    - strip namespaces
+    """
+    norm: Dict[str, str] = {}
+    for k, v in attrib.items():
+        # drop namespace prefix if present
+        if "}" in k:
+            k = k.split("}", 1)[1]
+        # keep data-* / aria-* unchanged (Dash supports them)
+        if k.startswith("data-") or k.startswith("aria-"):
+            norm[k] = v
+            continue
+        if k == "class":
+            norm["className"] = v
+            continue
+        norm[kebab_to_camel(k)] = v
+    return norm
 
 def svg_to_dashsvg(svg_file: str) -> Svg:
     """
@@ -73,7 +96,7 @@ def svg_to_dashsvg(svg_file: str) -> Svg:
     children = []
     for elem in root.iter():
         tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
-        attrib = dict(elem.attrib)
+        attrib = normalize_attrib_keys(dict(elem.attrib))   
         if 'style' in attrib and isinstance(attrib['style'], str):
             attrib['style'] = parse_style(attrib['style'])
         if tag.endswith('path'):
