@@ -113,5 +113,5 @@ def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div()):
             className="tile title",
         ),
         className="card-matrix config",
-        style={"marginLeft": "-13px", "marginTop": "10px", "marginBottom": "0px"},
+        style={"marginTop": "10px", "marginBottom": "0px"},
     )

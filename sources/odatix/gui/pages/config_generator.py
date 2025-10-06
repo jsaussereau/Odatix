@@ -764,7 +764,6 @@ layout = html.Div([
             ),
         ], 
         className="card-matrix config",
-        style={"marginLeft": "-13px"},
     ),
     ui.title_tile(text="Variable Definition", id="variable-title"),
     html.Div([ 
@@ -782,6 +781,7 @@ layout = html.Div([
         html.Div(
             id={"type": "config-cards-row"},
             className=f"card-matrix configs", 
+            style={"marginLeft": "13px"}
         ),
     ]),
 ], style={
