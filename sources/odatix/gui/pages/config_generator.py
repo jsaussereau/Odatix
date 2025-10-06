@@ -34,9 +34,11 @@ from odatix.lib.config_generator import ConfigGenerator
 import odatix.components.config_handler as config_handler
 verbose = False
 
+page_path = "/config_generator"
+
 dash.register_page(
     __name__,
-    path='/config_generator',
+    path=page_path,
     title='Odatix - Configuration Generator',
     name='Configuration Generator',
     order=5,
@@ -540,6 +542,7 @@ def update_variable_cards(
     Output("variable-preview", "children"),
     Output("gen-preview", "children"),
     Input("url", "search"),
+    Input("url", "pathname"),
     Input({"action": "save-all"}, "n_clicks"),
     Input({"action": "generate-all"}, "n_clicks"),
     Input("generator-name", "value"),
@@ -561,12 +564,16 @@ def update_variable_cards(
     State("odatix-settings", "data"),
 )
 def update_generation(
-    search, n_click_save, n_click_gen,
+    search, page, n_click_save, n_click_gen,
     name, template,
     titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
     odatix_settings
 ):  
     trigger_id = ctx.triggered_id
+
+    if trigger_id == "url":
+        if page != page_path:
+            return dash.no_update, dash.no_update, dash.no_update
     
     gen_settings = get_gen_settings(
         name, template,
@@ -649,9 +656,12 @@ def update_generation(
 @dash.callback(
     Output("main-title-config-gen", "children"),
     Input("url", "search"),
+    State("url", "pathname"),
     preview_initial_call=True
 )
-def update_main_domain_title(search):
+def update_main_domain_title(search, page):
+    if page != page_path:
+        return dash.no_update, dash.no_update, dash.no_update
     arch_name = get_key_from_url(search, "arch")
     domain_name = get_key_from_url(search, "domain")
     if not arch_name:
