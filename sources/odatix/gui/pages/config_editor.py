@@ -196,10 +196,7 @@ def architecture_title(arch_name:str=""):
 
 def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_name:str=""):
     if domain == hard_settings.main_parameter_domain:
-        text = ""
-        if arch_name:
-            text = text + f"{arch_name} - "
-        text = text + "Main parameter domain"
+        text = "Main parameter domain"
         buttons = html.Div(
             children=[
                 ui.icon_button(
@@ -440,6 +437,7 @@ def domain_section(domain: str, arch_name: str = ""):
             children=[
                 parameter_domain_title(domain, arch_name)
             ], 
+            id=f"param-domain-title-div-{domain}",
             className="card-matrix config",
             style={"marginLeft": "-13px"},
         ),
@@ -457,9 +455,10 @@ def domain_section(domain: str, arch_name: str = ""):
                 className=f"card-matrix configs", 
             ),
         ]),
-        dcc.Store({"type": "config-files-store", "domain": domain}),
-        dcc.Store({"type": "config-params-store", "domain": domain}),
-        dcc.Store({"type": "initial-configs-store", "domain": domain}),
+        dcc.Store(id={"type": "config-files-store", "domain": domain}),
+        dcc.Store(id={"type": "config-params-store", "domain": domain}),
+        dcc.Store(id={"type": "initial-configs-store", "domain": domain}),
+        dcc.Store(id={"type": "domain-metadata", "domain": domain}, data={"domain": domain}),
     ])
 
 layout = html.Div([
@@ -475,8 +474,8 @@ layout = html.Div([
 
 
 @dash.callback(
-    # Output(f"domain_title_{hard_settings.main_parameter_domain}", "children"),
     Output("main_title", "children"),
+    Output(f"param-domain-title-div-{hard_settings.main_parameter_domain}", "children"),
     Input("param-domains-section", "children"),
     State("url", "search"),
     preview_initial_call=True
@@ -484,8 +483,8 @@ layout = html.Div([
 def update_main_domain_title(_, search):
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
-        return "No architecture selected."
-    return arch_name
+        return "No architecture selected.", dash.no_update
+    return arch_name, parameter_domain_title(domain=hard_settings.main_parameter_domain, arch_name=arch_name)
 
 @dash.callback(
     Output("param-domains-section", "children"),
