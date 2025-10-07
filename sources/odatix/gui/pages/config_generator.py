@@ -704,7 +704,7 @@ def update_generation(
             )
         )
     
-    title = f"Preview: {len(generated_params)} configurations to be generated"
+    title = f"{len(generated_params)} configurations to be generated"
 
     return config_cards, variables_preview, title
 
@@ -718,10 +718,19 @@ def update_main_domain_title(search, page):
     if page != page_path:
         return dash.no_update, dash.no_update, dash.no_update
     arch_name = get_key_from_url(search, "arch")
-    domain_name = get_key_from_url(search, "domain")
+    domain = get_key_from_url(search, "domain")
+    if not domain:
+        domain = hard_settings.main_parameter_domain
+        if not domain: domain = hard_settings.main_parameter_domain
+
     if not arch_name:
         return "No architecture selected."
-    return f"{arch_name} - {domain_name}"
+    
+    if domain == hard_settings.main_parameter_domain:
+        title = f"{arch_name} - Main parameter domain"
+    else:
+        title = f"{arch_name} - {domain}"
+    return title
 
 ######################################
 # Layout
