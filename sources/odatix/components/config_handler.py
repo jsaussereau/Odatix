@@ -30,6 +30,7 @@ from datetime import datetime
 import odatix.components.motd as motd
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree
+from typing import Optional
 
 def get_arch_domain_path(arch_path, arch_name, domain) -> str:
     """
@@ -355,7 +356,7 @@ def create_config_gen_dict(name: str, template: str, variables: dict) -> dict:
         }
     }
 
-def create_config_gen_variable_dict(name: str, type: str, settings: dict) -> dict:
+def create_config_gen_variable_dict(name: str, type: str, settings: dict, format: Optional[str]=None) -> dict:
     """
     Create a configuration generation variable dictionary.
 
@@ -371,6 +372,7 @@ def create_config_gen_variable_dict(name: str, type: str, settings: dict) -> dic
         name: {
             'type': type,
             'settings': settings,
+            'format': format
         }
     }
     return var_dict

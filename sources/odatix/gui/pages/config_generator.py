@@ -51,7 +51,7 @@ dash.register_page(
 
 def get_gen_settings(
     name, template,
-    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals
+    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals
 ):
     """
     Get the configuration generation settings from the UI inputs.
@@ -72,6 +72,7 @@ def get_gen_settings(
         list_vals (list): List of comma-separated values for "list" type.
         source_vals (str): Dource variable name for "conversion" type.
         sources_vals (list): List of comma-separated source variable names for set operations.
+        format_vals (list): List of format strings.
     Returns:
         dict: Configuration generation settings.
     """
@@ -79,6 +80,7 @@ def get_gen_settings(
     for idx, title in enumerate(titles):
         type = types[idx]
         settings = {}
+        format = format_vals[idx] if format_vals[idx] else None
         if type == "range":
             settings["from"] = int(from_vals[idx]) if from_vals[idx] else 0
             settings["to"] = int(to_vals[idx]) if to_vals[idx] else 0
@@ -98,9 +100,11 @@ def get_gen_settings(
             settings["from"] = from_type_vals[idx] if from_type_vals[idx] else 0
             settings["to"] = to_type_vals[idx] if to_type_vals[idx] else 0
             settings["source"] = source_vals[idx] if source_vals[idx] else ""
+        elif type == "format":
+            settings["source"] = source_vals[idx] if source_vals[idx] else ""
         elif type in {"union", "disjunctive_union", "intersection", "difference"}:
             settings["sources"] = [x.strip() for x in sources_vals[idx].split(",") if x.strip()] if sources_vals[idx] else []
-        variable = config_handler.create_config_gen_variable_dict(name=title, type=type, settings=settings)
+        variable = config_handler.create_config_gen_variable_dict(name=title, type=type, settings=settings, format=format)
         variables.update(variable)
     gen_settings = config_handler.create_config_gen_dict(name=name, template=template, variables=variables)
     return gen_settings
@@ -164,7 +168,8 @@ def variable_field(
                             "width": "calc(100% - 20px)",
                             "marginLeft": "5px",
                             "marginRight": "5px",
-                            "fontSize": "1em",
+                            "marginBottom": "5px",
+                            "fontSize": "0.9em",
                             "height": "10px",
                             "z-index": "900",
                         },
@@ -174,7 +179,7 @@ def variable_field(
                         value=value,
                         clearable=False,
                         style={
-                            "fontSize": "1em",
+                            "fontSize": "0.95em",
                             "z-index": "900",
                         },
                     ),
@@ -192,7 +197,7 @@ def variable_card(
         base_value="", from_value="", to_value="",
         from_2_pow_value="", to_2_pow_value="", step_value="1",
         from_type_value="dec", to_type_value="hex",
-        op_value="", list_value="", source_value="", sources_value=""
+        op_value="", list_value="", source_value="", sources_value="", format_value="",
     ):
     save_class =  "color-button disabled"
     return html.Div([
@@ -217,12 +222,14 @@ def variable_card(
             dcc.Dropdown(
                 id={"type": "variable-type", "name": name},
                 options=[
+                    {"label": "Boolean", "value": "bool"},
                     {"label": "List", "value": "list"},
                     {"label": "Range", "value": "range"},
                     {"label": "Power of 2", "value": "power_of_two"},
                     {"label": "Multiples", "value": "multiples"},
                     {"label": "Function", "value": "function"},
                     {"label": "Conversion", "value": "conversion"},
+                    {"label": "Format", "value": "format"},
                     {"label": "Union", "value": "union"},
                     {"label": "Disjunctive Union", "value": "disjunctive_union"},
                     {"label": "Intersection", "value": "intersection"},
@@ -245,6 +252,7 @@ def variable_card(
                     variable_field(var=name, name="list", label="List", type="text", placeholder="Comma-separated values", default_style=Style.visible, value=list_value),
                     variable_field(var=name, name="source", label="Source", type="text", value=source_value),
                     variable_field(var=name, name="sources", label="Sources", type="text", placeholder="Comma-separated values", value=sources_value),
+                    variable_field(var=name, name="format", label="Format", type="text", value=format_value),
                 ],
                 id="variable-fields-container",
             ),
@@ -395,24 +403,27 @@ def config_card(filename, content, config_layout="normal", ellipsis=False):
         Output({"type": "variable-field-list-div", "name": dash.ALL}, "style"),
         Output({"type": "variable-field-source-div", "name": dash.ALL}, "style"),
         Output({"type": "variable-field-sources-div", "name": dash.ALL}, "style"),
+        Output({"type": "variable-field-format-div", "name": dash.ALL}, "style"),
     ],
     Input({"type": "variable-type", "name": dash.ALL}, "value"),
 )
 def update_variable_fields_visibility(types):
     # Required fields for each type
     mapping = {
-        "list":              {"list"},
-        "range":             {"from", "to", "step"},
-        "power_of_two":      {"from_2_pow", "to_2_pow"},
-        "multiples":         {"base", "from", "to"},
-        "function":          {"op"},
-        "conversion":        {"from_type", "to_type", "source"},
-        "union":             {"sources"},
-        "disjunctive_union": {"sources"},
-        "intersection":      {"sources"},
-        "difference":        {"sources"},
+        "bool":              {},
+        "list":              {"list", "format"},
+        "range":             {"from", "to", "step", "format"},
+        "power_of_two":      {"from_2_pow", "to_2_pow", "format"},
+        "multiples":         {"base", "from", "to", "format"},
+        "function":          {"op", "format"},
+        "conversion":        {"from_type", "to_type", "source", "format"},
+        "format":            {"source", "format"},
+        "union":             {"sources", "format"},
+        "disjunctive_union": {"sources", "format"},
+        "intersection":      {"sources", "format"},
+        "difference":        {"sources", "format"},
     }
-    all_fields = ["from", "to", "from_2_pow", "to_2_pow", "from_type", "to_type", "base", "step", "op", "list", "source", "sources"]
+    all_fields = ["from", "to", "from_2_pow", "to_2_pow", "from_type", "to_type", "base", "step", "op", "list", "source", "sources", "format"]
 
     styles_by_field = {field: [] for field in all_fields}
     for t in types:
@@ -433,6 +444,7 @@ def update_variable_fields_visibility(types):
         styles_by_field["list"],
         styles_by_field["source"],
         styles_by_field["sources"],
+        styles_by_field["format"],
     )
 
 @dash.callback(
@@ -458,12 +470,13 @@ def update_variable_fields_visibility(types):
     State({"type": "variable-field-list", "name": dash.ALL}, "value"),
     State({"type": "variable-field-source", "name": dash.ALL}, "value"),
     State({"type": "variable-field-sources", "name": dash.ALL}, "value"),
+    State({"type": "variable-field-format", "name": dash.ALL}, "value"),
     State("odatix-settings", "data"),
     prevent_initial_call=True
 )
 def update_form_and_variable_cards(
     search, page, new_click, duplicate_clicks, delete_clicks, cards,
-    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
+    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals,
     odatix_settings
 ):
     trigger_id = ctx.triggered_id
@@ -513,6 +526,7 @@ def update_form_and_variable_cards(
                 "list_value": ", ".join(map(str, settings.get("list", []))),
                 "source_value": str(settings.get("source", "")),
                 "sources_value": ", ".join(map(str, settings.get("sources", []))),
+                "format_value": str(var_settings.get("format", "")),
             }
             cards.append(variable_card(**card_kwargs))
         
@@ -604,12 +618,13 @@ def update_form_and_variable_cards(
     Input({"type": "variable-field-list", "name": dash.ALL}, "value"),
     Input({"type": "variable-field-source", "name": dash.ALL}, "value"),
     Input({"type": "variable-field-sources", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-format", "name": dash.ALL}, "value"),
     State("odatix-settings", "data"),
 )
 def update_generation(
     search, page, n_click_save, n_click_gen,
     name, template,
-    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
+    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals,
     odatix_settings
 ):  
     trigger_id = ctx.triggered_id
@@ -624,7 +639,7 @@ def update_generation(
     
     gen_settings = get_gen_settings(
         name, template,
-        titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals
+        titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals
     )
 
     generator = ConfigGenerator(data=gen_settings)
@@ -786,6 +801,7 @@ layout = html.Div([
             ],
             id={"type": "variable-cards-row"},
             className=f"card-matrix configs", 
+            style={"marginLeft": "13px"},
         ),
     ]),
     ui.title_tile(text="Generation Preview", id="gen-preview", buttons=preview_title_tile_buttons),
@@ -793,7 +809,7 @@ layout = html.Div([
         html.Div(
             id={"type": "config-cards-row"},
             className=f"card-matrix configs", 
-            style={"marginLeft": "13px"}
+            style={"marginLeft": "13px"},
         ),
     ]),
 ], style={
