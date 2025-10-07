@@ -252,17 +252,26 @@ def variable_card(
                     variable_field(var=name, name="list", label="List", type="text", placeholder="Comma-separated values", default_style=Style.visible, value=list_value),
                     variable_field(var=name, name="source", label="Source", type="text", value=source_value),
                     variable_field(var=name, name="sources", label="Sources", type="text", placeholder="Comma-separated values", value=sources_value),
-                    variable_field(var=name, name="format", label="Format", type="text", value=format_value),
+                    html.Div(
+                        children=[
+                            variable_field(var=name, name="format", label="Format", type="text", value=format_value),
+                        ],
+                        id={"type": "more-variable-field-div", "name": name},
+                        className="expandable-area",
+                        style=Style.hidden
+                    )
                 ],
                 id="variable-fields-container",
             ),
         ]),
         html.Div([
             html.Div([
-                # html.Button("Save", id={"type": "save-var", "name": name}, n_clicks=0, className=save_class, style={"marginRight": "8px", "marginLeft": "5px"}),
-                # html.Button("TEST", id={"type": "test-var", "name": name}, n_clicks=0, className=save_class, style={"marginRight": "8px", "marginLeft": "5px"}),
-                # html.Div(status_text, id={"type": "save-status", "name": filename}, className=status_class, style={"marginLeft": "0px", "textwrap": "wrap", "width": "80px", "font-size": "13px", "font-weight": "515"}),
-            ], style={"display": "flex", "alignItems": "center"}),
+                ui.icon_button(
+                    icon=icon("more", className="icon normal rotate", id={"type": "more-fields-icon", "name": name}),
+                    color="normal",
+                    id={"type": "more-fields", "name": name},
+                )
+            ], id={"type": "more-fields-div", "name": name}, style={"display": "flex", "alignItems": "center"}),
             html.Div([
                 ui.duplicate_button(id={"type": "duplicate-var", "name": name}),
                 ui.delete_button(id={"type": "delete-var", "name": name}),
@@ -274,6 +283,7 @@ def variable_card(
             "width": "100%",
             "justifyContent": "space-between",
         }),
+        dcc.Store(id={"type": "variable-metadata", "name": name}, data={"name": name, "type": type_value, "base_value": base_value, "from_value": from_value, "to_value": to_value, "from_2_pow_value": from_2_pow_value, "to_2_pow_value": to_2_pow_value, "from_type_value": from_type_value, "to_type_value": to_type_value, "step_value": step_value, "op_value": op_value, "list_value": list_value, "source_value": source_value, "sources_value": sources_value, "format_value": format_value}),
     ], 
     className="card configs", 
     id={"type": "variable-card", "name": name},
@@ -748,6 +758,40 @@ def update_main_domain_title(search, page):
     else:
         title = f"{arch_name} - {domain}"
     return title
+
+@dash.callback(
+    Output({"type": "more-variable-field-div", "name": dash.ALL}, "style"),
+    Output({"type": "more-fields-icon", "name": dash.ALL}, "className"),
+    Input({"type": "more-fields", "name": dash.ALL}, "n_clicks"),
+    State({"type": "more-variable-field-div", "name": dash.ALL}, "style"),
+    State({"type": "more-fields-icon", "name": dash.ALL}, "className"),
+    State({"type": "variable-metadata", "name": dash.ALL}, "data"),
+)
+def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, metadata):
+    # Get the button that triggered the callback
+    trigger_id = ctx.triggered_id
+    if not isinstance(trigger_id, dict) or "name" not in trigger_id:
+        return [dash.no_update] * len(n_clicks), [dash.no_update] * len(n_clicks)
+
+    # Update only the relevant variable card
+    index = None
+    for i, clicks in enumerate(n_clicks):
+        current_name = metadata[i].get("name") if metadata and i < len(metadata) else {}
+        if trigger_id.get("name") == current_name:
+            print(f"Toggle more fields for {current_name}, clicks = {clicks}")
+            index = i
+            break
+    
+    new_expandable_area_styles = list(expandable_area_styles)
+    new_icon_classes = list(icon_classes)
+    if index is not None:
+        if n_clicks[index] % 2 == 0:
+            new_expandable_area_styles[index] = Style.hidden
+            new_icon_classes[index] = "icon normal rotate"
+        else:
+            new_expandable_area_styles[index] = Style.visible
+            new_icon_classes[index] = "icon normal rotate rotated"
+    return new_expandable_area_styles, new_icon_classes
 
 ######################################
 # Layout

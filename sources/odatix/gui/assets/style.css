@@ -722,6 +722,13 @@ h3 {
     fill: #868E964D;
 }
 
+.icon.rotate {
+    transition: transform 0.1s ease;
+}
+.icon.rotated {
+    transform: rotate(180deg);
+}
+
 .text-highlight {
     border-radius: 6px;
     font-weight: 700;
