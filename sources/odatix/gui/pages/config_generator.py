@@ -475,8 +475,8 @@ def update_form_and_variable_cards(
         arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
         arch_name = get_key_from_url(search, "arch")
         domain = get_key_from_url(search, "domain")
-        if not domain: domain = hard_settings.main_parameter_domain
-
+        if not domain: 
+            domain = hard_settings.main_parameter_domain
         if not arch_name:
             return [], dash.no_update, dash.no_update
 
@@ -631,8 +631,10 @@ def update_generation(
     generated_params, variables = generator.generate()
     
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    domain = get_key_from_url(search, "domain")
     arch_name = get_key_from_url(search, "arch")
+    domain = get_key_from_url(search, "domain")
+    if not domain:
+        domain = hard_settings.main_parameter_domain
     if trigger_id == {"action": "save-all"} or trigger_id == {"action": "generate-all"}:
         if domain and arch_name:
             config_handler.update_domain_settings(
