@@ -20,13 +20,14 @@
 #
 
 from dash_svg import Svg, Path, Circle, Rect, Ellipse, Line, Polyline, Polygon
+from typing import Union
 
 ######################################
 # Icon Definitions
 ######################################
 
 _icons = {
-    "save": lambda color, width, height, className: Svg(
+    "save": lambda color, width, height, className, id: Svg(
         children=[
             Path(d='M19,0H1C0.448,0,0,0.448,0,1v22c0,0.552,0.448,1,1,1h22c0.552,0,1-0.448,1-1V5L19,0z M6,3c0-0.552,0.448-1,1-1h10 c0.552,0,1,0.448,1,1v6c0,0.552-0.448,1-1,1H7c-0.552,0-1-0.448-1-1V3z M20,22H4v-7c0-0.552,0.448-1,1-1h14c0.552,0,1,0.448,1,1V22 z'), 
             Path(d='M16,9h-4V3h4V9z')
@@ -38,10 +39,11 @@ _icons = {
         width=width, 
         height=height, 
         className=className, 
+        id=id,
         style={"scale": "0.9", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
     ),
 
-    "duplicate": lambda color, width, height, className: Svg(
+    "duplicate": lambda color, width, height, className, id: Svg(
         children=[
             Path(id='path1', d='M24,7H6V6c0-1.105,0.895-2,2-2h19c1.105,0,2,0.895,2,2v14c0,1.105-0.895,2-2,2h-1V9C26,7.895,25.105,7,24,7z', style={'fill': '{color}', 'fillOpacity': '1'}), 
             Path(id='path2', d='M22,9H3c-1.105,0-2,0.895-2,2v13c0,1.105,0.895,2,2,2h19c1.105,0,2-0.895,2-2V11C24,9.895,23.105,9,22,9z M16,19h-3v3  c0,0.552-0.448,1-1,1h0c-0.552,0-1-0.448-1-1v-3H8c-0.552,0-1-0.448-1-1v0c0-0.552,0.448-1,1-1h3v-3c0-0.552,0.448-1,1-1h0  c0.552,0,1,0.448,1,1v3h3c0.552,0,1,0.448,1,1v0C17,18.552,16.552,19,16,19z', style={'fill': '{color}', 'fillOpacity': '1'})
@@ -51,10 +53,11 @@ _icons = {
         width=width, 
         height=height, 
         className=className, 
+        id=id,
         style={'enableBackground': 'new 0 0 30 30', "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
     ),
 
-    "delete": lambda color, width, height, className: Svg(
+    "delete": lambda color, width, height, className, id: Svg(
         children=[
             Path(d='M 14.984375 2.4863281 A 1.0001 1.0001 0 0 0 14 3.5 L 14 4 L 8.5 4 A 1.0001 1.0001 0 0 0 7.4863281 5 L 6 5 A 1.0001 1.0001 0 1 0 6 7 L 24 7 A 1.0001 1.0001 0 1 0 24 5 L 22.513672 5 A 1.0001 1.0001 0 0 0 21.5 4 L 16 4 L 16 3.5 A 1.0001 1.0001 0 0 0 14.984375 2.4863281 z M 6 9 L 7.7929688 24.234375 C 7.9109687 25.241375 8.7633438 26 9.7773438 26 L 20.222656 26 C 21.236656 26 22.088031 25.241375 22.207031 24.234375 L 24 9 L 6 9 z')
         ], 
@@ -63,10 +66,11 @@ _icons = {
         width=width, 
         height=height, 
         className=className, 
+        id=id,
         style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
     ),
 
-    "generate": lambda color, width, height, className: Svg(
+    "generate": lambda color, width, height, className, id: Svg(
         children=[
             Path(d='M454.321,219.727l-38.766-51.947l20.815-61.385c2.046-6.032,0.489-12.704-4.015-17.208 c-4.504-4.504-11.175-6.061-17.208-4.015l-61.384,20.815l-51.951-38.766c-5.103-3.809-11.929-4.392-17.605-1.499 c-5.676,2.893-9.217,8.755-9.136,15.125l0.829,64.815l-52.923,37.426c-5.201,3.678-7.863,9.989-6.867,16.282 c0.996,6.291,5.479,11.471,11.561,13.363l43.844,13.63L14.443,483.432c-6.535,6.534-6.535,17.131,0,23.666s17.131,6.535,23.666,0 l257.073-257.072l13.629,43.843c2.172,6.986,8.638,11.768,15.984,11.768c5.375,0,10.494-2.595,13.66-7.072l37.426-52.923 l64.815,0.828c6.322,0.051,12.233-3.462,15.125-9.136S458.131,224.833,454.321,219.727z'), 
             Polygon(points='173.373,67.274 160.014,42.848 146.656,67.274 122.23,80.632 146.656,93.992 160.014,118.417 173.373,93.992 197.799,80.632 '), 
@@ -82,12 +86,10 @@ _icons = {
         width=width, 
         height=height, 
         className=className, 
+        id=id,
         style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
     ),
-}
-
-
-def icon(name: str, color: str = "#fff", width: str = "25px", height: str = "25px", className: str = "") -> Svg:
+def icon(name: str, color: str = "#fff", width: str = "25px", height: str = "25px", className: str = "", id: Union[str, dict]="") -> Svg:
     """
     Return an icon as a Dash SVG component.
     Args:
@@ -95,7 +97,8 @@ def icon(name: str, color: str = "#fff", width: str = "25px", height: str = "25p
         color (str, optional): Color of the icon.
     """
     svg_icon = _icons.get(name)
+
     if not svg_icon:
         return Svg(width=width, height=height) # Empty SVG
 
-    return svg_icon(color, width, height, className)
+    return svg_icon(color, width, height, className, id)
