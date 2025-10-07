@@ -783,3 +783,35 @@ def update_layout_style(layout_value, config_card_classes, add_card_classes, con
         add_card_classes = ["card configs add hover" for _ in range(len(add_card_classes))]
         config_row_classes = ["card-matrix configs" for _ in range(len(config_row_classes))]
     return config_card_classes, add_card_classes, config_row_classes
+
+@dash.callback(
+    Input({"type": "save-params-btn", "domain": dash.ALL}, "n_clicks"),
+    State({"type": "param_target_file", "domain": dash.ALL}, "value"),
+    State({"type": "start_delimiter", "domain": dash.ALL}, "value"),
+    State({"type": "stop_delimiter", "domain": dash.ALL}, "value"),
+    State({"type": "domain-metadata", "domain": dash.ALL}, "data"),
+    State("url", "search"),
+    State("odatix-settings", "data"),
+)
+def save_config_parameters(
+    n_clicks, 
+    param_target_files, start_delimiters, stop_delimiters, metadata,
+    search, odatix_settings
+):
+    arch_name = get_key_from_url(search, "arch")
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+
+    triggered = ctx.triggered_id
+    if isinstance(triggered, dict):
+        trig_domain = triggered.get("domain", hard_settings.main_parameter_domain)
+        idx = next((i for i, data in enumerate(metadata) if data.get("domain") == trig_domain), -1)
+        if idx != -1:
+            param_target_file = param_target_files[idx] if idx < len(param_target_files) else ""
+            start_delimiter = start_delimiters[idx] if idx < len(start_delimiters) else ""
+            stop_delimiter = stop_delimiters[idx] if idx < len(stop_delimiters) else ""
+            settings = {
+                "param_target_file": param_target_file,
+                "start_delimiter": start_delimiter,
+                "stop_delimiter": stop_delimiter,
+            }
+            config_handler.update_domain_settings(arch_path, arch_name, trig_domain, settings)
