@@ -414,6 +414,9 @@ class ConfigGenerator:
         str: Converted value.
     """
     try:
+      if value is None:
+        printc.warning(f'Cannot convert a None value from "{from_type}" to "{to_type}"', script_name)
+        return value
       if from_type == "bin":
         dec_value = int(value, 2)
         if to_type == "dec":
@@ -457,4 +460,6 @@ class ConfigGenerator:
       formatted_value = format_string % float(value)
       return formatted_value
     except (TypeError, ValueError):
+      if format_string is not None:
+        printc.warning(f'Cannot format value "{value}" with format "{format_string}".', script_name)
       return str(value)
