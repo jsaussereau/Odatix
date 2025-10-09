@@ -136,6 +136,8 @@ def config_parameters_form(settings):
                     style={"width": "100%", "resize": "none", "fontSize": "1em", "fontFamily": "monospace", "fontWeight": "500"},
                 ),
             ], style={"marginBottom": "12px"}),
+            dcc.Store(id="generator-initial-settings", data=settings),
+            dcc.Store(id="generator-saved-settings", data=None),
         ],
         id="config-parameters",
         className="tile config",
@@ -420,7 +422,7 @@ def config_card(filename, content, config_layout="normal", ellipsis=False):
 def update_variable_fields_visibility(types):
     # Required fields for each type
     mapping = {
-        "bool":              {},
+        "bool":              {"format"},
         "list":              {"list", "format"},
         "range":             {"from", "to", "step", "format"},
         "power_of_two":      {"from_2_pow", "to_2_pow", "format"},
@@ -461,6 +463,7 @@ def update_variable_fields_visibility(types):
     Output({"type": "variable-cards-row"}, "children"),
     Output("generator-name", "value"),
     Output("generator-template", "value"),
+    Output("generator-initial-settings", "data"),
     Input("url", "search"),
     Input("url", "pathname"),
     Input("new-variable", "n_clicks"),
@@ -493,7 +496,7 @@ def update_form_and_variable_cards(
 
     if trigger_id == "url":
         if page != page_path:
-            return dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
         arch_name = get_key_from_url(search, "arch")
@@ -501,13 +504,14 @@ def update_form_and_variable_cards(
         if not domain: 
             domain = hard_settings.main_parameter_domain
         if not arch_name:
-            return [], dash.no_update, dash.no_update
+            return [], dash.no_update, dash.no_update, dash.no_update
 
         settings = config_handler.load_settings(arch_path, arch_name, domain)
         variables = {}
 
         generator_name = ""
         generator_template = ""
+        gen_settings = {}
         if "generate_configurations_settings" in settings:
             gen_settings = settings["generate_configurations_settings"]
             variables = gen_settings.get("variables", {})
@@ -518,31 +522,31 @@ def update_form_and_variable_cards(
         
         cards = []
         # Create cards from existing variables
-        for var_name, var_settings in variables.items():
-            type_value = var_settings.get("type", "list")
-            settings = var_settings.get("settings", {})
+        for var_name, var_keys in variables.items():
+            type_value = var_keys.get("type", "list")
+            var_settings = var_keys.get("settings", {})
             card_kwargs = {
                 "name": var_name,
                 "type_value": type_value,
-                "base_value": str(settings.get("base", "")),
-                "from_value": str(settings.get("from", "")),
-                "to_value": str(settings.get("to", "")),
-                "from_2_pow_value": str(settings.get("from_2^", "")),
-                "to_2_pow_value": str(settings.get("to_2^", "")),
-                "step_value": str(settings.get("step", "")),
-                "from_type_value": str(settings.get("from", "")),
-                "to_type_value": str(settings.get("to", "")),
-                "op_value": str(settings.get("op", "")),
-                "list_value": ", ".join(map(str, settings.get("list", []))),
-                "source_value": str(settings.get("source", "")),
-                "sources_value": ", ".join(map(str, settings.get("sources", []))),
-                "format_value": str(var_settings.get("format", "")),
+                "base_value": str(var_settings.get("base", "")),
+                "from_value": str(var_settings.get("from", "")),
+                "to_value": str(var_settings.get("to", "")),
+                "from_2_pow_value": str(var_settings.get("from_2^", "")),
+                "to_2_pow_value": str(var_settings.get("to_2^", "")),
+                "step_value": str(var_settings.get("step", "")),
+                "from_type_value": str(var_settings.get("from", "")),
+                "to_type_value": str(var_settings.get("to", "")),
+                "op_value": str(var_settings.get("op", "")),
+                "list_value": ", ".join(map(str, var_settings.get("list", []))),
+                "source_value": str(var_settings.get("source", "")),
+                "sources_value": ", ".join(map(str, var_settings.get("sources", []))),
+                "format_value": str(var_keys.get("format", "")),
             }
             cards.append(variable_card(**card_kwargs))
         
         # Append Add card
         cards.append(add_card())
-        return cards, generator_name, generator_template
+        return cards, generator_name, generator_template, gen_settings
 
     if cards is None:
         cards = []
@@ -629,13 +633,14 @@ def update_form_and_variable_cards(
     Input({"type": "variable-field-source", "name": dash.ALL}, "value"),
     Input({"type": "variable-field-sources", "name": dash.ALL}, "value"),
     Input({"type": "variable-field-format", "name": dash.ALL}, "value"),
+    State({"type": "variable-metadata", "name": dash.ALL}, "data"),
     State("odatix-settings", "data"),
 )
 def update_generation(
     search, page, n_click_save, n_click_gen,
     name, template,
     titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals,
-    odatix_settings
+    metadata, odatix_settings
 ):  
     trigger_id = ctx.triggered_id
 
@@ -778,7 +783,6 @@ def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, metadata)
     for i, clicks in enumerate(n_clicks):
         current_name = metadata[i].get("name") if metadata and i < len(metadata) else {}
         if trigger_id.get("name") == current_name:
-            print(f"Toggle more fields for {current_name}, clicks = {clicks}")
             index = i
             break
     
@@ -793,6 +797,94 @@ def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, metadata)
             new_icon_classes[index] = "icon normal rotate rotated"
     return new_expandable_area_styles, new_icon_classes
 
+@dash.callback(
+    Output({"action": "save-all"}, "className"),
+    Output({"action": "save-all", "is_icon": True}, "className"),
+    Output("generator-saved-settings", "data"),
+    Input({"action": "save-all"}, "n_clicks"),
+    Input({"action": "generate-all"}, "n_clicks"),
+    Input("generator-name", "value"),
+    Input("generator-template", "value"),
+    Input({"type": "variable-title", "name": dash.ALL}, "value"),
+    Input({"type": "variable-type", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-base", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-from", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-to", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-from_2_pow", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-to_2_pow", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-from_type", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-to_type", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-step", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-op", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-list", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-source", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-sources", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-format", "name": dash.ALL}, "value"),
+    State("generator-initial-settings", "data"),
+    State("generator-saved-settings", "data"),
+    State({"type": "variable-metadata", "name": dash.ALL}, "data"),
+    prevent_initial_call=True
+)
+def update_save_button(
+    save_n_clicks, generate_n_clicks, name, template, 
+    title_values, type_values, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals,
+    initial_settings, saved_settings, metadata
+):
+    button_disabled = ("color-button disabled icon-button", "icon disabled")
+    button_enabled = ("color-button orange icon-button", "icon orange")
+
+    trigger_id = ctx.triggered_id
+
+    if trigger_id == {"action": "save-all"} or trigger_id == {"action": "generate-all"}:
+        return button_disabled + ({
+            "name": name,
+            "template": template,
+        },)
+
+    if saved_settings is None:
+        settings = initial_settings
+    else:
+        settings = saved_settings
+
+    old_name = settings.get("name", "") if settings else ""
+    old_template = settings.get("template", "") if settings else ""
+
+    if name != old_name or template != old_template:
+        return button_enabled + (dash.no_update,)
+    
+    for i, _ in enumerate(title_values):
+        if str(title_values[i]) != str(metadata[i].get("name")):
+            return button_enabled + (dash.no_update,)
+        if str(type_values[i]) != str(metadata[i].get("type")):
+            return button_enabled + (dash.no_update,)
+        if str(base_vals[i]) != str(metadata[i].get("base_value")):
+            return button_enabled + (dash.no_update,)
+        if str(from_vals[i]) != str(metadata[i].get("from_value")):
+            return button_enabled + (dash.no_update,)
+        if str(to_vals[i]) != str(metadata[i].get("to_value")):
+            return button_enabled + (dash.no_update,)
+        if str(from_2_pow_vals[i]) != str(metadata[i].get("from_2_pow_value")):
+            return button_enabled + (dash.no_update,)
+        if str(to_2_pow_vals[i]) != str(metadata[i].get("to_2_pow_value")):
+            return button_enabled + (dash.no_update,)       
+        if str(from_type_vals[i]) != str(metadata[i].get("from_type_value")):
+            return button_enabled + (dash.no_update,)
+        if str(to_type_vals[i]) != str(metadata[i].get("to_type_value")):
+            return button_enabled + (dash.no_update,)
+        if str(step_vals[i]) != str(metadata[i].get("step_value")):
+            return button_enabled + (dash.no_update,)
+        if str(op_vals[i]) != str(metadata[i].get("op_value")):
+            return button_enabled + (dash.no_update,)
+        if str(list_vals[i]) != str(metadata[i].get("list_value")):
+            return button_enabled + (dash.no_update,)
+        if str(source_vals[i]) != str(metadata[i].get("source_value")):
+            return button_enabled + (dash.no_update,)
+        if str(sources_vals[i]) != str(metadata[i].get("sources_value")):
+            return button_enabled + (dash.no_update,)
+        if str(format_vals[i]) != str(metadata[i].get("format_value")):
+            return button_enabled + (dash.no_update,)
+
+    return button_disabled + (dash.no_update,)
 ######################################
 # Layout
 ######################################
