@@ -372,9 +372,10 @@ def create_config_gen_variable_dict(name: str, type: str, settings: dict, format
         name: {
             'type': type,
             'settings': settings,
-            'format': format
         }
     }
+    if format:
+        var_dict[name]['format'] = format
     return var_dict
 
 def _compact_list_variables_in_config_settings(config_settings: dict):
