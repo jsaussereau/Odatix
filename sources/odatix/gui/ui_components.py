@@ -85,8 +85,14 @@ def duplicate_button(id, large=False):
     )
 
 def save_button(id, large=False):
+    if isinstance(id, dict):
+        icon_id = id.copy()
+        icon_id.update({"is_icon": True})
+    else:
+        icon_id = id + "-icon"
+
     return icon_button(
-        icon=icon("save", className="icon orange"),
+        icon=icon("save", className="icon orange", id=icon_id),
         color="orange",
         text="Save All" if large else "", 
         id=id,
