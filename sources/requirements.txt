@@ -6,3 +6,4 @@ numpy
 pandas
 plotly
 waitress
+dash_svg
