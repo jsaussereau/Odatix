@@ -37,17 +37,33 @@ Vivado is a software suite dedicated to AMD (Xilinx) SoCs and FPGAs. Vivado ML S
 .. Warning::
    Make sure your EDA tool is added to your PATH environment variable
 
-   .. code-block:: bash
+   .. tab:: Unix
 
-      PATH=$PATH:<eda_tool_installation_path>
+      .. code-block:: bash
+
+         PATH=$PATH:<eda_tool_installation_path>
+
+   .. tab:: Windows
+
+      .. code-block:: powershell
+
+         $env:PATH += "<eda_tool_installation_path>"
 
    Replace ``<eda_tool_installation_path>`` with your own installation path. 
 
    Example of adding Vivado to the PATH environment variable (your installation path may be different):
 
-   .. code-block:: bash
+   .. tab:: Unix
 
-      PATH=$PATH:/opt/xilinx/Vivado/2024.1/bin
+      .. code-block:: bash
+
+         PATH=$PATH:/opt/xilinx/Vivado/2024.1/bin
+
+   .. tab:: Windows
+
+      .. code-block:: powershell
+
+         $env:PATH += ";C:\Xilinx\Vivado\2024.2\bin"
 
       
 Simulations
