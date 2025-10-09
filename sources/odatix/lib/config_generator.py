@@ -65,6 +65,7 @@ class ConfigGenerator:
     self.variables = {}
     self.valid = False
     self.enabled = False
+    self.error_messages = []
 
     if data is not None:
       self.yaml_file = "<provided_data>"
@@ -192,11 +193,20 @@ class ConfigGenerator:
             sets = [set(self.generate_values_for_dim(source, self.variables.get(source, {}))) for source in sources if source in self.variables]
             
             if value_type == "union":
-              result_set = set.union(*sets)
+              if sets:
+                result_set = set.union(*sets)
+              else:
+                result_set = set()
             elif value_type == "disjunctive_union":
-              result_set = set.union(*sets) - set.intersection(*sets)
+              if sets:
+                result_set = set.union(*sets) - set.intersection(*sets)
+              else:
+                result_set = set()
             elif value_type == "intersection":
-              result_set = set.intersection(*sets)
+              if sets:
+                result_set = set.intersection(*sets)
+              else:
+                result_set = set()
             elif value_type == "difference":
               if len(sets) == 2:
                 result_set = sets[0] - sets[1]
@@ -233,19 +243,20 @@ class ConfigGenerator:
         elif value_type == "format":
           settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
           if defined:
-            source, _ = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
+            source, source_defined = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
             formatted_values = {}
             for k, v in value_map.items():
               var_cfg = self.variables.get(k, {})
               format_str = None
               if var_cfg.get("type") == "format":
                 settings = var_cfg.get("settings", {})
-                format_str = settings.get("format", "{}")
+                format_str = settings.get("format", None)
               else:
-                format_str = var_cfg.get("format", "{}")
+                format_str = var_cfg.get("format", None)
               formatted_values[k] = self.format_value(v, format_str)
             for name, value in formatted_values.items():
-              source = source.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
+              if source_defined:
+                source = str(source).replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
             value_map[variable] = source
             values.add(source)
         elif value_type == "conversion":
@@ -253,8 +264,9 @@ class ConfigGenerator:
           if defined:
             from_type, _ = get_from_dict("from", settings, self.yaml_file, silent=True, script_name=script_name)
             to_type, _ = get_from_dict("to", settings, self.yaml_file, silent=True, script_name=script_name)
-            source, _ = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
-            source = source.replace("$", "").replace("{", "").replace("}", "")
+            source, sources_defined = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
+            if sources_defined:
+              source = str(source).replace("$", "").replace("{", "").replace("}", "")
             if source in value_map:
               converted = self.apply_conversion(value_map[source], from_type, to_type)
               value_map[variable] = converted
@@ -269,9 +281,9 @@ class ConfigGenerator:
         format_str = None
         if var_cfg.get("type") == "format":
           settings = var_cfg.get("settings", {})
-          format_str = settings.get("format", "{}")
+          format_str = settings.get("format", None)
         else:
-          format_str = var_cfg.get("format", "{}")
+          format_str = var_cfg.get("format", None)
         formatted_values[k] = self.format_value(v, format_str)
       final_template = self.template
       final_name = self.name_template
@@ -452,7 +464,7 @@ class ConfigGenerator:
         str: Formatted value as a string.
     """
     if format_string is None:
-      value = value
+      return str(value)
     if isinstance(value, list):
       value = "".join(str(v) for v in value)
 
