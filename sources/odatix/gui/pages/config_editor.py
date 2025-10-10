@@ -326,9 +326,9 @@ def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_
         rtl_path = settings.get("rtl_path", "")
         if not rtl_path:
             return preview_div(html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error"))
-        base_path = os.path.dirname(rtl_path)
+        base_path = rtl_path
         if param_target_file == "":
-            param_target_file = os.path.join("rtl", settings.get("top_level_file", ""))
+            param_target_file = os.path.join(settings.get("top_level_file", ""))
     param_target_file = os.path.join(base_path, param_target_file)
     if os.path.exists(param_target_file):
         base_text = replace_params.read_file(param_target_file)
@@ -706,6 +706,7 @@ def update_preview_all(search, config_cards_rows, target_files, start_delims, st
             config_contents_list = contents_by_domain[i] if i < len(contents_by_domain) else []
             settings = settings_list[0] if 0 < len(settings_list) and settings_list[0] is not None else {}
             domain_settings = settings_list[i] if i < len(settings_list) and settings_list[i] is not None else {}
+            print(f"settings: {settings}")
             domain_settings["param_target_file"] = target_files[i] if i < len(target_files) else ""
             domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
             domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
