@@ -606,7 +606,7 @@ def update_form_and_variable_cards(
 
     # Append Add card
     cards.append(add_card())
-    return cards, dash.no_update, dash.no_update
+    return cards, dash.no_update, dash.no_update, dash.no_update
 
 @dash.callback(
     Output({"type": "config-cards-row"}, "children"),
