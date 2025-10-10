@@ -20,7 +20,6 @@
 #
 
 import os
-import uuid
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional, Literal
@@ -557,7 +556,11 @@ def update_form_and_variable_cards(
 
     # Add new variable
     if trigger_id == "new-variable" and new_click:
-        new_name = f"var_{uuid.uuid4().hex[:8]}"
+        existing_names = [card.get('props', {}).get('id', {}).get('name', '') for card in cards if isinstance(card.get('props', {}).get('id', {}), dict)]
+        var_idx = 1
+        while f"var{var_idx}" in existing_names:
+            var_idx += 1
+        new_name = f"var{var_idx}"
         cards.append(variable_card(new_name))
 
     if isinstance(trigger_id, dict):
@@ -585,8 +588,14 @@ def update_form_and_variable_cards(
 
             if trig_type == "duplicate-var":
 
+                # Find a unique name for the duplicated variable
+                existing_names = [card.get('props', {}).get('id', {}).get('name', '') for card in cards if isinstance(card.get('props', {}).get('id', {}), dict)]
+                copy_idx = 1
+                while f"{trig_name}_copy{copy_idx}" in existing_names:
+                    copy_idx += 1
+                new_name = f"{trig_name}_copy{copy_idx}"
+
                 if idx is not None:
-                    new_name = f"var_{uuid.uuid4().hex[:8]}"
                     cards.append(variable_card(
                         name=new_name,
                         type_value=types[idx],
