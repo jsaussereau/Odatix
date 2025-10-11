@@ -431,40 +431,47 @@ def preview_div(content):
         ], 
     )
 
-def domain_section(domain: str, arch_name: str = ""):
-    return html.Div([
-        html.Div(
-            children=[
-                parameter_domain_title(domain, arch_name)
-            ], 
-            id=f"param-domain-title-div-{domain}",
-            className="card-matrix config",
-            style={"marginLeft": "-13px"},
-        ),
-        html.Div(
-            children=[
-                html.Div(id={"type": "config-parameters", "domain": domain}, className="tile config"),
-                html.Div(id={"type": "preview-pane", "domain": domain}, className="tile config"),
-            ], 
-            className="card-matrix config",
-            style={"marginLeft": "-13px"},
-        ),
-        html.Div([
+def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
+    return html.Div(
+        children=[
             html.Div(
-                id={"type": "config-cards-row", "domain": domain},
-                className=f"card-matrix configs", 
+                children=[
+                    parameter_domain_title(domain, arch_name)
+                ], 
+                id=f"param-domain-title-div-{domain}",
+                className="card-matrix config",
+                style={"marginLeft": "-13px"},
             ),
-        ]),
-        dcc.Store(id={"type": "config-files-store", "domain": domain}),
-        dcc.Store(id={"type": "config-params-store", "domain": domain}),
-        dcc.Store(id={"type": "initial-configs-store", "domain": domain}),
-        dcc.Store(id={"type": "domain-metadata", "domain": domain}, data={"domain": domain}),
-    ])
+            html.Div(
+                children=[
+                    html.Div(
+                        children=[
+                            config_parameters_form(domain, settings),
+                        ],
+                        id={"type": "config-parameters", "domain": domain}, 
+                        className="tile config"),
+                    html.Div(id={"type": "preview-pane", "domain": domain}, className="tile config"),
+                ], 
+                className="card-matrix config",
+                style={"marginLeft": "-13px"},
+            ),
+            html.Div([
+                html.Div(
+                    id={"type": "config-cards-row", "domain": domain},
+                    className=f"card-matrix configs", 
+                ),
+            ]),
+            dcc.Store(id={"type": "config-files-store", "domain": domain}),
+            dcc.Store(id={"type": "config-params-store", "domain": domain}, data=settings),
+            dcc.Store(id={"type": "initial-configs-store", "domain": domain}),
+            dcc.Store(id={"type": "domain-metadata", "domain": domain}, data={"domain": domain}),
+        ],
+        id = {"type": "param-domain-section", "domain": domain},
+    )
 
 layout = html.Div([
     dcc.Location(id="url"),
     architecture_title(),
-    domain_section(hard_settings.main_parameter_domain),
     html.Div(id="param-domains-section"),
 ], style={
     "background-color": "#f6f8fa",
@@ -498,18 +505,38 @@ def update_main_domain_title(_, search):
 )
 def update_param_domains(
     search, add_domain_click, duplicate_domain_click, delete_domain_click,
-    odatix_settings, current_domains
+    odatix_settings, domain_sections
 ):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
         return html.Div("No architecture selected.", className="error")
 
-    triggered = ctx.triggered_id
+    triggered_id = ctx.triggered_id
     domains = config_handler.get_param_domains(arch_path, arch_name)
 
-    if isinstance(triggered, dict):
-        trigger_action = triggered.get("action", "")
+    add_domain_div = html.Div(
+        children=[
+            add_parameter_domain_button("Add new parameter domain")
+        ],
+        className="card-matrix config",
+        style={"marginLeft": "-13px"},
+    )
+
+    # Generate domain sections
+    if triggered_id == "url":
+        domain_sections = []
+        settings = config_handler.load_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        domain_sections.append(domain_section(hard_settings.main_parameter_domain, settings=settings))
+        for domain in domains:
+            settings = config_handler.load_settings(arch_path, arch_name, domain)
+            settings["arch_name"] = arch_name
+            domain_sections.append(domain_section(domain, arch_name, settings=settings))
+        domain_sections.append(add_domain_div)
+        return domain_sections
+    
+    elif isinstance(triggered_id, dict):
+        trigger_action = triggered_id.get("action", "")
         # Add a new domain
         if trigger_action == "add-domain":
             base_name = "new_domain"
@@ -519,11 +546,16 @@ def update_param_domains(
                 suffix += 1
                 new_domain = f"{base_name}{suffix}"
             config_handler.create_parameter_domain(arch_path, arch_name, new_domain)
-            domains = config_handler.get_param_domains(arch_path, arch_name)
+            
+            # Insert new domain section before the add domain button
+            domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
+            domain_sections.append(domain_section(new_domain, arch_name, settings={}))
+            domain_sections.append(add_domain_div)
+            return domain_sections
 
         # Duplicate domain
         elif trigger_action == "duplicate-domain":
-            domain_to_duplicate = triggered.get("domain", "")
+            domain_to_duplicate = triggered_id.get("domain", "")
             if domain_to_duplicate:
                 if domain_to_duplicate == hard_settings.main_parameter_domain:
                     base_name = "main_copy"
@@ -537,31 +569,26 @@ def update_param_domains(
                 config_handler.duplicate_parameter_domain(
                     arch_path, arch_name, arch_name, domain_to_duplicate, new_domain
                 )
-                domains = config_handler.get_param_domains(arch_path, arch_name)
+
+                # Insert new domain section before the add domain button
+                domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
+                domain_sections.append(domain_section(new_domain, arch_name, settings={}))
+                domain_sections.append(add_domain_div)
+                return domain_sections
 
         # Delete domain
         elif trigger_action == "delete-domain":
-            domain_to_delete = triggered.get("domain", "")
+            domain_to_delete = triggered_id.get("domain", "")
             if domain_to_delete and domain_to_delete != hard_settings.main_parameter_domain:
                 config_handler.delete_parameter_domain(arch_path, arch_name, domain_to_delete)
-                domains = config_handler.get_param_domains(arch_path, arch_name)
+                if isinstance(domain_sections, list):
+                    for i, section in enumerate(domain_sections):
+                        domain = section.get("props", {}).get("id", {}).get("domain", "")
+                        if domain == domain_to_delete:
+                            domain_sections.pop(i)
+                            return domain_sections
 
-    # Generate domain sections
-    domain_blocks = []
-    for domain in domains:
-        settings = config_handler.load_settings(arch_path, arch_name, domain)
-        settings["arch_name"] = arch_name
-        domain_blocks.append(domain_section(domain, arch_name))
-    domain_blocks.append(
-        html.Div(
-            children=[
-                add_parameter_domain_button("Add new parameter domain")
-            ],
-            className="card-matrix config",
-            style={"marginLeft": "-13px"},
-        ),
-    )
-    return domain_blocks
+    return dash.no_update
 
 @dash.callback(
     Output({"type": "config-cards-row", "domain": dash.ALL}, "children"),
@@ -713,29 +740,6 @@ def update_preview_all(search, config_cards_rows, target_files, start_delims, st
             results.append(preview_pane(domain, settings, domain_settings, replacement_text))
         return results
     return dash.no_update
-
-@dash.callback(
-    Output({"type": "config-parameters", "domain": dash.ALL}, "children"),
-    Output({"type": "config-params-store", "domain": dash.ALL}, "data"),
-    State("url", "search"),
-    Input({"type": "config-cards-row", "domain": dash.ALL}, "children"),
-    State("odatix-settings", "data"),
-
-    prevent_initial_call=True
-)
-def update_config_parameters_all(search, config_cards_rows, odatix_settings):
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_key_from_url(search, "arch")
-    if not arch_name:
-        return [html.Div("No architecture selected.", className="error")], [{}]
-    domains = [hard_settings.main_parameter_domain] + config_handler.get_param_domains(arch_path, arch_name)
-    children = []
-    stores = []
-    for domain in domains:
-        settings = config_handler.load_settings(arch_path, arch_name, domain)
-        children.append(config_parameters_form(domain, settings))
-        stores.append(settings)
-    return children, stores
 
 @dash.callback(
     Output({"type": "save-config", "domain": dash.ALL, "filename": dash.ALL}, "className"),
