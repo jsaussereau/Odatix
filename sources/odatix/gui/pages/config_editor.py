@@ -103,8 +103,14 @@ def config_card(domain, filename, content, initial_content, config_layout="norma
         dcc.Store(id={"type": "config-metadata", "domain": domain, "filename": filename}, data={"domain": domain, "filename": filename}),
         html.Div([
             html.Div([
-                html.Button("Save", id={"type": "save-config", "domain": domain, "filename": filename}, n_clicks=0, className=save_class, style={"marginRight": "8px", "marginLeft": "5px"}),
-                html.Div(status_text, id={"type": "save-status", "domain": domain, "filename": filename}, className=status_class, style={"marginLeft": "0px", "textwrap": "wrap", "width": "80px", "font-size": "13px", "font-weight": "515"}),
+                html.Div([ui.icon_button(
+                    icon=icon("save", className="icon orange", id={"type": "save-config-icon", "domain": domain, "filename": filename}),
+                    color="orange",
+                    text="Save", 
+                    width="78px",
+                    id={"type": "save-config", "domain": domain, "filename": filename},
+                ),], style={"marginLeft": "5px"}),
+                html.Div(status_text, id={"type": "save-status", "domain": domain, "filename": filename}, className=status_class, style={"marginLeft": "0px", "textwrap": "wrap", "width": "70px", "font-size": "13px", "font-weight": "515"}),
             ], style={"display": "flex", "alignItems": "center"}),
             html.Div([
                 ui.duplicate_button(id={"type": "duplicate-config", "domain": domain, "filename": filename}),
