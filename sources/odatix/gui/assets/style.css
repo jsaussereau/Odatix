@@ -360,17 +360,17 @@ button:focus {
     overflow: visible !important;
     /* height: 200px; */
 }
-.card.configs.wide {
-    width: 554px;
-}
 .card.configs.add {
     width: 277px;
 }
+.card.configs.wide {
+    width: 705px;
+}
 .card.configs.add.wide {
-    width: 575px;
+    width: calc(705px + 21px);
 }
 
-@media screen and (max-width: 600px) {
+/* @media screen and (max-width: 600px) {
 
     .card.configs.wide {
     justify-self: center;
@@ -386,7 +386,7 @@ button:focus {
         max-width: 70%;
         margin-right: 20px! important;
     }
-}
+} */
 
 .card-img {
     margin: auto;
@@ -411,7 +411,7 @@ button:focus {
     justify-content: center; 
 }
 .card-matrix.config {
-    grid-template-columns: repeat(auto-fit, 600px);
+    grid-template-columns: repeat(auto-fit, 750px);
     gap: 0px;
 }
 .card-matrix.configs {
@@ -419,7 +419,7 @@ button:focus {
     gap: 0px;
 }
 .card-matrix.configs.wide {
-    grid-template-columns: repeat(auto-fit, 600px);
+    grid-template-columns: repeat(auto-fit, 750px);
     gap: 0px;
 }
 
@@ -512,14 +512,14 @@ button:focus {
 
 .tile.config {
     justify-self: center;
-    max-width: 510px;
-    width: 510px;
+    max-width: 660px;
+    width: 660px;
 }
 
 .tile.title {
     justify-self: center;
-    max-width: 1110px;
-    width: 1110px;
+    max-width: 1410px;
+    width: 1410px;
     height: fit-content;
 }
 
@@ -540,7 +540,7 @@ button:focus {
     font-size: 24px;
     font-weight: bold;
     background-color: transparent;
-    border: 1px solid white;
+    border: 1px solid #ffffff00;
     box-shadow: none;
 }
 
@@ -552,7 +552,7 @@ button:focus {
     border: 1px solid #d1d5da;
 }
 .title-input.preview:hover {
-    border: 1px solid white;
+    border: 1px solid #ffffff00;
 }
 
 .title-input:focus {
@@ -562,7 +562,7 @@ button:focus {
 }
 .title-input.preview:focus {
     background-color: transparent;
-    border: 1px solid white;
+    border: 1px solid #ffffff00;
 }
 
 .inline-flex-buttons {
@@ -573,11 +573,50 @@ button:focus {
     justify-content: flex-end;
     width: 100px;
 }
-
-@media screen and (max-width: 1710px) {
+@media screen and (max-width: 2205px) {
+    .tile.title {
+        width: 1110px;
+        max-width: 1110px;
+    }
+    .tile.config {
+        max-width: 510px;
+        width: 510px;
+    }
+    .card-matrix.config {
+        grid-template-columns: repeat(auto-fit, 600px);
+        gap: 0px;
+    }
+    .card.configs.wide {
+        width: 554px;
+        max-width: 554px;
+    }
+    .card.configs.add.wide {
+        width: calc(554px + 21px);
+        max-width: calc(554px + 21px);
+    }
+    .card-matrix.configs.wide {
+        grid-template-columns: repeat(auto-fit, 600px);
+        gap: 0px;
+    }
+}
+@media screen and (max-width: 1765px) {
+    .tile.title {
+        width: 810px;
+        max-width: 810px;
+    }
+    .tile.config {
+        max-width: 810px;
+        width: 810px;
+    }
+}
+@media screen and (max-width: 1324px) {
     .tile.title {
         width: 510px;
         max-width: 510px;
+    }
+    .tile.config {
+        max-width: 510px;
+        width: 510px;
     }
     .title-input {
         width: 275px;
@@ -601,17 +640,36 @@ button:focus {
         margin-top: 0 !important;
     }
 }
-@media screen and (max-width: 600px) {
+@media screen and (max-width: 882px) {
     .tile.config {
-        width: 60%;
-        max-width: 60%;
+        margin-left: 10px;
+        width: 390px;
+        max-width: 390px;
     }
     .tile.title {
-        width: 60%;
-        max-width: 60%;
+        margin-left: 10px;
+        width: 390px;
+        max-width: 390px;
+    }
+    .card.configs {
+        padding: 32px;
+        width: calc(390px + 44px);
+        max-width: calc(390px + 44px);
+    }
+    .card.configs.wide {
+        padding: 32px;
+        width: calc(390px + 44px);
+        max-width: calc(390px + 44px);
+    }
+    .card-matrix.configs {
+        grid-template-columns: none;
+        gap: 0px;
+    }
+    .card-matrix.configs.wide {
+        grid-template-columns: none;
+        gap: 0px;
     }
 }
-
 
 .animated-section {
     overflow: hidden;
