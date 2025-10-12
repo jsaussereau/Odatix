@@ -807,6 +807,35 @@ def update_save_status(param_domains_section, title_values, content_values, init
     return save_classes, status_classes, status_texts
 
 @dash.callback(
+    Output({"type": "save-params-btn", "domain": dash.ALL}, "className"),
+    Input({"type": "use_parameters", "domain": dash.ALL}, "value"),
+    Input({"type": "param_target_file", "domain": dash.ALL}, "value"),
+    Input({"type": "start_delimiter", "domain": dash.ALL}, "value"),
+    Input({"type": "stop_delimiter", "domain": dash.ALL}, "value"),
+    Input({"type": "config-params-store", "domain": dash.ALL}, "data"),
+)
+def update_params_save_button(params_enables, target_files, start_delims, stop_delims, settings_list):
+    save_classes = []
+    disabled_class = "color-button disabled icon-button"
+    enabled_class = "color-button orange icon-button"
+
+    for use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings in zip(params_enables, target_files, start_delims, stop_delims, settings_list):
+        if domain_settings is None:
+            domain_settings = {}
+        use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
+        if use_parameters != domain_settings.get("use_parameters", True):
+            save_classes.append(enabled_class)
+        elif param_target_file != domain_settings.get("param_target_file", ""):
+            save_classes.append(enabled_class)
+        elif start_delimiter != domain_settings.get("start_delimiter", ""):
+            save_classes.append(enabled_class)
+        elif stop_delimiter != domain_settings.get("stop_delimiter", ""):
+            save_classes.append(enabled_class)
+        else:
+            save_classes.append(disabled_class)
+    return save_classes
+
+@dash.callback(
     Output({"type": "config-card", "domain": dash.ALL, "filename": dash.ALL}, "className"),
     Output({"type": "add-config-card", "domain": dash.ALL}, "className"),
     Output({"type": "config-cards-row", "domain": dash.ALL}, "className"),
@@ -827,6 +856,7 @@ def update_layout_style(layout_value, config_card_classes, add_card_classes, con
     return config_card_classes, add_card_classes, config_row_classes
 
 @dash.callback(
+    Output({"type": "config-params-store", "domain": dash.ALL}, "data"),
     Input({"type": "save-params-btn", "domain": dash.ALL}, "n_clicks"),
     State({"type": "use_parameters", "domain": dash.ALL}, "value"),
     State({"type": "param_target_file", "domain": dash.ALL}, "value"),
@@ -850,6 +880,7 @@ def save_config_parameters(
         idx = next((i for i, data in enumerate(metadata) if data.get("domain") == trig_domain), -1)
         if idx != -1:
             use_parameters = use_parameters[idx] if idx < len(use_parameters) else False
+            use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
             param_target_file = param_target_files[idx] if idx < len(param_target_files) else ""
             start_delimiter = start_delimiters[idx] if idx < len(start_delimiters) else ""
             stop_delimiter = stop_delimiters[idx] if idx < len(stop_delimiters) else ""
@@ -860,6 +891,8 @@ def save_config_parameters(
                 "stop_delimiter": stop_delimiter,
             }
             config_handler.update_domain_settings(arch_path, arch_name, trig_domain, settings)
+            return [settings if i == idx else dash.no_update for i in range(len(metadata))]
+    return [dash.no_update for _ in range(len(metadata))]
 
 @dash.callback(
     Output({"type": "params-config-fields", "domain": dash.ALL}, "style"),
