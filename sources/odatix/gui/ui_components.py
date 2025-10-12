@@ -121,3 +121,21 @@ def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div()):
         className="card-matrix config",
         style={"marginTop": "10px", "marginBottom": "0px"},
     )
+
+def subtitle_div(text:str="", id:str="main-title", buttons:html.Div=html.Div()):
+    title_content = html.Div([
+        html.H3(text, id=id, style={"marginBottom": "0px"}),
+        html.Div(
+            [buttons],
+        ),
+    ],
+    className="title-tile-flex",
+    style={
+        "display": "flex",
+        "alignItems": "center",
+        "padding": "0px",
+        "margin-right": "-15px",
+        "margin-top": "0px",
+        "justifyContent": "space-between",
+    })
+    return title_content
