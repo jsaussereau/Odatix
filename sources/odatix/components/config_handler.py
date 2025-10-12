@@ -191,6 +191,7 @@ f"""##############################################
 """
     )
 
+    data['use_parameters'] = settings.get('use_parameters', True)
     data['param_target_file'] = settings.get('param_target_file', "")
     data['start_delimiter'] = settings.get('start_delimiter', "")
     data['stop_delimiter'] = settings.get('stop_delimiter', "")
