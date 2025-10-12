@@ -301,23 +301,43 @@ def add_parameter_domain_button(text:str="Main parameter domain"):
 
 def config_parameters_form(domain, settings):
     defval = lambda k, v=None: settings.get(k, v)
-    return html.Div([
-        html.H3(f"Configuration Parameters"),
-        html.Div([
-            html.Label("Param Target File"),
-            dcc.Input(id={"type": "param_target_file", "domain": domain}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default", style={"width": "100%"}),
-        ], style={"marginBottom": "12px"}),
-        html.Div([
-            html.Label("Start Delimiter"),
-            dcc.Input(id={"type": "start_delimiter", "domain": domain}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
-        ], style={"marginBottom": "12px"}),
-        html.Div([
-            html.Label("Stop Delimiter"),
-            dcc.Input(id={"type": "stop_delimiter", "domain": domain}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
-        ], style={"marginBottom": "12px"}),
-        html.Button("Save", id={"type": "save-params-btn", "domain": domain}, n_clicks=0, className="save-button", style={"marginTop": "8px"}),
-        html.Div(id={"type": "save-params-status", "domain": domain}, className="status", style={"marginLeft": "16px"}),
-    ])
+
+    save_button = html.Div(
+        children=[
+            ui.icon_button(
+                icon=icon("save", className="icon", id={"type": "save-params-icon", "domain": domain}),
+                color="orange",
+                text="Save", 
+                width="78px",
+                id={"type": "save-params-btn", "domain": domain},
+            ),
+        ],
+        style={"marginBottom": "10px"},
+        className="inline-flex-buttons",
+    )
+    return html.Div(
+        children=[
+            ui.subtitle_div(text="Configuration Parameters", buttons=save_button),
+            html.Div(
+                children=[
+                    html.Div([
+                        html.Label("Param Target File"),
+                        dcc.Input(id={"type": "param_target_file", "domain": domain}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default", style={"width": "100%"}),
+                    ], style={"marginBottom": "12px"}),
+                    html.Div([
+                        html.Label("Start Delimiter"),
+                        dcc.Input(id={"type": "start_delimiter", "domain": domain}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
+                    ], style={"marginBottom": "12px"}),
+                    html.Div([
+                        html.Label("Stop Delimiter"),
+                        dcc.Input(id={"type": "stop_delimiter", "domain": domain}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
+                    ], style={"marginBottom": "12px"}),
+                ],
+                id={"type": "params-config-fields", "domain": domain},
+            ),
+            html.Div(id={"type": "save-params-status", "domain": domain}, className="status", style={"marginLeft": "16px"}),
+        ]
+    )
 
 def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_text: str):
     param_target_file = domain_settings.get("param_target_file", "")
