@@ -758,11 +758,11 @@ def update_save_status(param_domains_section, title_values, content_values, init
     status_texts = []
     for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
         if title != initial_title or content != initial_content:
-            save_classes.append("color-button orange")
+            save_classes.append("color-button orange icon-button")
             status_classes.append("status warning")
             status_texts.append("Unsaved changes!")
         else:
-            save_classes.append("color-button disabled")
+            save_classes.append("color-button disabled icon-button")
             status_classes.append("status")
             status_texts.append("")
     return save_classes, status_classes, status_texts

@@ -808,7 +808,6 @@ def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, metadata)
 
 @dash.callback(
     Output({"action": "save-all"}, "className"),
-    Output({"action": "save-all", "is_icon": True}, "className"),
     Output("generator-saved-settings", "data"),
     Input({"action": "save-all"}, "n_clicks"),
     Input({"action": "generate-all"}, "n_clicks"),
@@ -839,16 +838,16 @@ def update_save_button(
     title_values, type_values, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals,
     initial_settings, saved_settings, metadata
 ):
-    button_disabled = ("color-button disabled icon-button", "icon disabled")
-    button_enabled = ("color-button orange icon-button", "icon orange")
+    button_disabled = "color-button disabled icon-button"
+    button_enabled = "color-button orange icon-button"
 
     trigger_id = ctx.triggered_id
 
     if trigger_id == {"action": "save-all"} or trigger_id == {"action": "generate-all"}:
-        return button_disabled + ({
+        return button_disabled, {
             "name": name,
             "template": template,
-        },)
+        }
 
     if saved_settings is None:
         settings = initial_settings
@@ -859,41 +858,42 @@ def update_save_button(
     old_template = settings.get("template", "") if settings else ""
 
     if name != old_name or template != old_template:
-        return button_enabled + (dash.no_update,)
+        return button_enabled, dash.no_update
     
     for i, _ in enumerate(title_values):
         if str(title_values[i]) != str(metadata[i].get("name")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(type_values[i]) != str(metadata[i].get("type")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(base_vals[i]) != str(metadata[i].get("base_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(from_vals[i]) != str(metadata[i].get("from_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(to_vals[i]) != str(metadata[i].get("to_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(from_2_pow_vals[i]) != str(metadata[i].get("from_2_pow_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(to_2_pow_vals[i]) != str(metadata[i].get("to_2_pow_value")):
-            return button_enabled + (dash.no_update,)       
+            return button_enabled, dash.no_update
         if str(from_type_vals[i]) != str(metadata[i].get("from_type_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(to_type_vals[i]) != str(metadata[i].get("to_type_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(step_vals[i]) != str(metadata[i].get("step_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(op_vals[i]) != str(metadata[i].get("op_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(list_vals[i]) != str(metadata[i].get("list_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(source_vals[i]) != str(metadata[i].get("source_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(sources_vals[i]) != str(metadata[i].get("sources_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
         if str(format_vals[i]) != str(metadata[i].get("format_value")):
-            return button_enabled + (dash.no_update,)
+            return button_enabled, dash.no_update
 
-    return button_disabled + (dash.no_update,)
+    return button_disabled, dash.no_update
+
 ######################################
 # Layout
 ######################################
