@@ -30,6 +30,7 @@ from odatix.lib.settings import OdatixSettings
 import odatix.components.replace_params as replace_params
 import odatix.components.config_handler as config_handler
 from odatix.gui.icons import icon
+from odatix.gui.css_helper import Style
 
 verbose = False
 
@@ -318,6 +319,13 @@ def config_parameters_form(domain, settings):
     return html.Div(
         children=[
             ui.subtitle_div(text="Configuration Parameters", buttons=save_button),
+            dcc.Checklist(
+                options=[{"label": "Enable parameter replacement", "value": True}],
+                value=[True] if defval("use_parameters", True) else [],
+                id={"type": "use_parameters", "domain": domain},
+                className="checklist-switch",
+                style={"marginBottom": "12px", "marginTop": "5px"},
+            ),
             html.Div(
                 children=[
                     html.Div([
@@ -340,6 +348,9 @@ def config_parameters_form(domain, settings):
     )
 
 def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_text: str):
+    use_parameters = domain_settings.get("use_parameters", True)
+    if not use_parameters:
+        return preview_div(html.Div("Parameter replacement disabled.", style={"color": "#888"}))
     param_target_file = domain_settings.get("param_target_file", "")
     generate_rtl = settings.get("generate_rtl", False)
     if generate_rtl:
@@ -733,6 +744,7 @@ def update_config_cards(
     Output({"type": "preview-pane", "domain": dash.ALL}, "children"),
     State("url", "search"),
     Input({"type": "config-cards-row", "domain": dash.ALL}, "children"),
+    Input({"type": "use_parameters", "domain": dash.ALL}, "value"),
     Input({"type": "param_target_file", "domain": dash.ALL}, "value"),
     Input({"type": "start_delimiter", "domain": dash.ALL}, "value"),
     Input({"type": "stop_delimiter", "domain": dash.ALL}, "value"),
@@ -742,7 +754,7 @@ def update_config_cards(
     State("odatix-settings", "data"),
     prevent_initial_call=True
 )
-def update_preview_all(search, config_cards_rows, target_files, start_delims, stop_delims, settings_list, config_contents_list, configs_list, odatix_settings):
+def update_preview_all(search, config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, configs_list, odatix_settings):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
     domains = [hard_settings.main_parameter_domain] + config_handler.get_param_domains(arch_path, arch_name)
@@ -759,6 +771,7 @@ def update_preview_all(search, config_cards_rows, target_files, start_delims, st
             config_contents_list = contents_by_domain[i] if i < len(contents_by_domain) else []
             settings = settings_list[0] if 0 < len(settings_list) and settings_list[0] is not None else {}
             domain_settings = settings_list[i] if i < len(settings_list) and settings_list[i] is not None else {}
+            domain_settings["use_parameters"] = params_enables[i] if i < len(params_enables) else ""
             domain_settings["param_target_file"] = target_files[i] if i < len(target_files) else ""
             domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
             domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
@@ -815,6 +828,7 @@ def update_layout_style(layout_value, config_card_classes, add_card_classes, con
 
 @dash.callback(
     Input({"type": "save-params-btn", "domain": dash.ALL}, "n_clicks"),
+    State({"type": "use_parameters", "domain": dash.ALL}, "value"),
     State({"type": "param_target_file", "domain": dash.ALL}, "value"),
     State({"type": "start_delimiter", "domain": dash.ALL}, "value"),
     State({"type": "stop_delimiter", "domain": dash.ALL}, "value"),
@@ -824,7 +838,7 @@ def update_layout_style(layout_value, config_card_classes, add_card_classes, con
 )
 def save_config_parameters(
     n_clicks, 
-    param_target_files, start_delimiters, stop_delimiters, metadata,
+    use_parameters, param_target_files, start_delimiters, stop_delimiters, metadata,
     search, odatix_settings
 ):
     arch_name = get_key_from_url(search, "arch")
@@ -835,12 +849,28 @@ def save_config_parameters(
         trig_domain = triggered.get("domain", hard_settings.main_parameter_domain)
         idx = next((i for i, data in enumerate(metadata) if data.get("domain") == trig_domain), -1)
         if idx != -1:
+            use_parameters = use_parameters[idx] if idx < len(use_parameters) else False
             param_target_file = param_target_files[idx] if idx < len(param_target_files) else ""
             start_delimiter = start_delimiters[idx] if idx < len(start_delimiters) else ""
             stop_delimiter = stop_delimiters[idx] if idx < len(stop_delimiters) else ""
             settings = {
+                "use_parameters": use_parameters,
                 "param_target_file": param_target_file,
                 "start_delimiter": start_delimiter,
                 "stop_delimiter": stop_delimiter,
             }
             config_handler.update_domain_settings(arch_path, arch_name, trig_domain, settings)
+
+@dash.callback(
+    Output({"type": "params-config-fields", "domain": dash.ALL}, "style"),
+    Output({"type": "config-cards-row", "domain": dash.ALL}, "style"),
+    Input ({"type": "use_parameters", "domain": dash.ALL}, "value"),
+)
+def toggle_params_fields(enabled_values):
+    styles = []
+    for value in enabled_values:
+        if value:
+            styles.append({})
+        else:
+            styles.append(Style.hidden)
+    return styles, styles
