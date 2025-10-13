@@ -105,8 +105,8 @@ def config_card(domain, filename, content, initial_content, config_layout="norma
         html.Div([
             html.Div([
                 html.Div([ui.icon_button(
-                    icon=icon("save", className="icon orange", id={"type": "save-config-icon", "domain": domain, "filename": filename}),
-                    color="orange",
+                    icon=icon("save", className="icon", id={"type": "save-config-icon", "domain": domain, "filename": filename}),
+                    color="disabled",
                     text="Save", 
                     width="78px",
                     id={"type": "save-config", "domain": domain, "filename": filename},
@@ -307,7 +307,7 @@ def config_parameters_form(domain, settings):
         children=[
             ui.icon_button(
                 icon=icon("save", className="icon", id={"type": "save-params-icon", "domain": domain}),
-                color="orange",
+                color="disabled",
                 text="Save", 
                 width="78px",
                 id={"type": "save-params-btn", "domain": domain},
