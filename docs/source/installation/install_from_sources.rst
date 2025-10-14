@@ -163,14 +163,14 @@ Depending of if you want to install Odatix in editable mode or not:
    .. code-block:: bash
       
       python3 -m pip install --upgrade pip setuptools wheel
-      python3 -m pip install -e ./sources
+      python3 -m pip install -e ./sources --use-pep517
 
 .. tab:: Install Odatix (without editable mode)
 
    .. code-block:: bash
 
       python3 -m pip install --upgrade pip setuptools wheel
-      python3 -m pip install ./sources
+      python3 -m pip install ./sources --use-pep517
 
 Step 5: Enable option auto-completetion [*Optional*]
 ----------------------------------------------------
