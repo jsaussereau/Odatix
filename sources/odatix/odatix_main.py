@@ -37,6 +37,7 @@ import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
 import odatix.components.clean as cln
 import odatix.components.generate_configs as gen_configs
+import odatix.components.replace_params as replace_params
 
 import odatix.lib.settings as settings
 from odatix.lib.settings import OdatixSettings
@@ -86,6 +87,11 @@ class ArgParser:
     ArgParser.gen_configs_parser = subparsers.add_parser("generate", help="generate configurations", formatter_class=formatter)
     gen_configs.add_arguments(ArgParser.gen_configs_parser)
     ArgParser.add_nobanner(ArgParser.gen_configs_parser)
+
+    # Define parser for the 'replace' command
+    ArgParser.replace_parser = subparsers.add_parser("replace", help="replace content between delimiters in a text file", formatter_class=formatter)
+    replace_params.add_arguments(ArgParser.replace_parser)
+    ArgParser.add_nobanner(ArgParser.replace_parser)
 
     # Define parser for the 'fmax' command
     ArgParser.fmax_parser = subparsers.add_parser("fmax", help="run fmax synthesis", formatter_class=formatter)
@@ -150,6 +156,9 @@ class ArgParser:
     print()
     printc.bold("Generate Configurations:\n  ", printc.colors.CYAN, end="")
     ArgParser.gen_configs_parser.print_help()
+    print()
+    printc.bold("Replace Parameters:\n  ", printc.colors.CYAN, end="")
+    ArgParser.replace_parser.print_help()
     print()
     printc.bold("Fmax Synthesis:\n  ", printc.colors.CYAN, end="")
     ArgParser.fmax_parser.print_help()
@@ -216,6 +225,19 @@ def generate_configs(args):
   except Exception as e:
     internal_error(e, error_logfile, script_name)
     success = False
+  return success
+
+def replace(args):
+  success = True
+  try:
+    replace_params.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
 
 def run_simulations(args):
   success = True
@@ -425,6 +447,8 @@ def main(args=None):
     success = export_results(args)
   elif args.command in "generate":
     success = generate_configs(args)
+  elif args.command in "replace":
+    success = replace(args)
   elif args.command in "clean":
     success = clean(args)
 
