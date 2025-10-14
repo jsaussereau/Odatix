@@ -45,6 +45,10 @@ Step 1: Clone the repository
 
       winget install --id Git.Git -e --source winget 
 
+   .. important::
+
+      Restart your terminal after installing git to be able to use the ``git`` command.
+
    Then, clone the repository and navigate to it:
 
    .. code-block:: powershell
@@ -83,6 +87,10 @@ Step 2: Install Python 3.6+ and make
    .. code-block:: powershell
 
       winget install --id Python.Python.3 -e
+   
+   .. important::
+
+      Restart your terminal after installing python to be able to use the ``python3`` command.
 
 Step 3: Configure a `virtual environment <https://docs.python.org/3/library/venv.html>`_ [*Optional*]
 ------------------------------------------------------------------------------------------------------
