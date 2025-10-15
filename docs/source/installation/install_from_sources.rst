@@ -87,10 +87,14 @@ Step 2: Install Python 3.6+ and make
    .. code-block:: powershell
 
       winget install --id Python.Python.3 -e
+
+   .. warning::
+
+      If you install Python from the python official website, make sure to check the box "✅ Add Python to PATH" during the installation.
    
    .. important::
 
-      Restart your terminal after installing python to be able to use the ``python3`` command.
+      Restart your terminal after installing python to be able to use the ``python`` command.
 
 Step 3: Configure a `virtual environment <https://docs.python.org/3/library/venv.html>`_ [*Optional*]
 ------------------------------------------------------------------------------------------------------
@@ -123,7 +127,7 @@ If you want to use Odatix inside a virtual environment, run:
    .. code-block:: powershell
 
       # Create a virtual environment
-      python3 -m venv odatix_venv # You only need to do it once
+      python -m venv odatix_venv # You only need to do it once
 
 To activate the virtual environment, run:
 
@@ -166,19 +170,68 @@ Step 4: Install the package
 
 Depending of if you want to install Odatix in editable mode or not:
 
-.. tab:: Install Odatix (editable mode)
+Option #1: Install Odatix in editable mode
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. tab:: Ubuntu/Debian
 
    .. code-block:: bash
       
       python3 -m pip install --upgrade pip setuptools wheel
-      python3 -m pip install -e ./sources --use-pep517
+      python3 -m pip install -e ./sources
 
-.. tab:: Install Odatix (without editable mode)
+.. tab:: Fedora/CentOS/AlmaLinux
 
    .. code-block:: bash
-
+      
       python3 -m pip install --upgrade pip setuptools wheel
-      python3 -m pip install ./sources --use-pep517
+      python3 -m pip install -e ./sources
+
+.. tab:: Arch Linux
+
+   .. code-block:: bash
+      
+      python3 -m pip install --upgrade pip setuptools wheel
+      python3 -m pip install -e ./sources
+
+.. tab:: Windows
+
+   .. code-block:: powershell
+      
+      python -m pip install --upgrade pip setuptools wheel
+      python -m pip install -e .\sources --use-pep517
+
+Option #2: Install Odatix without editable mode
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. tab:: Ubuntu/Debian
+
+   .. code-block:: bash
+      
+      python3 -m pip install --upgrade pip setuptools wheel
+      python3 -m pip install ./sources
+
+.. tab:: Fedora/CentOS/AlmaLinux
+
+   .. code-block:: bash
+      
+      python3 -m pip install --upgrade pip setuptools wheel
+      python3 -m pip install ./sources
+
+.. tab:: Arch Linux
+
+   .. code-block:: bash
+      
+      python3 -m pip install --upgrade pip setuptools wheel
+      python3 -m pip install ./sources
+
+.. tab:: Windows
+
+   .. code-block:: powershell
+      
+      python -m pip install --upgrade pip setuptools wheel
+      python -m pip install .\sources --use-pep517
+
 
 Step 5: Enable option auto-completetion [*Optional*]
 ----------------------------------------------------
