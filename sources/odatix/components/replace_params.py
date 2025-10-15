@@ -35,8 +35,10 @@ import os
 import re
 import sys
 import argparse
+from typing import List
 
 import odatix.lib.printc as printc
+from odatix.lib.param_domain import ParamDomain
 
 script_name = os.path.basename(__file__)
 
