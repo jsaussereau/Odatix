@@ -136,6 +136,54 @@ def replace_params(base_text_file, replacement_text_file, output_file, start_del
 
     return match_found
 
+def replace_param_domain(output_path: str, param_domain: ParamDomain, silent: bool=False, debug: bool=False):
+    """
+    Replace parameters in a specific domain based on the provided ParamDomain object.
+
+    Args:
+        output_path (str): The directory where the target file is located.
+        param_domain (ParamDomain): The ParamDomain object containing domain-specific information.
+        silent (bool, optional): If True, suppresses output messages. Defaults to False.
+        debug (bool, optional): If True, enables debug output. Defaults to False.
+    """
+    success = False
+    if param_domain.use_parameters:
+        param_target_file = os.path.join(output_path, param_domain.param_target_file)
+        if debug: 
+            printc.subheader("Replace parameters for \"" + param_domain.domain + "/" + param_domain.domain_value+ "\"")
+        success = replace_params(
+            base_text_file=param_target_file,
+            replacement_text_file=param_domain.param_file,
+            output_file=param_target_file,
+            start_delimiter=param_domain.start_delimiter,
+            stop_delimiter=param_domain.stop_delimiter,
+            replace_all_occurrences=False,
+            silent=False if debug else True,
+        )
+    return success
+
+def replace_param_domains(output_path: str, param_domains: List[ParamDomain], timestamp=False, silent=False, debug=False):
+    """
+    Replace parameters for multiple ParamDomain objects and return a dictionary of domain values.
+
+    Args:
+        output_path (str): The directory where the target files are located.
+        param_domains (List[ParamDomain]): A list of ParamDomain objects.
+        timestamp (bool, optional): If True, includes a timestamp in the returned dictionary. Defaults to False.
+        silent (bool, optional): If True, suppresses output messages. Defaults to False.
+        debug (bool, optional): If True, enables debug output. Defaults to False.
+    """
+    domain_dict = {}
+    if timestamp is not None:
+        domain_dict["__timestamp__"] = timestamp 
+    for param_domain in param_domains:
+        success = replace_param_domain(output_path, param_domain, silent, debug)
+        if success:
+            domain_dict[param_domain.domain] = param_domain.domain_value
+        if debug: 
+            print()
+    return domain_dict
+
 ######################################
 # Main
 ######################################
