@@ -25,6 +25,8 @@ import yaml
 
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.printc as printc
+import odatix.lib.hard_settings as hard_settings
+from odatix.lib.settings import OdatixSettings
 
 script_name = os.path.basename(__file__)
 
@@ -113,14 +115,15 @@ class ParamDomain:
     return True
 
   @staticmethod
-  def get_param_domains(requested_param_domains, param_settings_filename, arch_path, top_level_file):
+  def get_param_domains(requested_param_domains, architecture, arch_path=OdatixSettings.DEFAULT_ARCH_PATH, param_settings_filename=hard_settings.param_settings_filename, top_level_file=""):
     """
     Retrieves multiple parameter domains.
 
     Args:
         requested_param_domains (list): List of requested parameter domains.
-        param_settings_filename (str): Name of the settings file.
+        architecture (str): Name of the architecture.
         arch_path (str): Path to the architecture directory.
+        param_settings_filename (str): Name of the settings file.
         top_level_file (str): Path to the top-level configuration file.
 
     Returns:
@@ -132,27 +135,37 @@ class ParamDomain:
 
     param_domains = []
     for request in requested_param_domains:
-      param_domain = ParamDomain.get_param_domain(request, param_settings_filename, arch_path, top_level_file, param_domain_def=True)
+      param_domain = ParamDomain.get_param_domain(
+        request=request, 
+        architecture=architecture,
+        arch_path=arch_path, 
+        param_settings_filename=param_settings_filename,
+        top_level_file=top_level_file,
+        param_domain_def=True,
+      )
       if param_domain is None:
         return None
       param_domains.append(param_domain)
     return param_domains
 
   @staticmethod
-  def get_param_domain(request, param_settings_filename, arch_path, top_level_file, param_domain_def=False):
+  def get_param_domain(request, architecture, arch_path=OdatixSettings.DEFAULT_ARCH_PATH, param_settings_filename=hard_settings.param_settings_filename, top_level_file="", param_domain_def=False):
     """
     Retrieves a single parameter domain.
 
     Args:
         request (str): Requested parameter domain.
-        param_settings_filename (str): Name of the settings file.
+        architecture (str): Name of the architecture.
         arch_path (str): Path to the architecture directory.
+        param_settings_filename (str): Name of the settings file.
         top_level_file (str): Path to the top-level configuration file.
         param_domain_def (bool): Whether this is the definition of a parameter domain.
 
     Returns:
         ParamDomain or None: A ParamDomain object if successful, otherwise None.
     """
+
+    arch_path = os.path.join(arch_path, architecture)
 
     # get param dir (request name before '/')
     arch_param_dir = re.sub('/.*', '', request)
@@ -200,7 +213,7 @@ class ParamDomain:
     )
 
   @staticmethod
-  def get_param_delimiters(settings_data, settings_file, top_level_file, param_domain_def=False):
+  def get_param_delimiters(settings_data, settings_file, top_level_file=None, param_domain_def=False):
     """
     Extracts parameter delimiters and target file information.
 

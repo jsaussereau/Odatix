@@ -598,7 +598,13 @@ class ArchitectureHandler:
                 return None
         
         if len(requested_param_domains) > 0:
-            param_domains = ParamDomain.get_param_domains(requested_param_domains, self.param_settings_filename, arch_param, work_top_level)
+            param_domains = ParamDomain.get_param_domains(
+                requested_param_domains=requested_param_domains, 
+                architecture=arch_param_dir, 
+                arch_path=self.arch_path, 
+                param_settings_filename=self.param_settings_filename, 
+                top_level_file=work_top_level
+            )
             if param_domains is None:
                 self.banned_arch_param.append(arch_param_dir)
                 self.error_archs.append(arch_display_name)
