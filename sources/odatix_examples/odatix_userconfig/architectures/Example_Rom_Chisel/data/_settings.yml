@@ -1,0 +1,21 @@
+
+start_delimiter: "  val data_bits = "
+stop_delimiter: " // Data width"
+param_target_file: "src/main/scala/rom.scala"
+
+generate_configurations: Yes
+generate_configurations_settings:
+  template: "${bits}"
+  name: "${formatted_bits}bits"
+  variables:
+    bits:
+      type: range
+      settings:
+        from: 8
+        to: 14
+
+    formatted_bits:
+      type: format
+      settings:
+        source: $bits
+        format: "%02d"

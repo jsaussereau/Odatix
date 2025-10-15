@@ -1,0 +1,20 @@
+
+start_delimiter: "  val addr_bits = "
+stop_delimiter: " // Address width"
+param_target_file: "src/main/scala/rom.scala"
+
+generate_configurations: Yes
+generate_configurations_settings:
+  template: "${bits}"
+  name: "${formatted_bits}bits"
+  variables:
+    bits:
+      type: list
+      settings:
+        list: [4, 6, 8, 10, 12, 14, 16]
+
+    formatted_bits:
+      type: format
+      settings:
+        source: $bits
+        format: "%02d"
