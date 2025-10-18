@@ -174,18 +174,33 @@ def add_card(text: str = "Add new config", domain: str = hard_settings.main_para
 def architecture_title(arch_name:str=""):
     title_content = html.Div([
         html.H3(arch_name, id=f"main_title", style={"marginBottom": "0px"}),
-        dcc.Dropdown(
-            id="config-layout-dropdown", 
-            options=[
-                {"label": "Compact Layout", "value": "compact"},
-                {"label": "Normal Layout", "value": "normal"},
-                {"label": "Wide Layout", "value": "wide"},
+            html.Div(
+            children=[
+                ui.icon_button(
+                    id=f"button-open-config-editor",
+                    icon=icon("edit", className="icon black"),
+                    text="Edit Architecture",
+                    color="black",
+                    link=f"/arch_editor?arch={arch_name}",
+                    multiline=True,
+                    width="135px",
+                ),
+                dcc.Dropdown(
+                    id="config-layout-dropdown", 
+                    options=[
+                        {"label": "Compact Layout", "value": "compact"},
+                        {"label": "Normal Layout", "value": "normal"},
+                        {"label": "Wide Layout", "value": "wide"},
+                    ],
+                    value="normal",
+                    clearable=False,
+                    style={"width": "155px"},
+                ),
             ],
-            value="normal",
-            clearable=False,
-            style={"width": "155px"},
+            className="inline-flex-buttons",
         )
     ],
+    className="title-tile-flex",
     style={
         "display": "flex",
         "alignItems": "center",
@@ -197,8 +212,9 @@ def architecture_title(arch_name:str=""):
             [title_content],
             className="tile title",
         ),
+        id = "architecture-title-div",
         className="card-matrix config",
-        style={"marginLeft": "-13px", "marginBottom": "10px"},
+        style={"marginLeft": "-7px", "marginBottom": "0px"},
     )
 
 def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_name:str=""):
@@ -907,3 +923,13 @@ def toggle_params_fields(enabled_values):
         else:
             styles.append(Style.hidden)
     return styles, styles
+
+@dash.callback(
+    Output("architecture-title-div", "children"),
+    Input("url", "search"),
+)
+def update_architecture_title(search):
+    arch_name = get_key_from_url(search, "arch")
+    if not arch_name:
+        arch_name = "New_Architecture"
+    return architecture_title(arch_name)
