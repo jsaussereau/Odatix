@@ -894,6 +894,22 @@ def update_save_button(
 
     return button_disabled, dash.no_update
 
+@dash.callback(
+    Input({"action": "clean-all"}, "n_clicks"),
+    State("url", "search"),
+    State("odatix-settings", "data"),
+)
+def clean_all_configs(n_clicks, search, odatix_settings):    
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    arch_name = get_key_from_url(search, "arch")
+    domain = get_key_from_url(search, "domain")
+    if not domain:
+        domain = hard_settings.main_parameter_domain
+    
+    trigger_id = ctx.triggered_id
+    if trigger_id == {"action": "clean-all"} and n_clicks:
+        config_handler.delete_all_config_files(arch_path, arch_name, domain)
+
 ######################################
 # Layout
 ######################################
@@ -902,7 +918,6 @@ variable_title_tile_buttons = html.Div(
     children=[
         ui.save_button(
             id={"action": "save-all"},
-            large=True
         ),
     ],
     className="inline-flex-buttons",
@@ -914,7 +929,14 @@ preview_title_tile_buttons = html.Div(
             color="blue",
             text="Generate", 
             id={"action": "generate-all"},
-        )
+        ),
+        ui.icon_button(
+            icon=icon("clean", className="icon red"),
+            color="red",
+            text="Clean Existing", 
+            multiline=True,
+            id={"action": "clean-all"},
+        ),
     ],
     className="inline-flex-buttons",
 )
