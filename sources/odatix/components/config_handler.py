@@ -379,6 +379,18 @@ def create_config_gen_variable_dict(name: str, type: str, settings: dict, format
         var_dict[name]['format'] = format
     return var_dict
 
+
+def delete_all_config_files(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
+    """
+    Delete all configuration files for a specific parameter domain of an architecture.
+    """
+    path = get_arch_domain_path(arch_path, arch_name, domain)
+    if not os.path.isdir(path):
+        return
+    for f in os.listdir(path):
+        if f.endswith(".txt"):
+            os.remove(os.path.join(path, f))
+
 def _compact_list_variables_in_config_settings(config_settings: dict):
     """
     Edit the 'variables' in 'generate_configurations_settings' to ensure lists are compact in YAML.
