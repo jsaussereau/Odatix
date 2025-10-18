@@ -32,7 +32,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree
 from typing import Optional
 
-def get_arch_domain_path(arch_path, arch_name, domain) -> str:
+def get_arch_domain_path(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> str:
     """
     Get the path of a specific parameter domain.
     """
@@ -54,7 +54,7 @@ def get_param_domains(arch_path, arch_name) -> list:
         if os.path.isdir(os.path.join(folder, d)) and not d.startswith("_")
     ]
 
-def get_config_files(arch_path, arch_name, domain) -> list:
+def get_config_files(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> list:
     """
     Get the list of configuration files for a specific parameter domain of an architecture.
     """
@@ -95,7 +95,7 @@ def delete_config_file(arch_path, arch_name, domain, filename) -> None:
     if os.path.exists(path):
         os.remove(path)
 
-def load_settings(arch_path, arch_name, domain) -> dict:
+def load_settings(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> dict:
     """
     Load the settings of a specific parameter domain of an architecture.
     """
@@ -265,7 +265,7 @@ def update_raw_settings(arch_path, arch_name, domain, settings_to_update) -> dic
     
     return settings
 
-def create_parameter_domain(arch_path, arch_name, domain) -> None:
+def create_parameter_domain(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
     """
     Create a new parameter domain for a specific architecture.
     """
@@ -307,7 +307,7 @@ def duplicate_parameter_domain(arch_path, source_arch_name, target_arch_name, so
         # copy the entire folder
         copytree(source_path, target_path)
 
-def delete_parameter_domain(arch_path, arch_name, domain) -> None:
+def delete_parameter_domain(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
     """
     Delete a specific parameter domain for a specific architecture.
     """
