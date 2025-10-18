@@ -295,7 +295,6 @@ def duplicate_parameter_domain(arch_path, source_arch_name, target_arch_name, so
     if os.path.exists(target_path):
         return
     
-    print(f"Duplicating domain '{source_domain}' from architecture '{source_arch_name}' to domain '{target_domain}' in architecture '{target_arch_name}'...")
     if source_domain == hard_settings.main_parameter_domain:
         # copy only the files in the main domain folder, not the folders
         for item in os.listdir(source_path):
