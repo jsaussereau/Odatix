@@ -41,6 +41,12 @@ def get_arch_domain_path(arch_path, arch_name, domain=hard_settings.main_paramet
     else:
         return os.path.join(arch_path, arch_name, domain)
 
+def architecture_exists(arch_path, arch_name) -> bool:
+    """
+    Check if a specific architecture exists.
+    """
+    path = os.path.join(arch_path, arch_name)
+    return os.path.isdir(path)
 
 def get_param_domains(arch_path, arch_name) -> list:
     """
