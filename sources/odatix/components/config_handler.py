@@ -88,6 +88,7 @@ def save_config_file(arch_path, arch_name, domain, filename, content) -> None:
     Save the content of a specific configuration file for a specific parameter domain of an architecture.
     """
     path = get_arch_domain_path(arch_path, arch_name, domain)
+    os.makedirs(path, exist_ok=True)
     path = os.path.join(path, filename)
     with open(path, "w") as f:
         f.write(content)
