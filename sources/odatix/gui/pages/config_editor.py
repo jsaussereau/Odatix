@@ -34,9 +34,11 @@ from odatix.gui.css_helper import Style
 
 verbose = False
 
+page_path = "/config_editor"
+
 dash.register_page(
     __name__,
-    path='/config_editor',
+    path=page_path,
     title='Odatix - Configuration Editor',
     name='Configuration Editor',
     order=4,
@@ -369,6 +371,7 @@ def preview_pane(domain:str, settings: dict, domain_settings: dict, replacement_
         return preview_div(html.Div("Parameter replacement disabled.", style={"color": "#888"}))
     param_target_file = domain_settings.get("param_target_file", "")
     generate_rtl = settings.get("generate_rtl", False)
+    generate_rtl = True if generate_rtl else False # Convert from [True]/[] to True/False
     if generate_rtl:
         base_path = settings.get("design_path", "")
         if not base_path:
@@ -549,24 +552,34 @@ def update_main_domain_title(_, search):
 @dash.callback(
     Output("param-domains-section", "children"),
     Input("url", "search"),
+    State("url", "pathname"),
     Input({"action": "add-domain", "type": dash.ALL}, "n_clicks"),
     Input({"action": "duplicate-domain", "domain": dash.ALL}, "n_clicks"),
     Input({"action": "delete-domain", "domain": dash.ALL}, "n_clicks"),
     State("odatix-settings", "data"),
     State("param-domains-section", "children"),
+    State({"type": "domain-metadata", "domain": dash.ALL}, "data"),
     prevent_initial_call=True
 )
 def update_param_domains(
-    search, add_domain_click, duplicate_domain_click, delete_domain_click,
-    odatix_settings, domain_sections
+    search, page, add_domain_click, duplicate_domain_click, delete_domain_click,
+    odatix_settings, domain_sections, metadata
 ):
+    triggered_id = ctx.triggered_id
+    if triggered_id == "url":
+        if page != page_path:
+            return dash.no_update
+
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
-        return html.Div("No architecture selected.", className="error")
-
-    triggered_id = ctx.triggered_id
-    domains = config_handler.get_param_domains(arch_path, arch_name)
+        return html.Div(
+            children=[
+                html.Div("No architecture selected.", className="error")
+            ],
+            className="card-matrix config",
+            style={"marginLeft": "-13px"},
+        )
 
     add_domain_div = html.Div(
         children=[
@@ -575,6 +588,14 @@ def update_param_domains(
         className="card-matrix config",
         style={"marginLeft": "-13px"},
     )
+
+    if not config_handler.architecture_exists(arch_path, arch_name):
+        domain_sections = []
+        domain_sections.append(domain_section(hard_settings.main_parameter_domain, arch_name, settings={}))
+        domain_sections.append(add_domain_div)
+        return domain_sections
+
+    domains = config_handler.get_param_domains(arch_path, arch_name)
 
     # Generate domain sections
     if triggered_id == "url":
@@ -609,6 +630,12 @@ def update_param_domains(
         # Duplicate domain
         elif trigger_action == "duplicate-domain":
             domain_to_duplicate = triggered_id.get("domain", "")
+
+            # Check if button was actually clicked
+            idx = next((i for i, data in enumerate(metadata) if data.get("domain") == domain_to_duplicate), -1)
+            if duplicate_domain_click[idx] == 0:
+                return dash.no_update
+            
             if domain_to_duplicate:
                 if domain_to_duplicate == hard_settings.main_parameter_domain:
                     base_name = "main_copy"
@@ -632,6 +659,12 @@ def update_param_domains(
         # Delete domain
         elif trigger_action == "delete-domain":
             domain_to_delete = triggered_id.get("domain", "")
+
+            # Check if button was actually clicked
+            idx = next((i for i, data in enumerate(metadata) if data.get("domain") == domain_to_delete), -1) -1 # -1 to account for main domain
+            if delete_domain_click[idx] == 0:
+                return dash.no_update
+            
             if domain_to_delete and domain_to_delete != hard_settings.main_parameter_domain:
                 config_handler.delete_parameter_domain(arch_path, arch_name, domain_to_delete)
                 if isinstance(domain_sections, list):
@@ -669,7 +702,7 @@ def update_config_cards(
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
-        return [html.Div("No architecture selected.", className="error")], {}, ""
+        return [html.Div("No architecture selected.", className="error")], [{}], [{}]
 
     domains = [hard_settings.main_parameter_domain] + config_handler.get_param_domains(arch_path, arch_name)
 
@@ -773,11 +806,20 @@ def update_config_cards(
 def update_preview_all(search, config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, configs_list, odatix_settings):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
+    if not config_handler.architecture_exists(arch_path, arch_name):
+        return [html.Div([
+                html.Div("Architecture is not created yet."),
+                html.Div("Edit settings, then save or add a new config to create it."),
+            ], className="error warning")] * len(config_cards_rows)
+
     domains = [hard_settings.main_parameter_domain] + config_handler.get_param_domains(arch_path, arch_name)
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):
-        filenames_per_domain = [list(configs.keys()) for configs in configs_list]
+        if configs_list:
+            filenames_per_domain = [list(configs.keys()) for configs in configs_list if configs is not None]
+        else:
+            filenames_per_domain = []
         lengths = [len(filenames) for filenames in filenames_per_domain]
 
         contents_by_domain = split_by_domain(config_contents_list, lengths)
