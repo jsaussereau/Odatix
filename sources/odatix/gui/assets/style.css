@@ -283,6 +283,14 @@ button:focus {
     box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); 
 }
 
+.error.note {
+    color: #228BE6;
+}
+
+.error.warning {
+   color: #FD7E14;
+}
+
 .error pre {
     font-family: monospace, monospace;
     font-size: 14px; 
@@ -535,6 +543,14 @@ button:focus {
     margin: auto;
 }
 
+.tiles-container.config {
+    column-width: 600px;
+    column-gap: 10px;
+    width: 100%;
+    max-width: 1488px;
+    margin: auto;
+}
+
 .title-input {
     margin-top: -10px;
     font-size: 24px;
@@ -581,6 +597,10 @@ button:focus {
     .tile.config {
         max-width: 510px;
         width: 510px;
+    }
+    .tiles-container.config {
+        column-width: 450px;
+        max-width: 1187px;
     }
     .card-matrix.config {
         grid-template-columns: repeat(auto-fit, 600px);
@@ -761,6 +781,15 @@ h3 {
     background-color: #868E9640;
     border-color: #868E96de;
 }
+.color-button.transparent {
+    --button-main-color: #24292e;
+    --button-bg-color: #ffffff00;
+    border-color: var(#DEE2E6);
+    background-color: var(--button-bg-color);
+}
+.color-button.transparent:hover {
+    background-color: #0000000f;
+}
 .color-button.disabled {
     --button-main-color: #868E964D;
     --button-bg-color: #868E9614;
@@ -768,6 +797,15 @@ h3 {
     color: var(--button-main-color);
     background-color: var(--button-bg-color);
     pointer-events: none;
+}
+.color-button.disabled.error-status {
+    --button-main-color: #FCC;
+    --button-bg-color: #FA525214;
+    border-color: var(--button-main-color);
+    background-color: var(--button-bg-color);
+    color: var(--button-main-color);
+    pointer-events: none;
+    cursor: not-allowed !important;
 }
 
 .icon.black {
