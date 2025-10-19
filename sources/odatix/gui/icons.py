@@ -116,10 +116,28 @@ _icons = {
         className=className, 
         id=id,
         style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    )
+    ),
+
+    "clean": lambda color, width, height, className, id: Svg(
+        children=[
+            Rect(id='rect243', height='15.193717', rx='1.9656206', ry='1.9656206', width='6.0562363', x='18.168709', y='5.106328'),
+            Rect(id='rect245', height='6.5874848', rx='1.96562', ry='1.96562', width='22.2062', x='10.093726', y='21.937542'), 
+            Path(id='path247', d='m 10.09375,29.9375 c -0.1612638,8.271839 -2.8773742,13.350762 -5.2070312,18.912109 2.9125172,1.059983 5.7970882,1.76223 8.6582032,2.179688 L 16.363281,41.0625 16.564453,51.361328 C 23.655756,51.906261 30.612187,50.775071 37.505859,48.849609 33.592214,43.215682 32.560187,36.695808 32.300781,29.9375 Z'),
+            Rect(id='rect253', height='4.8960323', width='6.0562363', x='18.168709', y='15.404013')
+        ],
+        fill=color, 
+        version='1.1', 
+        viewBox='0 0 50 50', 
+        transform='rotate(45 0 0)',
+        width=width, 
+        height=height, 
+        className=className, 
+        id=id,
+        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-5px"},
+    ),
 }
 
-def icon(name: str, color: str = "#fff", width: str = "25px", height: str = "25px", className: str = "", id: Union[str, dict]="") -> Svg:
+def icon(name: str, color: str = "#fff", width: str = "24px", height: str = "24px", className: str = "", id: Union[str, dict]="") -> Svg:
     """
     Return an icon as a Dash SVG component.
     Args:
