@@ -333,12 +333,13 @@ def config_parameters_form(domain, settings):
         style={"marginBottom": "10px"},
         className="inline-flex-buttons",
     )
+    use_parameters = defval("use_parameters", True)
     return html.Div(
         children=[
             ui.subtitle_div(text="Configuration Parameters", buttons=save_button),
             dcc.Checklist(
                 options=[{"label": "Enable parameter replacement", "value": True}],
-                value=[True] if defval("use_parameters", True) else [],
+                value=[True] if use_parameters else [],
                 id={"type": "use_parameters", "domain": domain},
                 className="checklist-switch",
                 style={"marginBottom": "12px", "marginTop": "5px"},
@@ -347,18 +348,18 @@ def config_parameters_form(domain, settings):
                 children=[
                     html.Div([
                         html.Label("Param Target File"),
-                        dcc.Input(id={"type": "param_target_file", "domain": domain}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default", style={"width": "100%"}),
+                        dcc.Input(id={"type": "param_target_file", "domain": domain}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Start Delimiter"),
-                        dcc.Input(id={"type": "start_delimiter", "domain": domain}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
+                        dcc.Input(id={"type": "start_delimiter", "domain": domain}, value=defval("start_delimiter", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Stop Delimiter"),
-                        dcc.Input(id={"type": "stop_delimiter", "domain": domain}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
+                        dcc.Input(id={"type": "stop_delimiter", "domain": domain}, value=defval("stop_delimiter", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                 ],
-                id={"type": "params-config-fields", "domain": domain},
+                id={"type": "params-config-fields", "domain": domain}, className="animated-section" if use_parameters else "animated-section hide",
             ),
             html.Div(id={"type": "save-params-status", "domain": domain}, className="status", style={"marginLeft": "16px"}),
         ]
@@ -951,18 +952,21 @@ def save_config_parameters(
     return [dash.no_update for _ in range(len(metadata))]
 
 @dash.callback(
-    Output({"type": "params-config-fields", "domain": dash.ALL}, "style"),
+    Output({"type": "params-config-fields", "domain": dash.ALL}, "className"),
     Output({"type": "config-cards-row", "domain": dash.ALL}, "style"),
     Input ({"type": "use_parameters", "domain": dash.ALL}, "value"),
 )
 def toggle_params_fields(enabled_values):
     styles = []
+    classes = []
     for value in enabled_values:
         if value:
             styles.append({})
+            classes.append("animated-section")
         else:
             styles.append(Style.hidden)
-    return styles, styles
+            classes.append("animated-section hide")
+    return classes, styles
 
 @dash.callback(
     Output({"page": page_path, "type": "architecture-title-div"}, "children"),
