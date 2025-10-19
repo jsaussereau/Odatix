@@ -21,109 +21,129 @@
 
 import os
 import dash
-from dash import html, dcc, Input, Output, State, callback, ctx
-import dash.exceptions
-import urllib.parse
-import yaml
-from dash.exceptions import PreventUpdate
+from dash import html, dcc, Input, Output, State, ctx
 import shutil
+
+import odatix.components.config_handler as config_handler
+from odatix.gui.icons import icon
+from odatix.gui.utils import get_key_from_url
+import odatix.gui.ui_components as ui
+import odatix.lib.hard_settings as hard_settings
+from odatix.lib.settings import OdatixSettings
+
+page_path = "/arch_editor"
 
 dash.register_page(
     __name__,
-    path='/arch_editor',
+    path=page_path,
     title='Odatix - Architecture Editor',
     name='Architecture Editor',
     order=3,
 )
 
-ARCH_ROOT = "odatix_userconfig/architectures"
+######################################
+# UI Components
+######################################
 
-def load_settings(arch_name):
-    path = os.path.join(ARCH_ROOT, arch_name, "_settings.yml")
-    if not os.path.exists(path):
-        return {}
-    with open(path, "r") as f:
-        return yaml.safe_load(f) or {}
+def architecture_title(arch_name):
+    variable_title_tile_buttons = html.Div(
+        children=[
+            ui.icon_button(
+                id=f"button-open-config-editor",
+                icon=icon("edit", className="icon blue"),
+                text="Edit Configs",
+                color="blue",
+                link=f"/config_editor?arch={arch_name}",
+                multiline=False,
+                width="135px",
+            ),
+            ui.save_button(
+                id={"page": page_path, "action": "save-all"},
+                disabled=True,
+            ),
+        ],
+        className="inline-flex-buttons",
+    )
+    return html.Div(
+        html.Div(
+            children=[
+                html.Div([
+                    html.Div(
+                        children=[
+                            dcc.Input(
+                                value=f"{arch_name}",
+                                type="text",
+                                id="arch-title",
+                                className="title-input",
+                                style={"width": "100%"},
+                            )
+                        ],
+                        id="arch-title-container",
+                    ),
+                    html.Div(
+                        [variable_title_tile_buttons],
+                    ),
+                ],
+                className="title-tile-flex",
+                style={
+                    "display": "flex",
+                    "alignItems": "center",
+                    "padding": "0px",
+                    "justifyContent": "space-between",
+                })
+            ],
+            className="tile title",
+        ),
+        className="card-matrix config",
+        style={"marginTop": "0px", "marginBottom": "10px", "marginLeft": "-13px"},
+    )
 
-def save_settings(arch_name, settings):
-    path = os.path.join(ARCH_ROOT, arch_name, "_settings.yml")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        yaml.dump(settings, f, sort_keys=False)
-
-def get_arch_name_from_url(search):
-    if not search:
-        return None
-    params = urllib.parse.parse_qs(search.lstrip("?"))
-    return params.get("arch", [None])[0]
-
-def architecture_form(settings, arch_name=""):
+def architecture_form(settings):
     defval = lambda k, v=None: settings.get(k, v)
     generate_rtl = True if str(defval("generate_rtl", "No")).lower() in ["yes", "true"] else False
+
     return html.Div(
         children=[
             html.Div([
-                html.Div(
-                    id="arch-title-container",
-                    children=[
-                        dcc.Input(
-                            value=f"{arch_name}",
-                            type="text",
-                            id="arch-title",
-                            className="title-input",
-                            style={"width": "100%"},
-                        )
-                    ],
-                ),
-                html.Div([
-                    html.Button(
-                        "Save",
-                        id="save-btn",
-                        n_clicks=0,
-                        className="save-button",
-                        style={"marginTop": "5px", "width": "120px"},
-                        disabled=True,
-                    ),
-                    html.Div(id="save-status", className="status"),
-                ], style={"display": "flex", "justifyContent": "start", "alignItems": "center"}),
-            ], className="tile", style={"margin-top": "0px"}),
-            html.Div([
                 html.H3("RTL Generation"),
                 html.Div([
-                    html.Label("Generate RTL"),
-                    dcc.Dropdown(
+                    dcc.Checklist(
+                        options=[{"label": "Enable RTL Generation", "value": True}],
+                        value=[True] if generate_rtl else [],
                         id="generate_rtl",
-                        options=[{"label": "Yes", "value": True}, {"label": "No", "value": False}],
-                        value=generate_rtl,
-                        clearable=False,
-                        style={"width": "100%"}
+                        className="checklist-switch",
+                        style={"marginBottom": "12px", "marginTop": "5px"},
                     ),
                 ], style={"marginBottom": "12px"}),
                 html.Div([
                     html.Div([
                         html.Label("Design Path"),
-                        dcc.Input(id="design_path", value=defval("design_path", ""), type="text", style={"width": "100%"}),
+                        dcc.Input(id="design_path", value=defval("design_path", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Design Path Whitelist"),
-                        dcc.Input(id="design_path_whitelist", value=",".join(defval("design_path_whitelist", [])), type="text", style={"width": "100%"}),
+                        dcc.Input(id="design_path_whitelist", value=",".join(defval("design_path_whitelist", [])), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Design Path Blacklist"),
-                        dcc.Input(id="design_path_blacklist", value=",".join(defval("design_path_blacklist", [])), type="text", style={"width": "100%"}),
+                        dcc.Input(id="design_path_blacklist", value=",".join(defval("design_path_blacklist", [])), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Generate Command"),
-                        dcc.Input(id="generate_command", value=defval("generate_command", ""), type="text", style={"width": "100%"}),
+                        dcc.Input(id="generate_command", value=defval("generate_command", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Generate Output"),
-                        dcc.Input(id="generate_output", value=defval("generate_output", ""), type="text", style={"width": "100%"}),
+                        dcc.Input(id="generate_output", value=defval("generate_output", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                 ], id="generate-settings", className="animated-section" + ("" if generate_rtl else " hide")),
-            ], className="tile"),
+            ], className="tile config"),
             html.Div([
                 html.H3("Top Level Settings"),
+                html.Div([
+                    html.Label("RTL Path"), 
+                    dcc.Input(id="rtl_path", value=defval("rtl_path", ""), type="text", style={"width": "100%"}),
+                ], style={"marginBottom": "12px"}, id="rtl-path-container", className="animated-section" + ("" if not generate_rtl else " hide")),
                 html.Div([
                     html.Label("Top Level File"),
                     dcc.Input(id="top_level_file", value=defval("top_level_file", ""), type="text", style={"width": "100%"}),
@@ -140,7 +160,7 @@ def architecture_form(settings, arch_name=""):
                     html.Label("Reset Signal"),
                     dcc.Input(id="reset_signal", value=defval("reset_signal", ""), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
-            ], className="tile"),
+            ], className="tile config"),
             html.Div([
                 html.H3("Synthesis Settings"),
                 html.H4("Fmax Synthesis (MHz)"),
@@ -157,91 +177,105 @@ def architecture_form(settings, arch_name=""):
                     html.Label("List"),
                     dcc.Input(id="custom_freq_synthesis_list", value=",".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
-            ], className="tile"),
-        ], className="tiles-container",
+            ], className="tile config"),
+        ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
     )
-    
 
-layout = html.Div(
-    [
-        dcc.Location(id="url"),
-        html.Div(id="arch-form-container"),
-        dcc.Store(id="save-state", data=""),
-        dcc.Store(id="initial-form-state", data={}),
-        dcc.Store(id="previous-form-state", data={}), 
-    ],
-    style={
-        "background-color": "#f6f8fa",
-        "padding": "20px",
-        "minHeight": "100vh"
-    },
-)
+######################################
+# Callbacks
+######################################
 
-@callback(
+@dash.callback(
     Output("arch-form-container", "children"),
-    Output("initial-form-state", "data"),
+    Output("architecture-initial-settings", "data"),
     Input("url", "search"),
+    State("url", "pathname"),
+    State("odatix-settings", "data"),
 )
-def update_form(search):
-    arch_name = get_arch_name_from_url(search)
-    if not arch_name:
-        arch_name = "New Architecture"
-    settings = load_settings(arch_name) if arch_name else {}
-    return architecture_form(settings, arch_name), settings
+def init_form(search, page, odatix_settings):
+    if page != page_path:
+        return dash.no_update, dash.no_update
 
-@callback(
-    Output("save-btn", "className"),
-    Output("save-status", "children"),
-    Output("save-status", "className"),
-    Output("save-state", "data"),
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    arch_name = get_key_from_url(search, "arch")
+    if not arch_name:
+        arch_name = "New_Architecture"
+
+    if arch_name:
+        full_settings = config_handler.load_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        settings ={
+            "generate_rtl": full_settings.get("generate_rtl", False),
+            "design_path": full_settings.get("design_path", ""),
+            "design_path_whitelist": full_settings.get("design_path_whitelist", []),
+            "design_path_blacklist": full_settings.get("design_path_blacklist", []),
+            "generate_command": full_settings.get("generate_command", ""),
+            "generate_output": full_settings.get("generate_output", ""),
+
+            "rtl_path": full_settings.get("rtl_path", ""),
+            "top_level_file": full_settings.get("top_level_file", ""),
+            "top_level_module": full_settings.get("top_level_module", ""),
+            "clock_signal": full_settings.get("clock_signal", ""),
+            "reset_signal": full_settings.get("reset_signal", ""),
+
+            "fmax_synthesis": full_settings.get("fmax_synthesis", {}),
+            "custom_freq_synthesis": full_settings.get("custom_freq_synthesis", {}),
+        }
+    else:
+        settings = {}
+    return architecture_form(settings), settings
+
+@dash.callback(
+    Output({"page": page_path, "action": "save-all"}, "className"),
     Output("url", "search"),
-    Output("save-btn", "disabled"),
-    Output("previous-form-state", "data"),
-    [
-        Input("save-btn", "n_clicks"),
-        Input("arch-title", "value"),
-        Input("design_path", "value"),
-        Input("design_path_whitelist", "value"),
-        Input("design_path_blacklist", "value"),
-        Input("generate_rtl", "value"),
-        Input("generate_command", "value"),
-        Input("generate_output", "value"),
-        Input("top_level_file", "value"),
-        Input("top_level_module", "value"),
-        Input("clock_signal", "value"),
-        Input("reset_signal", "value"),
-        Input("fmax_synthesis_lower", "value"),
-        Input("fmax_synthesis_upper", "value"),
-        Input("custom_freq_synthesis_list", "value"),
-    ],
+    Output("architecture-saved-settings", "data"),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+    Input("arch-title", "value"),
+    Input("design_path", "value"),
+    Input("design_path_whitelist", "value"),
+    Input("design_path_blacklist", "value"),
+    Input("generate_rtl", "value"),
+    Input("generate_command", "value"),
+    Input("generate_output", "value"),
+    Input("rtl_path", "value"),
+    Input("top_level_file", "value"),
+    Input("top_level_module", "value"),
+    Input("clock_signal", "value"),
+    Input("reset_signal", "value"),
+    Input("fmax_synthesis_lower", "value"),
+    Input("fmax_synthesis_upper", "value"),
+    Input("custom_freq_synthesis_list", "value"),
     State("url", "search"),
-    State("save-state", "data"),
-    State("initial-form-state", "data"),
-    State("previous-form-state", "data"),
-    prevent_initial_call=False
+    State("architecture-initial-settings", "data"),
+    State("architecture-saved-settings", "data"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
 )
 def save_and_status(
     n_clicks, arch_title, design_path, whitelist, blacklist, generate_rtl, generate_command, generate_output,
-    top_level_file, top_level_module, clock_signal, reset_signal, 
-    fmax_lower, fmax_upper, custom_freq_list, search, save_state, initial_state, previous_state
+    rtl_path, top_level_file, top_level_module, clock_signal, reset_signal, 
+    fmax_lower, fmax_upper, custom_freq_list, search, initial_settings, saved_settings,
+    odatix_settings,
 ):
-    triggered = ctx.triggered_id if hasattr(ctx, "triggered_id") else dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    triggered_id = ctx.triggered_id
+    arch_name = get_key_from_url(search, "arch")
+
+    if saved_settings is None:
+        settings = initial_settings
+    else:
+        settings = saved_settings
 
     current_settings = {
+        "generate_rtl": True if generate_rtl else False,
         "design_path": design_path,
         "design_path_whitelist": [x.strip() for x in whitelist.split(",") if x.strip()],
         "design_path_blacklist": [x.strip() for x in blacklist.split(",") if x.strip()],
-        "generate_rtl": "Yes" if generate_rtl else "No",
         "generate_command": generate_command,
         "generate_output": generate_output,
+        "rtl_path": rtl_path,
         "top_level_file": top_level_file,
         "top_level_module": top_level_module,
         "clock_signal": clock_signal,
         "reset_signal": reset_signal,
-        "use_parameters": initial_state.get("use_parameters", False),
-        "param_target_file": initial_state.get("param_target_file", top_level_file),
-        "start_delimiter": initial_state.get("start_delimiter", ""),
-        "stop_delimiter": initial_state.get("stop_delimiter", ""),
         "fmax_synthesis": {
             "lower_bound": fmax_lower,
             "upper_bound": fmax_upper,
@@ -251,41 +285,81 @@ def save_and_status(
         }
     }
 
-    if previous_state == {}:
-        return "save-button", "", "status", "clean", dash.no_update, True, initial_state
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    arch_name = get_key_from_url(search, "arch")
 
-    if triggered != "save-btn":
-        if current_settings != previous_state:
-            return "save-button unsaved", "Unsaved changes!", "status warning", "dirty", dash.no_update, False, previous_state
-        else:
-            return "save-button", "", "status", "clean", dash.no_update, True, previous_state
+    if not arch_title:
+        return "color-button disabled icon-button error-status", dash.no_update, saved_settings
 
-    arch_name = get_arch_name_from_url(search)
-    new_search = dash.no_update
-    if not arch_name:
-        return "save-button", "No architecture name in URL.", "status error", "error", new_search, True, previous_state
+    if triggered_id == {"page": page_path, "action": "save-all"}:
+        if not arch_name:
+            return "color-button disabled icon-button", dash.no_update, saved_settings
 
-    if arch_title and arch_title != arch_name:
-        old_path = os.path.join(ARCH_ROOT, arch_name)
-        new_path = os.path.join(ARCH_ROOT, arch_title)
-        if os.path.exists(new_path):
-            return "save-button", f"Error: '{arch_title}' already exists.", "status error", "error", new_search, True, previous_state
+        new_search = dash.no_update
+        if arch_title != arch_name:
+            # Rename architecture folder
+            old_path = os.path.join(arch_path, arch_name)
+            new_path = os.path.join(arch_path, arch_title)
+            if os.path.exists(new_path):
+                return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
+            try:
+                shutil.move(old_path, new_path)
+                arch_name = arch_title
+                new_search = f"?arch={arch_title}"
+            except Exception as e:
+                return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
+            
+        # Save settings
         try:
-            shutil.move(old_path, new_path)
-            arch_name = arch_title
-            new_search = f"?arch={arch_title}"
+            config_handler.save_settings(arch_path, arch_name, current_settings)
+            return "color-button disabled icon-button", new_search, current_settings
         except Exception as e:
-            return "save-button", f"Rename failed: {e}", "status error", "error", new_search, True, previous_state
+            return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
+    else:
+        if current_settings != settings or arch_title != arch_name:
+            return "color-button orange icon-button", dash.no_update, dash.no_update
 
-    try:
-        save_settings(arch_name, current_settings)
-        return "save-button", "Saved!", "status valid", "saved", new_search, True, current_settings
-    except Exception as e:
-        return "save-button", f"Save failed: {e}", "status error", "error", new_search, True, previous_state
+    return "color-button disabled icon-button", dash.no_update, saved_settings
 
-@callback(
+@dash.callback(
     Output("generate-settings", "className"),
+    Output("rtl-path-container", "className"),
     Input("generate_rtl", "value"),
 )
 def toggle_generate_settings(generate_rtl):
-    return "animated-section" if generate_rtl else "animated-section hide"
+    generate_settings_class = "animated-section" if generate_rtl else "animated-section hide"
+    rtl_path_style = "animated-section" if not generate_rtl else "animated-section hide"
+    return generate_settings_class, rtl_path_style
+
+
+
+@dash.callback(
+    Output({"page": page_path, "type": "architecture-title-div"}, "children"),
+    Input("url", "search"),
+)
+def update_architecture_title(search):
+    arch_name = get_key_from_url(search, "arch")
+    if not arch_name:
+        arch_name = "New_Architecture"
+    return architecture_title(arch_name)
+
+
+######################################
+# Layout
+######################################
+
+layout = html.Div(
+    [
+        dcc.Location(id="url"),
+        html.Div(id={"page": page_path, "type": "architecture-title-div"}),
+        html.Div(id="arch-form-container"),
+        dcc.Store(id="save-state", data=""),
+        dcc.Store(id="architecture-initial-settings", data=None),
+        dcc.Store(id="architecture-saved-settings", data=None), 
+    ],
+    style={
+        "background-color": "#f6f8fa",
+        "padding": "20px",
+        "minHeight": "100vh"
+    },
+)
