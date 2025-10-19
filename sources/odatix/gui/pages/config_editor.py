@@ -180,9 +180,9 @@ def architecture_title(arch_name:str=""):
             children=[
                 ui.icon_button(
                     id=f"button-open-config-editor",
-                    icon=icon("edit", className="icon black"),
+                    icon=icon("edit", className="icon blue"),
                     text="Edit Architecture",
-                    color="black",
+                    color="blue",
                     link=f"/arch_editor?arch={arch_name}",
                     multiline=True,
                     width="135px",
@@ -214,9 +214,8 @@ def architecture_title(arch_name:str=""):
             [title_content],
             className="tile title",
         ),
-        id = "architecture-title-div",
         className="card-matrix config",
-        style={"marginLeft": "-7px", "marginBottom": "0px"},
+        style={"marginLeft": "-13px", "marginBottom": "0px"},
     )
 
 def parameter_domain_title(domain:str=hard_settings.main_parameter_domain, arch_name:str=""):
@@ -527,7 +526,7 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
 
 layout = html.Div([
     dcc.Location(id="url"),
-    architecture_title(),
+    html.Div(id={"page": page_path, "type": "architecture-title-div"}),
     html.Div(id="param-domains-section"),
 ], style={
     "background-color": "#f6f8fa",
@@ -537,7 +536,6 @@ layout = html.Div([
 
 
 @dash.callback(
-    Output("main_title", "children"),
     Output(f"param-domain-title-div-{hard_settings.main_parameter_domain}", "children"),
     Input("param-domains-section", "children"),
     State("url", "search"),
@@ -547,7 +545,7 @@ def update_main_domain_title(_, search):
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
         return "No architecture selected.", dash.no_update
-    return arch_name, parameter_domain_title(domain=hard_settings.main_parameter_domain, arch_name=arch_name)
+    return parameter_domain_title(domain=hard_settings.main_parameter_domain, arch_name=arch_name)
 
 @dash.callback(
     Output("param-domains-section", "children"),
@@ -967,7 +965,7 @@ def toggle_params_fields(enabled_values):
     return styles, styles
 
 @dash.callback(
-    Output("architecture-title-div", "children"),
+    Output({"page": page_path, "type": "architecture-title-div"}, "children"),
     Input("url", "search"),
 )
 def update_architecture_title(search):
