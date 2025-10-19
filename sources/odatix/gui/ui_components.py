@@ -49,7 +49,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
                 ),
                 html.Span(
                     text,
-                    style={"fontWeight": "bold", "fontSize": "1em", "marginLeft": "5px"} if text else {}
+                    style={"fontWeight": "600", "fontSize": "1em", "marginLeft": "5px"} if text else {}
                 ),
             ],
             style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start", "marginTop": "-9px" if multiline else "-4px", "width": "100%"},
