@@ -26,6 +26,9 @@ import odatix.gui.ui_components as ui
 import shutil
 import uuid
 
+import odatix.gui.ui_components as ui
+from odatix.gui.icons import icon
+
 dash.register_page(
     __name__,
     path='/architectures',
@@ -60,13 +63,22 @@ def normal_card(name, card_type: str = "arch"):
             html.Div(name, style={"fontWeight": "bold", "fontSize": "1.2em", "textAlign": "center"}),
             html.Div([
                 html.Div([
-                    dcc.Link(
-                        html.Button("Edit", id=f"button-edit-{card_type}-{name}", n_clicks=0),
-                        href=f"/{card_type}_editor?{card_type}={name}",
+                    ui.icon_button(
+                        id=f"button-edit-{card_type}-{name}",
+                        icon=icon("edit", className="icon black"),
+                        text="Edit",
+                        color="transparent",
+                        link=f"/{card_type}_editor?{card_type}={name}",
+                        width="80px",
                     ),
-                    dcc.Link(
-                        html.Button("Edit Configs", id=f"button-open-{card_type}-{name}", n_clicks=0),
-                        href=f"/config_editor?{card_type}={name}",
+                    ui.icon_button(
+                        id=f"button-open-{card_type}-{name}",
+                        icon=icon("edit", className="icon black"),
+                        text="Edit Configs",
+                        color="transparent",
+                        link=f"/config_editor?{card_type}={name}",
+                        multiline=True,
+                        width="100px",
                     ),
                 ], style={"display": "flex"}),
                 html.Div([
