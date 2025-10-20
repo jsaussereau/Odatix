@@ -453,7 +453,9 @@ button:focus {
 .overlay-odatix {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.45); 
+    backdrop-filter: blur(4px);
+    box-shadow: 0 0px 20px #424242ab;
     transition: opacity 500ms;
     visibility: hidden;
     opacity: 0;
@@ -468,7 +470,7 @@ button:focus {
 }
 .popup-odatix {
     background: #fff;
-    border-radius: 8px;
+    border-radius: 30px;
     width: 30vw;
     min-width: 320px;
     max-width: 90vw;

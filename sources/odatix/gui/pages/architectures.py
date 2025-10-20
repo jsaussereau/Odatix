@@ -173,13 +173,19 @@ layout = html.Div(
             className="overlay-odatix",
             children=[
                 html.Div([
-                    html.H3("Warning"),
-                    html.Button("×", id="delete-cancel-btn", n_clicks=0, className="close"),
+                    html.H2("Warning"),
                     html.Div(id="delete-popup-message"),
-                    html.Div("This action is irreversible.", style={"marginTop": "10px", "color": "#b00"}),
+                    html.Div("This action is irreversible.", style={"marginTop": "10px", "color": "#FA5252", "fontWeight": "bold"}),
                     html.Div([
-                        html.Button("Delete", id="delete-confirm-btn", n_clicks=0, style={"marginRight": "10px", "background": "#FA5252", "color": "white"}),
-                    ], style={"marginTop": "18px"}),
+                        ui.icon_button(
+                            icon=icon("delete", className="icon red"),
+                            color="red", 
+                            text="Delete", 
+                            width="90px",
+                            id="delete-confirm-btn",
+                        ),
+                        html.Button("Cancel", id="delete-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
+                    ], style={"marginTop": "18px", "display": "flex", "justifyContent": "center"}),
                     html.Div(id="delete-error", style={"color": "red", "marginTop": "10px"}),
                 ], className="popup-odatix")
             ]
