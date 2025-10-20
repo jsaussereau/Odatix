@@ -65,11 +65,11 @@ def normal_card(name, card_type: str = "arch"):
                 html.Div([
                     ui.icon_button(
                         id=f"button-edit-{card_type}-{name}",
-                        icon=icon("edit", className="icon black"),
-                        text="Edit",
+                        icon=icon("gear", className="icon black"),
+                        text="Settings",
                         color="transparent",
                         link=f"/{card_type}_editor?{card_type}={name}",
-                        width="80px",
+                        width="100px",
                     ),
                     ui.icon_button(
                         id=f"button-open-{card_type}-{name}",
