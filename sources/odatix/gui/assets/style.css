@@ -20,12 +20,20 @@
 *
 */
 
+@font-face {
+    font-family: 'Nunito';
+    src: url('Nunito.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 html, body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    font-family: Arial, sans-serif;
+	font-family: Nunito,sans-serif;
+    /* font-family: Arial, sans-serif; */
     background-color: inherit;
     color: black;
 }
@@ -628,6 +636,10 @@ button:focus {
         max-width: 810px;
         width: 810px;
     }
+    .tiles-container.config {
+        column-width: 600px;
+        max-width: 890px;
+    }
 }
 @media screen and (max-width: 1324px) {
     .tile.title {
@@ -637,6 +649,10 @@ button:focus {
     .tile.config {
         max-width: 510px;
         width: 510px;
+    }
+    .tiles-container.config {
+        column-width: 600px;
+        max-width: 590px;
     }
     .title-input {
         width: 275px;
@@ -662,9 +678,13 @@ button:focus {
 }
 @media screen and (max-width: 882px) {
     .tile.config {
-        margin-left: 10px;
+        margin-left: -20px;
         width: 390px;
         max-width: 390px;
+    }
+    .tiles-container.config {
+        column-width: 600px;
+        max-width: 420px;
     }
     .tile.title {
         margin-left: 10px;
