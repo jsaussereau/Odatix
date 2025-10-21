@@ -55,10 +55,11 @@ def get_param_domains(arch_path, arch_name) -> list:
     folder = os.path.join(arch_path, arch_name)
     if not os.path.isdir(folder):
         return []
-    return [
+    domain_list = [
         d for d in os.listdir(folder)
         if os.path.isdir(os.path.join(folder, d)) and not d.startswith("_")
     ]
+    return sorted(domain_list)
 
 def get_config_files(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> list:
     """
