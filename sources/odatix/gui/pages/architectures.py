@@ -108,12 +108,11 @@ def add_card(text: str, card_type: str = "arch"):
         dcc.Link(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "color": "black"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "color": "var(--add-card-text-color)"}),
                     html.Div(
                         "+",
                         style={
                             "fontSize": "2.5em",
-                            "color": "#888",
                             "lineHeight": "80px",
                             "height": "80px",
                         }
@@ -122,12 +121,10 @@ def add_card(text: str, card_type: str = "arch"):
                 style={"textAlign": "center"}
             ),
             href=f"/{card_type}_editor",
-            style={"text-decoration": "none", "color": "black"},
+            style={"text-decoration": "none", "color": "var(--add-card-text-color)"},
         ),
-        className="card hover",
+        className="card add hover",
         style={
-            "backgroundColor": "rgba(255, 255, 255, 0.31)",
-            "border": "1px dashed #bbb",
             "padding": "18px",
             "margin": "10px",
             "width": "300px",
@@ -191,8 +188,8 @@ layout = html.Div(
             ]
         ),
     ],
+    className="page-content",
     style={
-        "background-color": "#f6f8fa",
         "padding": "20px 16%",
         "minHeight": "100vh",
         "display": "block",

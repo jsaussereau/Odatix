@@ -38,15 +38,15 @@
     top: -2px;
     width: 40px;
     height: 22px;
-    background: #f6f8fa;
+    background: var(--switch-off-background);
     border: 1px solid #d1d5da;
     border-radius: 22px;
     transition: background 0.15s;
 }
 
 .checklist-switch label:has(input[type="checkbox"]:checked):before {
-    background: #228BE614;
-    border: 1px solid #228BE6;
+    background: var(--switch-on-background);
+    border: 1px solid var(--switch-on-handle-background);
 }
 
 .checklist-switch label:after {
@@ -56,12 +56,12 @@
     top: 2px;
     width: 16px;
     height: 16px;
-    background: #d1d5da;
+    background: var(--switch-off-handle-background);
     border-radius: 50%;
     transition: left 0.15s;
 }
 
 .checklist-switch label:has(input[type="checkbox"]:checked):after {
     left: 22px;
-    background: #228BE6;
+    background: var(--switch-on-handle-background);
 }

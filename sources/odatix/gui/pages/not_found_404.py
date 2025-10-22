@@ -23,19 +23,25 @@ import dash
 from dash import html
 
 dash.register_page(
-  __name__,
-  name='PageNotFound'
+    __name__,
+    name='PageNotFound'
 )
 
 layout = html.Div(
-  [
-    html.Div(
-      [
-        html.H1("404", id="p404-h1"),
-        html.H2("Oops, page not found!", id="p404-h2")
-      ],
-      id="p404"
-    )
-  ],
-  id="p404-container"
+    children=[
+        html.Div(
+            children=[
+                html.H1("404", id="p404-h1"),
+                html.H2("Oops, page not found!", id="p404-h2")
+            ],
+            id="p404",
+            className="tile"
+        ),
+    ],
+    className="page-content",
+    id="p404-container",
+    style={
+        "padding": "20px",
+        "minHeight": "100vh"
+    },
 )

@@ -942,45 +942,48 @@ preview_title_tile_buttons = html.Div(
 )
 
 
-layout = html.Div([
-    dcc.Location(id="url"),
-    ui.title_tile(id="main-title-config-gen", buttons=variable_title_tile_buttons),
-    html.Div(
-        children=[
-            config_parameters_form({}),
-            html.Div(
-                children=[
-                    html.H3(f"Variable Preview"),
-                    html.Div(id="variable-preview")
-                ],
-                id="preview-pane",
-                className="tile config"
-            ),
-        ], 
-        className="card-matrix config",
-    ),
-    ui.title_tile(text="Variable Definition", id="variable-title"),
-    html.Div([ 
+layout = html.Div(
+    children=[
+        dcc.Location(id="url"),
+        ui.title_tile(id="main-title-config-gen", buttons=variable_title_tile_buttons),
         html.Div(
             children=[
-                variable_card(name="var", type_value="range", from_value="1", to_value="10", step_value="1"),
-                add_card(),
-            ],
-            id={"type": "variable-cards-row"},
-            className=f"card-matrix configs", 
-            style={"marginLeft": "13px"},
+                config_parameters_form({}),
+                html.Div(
+                    children=[
+                        html.H3(f"Variable Preview"),
+                        html.Div(id="variable-preview")
+                    ],
+                    id="preview-pane",
+                    className="tile config"
+                ),
+            ], 
+            className="card-matrix config",
         ),
-    ]),
-    ui.title_tile(text="Generation Preview", id="gen-preview", buttons=preview_title_tile_buttons),
-    html.Div([ 
-        html.Div(
-            id={"type": "config-cards-row"},
-            className=f"card-matrix configs", 
-            style={"marginLeft": "13px"},
-        ),
-    ]),
-], style={
-    "background-color": "#f6f8fa",
-    "padding": "20px 16%",
-    "minHeight": "100vh"
-})
+        ui.title_tile(text="Variable Definition", id="variable-title"),
+        html.Div([ 
+            html.Div(
+                children=[
+                    variable_card(name="var", type_value="range", from_value="1", to_value="10", step_value="1"),
+                    add_card(),
+                ],
+                id={"type": "variable-cards-row"},
+                className=f"card-matrix configs", 
+                style={"marginLeft": "13px"},
+            ),
+        ]),
+        ui.title_tile(text="Generation Preview", id="gen-preview", buttons=preview_title_tile_buttons),
+        html.Div([ 
+            html.Div(
+                id={"type": "config-cards-row"},
+                className=f"card-matrix configs", 
+                style={"marginLeft": "13px"},
+            ),
+        ]),
+    ],
+    className="page-content",
+    style={
+        "padding": "20px 16%",
+        "minHeight": "100vh"
+    }
+)

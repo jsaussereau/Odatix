@@ -97,7 +97,7 @@ def create_button(page):
 padding = 20
 
 layout = html.Div(
-    [
+    children=[
         html.Div(
             [
                 html.Div(
@@ -131,9 +131,10 @@ layout = html.Div(
                 "font-weight": "normal",
             }
         ),
-    ], style={
+    ], 
+    className="page-content",
+    style={
         "width": "100%", 
-        "background-color": "#f6f8fa",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
         "display": "flex",  
         "flex-direction": "column",

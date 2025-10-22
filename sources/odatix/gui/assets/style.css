@@ -33,12 +33,19 @@ html, body {
     width: 100%;
     height: 100%;
 	font-family: Nunito,sans-serif;
-    /* font-family: Arial, sans-serif; */
-    background-color: inherit;
-    color: black;
+    background: inherit;
+    color: inherit;
+}
+
+.page-content {
+    background: var(--theme-background);
+    color: var(--theme-text-color);
+    text-shadow: var(--theme-text-shadow);
 }
 
 .navbar {
+    background: var(--navbar-background);
+    backdrop-filter: blur(10px);
     color: white;
     padding-right: 10px;
     display: flex;
@@ -181,10 +188,10 @@ html, body {
 }
 
 button {
-    background-color: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px;
-    color: #24292e;
+    background: var(--button-background);
+    border: var(--button-border);
+    border-radius: var(--button-border-radius);
+    color: var(--theme-text-color);
     padding: 10px 15px;
     margin-right: 5px;
     font-size: 14px;
@@ -195,10 +202,10 @@ button {
 }
 
 input {
-    background-color: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px;
-    color: #24292e;
+    background: var(--input-background);
+    border: var(--input-border);
+    border-radius: var(--input-border-radius);
+    color: var(--input-text-color);
     padding: 10px 5px;
     font-size: 14px;
     font-weight: 515;
@@ -206,17 +213,19 @@ input {
 }
 
 pre{
-    border-radius: 6px;
-    background-color: #f6f8fa;
-    border: 1px solid #d1d5da;
+    background: var(--pre-background);
+    border: var(--pre-border);
+    border-radius: var(--pre-border-radius);
+    color: var(--pre-text-color);
+    text-shadow: var(--pre-text-shadow);
     box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04);
 }
 
 textarea {
-    background-color: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px;
-    color: #24292e;
+    background: var(--textarea-background);
+    border: var(--textarea-border);
+    border-radius: var(--textarea-border-radius);
+    color: var(--textarea-text-color);
     padding: 10px 5px;
     font-size: 14px;
     font-weight: 515;
@@ -255,17 +264,12 @@ button:focus {
 }
 
 .dropdown-label{
-    width:100px;
-    font-weight: 525;
+    margin: var(--dropdown-label-margin);
 }
 
 .dash-dropdown{
     margin-bottom: 5px;
     width: 250px;
-    background-color: #f6f8fa;
-    border: 1px solid #d1d5da;
-    border-radius: 6px; 
-    color: #24292e;
     font-size: 14px; 
     font-weight: 600;
     cursor: pointer;
@@ -274,15 +278,42 @@ button:focus {
     appearance: none;   
 }
 
+.dash-dropdown, .Select, .Select-control{
+  border: none;
+  border-radius: var(--main-border-radius);
+  background-color: #00000000 !important;
+}
+
+.Select-value {
+  background-color: var(--dropdown-background);
+  border: var(--dropdown-border);
+  border-radius: var(--dropdown-border-radius);
+  color: var(--theme-text-color);
+}
+
+.Select-value-label {
+  color: var(--theme-text-color) !important;
+}
+
+.Select-menu-outer {
+  background-color: var(--dropdown-menu-background);
+  backdrop-filter: var(--main-backdrop-filter);
+  border: var(--dropdown-border);
+  border-radius: var(--main-border-radius);
+  color: var(--theme-text-color);
+}
+
 .Select-value:hover {
-    background-color: #d1d5da;
+  background-color: var(--dropdown-background-hover);
+  border-color: var(--main-border-color-hover);
 }
 
 .error {
-    background-color: #f6f8fa;
+    background-color: var(--pre-background);
     color: #ef553b;
-    border: 1px solid #d1d5da;
-    border-radius: 6px; 
+    border: var(--pre-border);
+    border-radius: var(--pre-border-radius); 
+    text-shadow: var(--pre-text-shadow);
     font-weight: 600;
     margin: 10px;
     margin-left: 20px;
@@ -327,13 +358,13 @@ button:focus {
 }
 
 #p404 {
+    background-color: var(--theme-element-background-color);
+    color: var(--theme-text-color);
+    border: var(--theme-border);
     margin: 25px;
     max-width: fit-content; 
     margin-inline: auto;
     border-radius: 20px;
-    color: #24292e;
-    border: 2px solid #d1d5da;
-    background-color: rgba(209, 213, 218, 0.199);
     font-weight: bold;
     justify-content: center;
     align-items: center;
@@ -357,19 +388,25 @@ button:focus {
 }
 
 .card {
-    background-color: #fff;
-    color: #24292e;
+    background-color: var(--card-background);
+    color: var(--card-text-color);
     min-width: 0;
     max-width: 100%;
-    box-shadow: 0px 13px 10px -7px rgba(0, 0, 0, 0.1);
-    border: 1px solid #ddd;
-    border-radius: 10px;
+    box-shadow: var(--card-box-shadow);
+    border: var(--card-border);
+    border-radius: var(--card-border-radius);
+    backdrop-filter: var(--card-backdrop-filter);
     overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     text-decoration: none;
     transition: all .2s cubic-bezier(0.175, 0.885, 0, 1);
+}
+.card.add {
+    background: var(--add-card-background);
+    border: var(--add-card-border);
+    color: var(--card-text-color);
 }
 .card.configs {
     width: 256px;
@@ -453,10 +490,10 @@ button:focus {
 .overlay-odatix {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.45); 
-    backdrop-filter: blur(4px);
-    box-shadow: 0 0px 20px #424242ab;
-    transition: opacity 500ms;
+    background: var(--overlay-background); 
+    backdrop-filter: var(--overlay-backdrop-filter);
+    box-shadow: var(--overlay-box-shadow);
+    transition: var(--overlay-transition);
     visibility: hidden;
     opacity: 0;
     z-index: 9999;
@@ -469,14 +506,16 @@ button:focus {
     opacity: 1;
 }
 .popup-odatix {
-    background: #fff;
-    border-radius: 30px;
+    background: var(--popup-background);
+    border: var(--popup-border);
+    border-radius: var(--popup-border-radius);
+    box-shadow: var(--popup-box-shadow);
+    backdrop-filter: var(--popup-backdrop-filter);
     width: 30vw;
     min-width: 320px;
     max-width: 90vw;
     padding: 24px;
     position: relative;
-    box-shadow: 0 2px 12px #0002;
     text-align: center;
 }
 .popup-odatix h3 {
@@ -509,12 +548,13 @@ button:focus {
     display: block;
     width: 80%;
     max-width: 500px;
-    background: #fff;
     margin-bottom: 16px;
     padding: 32px;
-    border-radius: 10px;
-    border: 1px solid #ddd;
-    box-shadow: 0 2px 12px #0001;
+    background-color: var(--card-background);
+    color: var(--card-text-color);
+    box-shadow: var(--card-box-shadow);
+    border: var(--card-border);
+    border-radius: var(--card-border-radius);
     break-inside: avoid;
     transition: 
         /* width 0.4s cubic-bezier(0.4, 0.2, 0.2, 1), */
@@ -539,6 +579,11 @@ button:focus {
     max-width: 1410px;
     width: 1410px;
     height: fit-content;
+}
+.tile.title.add {
+    background: var(--add-card-background);
+    border: var(--add-card-border);
+    color: var(--card-text-color);
 }
 
 .tile.title.hover {
@@ -753,6 +798,10 @@ h3 {
     height: 39px;
 }
 
+.color-button {
+    border: var(--button-border);
+}
+
 .color-button.red {
     --button-main-color: #FA5252;
     --button-bg-color: #FA525214;
@@ -804,7 +853,7 @@ h3 {
     border-color: #868E96de;
 }
 .color-button.transparent {
-    --button-main-color: #24292e;
+    --button-main-color: var(--theme-text-color);
     --button-bg-color: #ffffff00;
     border-color: var(#DEE2E6);
     background-color: var(--button-bg-color);

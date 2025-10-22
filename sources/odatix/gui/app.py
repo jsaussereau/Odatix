@@ -27,6 +27,7 @@ from dash import dcc, html
 import odatix.gui.navigation as navigation
 import odatix.gui.themes as themes
 
+import odatix.lib.printc as printc
 from odatix.lib.utils import internal_error
 import odatix.lib.term_mode as term_mode
 from odatix.lib.settings import OdatixSettings
@@ -42,6 +43,14 @@ class OdatixApp:
     if not self.odatix_settings.valid:
       sys.exit(-1)
 
+    if theme is None:
+      self.start_theme = themes.default_theme
+    elif theme not in themes.list:
+      printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.')
+      self.start_theme = themes.default_theme
+    else:
+      self.start_theme = theme
+
     self.old_settings = old_settings
     self.safe_mode = safe_mode
 
@@ -56,6 +65,7 @@ class OdatixApp:
     self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 
     self.setup_layout()
+    self.setup_callbacks()
 
   def handle_flask_exception(self, e):
     """
@@ -89,7 +99,7 @@ class OdatixApp:
           },
         ),
       ],
-      id="main-container",
+      id="theme",
       style={
         "width": "100%",
         "height": "100%",
@@ -97,6 +107,12 @@ class OdatixApp:
         "flex-direction": "column"
       },
     )
+
+  def setup_callbacks(self):
+    """
+    Setup Dash callbacks for interactivity.
+    """
+    navigation.setup_sidebar_callbacks(self)
 
   def run(self):
     self.app.run(

@@ -143,12 +143,11 @@ def add_card(text: str = "Add new config", domain: str = hard_settings.main_para
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "color": "black", "paddingTop": "20px"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingTop": "20px"}),
                     html.Div(
                         "+",
                         style={
                             "fontSize": "2.5em",
-                            "color": "#888",
                             "lineHeight": "80px",
                             "height": "80px",
                         }
@@ -163,8 +162,6 @@ def add_card(text: str = "Add new config", domain: str = hard_settings.main_para
         className=f"card configs add hover",
         id={"type": "add-config-card", "domain": domain},
         style={
-            "backgroundColor": "rgba(255, 255, 255, 0.31)",
-            "border": "1px dashed #bbb",
             "padding": "10px",
             "margin": "5px",
             "display": "inline-block",
@@ -308,10 +305,9 @@ def add_parameter_domain_button(text:str="Main parameter domain"):
         ], 
         id={"type": "button", "action": "add-domain"}, 
         n_clicks=0,
-        className="tile title hover",
+        className="tile title add hover",
         style={
             "marginTop": "50px",
-            "backgroundColor": "rgba(255, 255, 255, 0.31)",
             "textAlign": "center",
             "border": "1px dashed #bbb",
         },
@@ -525,15 +521,18 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
         id = {"type": "param-domain-section", "domain": domain},
     )
 
-layout = html.Div([
-    dcc.Location(id="url"),
-    html.Div(id={"page": page_path, "type": "architecture-title-div"}),
-    html.Div(id="param-domains-section"),
-], style={
-    "background-color": "#f6f8fa",
-    "padding": "20px 16%",
-    "minHeight": "100vh"
-})
+layout = html.Div(
+    children=[
+        dcc.Location(id="url"),
+        html.Div(id={"page": page_path, "type": "architecture-title-div"}),
+        html.Div(id="param-domains-section"),
+    ],
+    className="page-content",
+    style={
+        "padding": "20px 16%",
+        "minHeight": "100vh"
+    }
+)
 
 
 @dash.callback(

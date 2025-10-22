@@ -117,23 +117,23 @@ def architecture_form(settings):
                 ], style={"marginBottom": "12px"}),
                 html.Div([
                     html.Div([
-                        html.Label("Design Path"),
+                        html.Label("Design Path", className="dropdown-label"),
                         dcc.Input(id="design_path", value=defval("design_path", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
-                        html.Label("Design Path Whitelist"),
+                        html.Label("Design Path Whitelist", className="dropdown-label"),
                         dcc.Input(id="design_path_whitelist", value=",".join(defval("design_path_whitelist", [])), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
-                        html.Label("Design Path Blacklist"),
+                        html.Label("Design Path Blacklist", className="dropdown-label"),
                         dcc.Input(id="design_path_blacklist", value=",".join(defval("design_path_blacklist", [])), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
-                        html.Label("Generate Command"),
+                        html.Label("Generate Command", className="dropdown-label"),
                         dcc.Input(id="generate_command", value=defval("generate_command", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
-                        html.Label("Generate Output"),
+                        html.Label("Generate Output", className="dropdown-label"),
                         dcc.Input(id="generate_output", value=defval("generate_output", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                 ], id="generate-settings", className="animated-section" + ("" if generate_rtl else " hide")),
@@ -141,23 +141,23 @@ def architecture_form(settings):
             html.Div([
                 html.H3("Top Level Settings"),
                 html.Div([
-                    html.Label("RTL Path"), 
+                    html.Label("RTL Path", className="dropdown-label"), 
                     dcc.Input(id="rtl_path", value=defval("rtl_path", ""), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}, id="rtl-path-container", className="animated-section" + ("" if not generate_rtl else " hide")),
                 html.Div([
-                    html.Label("Top Level File"),
+                    html.Label("Top Level File", className="dropdown-label"),
                     dcc.Input(id="top_level_file", value=defval("top_level_file", ""), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
                 html.Div([
-                    html.Label("Top Level Module"),
+                    html.Label("Top Level Module", className="dropdown-label"), 
                     dcc.Input(id="top_level_module", value=defval("top_level_module", ""), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
                 html.Div([
-                    html.Label("Clock Signal"),
+                    html.Label("Clock Signal", className="dropdown-label"), 
                     dcc.Input(id="clock_signal", value=defval("clock_signal", ""), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
                 html.Div([
-                    html.Label("Reset Signal"),
+                    html.Label("Reset Signal", className="dropdown-label"), 
                     dcc.Input(id="reset_signal", value=defval("reset_signal", ""), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
             ], className="tile config"),
@@ -165,16 +165,16 @@ def architecture_form(settings):
                 html.H3("Synthesis Settings"),
                 html.H4("Fmax Synthesis (MHz)"),
                 html.Div([
-                    html.Label("Lower Bound"),
+                    html.Label("Lower Bound", className="dropdown-label"),
                     dcc.Input(id="fmax_synthesis_lower", value=defval("fmax_synthesis", {}).get("lower_bound", ""), type="number", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
                 html.Div([
-                    html.Label("Upper Bound"),
+                    html.Label("Upper Bound", className="dropdown-label"),
                     dcc.Input(id="fmax_synthesis_upper", value=defval("fmax_synthesis", {}).get("upper_bound", ""), type="number", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
                 html.H4("Custom Freq Synthesis (MHz)"),
                 html.Div([
-                    html.Label("List"),
+                    html.Label("List", className="dropdown-label"),
                     dcc.Input(id="custom_freq_synthesis_list", value=",".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
             ], className="tile config"),
@@ -357,8 +357,8 @@ layout = html.Div(
         dcc.Store(id="architecture-initial-settings", data=None),
         dcc.Store(id="architecture-saved-settings", data=None), 
     ],
+    className="page-content",
     style={
-        "background-color": "#f6f8fa",
         "padding": "20px",
         "minHeight": "100vh"
     },
