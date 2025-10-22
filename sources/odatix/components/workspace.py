@@ -32,6 +32,11 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree
 from typing import Optional
 
+
+######################################
+# Architectures and Simulations
+######################################
+
 def get_architectures(arch_path: str) -> list:
     """
     Get the list of architectures.
@@ -54,15 +59,6 @@ def get_simulations(sim_path: str) -> list:
         if os.path.isdir(os.path.join(sim_path, d))
     ])
 
-def get_arch_domain_path(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> str:
-    """
-    Get the path of a specific parameter domain.
-    """
-    if domain == hard_settings.main_parameter_domain:
-        return os.path.join(arch_path, arch_name)
-    else:
-        return os.path.join(arch_path, arch_name, domain)
-
 def architecture_exists(arch_path, arch_name) -> bool:
     """
     Check if a specific architecture exists.
@@ -70,61 +66,11 @@ def architecture_exists(arch_path, arch_name) -> bool:
     path = os.path.join(arch_path, arch_name)
     return os.path.isdir(path)
 
-def get_param_domains(arch_path, arch_name) -> list:
-    """
-    Get the list of parameter domains for a specific architecture.
-    """
-    folder = os.path.join(arch_path, arch_name)
-    if not os.path.isdir(folder):
-        return []
-    domain_list = [
-        d for d in os.listdir(folder)
-        if os.path.isdir(os.path.join(folder, d)) and not d.startswith("_")
-    ]
-    return sorted(domain_list)
 
-def get_config_files(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> list:
-    """
-    Get the list of configuration files for a specific parameter domain of an architecture.
-    """
-    path = get_arch_domain_path(arch_path, arch_name, domain)
-    if not os.path.isdir(path):
-        return []
-    return sorted([
-        f for f in os.listdir(path)
-        if f.endswith(".txt") and os.path.isfile(os.path.join(path, f))
-    ])
-
-def load_config_file(arch_path, arch_name, domain, filename) -> str:
-    """
-    Load the content of a specific configuration file for a specific parameter domain of an architecture.
-    """
-    path = get_arch_domain_path(arch_path, arch_name, domain)
-    path = os.path.join(path, filename)
-    if not os.path.exists(path):
-        return ""
-    with open(path, "r") as f:
-        return f.read()
-
-def save_config_file(arch_path, arch_name, domain, filename, content) -> None:
-    """
-    Save the content of a specific configuration file for a specific parameter domain of an architecture.
-    """
-    path = get_arch_domain_path(arch_path, arch_name, domain)
-    os.makedirs(path, exist_ok=True)
-    path = os.path.join(path, filename)
-    with open(path, "w") as f:
-        f.write(content)
-
-def delete_config_file(arch_path, arch_name, domain, filename) -> None:
-    """
-    Delete a specific configuration file for a specific parameter domain of an architecture.
-    """
-    path = get_arch_domain_path(arch_path, arch_name, domain)
-    path = os.path.join(path, filename)
-    if os.path.exists(path):
-        os.remove(path)
-
+######################################
+# Architecture Settings
+######################################
+ 
 def load_settings(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> dict:
     """
     Load the settings of a specific parameter domain of an architecture.
@@ -193,6 +139,108 @@ f"""##############################################
 
     with open(path, "w") as f:
         yaml_obj.dump(data, f)
+
+
+######################################
+# Parameter Domains
+######################################
+
+def get_arch_domain_path(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> str:
+    """
+    Get the path of a specific parameter domain.
+    """
+    if domain == hard_settings.main_parameter_domain:
+        return os.path.join(arch_path, arch_name)
+    else:
+        return os.path.join(arch_path, arch_name, domain)
+
+def get_param_domains(arch_path, arch_name) -> list:
+    """
+    Get the list of parameter domains for a specific architecture.
+    """
+    folder = os.path.join(arch_path, arch_name)
+    if not os.path.isdir(folder):
+        return []
+    domain_list = [
+        d for d in os.listdir(folder)
+        if os.path.isdir(os.path.join(folder, d)) and not d.startswith("_")
+    ]
+    return sorted(domain_list)
+
+def create_parameter_domain(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
+    """
+    Create a new parameter domain for a specific architecture.
+    """
+    path = os.path.join(arch_path, arch_name, domain)
+    os.makedirs(path, exist_ok=True)
+
+def duplicate_parameter_domain(arch_path, source_arch_name, target_arch_name, source_domain, target_domain) -> None:
+    """
+    Duplicate a parameter domain for a specific architecture.
+    """
+    if target_domain == hard_settings.main_parameter_domain:
+        raise ValueError("Cannot duplicate to the main parameter domain.")
+    if target_domain == source_domain and source_arch_name == target_arch_name:
+        raise ValueError("Source and target domain cannot be the same.")
+    
+    source_path = get_arch_domain_path(arch_path, source_arch_name, source_domain)
+    target_path = get_arch_domain_path(arch_path, target_arch_name, target_domain)
+    if not os.path.isdir(source_path):
+        return
+    if os.path.exists(target_path):
+        return
+    
+    if source_domain == hard_settings.main_parameter_domain:
+        # copy only the files in the main domain folder, not the folders
+        for item in os.listdir(source_path):
+            s = os.path.join(source_path, item)
+            d = os.path.join(target_path, item)
+            if os.path.isdir(s):
+                continue
+            os.makedirs(target_path, exist_ok=True)
+            with open(s, "rb") as fsrc:
+                with open(d, "wb") as fdst:
+                    fdst.write(fsrc.read())
+            # overwrite the settings file to remove unwanted keys
+            settings = load_settings(arch_path, source_arch_name, source_domain)
+            save_domain_settings(arch_path, target_arch_name, target_domain, settings)
+    else:
+        # copy the entire folder
+        copytree(source_path, target_path)
+
+def delete_parameter_domain(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
+    """
+    Delete a specific parameter domain for a specific architecture.
+    """
+    if domain == hard_settings.main_parameter_domain:
+        raise ValueError("Cannot delete the main parameter domain.")
+    path = os.path.join(arch_path, arch_name, domain)
+    if os.path.isdir(path):
+        for root, dirs, files in os.walk(path, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+        os.rmdir(path)
+
+def rename_parameter_domain(arch_path, arch_name, old_domain, new_domain) -> None:
+    """
+    Rename a specific parameter domain for a specific architecture.
+    """
+    if old_domain == hard_settings.main_parameter_domain:
+        raise ValueError("Cannot rename the main parameter domain.")
+    old_path = os.path.join(arch_path, arch_name, old_domain)
+    new_path = os.path.join(arch_path, arch_name, new_domain)
+    if not os.path.isdir(old_path):
+        return
+    if os.path.exists(new_path):
+        return
+    os.rename(old_path, new_path)
+
+
+#######################################
+# Parameter Domain Settings
+#######################################
 
 def save_domain_settings(arch_path, arch_name, domain, settings) -> None:
     """
@@ -268,102 +316,68 @@ def update_domain_settings(arch_path, arch_name, domain, settings_to_update) -> 
     with open(path, "w") as f:
         yaml_obj.dump(settings, f)
 
-def update_raw_settings(arch_path, arch_name, domain, settings_to_update) -> dict:
+
+######################################
+# Configuration Files
+######################################
+
+def get_config_files(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> list:
     """
-    Update only the provided keys from a yaml file, without any formatting.
-    Args:
-        arch_path (str): Path to the architectures folder.
-        arch_name (str): Name of the architecture.
-        domain (str): Name of the parameter domain.
-        settings_to_update (dict): Dictionary of settings to update.
-    Returns:
-        dict: Updated settings.
+    Get the list of configuration files for a specific parameter domain of an architecture.
     """
     path = get_arch_domain_path(arch_path, arch_name, domain)
-    path = os.path.join(path, hard_settings.param_settings_filename)
+    if not os.path.isdir(path):
+        return []
+    return sorted([
+        f for f in os.listdir(path)
+        if f.endswith(".txt") and os.path.isfile(os.path.join(path, f))
+    ])
 
-    # Load current settings if the file exists
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            settings = yaml.safe_load(f) or {}
-    else:
-        settings = {}
-
-    # Update only the provided keys
-    for k, v in settings_to_update.items():
-        settings[k] = v
-    
-    return settings
-
-def create_parameter_domain(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
+def load_config_file(arch_path, arch_name, domain, filename) -> str:
     """
-    Create a new parameter domain for a specific architecture.
+    Load the content of a specific configuration file for a specific parameter domain of an architecture.
     """
-    path = os.path.join(arch_path, arch_name, domain)
+    path = get_arch_domain_path(arch_path, arch_name, domain)
+    path = os.path.join(path, filename)
+    if not os.path.exists(path):
+        return ""
+    with open(path, "r") as f:
+        return f.read()
+
+def save_config_file(arch_path, arch_name, domain, filename, content) -> None:
+    """
+    Save the content of a specific configuration file for a specific parameter domain of an architecture.
+    """
+    path = get_arch_domain_path(arch_path, arch_name, domain)
     os.makedirs(path, exist_ok=True)
+    path = os.path.join(path, filename)
+    with open(path, "w") as f:
+        f.write(content)
 
-def duplicate_parameter_domain(arch_path, source_arch_name, target_arch_name, source_domain, target_domain) -> None:
+def delete_config_file(arch_path, arch_name, domain, filename) -> None:
     """
-    Duplicate a parameter domain for a specific architecture.
+    Delete a specific configuration file for a specific parameter domain of an architecture.
     """
-    if target_domain == hard_settings.main_parameter_domain:
-        raise ValueError("Cannot duplicate to the main parameter domain.")
-    if target_domain == source_domain and source_arch_name == target_arch_name:
-        raise ValueError("Source and target domain cannot be the same.")
-    
-    source_path = get_arch_domain_path(arch_path, source_arch_name, source_domain)
-    target_path = get_arch_domain_path(arch_path, target_arch_name, target_domain)
-    if not os.path.isdir(source_path):
-        return
-    if os.path.exists(target_path):
-        return
-    
-    if source_domain == hard_settings.main_parameter_domain:
-        # copy only the files in the main domain folder, not the folders
-        for item in os.listdir(source_path):
-            s = os.path.join(source_path, item)
-            d = os.path.join(target_path, item)
-            if os.path.isdir(s):
-                continue
-            os.makedirs(target_path, exist_ok=True)
-            with open(s, "rb") as fsrc:
-                with open(d, "wb") as fdst:
-                    fdst.write(fsrc.read())
-            # overwrite the settings file to remove unwanted keys
-            settings = load_settings(arch_path, source_arch_name, source_domain)
-            save_domain_settings(arch_path, target_arch_name, target_domain, settings)
-    else:
-        # copy the entire folder
-        copytree(source_path, target_path)
+    path = get_arch_domain_path(arch_path, arch_name, domain)
+    path = os.path.join(path, filename)
+    if os.path.exists(path):
+        os.remove(path)
 
-def delete_parameter_domain(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
+def delete_all_config_files(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
     """
-    Delete a specific parameter domain for a specific architecture.
+    Delete all configuration files for a specific parameter domain of an architecture.
     """
-    if domain == hard_settings.main_parameter_domain:
-        raise ValueError("Cannot delete the main parameter domain.")
-    path = os.path.join(arch_path, arch_name, domain)
-    if os.path.isdir(path):
-        for root, dirs, files in os.walk(path, topdown=False):
-            for name in files:
-                os.remove(os.path.join(root, name))
-            for name in dirs:
-                os.rmdir(os.path.join(root, name))
-        os.rmdir(path)
+    path = get_arch_domain_path(arch_path, arch_name, domain)
+    if not os.path.isdir(path):
+        return
+    for f in os.listdir(path):
+        if f.endswith(".txt"):
+            os.remove(os.path.join(path, f))
 
-def rename_parameter_domain(arch_path, arch_name, old_domain, new_domain) -> None:
-    """
-    Rename a specific parameter domain for a specific architecture.
-    """
-    if old_domain == hard_settings.main_parameter_domain:
-        raise ValueError("Cannot rename the main parameter domain.")
-    old_path = os.path.join(arch_path, arch_name, old_domain)
-    new_path = os.path.join(arch_path, arch_name, new_domain)
-    if not os.path.isdir(old_path):
-        return
-    if os.path.exists(new_path):
-        return
-    os.rename(old_path, new_path)
+
+#######################################
+# Configuration Generation
+#######################################
 
 def create_config_gen_dict(name: str, template: str, variables: dict) -> dict:
     """
@@ -409,16 +423,9 @@ def create_config_gen_variable_dict(name: str, type: str, settings: dict, format
     return var_dict
 
 
-def delete_all_config_files(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
-    """
-    Delete all configuration files for a specific parameter domain of an architecture.
-    """
-    path = get_arch_domain_path(arch_path, arch_name, domain)
-    if not os.path.isdir(path):
-        return
-    for f in os.listdir(path):
-        if f.endswith(".txt"):
-            os.remove(os.path.join(path, f))
+#######################################
+# Helpers
+#######################################
 
 def _compact_list_variables_in_config_settings(config_settings: dict):
     """
@@ -438,3 +445,30 @@ def _compact_list_variables_in_config_settings(config_settings: dict):
             compact_list = CommentedSeq(var_cfg["settings"]["list"])
             compact_list.fa.set_flow_style()
             var_cfg["settings"]["list"] = compact_list
+
+def update_raw_settings(arch_path, arch_name, domain, settings_to_update) -> dict:
+    """
+    Update only the provided keys from a yaml file, without any formatting.
+    Args:
+        arch_path (str): Path to the architectures folder.
+        arch_name (str): Name of the architecture.
+        domain (str): Name of the parameter domain.
+        settings_to_update (dict): Dictionary of settings to update.
+    Returns:
+        dict: Updated settings.
+    """
+    path = get_arch_domain_path(arch_path, arch_name, domain)
+    path = os.path.join(path, hard_settings.param_settings_filename)
+
+    # Load current settings if the file exists
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            settings = yaml.safe_load(f) or {}
+    else:
+        settings = {}
+
+    # Update only the provided keys
+    for k, v in settings_to_update.items():
+        settings[k] = v
+    
+    return settings
