@@ -32,6 +32,28 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree
 from typing import Optional
 
+def get_architectures(arch_path: str) -> list:
+    """
+    Get the list of architectures.
+    """
+    if not os.path.exists(arch_path):
+        return []
+    return sorted([
+        d for d in os.listdir(arch_path)
+        if os.path.isdir(os.path.join(arch_path, d))
+    ])
+
+def get_simulations(sim_path: str) -> list:
+    """
+    Get the list of Simulations.
+    """
+    if not os.path.exists(sim_path):
+        return []
+    return sorted([
+        d for d in os.listdir(sim_path)
+        if os.path.isdir(os.path.join(sim_path, d))
+    ])
+
 def get_arch_domain_path(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> str:
     """
     Get the path of a specific parameter domain.
