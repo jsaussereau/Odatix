@@ -45,6 +45,10 @@ dash.register_page(
     order=4,
 )
 
+######################################
+# Helper Functions
+######################################
+
 def split_by_domain(flat_list, lengths):
     result = []
     idx = 0
@@ -60,6 +64,11 @@ def get_index_from_trigger(trig_domain, trig_filename, metadata):
         -1
     )
     return index
+
+
+######################################
+# UI Components
+######################################
 
 def config_card(domain, filename, content, initial_content, config_layout="normal"):
     display_name = filename[:-4] if filename.endswith(".txt") else filename
@@ -522,21 +531,10 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
         id = {"type": "param-domain-section", "domain": domain},
     )
 
-layout = html.Div(
-    children=[
-        dcc.Location(id="url"),
-        html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
-        html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
-    ],
-    className="page-content",
-    style={
-        "padding": "0 16%",
-        "display": "flex",  
-        "flexDirection": "column",
-        "min-height": f"calc(100vh - {navigation.top_bar_height})",
-    },
-)
 
+######################################
+# Callbacks
+######################################
 
 @dash.callback(
     Output(f"param-domain-title-div-{hard_settings.main_parameter_domain}", "children"),
@@ -979,3 +977,23 @@ def update_architecture_title(search):
     if not arch_name:
         arch_name = "New_Architecture"
     return architecture_title(arch_name)
+
+
+######################################
+# Layout
+######################################
+
+layout = html.Div(
+    children=[
+        dcc.Location(id="url"),
+        html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
+        html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
+    ],
+    className="page-content",
+    style={
+        "padding": "0 16%",
+        "display": "flex",  
+        "flexDirection": "column",
+        "min-height": f"calc(100vh - {navigation.top_bar_height})",
+    },
+)

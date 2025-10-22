@@ -182,6 +182,7 @@ def architecture_form(settings):
         ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
+
 ######################################
 # Callbacks
 ######################################

@@ -946,6 +946,7 @@ preview_title_tile_buttons = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id="url"),
+        html.Div(style={"marginTop": "10px"}),
         ui.title_tile(id="main-title-config-gen", buttons=variable_title_tile_buttons),
         html.Div(
             children=[

@@ -28,6 +28,11 @@ dash.register_page(
     name='PageNotFound'
 )
 
+
+######################################
+# Layout
+######################################
+
 layout = html.Div(
     children=[
         html.Div(

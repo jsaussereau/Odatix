@@ -57,6 +57,11 @@ def get_simulations():
         if os.path.isdir(os.path.join(SIM_ROOT, d))
     ])
 
+
+######################################
+# UI Components
+######################################
+
 def normal_card(name, card_type: str = "arch"):
     unique_key = str(uuid.uuid4())
     return html.Div(
@@ -133,72 +138,10 @@ def add_card(text: str, card_type: str = "arch"):
         },
     )
 
-layout = html.Div(
-    children=[
-        html.Div(
-            children=[
-                html.H2("Architectures", style={"textAlign": "center"}),
-                html.Div(id="arch-cards-matrix", className="card-matrix"),
-                html.H2("Simulations", style={"textAlign": "center", "marginTop": "40px"}),
-                html.Div(id="sim-cards-matrix", className="card-matrix"),
-            ],
-            style={
-                "display": "block",
-                "width": "auto",
-                "textAlign": "center",
-                "marginBottom": "10px",
-            },
-        ),
-        dcc.Store(id="duplicate-info"),
-        html.Div(
-            id="duplicate-popup",
-            className="overlay-odatix",
-            children=[
-                html.Div([
-                    html.H3("Duplicate"),
-                    html.Button("×", id="duplicate-cancel-btn", n_clicks=0, className="close"),
-                    html.Div(id="duplicate-popup-message"),
-                    dcc.Input(id="duplicate-new-name", placeholder="New name", type="text", style={"width": "90%", "marginTop": "10px"}),
-                    html.Div([
-                        html.Button("Create", id="duplicate-create-btn", n_clicks=0, style={"marginRight": "10px"}),
-                    ], style={"marginTop": "18px"}),
-                    html.Div(id="duplicate-error", style={"color": "red", "marginTop": "10px"}),
-                ], className="popup-odatix")
-            ]
-        ),
-        dcc.Store(id="delete-info"),
-        html.Div(
-            id="delete-popup",
-            className="overlay-odatix",
-            children=[
-                html.Div([
-                    html.H2("Warning"),
-                    html.Div(id="delete-popup-message"),
-                    html.Div("This action is irreversible.", style={"marginTop": "10px", "color": "#FA5252", "fontWeight": "bold"}),
-                    html.Div([
-                        ui.icon_button(
-                            icon=icon("delete", className="icon red"),
-                            color="red", 
-                            text="Delete", 
-                            width="90px",
-                            id="delete-confirm-btn",
-                        ),
-                        html.Button("Cancel", id="delete-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
-                    ], style={"marginTop": "18px", "display": "flex", "justifyContent": "center"}),
-                    html.Div(id="delete-error", style={"color": "red", "marginTop": "10px"}),
-                ], className="popup-odatix")
-            ]
-        ),
-    ],
-    className="page-content",
-    style={
-        "padding": "0 16%",
-        "display": "flex",  
-        "flexDirection": "column",
-        "justifyContent": "center",
-        "min-height": f"calc(100vh - {navigation.top_bar_height})",
-    },
-)
+
+######################################
+# Callbacks
+######################################
 
 # Update cards on page load
 @dash.callback(
@@ -363,3 +306,75 @@ def do_delete(n_clicks, info):
     sim_cards = [normal_card(name, "sim") for name in simulations]
     sim_cards.append(add_card("Create New Simulation", "sim"))
     return "overlay-odatix", "", arch_cards, sim_cards
+
+
+######################################
+# Layout
+######################################
+
+layout = html.Div(
+    children=[
+        html.Div(
+            children=[
+                html.H2("Architectures", style={"textAlign": "center"}),
+                html.Div(id="arch-cards-matrix", className="card-matrix"),
+                html.H2("Simulations", style={"textAlign": "center", "marginTop": "40px"}),
+                html.Div(id="sim-cards-matrix", className="card-matrix"),
+            ],
+            style={
+                "display": "block",
+                "width": "auto",
+                "textAlign": "center",
+                "marginBottom": "10px",
+            },
+        ),
+        dcc.Store(id="duplicate-info"),
+        html.Div(
+            id="duplicate-popup",
+            className="overlay-odatix",
+            children=[
+                html.Div([
+                    html.H3("Duplicate"),
+                    html.Button("×", id="duplicate-cancel-btn", n_clicks=0, className="close"),
+                    html.Div(id="duplicate-popup-message"),
+                    dcc.Input(id="duplicate-new-name", placeholder="New name", type="text", style={"width": "90%", "marginTop": "10px"}),
+                    html.Div([
+                        html.Button("Create", id="duplicate-create-btn", n_clicks=0, style={"marginRight": "10px"}),
+                    ], style={"marginTop": "18px"}),
+                    html.Div(id="duplicate-error", style={"color": "red", "marginTop": "10px"}),
+                ], className="popup-odatix")
+            ]
+        ),
+        dcc.Store(id="delete-info"),
+        html.Div(
+            id="delete-popup",
+            className="overlay-odatix",
+            children=[
+                html.Div([
+                    html.H2("Warning"),
+                    html.Div(id="delete-popup-message"),
+                    html.Div("This action is irreversible.", style={"marginTop": "10px", "color": "#FA5252", "fontWeight": "bold"}),
+                    html.Div([
+                        ui.icon_button(
+                            icon=icon("delete", className="icon red"),
+                            color="red", 
+                            text="Delete", 
+                            width="90px",
+                            id="delete-confirm-btn",
+                        ),
+                        html.Button("Cancel", id="delete-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
+                    ], style={"marginTop": "18px", "display": "flex", "justifyContent": "center"}),
+                    html.Div(id="delete-error", style={"color": "red", "marginTop": "10px"}),
+                ], className="popup-odatix")
+            ]
+        ),
+    ],
+    className="page-content",
+    style={
+        "padding": "0 16%",
+        "display": "flex",  
+        "flexDirection": "column",
+        "justifyContent": "center",
+        "min-height": f"calc(100vh - {navigation.top_bar_height})",
+    },
+)

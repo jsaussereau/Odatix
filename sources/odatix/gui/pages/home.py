@@ -31,6 +31,41 @@ dash.register_page(
     name='Home',
 )
 
+######################################
+# UI Components
+######################################
+
+def create_button(page):
+    return dcc.Link(
+        html.Div(
+            [
+                html.Img(
+                    src=page["image"],
+                    className="card-img",
+                    style={"height": "125px"}
+                ),
+                html.Div(
+                    page["name"],
+                    className="card-title",
+                ),
+                html.Div(
+                    page["description"],
+                    className="card-description",
+                ),
+            ],
+            className="card home hover",
+        ),
+        href=page["link"],
+        style={"text-decoration": "none"},
+    )
+
+padding = 20
+
+
+######################################
+# Layout
+######################################
+
 cards = [
     {
         "name": "Architectures and Simulations",
@@ -69,32 +104,6 @@ cards = [
         "description": "Adjust workspace settings",
     },
 ]
-
-def create_button(page):
-    return dcc.Link(
-        html.Div(
-            [
-                html.Img(
-                    src=page["image"],
-                    className="card-img",
-                    style={"height": "125px"}
-                ),
-                html.Div(
-                    page["name"],
-                    className="card-title",
-                ),
-                html.Div(
-                    page["description"],
-                    className="card-description",
-                ),
-            ],
-            className="card home hover",
-        ),
-        href=page["link"],
-        style={"text-decoration": "none"},
-    )
-
-padding = 20
 
 layout = html.Div(
     children=[
