@@ -21,6 +21,7 @@
 
 import dash
 from dash import html
+import odatix.gui.navigation as navigation
 
 dash.register_page(
     __name__,
@@ -41,7 +42,10 @@ layout = html.Div(
     className="page-content",
     id="p404-container",
     style={
-        "padding": "20px",
-        "minHeight": "100vh"
+        "width": "100%", 
+        "min-height": f"calc(100vh - {navigation.top_bar_height})",
+        "display": "flex",  
+        "flex-direction": "column",
+        "align-items": "center",
     },
 )

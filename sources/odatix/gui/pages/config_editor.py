@@ -25,6 +25,7 @@ from dash import html, dcc, Input, Output, State, ctx
 
 import odatix.gui.ui_components as ui
 from odatix.gui.utils import get_key_from_url
+import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 import odatix.components.replace_params as replace_params
@@ -524,14 +525,16 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
 layout = html.Div(
     children=[
         dcc.Location(id="url"),
-        html.Div(id={"page": page_path, "type": "architecture-title-div"}),
-        html.Div(id="param-domains-section"),
+        html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
+        html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
     ],
     className="page-content",
     style={
-        "padding": "20px 16%",
-        "minHeight": "100vh"
-    }
+        "padding": "0 16%",
+        "display": "flex",  
+        "flexDirection": "column",
+        "min-height": f"calc(100vh - {navigation.top_bar_height})",
+    },
 )
 
 

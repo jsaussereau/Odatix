@@ -358,9 +358,6 @@ button:focus {
 }
 
 #p404 {
-    background-color: var(--theme-element-background-color);
-    color: var(--theme-text-color);
-    border: var(--theme-border);
     margin: 25px;
     max-width: fit-content; 
     margin-inline: auto;

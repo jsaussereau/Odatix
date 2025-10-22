@@ -24,6 +24,7 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional, Literal
 
+import odatix.gui.navigation as navigation
 import odatix.gui.ui_components as ui
 from odatix.gui.css_helper import Style
 from odatix.gui.utils import get_key_from_url
@@ -983,7 +984,9 @@ layout = html.Div(
     ],
     className="page-content",
     style={
-        "padding": "20px 16%",
-        "minHeight": "100vh"
+        "padding": "0 16%",
+        "display": "flex",  
+        "flexDirection": "column",
+        "min-height": f"calc(100vh - {navigation.top_bar_height})",
     }
 )

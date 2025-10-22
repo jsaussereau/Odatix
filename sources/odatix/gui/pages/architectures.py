@@ -23,6 +23,7 @@ import os
 import dash
 from dash import html, dcc, Input, Output, ctx, State
 import odatix.gui.ui_components as ui
+import odatix.gui.navigation as navigation
 import shutil
 import uuid
 
@@ -145,6 +146,7 @@ layout = html.Div(
                 "display": "block",
                 "width": "auto",
                 "textAlign": "center",
+                "marginBottom": "10px",
             },
         ),
         dcc.Store(id="duplicate-info"),
@@ -190,9 +192,11 @@ layout = html.Div(
     ],
     className="page-content",
     style={
-        "padding": "20px 16%",
-        "minHeight": "100vh",
-        "display": "block",
+        "padding": "0 16%",
+        "display": "flex",  
+        "flexDirection": "column",
+        "justifyContent": "center",
+        "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
 

@@ -28,6 +28,7 @@ import odatix.components.config_handler as config_handler
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url
 import odatix.gui.ui_components as ui
+import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 
@@ -351,7 +352,7 @@ def update_architecture_title(search):
 layout = html.Div(
     [
         dcc.Location(id="url"),
-        html.Div(id={"page": page_path, "type": "architecture-title-div"}),
+        html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
         html.Div(id="arch-form-container"),
         dcc.Store(id="save-state", data=""),
         dcc.Store(id="architecture-initial-settings", data=None),
@@ -359,7 +360,8 @@ layout = html.Div(
     ],
     className="page-content",
     style={
-        "padding": "20px",
-        "minHeight": "100vh"
+        "display": "flex",  
+        "flexDirection": "column",
+        "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
