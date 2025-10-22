@@ -201,10 +201,10 @@ def init_form(search, page, odatix_settings):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
-        arch_name = "New_Architecture"
+        return architecture_form({}), {}
 
     if arch_name:
-        full_settings = workspace.load_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        full_settings = workspace.load_architecture_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
         settings ={
             "generate_rtl": full_settings.get("generate_rtl", False),
             "design_path": full_settings.get("design_path", ""),
@@ -294,26 +294,25 @@ def save_and_status(
         return "color-button disabled icon-button error-status", dash.no_update, saved_settings
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
-        if not arch_name:
-            return "color-button disabled icon-button", dash.no_update, saved_settings
-
+        # Rename architecture if needed
         new_search = dash.no_update
         if arch_title != arch_name:
-            # Rename architecture folder
-            old_path = os.path.join(arch_path, arch_name)
-            new_path = os.path.join(arch_path, arch_title)
-            if os.path.exists(new_path):
-                return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
+            old_name = arch_name
+            new_name = arch_title
             try:
-                shutil.move(old_path, new_path)
-                arch_name = arch_title
-                new_search = f"?arch={arch_title}"
+                workspace.rename_architecture(arch_path, old_name, new_name)
+                arch_name = new_name
+                new_search = f"?arch={new_name}"
             except Exception as e:
                 return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
-            
+        
+        # Create architecture if it does not exist yet
+        if not workspace.architecture_exists(arch_path, arch_name):
+            workspace.create_architecture(arch_path, arch_name)
+
         # Save settings
         try:
-            workspace.save_settings(arch_path, arch_name, current_settings)
+            workspace.save_architecture_settings(arch_path, arch_name, current_settings)
             return "color-button disabled icon-button", new_search, current_settings
         except Exception as e:
             return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
@@ -333,8 +332,6 @@ def toggle_generate_settings(generate_rtl):
     rtl_path_style = "animated-section" if not generate_rtl else "animated-section hide"
     return generate_settings_class, rtl_path_style
 
-
-
 @dash.callback(
     Output({"page": page_path, "type": "architecture-title-div"}, "children"),
     Input("url", "search"),
@@ -342,7 +339,7 @@ def toggle_generate_settings(generate_rtl):
 def update_architecture_title(search):
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
-        arch_name = "New_Architecture"
+        arch_name = ""
     return architecture_title(arch_name)
 
 
@@ -351,7 +348,7 @@ def update_architecture_title(search):
 ######################################
 
 layout = html.Div(
-    [
+    children=[
         dcc.Location(id="url"),
         html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
         html.Div(id="arch-form-container"),

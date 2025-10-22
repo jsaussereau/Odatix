@@ -599,10 +599,10 @@ def update_param_domains(
     # Generate domain sections
     if triggered_id == "url":
         domain_sections = []
-        settings = workspace.load_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        settings = workspace.load_architecture_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
         domain_sections.append(domain_section(hard_settings.main_parameter_domain, settings=settings))
         for domain in domains:
-            settings = workspace.load_settings(arch_path, arch_name, domain)
+            settings = workspace.load_architecture_settings(arch_path, arch_name, domain)
             settings["arch_name"] = arch_name
             domain_sections.append(domain_section(domain, arch_name, settings=settings))
         domain_sections.append(add_domain_div)

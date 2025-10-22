@@ -1,4 +1,3 @@
-
 # ********************************************************************** #
 #                                Odatix                                  #
 # ********************************************************************** #
@@ -21,7 +20,7 @@
 #
 
 import os
-import sys
+import shutil
 import yaml
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -37,41 +36,118 @@ from typing import Optional
 # Architectures and Simulations
 ######################################
 
-def get_architectures(arch_path: str) -> list:
+def get_instances(path: str) -> list:
+    """
+    Get the list of architectures or simulations.
+    """
+    if not os.path.exists(path):
+        return []
+    return sorted([
+        d for d in os.listdir(path)
+        if os.path.isdir(os.path.join(path, d))
+    ])
+
+def get_simulations(path: str) -> list:
+    """
+    Get the list of simulations.
+    """
+    return get_instances(path)
+
+def get_architectures(path: str) -> list:
     """
     Get the list of architectures.
     """
-    if not os.path.exists(arch_path):
-        return []
-    return sorted([
-        d for d in os.listdir(arch_path)
-        if os.path.isdir(os.path.join(arch_path, d))
-    ])
+    return get_instances(path)
 
-def get_simulations(sim_path: str) -> list:
+def instance_exists(path, name) -> bool:
     """
-    Get the list of Simulations.
+    Check if a specific architecture or simulation exists.
     """
-    if not os.path.exists(sim_path):
-        return []
-    return sorted([
-        d for d in os.listdir(sim_path)
-        if os.path.isdir(os.path.join(sim_path, d))
-    ])
+    path = os.path.join(path, name)
+    return os.path.isdir(path)
 
-def architecture_exists(arch_path, arch_name) -> bool:
+def architecture_exists(path, name) -> bool:
     """
     Check if a specific architecture exists.
     """
-    path = os.path.join(arch_path, arch_name)
-    return os.path.isdir(path)
+    return instance_exists(path, name)
 
+def simulation_exists(path, name) -> bool:
+    """
+    Check if a specific simulation exists.
+    """
+    return instance_exists(path, name)
+
+def duplicate_instance(path, source_name, target_name) -> None:
+    """
+    Duplicate an architecture or simulation.
+    """
+    source_path = os.path.join(path, source_name)
+    target_path = os.path.join(path, target_name)
+    if not os.path.isdir(source_path):
+        raise ValueError(f"Source instance '{source_name}' does not exist.")
+    if os.path.exists(target_path):
+        raise ValueError(f"Target instance '{target_name}' already exists.")
+    copytree(source_path, target_path)
+
+def delete_instance(path, name) -> None:
+    """
+    Delete an architecture or simulation.
+    """
+    path = os.path.join(path, name)
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    else:
+        os.remove(path)
+
+def rename_instance(path, old_name, new_name) -> None:
+    """
+    Rename an architecture or simulation.
+    """
+    old_path = os.path.join(path, old_name)
+    new_path = os.path.join(path, new_name)
+    if not os.path.isdir(old_path):
+        return
+    if os.path.exists(new_path):
+        return
+    shutil.move(old_path, new_path)
+
+def rename_architecture(path, old_name, new_name) -> None:
+    """
+    Rename an architecture.
+    """
+    rename_instance(path, old_name, new_name)
+
+def rename_simulation(path, old_name, new_name) -> None:
+    """
+    Rename a simulation.
+    """
+    rename_instance(path, old_name, new_name)
+
+def create_instance(path, name) -> None:
+    """
+    Create a new architecture or simulation.
+    """
+    instance_path = os.path.join(path, name)
+    os.makedirs(instance_path, exist_ok=True)
+
+def create_architecture(path, name) -> None:
+    """
+    Create a new architecture.
+    """
+    create_instance(path, name)
+
+def create_simulation(path, name) -> None:
+    """
+    Create a new simulation.
+    """
+    create_instance(path, name)
 
 ######################################
 # Architecture Settings
 ######################################
  
-def load_settings(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> dict:
+def load_architecture_settings(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> dict:
     """
     Load the settings of a specific parameter domain of an architecture.
     """
@@ -82,7 +158,7 @@ def load_settings(arch_path, arch_name, domain=hard_settings.main_parameter_doma
     with open(path, "r") as f:
         return yaml.safe_load(f) or {}
 
-def save_settings(arch_path, arch_name, settings) -> None:
+def save_architecture_settings(arch_path, arch_name, settings) -> None:
     """
     Save the settings of a specific parameter domain of an architecture.
     """
@@ -202,7 +278,7 @@ def duplicate_parameter_domain(arch_path, source_arch_name, target_arch_name, so
                 with open(d, "wb") as fdst:
                     fdst.write(fsrc.read())
             # overwrite the settings file to remove unwanted keys
-            settings = load_settings(arch_path, source_arch_name, source_domain)
+            settings = load_architecture_settings(arch_path, source_arch_name, source_domain)
             save_domain_settings(arch_path, target_arch_name, target_domain, settings)
     else:
         # copy the entire folder

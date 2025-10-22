@@ -507,7 +507,7 @@ def update_form_and_variable_cards(
         if not arch_name:
             return [], dash.no_update, dash.no_update, dash.no_update
 
-        settings = workspace.load_settings(arch_path, arch_name, domain)
+        settings = workspace.load_architecture_settings(arch_path, arch_name, domain)
         variables = {}
 
         generator_name = ""

@@ -176,21 +176,20 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     card_type = btn_id["card_type"]
     name = btn_id["name"]
 
+    path = arch_path if card_type == "arch" else sim_path
+
     base = name
     suffix = 1
     while True:
         new_name = f"{base}_copy{suffix}"
-        root = arch_path if card_type == "arch" else sim_path
-        dst = os.path.join(root, new_name)
-        if not os.path.exists(dst):
+        if not workspace.instance_exists(path, new_name):
             break
         suffix += 1
         if suffix > 1000:
             return dash.no_update, dash.no_update
 
-    src = os.path.join(arch_path if card_type == "arch" else sim_path, name)
     try:
-        shutil.copytree(src, dst)
+        workspace.duplicate_instance(path, name, new_name)
     except Exception:
         return dash.no_update, dash.no_update
 
@@ -202,48 +201,6 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     sim_cards = [normal_card(n, "sim") for n in simulations]
     sim_cards.append(add_card("Create New Simulation", "sim"))
     return arch_cards, sim_cards
-
-# Duplicate
-@dash.callback(
-    Output("duplicate-popup", "style", allow_duplicate=True),
-    Output("duplicate-error", "children"),
-    Output("arch-cards-matrix", "children", allow_duplicate=True),
-    Output("sim-cards-matrix", "children", allow_duplicate=True),
-    Input("duplicate-create-btn", "n_clicks"),
-    State("duplicate-new-name", "value"),
-    State("duplicate-info", "data"),
-    State("odatix-settings", "data"),
-    prevent_initial_call=True
-)
-def do_duplicate(n_clicks, new_name, info, odatix_settings):
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
-
-    if not n_clicks or not info:
-        raise dash.exceptions.PreventUpdate
-    card_type = info["card_type"]
-    old_name = info["name"]
-    if not new_name or "/" in new_name or "\\" in new_name:
-        return {"display": "flex"}, "Invalid name.", dash.no_update, dash.no_update
-    
-    src = os.path.join(arch_path if card_type == "arch" else sim_path, old_name)
-    dst = os.path.join(arch_path if card_type == "arch" else sim_path, new_name)
-    
-    if os.path.exists(dst):
-        return {"display": "flex"}, "A folder with this name already exists.", dash.no_update, dash.no_update
-    try:
-        shutil.copytree(src, dst)
-    except Exception as e:
-        return {"display": "flex"}, f"Error: {e}", dash.no_update, dash.no_update
-
-    # Refresh the cards
-    architectures = workspace.get_architectures(arch_path)
-    simulations = workspace.get_simulations(sim_path)
-    arch_cards = [normal_card(name, "arch") for name in architectures]
-    arch_cards.append(add_card("Create New Architecture", "arch"))
-    sim_cards = [normal_card(name, "sim") for name in simulations]
-    sim_cards.append(add_card("Create New Simulation", "sim"))
-    return {"display": "none"}, "", arch_cards, sim_cards
 
 # Open deletion popup
 @dash.callback(
@@ -292,14 +249,11 @@ def do_delete(n_clicks, info, odatix_settings):
     
     card_type = info["card_type"]
     name = info["name"]
-    path = os.path.join(arch_path if card_type == "arch" else sim_path, name)
-    if not os.path.exists(path):
+    path = arch_path if card_type == "arch" else sim_path
+    if not workspace.instance_exists(path, name):
         return dash.no_update, "Item not found.", dash.no_update, dash.no_update
     try:
-        if os.path.isdir(path):
-            shutil.rmtree(path)
-        else:
-            os.remove(path)
+        workspace.delete_instance(path, name)
     except Exception as e:
         print("Error during deletion:", e)
         return dash.no_update, f"Error: {e}", dash.no_update, dash.no_update
