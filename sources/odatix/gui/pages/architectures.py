@@ -21,41 +21,26 @@
 
 import os
 import dash
-from dash import html, dcc, Input, Output, ctx, State
-import odatix.gui.ui_components as ui
-import odatix.gui.navigation as navigation
 import shutil
 import uuid
+from dash import html, dcc, Input, Output, ctx, State
 
 import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
+import odatix.gui.navigation as navigation
+import odatix.components.config_handler as config_handler
+import odatix.lib.hard_settings as hard_settings
+from odatix.lib.settings import OdatixSettings
+
+page_path = "/architectures"
 
 dash.register_page(
     __name__,
-    path='/architectures',
+    path=page_path,
     title='Odatix - Architectures',
     name='Architectures',
     order=2,
 )
-
-ARCH_ROOT = "odatix_userconfig/architectures"
-SIM_ROOT = "odatix_userconfig/simulations"
-
-def get_architectures():
-    if not os.path.exists(ARCH_ROOT):
-        return []
-    return sorted([
-        d for d in os.listdir(ARCH_ROOT)
-        if os.path.isdir(os.path.join(ARCH_ROOT, d))
-    ])
-
-def get_simulations():
-    if not os.path.exists(SIM_ROOT):
-        return []
-    return sorted([
-        d for d in os.listdir(SIM_ROOT)
-        if os.path.isdir(os.path.join(SIM_ROOT, d))
-    ])
 
 
 ######################################
@@ -148,10 +133,15 @@ def add_card(text: str, card_type: str = "arch"):
     Output("arch-cards-matrix", "children"),
     Output("sim-cards-matrix", "children"),
     Input("arch-cards-matrix", "children"),
+    State("odatix-settings", "data"),
 )
-def update_cards(_):
-    architectures = get_architectures()
-    simulations = get_simulations()
+def update_cards(_, odatix_settings):
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+
+    architectures = config_handler.get_architectures(arch_path)
+    simulations = config_handler.get_simulations(sim_path)
+
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]
@@ -163,20 +153,25 @@ def update_cards(_):
     Output("sim-cards-matrix", "children", allow_duplicate=True),
     Input({"type": "button-duplicate", "card_type": dash.ALL, "name": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "button-duplicate", "card_type": dash.ALL, "name": dash.ALL}, "id"),
+    State("odatix-settings", "data"),
     prevent_initial_call=True
 )
-def direct_duplicate(dupl_timestamps, btn_ids):
+def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     triggered = ctx.triggered_id
     if not triggered or not isinstance(triggered, dict):
-        raise dash.exceptions.PreventUpdate
+        return dash.no_update, dash.no_update
 
     if not dupl_timestamps or not btn_ids:
-        raise dash.exceptions.PreventUpdate
+        return dash.no_update, dash.no_update
+    
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+
     idx = max(range(len(dupl_timestamps)), key=lambda i: dupl_timestamps[i] or 0)
     btn_id = btn_ids[idx]
 
     if btn_id != triggered or not dupl_timestamps[idx]:
-        raise dash.exceptions.PreventUpdate
+        return dash.no_update, dash.no_update
 
     card_type = btn_id["card_type"]
     name = btn_id["name"]
@@ -185,23 +180,23 @@ def direct_duplicate(dupl_timestamps, btn_ids):
     suffix = 1
     while True:
         new_name = f"{base}_copy{suffix}"
-        root = ARCH_ROOT if card_type == "arch" else SIM_ROOT
+        root = arch_path if card_type == "arch" else sim_path
         dst = os.path.join(root, new_name)
         if not os.path.exists(dst):
             break
         suffix += 1
         if suffix > 1000:
-            raise dash.exceptions.PreventUpdate
+            return dash.no_update, dash.no_update
 
-    src = os.path.join(ARCH_ROOT if card_type == "arch" else SIM_ROOT, name)
+    src = os.path.join(arch_path if card_type == "arch" else sim_path, name)
     try:
         shutil.copytree(src, dst)
     except Exception:
-        raise dash.exceptions.PreventUpdate
+        return dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = get_architectures()
-    simulations = get_simulations()
+    architectures = config_handler.get_architectures(arch_path)
+    simulations = config_handler.get_simulations(sim_path)
     arch_cards = [normal_card(n, "arch") for n in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(n, "sim") for n in simulations]
@@ -217,17 +212,23 @@ def direct_duplicate(dupl_timestamps, btn_ids):
     Input("duplicate-create-btn", "n_clicks"),
     State("duplicate-new-name", "value"),
     State("duplicate-info", "data"),
+    State("odatix-settings", "data"),
     prevent_initial_call=True
 )
-def do_duplicate(n_clicks, new_name, info):
+def do_duplicate(n_clicks, new_name, info, odatix_settings):
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+
     if not n_clicks or not info:
         raise dash.exceptions.PreventUpdate
     card_type = info["card_type"]
     old_name = info["name"]
     if not new_name or "/" in new_name or "\\" in new_name:
         return {"display": "flex"}, "Invalid name.", dash.no_update, dash.no_update
-    src = os.path.join(ARCH_ROOT if card_type == "arch" else SIM_ROOT, old_name)
-    dst = os.path.join(ARCH_ROOT if card_type == "arch" else SIM_ROOT, new_name)
+    
+    src = os.path.join(arch_path if card_type == "arch" else sim_path, old_name)
+    dst = os.path.join(arch_path if card_type == "arch" else sim_path, new_name)
+    
     if os.path.exists(dst):
         return {"display": "flex"}, "A folder with this name already exists.", dash.no_update, dash.no_update
     try:
@@ -236,8 +237,8 @@ def do_duplicate(n_clicks, new_name, info):
         return {"display": "flex"}, f"Error: {e}", dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = get_architectures()
-    simulations = get_simulations()
+    architectures = config_handler.get_architectures(arch_path)
+    simulations = config_handler.get_simulations(sim_path)
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]
@@ -279,14 +280,19 @@ def close_delete_popup(n):
     Output("sim-cards-matrix", "children", allow_duplicate=True),
     Input("delete-confirm-btn", "n_clicks"),
     State("delete-info", "data"),
+    State("odatix-settings", "data"),
     prevent_initial_call=True
 )
-def do_delete(n_clicks, info):
+def do_delete(n_clicks, info, odatix_settings):
     if not n_clicks or not info:
-        raise dash.exceptions.PreventUpdate
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+    
     card_type = info["card_type"]
     name = info["name"]
-    path = os.path.join(ARCH_ROOT if card_type == "arch" else SIM_ROOT, name)
+    path = os.path.join(arch_path if card_type == "arch" else sim_path, name)
     if not os.path.exists(path):
         return dash.no_update, "Item not found.", dash.no_update, dash.no_update
     try:
@@ -299,8 +305,8 @@ def do_delete(n_clicks, info):
         return dash.no_update, f"Error: {e}", dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = get_architectures()
-    simulations = get_simulations()
+    architectures = config_handler.get_architectures(arch_path)
+    simulations = config_handler.get_simulations(sim_path)
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]
@@ -374,7 +380,6 @@ layout = html.Div(
         "padding": "0 16%",
         "display": "flex",  
         "flexDirection": "column",
-        "justifyContent": "center",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
