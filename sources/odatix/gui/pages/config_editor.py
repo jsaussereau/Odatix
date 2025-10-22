@@ -29,7 +29,7 @@ import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 import odatix.components.replace_params as replace_params
-import odatix.components.config_handler as config_handler
+import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
 from odatix.gui.css_helper import Style
 
@@ -588,21 +588,21 @@ def update_param_domains(
         style={"marginLeft": "-13px"},
     )
 
-    if not config_handler.architecture_exists(arch_path, arch_name):
+    if not workspace.architecture_exists(arch_path, arch_name):
         domain_sections = []
         domain_sections.append(domain_section(hard_settings.main_parameter_domain, arch_name, settings={}))
         domain_sections.append(add_domain_div)
         return domain_sections
 
-    domains = config_handler.get_param_domains(arch_path, arch_name)
+    domains = workspace.get_param_domains(arch_path, arch_name)
 
     # Generate domain sections
     if triggered_id == "url":
         domain_sections = []
-        settings = config_handler.load_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        settings = workspace.load_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
         domain_sections.append(domain_section(hard_settings.main_parameter_domain, settings=settings))
         for domain in domains:
-            settings = config_handler.load_settings(arch_path, arch_name, domain)
+            settings = workspace.load_settings(arch_path, arch_name, domain)
             settings["arch_name"] = arch_name
             domain_sections.append(domain_section(domain, arch_name, settings=settings))
         domain_sections.append(add_domain_div)
@@ -618,7 +618,7 @@ def update_param_domains(
             while new_domain in domains:
                 suffix += 1
                 new_domain = f"{base_name}{suffix}"
-            config_handler.create_parameter_domain(arch_path, arch_name, new_domain)
+            workspace.create_parameter_domain(arch_path, arch_name, new_domain)
             
             # Insert new domain section before the add domain button
             domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
@@ -645,7 +645,7 @@ def update_param_domains(
                 while new_domain in domains:
                     suffix += 1
                     new_domain = f"{base_name}{suffix}"
-                config_handler.duplicate_parameter_domain(
+                workspace.duplicate_parameter_domain(
                     arch_path, arch_name, arch_name, domain_to_duplicate, new_domain
                 )
 
@@ -665,7 +665,7 @@ def update_param_domains(
                 return dash.no_update
             
             if domain_to_delete and domain_to_delete != hard_settings.main_parameter_domain:
-                config_handler.delete_parameter_domain(arch_path, arch_name, domain_to_delete)
+                workspace.delete_parameter_domain(arch_path, arch_name, domain_to_delete)
                 if isinstance(domain_sections, list):
                     for i, section in enumerate(domain_sections):
                         domain = section.get("props", {}).get("id", {}).get("domain", "")
@@ -703,7 +703,7 @@ def update_config_cards(
     if not arch_name:
         return [html.Div("No architecture selected.", className="error")], [{}], [{}]
 
-    domains = [hard_settings.main_parameter_domain] + config_handler.get_param_domains(arch_path, arch_name)
+    domains = [hard_settings.main_parameter_domain] + workspace.get_param_domains(arch_path, arch_name)
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):
@@ -715,7 +715,7 @@ def update_config_cards(
             for idx in range(1, 1001):
                 new_filename = f"new_config{idx}.txt"
                 if new_filename not in configs_list[trig_domain_idx]:
-                    config_handler.save_config_file(arch_path, arch_name, trig_domain, new_filename, "")
+                    workspace.save_config_file(arch_path, arch_name, trig_domain, new_filename, "")
                     configs_list[trig_domain_idx][new_filename] = ""
                     break
             else:
@@ -740,7 +740,7 @@ def update_config_cards(
                         if verbose:
                             print(f"File '{config_new_title}' already exists.")
                     else:
-                        path = config_handler.get_arch_domain_path(arch_path, arch_name, trig_domain)
+                        path = workspace.get_arch_domain_path(arch_path, arch_name, trig_domain)
                         old_path = os.path.join(path, config_old_title)
                         new_path = os.path.join(path, config_new_title)
                         if verbose:
@@ -751,12 +751,12 @@ def update_config_cards(
                         config_old_title = config_new_title
                 if verbose:
                     print(f"Saving config '{config_old_title}' in domain '{trig_domain}'")
-                config_handler.save_config_file(arch_path, arch_name, trig_domain, config_new_title, config_content)
+                workspace.save_config_file(arch_path, arch_name, trig_domain, config_new_title, config_content)
                 configs_list[trig_domain_idx][config_old_title] = config_content
 
             # Delete config
             if trig_type == "delete-config":
-                config_handler.delete_config_file(arch_path, arch_name, trig_domain, trig_filename)
+                workspace.delete_config_file(arch_path, arch_name, trig_domain, trig_filename)
                 configs_list[trig_domain_idx].pop(trig_filename)
 
             # Duplicate config
@@ -767,7 +767,7 @@ def update_config_cards(
                 while new_filename in configs_list[trig_domain_idx]:
                     suffix += 1
                     new_filename = f"{base}_copy{suffix}.txt"
-                config_handler.save_config_file(arch_path, arch_name, trig_domain, new_filename, configs_list[trig_domain_idx][trig_filename])
+                workspace.save_config_file(arch_path, arch_name, trig_domain, new_filename, configs_list[trig_domain_idx][trig_filename])
                 configs_list[trig_domain_idx][new_filename] = configs_list[trig_domain_idx][trig_filename]
 
     all_cards = []
@@ -776,8 +776,8 @@ def update_config_cards(
 
     for idx, domain in enumerate(domains):
         if True:
-            files = config_handler.get_config_files(arch_path, arch_name, domain)
-            configs = {f: config_handler.load_config_file(arch_path, arch_name, domain, f) for f in files}
+            files = workspace.get_config_files(arch_path, arch_name, domain)
+            configs = {f: workspace.load_config_file(arch_path, arch_name, domain, f) for f in files}
         initial_configs = configs.copy()
 
         cards = [config_card(domain, f, configs[f], initial_configs.get(f, ""), config_layout) for f in configs]
@@ -805,13 +805,13 @@ def update_config_cards(
 def update_preview_all(search, config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, configs_list, odatix_settings):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
-    if not config_handler.architecture_exists(arch_path, arch_name):
+    if not workspace.architecture_exists(arch_path, arch_name):
         return [html.Div([
                 html.Div("Architecture is not created yet."),
                 html.Div("Edit settings, then save or add a new config to create it."),
             ], className="error warning")] * len(config_cards_rows)
 
-    domains = [hard_settings.main_parameter_domain] + config_handler.get_param_domains(arch_path, arch_name)
+    domains = [hard_settings.main_parameter_domain] + workspace.get_param_domains(arch_path, arch_name)
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):
@@ -947,7 +947,7 @@ def save_config_parameters(
                 "start_delimiter": start_delimiter,
                 "stop_delimiter": stop_delimiter,
             }
-            config_handler.update_domain_settings(arch_path, arch_name, trig_domain, settings)
+            workspace.update_domain_settings(arch_path, arch_name, trig_domain, settings)
             return [settings if i == idx else dash.no_update for i in range(len(metadata))]
     return [dash.no_update for _ in range(len(metadata))]
 

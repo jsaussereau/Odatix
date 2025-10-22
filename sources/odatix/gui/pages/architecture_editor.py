@@ -24,7 +24,7 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 import shutil
 
-import odatix.components.config_handler as config_handler
+import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url
 import odatix.gui.ui_components as ui
@@ -204,7 +204,7 @@ def init_form(search, page, odatix_settings):
         arch_name = "New_Architecture"
 
     if arch_name:
-        full_settings = config_handler.load_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        full_settings = workspace.load_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
         settings ={
             "generate_rtl": full_settings.get("generate_rtl", False),
             "design_path": full_settings.get("design_path", ""),
@@ -313,7 +313,7 @@ def save_and_status(
             
         # Save settings
         try:
-            config_handler.save_settings(arch_path, arch_name, current_settings)
+            workspace.save_settings(arch_path, arch_name, current_settings)
             return "color-button disabled icon-button", new_search, current_settings
         except Exception as e:
             return "color-button disabled icon-button error-status", dash.no_update, dash.no_update

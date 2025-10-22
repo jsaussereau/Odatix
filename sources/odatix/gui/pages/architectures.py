@@ -28,7 +28,7 @@ from dash import html, dcc, Input, Output, ctx, State
 import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
-import odatix.components.config_handler as config_handler
+import odatix.components.workspace as workspace
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 
@@ -139,8 +139,8 @@ def update_cards(_, odatix_settings):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
 
-    architectures = config_handler.get_architectures(arch_path)
-    simulations = config_handler.get_simulations(sim_path)
+    architectures = workspace.get_architectures(arch_path)
+    simulations = workspace.get_simulations(sim_path)
 
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
@@ -195,8 +195,8 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
         return dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = config_handler.get_architectures(arch_path)
-    simulations = config_handler.get_simulations(sim_path)
+    architectures = workspace.get_architectures(arch_path)
+    simulations = workspace.get_simulations(sim_path)
     arch_cards = [normal_card(n, "arch") for n in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(n, "sim") for n in simulations]
@@ -237,8 +237,8 @@ def do_duplicate(n_clicks, new_name, info, odatix_settings):
         return {"display": "flex"}, f"Error: {e}", dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = config_handler.get_architectures(arch_path)
-    simulations = config_handler.get_simulations(sim_path)
+    architectures = workspace.get_architectures(arch_path)
+    simulations = workspace.get_simulations(sim_path)
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]
@@ -305,8 +305,8 @@ def do_delete(n_clicks, info, odatix_settings):
         return dash.no_update, f"Error: {e}", dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = config_handler.get_architectures(arch_path)
-    simulations = config_handler.get_simulations(sim_path)
+    architectures = workspace.get_architectures(arch_path)
+    simulations = workspace.get_simulations(sim_path)
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]

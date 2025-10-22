@@ -32,7 +32,8 @@ from odatix.gui.icons import icon
 from odatix.lib.settings import OdatixSettings 
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import ConfigGenerator
-import odatix.components.config_handler as config_handler
+import odatix.components.workspace as workspace
+
 verbose = False
 
 page_path = "/config_generator"
@@ -104,9 +105,9 @@ def get_gen_settings(
             settings["source"] = source_vals[idx] if source_vals[idx] else ""
         elif type in {"union", "disjunctive_union", "intersection", "difference"}:
             settings["sources"] = [x.strip() for x in sources_vals[idx].split(",") if x.strip()] if sources_vals[idx] else []
-        variable = config_handler.create_config_gen_variable_dict(name=title, type=type, settings=settings, format=format)
+        variable = workspace.create_config_gen_variable_dict(name=title, type=type, settings=settings, format=format)
         variables.update(variable)
-    gen_settings = config_handler.create_config_gen_dict(name=name, template=template, variables=variables)
+    gen_settings = workspace.create_config_gen_dict(name=name, template=template, variables=variables)
     return gen_settings
 
 ######################################
@@ -506,7 +507,7 @@ def update_form_and_variable_cards(
         if not arch_name:
             return [], dash.no_update, dash.no_update, dash.no_update
 
-        settings = config_handler.load_settings(arch_path, arch_name, domain)
+        settings = workspace.load_settings(arch_path, arch_name, domain)
         variables = {}
 
         generator_name = ""
@@ -677,7 +678,7 @@ def update_generation(
         domain = hard_settings.main_parameter_domain
     if trigger_id == {"action": "save-all"} or trigger_id == {"action": "generate-all"}:
         if domain and arch_name:
-            config_handler.update_domain_settings(
+            workspace.update_domain_settings(
                 arch_path=arch_path,
                 arch_name=arch_name, 
                 domain=domain, 
@@ -688,7 +689,7 @@ def update_generation(
     
     if trigger_id == {"action": "generate-all"}:
         for config_name, config_content in generated_params.items():
-            arch_domain_path = config_handler.get_arch_domain_path(arch_path, arch_name, domain)
+            arch_domain_path = workspace.get_arch_domain_path(arch_path, arch_name, domain)
             config_file_path = os.path.join(arch_domain_path, f"{config_name}.txt")
             try:
                 with open(config_file_path, "w") as config_file:
@@ -909,7 +910,7 @@ def clean_all_configs(n_clicks, search, odatix_settings):
     
     trigger_id = ctx.triggered_id
     if trigger_id == {"action": "clean-all"} and n_clicks:
-        config_handler.delete_all_config_files(arch_path, arch_name, domain)
+        workspace.delete_all_config_files(arch_path, arch_name, domain)
 
 ######################################
 # Layout
