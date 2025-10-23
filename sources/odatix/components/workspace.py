@@ -324,7 +324,7 @@ def save_domain_settings(arch_path, arch_name, domain, settings) -> None:
     """
     if domain == hard_settings.main_parameter_domain:
         settings = update_raw_settings(arch_path, arch_name, domain, settings)
-        save_settings(arch_path, arch_name, settings)
+        save_architecture_settings(arch_path, arch_name, settings)
         return
     
     path = get_arch_domain_path(arch_path, arch_name, domain)

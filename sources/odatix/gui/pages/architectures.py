@@ -95,8 +95,9 @@ def normal_card(name, card_type: str = "arch"):
     )
 
 def add_card(text: str, card_type: str = "arch"):
+    btn_id = {"type": "button-add", "card_type": card_type}
     return html.Div(
-        dcc.Link(
+        html.Div(
             html.Div(
                 children=[
                     html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "color": "var(--add-card-text-color)"}),
@@ -111,7 +112,8 @@ def add_card(text: str, card_type: str = "arch"):
                 ], 
                 style={"textAlign": "center"}
             ),
-            href=f"/{card_type}_editor",
+            id=btn_id,
+            n_clicks=0,
             style={"text-decoration": "none", "color": "var(--add-card-text-color)"},
         ),
         className="card add hover",
@@ -267,6 +269,37 @@ def do_delete(n_clicks, info, odatix_settings):
     sim_cards.append(add_card("Create New Simulation", "sim"))
     return "overlay-odatix", "", arch_cards, sim_cards
 
+@dash.callback(
+    Output("url", "href"),
+    Input({"type": "button-add", "card_type": dash.ALL}, "n_clicks_timestamp"),
+    State({"type": "button-add", "card_type": dash.ALL}, "id"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True
+)
+def handle_add_card(n_clicks_timestamps, ids, odatix_settings):
+    if not n_clicks_timestamps or all(ts is None for ts in n_clicks_timestamps):
+        return dash.no_update
+
+    triggered_id = ctx.triggered_id
+    if not triggered_id or not isinstance(triggered_id, dict):
+        return dash.no_update
+    
+    card_type = triggered_id.get("card_type")
+
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+    root = arch_path if card_type == "arch" else sim_path
+
+    base_name = "New_Architecture" if card_type == "arch" else "New_Simulation"
+
+    # Search for an available name
+    for i in range(1, 1001):
+        candidate = f"{base_name}{i}"
+        if not workspace.instance_exists(root, candidate):
+            return f"/{card_type}_editor?{card_type}={candidate}"
+    # If all names are taken, go to editor without preset name
+    return f"/{card_type}_editor"
+
 
 ######################################
 # Layout
@@ -274,6 +307,7 @@ def do_delete(n_clicks, info, odatix_settings):
 
 layout = html.Div(
     children=[
+        dcc.Location(id="url", refresh=True),
         html.Div(
             children=[
                 html.H2("Architectures", style={"textAlign": "center"}),
