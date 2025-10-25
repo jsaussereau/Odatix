@@ -302,12 +302,11 @@ def add_card(text: str = "Add new variable"):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "color": "black", "paddingTop": "20px"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingTop": "20px"}),
                     html.Div(
                         "+",
                         style={
                             "fontSize": "2.5em",
-                            "color": "#888",
                             "lineHeight": "80px",
                             "height": "80px",
                         }
@@ -322,8 +321,6 @@ def add_card(text: str = "Add new variable"):
         className=f"card configs add hover",
         id="add-config-card",
         style={
-            "backgroundColor": "rgba(255, 255, 255, 0.31)",
-            "border": "1px dashed #bbb",
             "padding": "10px",
             "margin": "5px",
             "display": "inline-block",
