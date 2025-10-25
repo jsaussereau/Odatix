@@ -858,6 +858,14 @@ h3 {
 .color-button.transparent:hover {
     background-color: #0000000f;
 }
+.color-button.default {
+    --button-main-color: var(--theme-text-color);
+    border: var(--button-border);
+    background: var(--button-background);
+}
+.color-button.default:hover {
+    background-color: #0000000f;
+}
 .color-button.disabled {
     --button-main-color: #868E964D;
     --button-bg-color: #868E9614;
@@ -896,6 +904,16 @@ h3 {
 }
 .icon.disabled {
     fill: #868E964D;
+}
+.icon.back-button {
+    fill: var(--back-button-color);
+    filter: var(--back-button-filter);
+    transition: 
+        transform 0.2s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+.icon.icon.back-button:hover {
+    transform: scale(1.25);
+    filter: var(--back-button-filter-hover);
 }
 
 .icon-button .icon {
