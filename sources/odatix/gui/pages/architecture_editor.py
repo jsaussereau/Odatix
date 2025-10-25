@@ -65,35 +65,41 @@ def architecture_title(arch_name):
         ],
         className="inline-flex-buttons",
     )
+    back_btn = ui.back_button(link="/architectures")
+    
     return html.Div(
         html.Div(
             children=[
-                html.Div([
-                    html.Div(
-                        children=[
-                            dcc.Input(
-                                value=f"{arch_name}",
-                                type="text",
-                                id="arch-title",
-                                className="title-input",
-                                style={"width": "100%"},
-                            )
-                        ],
-                        id="arch-title-container",
-                    ),
-                    html.Div(
-                        [variable_title_tile_buttons],
-                    ),
-                ],
-                className="title-tile-flex",
-                style={
-                    "display": "flex",
-                    "alignItems": "center",
-                    "padding": "0px",
-                    "justifyContent": "space-between",
-                })
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=[
+                                dcc.Input(
+                                    value=f"{arch_name}",
+                                    type="text",
+                                    id="arch-title",
+                                    className="title-input",
+                                    style={"width": "100%"},
+                                )
+                            ],
+                            id="arch-title-container",
+                        ),
+                        html.Div(
+                            [variable_title_tile_buttons],
+                        ),
+                    ],
+                    className="title-tile-flex",
+                    style={
+                        "display": "flex",
+                        "alignItems": "center",
+                        "padding": "0px",
+                        "justifyContent": "space-between",
+                    }
+                ),
+                back_btn,
             ],
             className="tile title",
+            style={"position": "relative"},
         ),
         className="card-matrix config",
         style={"marginTop": "0px", "marginBottom": "10px", "marginLeft": "-13px"},

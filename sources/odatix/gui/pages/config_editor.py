@@ -181,45 +181,52 @@ def add_card(text: str = "Add new config", domain: str = hard_settings.main_para
     )
 
 def architecture_title(arch_name:str=""):
-    title_content = html.Div([
-        html.H3(arch_name, id=f"main_title", style={"marginBottom": "0px"}),
+    title_content = html.Div(
+        children=[
+            html.H3(arch_name, id=f"main_title", style={"marginBottom": "0px"}),
             html.Div(
-            children=[
-                ui.icon_button(
-                    id=f"button-open-config-editor",
-                    icon=icon("edit", className="icon blue"),
-                    text="Edit Architecture",
-                    color="blue",
-                    link=f"/arch_editor?arch={arch_name}",
-                    multiline=True,
-                    width="135px",
-                ),
-                dcc.Dropdown(
-                    id="config-layout-dropdown", 
-                    options=[
-                        {"label": "Compact Layout", "value": "compact"},
-                        {"label": "Normal Layout", "value": "normal"},
-                        {"label": "Wide Layout", "value": "wide"},
-                    ],
-                    value="normal",
-                    clearable=False,
-                    style={"width": "155px"},
-                ),
-            ],
-            className="inline-flex-buttons",
-        )
-    ],
-    className="title-tile-flex",
-    style={
-        "display": "flex",
-        "alignItems": "center",
-        "padding": "0px",
-        "justifyContent": "space-between",
-    })
+                children=[
+                    ui.icon_button(
+                        id=f"button-open-config-editor",
+                        icon=icon("edit", className="icon blue"),
+                        text="Edit Architecture",
+                        color="blue",
+                        link=f"/arch_editor?arch={arch_name}",
+                        multiline=True,
+                        width="135px",
+                    ),
+                    dcc.Dropdown(
+                        id="config-layout-dropdown", 
+                        options=[
+                            {"label": "Compact Layout", "value": "compact"},
+                            {"label": "Normal Layout", "value": "normal"},
+                            {"label": "Wide Layout", "value": "wide"},
+                        ],
+                        value="normal",
+                        clearable=False,
+                        style={"width": "155px"},
+                    ),
+                ],
+                className="inline-flex-buttons",
+            )
+        ],
+        className="title-tile-flex",
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "padding": "0px",
+            "justifyContent": "space-between",
+        }
+    )
+    back_btn = ui.back_button(link="/architectures")
     return html.Div(
         html.Div(
-            [title_content],
+            children=[
+                back_btn,
+                title_content
+            ],
             className="tile title",
+            style={"position": "relative"},
         ),
         className="card-matrix config",
         style={"marginLeft": "-13px", "marginBottom": "0px"},

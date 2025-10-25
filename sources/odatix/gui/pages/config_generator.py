@@ -912,6 +912,15 @@ def clean_all_configs(n_clicks, search, odatix_settings):
     if trigger_id == {"action": "clean-all"} and n_clicks:
         workspace.delete_all_config_files(arch_path, arch_name, domain)
 
+@dash.callback(
+    Output("config-gen-back-button", "href"),
+    Input("url", "search"),
+)
+def update_back_button_link(search):
+    arch_name = get_key_from_url(search, "arch")
+    return f"/config_editor?arch={arch_name}"
+
+
 ######################################
 # Layout
 ######################################
@@ -948,7 +957,7 @@ layout = html.Div(
     children=[
         dcc.Location(id="url"),
         html.Div(style={"marginTop": "10px"}),
-        ui.title_tile(id="main-title-config-gen", buttons=variable_title_tile_buttons),
+        ui.title_tile(id="main-title-config-gen", buttons=variable_title_tile_buttons, back_button_link="/config_editor", back_button_id="config-gen-back-button"),
         html.Div(
             children=[
                 config_parameters_form({}),
@@ -983,6 +992,7 @@ layout = html.Div(
                 style={"marginLeft": "13px"},
             ),
         ]),
+        dcc.Store(id={"type": "update_url", "id": page_path}),
     ],
     className="page-content",
     style={

@@ -19,6 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+from typing import Optional
 from dash_svg import Svg
 from dash import html, dcc
 
@@ -99,24 +100,30 @@ def save_button(id, text="Save All", disabled=False):
     )
 
 
-def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div()):
-    title_content = html.Div([
-        html.H3(text, id=id, style={"marginBottom": "0px"}),
-        html.Div(
-            [buttons],
-        ),
-    ],
-    className="title-tile-flex",
-    style={
-        "display": "flex",
-        "alignItems": "center",
-        "padding": "0px",
-        "justifyContent": "space-between",
-    })
+def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div(), back_button_link:Optional[str]=None, back_button_id:Optional[str]=None):
+    title_content = html.Div(
+        children=[
+            html.H3(text, id=id, style={"marginBottom": "0px"}),
+            html.Div(
+                [buttons],
+            ),
+        ],
+        className="title-tile-flex",
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "padding": "0px",
+            "justifyContent": "space-between",
+        }
+    )
     return html.Div(
         html.Div(
-            [title_content],
+            children=[
+                back_button(link=back_button_link, id=back_button_id),
+                title_content
+            ],
             className="tile title",
+            style={"position": "relative"},
         ),
         className="card-matrix config",
         style={"marginTop": "10px", "marginBottom": "0px"},
@@ -139,3 +146,34 @@ def subtitle_div(text:str="", id:str="main-title", buttons:html.Div=html.Div()):
         "justifyContent": "space-between",
     })
     return title_content
+
+def back_button(link: Optional[str]="/", id: Optional[str]="back-button"):
+    if link is None and id is None:
+        return html.Div()
+    if link:
+        button = dcc.Link(
+            icon("back", className="icon back-button", width="30px", height="30px"),
+            href=link,
+            id=id,
+            style={"textDecoration": "none"},
+        )
+    else:
+        button = html.Button(
+            icon("back", className="icon back-button", width="30px", height="30px"),
+            id=id,
+            n_clicks=0,
+            style={"background": "none", "border": "none", "padding": "0px", "margin": "0px"},
+        )
+    return html.Div(
+        button,
+        style={
+            "position": "absolute",
+            "display": "flex",
+            "alignItems": "center",
+            "left": "0",
+            "top": "0",
+            "height": "100%",
+            "width": "45px",
+            "transform": "translate(-45px)",
+        },
+    )

@@ -189,7 +189,7 @@ html, body {
 }
 
 button {
-  background-color: var(--button-bg-color);
+  background: var(--button-bg-color);
   border: 1px solid var(--main-border-color);
   border-radius: var(--main-border-radius);
   color: var(--main-text-color);
@@ -203,7 +203,7 @@ button {
 }
 
 button:hover {
-  background-color: var(--button-bg-color-hover);
+  background: var(--button-bg-color-hover);
   border-color: var(--main-border-color-hover);
 }
 
@@ -259,8 +259,10 @@ h1, h2, h3, h4, h5, h6, label, .dropdown-label, .legend-item, .nav-link{
 .Select-value-label {
   color: var(--main-text-color) !important;
 }
+
 .Select-menu-outer {
   background-color: var(--dropdown-menu-bg-color);
+  backdrop-filter: var(--main-backdrop-filter);
   border: 1px solid var(--main-border-color);
   border-radius: var(--main-border-radius);
   color: var(--main-text-color);
@@ -342,8 +344,9 @@ h1, h2, h3, h4, h5, h6, label, .dropdown-label, .legend-item, .nav-link{
 }
 
 .card {
-  background-color: var(--card-bg-color);
+  background: var(--card-bg-color);
   color: var(--card-text-color);
+  backdrop-filter: var(--main-backdrop-filter);
   min-width: 0;
   max-width: 100%;
   width: 450px;
@@ -383,5 +386,5 @@ h1, h2, h3, h4, h5, h6, label, .dropdown-label, .legend-item, .nav-link{
 }
 
 .home-content {
-  background-color: var(--home-bg-color);
+  background: var(--home-bg-color);
 }

@@ -58,7 +58,7 @@ def normal_card(name, card_type: str = "arch"):
                         id=f"button-edit-{card_type}-{name}",
                         icon=icon("gear", className="icon black"),
                         text="Settings",
-                        color="transparent",
+                        color="default",
                         link=f"/{card_type}_editor?{card_type}={name}",
                         width="100px",
                     ),
@@ -66,7 +66,7 @@ def normal_card(name, card_type: str = "arch"):
                         id=f"button-open-{card_type}-{name}",
                         icon=icon("edit", className="icon black"),
                         text="Edit Configs",
-                        color="transparent",
+                        color="default",
                         link=f"/config_editor?{card_type}={name}",
                         multiline=True,
                         width="100px",
@@ -146,8 +146,9 @@ def update_cards(_, odatix_settings):
 
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
-    sim_cards = [normal_card(name, "sim") for name in simulations]
-    sim_cards.append(add_card("Create New Simulation", "sim"))
+    # sim_cards = [normal_card(name, "sim") for name in simulations]
+    # sim_cards.append(add_card("Create New Simulation", "sim"))
+    sim_cards = []
     return arch_cards, sim_cards
 
 @dash.callback(
@@ -270,7 +271,7 @@ def do_delete(n_clicks, info, odatix_settings):
     return "overlay-odatix", "", arch_cards, sim_cards
 
 @dash.callback(
-    Output("url", "href"),
+    Output({"type": "update_url", "id": page_path}, "data"),
     Input({"type": "button-add", "card_type": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "button-add", "card_type": dash.ALL}, "id"),
     State("odatix-settings", "data"),
@@ -296,9 +297,9 @@ def handle_add_card(n_clicks_timestamps, ids, odatix_settings):
     for i in range(1, 1001):
         candidate = f"{base_name}{i}"
         if not workspace.instance_exists(root, candidate):
-            return f"/{card_type}_editor?{card_type}={candidate}"
+            return {"href": f"/{card_type}_editor?{card_type}={candidate}", "id":page_path}
     # If all names are taken, go to editor without preset name
-    return f"/{card_type}_editor"
+    return {"href": f"/{card_type}_editor", "id":page_path}
 
 
 ######################################
@@ -312,7 +313,7 @@ layout = html.Div(
             children=[
                 html.H2("Architectures", style={"textAlign": "center"}),
                 html.Div(id="arch-cards-matrix", className="card-matrix"),
-                html.H2("Simulations", style={"textAlign": "center", "marginTop": "40px"}),
+                # html.H2("Simulations", style={"textAlign": "center", "marginTop": "40px"}),
                 html.Div(id="sim-cards-matrix", className="card-matrix"),
             ],
             style={
@@ -362,6 +363,7 @@ layout = html.Div(
                 ], className="popup-odatix")
             ]
         ),
+        dcc.Store(id={"type": "update_url", "id": page_path}),
     ],
     className="page-content",
     style={

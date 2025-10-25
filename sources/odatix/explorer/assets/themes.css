@@ -31,7 +31,7 @@
   --card-text-color: #24292e;
   --card-border: 1px solid #ddd;
   --card-border-hover: 1px solid #ddd;
-  --card-border-radius: 8px;
+  --card-border-radius: 10px;
   --button-bg-color: #545c64;
   --button-bg-color-hover: #2f567d;
   --dropdown-bg-color: #636b71;
@@ -51,7 +51,7 @@
   --card-text-color: #ffffff;
   --card-border: 1px solid #00000000;
   --card-border-hover: 1px solid #0078d4;
-  --card-border-radius: 3px;
+  --card-border-radius: 2px;
   --button-bg-color: #0078d4;
   --button-bg-color-hover: #026ec1;
   --dropdown-bg-color: #313131;
@@ -92,23 +92,24 @@
   --main-text-color: #24292e;
   --main-border-color: #d1d5da;
   --main-border-color-hover: #c6cbd1;
-  --main-border-radius: 6px;
-  --button-bg-color: #f6f8fa;
-  --button-bg-color-hover: #d1d5da;
-  --dropdown-bg-color: #f6f8fa;
-  --dropdown-bg-color-hover: #d1d5da;
-  --dropdown-menu-bg-color: #f6f8fa;
+  --button-bg-color: #f6f8fae1;
+  --button-bg-color-hover: #d1d5dae1;
+  --dropdown-bg-color: #f6f8fae1;
+  --dropdown-bg-color-hover: #d1d5dae1;
+  --dropdown-menu-bg-color: #f6f8fae1;
   --sidebar-button-bg-filter: invert(0%) brightness(0%);
+  --main-backdrop-filter: blur(8px);
 }
 
 .main-container.candy {
-  --home-bg-color: #af58e9;
+  --home-bg-color: linear-gradient(249deg,rgba(238, 174, 202, 1) 0%, rgba(148, 187, 233, 1) 100%);
   --main-border-color: #00000000;
   --main-border-color-hover: #00000000;
   --main-border-radius: 20px;
   --card-bg-color: #DFA2FC;
   --card-border: 1px solid #00000000;
   --card-border-hover: 1px solid #00000000;
+  --card-border-radius: 50px;
   --button-bg-color: #DFA2FC;
   --button-bg-color-hover: #FCA2E7;
   --dropdown-bg-color: #DFA2FC;
@@ -116,3 +117,17 @@
   --dropdown-menu-bg-color: #af58e9;
 }
 
+.main-container.gradient {
+  --home-bg-color: linear-gradient(45deg,rgba(238, 174, 202, 1) 0%, rgba(148, 187, 233, 1) 100%);
+  --main-border-color: #00000000;
+  --main-border-color-hover: #00000000;
+  --main-text-color: #24292e;
+  --card-bg-color: #ffffffc5;
+  --button-bg-color: #bbc4cc5c;
+  --button-bg-color-hover: #bbc4ccac;
+  --dropdown-menu-bg-color: #bbc4cc5c;
+  --dropdown-bg-color-hover: #bbc4ccac;
+  --dropdown-bg-color: #bbc4cc5c;
+  --main-backdrop-filter: blur(5px);
+  --sidebar-button-bg-filter: invert(0%) brightness(0%);
+}

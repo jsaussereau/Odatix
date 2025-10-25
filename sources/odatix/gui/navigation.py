@@ -112,7 +112,7 @@ def side_bar(gui):
     )
 
 
-def setup_sidebar_callbacks(gui):
+def setup_callbacks(gui):
     @gui.app.callback(
         Output("theme", "className"),
         Input("theme-dropdown", "value"),
@@ -121,3 +121,18 @@ def setup_sidebar_callbacks(gui):
         theme
     ):
         return f"theme {theme if theme != 'odatix' else ''}"
+    
+    @gui.app.callback(
+        Output("url", "href"),
+        Input({"type": "update_url", "id": dash.ALL}, "data"),
+    )
+    def update_url(data_list):
+        triggered_id = dash.callback_context.triggered_id
+        if triggered_id and isinstance(triggered_id, dict):
+            if triggered_id.get("type") == "update_url":
+                url_trigger_id = triggered_id.get("id")
+                for data in data_list:
+                    if data and isinstance(data, dict):
+                        if data.get("id") == url_trigger_id:
+                            return data.get("href", "")
+        return dash.no_update
