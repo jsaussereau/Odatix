@@ -78,7 +78,6 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
             link_id = id + "-link"
         else:   
             link_id = None
-        print(f"link_id: {link_id}")
         if link_id is not None:
             link_kwargs["id"] = link_id
         return dcc.Link(**link_kwargs)

@@ -759,8 +759,6 @@ def update_config_cards(
                 trig_domain_name = domain_name
                 trig_domain_idx = i
 
-        print(f"Triggered: {trig_type} in domain {trig_domain_uuid} (domains: {domains}) => idx {trig_domain_idx}")
-
         if trig_type == "new-config" and add_click:
             for idx in range(1, 1001):
                 new_filename = f"new_config{idx}.txt"
@@ -822,8 +820,6 @@ def update_config_cards(
     all_cards = []
     all_configs = []
     all_initial_configs = []
-
-    print(f"Domains to load configs for: {domains}")
 
     for idx, (domain_uuid, domain_name) in enumerate(domains.items()):
         if True:
@@ -998,7 +994,6 @@ def save_config_parameters(
                 break
 
         idx = next((i for i, data in enumerate(domain_metadata) if data.get("domain_uuid") == trig_domain_uuid), -1)
-        print(f"Saving parameter settings for domain '{trig_domain_name}'")
         if idx != -1:
             use_parameters = use_parameters[idx] if idx < len(use_parameters) else False
             use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
@@ -1074,7 +1069,6 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
     for new_domain_name, metadata in zip(title_input, domain_metadata):
         domain_name = metadata.get("domain_name", "")
         domain_uuid = metadata.get("domain_uuid", "")
-        # print(f"\nProcessing domain: {domain}, domain_uuid: {domain_uuid}, new_domain_title: {new_domain_title}")
 
         # Save button clicked for this domain
         if triggered_type == "save-domain-title" and domain_uuid == triggered_domain_uuid:
@@ -1082,14 +1076,11 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                 workspace.rename_parameter_domain(arch_path, arch_name, domain_name, new_domain_name)
 
                 domain_name = new_domain_name
-                # print(f"Renamed domain '{domain}' (initial '{domain_uuid}') to '{new_domain_title}'")
                 save_classes.append(disabled_class)
                 metadata["domain_name"] = new_domain_name
                 new_metadata.append(metadata)
                 new_link = generate_config_link(arch_name, new_domain_name)
                 new_hrefs.append(new_link)
-                print(f"new metadata: {new_metadata}")
-                print(f"new link: {new_link}")
             else:
                 new_metadata.append(dash.no_update)
                 new_hrefs.append(dash.no_update)
@@ -1106,8 +1097,6 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                     save_classes.append(enabled_class)
             else:
                 save_classes.append(disabled_class)
-        # print(f"old domain: {domain}, new_domain_title: {new_domain_title}")
-    print(f"new_hrefs: {new_hrefs}")
     return save_classes, new_metadata, new_hrefs
 
 
