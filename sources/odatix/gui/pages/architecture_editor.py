@@ -129,11 +129,11 @@ def architecture_form(settings):
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Design Path Whitelist", className="dropdown-label"),
-                        dcc.Input(id="design_path_whitelist", value=",".join(defval("design_path_whitelist", [])), type="text", style={"width": "95%"}),
+                        dcc.Input(id="design_path_whitelist", value=", ".join(defval("design_path_whitelist", [])), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Design Path Blacklist", className="dropdown-label"),
-                        dcc.Input(id="design_path_blacklist", value=",".join(defval("design_path_blacklist", [])), type="text", style={"width": "95%"}),
+                        dcc.Input(id="design_path_blacklist", value=", ".join(defval("design_path_blacklist", [])), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Generate Command", className="dropdown-label"),
@@ -182,7 +182,7 @@ def architecture_form(settings):
                 html.H4("Custom Freq Synthesis (MHz)"),
                 html.Div([
                     html.Label("List", className="dropdown-label"),
-                    dcc.Input(id="custom_freq_synthesis_list", value=",".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))), type="text", style={"width": "100%"}),
+                    dcc.Input(id="custom_freq_synthesis_list", value=", ".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))), type="text", style={"width": "100%"}),
                 ], style={"marginBottom": "12px"}),
             ], className="tile config"),
         ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
@@ -272,6 +272,13 @@ def save_and_status(
     else:
         settings = saved_settings
 
+    if fmax_lower is None:
+        fmax_lower = ""
+    if fmax_upper is None:
+        fmax_upper = ""
+    if custom_freq_list is None:
+        custom_freq_list = ""
+
     current_settings = {
         "generate_rtl": True if generate_rtl else False,
         "design_path": design_path,
@@ -287,10 +294,10 @@ def save_and_status(
         "fmax_synthesis": {
             "lower_bound": fmax_lower,
             "upper_bound": fmax_upper,
-        },
+        } if fmax_lower != "" or fmax_upper != "" else {},
         "custom_freq_synthesis": {
             "list": [int(x.strip()) for x in custom_freq_list.split(",") if x.strip()],
-        }
+        } if custom_freq_list != "" else {},
     }
 
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
