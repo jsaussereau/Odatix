@@ -22,10 +22,11 @@
 from typing import Optional
 from dash_svg import Svg
 from dash import html, dcc
+from dash.development.base_component import Component
 
 from odatix.gui.icons import icon
 
-def icon_button(icon, color, text="", id=None, link=None, multiline=False, width="115px"):  
+def icon_button(icon, color, text="", id=None, link=None, multiline=False, width="115px", style={}):  
     """
     Create a button with an icon and optional text.
     Args:
@@ -33,9 +34,11 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
         color (str): The color of the button (e.g., "red", "blue", "green").
         text (str, optional): The text to display next to the icon. Defaults to "" (just the icon).
         id (str, optional): The id of the button. Defaults to None.
-        link (str, optional): If provided, the button will be a link to this URL. Defaults to None.
+        link (str | dict, optional): If provided, the button will be a link to this URL. Defaults to None.
         multiline (bool, optional): If True, adjust vertical alignment for multiline text. Defaults to False.
     """ 
+    if text:
+        style = style | {"min-width": width}
     content = html.Button(
         html.Div(
             children=[
@@ -55,19 +58,30 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
             ],
             style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start", "marginTop": "-9px" if multiline else "-4px", "width": "100%"},
         ),
-        id=id,
+        id=id if id else "",
         n_clicks=0,
         className=f"color-button {color} icon-button",
-        style={"min-width": width} if text else {},
+        style=style,
     )
     if link is None:
         return content
     else:
-        return dcc.Link(
-            content,
-            href=link,
-            style={"textDecoration": "none"},
-        )
+        link_kwargs = {
+            "children": content,
+            "href": link,
+            "style": {"textDecoration": "none"}
+        }
+        if isinstance(id, dict):
+            link_id = id.copy()
+            link_id.update({"is_link": True})
+        elif isinstance(id, str):
+            link_id = id + "-link"
+        else:   
+            link_id = None
+        print(f"link_id: {link_id}")
+        if link_id is not None:
+            link_kwargs["id"] = link_id
+        return dcc.Link(**link_kwargs)
 
 def delete_button(id, large=False):
     return icon_button(
