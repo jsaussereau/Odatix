@@ -313,6 +313,12 @@ def rename_parameter_domain(arch_path, arch_name, old_domain, new_domain) -> Non
         return
     os.rename(old_path, new_path)
 
+def parameter_domain_exists(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> bool:
+    """
+    Check if a specific parameter domain exists.
+    """
+    path = get_arch_domain_path(arch_path, arch_name, domain)
+    return os.path.isdir(path)
 
 #######################################
 # Parameter Domain Settings
