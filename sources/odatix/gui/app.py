@@ -112,7 +112,8 @@ class OdatixApp:
     """
     Setup Dash callbacks for interactivity.
     """
-    navigation.setup_sidebar_callbacks(self)
+    navigation.setup_callbacks(self)
+
 
   def run(self):
     self.app.run(
