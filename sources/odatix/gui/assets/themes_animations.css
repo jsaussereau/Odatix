@@ -1,0 +1,221 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+.theme.hangover {
+    /* Cards and tiles will gently move by CSS animations that simulate random motion.
+       Variantes appliquées via nth-child pour donner un comportement "aléatoire". */
+}
+
+.theme.hangover .card,
+.theme.hangover .tile {
+    position: relative; /* permet les translations sans casser le flux */
+    will-change: transform, opacity;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+    animation-timing-function: ease-in-out;
+    pointer-events: auto;
+    transition: box-shadow 0.2s ease;
+}
+@keyframes float1 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    25%  { transform: translate(4vw, -2vh) rotate(1.6deg); }
+    50%  { transform: translate(-3vw, 3vh) rotate(-1.8deg); }
+    75%  { transform: translate(2vw, -4vh) rotate(1.4deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float2 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    20%  { transform: translate(-6vw, 2vh) rotate(-2deg); }
+    40%  { transform: translate(5vw, -3vh) rotate(1.8deg); }
+    70%  { transform: translate(-2vw, 4vh) rotate(-1.6deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float3 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    30%  { transform: translate(7vw, 4vh) rotate(1deg); }
+    60%  { transform: translate(-5vw, -5vh) rotate(-1.2deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float4 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    25%  { transform: translate(-3vw, -6vh) rotate(-1.7deg); }
+    50%  { transform: translate(6vw, 2vh) rotate(1.9deg); }
+    75%  { transform: translate(-4vw, 3vh) rotate(-1.4deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+@keyframes float5 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    20%  { transform: translate(3vw, 5vh) rotate(2deg); }
+    50%  { transform: translate(-7vw, -2vh) rotate(-1.6deg); }
+    80%  { transform: translate(4vw, 3vh) rotate(1.2deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float6 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    15%  { transform: translate(-4vw, -3vh) rotate(-2.4deg); }
+    45%  { transform: translate(6vw, 2vh) rotate(1.4deg); }
+    75%  { transform: translate(-1vw, 6vh) rotate(-0.8deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float7 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    25%  { transform: translate(8vw, -1vh) rotate(1.2deg); }
+    50%  { transform: translate(-6vw, 4vh) rotate(-1.9deg); }
+    75%  { transform: translate(3vw, -5vh) rotate(1.6deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float8 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    30%  { transform: translate(-2vw, -7vh) rotate(-2deg); }
+    60%  { transform: translate(7vw, 1vh) rotate(1.1deg); }
+    90%  { transform: translate(-5vw, 3vh) rotate(-1deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float9 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    20%  { transform: translate(5vw, -4vh) rotate(2.6deg); }
+    50%  { transform: translate(-8vw, 2vh) rotate(-2.2deg); }
+    80%  { transform: translate(2vw, 5vh) rotate(0.9deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float10 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    25%  { transform: translate(-7vw, 5vh) rotate(-1.4deg); }
+    55%  { transform: translate(6vw, -6vh) rotate(2.2deg); }
+    85%  { transform: translate(-3vw, 2vh) rotate(-0.6deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float11 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    22%  { transform: translate(2vw, -6vh) rotate(1.8deg); }
+    48%  { transform: translate(-4vw, 6vh) rotate(-1.5deg); }
+    76%  { transform: translate(7vw, -2vh) rotate(1.3deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes float12 {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    18%  { transform: translate(-5vw, 3vh) rotate(-2.0deg); }
+    42%  { transform: translate(4vw, -5vh) rotate(1.7deg); }
+    68%  { transform: translate(-6vw, 1vh) rotate(-1.1deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.theme.hangover .card:nth-child(12n+1),
+.theme.hangover .tile:nth-child(12n+1) {
+    animation-name: float1;
+    animation-duration: 18s;
+    animation-delay: -2s;
+    animation-direction: alternate;
+}
+.theme.hangover .card:nth-child(12n+2),
+.theme.hangover .tile:nth-child(12n+2) {
+    animation-name: float2;
+    animation-duration: 20s;
+    animation-delay: -4s;
+    animation-direction: alternate-reverse;
+}
+.theme.hangover .card:nth-child(12n+3),
+.theme.hangover .tile:nth-child(12n+3) {
+    animation-name: float3;
+    animation-duration: 16s;
+    animation-delay: -3s;
+    animation-direction: alternate;
+}
+.theme.hangover .card:nth-child(12n+4),
+.theme.hangover .tile:nth-child(12n+4) {
+    animation-name: float4;
+    animation-duration: 22s;
+    animation-delay: -7s;
+    animation-direction: alternate-reverse;
+}
+.theme.hangover .card:nth-child(12n+5),
+.theme.hangover .tile:nth-child(12n+5) {
+    animation-name: float5;
+    animation-duration: 19s;
+    animation-delay: -1s;
+    animation-direction: alternate;
+}
+.theme.hangover .card:nth-child(12n+6),
+.theme.hangover .tile:nth-child(12n+6) {
+    animation-name: float6;
+    animation-duration: 23s;
+    animation-delay: -5.5s;
+    animation-direction: alternate-reverse;
+}
+.theme.hangover .card:nth-child(12n+7),
+.theme.hangover .tile:nth-child(12n+7) {
+    animation-name: float7;
+    animation-duration: 17s;
+    animation-delay: -3.3s;
+    animation-direction: alternate;
+}
+.theme.hangover .card:nth-child(12n+8),
+.theme.hangover .tile:nth-child(12n+8) {
+    animation-name: float8;
+    animation-duration: 21s;
+    animation-delay: -6.2s;
+    animation-direction: alternate-reverse;
+}
+.theme.hangover .card:nth-child(12n+9),
+.theme.hangover .tile:nth-child(12n+9) {
+    animation-name: float9;
+    animation-duration: 20s;
+    animation-delay: -2.7s;
+    animation-direction: alternate;
+}
+.theme.hangover .card:nth-child(12n+10),
+.theme.hangover .tile:nth-child(12n+10) {
+    animation-name: float10;
+    animation-duration: 24s;
+    animation-delay: -8s;
+    animation-direction: alternate-reverse;
+}
+.theme.hangover .card:nth-child(12n+11),
+.theme.hangover .tile:nth-child(12n+11) {
+    animation-name: float11;
+    animation-duration: 18.5s;
+    animation-delay: -3.8s;
+    animation-direction: alternate;
+}
+.theme.hangover .card:nth-child(12n+12),
+.theme.hangover .tile:nth-child(12n+12) {
+    animation-name: float12;
+    animation-duration: 25s;
+    animation-delay: -5.9s;
+    animation-direction: alternate-reverse;
+}
+
+.theme.hangover .card:hover,
+.theme.hangover .tile:hover {
+    box-shadow: 0 40px 30px -12px rgba(0,0,0,0.2);
+    transform: translateZ(0) scale(1.02);
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .theme.hangover .card,
+    .theme.hangover .tile {
+        animation: none !important;
+        transition: none !important;
+    }
+}
