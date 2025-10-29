@@ -308,7 +308,7 @@ def handle_add_card(n_clicks_timestamps, ids, odatix_settings):
 
 layout = html.Div(
     children=[
-        dcc.Location(id="url", refresh=True),
+        dcc.Location(id="url", refresh='callback-nav'),
         html.Div(
             children=[
                 html.H2("Architectures", style={"textAlign": "center"}),
