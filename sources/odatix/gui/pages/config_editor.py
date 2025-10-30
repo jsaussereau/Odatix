@@ -58,10 +58,10 @@ def split_by_domain(flat_list, lengths):
         idx += l
     return result
 
-def get_index_from_trigger(trig_domain, trig_filename, metadata):
+def get_index_from_trigger(trig_domain_uuid, trig_filename, metadata):
     index = next(
         (i for i, data in enumerate(metadata)
-        if data.get("domain") == trig_domain and data.get("filename") == trig_filename),
+        if data.get("domain_uuid") == trig_domain_uuid and data.get("filename") == trig_filename),
         -1
     )
     return index
@@ -775,7 +775,7 @@ def update_config_cards(
             
             # Save config (and handle rename)
             if trig_type == "save-config":
-                config_index = get_index_from_trigger(trig_domain_name, trig_filename, config_metadata)
+                config_index = get_index_from_trigger(trig_domain_uuid, trig_filename, config_metadata)
                 config_new_title = title_values[config_index] if config_index >= 0 and config_index < len(title_values) else ""
                 config_old_title = trig_filename
                 config_content = contents[config_index] if config_index >= 0 and config_index < len(contents) else ""
