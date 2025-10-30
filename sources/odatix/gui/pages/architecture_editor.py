@@ -123,35 +123,45 @@ def architecture_form(settings):
                         style={"marginBottom": "12px", "marginTop": "5px"},
                     ),
                 ], style={"marginBottom": "12px"}),
-                html.Div([
-                    html.Div([
-                        html.Label("Design Path", className="dropdown-label"),
-                        dcc.Input(id="design_path", value=defval("design_path", ""), type="text", style={"width": "95%"}),
-                    ], style={"marginBottom": "12px"}),
-                    html.Div([
-                        html.Label("Design Path Whitelist", className="dropdown-label"),
-                        dcc.Input(id="design_path_whitelist", value=", ".join(defval("design_path_whitelist", [])), type="text", style={"width": "95%"}),
-                    ], style={"marginBottom": "12px"}),
-                    html.Div([
-                        html.Label("Design Path Blacklist", className="dropdown-label"),
-                        dcc.Input(id="design_path_blacklist", value=", ".join(defval("design_path_blacklist", [])), type="text", style={"width": "95%"}),
-                    ], style={"marginBottom": "12px"}),
-                    html.Div([
-                        html.Label("Generate Command", className="dropdown-label"),
-                        dcc.Input(id="generate_command", value=defval("generate_command", ""), type="text", style={"width": "95%"}),
-                    ], style={"marginBottom": "12px"}),
-                    html.Div([
-                        html.Label("Generate Output", className="dropdown-label"),
-                        dcc.Input(id="generate_output", value=defval("generate_output", ""), type="text", style={"width": "95%"}),
-                    ], style={"marginBottom": "12px"}),
-                ], id="generate-settings", className="animated-section" + ("" if generate_rtl else " hide")),
+                html.Div(
+                    children=[
+                        html.Div([
+                            html.Label("Design Path", className="dropdown-label", title="Path to the design files"),
+                            dcc.Input(id="design_path", value=defval("design_path", ""), type="text", style={"width": "100%"}),
+                        ], style={"marginBottom": "12px"}),
+                        html.Div([
+                            html.Label("Design Path Whitelist", className="dropdown-label"),
+                            dcc.Input(id="design_path_whitelist", value=", ".join(defval("design_path_whitelist", [])), type="text", style={"width": "100%"}),
+                        ], style={"marginBottom": "12px"}),
+                        html.Div([
+                            html.Label("Design Path Blacklist", className="dropdown-label"),
+                            dcc.Input(id="design_path_blacklist", value=", ".join(defval("design_path_blacklist", [])), type="text", style={"width": "100%"}),
+                        ], style={"marginBottom": "12px"}),
+                        html.Div([
+                            html.Label("Generate Command", className="dropdown-label"),
+                            dcc.Input(id="generate_command", value=defval("generate_command", ""), type="text", style={"width": "100%"}),
+                        ], style={"marginBottom": "12px"}),
+                        html.Div([
+                            html.Label("Generate Output", className="dropdown-label"),
+                            dcc.Input(id="generate_output", value=defval("generate_output", ""), type="text", style={"width": "100%"}),
+                        ], style={"marginBottom": "12px"}),
+                    ],
+                    id="generate-settings",
+                    className="animated-section" + ("" if generate_rtl else " hide"),
+                    style={ "width": "100%", "paddingRight": "12px"},
+                ),
             ], className="tile config"),
             html.Div([
                 html.H3("Top Level Settings"),
-                html.Div([
-                    html.Label("RTL Path", className="dropdown-label"), 
-                    dcc.Input(id="rtl_path", value=defval("rtl_path", ""), type="text", style={"width": "100%"}),
-                ], style={"marginBottom": "12px"}, id="rtl-path-container", className="animated-section" + ("" if not generate_rtl else " hide")),
+                html.Div(
+                    children=[
+                        html.Label("RTL Path", className="dropdown-label"), 
+                        dcc.Input(id="rtl_path", value=defval("rtl_path", ""), type="text", style={"width": "100%"}),
+                    ],
+                    id="rtl-path-container",
+                    className="animated-section" + ("" if not generate_rtl else " hide"),
+                    style={"marginBottom": "12px", "width": "100%", "paddingRight": "12px"},
+                ),
                 html.Div([
                     html.Label("Top Level File", className="dropdown-label"),
                     dcc.Input(id="top_level_file", value=defval("top_level_file", ""), type="text", style={"width": "100%"}),
