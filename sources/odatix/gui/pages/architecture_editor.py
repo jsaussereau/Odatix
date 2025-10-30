@@ -111,6 +111,7 @@ def architecture_form(settings):
 
     return html.Div(
         children=[
+            html.Div(style={"display": "none"}),
             html.Div([
                 html.H3("RTL Generation"),
                 html.Div([

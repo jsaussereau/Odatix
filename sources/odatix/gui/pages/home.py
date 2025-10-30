@@ -37,24 +37,22 @@ dash.register_page(
 
 def create_button(page):
     return dcc.Link(
-        html.Div(
-            [
-                html.Img(
-                    src=page["image"],
-                    className="card-img",
-                    style={"height": "125px"}
-                ),
-                html.Div(
-                    page["name"],
-                    className="card-title",
-                ),
-                html.Div(
-                    page["description"],
-                    className="card-description",
-                ),
-            ],
-            className="card home hover",
-        ),
+        children=[
+            html.Img(
+                src=page["image"],
+                className="card-img",
+                style={"height": "125px"}
+            ),
+            html.Div(
+                page["name"],
+                className="card-title",
+            ),
+            html.Div(
+                page["description"],
+                className="card-description",
+            ),
+        ],
+        className="card home hover",
         href=page["link"],
         style={"text-decoration": "none"},
     )

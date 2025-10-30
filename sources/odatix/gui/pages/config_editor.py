@@ -23,6 +23,7 @@ import os
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 import uuid
+import random
 
 import odatix.gui.ui_components as ui
 from odatix.gui.utils import get_key_from_url
@@ -228,7 +229,10 @@ def architecture_title(arch_name:str=""):
         }
     )
     back_btn = ui.back_button(link="/architectures")
-    return html.Div(
+    return html.Div([
+        html.Div(style={"display": "none"}),
+        html.Div(style={"display": "none"}),
+        html.Div(style={"display": "none"}),
         html.Div(
             children=[
                 back_btn,
@@ -236,7 +240,7 @@ def architecture_title(arch_name:str=""):
             ],
             className="tile title",
             style={"position": "relative"},
-        ),
+        )],
         className="card-matrix config",
         style={"marginLeft": "-13px", "marginBottom": "0px"},
     )
@@ -517,11 +521,21 @@ def preview_div(content):
     )
 
 def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
+    # Generate a unique UUID for non-main domains
     domain_uuid = get_uuid() if domain != hard_settings.main_parameter_domain else domain
+    
+    # Hidden divs for better animations
+    hidden_count = random.randint(4, 7)
+    title_hidden_divs = [html.Div(style={"display": "none"}) for _ in range(hidden_count)]
+    hidden_count = random.randint(8, 12)
+    content_hidden_divs = [html.Div(style={"display": "none"}) for _ in range(hidden_count)]
+    
+    # Domain Section
     return html.Div(
         children=[
             html.Div(
                 children=[
+                    *title_hidden_divs,
                     parameter_domain_title(domain_name=domain, domain_uuid=domain_uuid, arch_name=arch_name)
                 ], 
                 id=f"param-domain-title-div-{domain_uuid}",
@@ -530,6 +544,7 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
             ),
             html.Div(
                 children=[
+                    *content_hidden_divs,
                     html.Div(
                         children=[
                             config_parameters_form(domain_uuid, settings),

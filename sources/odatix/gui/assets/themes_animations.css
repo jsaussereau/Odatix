@@ -20,11 +20,6 @@
 *
 */
 
-.theme.hangover {
-    /* Cards and tiles will gently move by CSS animations that simulate random motion.
-       Variantes appliquées via nth-child pour donner un comportement "aléatoire". */
-}
-
 .theme.hangover .card,
 .theme.hangover .tile {
     position: relative; /* permet les translations sans casser le flux */
@@ -209,7 +204,7 @@
 .theme.hangover .tile:hover {
     box-shadow: 0 40px 30px -12px rgba(0,0,0,0.2);
     transform: translateZ(0) scale(1.02);
-    animation-play-state: paused;
+    /* animation-play-state: paused; */
 }
 
 @media (prefers-reduced-motion: reduce) {
