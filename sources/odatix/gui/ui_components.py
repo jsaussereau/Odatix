@@ -26,7 +26,7 @@ from dash.development.base_component import Component
 
 from odatix.gui.icons import icon
 
-def icon_button(icon, color, text="", id=None, link=None, multiline=False, width="115px", style={}):  
+def icon_button(icon, color, text="", id=None, link=None, multiline=False, width="115px", style={}, tooltip:str="", tooltip_options:str="bottom"):  
     """
     Create a button with an icon and optional text.
     Args:
@@ -60,8 +60,9 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
         ),
         id=id if id else "",
         n_clicks=0,
-        className=f"color-button {color} icon-button",
+        className=f"color-button {color} icon-button {f" tooltip delay {tooltip_options}" if tooltip else ""}",
         style=style,
+        **{'data-tooltip': tooltip},
     )
     if link is None:
         return content
@@ -82,23 +83,27 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
             link_kwargs["id"] = link_id
         return dcc.Link(**link_kwargs)
 
-def delete_button(id, large=False):
+def delete_button(id, large=False, tooltip:str="Delete"):
     return icon_button(
         icon=icon("delete", width="25px", height="25px", className="icon red"),
         color="red", 
         text="Delete" if large else "", 
+        tooltip=tooltip,
+        tooltip_options="bottom small",
         id=id,
     )
 
-def duplicate_button(id, large=False):
+def duplicate_button(id, large=False, tooltip:str="Duplicate"):
     return icon_button(
         icon=icon("duplicate", className="icon blue"),
         color="blue",
         text="Duplicate" if large else "", 
+        tooltip=tooltip,
+        tooltip_options="bottom small",
         id=id,
     )
 
-def save_button(id, text="Save All", disabled=False):
+def save_button(id, text="Save All", disabled=False, tooltip:str="Save all changes"):
     if isinstance(id, dict):
         icon_id = id.copy()
         icon_id.update({"is_icon": True})
@@ -109,6 +114,8 @@ def save_button(id, text="Save All", disabled=False):
         icon=icon("save", className="icon " + "disabled" if disabled else "orange", id=icon_id),
         color="disabled" if disabled else "orange",
         text=text, 
+        tooltip=tooltip,
+        tooltip_options="bottom small",
         id=id,
     )
 
@@ -189,4 +196,20 @@ def back_button(link: Optional[str]="/", id: Optional[str]="back-button"):
             "width": "45px",
             "transform": "translate(-45px)",
         },
+    )
+
+def tooltip_icon(tooltip: str=""):
+    return html.Div(
+        children=[
+            icon(
+                "tooltip",
+                className="icon",
+                color="default",
+                width="20px",
+                height="20px",
+            ),
+        ],
+        className="tooltip",
+        style={"display": "inline-block", "transform": "translate(15px, 2px)", "verticalAlign": "middle"},
+        **{'data-tooltip': tooltip},
     )

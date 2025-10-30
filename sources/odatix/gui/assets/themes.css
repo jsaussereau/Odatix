@@ -29,6 +29,7 @@
     --theme-secondary-color: #f5f7fa;
     --theme-tertiary-color: #f5f7fa;
     --theme-disabled-color: #d1d5da;
+    --theme-shadow-color: rgba(29, 37, 79, 0.1);
     --theme-text-color: #24292e;
     --theme-text-shadow: none;
     --theme-background: var(--theme-secondary-color);
@@ -36,6 +37,7 @@
     --theme-border: 1px solid var(--theme-border-color);
     --theme-border-color-hover: #24292e;
     --theme-large-border-radius: 24px;
+    --theme-normal-border-radius: 24px;
     --theme-small-border-radius: 15px;
     --theme-overlay-background-color: #1d254f3d;
     
@@ -47,7 +49,7 @@
     --card-background: var(--theme-element-background-color);
     --card-text-color: var(--theme-text-color);
     --card-border: initial;
-    --card-box-shadow: rgba(29, 37, 79, 0.1) 0px 4px 24px 0px;
+    --card-box-shadow: var(--theme-shadow-color) 0px 4px 24px 0px;
     --card-border-hover: var(--theme-border);
     --card-border-radius: var(--theme-large-border-radius);
     --card-backdrop-filter: initial;
@@ -59,17 +61,17 @@
     --button-background: var(--theme-element-background-color);
     --button-background-hover: var(--theme-action-color);
     --button-border: var(--theme-border);
-    --button-border-radius: var(--theme-small-border-radius);
+    --button-border-radius: var(--theme-normal-border-radius);
     --back-button-color: var(--theme-disabled-color);
-    --back-button-filter: drop-shadow(2px 2px 2px rgba(29, 37, 79, 0.1));
-    --back-button-filter-hover: drop-shadow(2px 2px 2px rgba(29, 37, 79, 0.1));
+    --back-button-filter: drop-shadow(2px 2px 2px var(--theme-shadow-color));
+    --back-button-filter-hover: drop-shadow(2px 2px 2px var(--theme-shadow-color));
 
     /* dropdowns */
     --dropdown-background: var(--theme-secondary-color);
     --dropdown-background-hover: var(--theme-action-color);
     --dropdown-menu-background: var(--theme-element-background-color);
     --dropdown-border: var(--theme-border);
-    --dropdown-border-radius: var(--theme-small-border-radius);
+    --dropdown-border-radius: var(--theme-normal-border-radius);
     --dropdown-label-margin: 0px;
 
     /* inputs */
@@ -97,8 +99,17 @@
     --pre-border-radius: var(--theme-small-border-radius);
     --pre-text-shadow: none;
 
-    /* misc */
-    --sidebar-button-bg-filter: initial;
+    /* tooltip */
+    --tooltip-icon-color: var(--theme-primary-color);
+    --tooltip-icon-filter: drop-shadow(0 0 2px var(--theme-shadow-color));
+    --tooltip-background: var(--theme-tertiary-color);
+    --tooltip-text-color: var(--theme-text-color);
+    --tooltip-border: var(--theme-border);
+    --tooltip-border-radius: var(--theme-small-border-radius);
+    --tooltip-box-shadow: 0 4px 12px var(--theme-shadow-color);
+    --tooltip-normal-width: 300px;
+    --tooltip-small-width: auto;
+    --tooltip-padding: 10px 15px;
 
     /* popups */
     --popup-background: var(--theme-element-background-color);
