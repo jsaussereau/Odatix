@@ -786,6 +786,72 @@ h3 {
     color: #40C057;
 }
 
+.text-highlight {
+    border-radius: 6px;
+    font-weight: 700;
+}
+.text-highlight.green {
+    color: #21632D;
+}
+.text-highlight.blue {
+    border: 1px solid #228BE6;
+    color: #114168;
+    background-color: #228BE633;
+}
+.text-highlight.yellow {
+    border: 2px solid #FFE65E;
+    background-color: #FFE65E;
+}
+.text-highlight.orange {
+    background-color: #FD7E14aa;
+}
+
+.tooltip {
+    position: relative;
+}
+
+.tooltip .icon {
+    cursor: help;
+    fill: var(--tooltip-icon-color);
+    filter: var(--tooltip-icon-filter);
+}
+
+.tooltip::after {
+    background: var(--tooltip-background);
+    color: var(--tooltip-text-color);
+    box-shadow: var(--tooltip-box-shadow);
+    border: var(--tooltip-border);
+    border-radius: var(--tooltip-border-radius);
+    width: var(--tooltip-normal-width);
+    padding: var(--tooltip-padding);
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+}
+.tooltip.delay::after {
+    transition-delay: 0s;
+}
+
+.tooltip.small::after {
+    width: var(--tooltip-small-width);
+}
+.tooltip.bottom::after {
+    top: 120%;
+    bottom: auto;
+}
+
+.tooltip:hover::after {
+    opacity: 1;
+}
+.tooltip.delay:hover::after {
+    transition-delay: 0.5s;
+}
+
 .icon-button {
     width: 39px;
     height: 39px;
