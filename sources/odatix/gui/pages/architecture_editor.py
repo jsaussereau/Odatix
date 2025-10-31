@@ -23,6 +23,7 @@ import os
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 import shutil
+from typing import Literal, Optional
 
 import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
@@ -31,7 +32,7 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
-from typing import Literal, Optional
+from odatix.gui.css_helper import Style
 
 page_path = "/arch_editor"
 
@@ -113,6 +114,7 @@ def architecture_form_field(
     id:str,
     value:str="",
     tooltip:str="",
+    placeholder:str="",
     tooltip_options:str="normal",
     type:Optional[
         Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]
@@ -122,15 +124,15 @@ def architecture_form_field(
         children=[
             html.Label(label),
             ui.tooltip_icon(tooltip, tooltip_options),
-            dcc.Input(id=id, value=value, type=type, style={"width": "100%"}),
+            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, style={"width": "100%"}),
         ],
         style={"marginBottom": "12px"}
     )
 
-
 def architecture_form(settings):
     defval = lambda k, v=None: settings.get(k, v)
     generate_rtl = True if str(defval("generate_rtl", "No")).lower() in ["yes", "true"] else False
+    expand_design_path_filters = True if defval("design_path_whitelist", []) or defval("design_path_blacklist", []) else False
 
     return html.Div(
         children=[
@@ -155,17 +157,25 @@ def architecture_form(settings):
                             value=defval("design_path", ""),
                             tooltip="Path to the design files needed for RTL generation. The whole path will be copied for each configuration, so use white/blacklists below to filter files if needed.",
                         ),
-                        architecture_form_field(
-                            label="Design Path Whitelist",
-                            id="design_path_whitelist",
-                            value=", ".join(defval("design_path_whitelist", [])),
-                            tooltip="Comma-separated list of patterns to include files from the design path. Only files matching these patterns will be included. Leave empty to include all files.",
-                        ),
-                        architecture_form_field(
-                            label="Design Path Blacklist",
-                            id="design_path_blacklist",
-                            value=", ".join(defval("design_path_blacklist", [])),
-                            tooltip="Comma-separated list of patterns to exclude files from the design path. Files matching these patterns will be excluded. Note that you can use both whitelist and blacklist together. Example: whitelist=[project, src, build.sbt], blacklist=[*.txt]",
+                        html.Div(
+                            children=[
+                                architecture_form_field(
+                                    label="Design Path Whitelist",
+                                    id="design_path_whitelist",
+                                    value=", ".join(defval("design_path_whitelist", [])),
+                                    placeholder="src, project, build.sbt",
+                                    tooltip="Comma-separated list of patterns to include files from the design path. Only files matching these patterns will be included. Leave empty to include all files.",
+                                ),
+                                architecture_form_field(
+                                    label="Design Path Blacklist",
+                                    id="design_path_blacklist",
+                                    value=", ".join(defval("design_path_blacklist", [])),
+                                    placeholder="*.txt, docs/, tmp/",
+                                    tooltip="Comma-separated list of patterns to exclude files from the design path. Files matching these patterns will be excluded. Leave empty to exclude no files. Note that you can use both whitelist and blacklist together.",
+                                ),
+                            ],
+                            id="more-fields-design-path-filters",
+                            className="animated-section" + ("" if expand_design_path_filters else " hide"),
                         ),
                         architecture_form_field(
                             label="Generation Command",
@@ -178,6 +188,16 @@ def architecture_form(settings):
                             id="generate_output",
                             value=defval("generate_output", ""),
                             tooltip="Path to the generated RTL files relative to the design path.",
+                        ),
+                        ui.icon_button(
+                            icon=icon(
+                                "more",
+                                className="icon normal rotate" + (" rotated" if expand_design_path_filters else ""),
+                                id="more-fields-design-path-filters-toggle-icon"
+                            ),
+                            color="normal",
+                            id="more-fields-design-path-filters-toggle",
+                            tooltip="Show/Hide whitelist and blacklist fields",
                         ),
                     ],
                     id="generate-settings",
@@ -430,6 +450,22 @@ def update_architecture_title(search):
     if not arch_name:
         arch_name = ""
     return architecture_title(arch_name)
+
+@dash.callback(
+    Output("more-fields-design-path-filters", "className"),
+    Output("more-fields-design-path-filters-toggle-icon", "className"),
+    Input("more-fields-design-path-filters-toggle", "n_clicks"),
+    State("more-fields-design-path-filters", "className"),
+    prevent_initial_call=True,
+)
+def toggle_more_fields(n_clicks, expandable_area_class ):
+    if "hide" in expandable_area_class:
+        new_expandable_area_class = "animated-section"
+        new_icon_class = "icon normal rotate rotated"
+    else:
+        new_expandable_area_class = "animated-section hide"
+        new_icon_class = "icon normal rotate"
+    return new_expandable_area_class, new_icon_class
 
 
 ######################################
