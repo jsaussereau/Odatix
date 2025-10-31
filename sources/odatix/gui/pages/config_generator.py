@@ -121,6 +121,7 @@ def config_parameters_form(settings):
             html.H3(f"Configuration Generation Settings"),
             html.Div([
                 html.Label("Configuration name"),
+                ui.tooltip_icon("The name template for the configurations to be generated. The extension '.txt' is not required. Use variable names enclosed in curly braces, prefixed by a dollar sign (e.g., ${variable_name}) to indicate where variable values should be inserted."),
                 dcc.Input(
                     id="generator-name",
                     value=defval("name", ""),
@@ -130,6 +131,7 @@ def config_parameters_form(settings):
             ], style={"marginBottom": "12px"}),
             html.Div([
                 html.Label("Content template"),
+                ui.tooltip_icon("The content template for the configurations to be generated. Use variable names enclosed in curly braces, prefixed by a dollar sign (e.g., ${variable_name}) to indicate where variable values should be inserted."),
                 dcc.Textarea(
                     id="generator-template",
                     value=defval("template", ""),
@@ -271,7 +273,7 @@ def variable_card(
             html.Div([
                 ui.icon_button(
                     icon=icon("more", className="icon normal rotate", id={"type": "more-fields-icon", "name": name}),
-                    color="normal",
+                    color="default",
                     id={"type": "more-fields", "name": name},
                 )
             ], id={"type": "more-fields-div", "name": name}, style={"display": "flex", "alignItems": "center"}),
@@ -630,7 +632,7 @@ def update_form_and_variable_cards(
     Output("gen-preview", "children"),
     Input("url", "search"),
     Input("url", "pathname"),
-    Input({"action": "save-all"}, "n_clicks"),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"action": "generate-all"}, "n_clicks"),
     Input("generator-name", "value"),
     Input("generator-template", "value"),
@@ -681,7 +683,7 @@ def update_generation(
     domain = get_key_from_url(search, "domain")
     if not domain:
         domain = hard_settings.main_parameter_domain
-    if trigger_id == {"action": "save-all"} or trigger_id == {"action": "generate-all"}:
+    if trigger_id == {"page": page_path, "action": "save-all"} or trigger_id == {"action": "generate-all"}:
         if domain and arch_name:
             workspace.update_domain_settings(
                 arch_path=arch_path,
@@ -689,7 +691,7 @@ def update_generation(
                 domain=domain, 
                 settings_to_update=gen_settings,
             )
-            if trigger_id == {"action": "save-all"}:
+            if trigger_id == {"page": page_path, "action": "save-all"}:
                 return dash.no_update, dash.no_update, dash.no_update
     
     if trigger_id == {"action": "generate-all"}:
@@ -814,9 +816,9 @@ def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, metadata)
     return new_expandable_area_styles, new_icon_classes
 
 @dash.callback(
-    Output({"action": "save-all"}, "className"),
+    Output({"page": page_path, "action": "save-all"}, "className"),
     Output("generator-saved-settings", "data"),
-    Input({"action": "save-all"}, "n_clicks"),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"action": "generate-all"}, "n_clicks"),
     Input("generator-name", "value"),
     Input("generator-template", "value"),
@@ -846,11 +848,11 @@ def update_save_button(
     initial_settings, saved_settings, metadata
 ):
     button_disabled = "color-button disabled icon-button"
-    button_enabled = "color-button orange icon-button"
+    button_enabled = "color-button orange icon-button tooltip delay bottom small"
 
     trigger_id = ctx.triggered_id
 
-    if trigger_id == {"action": "save-all"} or trigger_id == {"action": "generate-all"}:
+    if trigger_id == {"page": page_path, "action": "save-all"} or trigger_id == {"action": "generate-all"}:
         return button_disabled, {
             "name": name,
             "template": template,
@@ -933,7 +935,9 @@ def update_back_button_link(search):
 variable_title_tile_buttons = html.Div(
     children=[
         ui.save_button(
-            id={"action": "save-all"},
+            id={"page": page_path, "action": "save-all"},
+            tooltip="Save all changes",
+            disabled=True,
         ),
     ],
     className="inline-flex-buttons",
@@ -945,6 +949,7 @@ preview_title_tile_buttons = html.Div(
             color="blue",
             text="Generate", 
             id={"action": "generate-all"},
+            tooltip="Generate all previewed configurations",
         ),
         ui.icon_button(
             icon=icon("clean", className="icon red"),
@@ -952,6 +957,7 @@ preview_title_tile_buttons = html.Div(
             text="Clean Existing", 
             multiline=True,
             id={"action": "clean-all"},
+            tooltip="Delete all existing configuration files in this parameter domain",
         ),
     ],
     className="inline-flex-buttons",
@@ -994,7 +1000,7 @@ layout = html.Div(
             html.Div(
                 id={"type": "config-cards-row"},
                 className=f"card-matrix configs", 
-                style={"marginLeft": "13px"},
+                style={"marginLeft": "13px", "marginBottom": "30px"},
             ),
         ]),
         dcc.Store(id={"type": "update_url", "id": page_path}),

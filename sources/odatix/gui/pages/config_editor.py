@@ -269,7 +269,9 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
             ],
             className="inline-flex-buttons",
         )
-        return ui.title_tile(text=text, id=f"domain_title_{domain_uuid}", buttons=buttons)
+        tooltip = "The main parameter domain is the default domain used for parameter replacement. Several parameter domains can be created to manage different sets of parameters for different design configurations or scenarios. It mainly serves as a convenient way to organize design configurations and to easily run combinations of design configurations across multiple domains."
+
+        return ui.title_tile(text=text, id=f"domain_title_{domain_uuid}", buttons=buttons, tooltip=tooltip)
     else:
         buttons = html.Div(
             children=[
@@ -381,14 +383,17 @@ def config_parameters_form(domain_uuid, settings):
                 children=[
                     html.Div([
                         html.Label("Param Target File"),
+                        ui.tooltip_icon("The file used as the target for parameter replacement. This is typically the top-level design file or a design configuration file."),
                         dcc.Input(id={"type": "param_target_file", "domain_uuid": domain_uuid}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Start Delimiter"),
+                        ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file."),
                         dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Stop Delimiter"),
+                        ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file."),
                         dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "95%"}),
                     ], style={"marginBottom": "12px"}),
                 ],
