@@ -31,6 +31,7 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+from typing import Literal, Optional
 
 page_path = "/arch_editor"
 
@@ -53,6 +54,7 @@ def architecture_title(arch_name):
                 id=f"button-open-config-editor",
                 icon=icon("edit", className="icon blue"),
                 text="Edit Configs",
+                tooltip="Open the Configuration Editor for this architecture",
                 color="blue",
                 link=f"/config_editor?arch={arch_name}",
                 multiline=False,
@@ -60,6 +62,7 @@ def architecture_title(arch_name):
             ),
             ui.save_button(
                 id={"page": page_path, "action": "save-all"},
+                tooltip="Save all changes",
                 disabled=True,
             ),
         ],
@@ -105,6 +108,26 @@ def architecture_title(arch_name):
         style={"marginTop": "0px", "marginBottom": "10px", "marginLeft": "-13px"},
     )
 
+def architecture_form_field(
+    label:str,
+    id:str,
+    value:str="",
+    tooltip:str="",
+    tooltip_options:str="normal",
+    type:Optional[
+        Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]
+    ] = None,
+):
+    return html.Div(
+        children=[
+            html.Label(label),
+            ui.tooltip_icon(tooltip, tooltip_options),
+            dcc.Input(id=id, value=value, type=type, style={"width": "100%"}),
+        ],
+        style={"marginBottom": "12px"}
+    )
+
+
 def architecture_form(settings):
     defval = lambda k, v=None: settings.get(k, v)
     generate_rtl = True if str(defval("generate_rtl", "No")).lower() in ["yes", "true"] else False
@@ -120,81 +143,116 @@ def architecture_form(settings):
                         value=[True] if generate_rtl else [],
                         id="generate_rtl",
                         className="checklist-switch",
-                        style={"marginBottom": "12px", "marginTop": "5px"},
+                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
                     ),
+                    ui.tooltip_icon("You can generate the RTL files from a higher-level design description like Chisel, HLS or any other tool using a custom command."),
                 ], style={"marginBottom": "12px"}),
                 html.Div(
                     children=[
-                        html.Div([
-                            html.Label("Design Path", className="dropdown-label", title="Path to the design files"),
-                            dcc.Input(id="design_path", value=defval("design_path", ""), type="text", style={"width": "100%"}),
-                        ], style={"marginBottom": "12px"}),
-                        html.Div([
-                            html.Label("Design Path Whitelist", className="dropdown-label"),
-                            dcc.Input(id="design_path_whitelist", value=", ".join(defval("design_path_whitelist", [])), type="text", style={"width": "100%"}),
-                        ], style={"marginBottom": "12px"}),
-                        html.Div([
-                            html.Label("Design Path Blacklist", className="dropdown-label"),
-                            dcc.Input(id="design_path_blacklist", value=", ".join(defval("design_path_blacklist", [])), type="text", style={"width": "100%"}),
-                        ], style={"marginBottom": "12px"}),
-                        html.Div([
-                            html.Label("Generate Command", className="dropdown-label"),
-                            dcc.Input(id="generate_command", value=defval("generate_command", ""), type="text", style={"width": "100%"}),
-                        ], style={"marginBottom": "12px"}),
-                        html.Div([
-                            html.Label("Generate Output", className="dropdown-label"),
-                            dcc.Input(id="generate_output", value=defval("generate_output", ""), type="text", style={"width": "100%"}),
-                        ], style={"marginBottom": "12px"}),
+                        architecture_form_field(
+                            label="Design Path",
+                            id="design_path",
+                            value=defval("design_path", ""),
+                            tooltip="Path to the design files needed for RTL generation. The whole path will be copied for each configuration, so use white/blacklists below to filter files if needed.",
+                        ),
+                        architecture_form_field(
+                            label="Design Path Whitelist",
+                            id="design_path_whitelist",
+                            value=", ".join(defval("design_path_whitelist", [])),
+                            tooltip="Comma-separated list of patterns to include files from the design path. Only files matching these patterns will be included. Leave empty to include all files.",
+                        ),
+                        architecture_form_field(
+                            label="Design Path Blacklist",
+                            id="design_path_blacklist",
+                            value=", ".join(defval("design_path_blacklist", [])),
+                            tooltip="Comma-separated list of patterns to exclude files from the design path. Files matching these patterns will be excluded. Note that you can use both whitelist and blacklist together. Example: whitelist=[project, src, build.sbt], blacklist=[*.txt]",
+                        ),
+                        architecture_form_field(
+                            label="Generation Command",
+                            id="generate_command",
+                            value=defval("generate_command", ""),
+                            tooltip="Command to generate the RTL files. This command will be executed in each copy of the design path directory. Make sure all files needed for this command to succeed are included in the design path.",
+                        ),
+                        architecture_form_field(
+                            label="Generation Output",
+                            id="generate_output",
+                            value=defval("generate_output", ""),
+                            tooltip="Path to the generated RTL files relative to the design path.",
+                        ),
                     ],
                     id="generate-settings",
                     className="animated-section" + ("" if generate_rtl else " hide"),
-                    style={ "width": "100%", "paddingRight": "12px"},
+                    style={"overflow": "visible"},
                 ),
             ], className="tile config"),
             html.Div([
                 html.H3("Top Level Settings"),
                 html.Div(
                     children=[
-                        html.Label("RTL Path", className="dropdown-label"), 
-                        dcc.Input(id="rtl_path", value=defval("rtl_path", ""), type="text", style={"width": "100%"}),
+                        architecture_form_field(
+                            label="RTL Path",
+                            id="rtl_path",
+                            value=defval("rtl_path", ""),
+                            tooltip="The path to the directory containing the RTL source files.",
+                        )
                     ],
                     id="rtl-path-container",
                     className="animated-section" + ("" if not generate_rtl else " hide"),
-                    style={"marginBottom": "12px", "width": "100%", "paddingRight": "12px"},
+                    style={"overflow": "visible"},
                 ),
-                html.Div([
-                    html.Label("Top Level File", className="dropdown-label"),
-                    dcc.Input(id="top_level_file", value=defval("top_level_file", ""), type="text", style={"width": "100%"}),
-                ], style={"marginBottom": "12px"}),
-                html.Div([
-                    html.Label("Top Level Module", className="dropdown-label"), 
-                    dcc.Input(id="top_level_module", value=defval("top_level_module", ""), type="text", style={"width": "100%"}),
-                ], style={"marginBottom": "12px"}),
-                html.Div([
-                    html.Label("Clock Signal", className="dropdown-label"), 
-                    dcc.Input(id="clock_signal", value=defval("clock_signal", ""), type="text", style={"width": "100%"}),
-                ], style={"marginBottom": "12px"}),
-                html.Div([
-                    html.Label("Reset Signal", className="dropdown-label"), 
-                    dcc.Input(id="reset_signal", value=defval("reset_signal", ""), type="text", style={"width": "100%"}),
-                ], style={"marginBottom": "12px"}),
+                architecture_form_field(
+                    label="Top Level File",
+                    id="top_level_file",
+                    value=defval("top_level_file", ""),
+                    tooltip="The path of the file containing the top level (main) module/entity definition. This path is relative to the RTL path.",
+                ),
+                architecture_form_field(
+                    label="Top Level Module",
+                    id="top_level_module",
+                    value=defval("top_level_module", ""),
+                    tooltip="The name of the top level module/entity in your top level file.",
+                ),
+                architecture_form_field(
+                    label="Clock Signal",
+                    id="clock_signal",
+                    value=defval("clock_signal", ""),
+                    tooltip="The name of the clock signal in your top level module/entity.",
+                ),
+                architecture_form_field(
+                    label="Reset Signal",
+                    id="reset_signal",
+                    value=defval("reset_signal", ""),
+                    tooltip="The name of the reset signal in your top level module/entity.",
+                ),
             ], className="tile config"),
             html.Div([
                 html.H3("Synthesis Settings"),
                 html.H4("Fmax Synthesis (MHz)"),
-                html.Div([
-                    html.Label("Lower Bound", className="dropdown-label"),
-                    dcc.Input(id="fmax_synthesis_lower", value=defval("fmax_synthesis", {}).get("lower_bound", ""), type="number", style={"width": "100%"}),
-                ], style={"marginBottom": "12px"}),
-                html.Div([
-                    html.Label("Upper Bound", className="dropdown-label"),
-                    dcc.Input(id="fmax_synthesis_upper", value=defval("fmax_synthesis", {}).get("upper_bound", ""), type="number", style={"width": "100%"}),
-                ], style={"marginBottom": "12px"}),
+                architecture_form_field(
+                    label="Lower Bound",
+                    id="fmax_synthesis_lower",
+                    value=defval("fmax_synthesis", {}).get("lower_bound", ""),
+                    tooltip="The lower bound for the synthesis maximum operating frequency binary search ('odatix fmax' command). This value can be overriden by the argument --from (ex: 'odatix fmax --from 50 --to 200').",
+                    tooltip_options="large",
+                    type="number",
+                ),
+                architecture_form_field(
+                    label="Upper Bound",
+                    id="fmax_synthesis_upper",
+                    value=defval("fmax_synthesis", {}).get("upper_bound", ""),
+                    tooltip="The upper bound for the synthesis maximum operating frequency binary search ('odatix fmax' command). This value can be overriden by the argument --to (ex: 'odatix fmax --from 50 --to 200')",
+                    tooltip_options="large",
+                    type="number",
+                ),
                 html.H4("Custom Freq Synthesis (MHz)"),
-                html.Div([
-                    html.Label("List", className="dropdown-label"),
-                    dcc.Input(id="custom_freq_synthesis_list", value=", ".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))), type="text", style={"width": "100%"}),
-                ], style={"marginBottom": "12px"}),
+                architecture_form_field(
+                    label="List",
+                    id="custom_freq_synthesis_list",
+                    value=", ".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))),
+                    tooltip="Comma-separated list of custom frequencies for synthesis (in MHz). The synthesis will be run for each frequency in this list ('odatix freq' command). Theses values can be overriden by the argument --at (ex: 'odatix freq --at 50 --at 100') or --from, --to and --step (ex: 'odatix freq --from 50 --to 200 --step 10').",
+                    tooltip_options="large",
+                    type="text",
+                ),
             ], className="tile config"),
         ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
     )
@@ -342,7 +400,7 @@ def save_and_status(
             return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
     else:
         if current_settings != settings or arch_title != arch_name:
-            return "color-button orange icon-button", dash.no_update, dash.no_update
+            return "color-button orange icon-button tooltip delay bottom small", dash.no_update, dash.no_update
 
     return "color-button disabled icon-button", dash.no_update, saved_settings
 

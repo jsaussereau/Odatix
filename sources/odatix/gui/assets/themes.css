@@ -31,7 +31,9 @@
     --theme-disabled-color: #d1d5da;
     --theme-shadow-color: rgba(29, 37, 79, 0.1);
     --theme-text-color: #24292e;
+    --theme-contrast-text-color: #fff;
     --theme-text-shadow: none;
+    --theme-contrast-text-shadow: 0 1px 2px #000000a6, 0 0 1px #fff;
     --theme-background: var(--theme-secondary-color);
     --theme-border-color: #d1d5da;
     --theme-border: 1px solid var(--theme-border-color);
@@ -102,13 +104,15 @@
     /* tooltip */
     --tooltip-icon-color: var(--theme-primary-color);
     --tooltip-icon-filter: drop-shadow(0 0 2px var(--theme-shadow-color));
-    --tooltip-background: var(--theme-tertiary-color);
-    --tooltip-text-color: var(--theme-text-color);
+    --tooltip-background: var(--theme-primary-color);
+    --tooltip-text-color: var(--theme-contrast-text-color);
+    --tooltip-text-shadow: var(--theme-contrast-text-shadow);
     --tooltip-border: var(--theme-border);
     --tooltip-border-radius: var(--theme-small-border-radius);
     --tooltip-box-shadow: 0 4px 12px var(--theme-shadow-color);
+    --tooltip-large-width: 450px;
     --tooltip-normal-width: 300px;
-    --tooltip-small-width: auto;
+    --tooltip-small-width: 150px;
     --tooltip-padding: 10px 15px;
 
     /* popups */
@@ -253,6 +257,58 @@
     --overlay-background: #00000045;
     --overlay-backdrop-filter: none;
     --overlay-transition: none;
+}
+
+.theme.nuit_a_paris {
+    --theme-element-background-color: #1b1b2f;
+    --theme-dimmed-element-background-color: #1b1b2fbb;
+    --theme-action-color: #ff4da6;
+    --theme-primary-color: #ff4da6;
+    --theme-secondary-color: #121226;
+    --theme-tertiary-color: #2c2c3e;
+    --theme-disabled-color: #555577;
+    --theme-text-color: #e0e0ff;
+    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
+    --theme-background: linear-gradient(135deg, #0f0f1a 0%, #1b1b2f 100%);
+    --theme-border: none;
+    --theme-border-color: #555577;
+    --theme-overlay-background-color: #121226aa;
+
+    /* navbar */
+    --navbar-background: #0b0b15;
+
+    /* cards and tiles */
+    --card-box-shadow: rgba(11, 11, 15, 0.5) 0px 4px 24px 0px;
+
+    /* buttons */
+    --button-background: var(--theme-tertiary-color);
+}
+
+.theme.unicorn {
+    --theme-element-background-color: #fcf;
+    --theme-dimmed-element-background-color: #fcf;
+    --theme-action-color: #eb87eb;
+    --theme-primary-color: #ff00ff;
+    --theme-secondary-color: #ffe6ff;
+    --theme-tertiary-color: #ffdeff;
+    --theme-disabled-color: #d1d5da;
+    --theme-text-color: #330033;
+    --theme-text-shadow: 0 1px 2px #fff, 0 0 1px #000;
+    --theme-background: #ffdbfe;
+    --theme-border: none;
+    --theme-border-color: #d1d5da;
+    --theme-overlay-background-color: #924892aa;
+    --theme-large-border-radius: 50px;
+    --theme-small-border-radius: 20px;
+
+    /* navbar */
+    --navbar-background: #ffccff;
+
+    /* cards and tiles */
+    --card-box-shadow: var(--theme-element-background-color) 0px 4px 15px 0px;
+
+    /* buttons */
+    --button-background: var(--theme-tertiary-color);
 }
 
 .theme.hangover {

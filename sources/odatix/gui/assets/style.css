@@ -393,7 +393,7 @@ button:focus {
     border: var(--card-border);
     border-radius: var(--card-border-radius);
     backdrop-filter: var(--card-backdrop-filter);
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -819,6 +819,7 @@ h3 {
 .tooltip::after {
     background: var(--tooltip-background);
     color: var(--tooltip-text-color);
+    text-shadow: var(--tooltip-text-shadow);
     box-shadow: var(--tooltip-box-shadow);
     border: var(--tooltip-border);
     border-radius: var(--tooltip-border-radius);
@@ -837,8 +838,14 @@ h3 {
     transition-delay: 0s;
 }
 
+.tooltip.auto::after {
+    width: auto;
+}
 .tooltip.small::after {
     width: var(--tooltip-small-width);
+}
+.tooltip.large::after {
+    width: var(--tooltip-large-width);
 }
 .tooltip.bottom::after {
     top: 120%;
@@ -974,6 +981,22 @@ h3 {
 .icon.disabled {
     fill: #868E964D;
 }
+.icon.primary {
+    fill: var(--theme-primary-color);
+}
+.icon.secondary {
+    fill: var(--theme-secondary-color);
+}
+.icon.tertiary {
+    fill: var(--theme-tertiary-color);
+}
+.icon.accent {
+    fill: var(--theme-accent-color);
+}
+.icon.action {
+    fill: var(--theme-action-color);
+}
+
 .icon.back-button {
     fill: var(--back-button-color);
     filter: var(--back-button-filter);
@@ -987,6 +1010,7 @@ h3 {
 
 .icon-button .icon {
     fill: var(--button-main-color);
+    cursor: grab;
 }
 
 .icon.rotate {
@@ -994,24 +1018,4 @@ h3 {
 }
 .icon.rotated {
     transform: rotate(180deg);
-}
-
-.text-highlight {
-    border-radius: 6px;
-    font-weight: 700;
-}
-.text-highlight.green {
-    color: #21632D;
-}
-.text-highlight.blue {
-    border: 1px solid #228BE6;
-    color: #114168;
-    background-color: #228BE633;
-}
-.text-highlight.yellow {
-    border: 2px solid #FFE65E;
-    background-color: #FFE65E;
-}
-.text-highlight.orange {
-    background-color: #FD7E14aa;
 }

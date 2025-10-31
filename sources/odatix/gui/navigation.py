@@ -66,13 +66,19 @@ def top_bar(gui):
                     ],
                     className="nav-links",
                 ),
-                dcc.Dropdown(
-                    id="theme-dropdown",
-                    options=[{"label": f"{theme}", "value": f"{theme}"} for theme in themes.list],
-                    value=gui.start_theme,
-                    className="theme-dropdown",
-                    clearable=False,
-                    style={"width": "150px", "margin-right": "20px", "marginTop": "3px"},
+                html.Div(
+                    children=[
+                        dcc.Dropdown(
+                            id="theme-dropdown",
+                            options=[{"label": f"{theme}", "value": f"{theme}"} for theme in themes.list],
+                            value=gui.start_theme,
+                            className="theme-dropdown",
+                            clearable=False,
+                            style={"width": "150px", "margin-right": "20px", "marginTop": "3px"},
+                        )
+                    ],
+                    className="tooltip delay bottom auto",
+                    **{'data-tooltip': "Select Theme"},
                 ),
             ],
             id="nav-right",

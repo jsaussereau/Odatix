@@ -89,7 +89,7 @@ def delete_button(id, large=False, tooltip:str="Delete"):
         color="red", 
         text="Delete" if large else "", 
         tooltip=tooltip,
-        tooltip_options="bottom small",
+        tooltip_options="bottom auto",
         id=id,
     )
 
@@ -99,7 +99,7 @@ def duplicate_button(id, large=False, tooltip:str="Duplicate"):
         color="blue",
         text="Duplicate" if large else "", 
         tooltip=tooltip,
-        tooltip_options="bottom small",
+        tooltip_options="bottom auto",
         id=id,
     )
 
@@ -115,7 +115,7 @@ def save_button(id, text="Save All", disabled=False, tooltip:str="Save all chang
         color="disabled" if disabled else "orange",
         text=text, 
         tooltip=tooltip,
-        tooltip_options="bottom small",
+        tooltip_options="bottom auto",
         id=id,
     )
 
@@ -198,7 +198,7 @@ def back_button(link: Optional[str]="/", id: Optional[str]="back-button"):
         },
     )
 
-def tooltip_icon(tooltip: str=""):
+def tooltip_icon(tooltip: str="", tooltip_options: str="normal") -> Component:
     return html.Div(
         children=[
             icon(
@@ -209,7 +209,7 @@ def tooltip_icon(tooltip: str=""):
                 height="20px",
             ),
         ],
-        className="tooltip",
+        className="tooltip " + tooltip_options,
         style={"display": "inline-block", "transform": "translate(15px, 2px)", "verticalAlign": "middle"},
         **{'data-tooltip': tooltip},
     )
