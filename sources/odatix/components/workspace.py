@@ -180,10 +180,24 @@ f"""##############################################
 """
     )
 
-    data['rtl_path'] = settings.get('rtl_path', "")
+    generate_rtl = settings.get('generate_rtl', False)
+    data['generate_rtl'] = generate_rtl
+    data.yaml_set_comment_before_after_key('generate_rtl', before="\nRTL generation")
+    
+    if generate_rtl:
+        data['design_path'] = settings.get('design_path', [])
+        data['design_path_whitelist'] = settings.get('design_path_whitelist', [])
+        data['design_path_blacklist'] = settings.get('design_path_blacklist', [])
+        data['generate_command'] = settings.get('generate_command', "")
+        data['generate_output'] = settings.get('generate_output', "")
+    else:
+        data['rtl_path'] = settings.get('rtl_path', "")
     data['top_level_file'] = settings.get('top_level_file', "")
     data['top_level_module'] = settings.get('top_level_module', "")
-    data.yaml_set_comment_before_after_key('rtl_path', before="\nSource files")
+    if generate_rtl:
+        data.yaml_set_comment_before_after_key('top_level_file', before="\nSource files")
+    else:
+        data.yaml_set_comment_before_after_key('rtl_path', before="\nSource files")
 
     data['clock_signal'] = settings.get('clock_signal', "")
     data['reset_signal'] = settings.get('reset_signal', "")
@@ -208,10 +222,12 @@ f"""##############################################
     custom['list'] = custom_list    
     data['custom_freq_synthesis'] = custom
 
-    data['generate_configurations'] = settings.get('generate_configurations', False)
-    gen_settings = CommentedMap()
+    generate_configurations = settings.get('generate_configurations', False)
+    data['generate_configurations'] = generate_configurations
     settings_gen = settings.get('generate_configurations_settings', {})
-    data.yaml_set_comment_before_after_key('generate_configurations', before="\nConfiguration generation settings")
+    if settings_gen:
+        data['generate_configurations_settings'] = settings_gen
+    data.yaml_set_comment_before_after_key('generate_configurations', before="\nConfiguration generation")
 
     with open(path, "w") as f:
         yaml_obj.dump(data, f)
