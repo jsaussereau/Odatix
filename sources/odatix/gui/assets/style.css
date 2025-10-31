@@ -756,7 +756,6 @@ button:focus {
 }
 
 .animated-section {
-    overflow: hidden;
     transition: max-height 0.4s cubic-bezier(0.4, 0.2, 0.2, 1), opacity 0.3s;
     max-height: 1000px; 
     opacity: 1;
@@ -817,6 +816,8 @@ h3 {
 }
 
 .tooltip::after {
+    font-size: medium;
+    font-weight: normal;
     background: var(--tooltip-background);
     color: var(--tooltip-text-color);
     text-shadow: var(--tooltip-text-shadow);
@@ -1014,7 +1015,7 @@ h3 {
 }
 
 .icon.rotate {
-    transition: transform 0.1s ease;
+    transition: transform 0.3s ease;
 }
 .icon.rotated {
     transform: rotate(180deg);
