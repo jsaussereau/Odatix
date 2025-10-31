@@ -120,10 +120,15 @@ def save_button(id, text="Save All", disabled=False, tooltip:str="Save all chang
     )
 
 
-def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div(), back_button_link:Optional[str]=None, back_button_id:Optional[str]=None):
+def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div(), back_button_link:Optional[str]=None, back_button_id:Optional[str]=None, tooltip:str=""):
     title_content = html.Div(
         children=[
-            html.H3(text, id=id, style={"marginBottom": "0px"}),
+            html.Div(
+                children=[
+                    html.H3(text, id=id, style={"marginBottom": "0px", "display": "inline-block"}),
+                    tooltip_icon(tooltip) if tooltip else html.Div(style={"display": "none"}),
+                ],
+            ),
             html.Div(
                 [buttons],
             ),
