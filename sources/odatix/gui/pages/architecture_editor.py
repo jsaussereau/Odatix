@@ -195,7 +195,7 @@ def architecture_form(settings):
                                 className="icon normal rotate" + (" rotated" if expand_design_path_filters else ""),
                                 id="more-fields-design-path-filters-toggle-icon"
                             ),
-                            color="normal",
+                            color="default",
                             id="more-fields-design-path-filters-toggle",
                             tooltip="Show/Hide whitelist and blacklist fields",
                         ),
@@ -285,8 +285,8 @@ def architecture_form(settings):
 @dash.callback(
     Output("arch-form-container", "children"),
     Output("architecture-initial-settings", "data"),
-    Input("url", "search"),
-    State("url", "pathname"),
+    Input(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
 def init_form(search, page, odatix_settings):
@@ -323,7 +323,7 @@ def init_form(search, page, odatix_settings):
 
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
-    Output("url", "search"),
+    Output(f"url_{page_path}", "search"),
     Output("architecture-saved-settings", "data"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("arch-title", "value"),
@@ -341,7 +341,8 @@ def init_form(search, page, odatix_settings):
     Input("fmax_synthesis_lower", "value"),
     Input("fmax_synthesis_upper", "value"),
     Input("custom_freq_synthesis_list", "value"),
-    State("url", "search"),
+    State(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
     State("architecture-initial-settings", "data"),
     State("architecture-saved-settings", "data"),
     State("odatix-settings", "data"),
@@ -350,10 +351,13 @@ def init_form(search, page, odatix_settings):
 def save_and_status(
     n_clicks, arch_title, design_path, whitelist, blacklist, generate_rtl, generate_command, generate_output,
     rtl_path, top_level_file, top_level_module, clock_signal, reset_signal, 
-    fmax_lower, fmax_upper, custom_freq_list, search, initial_settings, saved_settings,
+    fmax_lower, fmax_upper, custom_freq_list, search, page, initial_settings, saved_settings,
     odatix_settings,
 ):
     triggered_id = ctx.triggered_id
+    if triggered_id == f"url_{page_path}" and page != page_path:
+        return dash.no_update, dash.no_update, dash.no_update
+
     arch_name = get_key_from_url(search, "arch")
 
     if saved_settings is None:
@@ -443,7 +447,7 @@ def toggle_generate_settings(generate_rtl):
 
 @dash.callback(
     Output({"page": page_path, "type": "architecture-title-div"}, "children"),
-    Input("url", "search"),
+    Input(f"url_{page_path}", "search"),
 )
 def update_architecture_title(search):
     arch_name = get_key_from_url(search, "arch")
@@ -474,7 +478,7 @@ def toggle_more_fields(n_clicks, expandable_area_class ):
 
 layout = html.Div(
     children=[
-        dcc.Location(id="url"),
+        dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
         html.Div(id="arch-form-container"),
         dcc.Store(id="save-state", data=""),
