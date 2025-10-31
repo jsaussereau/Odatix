@@ -123,7 +123,7 @@ def config_parameters_form(settings):
                 html.Label("Configuration name"),
                 dcc.Input(
                     id="generator-name",
-                    value=defval("name", "config_${var}"),
+                    value=defval("name", ""),
                     type="text",
                     style={"width": "100%", "fontSize": "1em", "fontFamily": "monospace", "fontWeight": "500"}
                 ),
@@ -132,7 +132,7 @@ def config_parameters_form(settings):
                 html.Label("Content template"),
                 dcc.Textarea(
                     id="generator-template",
-                    value=defval("template", "parameter VALUE = ${var};"),
+                    value=defval("template", ""),
                     className="auto-resize-textarea",
                     style={"width": "100%", "resize": "none", "fontSize": "1em", "fontFamily": "monospace", "fontWeight": "500"},
                 ),
@@ -517,6 +517,14 @@ def update_form_and_variable_cards(
             generator_template = gen_settings.get("template", "")
             if isinstance(generator_template, list):
                 generator_template = "\n".join(generator_template)
+        else:
+            # Default template
+            generator_name = "config_${var1}${var2}"
+            generator_template = "parameter VALUE1 = ${var1};\nparameter VALUE2 = ${var2};"
+            variables = {
+                "var1": {"type": "range", "settings": {"from": 1, "to": 3, "step": 1}},
+                "var2": {"type": "list", "settings": {"list": ["A", "B", "C", "D"]}},
+            }
         
         cards = []
         # Create cards from existing variables
