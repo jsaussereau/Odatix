@@ -348,7 +348,10 @@ def save_and_status(
     if custom_freq_list is None:
         custom_freq_list = ""
 
-    current_settings = {
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    arch_name = get_key_from_url(search, "arch")
+
+    current_settings_subset = {
         "generate_rtl": True if generate_rtl else False,
         "design_path": design_path,
         "design_path_whitelist": [x.strip() for x in whitelist.split(",") if x.strip()],
@@ -365,12 +368,16 @@ def save_and_status(
             "upper_bound": fmax_upper,
         } if fmax_lower != "" or fmax_upper != "" else {},
         "custom_freq_synthesis": {
-            "list": [int(x.strip()) for x in custom_freq_list.split(",") if x.strip()],
+            "list": [int(x.strip()) for x in custom_freq_list.split(", ") if x.strip()],
         } if custom_freq_list != "" else {},
     }
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_key_from_url(search, "arch")
+    current_settings = workspace.update_raw_settings(
+        arch_path=arch_path,
+        arch_name=arch_name,
+        domain=hard_settings.main_parameter_domain,
+        settings_to_update=current_settings_subset
+    )
 
     if not arch_title:
         return "color-button disabled icon-button error-status", dash.no_update, saved_settings
