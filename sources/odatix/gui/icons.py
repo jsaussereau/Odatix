@@ -115,7 +115,7 @@ _icons = {
         height=height, 
         className=className, 
         id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
+        style={"scale": "1.1", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9px"},
     ),
 
     "clean": lambda color, width, height, className, id: Svg(
