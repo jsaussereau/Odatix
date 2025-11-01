@@ -20,4 +20,4 @@
 #
 
 default_theme = "odatix"
-list = ["odatix", "odatix_dark", "odatix_darker", "code_dark", "candy", "rainbow", "legacy", "hangover"]
+list = ["odatix", "odatix_dark", "odatix_darker", "code_dark", "candy", "rainbow", "legacy", "nuit_a_paris", "unicorn", "hangover"]

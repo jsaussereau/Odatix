@@ -56,7 +56,8 @@ def architecture_title(arch_name):
                 icon=icon("edit", className="icon blue"),
                 text="Edit Configs",
                 tooltip="Open the Configuration Editor for this architecture",
-                color="blue",
+                tooltip_options="bottom delay",
+                color="primary",
                 link=f"/config_editor?arch={arch_name}",
                 multiline=False,
                 width="135px",
@@ -115,7 +116,7 @@ def architecture_form_field(
     value:str="",
     tooltip:str="",
     placeholder:str="",
-    tooltip_options:str="normal",
+    tooltip_options:str="primary",
     type:Optional[
         Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]
     ] = None,
@@ -253,7 +254,7 @@ def architecture_form(settings):
                     id="fmax_synthesis_lower",
                     value=defval("fmax_synthesis", {}).get("lower_bound", ""),
                     tooltip="The lower bound for the synthesis maximum operating frequency binary search ('odatix fmax' command). This value can be overriden by the argument --from (ex: 'odatix fmax --from 50 --to 200').",
-                    tooltip_options="large",
+                    tooltip_options="primary large",
                     type="number",
                 ),
                 architecture_form_field(
@@ -261,7 +262,7 @@ def architecture_form(settings):
                     id="fmax_synthesis_upper",
                     value=defval("fmax_synthesis", {}).get("upper_bound", ""),
                     tooltip="The upper bound for the synthesis maximum operating frequency binary search ('odatix fmax' command). This value can be overriden by the argument --to (ex: 'odatix fmax --from 50 --to 200')",
-                    tooltip_options="large",
+                    tooltip_options="primary large",
                     type="number",
                 ),
                 html.H4("Custom Freq Synthesis (MHz)"),
@@ -270,7 +271,7 @@ def architecture_form(settings):
                     id="custom_freq_synthesis_list",
                     value=", ".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))),
                     tooltip="Comma-separated list of custom frequencies for synthesis (in MHz). The synthesis will be run for each frequency in this list ('odatix freq' command). Theses values can be overriden by the argument --at (ex: 'odatix freq --at 50 --at 100') or --from, --to and --step (ex: 'odatix freq --from 50 --to 200 --step 10').",
-                    tooltip_options="large",
+                    tooltip_options="primary large",
                     type="text",
                 ),
             ], className="tile config"),
@@ -431,7 +432,7 @@ def save_and_status(
             return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
     else:
         if current_settings != settings or arch_title != arch_name:
-            return "color-button orange icon-button tooltip delay bottom small", dash.no_update, dash.no_update
+            return "color-button warning icon-button tooltip delay bottom small", dash.no_update, dash.no_update
 
     return "color-button disabled icon-button", dash.no_update, saved_settings
 

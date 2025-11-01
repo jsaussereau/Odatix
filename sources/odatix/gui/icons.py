@@ -40,7 +40,7 @@ _icons = {
         height=height, 
         className=className, 
         id=id,
-        style={"scale": "0.9", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
+        style={"scale": "0.8", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9px"},
     ),
 
     "duplicate": lambda color, width, height, className, id: Svg(
@@ -67,7 +67,7 @@ _icons = {
         height=height, 
         className=className, 
         id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
+        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-11px"},
     ),
 
     "generate": lambda color, width, height, className, id: Svg(
@@ -115,7 +115,7 @@ _icons = {
         height=height, 
         className=className, 
         id=id,
-        style={"scale": "1.1", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9px"},
+        style={"scale": "1.1", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
     ),
 
     "clean": lambda color, width, height, className, id: Svg(

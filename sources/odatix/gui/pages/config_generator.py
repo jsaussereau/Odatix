@@ -275,6 +275,8 @@ def variable_card(
                     icon=icon("more", className="icon normal rotate", id={"type": "more-fields-icon", "name": name}),
                     color="default",
                     id={"type": "more-fields", "name": name},
+                    tooltip="Show/Hide extra fields",
+                    tooltip_options="bottom small",
                 )
             ], id={"type": "more-fields-div", "name": name}, style={"display": "flex", "alignItems": "center"}),
             html.Div([
@@ -848,7 +850,7 @@ def update_save_button(
     initial_settings, saved_settings, metadata
 ):
     button_disabled = "color-button disabled icon-button"
-    button_enabled = "color-button orange icon-button tooltip delay bottom small"
+    button_enabled = "color-button warning icon-button tooltip delay bottom small"
 
     trigger_id = ctx.triggered_id
 
@@ -946,14 +948,14 @@ preview_title_tile_buttons = html.Div(
     children=[
         ui.icon_button(
             icon=icon("generate", className="icon blue"),
-            color="blue",
+            color="primary",
             text="Generate", 
             id={"action": "generate-all"},
             tooltip="Generate all previewed configurations",
         ),
         ui.icon_button(
             icon=icon("clean", className="icon red"),
-            color="red",
+            color="caution",
             text="Clean Existing", 
             multiline=True,
             id={"action": "clean-all"},

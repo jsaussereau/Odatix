@@ -39,14 +39,14 @@
     width: 40px;
     height: 22px;
     background: var(--switch-off-background);
-    border: 1px solid #d1d5da;
+    border: var(--switch-off-border-style) #d1d5da;
     border-radius: 22px;
     transition: background 0.15s;
 }
 
 .checklist-switch label:has(input[type="checkbox"]:checked):before {
     background: var(--switch-on-background);
-    border: 1px solid var(--switch-on-handle-background);
+    border: var(--switch-on-border-style) var(--switch-on-handle-background);
 }
 
 .checklist-switch label:after {

@@ -351,8 +351,8 @@ layout = html.Div(
                     html.Div("This action is irreversible.", style={"marginTop": "10px", "color": "#FA5252", "fontWeight": "bold"}),
                     html.Div([
                         ui.icon_button(
-                            icon=icon("delete", className="icon red"),
-                            color="red", 
+                            icon=icon("delete", className="icon"),
+                            color="caution", 
                             text="Delete", 
                             width="90px",
                             id="delete-confirm-btn",

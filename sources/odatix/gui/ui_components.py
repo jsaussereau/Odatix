@@ -60,7 +60,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
         ),
         id=id if id else "",
         n_clicks=0,
-        className=f"color-button {color} icon-button {f" tooltip delay {tooltip_options}" if tooltip else ""}",
+        className=f"color-button {color} icon-button {f" tooltip {tooltip_options}" if tooltip else ""}",
         style=style,
         **{'data-tooltip': tooltip},
     )
@@ -86,7 +86,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
 def delete_button(id, large=False, tooltip:str="Delete"):
     return icon_button(
         icon=icon("delete", width="25px", height="25px", className="icon red"),
-        color="red", 
+        color="caution", 
         text="Delete" if large else "", 
         tooltip=tooltip,
         tooltip_options="bottom auto",
@@ -96,7 +96,7 @@ def delete_button(id, large=False, tooltip:str="Delete"):
 def duplicate_button(id, large=False, tooltip:str="Duplicate"):
     return icon_button(
         icon=icon("duplicate", className="icon blue"),
-        color="blue",
+        color="primary",
         text="Duplicate" if large else "", 
         tooltip=tooltip,
         tooltip_options="bottom auto",
@@ -111,11 +111,11 @@ def save_button(id, text="Save All", disabled=False, tooltip:str="Save all chang
         icon_id = id + "-icon"
 
     return icon_button(
-        icon=icon("save", className="icon " + "disabled" if disabled else "orange", id=icon_id),
-        color="disabled" if disabled else "orange",
+        icon=icon("save", className="icon", id=icon_id),
+        color="warning",
         text=text, 
         tooltip=tooltip,
-        tooltip_options="bottom auto",
+        tooltip_options="bottom auto caution",
         id=id,
     )
 
@@ -203,7 +203,7 @@ def back_button(link: Optional[str]="/", id: Optional[str]="back-button"):
         },
     )
 
-def tooltip_icon(tooltip: str="", tooltip_options: str="normal") -> Component:
+def tooltip_icon(tooltip: str="", tooltip_options: str="primary") -> Component:
     return html.Div(
         children=[
             icon(

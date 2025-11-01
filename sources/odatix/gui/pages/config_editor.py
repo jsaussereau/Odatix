@@ -158,7 +158,7 @@ def config_card(domain_uuid, filename, content, initial_content, config_layout="
         "verticalAlign": "top"
     })
 
-def add_card(text: str = "Add new config", domain_uuid: str = hard_settings.main_parameter_domain):
+def add_card(text: str = "Add design configuration", domain_uuid: str = hard_settings.main_parameter_domain):
     return html.Div(
         html.Div(
             html.Div(
@@ -198,9 +198,9 @@ def architecture_title(arch_name:str=""):
                 children=[
                     ui.icon_button(
                         id=f"button-open-config-editor",
-                        icon=icon("edit", className="icon blue"),
+                        icon=icon("edit", className="icon"),
                         text="Edit Architecture",
-                        color="blue",
+                        color="primary",
                         link=f"/arch_editor?arch={arch_name}",
                         multiline=True,
                         width="135px",
@@ -252,19 +252,21 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
             children=[
                 ui.icon_button(
                     # id={"type": "generate-config", "domain_uuid": domain_uuid},
-                    icon=icon("generate", className="icon blue"),
+                    icon=icon("generate", className="icon"),
                     text="Config Generator",
-                    color="blue",
+                    color="primary",
                     link=generate_config_link(arch_name=arch_name),
                     multiline=True,
+                    tooltip="Generate multiple design configurations",
                 ),
                 ui.icon_button(
                     id={"action": "duplicate-domain", "domain_uuid": domain_uuid},
-                    icon=icon("duplicate", className="icon blue"),
+                    icon=icon("duplicate", className="icon"),
                     text="Duplicate as Domain",
-                    color="blue",
+                    color="primary",
                     multiline=True,
                     width="140px",
+                    tooltip="Duplicate the main parameter domain as a new domain",
                 ),
             ],
             className="inline-flex-buttons",
@@ -277,19 +279,22 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
             children=[
                 ui.icon_button(
                     id={"type": "generate-config", "domain_uuid": domain_uuid},
-                    icon=icon("generate", className="icon blue"),
+                    icon=icon("generate", className="icon"),
                     text="Config Generator",
-                    color="blue",
+                    color="primary",
                     link=generate_config_link(arch_name=arch_name, domain_name=domain_name),
                     multiline=True,
+                    tooltip="Generate multiple design configurations",
                 ),
                 ui.duplicate_button(
                     id={"action": "duplicate-domain", "domain_uuid": domain_uuid},
-                    large=True
+                    large=True,
+                    tooltip="Duplicate domain",
                 ),
                 ui.delete_button(
                     id={"action": "delete-domain", "domain_uuid": domain_uuid},
-                    large=False
+                    large=False,
+                    tooltip="Delete domain",
                 )
             ],
             className="inline-flex-buttons param-domain-title",
@@ -456,9 +461,9 @@ def preview_pane(domain_uuid:str, settings: dict, domain_settings: dict, replace
                     e_idx = stop_charater
                     if s_idx > 0:
                         line_parts.append(line[:s_idx])
-                    line_parts.append(html.Span(start_delimiter, className="text-highlight yellow"))
-                    line_parts.append(html.Span(line[s_idx+len(start_delimiter):e_idx], className="text-highlight green"))
-                    line_parts.append(html.Span(stop_delimiter, className="text-highlight yellow"))
+                    line_parts.append(html.Span(start_delimiter, className="text-highlight primary"))
+                    line_parts.append(html.Span(line[s_idx+len(start_delimiter):e_idx], className="text-highlight secondary"))
+                    line_parts.append(html.Span(stop_delimiter, className="text-highlight primary"))
                     if e_idx + len(stop_delimiter) < len(line):
                         line_parts.append(line[e_idx+len(stop_delimiter):])
                 # Start delimiter line
@@ -466,23 +471,23 @@ def preview_pane(domain_uuid:str, settings: dict, domain_settings: dict, replace
                     if start_charater != -1:
                         if start_charater > 0:
                             line_parts.append(line[:start_charater])
-                        line_parts.append(html.Span(start_delimiter, className="text-highlight yellow"))
-                        line_parts.append(html.Span(line[start_charater+len(start_delimiter):], className="text-highlight green"))
+                        line_parts.append(html.Span(start_delimiter, className="text-highlight primary"))
+                        line_parts.append(html.Span(line[start_charater+len(start_delimiter):], className="text-highlight secondary"))
                     else:
                         line_parts.append(line)
                 # Stop delimiter line
                 elif line_idx == stop_line - 1:
                     if stop_charater != -1:
                         if stop_charater > 0:
-                            line_parts.append(html.Span(line[:stop_charater], className="text-highlight green"))
-                        line_parts.append(html.Span(stop_delimiter, className="text-highlight yellow"))
+                            line_parts.append(html.Span(line[:stop_charater], className="text-highlight secondary"))
+                        line_parts.append(html.Span(stop_delimiter, className="text-highlight primary"))
                         if stop_charater + len(stop_delimiter) < len(line):
                             line_parts.append(line[stop_charater+len(stop_delimiter):])
                     else:
                         line_parts.append(line)
                 # Replaced content lines
                 elif start_line-1 < line_idx < stop_line-1:
-                    line_parts.append(html.Span(line, className="text-highlight green"))
+                    line_parts.append(html.Span(line, className="text-highlight secondary"))
                 else:
                     line_parts.append(line)
                 preview_components.extend(line_parts)
@@ -923,7 +928,7 @@ def update_save_status(param_domains_section, title_values, content_values, init
     status_texts = []
     for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
         if title != initial_title or content != initial_content:
-            save_classes.append("color-button orange icon-button")
+            save_classes.append("color-button warning icon-button")
             status_classes.append("status warning")
             status_texts.append("Unsaved changes!")
         else:
@@ -943,7 +948,7 @@ def update_save_status(param_domains_section, title_values, content_values, init
 def update_params_save_button(params_enables, target_files, start_delims, stop_delims, settings_list):
     save_classes = []
     disabled_class = "color-button disabled icon-button"
-    enabled_class = "color-button orange icon-button"
+    enabled_class = "color-button warning icon-button"
 
     for use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings in zip(params_enables, target_files, start_delims, stop_delims, settings_list):
         if domain_settings is None:
@@ -1070,7 +1075,7 @@ def update_architecture_title(search):
 def update_params_title_save_button(_, title_input, domain_metadata, search, odatix_settings):
     save_classes = []
     disabled_class = "color-button invisible icon-button"
-    enabled_class = "color-button orange icon-button"
+    enabled_class = "color-button warning icon-button"
     error_class = "color-button disabled icon-button error-status"
     new_metadata = []
     new_hrefs = []
