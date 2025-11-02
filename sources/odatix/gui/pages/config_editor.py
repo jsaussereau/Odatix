@@ -677,15 +677,23 @@ def update_param_domains(
 
         # Duplicate domain
         elif trigger_action == "duplicate-domain":
-            domain_to_duplicate = triggered_id.get("domain", "")
+            domain_to_duplicate_uuid  = triggered_id.get("domain_uuid", "")
 
             # Check if button was actually clicked
-            idx = next((i for i, data in enumerate(metadata) if data.get("domain") == domain_to_duplicate), -1)
-            if duplicate_domain_click[idx] == 0:
+            domain_to_duplicate = None
+            domain_to_duplicate_idx = None
+            for i, data in enumerate(metadata):
+                domain_uuid = data.get("domain_uuid", "")
+                domain_name = data.get("domain_name", "")
+                if domain_uuid == domain_to_duplicate_uuid:
+                    domain_to_duplicate = domain_name
+                    domain_to_duplicate_idx = i - 1 # -1 to account for main domain
+                    break
+            if duplicate_domain_click[domain_to_duplicate_idx] == 0:
                 return dash.no_update
             
-            if domain_to_duplicate:
-                if domain_to_duplicate == hard_settings.main_parameter_domain:
+            if domain_to_duplicate_uuid :
+                if domain_to_duplicate_uuid  == hard_settings.main_parameter_domain:
                     base_name = "main_copy"
                 else:
                     base_name = f"{domain_to_duplicate}_copy"
