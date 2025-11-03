@@ -96,7 +96,7 @@ def delete_button(id, large=False, tooltip:str="Delete"):
 def duplicate_button(id, large=False, tooltip:str="Duplicate"):
     return icon_button(
         icon=icon("duplicate", className="icon blue"),
-        color="primary",
+        color="secondary",
         text="Duplicate" if large else "", 
         tooltip=tooltip,
         tooltip_options="bottom auto",
@@ -203,7 +203,7 @@ def back_button(link: Optional[str]="/", id: Optional[str]="back-button"):
         },
     )
 
-def tooltip_icon(tooltip: str="", tooltip_options: str="primary") -> Component:
+def tooltip_icon(tooltip: str="", tooltip_options: str="secondary") -> Component:
     return html.Div(
         children=[
             icon(

@@ -948,7 +948,7 @@ preview_title_tile_buttons = html.Div(
     children=[
         ui.icon_button(
             icon=icon("generate", className="icon blue"),
-            color="primary",
+            color="secondary",
             text="Generate", 
             id={"action": "generate-all"},
             tooltip="Generate all previewed configurations",

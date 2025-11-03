@@ -20,6 +20,20 @@
 *
 */
 
+@keyframes pulse {
+    0% {
+        box-shadow: none;
+        transform: translateY(0);
+    }
+    50% {
+        box-shadow: var(--warning-button-box-shadow);
+    }
+    100% {
+        box-shadow: none;
+        transform: translateY(0);
+    }
+}
+
 .theme.hangover .card,
 .theme.hangover .tile {
     position: relative; /* permet les translations sans casser le flux */

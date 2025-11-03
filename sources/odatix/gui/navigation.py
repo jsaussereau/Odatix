@@ -126,7 +126,7 @@ def setup_callbacks(gui):
     def update_theme(
         theme
     ):
-        return f"theme {theme if theme != 'odatix' else ''}"
+        return f"theme {theme}"
     
     @gui.app.callback(
         Output("url", "href"),
