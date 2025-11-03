@@ -431,7 +431,7 @@ def save_and_status(
         except Exception as e:
             return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
     else:
-        if current_settings != settings or arch_title != arch_name:
+        if current_settings_subset != settings or arch_title != arch_name:
             return "color-button warning icon-button tooltip delay bottom small", dash.no_update, dash.no_update
 
     return "color-button disabled icon-button", dash.no_update, saved_settings
