@@ -24,12 +24,11 @@ import re
 default_theme = "odatix"
 
 # Fetch themes from the CSS file
-_css_file = "sources/odatix/gui/assets/themes.css", "r"
+_css_file = "sources/odatix/gui/assets/themes.css"
 _regex_theme = r"\.theme\.(\S+)\s*{"
-with open(*_css_file) as f:
+with open(_css_file, "r") as f:
     _content = f.read()
     _available_theme = re.findall(_regex_theme, _content)
-    print(_available_theme)
 
 _available_theme = list(_available_theme)
 list = _available_theme
