@@ -14,21 +14,42 @@ script_copy_source: "/dev/null"
 
 # ASIC technology target
 targets:
-  # - ST28CMOSFDSOI
-  # - ST130BICMOS
-  - AMS350CMOS
+  - AMS_c35_1V8
+  # - AMS_c35_2V2
+  # - AMS_c35_2V7
+  # - AMS_c35_3V3
+  # - AMS_h18_1V8
+  # - AMS_h18_2V2
+  # - AMS_h18_3V3
+  # - AMS_h18_5V0
   # - XFAB180CMOS
 
+# Replace with your own synopsys_dc_setup.tcl for each technology
 target_settings:
-  ST28CMOSFDSOI:
+  AMS_c35_1V8:
     script_copy_enable: Yes
-    script_copy_source: $eda_tools_path/design_compiler/technology/ST_28nm_CMOS_FDSOI/synopsys_dc_setup.tcl
-  ST130BICMOS:
+    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_c35_1V8/synopsys_dc_setup.tcl
+  AMS_c35_2V2:
     script_copy_enable: Yes
-    script_copy_source: $eda_tools_path/design_compiler/technology/ST_130nm_SiGe_BiCMOS_9MW/synopsys_dc_setup.tcl
-  AMS350CMOS:
+    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_c35_2V2/synopsys_dc_setup.tcl
+  AMS_c35_2V7:
     script_copy_enable: Yes
-    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_350nm_CMOS/synopsys_dc_setup.tcl
+    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_c35_2V7/synopsys_dc_setup.tcl
+  AMS_c35_3V3:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_c35_3V3/synopsys_dc_setup.tcl
+  AMS_h18_1V8:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_h18_1V8/synopsys_dc_setup.tcl
+  AMS_h18_2V2:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_h18_2V2/synopsys_dc_setup.tcl
+  AMS_h18_3V3:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_h18_3V3/synopsys_dc_setup.tcl
+  AMS_h18_5V0:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/design_compiler/technology/AMS_h18_5V0/synopsys_dc_setup.tcl
   XFAB180CMOS:
     script_copy_enable: Yes
     script_copy_source: $eda_tools_path/design_compiler/technology/XFAB_180nm_CMOS/synopsys_dc_setup.tcl
