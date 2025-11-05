@@ -30,11 +30,12 @@ html, body {
     color: inherit;
 }
 
-.page-content {
+.theme {
     background: var(--theme-background);
     color: var(--theme-text-color);
     font-family: var(--theme-font-family), Arial, sans-serif;
     text-shadow: var(--theme-text-shadow);
+    font-size: var(--theme-font-size);
 }
 
 .navbar {
@@ -184,8 +185,10 @@ html, body {
 button {
     padding: 10px 15px;
     margin-right: 5px;
+    font-family: var(--theme-font-family), Arial;
     font-size: 14px;
     font-weight: 515;
+    line-height: var(--button-line-height);
     cursor: pointer;
     border-radius: var(--button-border-radius);
     transition: var(--button-transition);
@@ -204,6 +207,8 @@ button:hover {
 }
 
 input {
+    font-family: var(--theme-font-family), Arial;
+    font-size: var(--input-font-size);
     background: var(--input-background);
     border: var(--input-border);
     border-radius: var(--input-border-radius);
@@ -215,6 +220,7 @@ input {
 }
 
 pre{
+    font-size: var(--pre-font-size);  
     background: var(--pre-background);
     border: var(--pre-border);
     border-radius: var(--pre-border-radius);
@@ -224,6 +230,7 @@ pre{
 }
 
 textarea {
+    font-size: var(--textarea-font-size);  
     background: var(--textarea-background);
     border: var(--textarea-border);
     border-radius: var(--textarea-border-radius);
@@ -265,34 +272,34 @@ textarea {
     appearance: none;   
 }
 
-.dash-dropdown, .Select, .Select-control{
-  border: none;
-  border-radius: var(--main-border-radius);
-  background-color: #00000000 !important;
+.dash-dropdown, .Select, .Select-control, .Select-input input {
+    border: none !important;
+    border-radius: var(--main-border-radius);
+    background-color: #00000000 !important;
 }
 
 .Select-value {
-  background-color: var(--dropdown-background);
-  border: var(--dropdown-border);
-  border-radius: var(--dropdown-border-radius);
-  color: var(--theme-text-color);
+    background-color: var(--dropdown-background);
+    border: var(--dropdown-border);
+    border-radius: var(--dropdown-border-radius);
+    color: var(--theme-text-color);
 }
 
 .Select-value-label {
-  color: var(--theme-text-color) !important;
+    color: var(--theme-text-color) !important;
 }
 
 .Select-menu-outer {
-  background-color: var(--dropdown-menu-background);
-  backdrop-filter: var(--main-backdrop-filter);
-  border: var(--dropdown-border);
-  border-radius: var(--main-border-radius);
-  color: var(--theme-text-color);
+    background-color: var(--dropdown-menu-background);
+    backdrop-filter: var(--dropdown-menu-backdrop-filter);
+    border: var(--dropdown-border);
+    border-radius: var(--dropdown-menu-border-radius);
+    color: var(--theme-text-color);
 }
 
 .Select-value:hover {
-  background-color: var(--dropdown-background-hover);
-  border-color: var(--main-border-color-hover);
+    background-color: var(--dropdown-background-hover);
+    border-color: var(--main-border-color-hover);
 }
 
 .error {
@@ -467,8 +474,8 @@ textarea {
 
 .card.hover:hover {
     cursor: pointer;
-    box-shadow: 0px 30px 18px -8px rgba(0, 0, 0, 0.1);
-    transform: scale(1.05, 1.05);
+    box-shadow: var(--card-hover-box-shadow);
+    transform: var(--card-hover-transform);
 }
 
 .overlay-odatix {
@@ -533,13 +540,14 @@ textarea {
     width: 80%;
     max-width: 500px;
     margin-bottom: 16px;
-    padding: 32px;
+    padding: 24px 32px;
     background-color: var(--card-background);
     color: var(--card-text-color);
     box-shadow: var(--card-box-shadow);
     border: var(--card-border);
     border-radius: var(--card-border-radius);
     break-inside: avoid;
+    clip-path: path('M10% 50% C14% 22%, 32% 14%, 46% 28% C60% 18%, 78% 22%, 84% 44% C92% 58%, 82% 74%, 64% 84% C50% 94%, 32% 90%, 20% 76% C8% 66%, 6% 58%, 10% 50% Z');
     transition: 
         /* width 0.4s cubic-bezier(0.4, 0.2, 0.2, 1), */
         height 0.4s cubic-bezier(0.4, 0.2, 0.2, 1),
@@ -548,8 +556,8 @@ textarea {
 
 .tile.hover:hover {
     cursor: pointer;
-    box-shadow: 0px 30px 18px -8px rgba(0, 0, 0, 0.1);
-    transform: scale(1.05, 1.05);
+    box-shadow: var(--card-hover-box-shadow);
+    transform: var(--card-hover-transform);
 }
 
 .tile.config {
@@ -571,7 +579,7 @@ textarea {
 }
 
 .tile.title.hover {
-    transition: all .2s cubic-bezier(0.175, 0.885, 0, 1);
+    transition: var(--card-hover-transition);
 }
 
 .tiles-container {
@@ -594,8 +602,8 @@ textarea {
     margin-top: -10px;
     font-size: 24px;
     font-weight: bold;
-    background-color: transparent;
-    border: 1px solid #ffffff00;
+    background-color: var(--title-input-background);
+    border: var(--title-input-border);
     box-shadow: none;
 }
 
@@ -604,15 +612,16 @@ textarea {
 }
 
 .title-input:hover {
-    border: 1px solid #d1d5da;
+    background-color: var(--title-input-background-hover);
+    border: var(--title-input-border-hover);
 }
 .title-input.preview:hover {
     border: 1px solid #ffffff00;
 }
 
 .title-input:focus {
-    background-color: #f6f8fa;
-    border: 1px solid #d1d5da;
+    background-color: var(--title-input-background-focus);
+    border: var(--title-input-border-focus);
     outline: none;
 }
 .title-input.preview:focus {
@@ -763,13 +772,13 @@ h3 {
     margin-left: 16px;
 }
 .status.error {
-    color: #FA5252;
+    color: var(--theme-caution-color);
 }
 .status.warning {
-    color: #FD7E14;
+    color: var(--theme-warning-color);
 }
 .status.valid {
-    color: #40C057;
+    color: var(--theme-success-color);
 }
 
 .text-highlight {
@@ -780,11 +789,13 @@ h3 {
     background: var(--primary-highlight-background);
     border: var(--primary-highlight-border);
     color: var(--primary-highlight-text-color);
+    text-shadow: var(--primary-highlight-text-shadow);
 }
 .text-highlight.secondary {
     background: var(--secondary-highlight-background);
     border: var(--secondary-highlight-border);
     color: var(--secondary-highlight-text-color);
+    text-shadow: var(--secondary-highlight-text-shadow);
 }
 
 .tooltip {
@@ -798,8 +809,9 @@ h3 {
 }
 
 .tooltip::after {
-    font-size: medium;
+    font-size: var(--tooltip-font-size);
     font-weight: normal;
+    line-height: var(--tooltip-line-height);
     text-shadow: var(--tooltip-text-shadow);
     box-shadow: var(--tooltip-box-shadow);
     border-radius: var(--tooltip-border-radius);
@@ -845,15 +857,20 @@ h3 {
     color: var(--secondary-tooltip-text-color);
     border: var(--secondary-tooltip-border);
 }
+.tooltip.warning::after {
+    background: var(--warning-tooltip-background);
+    color: var(--warning-tooltip-text-color);
+    border: var(--warning-tooltip-border);
+}
 .tooltip.caution::after {
     background: var(--caution-tooltip-background);
     color: var(--caution-tooltip-text-color);
     border: var(--caution-tooltip-border);
 }
-.tooltip.warning::after {
-    background: var(--warning-tooltip-background);
-    color: var(--warning-tooltip-text-color);
-    border: var(--warning-tooltip-border);
+.tooltip.error-status::after {
+    background: var(--error-tooltip-background);
+    color: var(--error-tooltip-text-color);
+    border: var(--error-tooltip-border);
 }
 
 .tooltip:hover::after {
@@ -933,21 +950,26 @@ h3 {
 }
 
 .color-button.disabled {
-    pointer-events: none;
+    cursor: default;
     background: var(--disabled-button-background);
     border: var(--disabled-button-border);
     color: var(--disabled-button-text-color);
     --button-icon-color: var(--disabled-button-icon-color);
     box-shadow: var(--disabled-button-box-shadow);
 }
-.color-button.disabled.error-status {
-    --button-main-color: #FCC;
-    --button-bg-color: #FA525214;
-    border-color: var(--button-main-color);
-    background-color: var(--button-bg-color);
-    color: var(--button-main-color);
+.color-button.disabled:active {
     pointer-events: none;
+}
+.color-button.error-status {
     cursor: not-allowed !important;
+    background: var(--error-button-background);
+    border: var(--error-button-border);
+    color: var(--error-button-text-color);
+    --button-icon-color: var(--error-button-icon-color);
+    box-shadow: var(--error-button-box-shadow);
+}
+.color-button.error-status:active {
+    pointer-events: none;
 }
 
 .color-button.invisible {
@@ -1003,8 +1025,7 @@ h3 {
 .icon.back-button {
     fill: var(--back-button-color);
     filter: var(--back-button-filter);
-    transition: 
-        transform 0.2s cubic-bezier(0.4, 0.2, 0.2, 1);
+    transition: transform 0.2s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
 .icon.icon.back-button:hover {
     transform: scale(1.25);
@@ -1015,6 +1036,14 @@ h3 {
     transition: var(--button-transition);
     fill: var(--button-icon-color);
     cursor: grab;
+}
+
+.icon-button.error-status .icon {
+    cursor: not-allowed;
+}
+
+.icon-button.disabled .icon {
+    cursor: default;
 }
 
 .icon.rotate {

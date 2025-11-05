@@ -30,18 +30,23 @@
 .theme {
     /* theme */
     --theme-font-family: Nunito;
+    --theme-font-size: 16px;
+    --theme-small-font-size: 11px;
     --theme-background-color: #f5f7fa;
-    --theme-element-background-color: #fff;
+    --theme-element-background-color: #fff; /* mainly cards and tiles background */
     --theme-dimmed-element-background-color: #fff0;
     --theme-action-color: #d1d5da;
-    --theme-primary-color: #228BE6;
-    --theme-secondary-color: #228BE6;
-    --theme-tertiary-color: #f5f7fa;
+    --theme-primary-color: #228BE6; /* accent color for tooltips and switches */
+    --theme-secondary-color: #228BE6; /* accent color for important buttons */
+    --theme-tertiary-color: #f5f7fa; /* background color for fields  */
     --theme-disabled-color: #798ba64f;
+    --theme-disabled-error-color: #fa5252ab;
     --theme-disabled-background-color: var(--theme-tertiary-color);
+    --theme-disabled-error-background-color: #FA525229;
     --theme-success-color: #40C057;
     --theme-warning-color: #FF8825;
     --theme-caution-color: #FA5252;
+    --theme-error-color: var(--theme-caution-color);
     --theme-shadow-color: rgba(29, 37, 79, 0.1);
     --theme-text-color: #24292e;
     --theme-disabled-text-color: var(--theme-disabled-color);
@@ -73,6 +78,9 @@
     --card-border-hover: none;
     --card-border-radius: var(--theme-large-border-radius);
     --card-backdrop-filter: initial;
+    --card-hover-box-shadow: 0px 30px 18px -8px rgba(0, 0, 0, 0.1);
+    --card-hover-transition: all 0.2s cubic-bezier(0.175, 0.885, 0, 1);
+    --card-hover-transform: scale(1.05, 1.05);
     --add-card-background: var(--theme-dimmed-element-background-color);
     --add-card-border: 1px dashed #bbb;
     --add-card-text-color: var(--card-text-color);
@@ -82,6 +90,7 @@
     --button-box-shadow: var(--button-shadow-color) 0px 0px 8px 0px;
     --button-transition: 0.3s;
     --button-border-radius: var(--theme-normal-border-radius);
+    --button-line-height: 1.2em;
     --default-button-background: #fff0;
     --default-button-border: var(--theme-large-border-style) var(--theme-border-color);
     --default-button-icon-color: var(--theme-text-color);
@@ -143,28 +152,49 @@
     --caution-button-icon-color-hover: var(--theme-caution-color);
     --caution-button-text-color-hover: var(--theme-caution-color);
     --caution-button-box-shadow-hover: var(--button-box-shadow);
+    --error-button-background: var(--theme-disabled-error-background-color);
+    --error-button-border: var(--theme-large-border-style) #fff0;
+    --error-button-icon-color: var(--theme-disabled-error-color);
+    --error-button-text-color: var(--theme-disabled-error-color);
+    --error-button-box-shadow: none;
     --disabled-button-background: var(--theme-disabled-background-color);
     --disabled-button-border: var(--theme-large-border-style) #fff0;
     --disabled-button-icon-color: var(--theme-disabled-text-color);
     --disabled-button-text-color: var(--theme-disabled-text-color);
     --disabled-button-box-shadow: var(--button-box-shadow);
     --back-button-color: var(--theme-disabled-color);
-    --back-button-filter: drop-shadow(2px 2px 2px var(--theme-shadow-color));
-    --back-button-filter-hover: drop-shadow(2px 2px 2px var(--theme-shadow-color));
+    --back-button-filter: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
+    --back-button-filter-hover: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
 
     /* dropdowns */
     --dropdown-background: var(--theme-background-color);
     --dropdown-background-hover: var(--theme-action-color);
-    --dropdown-menu-background: var(--theme-element-background-color);
     --dropdown-border: var(--theme-border);
     --dropdown-border-radius: var(--theme-normal-border-radius);
     --dropdown-label-margin: 0px;
+    --dropdown-menu-background: var(--theme-element-background-color);
+    --dropdown-menu-backdrop-filter: blur(24px);
+    --dropdown-menu-border-radius: var(--theme-small-border-radius);
+    --dropdown-menu-hover: var(--theme-action-color);
 
     /* inputs */
+    --input-font-size: var(--theme-small-font-size);
     --input-background: var(--theme-tertiary-color);
     --input-text-color: var(--theme-text-color);
     --input-border: var(--theme-border);
     --input-border-radius: var(--theme-small-border-radius);
+    --title-input-background: transparent;
+    --title-input-text-color: var(--theme-text-color);
+    --title-input-border: var(--theme-border-style) #ffffff00;
+    --title-input-border-radius: var(--theme-small-border-radius);
+    --title-input-background-hover: transparent;
+    --title-input-text-color-hover: var(--theme-text-color);
+    --title-input-border-hover: var(--theme-border);
+    --title-input-border-radius-hover: var(--theme-small-border-radius);
+    --title-input-background-focus: var(--theme-tertiary-color);
+    --title-input-text-color-focus: var(--theme-text-color);
+    --title-input-border-focus: var(--theme-border);
+    --title-input-border-radius-focus: var(--theme-small-border-radius);
 
     /* switch */
     --switch-off-background: var(--theme-tertiary-color);
@@ -175,12 +205,14 @@
     --switch-on-border-style: var(--theme-border-style);
 
     /* textareas */
+    --textarea-font-size: var(--theme-small-font-size);  
     --textarea-background: var(--theme-tertiary-color);
     --textarea-text-color: var(--theme-text-color);
     --textarea-border: var(--theme-border);
     --textarea-border-radius: var(--theme-small-border-radius);
 
     /* pre */
+    --pre-font-size: var(--theme-small-font-size);
     --pre-background: var(--theme-tertiary-color);
     --pre-text-color: var(--theme-text-color);
     --pre-border: var(--theme-border);
@@ -188,6 +220,7 @@
     --pre-text-shadow: none;
 
     /* tooltip */
+    --tooltip-font-size: var(--theme-font-size);
     --tooltip-icon-color: var(--theme-primary-color);
     --tooltip-icon-filter: drop-shadow(0 0 2px var(--theme-shadow-color));
     --tooltip-text-shadow: var(--theme-contrast-text-shadow);
@@ -197,6 +230,7 @@
     --tooltip-normal-width: 300px;
     --tooltip-small-width: 150px;
     --tooltip-padding: 10px 15px;
+    --tooltip-line-height: 1.2em;
     --default-tooltip-background: var(--theme-contrast-background-color);
     --default-tooltip-text-color: var(--theme-contrast-text-color);
     --default-tooltip-border: none;
@@ -212,7 +246,9 @@
     --warning-tooltip-background: var(--theme-warning-color);
     --warning-tooltip-text-color: var(--theme-contrast-text-color);
     --warning-tooltip-border: none;
-
+    --error-tooltip-background: var(--theme-error-color);
+    --error-tooltip-text-color: var(--theme-contrast-text-color);
+    --error-tooltip-border: none;
 
     /* popups */
     --popup-background: var(--theme-element-background-color);
@@ -232,10 +268,12 @@
     --primary-highlight-background: var(--primary-highlight-color);
     --primary-highlight-border: 2px solid var(--primary-highlight-color);
     --primary-highlight-text-color: var(--theme-text-color);
-    --secondary-highlight-color: #21632D;
+    --primary-highlight-text-shadow: var(--theme-text-shadow);
+    --secondary-highlight-color: var(--theme-primary-color);
     --secondary-highlight-background: none;
     --secondary-highlight-border: none;
-    --secondary-highlight-text-color: var(--primary-highlight-color);
+    --secondary-highlight-text-color: var(--secondary-highlight-color);
+    --secondary-highlight-text-shadow: var(--theme-text-shadow);
 }
 
 .theme.odatix {
