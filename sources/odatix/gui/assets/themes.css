@@ -40,7 +40,8 @@
 .theme {
     /* theme */
     --theme-font-family: Nunito;
-    --theme-font-size: 16px;
+    --theme-large-font-size: 16px;
+    --theme-default-font-size: 14px;
     --theme-small-font-size: 11px;
     --theme-background-color: #f5f7fa;
     --theme-element-background-color: #fff; /* mainly cards and tiles background */
@@ -96,6 +97,7 @@
     --add-card-text-color: var(--card-text-color);
 
     /* buttons */
+    --button-font-size: var(--theme-default-font-size);
     --button-shadow-color: var(--theme-shadow-color);
     --button-box-shadow: var(--button-shadow-color) 0px 0px 8px 0px;
     --button-transition: 0.3s;
@@ -177,6 +179,7 @@
     --back-button-filter-hover: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
 
     /* dropdowns */
+    --dropdown-font-size: var(--theme-default-font-size);
     --dropdown-background: var(--theme-background-color);
     --dropdown-background-hover: var(--theme-action-color);
     --dropdown-border: var(--theme-border);
@@ -188,7 +191,7 @@
     --dropdown-menu-hover: var(--theme-action-color);
 
     /* inputs */
-    --input-font-size: var(--theme-small-font-size);
+    --input-font-size: var(--theme-default-font-size);
     --input-background: var(--theme-tertiary-color);
     --input-text-color: var(--theme-text-color);
     --input-border: var(--theme-border);
@@ -230,7 +233,7 @@
     --pre-text-shadow: none;
 
     /* tooltip */
-    --tooltip-font-size: var(--theme-font-size);
+    --tooltip-font-size: var(--theme-large-font-size);
     --tooltip-icon-color: var(--theme-primary-color);
     --tooltip-icon-filter: drop-shadow(0 0 2px var(--theme-shadow-color));
     --tooltip-text-shadow: var(--theme-contrast-text-shadow);
@@ -758,6 +761,10 @@
 }
 .theme.win95 .Select-input input {
     border: none !important;
+}
+
+.theme.hangover {
+
 }
 
 .theme.legacy {

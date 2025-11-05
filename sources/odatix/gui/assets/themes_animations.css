@@ -216,7 +216,6 @@
 
 .theme.hangover .card:hover,
 .theme.hangover .tile:hover {
-    box-shadow: 0 40px 30px -12px rgba(0,0,0,0.2);
     transform: translateZ(0) scale(1.02);
     /* animation-play-state: paused; */
 }
