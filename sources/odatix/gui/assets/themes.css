@@ -27,6 +27,16 @@
     font-style: normal;
 }
 
+@font-face {
+    font-family: 'W95';
+    src: local('W95'),
+        url('fonts/w95/w95font.woff2') format('woff2'),
+        url('fonts/w95/w95font.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 .theme {
     /* theme */
     --theme-font-family: Nunito;
@@ -651,37 +661,103 @@
     --back-button-color: var(--theme-disabled-color);
 }
 
-.theme.unicorn {
-    /* theme */
-    --theme-background-color: #ffe6ff;
-    --theme-element-background-color: #fcf;
-    --theme-dimmed-element-background-color: #fcf;
-    --theme-action-color: #eb87eb;
-    --theme-primary-color: #ff00ff;
-    --theme-secondary-color: #ff00ff;
-    --theme-tertiary-color: #ffdeff;
-    --theme-disabled-color: #d1d5da;
-    --theme-text-color: #330033;
-    --theme-text-shadow: 0 1px 2px #fff, 0 0 1px #000;
-    --theme-background: #ffdbfe;
-    --theme-border: none;
-    --theme-border-color: #d1d5da;
-    --theme-overlay-background-color: #924892aa;
-    --theme-large-border-radius: 50px;
-    --theme-small-border-radius: 20px;
+.theme.win95 {
+    /* win95 palette */
+    --win95-bg: #008080;
+    --win95-face: #c0c0c0;
+    --win95-blue: #0000a8;
+    --win95-highlight: #ffffff;
+    --win95-shadow: #808080;
 
-    /* navbar */
-    --navbar-background: #ffccff;
+    /* theme */
+    --theme-font-family: W95;
+    --theme-background-color: var(--win95-bg);
+    --theme-element-background-color: var(--win95-face);
+    --theme-dimmed-element-background-color: var(--win95-face);
+    --theme-action-color: var(--win95-face);
+    --theme-primary-color: var(--win95-blue);
+    --theme-secondary-color: var(--win95-blue);
+    --theme-tertiary-color: #d4d0c8;
+    --theme-disabled-color: #808080;
+    --theme-text-color: #000000;
+    --theme-text-shadow: none;
+    --theme-border-color: #000000;
+    --theme-overlay-background-color: #0000003d;
+    --theme-contrast-background-color: #000000;
+    --theme-large-border-radius: 0px;
+    --theme-normal-border-radius: 0px;
+    --theme-small-border-radius: 0px;
+    image-rendering: pixelated;
 
     /* cards and tiles */
-    --card-box-shadow: var(--theme-element-background-color) 0px 4px 15px 0px;
+    --card-box-shadow: none;
+    --card-hover-transform: none;
+    --card-hover-box-shadow: none;
 
     /* buttons */
-    --button-background: var(--theme-tertiary-color);
-}
+    --button-border-radius: 0px;
+    --default-button-background: var(--win95-face);
+    --primary-button-background: var(--win95-face);
+    --warning-button-animation: none;
+    --secondary-button-background: var(--win95-face);
+    --secondary-button-icon-color: var(--theme-secondary-color);
+    --secondary-button-text-color: var(--theme-text-color);
+    --warning-button-background: var(--win95-face);
+    --warning-button-icon-color: var(--theme-warning-color);
+    --warning-button-text-color: var(--theme-warning-color);
+    --warning-button-box-shadow: none;
+    --warning-button-box-shadow-hover: none;
+    --caution-button-background: var(--win95-face);
+    --caution-button-icon-color: var(--theme-caution-color);
+    --caution-button-text-color: var(--theme-caution-color);
 
-.theme.hangover {
-    /* Cards and tiles will gently move by CSS animations that simulate random motion. */
+    /* dropdowns */
+    --dropdown-background: var(--win95-face);
+    --dropdown-menu-background: var(--win95-face);
+
+    /* popups */
+    --overlay-backdrop-filter: none;
+    --overlay-transition: none;
+
+    /* tooltips */
+    --default-tooltip-background: var(--win95-face);
+    --default-tooltip-text-color: var(--theme-text-color);
+    --tooltip-text-shadow: none;
+
+    /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-color: var(--theme-warning-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+}
+.theme.win95 .card,
+.theme.win95 .tile,
+.theme.win95 .popup-odatix,
+.theme.win95 .Select-value,
+.theme.win95 .Select-arrow-zone,
+.theme.win95 .Select-menu,
+.theme.win95 .tooltip:after,
+.theme.win95 button {
+    border-top: 2px solid var(--win95-highlight) !important;
+    border-left: 2px solid var(--win95-highlight) !important;
+    border-bottom: 2px solid var(--win95-shadow) !important;
+    border-right: 2px solid var(--win95-shadow) !important;
+}
+.theme.win95 pre,
+.theme.win95 input,
+.theme.win95 textarea,
+.theme.win95 button:active {
+    border-top: 2px solid var(--win95-shadow) !important;
+    border-left: 2px solid var(--win95-shadow) !important;
+    border-bottom: 2px solid var(--win95-highlight) !important;
+    border-right: 2px solid var(--win95-highlight) !important;
+    transform: translateY(1px);
+}
+.theme.win95 .Select-arrow {
+    color: #000;
+}
+.theme.win95 .Select-input input {
+    border: none !important;
 }
 
 .theme.legacy {
