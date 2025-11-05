@@ -20,8 +20,16 @@
 *
 */
 
+@font-face {
+    font-family: 'Nunito';
+    src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 .theme {
     /* theme */
+    --theme-font-family: Nunito;
     --theme-background-color: #f5f7fa;
     --theme-element-background-color: #fff;
     --theme-dimmed-element-background-color: #fff0;
