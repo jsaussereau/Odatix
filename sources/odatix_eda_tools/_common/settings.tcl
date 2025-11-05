@@ -58,6 +58,7 @@ set architecture_file  $tmp_path/architecture.txt
 set constraints_file   $tmp_path/constraints.txt
 
 set utilization_rep    $report_path/utilization.rep
+set utilization_h_rep  $report_path/utilization_hier.rep
 set area_rep           $report_path/area.rep
 set timing_rep         $report_path/timing.rep
 set power_rep          $report_path/power.rep

@@ -172,6 +172,7 @@ if {[catch {
     ######################################
     if {[catch {
         report_utilization > $utilization_rep
+        report_utilization -hierarchical > $utilization_h_rep
         report_timing > $timing_rep
         report_power > $power_rep
     } errmsg]} {
