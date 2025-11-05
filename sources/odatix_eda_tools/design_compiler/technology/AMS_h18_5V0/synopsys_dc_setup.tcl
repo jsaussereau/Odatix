@@ -7,13 +7,13 @@
 #########
 ### retrieve AMS directory path and SYNOPSYS path from the environement variables
 #########
-set AMSDIR [get_unix_variable AMS_H18_2V2]
+set AMSDIR [get_unix_variable AMS_H18_5V0]
 set SYNDIR [get_unix_variable SYNOPSYS]
 
 #########
 ### set library paths
 #########
-set search_path	". $AMSDIR /opt/ams/synopsys/h18_2.2V /softs/kits/ams/AMS_411_CDS/synopsys/h18_2.2V/ $SYNDIR/libraries/syn $SYNDIR/dw/sim_ver ../rtl ./db ./"
+set search_path	". $AMSDIR /opt/ams/synopsys/h18_5.0V /softs/kits/ams/AMS_411_CDS/synopsys/h18_5.0V/ $SYNDIR/libraries/syn $SYNDIR/dw/sim_ver ../rtl ./db ./"
 # set symbol_library "h18_CORELIB.sdb"
 set target_library "h18_CORELIB_TYP.db"
 
