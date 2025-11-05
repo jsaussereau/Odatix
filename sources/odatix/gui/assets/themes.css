@@ -350,6 +350,110 @@
     --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
 }
 
+.theme.catpuccin {
+	--rosewater: #f5e0dc;
+	--flamingo: #f2cdcd;
+	--pink: #f5c2e7;
+	--mauve: #cba6f7;
+	--red: #f38ba8;
+	--maroon: #eba0ac;
+	--peach: #fab387;
+	--yellow: #f9e2af;
+	--green: #a6e3a1;
+	--teal: #94e2d5;
+	--sky: #89dceb;
+	--sapphire: #74c7ec;
+	--blue: #89b4fa;
+	--lavender: #b4befe;
+	--text: #cdd6f4;
+	--subtext1: #bac2de;
+	--subtext0: #a6adc8;
+	--overlay2: #9399b2;
+	--overlay1: #7f849c;
+	--overlay0: #6c7086;
+	--surface2: #585b70;
+	--surface1: #45475a;
+	--surface0: #313244;
+	--base: #1e1e2e;
+	--mantle: #181825;
+	--crust: #11111b;
+	--inverted-text: var(--crust);
+	--selection-color: var(--mauve);
+
+    /* theme */
+    --theme-background-color: var(--base);
+    --theme-element-background-color: var(--surface0);
+    --theme-action-color: var(--mauve);
+    --theme-primary-color: var(--mauve);
+    --theme-secondary-color: var(--blue);
+    --theme-tertiary-color: var(--surface1);
+    --theme-disabled-color: var(--surface0);
+    --theme-success-color: var(--green);
+    --theme-warning-color: var(--peach);
+    --theme-caution-color: var(--red);
+    --theme-text-color: var(--text);
+    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
+    --theme-border-color: var(--surface2);
+    --theme-overlay-background-color: #3132443d;
+    --theme-contrast-background-color: var(--crust);
+    --theme-contrast-text-color: var(--inverted-text);
+    --theme-large-border-radius: 12px;
+    --theme-normal-border-radius: 24px;
+    --theme-small-border-radius: 15px;
+
+    /* cards and tiles */
+    --card-box-shadow: none;
+
+    /* buttons */
+    --hover-percentage: 95%;
+    --default-button-icon-color: var(--theme-contrast-text-color);
+    --default-button-text-color: var(--theme-contrast-text-color);
+    --default-button-background: linear-gradient(120deg,var(--overlay1),var(--overlay2));
+    --default-button-border-hover: var(--theme-large-border-style) #fff0;
+    --default-button-icon-color-hover: var(--theme-contrast-text-color);
+    --default-button-text-color-hover: var(--theme-contrast-text-color);
+    --default-button-background-hover: linear-gradient(120deg,var(--overlay1) var(--hover-percentage),var(--overlay2));
+    --default-button-border: var(--theme-large-border-style) #fff0;
+    --primary-button-icon-color: var(--theme-contrast-text-color);
+    --primary-button-text-color: var(--theme-contrast-text-color);
+    --primary-button-background: linear-gradient(120deg,var(--blue),var(--sky));
+    --primary-button-border-hover: var(--theme-large-border-style) #fff0;
+    --primary-button-icon-color-hover: var(--theme-contrast-text-color);
+    --primary-button-text-color-hover: var(--theme-contrast-text-color);
+    --primary-button-background-hover: linear-gradient(120deg,var(--blue) var(--hover-percentage),var(--sky));
+    --primary-button-border: var(--theme-large-border-style) #fff0;
+    --secondary-button-icon-color: var(--theme-contrast-text-color);
+    --secondary-button-text-color: var(--theme-contrast-text-color);
+    --secondary-button-background: linear-gradient(120deg,var(--blue),var(--sky));
+    --secondary-button-border: var(--theme-large-border-style) #fff0;
+    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-background-hover: linear-gradient(120deg,var(--blue) var(--hover-percentage),var(--sky));
+    --secondary-button-border-hover: var(--theme-large-border-style) #fff0;
+    --warning-button-icon-color: var(--theme-contrast-text-color);
+    --warning-button-text-color: var(--theme-contrast-text-color);
+    --warning-button-background: linear-gradient(120deg,var(--peach),var(--yellow));
+    --warning-button-border: var(--theme-large-border-style) #fff0;
+    --warning-button-icon-color-hover: var(--theme-contrast-text-color);
+    --warning-button-text-color-hover: var(--theme-contrast-text-color);
+    --warning-button-background-hover: linear-gradient(120deg,var(--peach) var(--hover-percentage),var(--yellow));
+    --warning-button-border-hover: var(--theme-large-border-style) #fff0;
+    --caution-button-icon-color: var(--theme-contrast-text-color);
+    --caution-button-text-color: var(--theme-contrast-text-color);
+    --caution-button-background: linear-gradient(120deg,var(--red) var(--hover-percentage),var(--maroon));
+    --caution-button-border: var(--theme-large-border-style) #fff0;
+    --caution-button-icon-color-hover: var(--theme-contrast-text-color);
+    --caution-button-text-color-hover: var(--theme-contrast-text-color);
+    --caution-button-background-hover: linear-gradient(120deg,var(--red) var(--hover-percentage),var(--maroon));
+    --caution-button-border-hover: var(--theme-large-border-style) #fff0;
+    --back-button-color: var(--overlay0);
+
+    /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-color: var(--theme-secondary-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+}
 
 .theme.dracula {
     /* theme */
