@@ -83,6 +83,7 @@ def architecture_title(arch_name):
                                     value=f"{arch_name}",
                                     type="text",
                                     id="arch-title",
+                                    placeholder="Architecture Name...",
                                     className="title-input",
                                     style={"width": "100%"},
                                 )
@@ -324,6 +325,7 @@ def init_form(search, page, odatix_settings):
 
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
+    Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output(f"url_{page_path}", "search"),
     Output("architecture-saved-settings", "data"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
@@ -359,8 +361,6 @@ def save_and_status(
     if triggered_id == f"url_{page_path}" and page != page_path:
         return dash.no_update, dash.no_update, dash.no_update
 
-    arch_name = get_key_from_url(search, "arch")
-
     if saved_settings is None:
         settings = initial_settings
     else:
@@ -375,7 +375,7 @@ def save_and_status(
 
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
-
+    
     current_settings_subset = {
         "generate_rtl": True if generate_rtl else False,
         "design_path": design_path,
@@ -397,15 +397,23 @@ def save_and_status(
         } if custom_freq_list != "" else {},
     }
 
-    current_settings = workspace.update_raw_settings(
-        arch_path=arch_path,
-        arch_name=arch_name,
-        domain=hard_settings.main_parameter_domain,
-        settings_to_update=current_settings_subset
-    )
+    if arch_name:
+        current_settings = workspace.update_raw_settings(
+            arch_path=arch_path,
+            arch_name=arch_name,
+            domain=hard_settings.main_parameter_domain,
+            settings_to_update=current_settings_subset
+        )
+    else: 
+        current_settings = current_settings_subset
 
     if not arch_title:
-        return "color-button disabled icon-button error-status", dash.no_update, saved_settings
+        return "color-button error-status icon-button tooltip bottom", "Architecture name cannot be empty", dash.no_update, saved_settings
+    
+    for c in hard_settings.invalid_filename_characters:
+        if c in arch_title:
+            c = "' ' (space)" if c == " " else f"'{c}'"
+            return "color-button error-status icon-button tooltip bottom", f"Unauthorized character in architecture name: {c}", dash.no_update, saved_settings
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
         # Rename architecture if needed
@@ -413,12 +421,14 @@ def save_and_status(
         if arch_title != arch_name:
             old_name = arch_name
             new_name = arch_title
+            if workspace.architecture_exists(arch_path, new_name):
+                return "color-button error-status icon-button tooltip bottom", f"'{new_name}' already exists", dash.no_update, dash.no_update
             try:
                 workspace.rename_architecture(arch_path, old_name, new_name)
                 arch_name = new_name
                 new_search = f"?arch={new_name}"
             except Exception as e:
-                return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
+                return "color-button error-status icon-button tooltip bottom", "Failed renaming architecture", dash.no_update, dash.no_update
         
         # Create architecture if it does not exist yet
         if not workspace.architecture_exists(arch_path, arch_name):
@@ -427,14 +437,14 @@ def save_and_status(
         # Save settings
         try:
             workspace.save_architecture_settings(arch_path, arch_name, current_settings)
-            return "color-button disabled icon-button", new_search, current_settings
+            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", new_search, current_settings
         except Exception as e:
-            return "color-button disabled icon-button error-status", dash.no_update, dash.no_update
+            return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update
     else:
         if current_settings_subset != settings or arch_title != arch_name:
-            return "color-button warning icon-button tooltip delay bottom small", dash.no_update, dash.no_update
+            return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update, dash.no_update
 
-    return "color-button disabled icon-button", dash.no_update, saved_settings
+    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, saved_settings
 
 @dash.callback(
     Output("generate-settings", "className"),

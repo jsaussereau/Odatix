@@ -126,7 +126,7 @@ def config_parameters_form(settings):
                     id="generator-name",
                     value=defval("name", ""),
                     type="text",
-                    style={"width": "100%", "fontSize": "1em", "fontFamily": "monospace", "fontWeight": "500"}
+                    style={"width": "100%", "fontFamily": "monospace", "fontWeight": "500"}
                 ),
             ], style={"marginBottom": "12px"}),
             html.Div([
@@ -136,7 +136,7 @@ def config_parameters_form(settings):
                     id="generator-template",
                     value=defval("template", ""),
                     className="auto-resize-textarea",
-                    style={"width": "100%", "resize": "none", "fontSize": "1em", "fontFamily": "monospace", "fontWeight": "500"},
+                    style={"width": "100%", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
                 ),
             ], style={"marginBottom": "12px"}),
             dcc.Store(id="generator-initial-settings", data=settings),
@@ -282,7 +282,7 @@ def variable_card(
             html.Div([
                 ui.duplicate_button(id={"type": "duplicate-var", "name": name}),
                 ui.delete_button(id={"type": "delete-var", "name": name}),
-            ]),
+            ], style={"display": "flex", "flexDirection": "hotizontal", "alignItems": "center"}),
         ], style={
             "marginTop": "8px",
             "display": "flex",

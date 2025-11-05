@@ -67,3 +67,5 @@ max_preview_values = 500
 main_parameter_domain = "__main__"
 
 default_supported_tools = ["vivado", "design_compiler", "openlane"]
+
+invalid_filename_characters = ['<', '>', ':', '"', '/', '\\', '|', '?', '*', ' ']

@@ -119,7 +119,6 @@ def config_card(domain_uuid, filename, content, initial_content, config_layout="
                 "height": "none" if config_layout != "compact" else "45px",
                 "fieldSizing": "border-box",
                 "fontFamily": "monospace",
-                "fontSize": "0.9em",
                 "fontWeight": "normal",
             },
         ),
@@ -133,12 +132,12 @@ def config_card(domain_uuid, filename, content, initial_content, config_layout="
                     width="78px",
                     id={"type": "save-config", "domain_uuid": domain_uuid, "filename": filename},
                 ),], style={"marginLeft": "5px"}),
-                html.Div(status_text, id={"type": "save-status", "domain_uuid": domain_uuid, "filename": filename}, className=status_class, style={"marginLeft": "0px", "textwrap": "wrap", "width": "70px", "font-size": "13px", "font-weight": "515"}),
+                html.Div(status_text, id={"type": "save-status", "domain_uuid": domain_uuid, "filename": filename}, className=status_class, style={"marginLeft": "0px", "textwrap": "wrap", "width": "70px", "font-weight": "515"}),
             ], style={"display": "flex", "alignItems": "center"}),
             html.Div([
                 ui.duplicate_button(id={"type": "duplicate-config", "domain_uuid": domain_uuid, "filename": filename}),
                 ui.delete_button(id={"type": "delete-config", "domain_uuid": domain_uuid, "filename": filename}),
-            ]),
+            ], style={"display": "flex", "alignItems": "center", "marginLeft": "0px"}, className="inline-flex-buttons"),
         ], style={
             "marginTop": "8px",
             "display": "flex",
@@ -309,6 +308,7 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
                     value=domain_name,
                     type="text",
                     id={"type": "domain-title-input", "domain_uuid": domain_uuid},
+                    placeholder="Parameter domain name...",
                     className="title-input domain",
                     style={
                         "marginBottom": "0",
@@ -507,7 +507,6 @@ def preview_pane(domain_uuid:str, settings: dict, domain_settings: dict, replace
                 "height": "235px",
                 "min-height": "235px",
                 "fontFamily": "monospace",
-                "fontSize": "0.9em",
                 "fontWeight": "normal",
                 "padding": "5px",
                 "overflow": "auto",
@@ -924,8 +923,7 @@ def update_preview_all(search, config_cards_rows, params_enables, target_files, 
 
 @dash.callback(
     Output({"type": "save-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "className"),
-    Output({"type": "save-status", "domain_uuid": dash.ALL, "filename": dash.ALL}, "className"),
-    Output({"type": "save-status", "domain_uuid": dash.ALL, "filename": dash.ALL}, "children"),
+    Output({"type": "save-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "data-tooltip"),
     Input("param-domains-section", "children"),
     Input({"type": "config-title", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
     Input({"type": "config-content", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
@@ -935,18 +933,29 @@ def update_preview_all(search, config_cards_rows, params_enables, target_files, 
 )
 def update_save_status(param_domains_section, title_values, content_values, initial_titles, initial_contents, save_config):
     save_classes = []
-    status_classes = []
-    status_texts = []
+    tooltip_texts = []
     for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
+        if not title:
+            save_classes.append("color-button error-status icon-button tooltip delay bottom small")
+            tooltip_texts.append("Configuration name cannot be empty")
+            continue
+        invalid_char_found = False
+        for c in hard_settings.invalid_filename_characters:
+            if c in title:
+                c = "' ' (space)" if c == " " else f"'{c}'"
+                save_classes.append("color-button error-status icon-button tooltip delay bottom small")
+                tooltip_texts.append(f"Unauthorized character in configuration name: {c}")
+                invalid_char_found = True
+                break
+        if invalid_char_found:
+            continue
         if title != initial_title or content != initial_content:
-            save_classes.append("color-button warning icon-button")
-            status_classes.append("status warning")
-            status_texts.append("Unsaved changes!")
+            save_classes.append("color-button warning icon-button tooltip delay bottom small")
+            tooltip_texts.append("Unsaved changes!")
         else:
-            save_classes.append("color-button disabled icon-button")
-            status_classes.append("status")
-            status_texts.append("")
-    return save_classes, status_classes, status_texts
+            save_classes.append("color-button disabled icon-button tooltip delay bottom small")
+            tooltip_texts.append("Nothing to save")
+    return save_classes, tooltip_texts
 
 @dash.callback(
     Output({"type": "save-params-btn", "domain_uuid": dash.ALL}, "className"),
@@ -1075,6 +1084,7 @@ def update_architecture_title(search):
 
 @dash.callback(
     Output({"type": "save-domain-title", "domain_uuid": dash.ALL}, "className"),
+    Output({"type": "save-domain-title", "domain_uuid": dash.ALL}, "data-tooltip"),
     Output({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     Output({"type": "generate-config", "domain_uuid": dash.ALL, "is_link": True}, "href"),
     Input({"type": "save-domain-title", "domain_uuid": dash.ALL}, "n_clicks"),
@@ -1085,11 +1095,13 @@ def update_architecture_title(search):
 )
 def update_params_title_save_button(_, title_input, domain_metadata, search, odatix_settings):
     save_classes = []
-    disabled_class = "color-button invisible icon-button"
-    enabled_class = "color-button warning icon-button"
-    error_class = "color-button disabled icon-button error-status"
+    tooltips = []
     new_metadata = []
     new_hrefs = []
+
+    disabled_class = "color-button invisible icon-button tooltip delay bottom small"
+    enabled_class = "color-button warning icon-button tooltip bottom small"
+    error_class = "color-button disabled icon-button error-status tooltip bottom small"
 
     triggered_id = ctx.triggered_id if isinstance(ctx.triggered_id, dict) else {}
     triggered_type = triggered_id.get("type", "")
@@ -1113,6 +1125,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
 
                 domain_name = new_domain_name
                 save_classes.append(disabled_class)
+                tooltips.append("Nothing to save")
                 metadata["domain_name"] = new_domain_name
                 new_metadata.append(metadata)
                 new_link = generate_config_link(arch_name, new_domain_name)
@@ -1121,19 +1134,36 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                 new_metadata.append(dash.no_update)
                 new_hrefs.append(dash.no_update)
                 save_classes.append(dash.no_update)
+                tooltips.append(dash.no_update)
 
         # No save button clicked, just check for changes
         else:
             new_metadata.append(dash.no_update)
             new_hrefs.append(dash.no_update)
             if new_domain_name != domain_name:
-                if new_domain_name == "" or " " in new_domain_name or workspace.parameter_domain_exists(arch_path, arch_name, new_domain_name):
+                invalid_char_found = False
+                for c in hard_settings.invalid_filename_characters:
+                    if c in new_domain_name:
+                        c = "' ' (space)" if c == " " else f"'{c}'"
+                        invalid_char_found = True
+                        save_classes.append(error_class)
+                        tooltips.append(f"Unauthorized character in parameter domain name: {c}")
+                        break
+                if invalid_char_found:  
+                    continue
+                if new_domain_name == "" or " " in new_domain_name:
                     save_classes.append(error_class)
+                    tooltips.append("Parameter domain name cannot be empty")
+                elif workspace.parameter_domain_exists(arch_path, arch_name, new_domain_name):
+                    save_classes.append(error_class)
+                    tooltips.append(f"Parameter domain '{new_domain_name}' already exists for this architecture")
                 else:
                     save_classes.append(enabled_class)
+                    tooltips.append("Save new parameter domain name")
             else:
                 save_classes.append(disabled_class)
-    return save_classes, new_metadata, new_hrefs
+                tooltips.append("Nothing to save")
+    return save_classes, tooltips, new_metadata, new_hrefs
 
 
 ######################################
