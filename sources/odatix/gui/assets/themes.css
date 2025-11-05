@@ -277,85 +277,7 @@
 }
 
 .theme.odatix {
-    /* buttons */
-    /* --secondary-button-background: #fff0;
-    --secondary-button-border: var(--theme-large-border-style) var(--theme-secondary-color);
-    --secondary-button-icon-color: var(--theme-secondary-color);
-    --secondary-button-text-color: var(--theme-secondary-color);
-    --secondary-button-background-hover: var(--theme-secondary-color);
-    --secondary-button-border-hover: var(--theme-large-border-style) #fff0;
-    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
-    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
-    --caution-button-background-hover: var(--theme-caution-color);
-    --caution-button-border-hover: var(--theme-large-border-style) var(--theme-caution-color);
-    --caution-button-icon-color-hover: var(--theme-contrast-text-color);
-    --caution-button-text-color-hover: var(--theme-contrast-text-color);
-    --caution-button-background: #fff0;
-    --caution-button-border: var(--theme-large-border-style) var(--theme-caution-color);
-    --caution-button-icon-color: var(--theme-caution-color);
-    --caution-button-text-color: var(--theme-caution-color); */
-}
-
-.theme.dracula {
-    /* theme */
-    --theme-background-color: #272935;
-    --theme-element-background-color: #34384c;
-    --theme-action-color: #ff79c6;
-    --theme-primary-color: #ff79c6;
-    --theme-secondary-color: #404f6d;
-    --theme-tertiary-color: #6272a4;
-    --theme-warning-color: var(--theme-primary-color);
-    --theme-caution-color: #d2504d;
-    --theme-disabled-color: #34384cac;
-    --theme-disabled-background-color: #6272a44f;
-    --theme-text-color: #f8f8f2;
-    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
-    --theme-border-color: #4d516a;
-    --theme-overlay-background-color: #282a363d;
-    --theme-contrast-background-color: #23232c;
-
-    /* cards and tiles */
-    --card-box-shadow: rgba(11, 11, 15, 0.27) 0px 4px 24px 0px;
-
-    /* highlights */
-    --primary-highlight-text-color: var(--theme-contrast-text-color);
-
-    /* buttons */
-    --back-button-color: #6272a4aa;
-    --secondary-button-border-hover: var(--theme-large-border-style) var(--theme-contrast-text-color);
-    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
-    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
-}
-
-.theme.code_dark {
-    /* theme */
-    --theme-background-color: #181818;
-    --theme-element-background-color: #252526;
-    --theme-action-color: #0078d4;
-    --theme-primary-color: #0078d4;
-    --theme-secondary-color: #0078d4;
-    --theme-tertiary-color: #313131;
-    --theme-disabled-color: #515760;
-    --theme-success-color: #73c991;
-    --theme-warning-color: #cca700;
-    --theme-caution-color: #f88070;
-    --theme-text-color: #ffffff;
-    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
-    --theme-border: initial;
-    --theme-border-color: #d1d5da;
-    --theme-small-border-radius: 3px;
-    --theme-normal-border-radius: 3px;
-    --theme-large-border-radius: 3px;
-    --theme-overlay-background-color: #3131313d;
-
-    /* navbar */
-    --navbar-background: #1f1f1f;
-
-    /* buttons */
-    --button-border: 0.5px solid #3c3c3c;
-
-    /* cards and tiles */
-    --card-box-shadow: initial;
+    /* default theme */
 }
 
 .theme.odatix_dark {
@@ -378,7 +300,13 @@
     --card-box-shadow: rgba(11, 11, 15, 0.27) 0px 4px 24px 0px;
 
     /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
     --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-color: var(--theme-warning-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+
+    /* buttons */
+    --back-button-color: var(--theme-disabled-color);
 }
 
 .theme.odatix_darker {
@@ -404,6 +332,112 @@
 
     /* buttons */
     --button-background: var(--theme-tertiary-color);
+    --back-button-color: var(--theme-disabled-color);
+
+    /* inputs */
+    --title-input-border: var(--theme-border-style) #ffffff00;
+    --title-input-border-hover: var(--theme-border-style) var(--theme-border-color);
+    --title-input-border-focus: var(--theme-border-style) #ffffff00;
+
+
+    /* tooltips */
+    --tooltip-text-shadow: none;
+
+    /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-color: var(--theme-warning-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+}
+
+
+.theme.dracula {
+    /* theme */
+    --theme-background-color: #272935;
+    --theme-element-background-color: #34384c;
+    --theme-action-color: #ff79c6;
+    --theme-primary-color: #ff79c6;
+    --theme-secondary-color: #404f6d;
+    --theme-tertiary-color: #40455e;
+    --theme-warning-color: var(--theme-primary-color);
+    --theme-caution-color: #d2504d;
+    --theme-disabled-color: #34384cac;
+    --theme-disabled-background-color: #6272a44f;
+    --theme-text-color: #f8f8f2;
+    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
+    --theme-border-color: #4d516a;
+    --theme-overlay-background-color: #282a363d;
+    --theme-contrast-background-color: #23232c;
+
+    /* cards and tiles */
+    --card-box-shadow: rgba(11, 11, 15, 0.27) 0px 4px 24px 0px;
+
+    /* highlights */
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --primary-highlight-color: #E5D776;
+    --secondary-highlight-color: #5ab8ff;
+
+    /* buttons */
+    --secondary-button-border-hover: var(--theme-large-border-style) var(--theme-contrast-text-color);
+    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
+    --back-button-color: #6272a4aa;
+
+    /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+}
+
+.theme.code_dark {
+    /* theme */
+    --theme-background-color: #181818;
+    --theme-element-background-color: #252526;
+    --theme-action-color: #0078d4;
+    --theme-primary-color: #0078d4;
+    --theme-secondary-color: #0078d4;
+    --theme-tertiary-color: #313131;
+    --theme-disabled-color: #515760;
+    --theme-success-color: #73c991;
+    --theme-warning-color: #cca700;
+    --theme-caution-color: #f88070;
+    --theme-text-color: #ffffff;
+    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
+    --theme-border: none;
+    --theme-border-style: 0.5px solid;
+    --theme-large-border-style: 0.5px solid;
+    --theme-border-color: #d1d5da;
+    --theme-small-border-radius: 3px;
+    --theme-normal-border-radius: 3px;
+    --theme-large-border-radius: 3px;
+    --theme-overlay-background-color: #3131313d;
+
+    /* navbar */
+    --navbar-background: #1f1f1f;
+
+    /* cards and tiles */
+    --card-box-shadow: initial;
+
+    /* buttons */
+    --button-border: 0.5px solid var(--theme-disabled-color);
+    --default-button-icon-color: var(--theme-text-color);
+    --default-button-text-color: var(--theme-text-color);
+    --default-button-background: var(--theme-tertiary-color);
+    --default-button-border: var(--button-border);
+    --default-button-border-hover: 0.5px solid var(--theme-text-color);
+    --back-button-color: var(--theme-disabled-color);
+
+    /* inputs */
+    --title-input-border: var(--theme-border-style) #ffffff00;
+    --title-input-border-hover: var(--theme-border-style) var(--theme-disabled-color);
+    --title-input-border-focus: var(--theme-border-style) #ffffff00;
+
+    /* tooltips */
+    --default-tooltip-background: var(--theme-tertiary-color);
+
+    /* highlights */
+    --primary-highlight-text-color: var(--theme-background-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
 }
 
 .theme.rainbow {
@@ -411,7 +445,8 @@
     --theme-element-background-color: #FFFFFF5E;
     --theme-dimmed-element-background-color: #ffffff0d;
     --theme-tertiary-color: #FFFFFF61;
-    --theme-disabled-color: #d1d5da;
+    --theme-disabled-color: #65718259;
+    --theme-border-color: #bac2ce59;
     --background-rainbow-intensity: 0.5;
     --theme-background: linear-gradient(
         90deg,
@@ -429,42 +464,59 @@
     );
     --theme-large-border-radius: 50px;
     --theme-small-border-radius: 20px;
-}
-
-.theme.candy {
-    /* theme */
-    --theme-background-color: #DFA2FC;
-    --theme-element-background-color: #FFFFFF5E;
-    --theme-dimmed-element-background-color: #ffffff0d;
-    --theme-action-color: #0078d4;
-    --theme-primary-color: #0078d4;
-    --theme-secondary-color: #0078d4;
-    --theme-tertiary-color: #FFFFFF61;
-    --theme-disabled-color: #d1d5da;
-    --theme-text-shadow: 0 1px 2px #fddffbf8, 0 0 1px #000;
-    --theme-background: linear-gradient(249deg,rgb(217, 111, 255) 0%, rgb(148, 187, 233) 100%);
-    --theme-border: initial;
-    --theme-large-border-radius: 50px;
-    --theme-small-border-radius: 20px;
-
-    /* navbar */
-    --navbar-background: linear-gradient(249deg,rgb(205, 91, 247) 0%, rgb(108, 159, 219) 100%);
-
-    /* cards and tiles */
-    --card-box-shadow: rgba(11, 11, 15, 0.27) 0px 4px 24px 0px;
-    --card-backdrop-filter: blur(15px);
 
     /* buttons */
-    --button-background: var(--theme-tertiary-color);
+    --default-button-icon-color: var(--theme-text-color);
+    --default-button-text-color: var(--theme-text-color);
+    --default-button-background: var(--theme-tertiary-color);
+    --back-button-color: #fdfdfdc4;
+}
 
-    /* dropdowns */
-    --dropdown-label-margin: 15px;
+.theme.galaxy {
+    /* theme */
+    --theme-background-color: #0b0716;
+    --theme-element-background-color: rgba(255, 255, 255, 0.1);
+    --theme-dimmed-element-background-color: rgba(255,255,255,0.02);
+    --theme-action-color: #7A5CFF;
+    --theme-primary-color: #7A5CFF;
+    --theme-secondary-color: #7A5CFF;
+    --theme-tertiary-color: #dbd7ea24;
+    --theme-disabled-color: #ddccf652;
+    --theme-success-color: #32d5a1;
+    --theme-warning-color: #ffb86b;
+    --theme-caution-color: #ff5c5c;
+    --theme-text-color: #f8f3ff;
+    --theme-text-shadow: 0 1px 3px rgba(0,0,0,0.7), 0 0 8px rgba(255,110,199,0.08);
+    --theme-border-color: rgba(255,255,255,0.06);
+    --theme-overlay-background-color: rgba(10,6,24,0.75);
+    --theme-contrast-background-color: #0b0720;
+
+    /* borders & radii */
+    --theme-border: 1px solid rgba(255,255,255,0.04);
+    --theme-large-border-radius: 20px;
+    --theme-normal-border-radius: 12px;
+    --theme-small-border-radius: 8px;
+
+    /* background */
+    --theme-background: linear-gradient(135deg, #12002b 0%, #2b0057 50%, #531f62 100%) no-repeat fixed;
+    /* --theme-background: url("nightsky.svg") no-repeat fixed center / cover; */
+
+    /* buttons */
+    --default-button-icon-color: var(--theme-contrast-text-color);
+    --default-button-text-color: var(--theme-contrast-text-color);
+    --default-button-background: var(--theme-tertiary-color);
+    --back-button-color: var(--theme-disabled-color);
 
     /* popups */
-    --popup-backdrop-filter: blur(15px);
-    --overlay-background: #00000045;
+    --popup-backdrop-filter: blur(24px);
+    --popup-background: rgba(181, 153, 191, 0.44);
     --overlay-backdrop-filter: none;
-    --overlay-transition: none;
+    --overlay-background: rgba(10, 6, 24, 0.40);
+
+    /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-color: var(--theme-warning-color);
 }
 
 .theme.midnight {
@@ -492,6 +544,7 @@
 
     /* buttons */
     --button-background: var(--theme-tertiary-color);
+    --back-button-color: var(--theme-disabled-color);
 }
 
 .theme.unicorn {
@@ -529,11 +582,14 @@
 
 .theme.legacy {
     /* theme */
-    --theme-disabled-color: #d1d5da;
+    --theme-font-family: Arial;
+    --theme-large-border-radius: 10px;
+    --theme-normal-border-radius: 10px;
+    --theme-small-border-radius: 10px;
+    --theme-disabled-color: #ddd;
 
     /* cards and tiles */
     --card-border: 1px solid #ddd;
     --card-box-shadow: 0px 13px 10px -7px rgba(0, 0, 0, 0.1);
     --card-border-hover: 1px solid #ddd;
-    --card-border-radius: 10px;
 }
