@@ -57,7 +57,7 @@ max_find_port_attempts = 50
 def add_arguments(parser):
   parser.add_argument('-i', '--input', type=str, default='results', help='Directory of the result YAML files')
   parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
-  parser.add_argument('--normal_term_mode', action='store_true', help='Do not change terminal mode')
+  parser.add_argument('-N', '--normal_term_mode', action='store_true', help='Do not change terminal mode')
   parser.add_argument('--safe_mode', action='store_true', help='Do not exit on internal error')
   parser.add_argument('-B', '--nobrowser', action='store_true', help='Do not open browser')
   parser.add_argument('-T', '--theme', default=None, help='Use a specific theme')
