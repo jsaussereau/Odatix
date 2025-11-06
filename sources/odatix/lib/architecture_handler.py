@@ -1011,6 +1011,9 @@ class ArchitectureHandler:
                         param_domain = re.sub(r'/\*', '', requested_param_domain)
                         # get parameter domain dir
                         arch_param = os.path.join(arch_path, arch_param_dir)
+                        if not os.path.isdir(arch_param):
+                            printc.error(f"The architecture directory \"{arch_param}\" does not exist", script_name)
+                            continue
                         param_domain_dir = os.path.join(arch_param, param_domain)  
                         # check if parameter domain dir exists
                         if os.path.isdir(param_domain_dir):
