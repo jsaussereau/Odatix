@@ -38,7 +38,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
         multiline (bool, optional): If True, adjust vertical alignment for multiline text. Defaults to False.
     """ 
     if text:
-        style = style | {"min-width": width}
+        style = {**style, "min-width": width}
     content = html.Button(
         html.Div(
             children=[
@@ -60,7 +60,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
         ),
         id=id if id else "",
         n_clicks=0,
-        className=f"color-button {color} icon-button {f" tooltip {tooltip_options}" if tooltip else ""}",
+        className=f"color-button {color} icon-button {f' tooltip {tooltip_options}' if tooltip else ''}",
         style=style,
         **{'data-tooltip': tooltip},
     )

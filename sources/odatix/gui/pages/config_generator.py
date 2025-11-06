@@ -22,7 +22,7 @@
 import os
 import dash
 from dash import html, dcc, Input, Output, State, ctx
-from typing import Optional, Literal
+from typing import Optional#, Literal
 
 import odatix.gui.navigation as navigation
 import odatix.gui.ui_components as ui
@@ -148,7 +148,8 @@ def config_parameters_form(settings):
 
 def variable_field(
     var: str,
-    type: Literal['text', 'number', 'password', 'email', 'range', 'search', 'tel', 'url', 'hidden'] = "text",
+    # type: Literal['text', 'number', 'password', 'email', 'range', 'search', 'tel', 'url', 'hidden'] = "text",
+    type = "text",
     name: str = "",
     label: Optional[str] = None,
     options: Optional[list] = None,

@@ -23,7 +23,7 @@ import os
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 import shutil
-from typing import Literal, Optional
+from typing import Optional#, Literal
 
 import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
@@ -112,15 +112,14 @@ def architecture_title(arch_name):
     )
 
 def architecture_form_field(
-    label:str,
-    id:str,
-    value:str="",
-    tooltip:str="",
-    placeholder:str="",
-    tooltip_options:str="secondary",
-    type:Optional[
-        Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]
-    ] = None,
+    label: str,
+    id: str,
+    value: str="",
+    tooltip: str="",
+    placeholder: str="",
+    tooltip_options: str="secondary",
+    # type: Optional[Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]] = None,
+    type = None,
 ):
     return html.Div(
         children=[
