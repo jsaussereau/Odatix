@@ -112,7 +112,7 @@ def save_button(id, text="Save All", disabled=False, tooltip:str="Save all chang
 
     return icon_button(
         icon=icon("save", className="icon", id=icon_id),
-        color="warning",
+        color="disabled" if disabled else "warning",
         text=text, 
         tooltip=tooltip,
         tooltip_options="bottom auto caution",
