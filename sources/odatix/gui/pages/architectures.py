@@ -114,7 +114,7 @@ def add_card(text: str, card_type: str = "arch"):
             ),
             id=btn_id,
             n_clicks=0,
-            style={"text-decoration": "none", "color": "var(--add-card-text-color)"},
+            style={"textDecoration": "none", "color": "var(--add-card-text-color)"},
         ),
         className="card add hover",
         style={

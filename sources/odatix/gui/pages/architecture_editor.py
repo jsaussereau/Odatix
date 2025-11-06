@@ -85,7 +85,7 @@ def architecture_title(arch_name):
                                     id="arch-title",
                                     placeholder="Architecture Name...",
                                     className="title-input",
-                                    style={"width": "100%"},
+                                    style={"width": "100%", "transform": "translate(-5px, 5px)"},
                                 )
                             ],
                             id="arch-title-container",

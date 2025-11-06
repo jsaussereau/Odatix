@@ -48,9 +48,9 @@ layout = html.Div(
     id="p404-container",
     style={
         "width": "100%", 
-        "min-height": f"calc(100vh - {navigation.top_bar_height})",
+        "minHeight": f"calc(100vh - {navigation.top_bar_height})",
         "display": "flex",  
-        "flex-direction": "column",
-        "align-items": "center",
+        "flexDirection": "column",
+        "alignItems": "center",
     },
 )

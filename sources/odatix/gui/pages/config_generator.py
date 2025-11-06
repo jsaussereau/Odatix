@@ -177,7 +177,7 @@ def variable_field(
                             "marginBottom": "5px",
                             "fontSize": "0.9em",
                             "height": "10px",
-                            "z-index": "900",
+                            "zIndex": "900",
                         },
                     ) if options is None else dcc.Dropdown(
                         id={"type": f"variable-field-{name}", "name": var},
@@ -186,7 +186,7 @@ def variable_field(
                         clearable=False,
                         style={
                             "fontSize": "0.95em",
-                            "z-index": "900",
+                            "zIndex": "900",
                         },
                     ),
                 ], 
@@ -321,7 +321,7 @@ def add_card(text: str = "Add new variable"):
             ),
             id="new-variable",
             n_clicks=0,
-            style={"text-decoration": "none", "height": "100%"},
+            style={"textDecoration": "none", "height": "100%"},
         ),
         className=f"card configs add hover",
         id="add-config-card",
@@ -907,6 +907,7 @@ def update_save_button(
     return button_disabled, dash.no_update
 
 @dash.callback(
+    Output(f"{page_path}-dummy1", "data"), # For older versions of Dash that do not support no_output
     Input({"action": "clean-all"}, "n_clicks"),
     State("url", "search"),
     State("odatix-settings", "data"),
@@ -921,6 +922,8 @@ def clean_all_configs(n_clicks, search, odatix_settings):
     trigger_id = ctx.triggered_id
     if trigger_id == {"action": "clean-all"} and n_clicks:
         workspace.delete_all_config_files(arch_path, arch_name, domain)
+    
+    return dash.no_update
 
 @dash.callback(
     Output("config-gen-back-button", "href"),
@@ -1007,6 +1010,7 @@ layout = html.Div(
             ),
         ]),
         dcc.Store(id={"type": "update_url", "id": page_path}),
+        dcc.Store(id=f"{page_path}-dummy1"),
     ],
     className="page-content",
     style={

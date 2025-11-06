@@ -55,7 +55,7 @@ def top_bar(gui):
                         className="mask"
                     )
                 ],
-                style={"position": "block", "margin-left": "30px", "left": "75px", "z-index": "2", "transition": "margin-left 0.25s"},
+                style={"position": "block", "marginLeft": "30px", "left": "75px", "zIndex": "2", "transition": "marginLeft 0.25s"},
             ),
             html.Div([
                 html.Div(
@@ -74,7 +74,7 @@ def top_bar(gui):
                             value=gui.start_theme,
                             className="theme-dropdown",
                             clearable=False,
-                            style={"width": "150px", "margin-right": "20px", "marginTop": "3px"},
+                            style={"width": "150px", "marginRight": "20px", "marginTop": "3px"},
                         )
                     ],
                     className="tooltip delay bottom auto",
@@ -82,7 +82,7 @@ def top_bar(gui):
                 ),
             ],
             id="nav-right",
-            style={"display": "flex", "position": "absolute", "right": "0", "alignItems": "center", "justifyContent": "right", "z-index": "1000"},)
+            style={"display": "flex", "position": "absolute", "right": "0", "alignItems": "center", "justifyContent": "right", "zIndex": "1000"},)
         ],
         style={"height": f"{top_bar_height}"},
         className="navbar",
@@ -111,7 +111,7 @@ def side_bar(gui):
                     "top": "10px",
                     "left": "20px",
                     "width": "30px",
-                    "z-index": "3",
+                    "zIndex": "3",
                 },
             ),
         ]

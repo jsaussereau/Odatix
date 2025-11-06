@@ -54,7 +54,7 @@ def create_button(page):
         ],
         className="card home hover",
         href=page["link"],
-        style={"text-decoration": "none"},
+        style={"textDecoration": "none"},
     )
 
 padding = 20
@@ -66,35 +66,41 @@ padding = 20
 
 cards = [
     {
-        "name": "Architectures and Simulations",
+        "name": "Architectures",
         "link": "/architectures",
         "image": "assets/icons/architecture.png",
-        "description": "Configure your architectures and simulations",
+        "description": "Configure your architectures",
     },
-    {
-        "name": "Run jobs",
-        "link": "/run",
-        "image": "assets/icons/run.png",
-        "description": "Run synthesis and simulation",
-    },
-    {
-        "name": "Export Results",
-        "link": "/export",
-        "image": "assets/icons/export.png",
-        "description": "Export results from synthesis and simulation",
-    },
-    {
-        "name": "Explore Results",
-        "link": "/explorer",
-        "image": "assets/icons/explorer.png",
-        "description": "Explore results in an interactive interface",
-    },
-    {
-        "name": "EDA Tools",
-        "link": "/tools",
-        "image": "assets/icons/tools.png",
-        "description": "EDA tools options and metrics definition",
-    },
+    # {
+    #     "name": "Architectures and Simulations",
+    #     "link": "/architectures",
+    #     "image": "assets/icons/architecture.png",
+    #     "description": "Configure your architectures and simulations",
+    # },
+    # {
+    #     "name": "Run jobs",
+    #     "link": "/run",
+    #     "image": "assets/icons/run.png",
+    #     "description": "Run synthesis and simulation",
+    # },
+    # {
+    #     "name": "Export Results",
+    #     "link": "/export",
+    #     "image": "assets/icons/export.png",
+    #     "description": "Export results from synthesis and simulation",
+    # },
+    # {
+    #     "name": "Explore Results",
+    #     "link": "/explorer",
+    #     "image": "assets/icons/explorer.png",
+    #     "description": "Explore results in an interactive interface",
+    # },
+    # {
+    #     "name": "EDA Tools",
+    #     "link": "/tools",
+    #     "image": "assets/icons/tools.png",
+    #     "description": "EDA tools options and metrics definition",
+    # },
     {
         "name": "Workspace Settings",
         "link": "/workspace",
@@ -111,41 +117,41 @@ layout = html.Div(
                     [create_button(card) for card in cards],
                     style={
                         "display": "flex",
-                        "flex-wrap": "wrap",
-                        "justify-content": "center",
+                        "flexWrap": "wrap",
+                        "justifyContent": "center",
                         "gap": "20px",
-                        "padding-left": "50px",
-                        "padding-right": "50px",
+                        "paddingLeft": "50px",
+                        "paddingRight": "50px",
                     },
                 ),
             ],
             id=f"{__name__}-content",
             style={
                 "display": "flex",
-                "justify-content": "center",
-                "align-items": "center",
-                "padding-top": f"{padding}px",
-                "padding-bottom": f"{padding}px",
+                "justifyContent": "center",
+                "alignItems": "center",
+                "paddingTop": f"{padding}px",
+                "paddingBottom": f"{padding}px",
             },
         ),
         html.H4(
             "Icons designed by Freepik from Flaticon",
             style={
-                "text-align": "center",
+                "textAlign": "center",
                 "color": "#aaa",
-                "margin-top": "20px",
-                "font-size": "12px",
-                "font-weight": "normal",
+                "marginTop": "20px",
+                "fontSize": "12px",
+                "fontWeight": "normal",
             }
         ),
     ], 
     className="page-content",
     style={
         "width": "100%", 
-        "min-height": f"calc(100vh - {navigation.top_bar_height})",
+        "minHeight": f"calc(100vh - {navigation.top_bar_height})",
         "display": "flex",  
-        "flex-direction": "column",
-        "justify-content": "center",
-        "align-items": "center",
+        "flexDirection": "column",
+        "justifyContent": "center",
+        "alignItems": "center",
     }
 )
