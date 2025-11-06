@@ -19,13 +19,16 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
 import re
 
 default_theme = "odatix"
+_regex_theme = r"\.theme\.(\S+)\s*{"
 
 # Fetch themes from the CSS file
-_css_file = "sources/odatix/gui/assets/themes.css"
-_regex_theme = r"\.theme\.(\S+)\s*{"
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_css_file = os.path.join(_current_dir, "assets", "themes.css")
+
 with open(_css_file, "r") as f:
     _content = f.read()
     _available_theme = re.findall(_regex_theme, _content)
