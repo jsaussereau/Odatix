@@ -78,7 +78,7 @@ def top_bar(gui):
                         )
                     ],
                     className="tooltip delay bottom auto",
-                    **{'data-tooltip': "Select Theme"},
+                    **{"data-tooltip": "Select Theme"},
                 ),
             ],
             id="nav-right",

@@ -218,7 +218,7 @@ input {
     box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04);
 }
 
-pre{
+pre {
     font-family: var(--theme-font-family), Arial;
     font-size: var(--pre-font-size);  
     background: var(--pre-background);
@@ -350,21 +350,20 @@ textarea {
     margin-left: 15px;
 }
 
-#p404 {
+.tile.center {
     margin: 25px;
     max-width: fit-content; 
     margin-inline: auto;
-    border-radius: 20px;
     font-weight: bold;
     justify-content: center;
     align-items: center;
     text-align: center;
 }
-#p404-h1 {
+.tile.center h1 {
     font-size: 100px; 
     margin: 10px;
 }
-#p404-h2 {
+.tile.center h2 {
     font-size: 40px; 
     margin: 20px;
 }

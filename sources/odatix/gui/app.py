@@ -39,9 +39,9 @@ class OdatixApp:
     def __init__(self,  old_settings=None, safe_mode=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=themes.default_theme):
         
         # Get settings
-        self.odatix_settings = OdatixSettings(config_file)
+        self.odatix_settings = OdatixSettings(config_file, silent=True)
         if not self.odatix_settings.valid:
-            sys.exit(-1)
+            pass
 
         if theme is None:
             self.start_theme = themes.default_theme
@@ -85,8 +85,9 @@ class OdatixApp:
             children=[
                 navigation.top_bar(self),
                 navigation.side_bar(self),
+                dcc.Location(id="url-global"),  
                 dcc.Store(id="previous-url", data=""),
-                dcc.Store(id="odatix-settings", data=self.odatix_settings.to_dict()),
+                dcc.Store(id="odatix-settings", data=self.odatix_settings.to_dict() if self.odatix_settings.valid else {}),
                 html.Div(
                     [dash.page_container],
                     id="content",
