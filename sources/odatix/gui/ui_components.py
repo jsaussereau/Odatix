@@ -216,5 +216,37 @@ def tooltip_icon(tooltip: str="", tooltip_options: str="secondary") -> Component
         ],
         className="tooltip " + tooltip_options,
         style={"display": "inline-block", "transform": "translate(15px, 2px)", "verticalAlign": "middle"},
-        **{'data-tooltip': tooltip},
+        **{"data-tooltip": tooltip},
     )
+
+def create_card_button(page: dict) -> Component:
+    options = {
+        "className": "card home hover",
+        "style": {"textDecoration": "none"},
+        "children": [
+            html.Img(
+                src=page["image"],
+                className="card-img",
+                style={"height": "125px"}
+            ),
+            html.Div(
+                page["name"],
+                className="card-title",
+            ),
+            html.Div(
+                page["description"],
+                className="card-description",
+            ),
+        ],
+    }
+    if "id" in page:
+        options["id"] = page["id"]
+    if "link" in page:
+        options["href"] = page["link"]
+        return dcc.Link(
+            **options
+        )
+    else:
+        return html.Div(
+            **options
+        )
