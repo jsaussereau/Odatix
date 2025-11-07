@@ -60,6 +60,8 @@
     --theme-error-color: var(--theme-caution-color);
     --theme-shadow-color: rgba(29, 37, 79, 0.1);
     --theme-text-color: #24292e;
+    --theme-subtle-text-color: #cbcfd4;
+    --theme-subtle-text-font-size: var(--theme-small-font-size);
     --theme-disabled-text-color: var(--theme-disabled-color);
     --theme-contrast-background-color: #24292e;
     --theme-contrast-text-color: #fff;

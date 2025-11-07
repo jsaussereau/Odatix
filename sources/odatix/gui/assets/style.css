@@ -38,6 +38,11 @@ html, body {
     font-size: var(--theme-font-size);
 }
 
+.subtle-text {
+    color: var(--theme-subtle-text-color);
+    font-size: var(--theme-subtle-text-font-size);
+}
+
 .navbar {
     background: var(--navbar-background);
     backdrop-filter: blur(10px);
