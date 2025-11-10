@@ -119,15 +119,17 @@ class OdatixSettings:
                 printc.note("Run Odatix with the '--init' flag to generate it alongside other necessary config files", script_name=script_name)
             self.valid = False
 
-    def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
+    @staticmethod
+    def get_settings_file_dict(settings_filename=DEFAULT_SETTINGS_FILE, silent=False, verbose=False):
         """
-        Read and parse the settings file for Odatix configurations.
+        Static method to load Odatix settings from a file.
 
         Args:
-            settings_filename (str): Path to the settings file.
-
+            settings_filename (str): Name of the settings file to load.
+            silent (bool): If True, suppresses warning messages.
+            verbose (bool): If True, enables verbose output.
         Returns:
-            bool: True if the settings were successfully loaded, False otherwise.
+            dict | None: Dictionary of settings if successful, None otherwise.
         """
         if not os.path.isfile(settings_filename):
             printc.note("Odatix settings file \"" + settings_filename + "\" does not exist.", script_name=script_name)
@@ -140,9 +142,26 @@ class OdatixSettings:
                     printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
                     printc.cyan("error details: ", end="", script_name=script_name)
                     print(str(e))
-                    self.valid = False
-                    return False
-            
+                    return None
+        return settings_data
+
+    def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
+        """
+        Read and parse the settings file for Odatix configurations.
+
+        Args:
+            settings_filename (str): Path to the settings file.
+
+        Returns:
+            bool: True if the settings were successfully loaded, False otherwise.
+        """
+        silent = not self.verbose
+
+        settings_data = OdatixSettings.get_settings_file_dict(settings_filename, silent=silent)
+        if settings_data is None:
+            self.valid = False
+            return False
+
         # Retrieve values from the settings file
         self.work_path, _ = get_from_dict("work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORK_PATH, silent=silent, script_name=script_name)
         self.simulation_work_path, _ = get_from_dict("simulation_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_WORK_PATH, silent=silent, script_name=script_name)
