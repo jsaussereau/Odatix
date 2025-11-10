@@ -28,7 +28,6 @@ dash.register_page(
     name='PageNotFound'
 )
 
-
 ######################################
 # Layout
 ######################################
@@ -37,11 +36,10 @@ layout = html.Div(
     children=[
         html.Div(
             children=[
-                html.H1("404", id="p404-h1"),
-                html.H2("Oops, page not found!", id="p404-h2")
+                html.H1("404"),
+                html.H2("Oops, page not found!")
             ],
-            id="p404",
-            className="tile"
+            className="tile center"
         ),
     ],
     className="page-content",
