@@ -191,6 +191,19 @@ _icons = {
         id=id,
         style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
     ),
+    "reset": lambda color, width, height, className, id: Svg(
+        children=[
+            Path(d='M960 0v213.333c411.627 0 746.667 334.934 746.667 746.667S1371.627 1706.667 960 1706.667 213.333 1371.733 213.333 960c0-197.013 78.4-382.507 213.334-520.747v254.08H640V106.667H53.333V320h191.04C88.64 494.08 0 720.96 0 960c0 529.28 430.613 960 960 960s960-430.72 960-960S1489.387 0 960 0')
+        ],  
+        fill=color,
+        version='1.1', 
+        viewBox='0 0 1920 1920',
+        width=width, 
+        height=height, 
+        className=className, 
+        id=id,
+        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
+    ),
 }
 
 def icon(name: str, color: str = "#fff", width: str = "24px", height: str = "24px", className: str = "", id: Union[str, dict]="") -> Svg:
