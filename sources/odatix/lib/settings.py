@@ -312,21 +312,26 @@ class OdatixSettings:
         Returns a dictionary representation of the current settings.
         """
         return {
-            "work_path": self.work_path,
-            "simulation_work_path": self.simulation_work_path,
-            "fmax_synthesis_work_path": self.fmax_synthesis_work_path,
-            "custom_freq_synthesis_work_path": self.custom_freq_synthesis_work_path,
-            "result_path": self.result_path,
+            # Main paths
             "arch_path": self.arch_path,
             "sim_path": self.sim_path,
             "target_path": self.target_path,
-            "use_benchmark": self.use_benchmark,
-            "benchmark_file": self.benchmark_file,
+
+            # Settings files
             "clean_settings_file": self.clean_settings_file,
             "simulation_settings_file": self.simulation_settings_file,
             "fmax_synthesis_settings_file": self.fmax_synthesis_settings_file,
             "custom_freq_synthesis_settings_file": self.custom_freq_synthesis_settings_file,
-            "result_types": self.result_types,
-            "valid": self.valid,
-            "settings_file_exists": self.settings_file_exists,
+
+            # Work directories
+            "work_path": self.work_path,
+            "simulation_work_path": self.simulation_work_path,
+            "fmax_synthesis_work_path": self.fmax_synthesis_work_path,
+            "custom_freq_synthesis_work_path": self.custom_freq_synthesis_work_path,
+
+            # Results   
+            "result_path": self.result_path,
+            "use_benchmark": self.use_benchmark,
+            "benchmark_file": self.benchmark_file,
         }
+
