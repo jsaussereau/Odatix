@@ -215,7 +215,7 @@ def redirect_to_new_workspace(search, odatix_settings):
         return home_layout
 
 @dash.callback(
-    Output("odatix-settings", "data"),
+    Output("odatix-settings", "data", allow_duplicate=True),
     Input("create-empty-workspace", "n_clicks"),
     Input("create-workspace-with-examples", "n_clicks"),
     prevent_initial_call=True,

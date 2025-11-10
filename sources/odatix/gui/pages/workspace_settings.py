@@ -73,7 +73,7 @@ def workspace_form(settings):
         children=[
             html.Div(style={"display": "none"}),
             html.Div([
-                html.H3("Main paths"),
+                html.H3("Main Paths"),
                 workspace_form_field(
                     label="Architecture directory",
                     id="arch_path",
@@ -97,7 +97,7 @@ def workspace_form(settings):
                 ),
             ], className="tile config"),
             html.Div([
-                html.H3("Settings files"),
+                html.H3("Settings Files"),
                 workspace_form_field(
                     label="Clean settings",
                     id="clean_settings_file",
@@ -128,7 +128,7 @@ def workspace_form(settings):
                 ),
             ], className="tile config"),
             html.Div([
-                html.H3("Work directory"),
+                html.H3("Work Directory"),
                 workspace_form_field(
                     label="Main work path",
                     id="work_path",
@@ -170,6 +170,10 @@ def workspace_form(settings):
                 html.Div(
                     children=[
                         html.Label("Use benchmark results"),
+                        ui.tooltip_icon(
+                            "Include benchmark results in synthesis results.",
+                            "secondary"
+                        ),
                         dcc.Dropdown(
                             id="use_benchmark",
                             placeholder= f"{"Yes" if OdatixSettings.DEFAULT_USE_BENCHMARK else "No"}",
@@ -224,7 +228,7 @@ def init_form(search, page):
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
-    Output("workspace-saved-settings", "data"),
+    Output("odatix-settings", "data", allow_duplicate=True),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("arch_path", "value"),
     Input("sim_path", "value"),
@@ -240,21 +244,16 @@ def init_form(search, page):
     Input("result_path", "value"),
     Input("use_benchmark", "value"),
     Input("benchmark_file", "value"),
-    State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
-    State("workspace-initial-settings", "data"),
-    State("workspace-saved-settings", "data"),
-    State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
 def save_and_status(
-    n_clicks, arch_path, sim_path, target_path,
+    save_n_clicks, arch_path, sim_path, target_path,
     clean_settings_file, simulation_settings_file, fmax_synthesis_settings_file,
     custom_freq_synthesis_settings_file, work_path, simulation_work_path,
     fmax_synthesis_work_path, custom_freq_synthesis_work_path, result_path,
     use_benchmark, benchmark_file,
-    search, page, initial_settings, saved_settings,
-    odatix_settings,
+    page
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
@@ -283,6 +282,7 @@ def save_and_status(
         # Save settings
         try:
             OdatixSettings.save_dict_to_file(current_settings)
+            current_settings = OdatixSettings().to_dict()
             return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", current_settings
         except Exception as e:
             return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update,
@@ -292,7 +292,45 @@ def save_and_status(
         if current_settings_subset != settings:
             return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update
 
-    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", saved_settings
+    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update
+
+
+@dash.callback(
+    Output("arch_path", "value"),
+    Output("sim_path", "value"),
+    Output("target_path", "value"),
+    Output("clean_settings_file", "value"),
+    Output("simulation_settings_file", "value"),
+    Output("fmax_synthesis_settings_file", "value"),
+    Output("custom_freq_synthesis_settings_file", "value"),
+    Output("work_path", "value"),
+    Output("simulation_work_path", "value"),
+    Output("fmax_synthesis_work_path", "value"),
+    Output("custom_freq_synthesis_work_path", "value"),
+    Output("result_path", "value"),
+    Output("use_benchmark", "value"),
+    Output("benchmark_file", "value"),
+    Input({"page": page_path, "action": "reset-defaults"}, "n_clicks"),
+    State(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+    State("workspace-initial-settings", "data"),
+    State("workspace-saved-settings", "data"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def save_and_status(
+     reset_n_clicks,
+    search, page, initial_settings, saved_settings,
+    odatix_settings,
+):
+    triggered_id = ctx.triggered_id
+    if triggered_id == f"url_{page_path}" and page != page_path:
+        return [dash.no_update] * 14
+    
+    if triggered_id == {"page": page_path, "action": "reset-defaults"}:
+        # Reset to defaults
+        return [""] * 14
+    return [dash.no_update] * 14
 
 @dash.callback(
     Output("benchmark-file-container", "className"),
@@ -310,10 +348,8 @@ title_buttons = html.Div(
         ui.icon_button(
             id={"page": page_path, "action": "reset-defaults"},
             icon=icon("reset", className="icon"),
-            text="Reset to Defaults",
-            multiline=True,
             tooltip="Restore default workspace settings",
-            tooltip_options="bottom delay",
+            tooltip_options="bottom",
             color="caution",
         ),
         ui.save_button(
@@ -329,7 +365,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(
-            ui.title_tile(text="Workspace settings", buttons=title_buttons, tooltip="Leave blank to use default values"), 
+            ui.title_tile(text="Workspace Settings", buttons=title_buttons, tooltip="Leave blank to use default values"), 
             id={"page": page_path, "type": "workspace-title-div"}, 
             style={"marginTop": "20px", "marginLeft": "-13px", "marginBottom": "10px"}
         ),
