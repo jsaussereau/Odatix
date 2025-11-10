@@ -372,3 +372,20 @@ class OdatixSettings:
             "benchmark_file": self.benchmark_file,
         }
 
+    @staticmethod
+    def from_dict(settings_dict):
+        """
+        Create an OdatixSettings object from a dictionary.
+
+        Args:
+            settings_dict (dict): Dictionary containing settings.
+        Returns:
+            OdatixSettings: The created settings object.
+        """
+        settings = OdatixSettings()
+        for key, value in settings_dict.items():
+            try:
+                setattr(settings, key, value)
+            except Exception as e:
+                printc.warning(f"Key '{key}' is not a valid attribute of OdatixSettings: {str(e)}. Skipping key.", script_name=script_name)
+        return settings
