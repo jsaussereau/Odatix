@@ -1,28 +1,7 @@
-
 ##############################################
 # Odatix Workspace Settings
 ##############################################
----
 
-# Configuration
-arch_path: odatix_userconfig/architectures
-sim_path: odatix_userconfig/simulations
-target_path: odatix_userconfig
+# Default workspace settings can be overridden here.
 
-clean_settings_file: odatix_userconfig/clean.yml
-simulation_settings_file: odatix_userconfig/simulations_settings.yml
-fmax_synthesis_settings_file: odatix_userconfig/fmax_synthesis_settings.yml
-custom_freq_synthesis_settings_file: odatix_userconfig/custom_freq_synthesis_settings.yml
-
-# Work
-work_path: work
-simulation_work_path: simulations # Relative to work_path
-fmax_synthesis_work_path: fmax_synthesis # Relative to work_path
-custom_freq_synthesis_work_path: custom_freq_synthesis # Relative to work_path
-
-# Results
-result_path: results
-use_benchmark: False
-benchmark_file: results/benchmark.yml
-
-...
+workspace: odatix
