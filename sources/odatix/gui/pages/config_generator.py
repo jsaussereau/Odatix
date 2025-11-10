@@ -951,19 +951,17 @@ variable_title_tile_buttons = html.Div(
 preview_title_tile_buttons = html.Div(
     children=[
         ui.icon_button(
+            icon=icon("clean", className="icon red"),
+            color="caution",
+            id={"action": "clean-all"},
+            tooltip="Delete all existing configuration files in this parameter domain",
+        ),
+        ui.icon_button(
             icon=icon("generate", className="icon blue"),
             color="secondary",
             text="Generate", 
             id={"action": "generate-all"},
             tooltip="Generate all previewed configurations",
-        ),
-        ui.icon_button(
-            icon=icon("clean", className="icon red"),
-            color="caution",
-            text="Clean Existing", 
-            multiline=True,
-            id={"action": "clean-all"},
-            tooltip="Delete all existing configuration files in this parameter domain",
         ),
     ],
     className="inline-flex-buttons",

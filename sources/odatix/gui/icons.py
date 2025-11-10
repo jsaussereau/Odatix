@@ -133,7 +133,7 @@ _icons = {
         height=height, 
         className=className, 
         id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-5px"},
+        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-6px"},
     ),
     
     "gear": lambda color, width, height, className, id: Svg(
