@@ -19,10 +19,8 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-import os
 import dash
 from dash import html, dcc, Input, Output, State, ctx
-import shutil
 from typing import Optional#, Literal
 
 import odatix.components.workspace as workspace
@@ -32,7 +30,6 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
-from odatix.gui.css_helper import Style
 
 page_path = "/arch_editor"
 
@@ -190,15 +187,20 @@ def architecture_form(settings):
                             value=defval("generate_output", ""),
                             tooltip="Path to the generated RTL files relative to the design path.",
                         ),
-                        ui.icon_button(
-                            icon=icon(
-                                "more",
-                                className="icon normal rotate" + (" rotated" if expand_design_path_filters else ""),
-                                id="more-fields-design-path-filters-toggle-icon"
-                            ),
-                            color="default",
-                            id="more-fields-design-path-filters-toggle",
-                            tooltip="Show/Hide whitelist and blacklist fields",
+                        html.Div(
+                            children=[
+                                ui.icon_button(
+                                    icon=icon(
+                                        "more",
+                                        className="icon normal rotate" + (" rotated" if expand_design_path_filters else ""),
+                                        id="more-fields-design-path-filters-toggle-icon"
+                                    ),
+                                    color="default",
+                                    id="more-fields-design-path-filters-toggle",
+                                    tooltip="Show/Hide whitelist and blacklist fields",
+                                ),
+                            ],
+                            style={"marginTop": "20px"},
                         ),
                     ],
                     id="generate-settings",
