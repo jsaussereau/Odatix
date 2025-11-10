@@ -72,7 +72,7 @@ def parse_arguments():
 # Message of the day
 ######################################
 
-def motd():
+def motd(check_updates=True):
   """Displays the message of the day (MOTD)."""
   try:
     print()
@@ -93,7 +93,8 @@ def motd():
     print(r" ######  | \####### | \####### |  \####  | ## | ##  /\##\ ", end='\r\n')
     print(r" \______/   \_______|  \_______|   \____/  \__| \__/  \__|", end='\r\n')
     print()
-  check_for_update()
+  if check_updates:
+    check_for_update()
 
 def full_header(description=True):
   """Displays the full header, including MOTD, version, and copyright."""
@@ -132,7 +133,7 @@ def check_for_update():
   installed_version = read_version()
   try:
     # Get last version code from PyPI
-    response = requests.get("https://pypi.org/pypi/odatix/json", timeout=2)
+    response = requests.get("https://pypi.org/pypi/odatix/json", timeout=0.5)
     response.raise_for_status()
     latest_version = response.json()["info"]["version"]
 
