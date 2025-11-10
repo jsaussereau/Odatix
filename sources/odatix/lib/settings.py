@@ -145,6 +145,43 @@ class OdatixSettings:
                     return None
         return settings_data
 
+    @staticmethod
+    def get_settings_template_dict(settings_filename=DEFAULT_SETTINGS_FILE, silent=False, verbose=False, settings=None):
+        """
+        Static method to get a template dictionary for Odatix settings.
+
+        Returns:
+            dict: Template dictionary with default settings.
+        """
+        if settings is None:
+            settings = OdatixSettings.get_settings_file_dict(settings_filename, silent=silent, verbose=verbose)
+            if settings is None:
+                settings = {}
+        settings_template = {
+            # Main paths
+            "arch_path": settings.get('arch_path', ""),
+            "sim_path": settings.get('sim_path', ""),
+            "target_path": settings.get('target_path', ""),
+
+            # Settings files
+            "clean_settings_file": settings.get('clean_settings_file', ""),
+            "simulation_settings_file": settings.get('simulation_settings_file', ""),
+            "fmax_synthesis_settings_file": settings.get('fmax_synthesis_settings_file', ""),
+            "custom_freq_synthesis_settings_file": settings.get('custom_freq_synthesis_settings_file', ""),
+
+            # Work directories
+            "work_path": settings.get('work_path', ""),
+            "simulation_work_path": settings.get('simulation_work_path', ""),
+            "fmax_synthesis_work_path": settings.get('fmax_synthesis_work_path', ""),
+            "custom_freq_synthesis_work_path": settings.get('custom_freq_synthesis_work_path', ""),
+            
+            # Results
+            "result_path": settings.get('result_path', ""),
+            "use_benchmark": settings.get('use_benchmark', ""),
+            "benchmark_file": settings.get('benchmark_file', ""),
+        }
+        return settings_template
+
     def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
         """
         Read and parse the settings file for Odatix configurations.
