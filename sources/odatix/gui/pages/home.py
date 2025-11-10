@@ -240,8 +240,6 @@ layout = html.Div(
     children=[
         dcc.Location(id="url", refresh=False),
         html.Div(id="home-page-content"),
-        dcc.Store(id=f"{page_path}-dummy1"),
-        dcc.Store(id=f"{page_path}-dummy2"),
     ],
     id="home-page",
     className="page-content",
