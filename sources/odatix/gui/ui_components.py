@@ -243,9 +243,15 @@ def create_card_button(page: dict) -> Component:
         options["id"] = page["id"]
     if "link" in page:
         options["href"] = page["link"]
-        return dcc.Link(
-            **options
-        )
+        if page["link"].startswith("/"):
+            return dcc.Link(
+                **options
+            )
+        else:
+            options["target"] = "_blank"
+            return html.A(
+                **options
+            )
     else:
         return html.Div(
             **options
