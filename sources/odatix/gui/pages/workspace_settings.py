@@ -318,7 +318,7 @@ def save_and_status(
     State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
-def save_and_status(
+def reset_to_defaults(
      reset_n_clicks,
     search, page, initial_settings, saved_settings,
     odatix_settings,
