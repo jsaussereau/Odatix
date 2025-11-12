@@ -1029,7 +1029,7 @@ def save_config_parameters(
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):        
-        trig_domain_uuid = triggered.get("domain", hard_settings.main_parameter_domain)
+        trig_domain_uuid = triggered.get("domain_uuid", hard_settings.main_parameter_domain)
         trig_domain_name = trig_domain_uuid
         
         # Get domain from metadata
