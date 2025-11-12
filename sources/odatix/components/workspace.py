@@ -336,6 +336,15 @@ def parameter_domain_exists(arch_path, arch_name, domain=hard_settings.main_para
     path = get_arch_domain_path(arch_path, arch_name, domain)
     return os.path.isdir(path)
 
+def check_parameter_domain_use_parameters(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> bool:
+    """
+    Check if a specific parameter domain uses parameters.
+    """
+    settings = load_architecture_settings(arch_path, arch_name, domain)
+    if not settings:
+        return False
+    return settings.get('use_parameters', True)
+
 #######################################
 # Parameter Domain Settings
 #######################################
