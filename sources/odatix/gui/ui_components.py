@@ -19,7 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-from typing import Optional
+from typing import Optional, Union
 from dash_svg import Svg
 from dash import html, dcc
 from dash.development.base_component import Component
@@ -120,11 +120,23 @@ def save_button(id, text="Save All", disabled=False, tooltip:str="Save all chang
     )
 
 
-def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div(), back_button_link:Optional[str]=None, back_button_id:Optional[str]=None, tooltip:str=""):
+def title_tile(text:str="", id:Union[str, dict]="main-title", buttons:html.Div=html.Div(), back_button_link:Optional[str]=None, back_button_id:Optional[str]=None, tooltip:str="", switch:Optional[bool]=None, style={}):
+    if isinstance(id, dict):
+        checklist_id = id.copy()
+        checklist_id.update({"is_switch": True})
+    else:
+        checklist_id = id + "-switch"
     title_content = html.Div(
         children=[
             html.Div(
                 children=[
+                    dcc.Checklist(
+                        options=[{"label": "", "value": True}],
+                        value=[True] if switch else [],
+                        id=checklist_id,
+                        className="checklist-switch",
+                        style={"display": "inline-block", "transform": "translate(-7px, -17px)"},
+                    ) if switch is not None else html.Div(),
                     html.H3(text, id=id, style={"marginBottom": "0px", "display": "inline-block"}),
                     tooltip_icon(tooltip) if tooltip else html.Div(style={"display": "none"}),
                 ],
@@ -141,6 +153,7 @@ def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div(), ba
             "justifyContent": "space-between",
         }
     )
+    style = {**style, "position": "relative"}
     return html.Div(
         html.Div(
             children=[
@@ -148,7 +161,7 @@ def title_tile(text:str="", id:str="main-title", buttons:html.Div=html.Div(), ba
                 title_content
             ],
             className="tile title",
-            style={"position": "relative"},
+            style=style,
         ),
         className="card-matrix config",
         style={"marginTop": "10px", "marginBottom": "0px"},
