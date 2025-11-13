@@ -25,6 +25,7 @@ import yaml
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from datetime import datetime
+from itertools import product
 
 import odatix.components.motd as motd
 import odatix.lib.hard_settings as hard_settings
@@ -481,6 +482,28 @@ def delete_all_config_files(arch_path, arch_name, domain=hard_settings.main_para
         if f.endswith(".txt"):
             os.remove(os.path.join(path, f))
 
+def generate_config_combinations(domains_configs, arch_name) -> list:
+    if domains_configs == {}:
+        return []
+
+    domain_names = list(domains_configs.keys())
+    config_lists = [domains_configs[d] for d in domain_names]
+
+    combinations = []
+    for combo in product(*config_lists):
+        replaced_parts = []
+        for domain, cfg in zip(domain_names, combo):
+            display_domain = arch_name if domain == hard_settings.main_parameter_domain else domain
+            replaced_parts.append(f"{display_domain}/{cfg}")
+
+        if domain_names and domain_names[0] != hard_settings.main_parameter_domain:
+            combination = [arch_name] + replaced_parts
+        else:
+            combination = replaced_parts
+
+        combinations.append(combination)
+
+    return combinations
 
 #######################################
 # Configuration Generation
