@@ -43,6 +43,7 @@ else:
 
 from odatix.components.motd import read_version
 
+from odatix.lib.curses_helper import enable_selection, disable_selection
 from odatix.lib.ansi_to_curses import AnsiToCursesConverter
 from odatix.lib.job_output_formatter import JobOutputFormatter
 from odatix.lib.utils import open_path_in_explorer
@@ -399,6 +400,8 @@ class ParallelJobHandler:
     self.previous_log_size = 0
     self.max_title_length = max(len(job.display_name) for job in job_list)
 
+    self.selection_enabled = False
+
     self.converter = AnsiToCursesConverter()
     if format_yaml is not None:
       self.formatter = JobOutputFormatter(format_yaml)
@@ -653,6 +656,7 @@ class ParallelJobHandler:
     help_text = [
       ("q", "Quit"),
       ("h", "Help Menu"),
+      ("c", "Cursor Mode"),
     ]
 
     bottom_bar.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
@@ -928,8 +932,8 @@ class ParallelJobHandler:
   def curses_main(self, stdscr):
     curses.curs_set(0)  # Hide cursor
 
-    # Enable mouse
-    curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
+    # Enable mouse actions (disable selection)
+    disable_selection()
 
     curses.start_color()
     curses.use_default_colors()
@@ -1263,6 +1267,15 @@ class ParallelJobHandler:
           elif self.job_index_start < self.job_index_end - 1:
             self.job_index_start += 1
             resize = True
+
+        # Enable/disable mouse actions/selection
+        elif key == ord("c") or key == ord("C"):
+          if self.selection_enabled:
+            disable_selection()
+            self.selection_enabled = False
+          else:
+            enable_selection()
+            self.selection_enabled = True
 
         # Kill the selected job
         elif key == ord('k') or key == ord('K'):
