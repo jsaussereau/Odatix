@@ -27,8 +27,6 @@ if {[catch {
 
     define_design_lib $lib_name -path $work_path
 
-    puts "$signature <cyan>note: you can safely ignore the error message (UID-4) below.<end>"
-
     if {[catch {
         source scripts/synopsys_dc_setup.tcl
     } errmsg]} {
@@ -49,61 +47,62 @@ if {[catch {
 
     # read verilog source files
     set verilog_filenames [get_files_recursive $rtl_path {*.v}]
-    puts "$signature <cyan>Verilog/SystemVerilog files:<end>"
-    foreach file $verilog_filenames {
-        puts "  - $file"
-    }
-    catch {analyze -library $lib_name -f verilog $verilog_filenames} errmsg
-    if {[
-        catch {analyze -library $lib_name -f verilog $verilog_filenames} errmsg
-    ]} {
-        if {$verilog_filenames == ""} {
-            puts "$signature <cyan>note: no verilog file in source directory<end>"
-        } else {
-            puts "$signature <bold><red>error: failed reading verilog source files<end>"
-            puts "$signature tool says -> $errmsg"
+    if {[llength $verilog_filenames] == 0} {
+        puts "$signature <cyan>note: no Verilog file in source directory<end>"
+    } else {
+        puts "$signature <cyan>Verilog files:<end>"
+        foreach file $verilog_filenames {
+            puts "  <cyan>- $file<end>"
         }
-        set verilog_error 1
+        catch {analyze -library $lib_name -f verilog $verilog_filenames} errmsg
+        if {[
+            catch {analyze -library $lib_name -f verilog $verilog_filenames} errmsg
+        ]} {
+            puts "$signature <bold><red>error: failed reading Verilog source files<end>"
+            puts "$signature tool says -> $errmsg"
+            set verilog_error 1
+        }
     }
 
     # read systemverilog source files
     set sverilog_filenames [get_files_recursive $rtl_path {*.sv}]
-    puts "$signature <cyan>Verilog/SystemVerilog files:<end>"
-    foreach file $sverilog_filenames {
-        puts "  - $file"
-    }
-    catch {analyze -library $lib_name -f sverilog $sverilog_filenames} errmsg
-    if {[
-        catch {analyze -library $lib_name -f sverilog $sverilog_filenames} errmsg
-    ]} {
-        if {$sverilog_filenames == ""} {
-            puts "$signature <cyan>note: no systemverilog file in source directory<end>"
-        } else {
-            puts "$signature <bold><red>error: failed reading systemverilog source files<end>"
-            puts "$signature tool says -> $errmsg"
+    puts "length sv files: [llength $sverilog_filenames]"
+    if {[llength $sverilog_filenames] == 0} {
+        puts "$signature <cyan>note: no SystemVerilog file in source directory<end>"
+    } else {
+        puts "$signature <cyan>SystemVerilog files:<end>"
+        foreach file $sverilog_filenames {
+            puts "  <cyan>- $file<end>"
         }
-        set verilog_error 1
+        catch {analyze -library $lib_name -f sverilog $sverilog_filenames} errmsg
+        if {[
+            catch {analyze -library $lib_name -f sverilog $sverilog_filenames} errmsg
+        ]} {
+            puts "$signature <bold><red>error: failed reading SystemVerilog source files<end>"
+            puts "$signature tool says -> $errmsg"
+            set sverilog_error 1
+        }
     }
 
     # read vhdl source files
     set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
-    puts "$signature <cyan>VHDL files:<end>"
-    foreach file $vhdl_filenames {
-        puts "  - $file"
-    }
-    catch {analyze -library $lib_name -f vhdl  $vhdl_filenames} errmsg
-    if {[
-        catch {analyze -library $lib_name -f vhdl  $vhdl_filenames} errmsg
-    ]} {
-        if {$vhdl_filenames == ""} {
-            puts "$signature <cyan>note: no vhdl file in source directory<end>"
-        } else {
-            puts "$signature <bold><red>error: failed reading vhdl source files<end>"
-            puts "$signature tool says -> $errmsg"
+    if {[llength $vhdl_filenames] == 0} {
+        puts "$signature <cyan>note: no VHDL file in source directory<end>"
+    } else {
+        puts "$signature <cyan>VHDL files:<end>"
+        foreach file $vhdl_filenames {
+            puts "  <cyan>- $file<end>"
         }
-        if {$verilog_error == 1 && $sverilog_error == 1} {
-            puts "$signature <red>error: failed reading both verilog and vhdl source files, exiting"
-            exit -1
+        catch {analyze -library $lib_name -f vhdl  $vhdl_filenames} errmsg
+        if {[
+            catch {analyze -library $lib_name -f vhdl  $vhdl_filenames} errmsg
+        ]} {
+            puts "$signature <bold><red>error: failed reading VHDL source files<end>"
+            puts "$signature tool says -> $errmsg"
+            if {$verilog_error == 1 && $sverilog_error == 1} {
+                puts "$signature <red>error: failed reading both Verilog/SystemVerilog and VHDL source files, exiting"
+                exit -1
+            }
         }
     }
 

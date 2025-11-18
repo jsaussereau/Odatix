@@ -97,12 +97,21 @@ proc report_progress {progress progressfile {comment ""}} {
 
 proc get_files_recursive {path patterns} {
     set file_list {}
-    foreach pattern $patterns {
-        set files [glob -nocomplain -directory $path -types f $pattern]
-        lappend file_list {*}$files
-    }
-    foreach subdir [glob -nocomplain -directory $path -types d *] {
-        lappend file_list {*}[get_files_recursive $subdir $patterns]
+    if {![file isdirectory $path]} {return $file_list}
+    set queue [list $path]
+    while {[llength $queue]} {
+        set dir [lindex $queue 0]
+        set queue [lrange $queue 1 end]
+        foreach pattern $patterns {
+            foreach f [glob -nocomplain -directory $dir -types f $pattern] {
+                lappend file_list $f
+            }
+        }
+        foreach sub [glob -nocomplain -directory $dir -types d *] {
+            set tail [file tail $sub]
+            if {$tail eq "." || $tail eq ".."} {continue}
+            lappend queue $sub
+        }
     }
     return $file_list
 }
