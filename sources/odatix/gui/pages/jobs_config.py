@@ -83,7 +83,7 @@ def update_param_domains(
             domains_configs[domain] = configurations
             checklist = dcc.Checklist(
                 options=[{"label": cfg, "value": cfg} for cfg in configurations],
-                id={"type": "config-checklist", "arch": arch_name, "domain": domain},
+                id={"type": "domain-config-checklist", "arch": arch_name, "domain": domain},
                 value=configurations,
                 style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
             )
@@ -115,7 +115,7 @@ def update_param_domains(
                                 children=[
                                     dcc.Checklist(
                                         options=[{"label": f"{arch_name} (default)", "value": arch_name}],
-                                        id={"type": "config-checklist", "arch": arch_name, "domain": "default"},
+                                        id={"type": "default-config-checklist", "arch": arch_name, "domain": "default"},
                                         value=["default"],
                                         style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
                                     ),
@@ -142,7 +142,7 @@ def update_param_domains(
                                 children=[
                                     dcc.Checklist(
                                         options=formatted_combinations,
-                                        id={"type": "config-preview-checklist", "arch": arch_name},
+                                        id={"type": "preview-config-checklist", "arch": arch_name},
                                         value=[" + ".join(comb) for comb in all_combinations],
                                         style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
                                     )
@@ -198,6 +198,10 @@ def update_param_domains(
                     id={"type": "arch-metadata", "arch": arch_name},
                     data={"arch_name": arch_name},
                 ),
+                dcc.Store(
+                    id={"type": "domain-selections", "arch": arch_name},
+                    data=domains_configs,
+                ),
             ],
             id = {"type": "job-section", "arch": arch_name},
         )
@@ -227,6 +231,113 @@ def toggle_param_domains(selected_archs, arch_metadatas):
             updated_classes.append(dash.no_update)
     return updated_classes
     
+
+@dash.callback(
+    Output({"type": "domain-selections", "arch": dash.MATCH}, "data"),
+    Input({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
+    State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "id"),
+)
+def update_domain_selections(selected_per_domain, domain_ids):
+    domains_configs = {}
+    for values, did in zip(selected_per_domain or [], domain_ids or []):
+        domain = did.get("domain")
+        if not domain:
+            continue
+        if values:
+            domains_configs[domain] = values
+    return domains_configs
+
+@dash.callback(
+    Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    Input({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
+    State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "id"),
+    State({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
+    State({"type": "domain-selections", "arch": dash.MATCH}, "data"),
+)
+def sync_preview_values(
+    selected_per_domain,
+    domain_ids,
+    current_preview_values,
+    arch_metadata,
+    prev_selections
+):
+    arch_name = arch_metadata.get("arch_name", "")
+
+    # Build the current state of the domains
+    current_domains = {}
+    for values, did in zip(selected_per_domain or [], domain_ids or []):
+        domain = did.get("domain")
+        if not domain:
+            continue
+        if values:
+            current_domains[domain] = values
+
+    # Previous state of the domains (can be None on first call)
+    prev_domains = prev_selections or {}
+
+    # Find the domain that changed and the added/removed values
+    changed_domain = None
+    added_values = set()
+    removed_values = set()
+
+    # Domains present either before or now
+    all_domains = set(prev_domains.keys()) | set(current_domains.keys())
+    for domain in all_domains:
+        prev_vals = set(prev_domains.get(domain, []))
+        curr_vals = set(current_domains.get(domain, []))
+        if prev_vals != curr_vals:
+            changed_domain = domain
+            added_values = curr_vals - prev_vals
+            removed_values = prev_vals - curr_vals
+            break
+
+    # If no clear change is found, do nothing
+    if not changed_domain:
+        return current_preview_values or []
+
+    # Start from the current preview value (including manual changes)
+    preview_set = set(current_preview_values or [])
+
+    # Helper: generate all complete combinations from current_domains
+    all_combos = workspace.generate_config_combinations(current_domains, arch_name)
+    all_combo_strings = {" + ".join(c) for c in all_combos}
+
+    # Handle added values in the modified domain
+    if added_values:
+        for combo in all_combos:
+            combo_str = " + ".join(combo)
+            # Only handle combos that contain at least one added value
+            if any(val in combo_str for val in added_values):
+                preview_set.add(combo_str)
+
+    # Handle removed values in the modified domain
+    if removed_values:
+        to_remove = set()
+        for item in preview_set:
+            # Do not touch the 'default' item
+            if item == arch_name:
+                continue
+            # If the item is no longer a valid combo, only handle it
+            # if it included a removed value from the concerned domain.
+            # Simply check if it contains one of the removed values.
+            if any(val in item for val in removed_values):
+                to_remove.add(item)
+        preview_set -= to_remove
+
+    # Keep the "default" item if it was already selected
+    if current_preview_values and arch_name in current_preview_values:
+        preview_set.add(arch_name)
+
+    # Return a sorted list for display stability
+    result = []
+    if arch_name in preview_set:
+        result.append(arch_name)
+        preview_set.remove(arch_name)
+    result.extend(sorted(preview_set))
+
+    return result
+
 
 ######################################
 # Layout
