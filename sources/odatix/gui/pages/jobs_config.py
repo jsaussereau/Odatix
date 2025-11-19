@@ -64,7 +64,7 @@ def update_param_domains(
 
     if triggered_id == "url":
         if page != page_path:
-            return dash.no_update, dash.no_update
+            return dash.no_update
 
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     architectures = workspace.get_architectures(arch_path)
@@ -85,14 +85,17 @@ def update_param_domains(
                 options=[{"label": cfg, "value": cfg} for cfg in configurations],
                 id={"type": "config-checklist", "arch": arch_name, "domain": domain},
                 value=configurations,
-                style={"marginTop": "10px", "marginLeft": "5px"},
+                style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
             )
             domain_tile = html.Div(
                 children=[
                     html.Div(
                         children=[
-                            html.H3(domain if domain != hard_settings.main_parameter_domain else "Main Parameter Domain"),
-                            checklist,
+                            html.H3(domain if domain != hard_settings.main_parameter_domain else "Main Parameter Domain", style={"marginBottom": "0px"}),
+                            html.Div(
+                                children=checklist,
+                                style={"overflowX": "scroll", "marginBottom": "-10px"},
+                            )
                         ],
                         className="config-domain-content",
                     )
@@ -101,28 +104,31 @@ def update_param_domains(
             )
             domain_tiles.append(domain_tile)
 
-        no_valid_domain = not domain_tiles
-
         # Default configuration tile
         domain_tiles.append(
              html.Div(
                 children=[
                     html.Div(
                         children=[
-                            html.H3("Default Configuration"),
-                            dcc.Checklist(
-                                options=[{"label": f"{arch_name} (default)", "value": arch_name}],
-                                id={"type": "config-checklist", "arch": arch_name, "domain": "default"},
-                                value=["default"],
-                                style={"marginTop": "10px", "marginLeft": "5px"},
-                            ),
+                            html.H3("Default Configuration", style={"marginBottom": "0px"}),
+                            html.Div(
+                                children=[
+                                    dcc.Checklist(
+                                        options=[{"label": f"{arch_name} (default)", "value": arch_name}],
+                                        id={"type": "config-checklist", "arch": arch_name, "domain": "default"},
+                                        value=["default"],
+                                        style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
+                                    ),
+                                ],
+                                style={"overflowX": "scroll", "marginBottom": "-10px"},
+                            )
                         ],
-                        className="config-domain-content",
                     )
                 ],
                 className="tile config",
             )
         )
+
         all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name)
         formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
         # Preview tile
@@ -131,15 +137,19 @@ def update_param_domains(
                 children=[
                     html.Div(
                         children=[
-                            html.H3("Preview"),
-                            dcc.Checklist(
-                                options=formatted_combinations,
-                                id={"type": "config-preview-checklist", "arch": arch_name},
-                                value=[" + ".join(comb) for comb in all_combinations],
-                                style={"marginTop": "10px", "marginLeft": "5px"},
+                            html.H3("Preview", style={"marginBottom": "0px"}),
+                            html.Div(
+                                children=[
+                                    dcc.Checklist(
+                                        options=formatted_combinations,
+                                        id={"type": "config-preview-checklist", "arch": arch_name},
+                                        value=[" + ".join(comb) for comb in all_combinations],
+                                        style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
+                                    )
+                                ],
+                                style={"overflowX": "scroll", "marginBottom": "-10px"},
                             )
                         ],
-                        className="config-domain-content",
                     )
                 ],
                 className="tile config",
