@@ -756,7 +756,7 @@ textarea {
 
 .animated-section {
     transition: max-height 0.4s cubic-bezier(0.4, 0.2, 0.2, 1), opacity 0.3s;
-    max-height: 1000px; 
+    max-height: none; 
     opacity: 1;
 }
 
@@ -764,6 +764,12 @@ textarea {
     max-height: 0;
     opacity: 0;
     pointer-events: none;
+    overflow: hidden;
+}
+
+.animated-section.no-margin {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
 }
 
 h3 {
@@ -921,6 +927,22 @@ h3 {
     color: var(--warning-button-text-color-hover);
     --button-icon-color: var(--warning-button-icon-color-hover);
     box-shadow: var(--warning-button-box-shadow-hover);
+}
+
+.color-button.success {
+    background: var(--success-button-background);
+    border: var(--success-button-border);
+    color: var(--success-button-text-color);
+    --button-icon-color: var(--success-button-icon-color);
+    box-shadow: var(--success-button-box-shadow);
+    animation: var(--success-button-animation);
+}
+.color-button.success:hover {
+    background: var(--success-button-background-hover);
+    border: var(--success-button-border-hover);
+    color: var(--success-button-text-color-hover);
+    --button-icon-color: var(--success-button-icon-color-hover);
+    box-shadow: var(--success-button-box-shadow-hover);
 }
 
 .color-button.primary {
