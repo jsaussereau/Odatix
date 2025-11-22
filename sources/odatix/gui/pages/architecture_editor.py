@@ -392,7 +392,11 @@ def save_and_status(
         "fmax_synthesis": {
             "lower_bound": fmax_lower,
             "upper_bound": fmax_upper,
-        } if fmax_lower != "" or fmax_upper != "" else {},
+        } if fmax_lower != "" and fmax_upper != "" else {
+            "lower_bound": fmax_lower,
+        } if fmax_lower != "" else {
+            "upper_bound": fmax_upper,
+        } if fmax_upper != "" else {},
         "custom_freq_synthesis": {
             "list": [int(x.strip()) for x in custom_freq_list.split(", ") if x.strip()],
         } if custom_freq_list != "" else {},

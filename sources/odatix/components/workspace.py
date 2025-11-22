@@ -211,17 +211,24 @@ f"""##############################################
 
     fmax = CommentedMap()
     settings_fmax = settings.get('fmax_synthesis', {})
-    fmax['lower_bound'] = settings_fmax.get('lower_bound', hard_settings.default_fmax_lower_bound)
-    fmax['upper_bound'] = settings_fmax.get('upper_bound', hard_settings.default_fmax_upper_bound)
+    lower_bound = settings_fmax.get('lower_bound', "")
+    upper_bound = settings_fmax.get('upper_bound', "")
+    if lower_bound != "" and upper_bound != "":
+        fmax = {}
+    elif lower_bound != "":
+        fmax['lower_bound'] = lower_bound if lower_bound != "" else hard_settings.default_fmax_lower_bound
+    elif upper_bound != "":
+        fmax['upper_bound'] = upper_bound if upper_bound != "" else hard_settings.default_fmax_upper_bound
     data['fmax_synthesis'] = fmax
     data.yaml_set_comment_before_after_key('fmax_synthesis', before="\nDefault frequencies (in MHz)")
 
     custom = CommentedMap()
     settings_custom = settings.get('custom_freq_synthesis', {})
-    custom_list = CommentedSeq(settings_custom.get('list', []))
+    settings_custom_list = settings_custom.get('list', [])
+    custom_list = CommentedSeq(settings_custom_list)
     custom_list.fa.set_flow_style()
-    custom['list'] = custom_list    
-    data['custom_freq_synthesis'] = custom
+    custom['list'] = custom_list
+    data['custom_freq_synthesis'] = custom if settings_custom_list else {}
 
     generate_configurations = settings.get('generate_configurations', False)
     data['generate_configurations'] = generate_configurations
