@@ -30,6 +30,7 @@ import itertools
 from os.path import isfile
 from os.path import isdir
 
+from odatix.lib import hard_settings
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.utils import *
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
