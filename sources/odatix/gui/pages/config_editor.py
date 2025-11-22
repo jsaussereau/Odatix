@@ -570,6 +570,7 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
             ),
             html.Div([
                 html.Div(
+                    children=[add_card(domain_uuid=domain_uuid)],
                     id={"type": "config-cards-row", "domain_uuid": domain_uuid},
                     className=f"card-matrix configs", 
                 ),
@@ -799,6 +800,8 @@ def update_config_cards(
         if trig_type == "new-config" and add_click:
             for idx in range(1, 1001):
                 new_filename = f"new_config{idx}.txt"
+                if configs_list[trig_domain_idx] is None:
+                    configs_list[trig_domain_idx] = {}
                 if new_filename not in configs_list[trig_domain_idx]:
                     workspace.save_config_file(arch_path, arch_name, trig_domain_name, new_filename, "")
                     configs_list[trig_domain_idx][new_filename] = ""
