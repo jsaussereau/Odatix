@@ -603,6 +603,7 @@ def update_main_domain_title(_, search):
 @dash.callback(
     Output("param-domains-section", "children"),
     Output("param-domains-section-initialized", "data"),
+    Output("param-domains-section-update", "data"),
     Input({"page": page_path, "type": "architecture-title-div"}, "children"), # Trigger when title is loaded
     State("url", "search"),
     State("url", "pathname"),
@@ -612,16 +613,17 @@ def update_main_domain_title(_, search):
     State("odatix-settings", "data"),
     State("param-domains-section", "children"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State("param-domains-section-update", "data"),
     prevent_initial_call=True
 )
 def update_param_domains(
     _, search, page, add_domain_click, duplicate_domain_click, delete_domain_click,
-    odatix_settings, domain_sections, metadata
+    odatix_settings, domain_sections, metadata, update_flag
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == "url":
         if page != page_path:
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update
 
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
@@ -632,7 +634,7 @@ def update_param_domains(
             ],
             className="card-matrix config",
             style={"marginLeft": "-13px"},
-        ), dash.no_update
+        ), dash.no_update, dash.no_update
 
     add_domain_div = html.Div(
         children=[
@@ -646,7 +648,7 @@ def update_param_domains(
         domain_sections = []
         domain_sections.append(domain_section(hard_settings.main_parameter_domain, arch_name, settings={}))
         domain_sections.append(add_domain_div)
-        return domain_sections, dash.no_update
+        return domain_sections, dash.no_update, dash.no_update
 
     domains = workspace.get_param_domains(arch_path, arch_name)
 
@@ -660,7 +662,7 @@ def update_param_domains(
             settings["arch_name"] = arch_name
             domain_sections.append(domain_section(domain, arch_name, settings=settings))
         domain_sections.append(add_domain_div)
-        return domain_sections, True
+        return domain_sections, True, dash.no_update
     
     elif isinstance(triggered_id, dict):
         trigger_action = triggered_id.get("action", "")
@@ -678,7 +680,7 @@ def update_param_domains(
             domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
             domain_sections.append(domain_section(new_domain, arch_name, settings={}))
             domain_sections.append(add_domain_div)
-            return domain_sections, dash.no_update
+            return domain_sections, dash.no_update, dash.no_update
 
         # Duplicate domain
         elif trigger_action == "duplicate-domain":
@@ -694,8 +696,9 @@ def update_param_domains(
                     domain_to_duplicate = domain_name
                     domain_to_duplicate_idx = i - 1 # -1 to account for main domain
                     break
-            if duplicate_domain_click[domain_to_duplicate_idx] == 0:
-                return dash.no_update, dash.no_update
+            # if duplicate_domain_click[domain_to_duplicate_idx] == 0:
+            #     print("Duplicate button not clicked.")
+            #     return dash.no_update, dash.no_update, dash.no_update
             
             if domain_to_duplicate_uuid :
                 if domain_to_duplicate_uuid  == hard_settings.main_parameter_domain:
@@ -713,9 +716,10 @@ def update_param_domains(
 
                 # Insert new domain section before the add domain button
                 domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
-                domain_sections.append(domain_section(new_domain, arch_name, settings={}))
+                new_domain_settings = workspace.load_architecture_settings(arch_path, arch_name, new_domain)
+                domain_sections.append(domain_section(new_domain, arch_name, settings=new_domain_settings))
                 domain_sections.append(add_domain_div)
-                return domain_sections, dash.no_update
+                return domain_sections, dash.no_update, update_flag + 1
 
         # Delete domain
         elif trigger_action == "delete-domain":
@@ -732,7 +736,7 @@ def update_param_domains(
                     domain_to_delete_idx = i - 1 # -1 to account for main domain
                     break
             if domain_to_delete_idx and delete_domain_click[domain_to_delete_idx] == 0:
-                return dash.no_update, dash.no_update
+                return dash.no_update, dash.no_update, dash.no_update
             
             if domain_to_delete and domain_to_delete != hard_settings.main_parameter_domain:
                 workspace.delete_parameter_domain(arch_path, arch_name, domain_to_delete)
@@ -741,9 +745,9 @@ def update_param_domains(
                         domain = section.get("props", {}).get("id", {}).get("domain_uuid", "")
                         if domain == domain_to_delete_uuid:
                             domain_sections.pop(i)
-                            return domain_sections, dash.no_update
+                            return domain_sections, dash.no_update, dash.no_update
 
-    return dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update
 
 @dash.callback(
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
@@ -756,6 +760,7 @@ def update_param_domains(
     Input({"type": "save-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "n_clicks"),
     Input({"type": "delete-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "n_clicks"),
     Input({"type": "duplicate-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "n_clicks"),
+    Input("param-domains-section-update", "data"),
     State({"type": "config-title", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
     State({"type": "config-content", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
     State({"type": "config-metadata", "domain_uuid": dash.ALL, "filename": dash.ALL}, "data"),
@@ -766,7 +771,7 @@ def update_param_domains(
 )
 def update_config_cards(
     search, _,
-    config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks,
+    config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, domain_update,
     title_values, contents, config_metadata, configs_list, domain_metadata, odatix_settings
 ):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
@@ -1181,6 +1186,7 @@ layout = html.Div(
         html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
         html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
         dcc.Store(id="param-domains-section-initialized", data=False),
+        dcc.Store(id="param-domains-section-update", data=0),
     ],
     className="page-content",
     style={
