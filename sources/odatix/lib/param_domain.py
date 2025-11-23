@@ -244,6 +244,8 @@ class ParamDomain:
       # Print an error if the default value is not defined
       silent = False if top_level_file is None else True
       param_target_filename, _ = get_from_dict('param_target_file', settings_data, settings_file, default_value=top_level_file, silent=silent, script_name=script_name)
+      if param_target_filename == "":
+        param_target_filename = top_level_file
     else:
       start_delimiter = ""
       stop_delimiter = ""
