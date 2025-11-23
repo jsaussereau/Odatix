@@ -59,14 +59,6 @@ def split_by_domain(flat_list, lengths):
         idx += l
     return result
 
-def get_index_from_trigger(trig_domain_uuid, trig_filename, metadata):
-    index = next(
-        (i for i, data in enumerate(metadata)
-        if data.get("domain_uuid") == trig_domain_uuid and data.get("filename") == trig_filename),
-        -1
-    )
-    return index
-
 def get_uuid():
     return str(uuid.uuid4())
 
@@ -80,8 +72,8 @@ def generate_config_link(arch_name: str = "", domain_name: str = "") -> str:
 # UI Components
 ######################################
 
-def config_card(domain_uuid, filename, content, initial_content, config_layout="normal"):
-    display_name = filename[:-4] if filename.endswith(".txt") else filename
+def config_card(domain_uuid, config_uuid, config_name, content, initial_content, config_layout="normal"):
+    display_name = config_name[:-4] if config_name.endswith(".txt") else config_name
 
     save_class =  "color-button disabled"
     status_text = ""
@@ -91,7 +83,7 @@ def config_card(domain_uuid, filename, content, initial_content, config_layout="
             dcc.Input(
                 value=f"{display_name}",
                 type="text",
-                id={"type": "config-title", "domain_uuid": domain_uuid, "filename": filename},
+                id={"type": "config-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
                 className="title-input",
                 style={
                     "width": "calc(100% - 20px)",
@@ -107,7 +99,7 @@ def config_card(domain_uuid, filename, content, initial_content, config_layout="
             )
         ]),
         dcc.Textarea(
-            id={"type": "config-content", "domain_uuid": domain_uuid, "filename": filename},
+            id={"type": "config-content", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
             value=content,
             className="auto-resize-textarea" if config_layout != "compact" else "",
             style={
@@ -122,21 +114,29 @@ def config_card(domain_uuid, filename, content, initial_content, config_layout="
                 "fontWeight": "normal",
             },
         ),
-        dcc.Store(id={"type": "config-metadata", "domain_uuid": domain_uuid, "filename": filename}, data={"domain_uuid": domain_uuid, "filename": filename}),
+        dcc.Store(
+            id={"type": "config-metadata", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
+            data={
+                "domain_uuid": domain_uuid,
+                "config_uuid": config_uuid,
+                "config_name": config_name,
+                "config_content": content,
+            }
+        ),
         html.Div([
             html.Div([
                 html.Div([ui.icon_button(
-                    icon=icon("save", className="icon", id={"type": "save-config-icon", "domain_uuid": domain_uuid, "filename": filename}),
+                    icon=icon("save", className="icon", id={"type": "save-config-icon", "domain_uuid": domain_uuid, "config_uuid": config_uuid}),
                     color="disabled",
                     text="Save", 
                     width="78px",
-                    id={"type": "save-config", "domain_uuid": domain_uuid, "filename": filename},
+                    id={"type": "save-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
                 ),], style={"marginLeft": "5px"}),
-                html.Div(status_text, id={"type": "save-status", "domain_uuid": domain_uuid, "filename": filename}, className=status_class, style={"marginLeft": "0px", "textWrap": "wrap", "width": "70px", "fontWeight": "515"}),
+                html.Div(status_text, id={"type": "save-status", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, className=status_class, style={"marginLeft": "0px", "textWrap": "wrap", "width": "70px", "fontWeight": "515"}),
             ], style={"display": "flex", "alignItems": "center"}),
             html.Div([
-                ui.duplicate_button(id={"type": "duplicate-config", "domain_uuid": domain_uuid, "filename": filename}),
-                ui.delete_button(id={"type": "delete-config", "domain_uuid": domain_uuid, "filename": filename}),
+                ui.duplicate_button(id={"type": "duplicate-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid}),
+                ui.delete_button(id={"type": "delete-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid}),
             ], style={"display": "flex", "alignItems": "center", "marginLeft": "0px"}, className="inline-flex-buttons"),
         ], style={
             "marginTop": "8px",
@@ -145,11 +145,11 @@ def config_card(domain_uuid, filename, content, initial_content, config_layout="
             "width": "100%",
             "justifyContent": "space-between",
         }),
-        dcc.Store(id={"type": "initial-title", "domain_uuid": domain_uuid, "filename": filename}, data=display_name),
-        dcc.Store(id={"type": "initial-content", "domain_uuid": domain_uuid, "filename": filename}, data=initial_content),
+        dcc.Store(id={"type": "initial-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, data=display_name),
+        dcc.Store(id={"type": "initial-content", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, data=initial_content),
     ], 
     className="card configs", 
-    id={"type": "config-card", "domain_uuid": domain_uuid, "filename": filename},
+    id={"type": "config-card", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
     style={
         "padding": "10px", 
         "margin": "5px", 
@@ -532,9 +532,10 @@ def preview_div(content):
         ], 
     )
 
-def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
+def domain_section(domain: str, arch_name: str = "", settings: dict = {}, domain_uuid=None):
     # Generate a unique UUID for non-main domains
-    domain_uuid = get_uuid() if domain != hard_settings.main_parameter_domain else domain
+    if not domain_uuid:
+        domain_uuid = get_uuid() if domain != hard_settings.main_parameter_domain else domain
     
     # Hidden divs for better animations
     hidden_count = random.randint(4, 7)
@@ -575,9 +576,7 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}):
                     className=f"card-matrix configs", 
                 ),
             ]),
-            dcc.Store(id={"type": "config-files-store", "domain_uuid": domain_uuid}),
             dcc.Store(id={"type": "config-params-store", "domain_uuid": domain_uuid}, data=settings),
-            dcc.Store(id={"type": "initial-configs-store", "domain_uuid": domain_uuid}),
             dcc.Store(id={"type": "domain-metadata", "domain_uuid": domain_uuid}, data={"domain_name": domain, "domain_uuid": domain_uuid}),
         ],
         id = {"type": "param-domain-section", "domain_uuid": domain_uuid},
@@ -717,9 +716,10 @@ def update_param_domains(
                 # Insert new domain section before the add domain button
                 domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
                 new_domain_settings = workspace.load_architecture_settings(arch_path, arch_name, new_domain)
-                domain_sections.append(domain_section(new_domain, arch_name, settings=new_domain_settings))
+                domain_uuid = get_uuid()
+                domain_sections.append(domain_section(new_domain, arch_name, settings=new_domain_settings, domain_uuid=domain_uuid))
                 domain_sections.append(add_domain_div)
-                return domain_sections, dash.no_update, update_flag + 1
+                return domain_sections, dash.no_update, domain_uuid
 
         # Delete domain
         elif trigger_action == "delete-domain":
@@ -751,33 +751,31 @@ def update_param_domains(
 
 @dash.callback(
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
-    Output({"type": "config-files-store", "domain_uuid": dash.ALL}, "data"),
-    Output({"type": "initial-configs-store", "domain_uuid": dash.ALL}, "data"),
     State("url", "search"),
     Input("param-domains-section-initialized", "data"),
     Input("config-layout-dropdown", "value"),
     Input({"type": "new-config", "domain_uuid": dash.ALL}, "n_clicks"),
-    Input({"type": "save-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "n_clicks"),
-    Input({"type": "delete-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "n_clicks"),
-    Input({"type": "duplicate-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "n_clicks"),
+    Input({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "delete-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "duplicate-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "n_clicks"),
     Input("param-domains-section-update", "data"),
-    State({"type": "config-title", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
-    State({"type": "config-content", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
-    State({"type": "config-metadata", "domain_uuid": dash.ALL, "filename": dash.ALL}, "data"),
-    State({"type": "config-files-store", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
+    State({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
     prevent_initial_call=True
 )
 def update_config_cards(
     search, _,
-    config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, domain_update,
-    title_values, contents, config_metadata, configs_list, domain_metadata, odatix_settings
+    config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, update_domain_uuid,
+    config_cards_row, title_values, contents, config_metadata, domain_metadata, odatix_settings
 ):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
-        return [html.Div("No architecture selected.", className="error")], [{}], [{}]
+        return [html.Div("No architecture selected.", className="error")]
 
     triggered_id = ctx.triggered_id
     if not isinstance(triggered_id, dict):
@@ -802,83 +800,164 @@ def update_config_cards(
                 trig_domain_name = domain_name
                 trig_domain_idx = i
 
-        if trig_type == "new-config" and add_click:
-            for idx in range(1, 1001):
-                new_filename = f"new_config{idx}.txt"
-                if configs_list[trig_domain_idx] is None:
-                    configs_list[trig_domain_idx] = {}
-                if new_filename not in configs_list[trig_domain_idx]:
-                    workspace.save_config_file(arch_path, arch_name, trig_domain_name, new_filename, "")
-                    configs_list[trig_domain_idx][new_filename] = ""
-                    break
-            else:
-                error_msg = "Too many config creation fails (1000 max)."
-
-        elif trig_type in ["save-config", "delete-config", "duplicate-config"]:         
-
-            trig_filename = triggered_id.get("filename", "")
+        if trig_type in ["new-config", "save-config", "delete-config", "duplicate-config"]:         
+            trig_domain_configs = []
+            trig_config_uuid = triggered_id.get("config_uuid", "")
+            trig_config_name = ""
+            trig_config_initial_content = ""
             
-            # Save config (and handle rename)
-            if trig_type == "save-config":
-                config_index = get_index_from_trigger(trig_domain_uuid, trig_filename, config_metadata)
-                config_new_title = title_values[config_index] if config_index >= 0 and config_index < len(title_values) else ""
-                config_old_title = trig_filename
-                config_content = contents[config_index] if config_index >= 0 and config_index < len(contents) else ""
+            # Get config from metadata
+            trig_global_idx = -1
+            trig_config_idx = -1
+            domain_config_idx = -1
+            for i, data in enumerate(config_metadata):
+                domain_uuid = data.get("domain_uuid", "")
+                if domain_uuid == trig_domain_uuid:
+                    domain_config_idx += 1
+                    config_name = data.get("config_name", "")
+                    config_uuid = data.get("config_uuid", "")
+                    config_content = data.get("config_content", "")
+                    trig_domain_configs.append(config_name)
+                    if config_uuid == trig_config_uuid:
+                        trig_config_name = config_name
+                        trig_config_initial_content = config_content
+                        trig_config_idx = domain_config_idx
+                        trig_global_idx = i
+            
+            if trig_type == "new-config" and add_click:
+                for idx in range(1, 1001):
+                    new_filename = f"new_config{idx}.txt"
+                    if new_filename not in trig_domain_configs:
+                        workspace.save_config_file(arch_path, arch_name, trig_domain_name, new_filename, "")
+                        config_uuid = get_uuid()
+                        config_cards_row[trig_domain_idx].insert(-1, 
+                            config_card(
+                                domain_uuid=trig_domain_uuid,
+                                config_uuid=config_uuid,
+                                config_name=new_filename,
+                                content="",
+                                initial_content="",
+                                config_layout=config_layout,
+                            )
+                        )
+                        break
+                else:
+                    error_msg = "Too many config creation fails (1000 max)."
+
+            elif trig_type in ["save-config", "delete-config", "duplicate-config"]:         
+                trig_config_content = contents[trig_global_idx] if trig_global_idx >= 0 and trig_global_idx < len(contents) else ""
                 
-                if not config_new_title.endswith(".txt"):
-                    config_new_title = config_new_title + ".txt"
-                if config_new_title != config_old_title:
-                    if config_new_title in configs_list[trig_domain_idx]:
-                        if verbose:
-                            print(f"File '{config_new_title}' already exists.")
-                    else:
-                        path = workspace.get_arch_domain_path(arch_path, arch_name, trig_domain_name)
-                        old_path = os.path.join(path, config_old_title)
-                        new_path = os.path.join(path, config_new_title)
-                        if verbose:
-                            print(f"Renaming {old_path} to {new_path}")
-                        os.rename(old_path, new_path)
-                        configs_list[trig_domain_idx][config_new_title] = config_content
-                        configs_list[trig_domain_idx].pop(config_old_title)
-                        config_old_title = config_new_title
-                if verbose:
-                    print(f"Saving config '{config_old_title}' in domain '{trig_domain_name}'")
-                workspace.save_config_file(arch_path, arch_name, trig_domain_name, config_new_title, config_content)
-                configs_list[trig_domain_idx][config_old_title] = config_content
+                # Save config (and handle rename)
+                if trig_type == "save-config":
+                    config_new_title = title_values[trig_global_idx] if trig_global_idx >= 0 and trig_global_idx < len(title_values) else ""
+                    config_old_title = trig_config_name
+                    
+                    if not config_new_title.endswith(".txt"):
+                        config_new_title = config_new_title + ".txt"
+                    if config_new_title != config_old_title:
+                        print(f"Renaming config from '{config_old_title}' to '{config_new_title}'")
+                        if config_new_title in trig_domain_configs:
+                            if verbose:
+                                print(f"File '{config_new_title}' already exists.")
+                        else:
+                            path = workspace.get_arch_domain_path(arch_path, arch_name, trig_domain_name)
+                            old_path = os.path.join(path, config_old_title)
+                            new_path = os.path.join(path, config_new_title)
+                            if verbose:
+                                print(f"Renaming {old_path} to {new_path}")
+                            os.rename(old_path, new_path)
+                            config_old_title = config_new_title
+                    if verbose:
+                        print(f"Saving config '{config_old_title}' in domain '{trig_domain_name}'")
+                    workspace.save_config_file(arch_path, arch_name, trig_domain_name, config_new_title, trig_config_content)
+                    config_metadata[trig_config_idx]['config_content'] = trig_config_content
+                    config_cards_row[trig_domain_idx][trig_config_idx] = config_card(
+                        domain_uuid=trig_domain_uuid,
+                        config_uuid=trig_config_uuid,
+                        config_name=config_old_title,
+                        content=trig_config_content,
+                        initial_content=trig_config_content,
+                        config_layout=config_layout,
+                    )
+                
+                # Delete config
+                if trig_type == "delete-config":
+                    workspace.delete_config_file(arch_path, arch_name, trig_domain_name, trig_config_name)
+                    config_cards_row[trig_domain_idx].pop(trig_config_idx)
 
-            # Delete config
-            if trig_type == "delete-config":
-                workspace.delete_config_file(arch_path, arch_name, trig_domain_name, trig_filename)
-                configs_list[trig_domain_idx].pop(trig_filename)
-
-            # Duplicate config
-            if trig_type == "duplicate-config":
-                base = trig_filename[:-4] if trig_filename.endswith(".txt") else trig_filename
-                suffix = 1
-                new_filename = f"{base}_copy{suffix}.txt"
-                while new_filename in configs_list[trig_domain_idx]:
-                    suffix += 1
+                # Duplicate config
+                if trig_type == "duplicate-config":
+                    base = trig_config_name[:-4] if trig_config_name.endswith(".txt") else trig_config_name
+                    suffix = 1
                     new_filename = f"{base}_copy{suffix}.txt"
-                workspace.save_config_file(arch_path, arch_name, trig_domain_name, new_filename, configs_list[trig_domain_idx][trig_filename])
-                configs_list[trig_domain_idx][new_filename] = configs_list[trig_domain_idx][trig_filename]
-
-    all_cards = []
-    all_configs = []
-    all_initial_configs = []
-
-    for idx, (domain_uuid, domain_name) in enumerate(domains.items()):
-        if True:
+                    while new_filename in trig_domain_configs:
+                        suffix += 1
+                        new_filename = f"{base}_copy{suffix}.txt"
+                    workspace.save_config_file(arch_path, arch_name, trig_domain_name, new_filename, trig_config_content)
+                    config_uuid = get_uuid()
+                    config_cards_row[trig_domain_idx].insert(-1, 
+                        config_card(
+                            domain_uuid=trig_domain_uuid,
+                            config_uuid=config_uuid,
+                            config_name=new_filename,
+                            content=trig_config_content,
+                            initial_content=trig_config_content,
+                            config_layout=config_layout,
+                        )
+                    )
+  
+    # Initial load
+    if triggered_id == "param-domains-section-initialized":
+        config_cards_row = []
+        for idx, (domain_uuid, domain_name) in enumerate(domains.items()):
             files = workspace.get_config_files(arch_path, arch_name, domain_name)
-            configs = {f: workspace.load_config_file(arch_path, arch_name, domain_name, f) for f in files}
-        initial_configs = configs.copy()
+            config_cards = []
+            config_metadata = []
+            for config_name in files:
+                config_content = workspace.load_config_file(arch_path, arch_name, domain_name, config_name)
+                config_uuid = get_uuid()
+                # Create config card
+                config_cards.append(
+                    config_card(
+                        domain_uuid = domain_uuid, 
+                        config_uuid = config_uuid,
+                        config_name = config_name,
+                        content = config_content,
+                        initial_content = config_content,
+                        config_layout = config_layout,
+                    )
+                )
+            config_cards.append(add_card(domain_uuid=domain_uuid))
+            config_cards_row.append(config_cards)
+        return config_cards_row
+    
+    # If a domain was duplicated, load the new domain configs
+    elif triggered_id == "param-domains-section-update":
+        # Reload only domain with uuid == update_domain_uuid
+        for i, domain_uuid in enumerate(domains.keys()):
+            if domain_uuid == update_domain_uuid:
+                domain_name = domains[domain_uuid]
+                files = workspace.get_config_files(arch_path, arch_name, domain_name)
+                config_cards = []
+                for config_name in files:
+                    config_content = workspace.load_config_file(arch_path, arch_name, domain_name, config_name)
+                    config_uuid = get_uuid()
+                    # Create config card
+                    config_cards.append(
+                        config_card(
+                            domain_uuid = domain_uuid, 
+                            config_uuid = config_uuid,
+                            config_name = config_name,
+                            content = config_content,
+                            initial_content = config_content,
+                            config_layout = config_layout,
+                        )
+                    )
+                config_cards.append(add_card(domain_uuid=domain_uuid))
+                config_cards_row[i] = config_cards
+                break
 
-        cards = [config_card(domain_uuid, f, configs[f], initial_configs.get(f, ""), config_layout) for f in configs]
-        cards.append(add_card(domain_uuid=domain_uuid))
-
-        all_cards.append(cards)
-        all_configs.append(configs)
-        all_initial_configs.append(initial_configs)
-    return all_cards, all_configs, all_initial_configs
+    return config_cards_row
 
 @dash.callback(
     Output({"type": "preview-pane", "domain_uuid": dash.ALL}, "children"),
@@ -889,7 +968,7 @@ def update_config_cards(
     Input({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
-    Input({"type": "config-content", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
+    Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     State({"type": "config-files-store", "domain_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
@@ -932,23 +1011,24 @@ def update_preview_all(search, config_cards_rows, params_enables, target_files, 
     return dash.no_update
 
 @dash.callback(
-    Output({"type": "save-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "className"),
-    Output({"type": "save-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "data-tooltip"),
+    Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
+    Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data-tooltip"),
     Input("param-domains-section", "children"),
-    Input({"type": "config-title", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
-    Input({"type": "config-content", "domain_uuid": dash.ALL, "filename": dash.ALL}, "value"),
-    Input({"type": "initial-title", "domain_uuid": dash.ALL, "filename": dash.ALL}, "data"),
-    Input({"type": "initial-content", "domain_uuid": dash.ALL, "filename": dash.ALL}, "data"),
-    State({"type": "save-config", "domain_uuid": dash.ALL, "filename": dash.ALL}, "className"),
+    Input({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    Input({"type": "initial-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Input({"type": "initial-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
 )
-def update_save_status(param_domains_section, title_values, content_values, initial_titles, initial_contents, save_config):
+def update_save_status(param_domains_section, title_values, content_values, initial_titles, initial_contents):
     save_classes = []
     tooltip_texts = []
     for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
+        # Check for empty title
         if not title:
             save_classes.append("color-button error-status icon-button tooltip delay bottom small")
             tooltip_texts.append("Configuration name cannot be empty")
             continue
+        # Check for invalid characters in title
         invalid_char_found = False
         for c in hard_settings.invalid_filename_characters:
             if c in title:
@@ -959,6 +1039,12 @@ def update_save_status(param_domains_section, title_values, content_values, init
                 break
         if invalid_char_found:
             continue
+        # Check if a config with the same name already exists in the domain
+        if title in initial_titles and title != initial_title:
+            save_classes.append("color-button error-status icon-button tooltip delay bottom small")
+            tooltip_texts.append("A configuration with this name already exists in the domain.")
+            continue
+        # Check for changes
         if title != initial_title or content != initial_content:
             save_classes.append("color-button warning icon-button tooltip delay bottom small")
             tooltip_texts.append("Unsaved changes!")
@@ -997,11 +1083,11 @@ def update_params_save_button(params_enables, target_files, start_delims, stop_d
     return save_classes
 
 @dash.callback(
-    Output({"type": "config-card", "domain_uuid": dash.ALL, "filename": dash.ALL}, "className"),
+    Output({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     Output({"type": "add-config-card", "domain_uuid": dash.ALL}, "className"),
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "className"),
     Input("config-layout-dropdown", "value"),
-    State({"type": "config-card", "domain_uuid": dash.ALL, "filename": dash.ALL}, "className"),
+    State({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     State({"type": "add-config-card", "domain_uuid": dash.ALL}, "className"),
     State({"type": "config-cards-row", "domain_uuid": dash.ALL}, "className"),
 )
@@ -1186,7 +1272,7 @@ layout = html.Div(
         html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
         html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
         dcc.Store(id="param-domains-section-initialized", data=False),
-        dcc.Store(id="param-domains-section-update", data=0),
+        dcc.Store(id="param-domains-section-update", data=""),
     ],
     className="page-content",
     style={
