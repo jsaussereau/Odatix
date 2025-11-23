@@ -658,7 +658,6 @@ def update_param_domains(
         domain_sections.append(domain_section(hard_settings.main_parameter_domain, settings=settings))
         for domain in domains:
             settings = workspace.load_architecture_settings(arch_path, arch_name, domain)
-            settings["arch_name"] = arch_name
             domain_sections.append(domain_section(domain, arch_name, settings=settings))
         domain_sections.append(add_domain_div)
         return domain_sections, True, dash.no_update
@@ -695,10 +694,7 @@ def update_param_domains(
                     domain_to_duplicate = domain_name
                     domain_to_duplicate_idx = i - 1 # -1 to account for main domain
                     break
-            # if duplicate_domain_click[domain_to_duplicate_idx] == 0:
-            #     print("Duplicate button not clicked.")
-            #     return dash.no_update, dash.no_update, dash.no_update
-            
+
             if domain_to_duplicate_uuid :
                 if domain_to_duplicate_uuid  == hard_settings.main_parameter_domain:
                     base_name = "main_copy"
@@ -992,16 +988,12 @@ def update_preview_all(
 
     # Group config contents by domain
     contents_by_domain = []
-    current_domain_uuid = ""
     domain_contents = []
-    for i, domain in enumerate(config_metadata):
+    for domain in domain_metadata:
         domain_uuid = domain.get("domain_uuid", "")
-        if domain_uuid != current_domain_uuid and current_domain_uuid != "":
-            contents_by_domain.append(domain_contents)
-            domain_contents = []
-        domain_contents.append(config_contents_list[i])
-        current_domain_uuid = domain_uuid
-    contents_by_domain.append(domain_contents)
+        indices = [i for i, config in enumerate(config_metadata) if config.get("domain_uuid", "") == domain_uuid]
+        domain_contents = [config_contents_list[i] for i in indices]
+        contents_by_domain.append(domain_contents)
 
     # Generate previews for each domain
     results = []
