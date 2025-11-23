@@ -95,30 +95,41 @@ metrics:
       group_id: 2
     format: "%.0f"
 
-  # Static_Power:
-  #   type: regex
-  #   settings:
-  #     file: report/power.rep
-  #     pattern: "\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
-  #     group_id: 3
-  #   format: "%.3f"
-  #   unit: W
+  Internal_Power:
+    type: regex
+    settings:
+      file: report/power.rep
+      pattern: "Total\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+"
+      group_id: 1
+    format: "%.5f"
+    unit: mW
 
-  # Dynamic_Power:
-  #   type: regex
-  #   settings:
-  #     file: report/power.rep
-  #     pattern: "\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
-  #     group_id: 3
-  #   format: "%.3f"
-  #   unit: W
+  Switching_Power:
+    type: regex
+    settings:
+      file: report/power.rep
+      pattern: "Total\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+"
+      group_id: 2
+    format: "%.5f"
+    unit: mW
 
-  # Total_Power:
-  #   type: operation
-  #   settings:
-  #     op: Static_Power + Dynamic_Power
-  #   format: "%.3f"
-  #   unit: W
+  Leakage_Power:
+    type: regex
+    settings:
+      file: report/power.rep
+      pattern: "Total\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+"
+      group_id: 3
+    format: "%.5f"
+    unit: pW
+
+  Total_Power:
+    type: regex
+    settings:
+      file: report/power.rep
+      pattern: "Total\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+\\s+([0-9.eE+-]+)\\s*\\w+"
+      group_id: 4
+    format: "%.5f"
+    unit: mW
 
   DMIPS_per_MHz:
     type: benchmark
