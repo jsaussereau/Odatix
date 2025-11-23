@@ -432,7 +432,7 @@ def preview_pane(domain_uuid:str, settings: dict, domain_settings: dict, replace
         if param_target_file == "":
             param_target_file = os.path.join(settings.get("top_level_file", ""))
     param_target_file = os.path.join(base_path, param_target_file)
-    if os.path.exists(param_target_file):
+    if os.path.isfile(param_target_file):
         base_text = replace_params.read_file(param_target_file)
         start_delimiter = domain_settings.get("start_delimiter", "")
         stop_delimiter = domain_settings.get("stop_delimiter", "")
@@ -962,6 +962,7 @@ def update_config_cards(
 @dash.callback(
     Output({"type": "preview-pane", "domain_uuid": dash.ALL}, "children"),
     State("url", "search"),
+    Input("param-domains-section", "children"),
     Input({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
@@ -969,12 +970,16 @@ def update_config_cards(
     Input({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
-    State({"type": "config-files-store", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
     prevent_initial_call=True
 )
-def update_preview_all(search, config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, configs_list, domain_metadata, odatix_settings):
+def update_preview_all(
+    search, param_domains_update,
+    config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, 
+    config_metadata, domain_metadata, odatix_settings
+):
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     arch_name = get_key_from_url(search, "arch")
     if not workspace.architecture_exists(arch_path, arch_name):
@@ -985,30 +990,33 @@ def update_preview_all(search, config_cards_rows, params_enables, target_files, 
             ], className="error warning")
         ] * len(config_cards_rows)
 
-    triggered = ctx.triggered_id
-    if isinstance(triggered, dict):
-        if configs_list:
-            filenames_per_domain = [list(configs.keys()) for configs in configs_list if configs is not None]
-        else:
-            filenames_per_domain = []
-        lengths = [len(filenames) for filenames in filenames_per_domain]
+    # Group config contents by domain
+    contents_by_domain = []
+    current_domain_uuid = ""
+    domain_contents = []
+    for i, domain in enumerate(config_metadata):
+        domain_uuid = domain.get("domain_uuid", "")
+        if domain_uuid != current_domain_uuid and current_domain_uuid != "":
+            contents_by_domain.append(domain_contents)
+            domain_contents = []
+        domain_contents.append(config_contents_list[i])
+        current_domain_uuid = domain_uuid
+    contents_by_domain.append(domain_contents)
 
-        contents_by_domain = split_by_domain(config_contents_list, lengths)
-
-        results = []
-        for i, domain in enumerate(domain_metadata):
-            domain_uuid = domain.get("domain_uuid", "")
-            config_contents_list = contents_by_domain[i] if i < len(contents_by_domain) else []
-            settings = settings_list[0] if 0 < len(settings_list) and settings_list[0] is not None else {}
-            domain_settings = settings_list[i] if i < len(settings_list) and settings_list[i] is not None else {}
-            domain_settings["use_parameters"] = params_enables[i] if i < len(params_enables) else ""
-            domain_settings["param_target_file"] = target_files[i] if i < len(target_files) else ""
-            domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
-            domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
-            replacement_text = config_contents_list[0] if config_contents_list else ""
-            results.append(preview_pane(domain_uuid, settings, domain_settings, replacement_text))
-        return results
-    return dash.no_update
+    # Generate previews for each domain
+    results = []
+    for i, domain in enumerate(domain_metadata):
+        domain_uuid = domain.get("domain_uuid", "")
+        config_contents_list = contents_by_domain[i] if i < len(contents_by_domain) else []
+        settings = settings_list[0] if 0 < len(settings_list) and settings_list[0] is not None else {}
+        domain_settings = settings_list[i] if i < len(settings_list) and settings_list[i] is not None else {}
+        domain_settings["use_parameters"] = params_enables[i] if i < len(params_enables) else ""
+        domain_settings["param_target_file"] = target_files[i] if i < len(target_files) else ""
+        domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
+        domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
+        replacement_text = config_contents_list[0] if config_contents_list else ""
+        results.append(preview_pane(domain_uuid, settings, domain_settings, replacement_text))
+    return results
 
 @dash.callback(
     Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
@@ -1110,12 +1118,13 @@ def update_layout_style(layout_value, config_card_classes, add_card_classes, con
     State({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
     State({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
     State("url", "search"),
     State("odatix-settings", "data"),
 )
 def save_config_parameters(
     n_clicks, 
-    use_parameters, param_target_files, start_delimiters, stop_delimiters, domain_metadata,
+    use_parameters, param_target_files, start_delimiters, stop_delimiters, domain_metadata, config_params_stores,
     search, odatix_settings
 ):
     arch_name = get_key_from_url(search, "arch")
@@ -1136,17 +1145,21 @@ def save_config_parameters(
 
         idx = next((i for i, data in enumerate(domain_metadata) if data.get("domain_uuid") == trig_domain_uuid), -1)
         if idx != -1:
+            settings = config_params_stores[idx] if idx < len(config_params_stores) and config_params_stores[idx] is not None else {}
+
+            # Get values
             use_parameters = use_parameters[idx] if idx < len(use_parameters) else False
             use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
             param_target_file = param_target_files[idx] if idx < len(param_target_files) else ""
             start_delimiter = start_delimiters[idx] if idx < len(start_delimiters) else ""
             stop_delimiter = stop_delimiters[idx] if idx < len(stop_delimiters) else ""
-            settings = {
-                "use_parameters": use_parameters,
-                "param_target_file": param_target_file,
-                "start_delimiter": start_delimiter,
-                "stop_delimiter": stop_delimiter,
-            }
+
+            # Update settings
+            settings["use_parameters"] = use_parameters
+            settings["param_target_file"] = param_target_file
+            settings["start_delimiter"] = start_delimiter
+            settings["stop_delimiter"] = stop_delimiter
+
             workspace.update_domain_settings(arch_path, arch_name, trig_domain_name, settings)
             return [settings if i == idx else dash.no_update for i in range(len(domain_metadata))]
     return [dash.no_update for _ in range(len(domain_metadata))]
