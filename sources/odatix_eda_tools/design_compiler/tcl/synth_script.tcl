@@ -131,8 +131,8 @@ if {[catch {
 
     if {[catch {
         # Report Power 
-        #puts "Writing power report file '${REPORT_DIR}/${OUTPUT_PREFIX}power.rep'."
-        #report_power -analysis_effort high > ${REPORT_DIR}/${OUTPUT_PREFIX}power.rep
+        puts "Writing power report file '$power_rep'."
+        report_power > $power_rep
     } errmsg]} {
         puts "$signature <bold><red>error: could not write power report<end>"
         puts "$signature tool says -> $errmsg"
