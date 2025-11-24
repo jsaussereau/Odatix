@@ -29,9 +29,9 @@ import argparse
 from waitress import serve
 
 if sys.platform == "win32":
-  import msvcrt
+    import msvcrt
 else:
-  import select
+    import select
 
 
 import odatix.lib.printc as printc
@@ -55,135 +55,146 @@ max_find_port_attempts = 50
 ######################################
 
 def add_arguments(parser):
-  parser.add_argument('-i', '--input', type=str, default='results', help='Directory of the result YAML files')
-  parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
-  parser.add_argument('-N', '--normal_term_mode', action='store_true', help='Do not change terminal mode')
-  parser.add_argument('--safe_mode', action='store_true', help='Do not exit on internal error')
-  parser.add_argument('-B', '--nobrowser', action='store_true', help='Do not open browser')
-  parser.add_argument('-T', '--theme', default=None, help='Use a specific theme')
-  parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
+    parser.add_argument('-i', '--input', type=str, default='results', help='Directory of the result YAML files')
+    parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
+    parser.add_argument('-N', '--normal_term_mode', action='store_true', help='Do not change terminal mode')
+    parser.add_argument('--safe_mode', action='store_true', help='Do not exit on internal error')
+    parser.add_argument('-B', '--nobrowser', action='store_true', help='Do not open browser')
+    parser.add_argument('-T', '--theme', default=None, help='Use a specific theme')
+    parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
 
 def parse_arguments():
-  parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
-  add_arguments(parser)
-  # Try enabling autocompletion if argcomplete is installed
-  try:
-    import argcomplete
-    argcomplete.autocomplete(parser)
-  except ImportError:
-    pass  # No error if argcomplete is missing
-  return parser.parse_args()
+    parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
+    add_arguments(parser)
+    # Try enabling autocompletion if argcomplete is installed
+    try:
+        import argcomplete
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass  # No error if argcomplete is missing
+    return parser.parse_args()
 
 ######################################
 # Misc functions
 ######################################
 
 def open_browser():
-  webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
+    webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
 
 def close_server(old_settings):
-  if old_settings is not None:
-    term_mode.restore_mode(old_settings)
-  os._exit(0)
+    if old_settings is not None:
+        term_mode.restore_mode(old_settings)
+    os._exit(0)
 
 def find_free_port(host, start_port):
-  """Find a free port by incrementing from the start_port."""
-  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  port = start_port
-  attempts = 0
-  while True:
-    if attempts >= max_find_port_attempts:
-      printc.error(f"Could not find any available port in range [{start_port}:{port}]", script_name)
-      sys.exit(-1)
-    try:
-      sock.bind((host, port))
-      sock.close()
-      return port
-    except OSError:
-      port += 1
-      attempts += 1
+    """Find a free port by incrementing from the start_port."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    port = start_port
+    attempts = 0
+    while True:
+        if attempts >= max_find_port_attempts:
+            printc.error(f"Could not find any available port in range [{start_port}:{port}]", script_name)
+            sys.exit(-1)
+        try:
+            sock.bind((host, port))
+            sock.close()
+            return port
+        except OSError:
+            port += 1
+            attempts += 1
+
+def get_local_ip():
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+                s.connect(('8.8.8.8', 80))
+                ip = s.getsockname()[0]
+        except Exception:
+                ip = '127.0.0.1'
+        finally:
+                s.close()
+        return ip
 
 def start_odatix_app(network=False, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None):
 
-  global ip_address
-  global port
+    global ip_address
+    global port
 
-  # Default ip address: local
-  host_address = '127.0.0.1'
-  ip_address = host_address
+    # Default ip address: local
+    host_address = '127.0.0.1'
+    ip_address = host_address
 
-  logging.getLogger('waitress').setLevel(logging.ERROR)
+    logging.getLogger('waitress').setLevel(logging.ERROR)
 
-  if network:
-    host_address = '0.0.0.0'
-    ip_address = socket.gethostbyname(socket.gethostname())
+    if network:
+        host_address = '0.0.0.0'
+        ip_address = get_local_ip()
 
-  port = find_free_port(host_address, start_port)
+    port = find_free_port(host_address, start_port)
 
-  printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + '/' + printc.colors.ENDC, end="", script_name=script_name)
-  if network:
-    print(" (network-accessible)")
-  else:
-    print(" (localhost only)")
+    printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + '/' + printc.colors.ENDC, end="", script_name=script_name)
+    if network:
+        print(" (network-accessible)")
+    else:
+        print(" (localhost only)")
 
-  if normal_term_mode:
-    printc.say("press 'q', then enter to quit", script_name=script_name)
-  else:
-    printc.say("press 'q' to quit", script_name=script_name)
+    if normal_term_mode:
+        printc.say("press 'q', then enter to quit", script_name=script_name)
+    else:
+        printc.say("press 'q' to quit", script_name=script_name)
 
-  # Open the web page
-  if not do_not_open_browser:
-    process = Thread(target=open_browser).start()
+    # Open the web page
+    if not do_not_open_browser:
+        process = Thread(target=open_browser).start()
 
-  if normal_term_mode:
-    old_settings = None
-  else:
-    old_settings = term_mode.set_raw_mode()
+    if normal_term_mode:
+        old_settings = None
+    else:
+        old_settings = term_mode.set_raw_mode()
 
-  odatix_app = OdatixApp(
-    old_settings=old_settings,
-    safe_mode=safe_mode,
-    config_file=config_file,
-    theme=theme,
-  )
+    odatix_app = OdatixApp(
+        old_settings=old_settings,
+        safe_mode=safe_mode,
+        config_file=config_file,
+        theme=theme,
+    )
 
-  # Start the server
-  serve_thread = Thread(target=serve, args=(odatix_app.app.server,), kwargs={'host': host_address, 'port': port})
-  serve_thread.start()
-  
-  try:
-    while True:
-      # Check if a key is pressed
-      if sys.platform == "win32":
-        if msvcrt.kbhit():
-          key = msvcrt.getch().decode("utf-8").lower()
-          if key == 'q':
-            close_server(old_settings)
-      else:
-        if sys.stdin in select.select([sys.stdin], [], [], 0.5)[0]:
-          key = sys.stdin.read(1).lower()
-          if key == 'q':
-            close_server(old_settings)
-  finally:
-    if old_settings is not None:
-      term_mode.restore_mode(old_settings)
+    # Start the server
+    serve_thread = Thread(target=serve, args=(odatix_app.app.server,), kwargs={'host': host_address, 'port': port})
+    serve_thread.start()
+    
+    try:
+        while True:
+            # Check if a key is pressed
+            if sys.platform == "win32":
+                if msvcrt.kbhit():
+                    key = msvcrt.getch().decode("utf-8").lower()
+                    if key == 'q':
+                        close_server(old_settings)
+            else:
+                if sys.stdin in select.select([sys.stdin], [], [], 0.5)[0]:
+                    key = sys.stdin.read(1).lower()
+                    if key == 'q':
+                        close_server(old_settings)
+    finally:
+        if old_settings is not None:
+            term_mode.restore_mode(old_settings)
 
 ######################################
 # Main
 ######################################
 
 def main(args=None):
-  if args is None:
-    args = parse_arguments()
+    if args is None:
+        args = parse_arguments()
 
-  network = args.network
-  input = args.input
-  normal_term_mode = args.normal_term_mode
-  safe_mode = args.safe_mode
-  do_not_open_browser = args.nobrowser
-  config_file = args.config
+    network = args.network
+    input = args.input
+    normal_term_mode = args.normal_term_mode
+    safe_mode = args.safe_mode
+    do_not_open_browser = args.nobrowser
+    config_file = args.config
 
-  start_odatix_app(network, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme)
+    start_odatix_app(network, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme)
 
 if __name__ == "__main__":
-  main()
+    main()
