@@ -3,6 +3,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.7.2] - 2025-11-24
+
+### Fixed
+
+#### Odatix GUI
+
+- Fix compatibility with python 3.6
+
+## [3.7.1] - 2025-11-24
+
+### Fixed
+
+#### Odatix GUI
+
+- Fix crash
+
 ## [3.7.0] - 2025-11-24
 
 ### Added
