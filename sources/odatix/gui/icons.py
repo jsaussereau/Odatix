@@ -204,6 +204,18 @@ _icons = {
         id=id,
         style={"scale": "0.85", "transform": "rotate(90deg)", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
     ),
+    "play": lambda color, width, height, className, id: Svg(
+        children=[
+            Path(d='M464.7,221.5L86.1,7.3C52.5-11.7,25,7.5,25,50v412c0,42.5,27.5,61.7,61.1,42.7l378.6-214.1  C498.2,271.5,498.2,240.5,464.7,221.5z')
+        ],
+        fill=color,
+        version='1.1', 
+        viewBox='0 0 512 512', 
+        width=width, 
+        height=height, 
+        className=className, 
+        id=id,
+        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9px"},
     ),
 }
 
