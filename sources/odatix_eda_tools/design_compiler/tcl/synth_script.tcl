@@ -114,8 +114,8 @@ if {[catch {
     set_fix_multiple_port_nets -outputs -feedthroughs -constants
     #compile -map_effort medium -boundary_optimization
     #compile_ultra -area_high_effort_script -retime 
-    #compile
-    compile_ultra -timing_high_effort_script -retime
+    compile
+    #compile_ultra -timing_high_effort_script -retime
 
     report_progress 90 $synth_statusfile
 
