@@ -164,9 +164,10 @@ class ResultExplorer:
         self.dfs[yaml_file] = df
 
         # Diagnostic messages
-        if df[df["Type"] == "Fmax"].empty:
+        debug = False
+        if df[df["Type"] == "Fmax"].empty and debug:
           printc.note(f'No fmax results found in YAML file "{yaml_file}".', script_name=script_name)
-        if df[df["Type"] == "Custom Freq"].empty:
+        if df[df["Type"] == "Custom Freq"].empty and debug:
           printc.note(f'No range results found in YAML file "{yaml_file}".', script_name=script_name)
 
       except Exception as e:
