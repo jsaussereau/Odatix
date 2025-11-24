@@ -32,7 +32,7 @@ from odatix.gui.css_helper import Style
 top_bar_height = "50px"
 side_bar_width = "0px"
 
-banned_pages = ["PageNotFound", "Home", "Configuration Editor", "Architecture Editor", "Configuration Generator"]
+topbar_pages = ["Architectures", "Workspace"]
 
 def top_bar(gui):
     version = motd.read_version()
@@ -62,7 +62,7 @@ def top_bar(gui):
                     [
                         html.Div(
                             dcc.Link(f"{page['name']}", href=page["relative_path"], className="nav-link"),
-                        ) for page in dash.page_registry.values() if page["name"] not in banned_pages
+                        ) for page in dash.page_registry.values() if page["name"] in topbar_pages
                     ],
                     className="nav-links",
                 ),
