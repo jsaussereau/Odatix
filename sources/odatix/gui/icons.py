@@ -202,7 +202,8 @@ _icons = {
         height=height, 
         className=className, 
         id=id,
-        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
+        style={"scale": "0.85", "transform": "rotate(90deg)", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
+    ),
     ),
 }
 
