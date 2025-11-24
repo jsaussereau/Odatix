@@ -3,6 +3,60 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## [3.7.0] - 2025-11-24
+
+### Added
+
+#### Odatix
+
+- Add new design compiler targets
+
+#### Odatix Explorer
+
+- Add -N alias to --normal_term_mode option
+
+#### Odatix GUI
+
+- Add a basic GUI web app for Odatix : odatix-gui. For now, it only supports the functionnalities listed bellow.
+- Add a gui page for architecture handling
+- Add a gui page for architecture settings
+- Add a gui page for configurations / parameter domain settings
+- Add a gui page for configuration generation
+- Add a gui page for workspace settings 
+
+### Changed
+
+#### Odatix
+
+- Make all keys from odatix workspace settings optional
+- Make fmax bounds and custom frequency list optional
+- Remove a note displayed when no main configuration is in use
+- Decrease update check timeout 
+
+#### Odatix Explorer
+
+- Change markers of 3D charts
+- Automatically display parameter domains when dissociation is activated 
+- Make dropdown unclearable
+
+### Fixed
+
+#### Odatix
+
+- Fix compatibility with newer design compiler versions
+- Fix unclear error when using an undefined parameter domain
+- Fix lib names not including parameter domains configurations
+- Fix parameter domains not being exported for openlane et design_compiler
+- Fix hex to bin and bin to hex converions not being handled correctly by configuration generator
+
+#### Odatix Explorer
+
+- Fix crash when there are no parameter domains in a result file
+- Fix parameter domains not being detected if only custom frequency synthesis results are defined
+- Fix forced newline on parameter file generation with 'odatix generate'
+- Fix format type for parameter file generation not behaving as espected
+- Fix 'SettingWithCopyWarning' 
+
 ## [3.6.1] - 2025-03-18
 
 ### Changed
