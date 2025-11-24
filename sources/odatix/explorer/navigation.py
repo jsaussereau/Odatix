@@ -133,7 +133,7 @@ def side_bar(explorer):
                       id="yaml-dropdown",
                       options=[{"label": yaml_file, "value": yaml_file} for yaml_file in explorer.valid_yaml_files],
                       value=explorer.valid_yaml_files[0] if explorer.valid_yaml_files else None,
-                      clearable=False
+                      clearable=False,
                     ),
                   ],
                 ),
@@ -144,7 +144,8 @@ def side_bar(explorer):
                     dcc.Dropdown(
                       id="results-dropdown",
                       value="All",
-                      options= ["All", "Fmax", "Custom Freq"]
+                      options= ["All", "Fmax", "Custom Freq"],
+                      clearable=False,
                     ),
                   ],
                 ),
@@ -153,7 +154,7 @@ def side_bar(explorer):
                   id="title-metric-dropdown",
                   children=[
                     html.Div(className="dropdown-label", children=[html.Label("Metric")]),
-                    dcc.Dropdown(id="metric-dropdown", value="Fmax"),
+                    dcc.Dropdown(id="metric-dropdown", value="Fmax", clearable=False),
                   ],
                 ),
                 html.Div(
@@ -161,7 +162,7 @@ def side_bar(explorer):
                   id="title-metric-x-dropdown",
                   children=[
                     html.Div(className="dropdown-label", children=[html.Label("Metric X")]),
-                    dcc.Dropdown(id="metric-x-dropdown", value=""),
+                    dcc.Dropdown(id="metric-x-dropdown", clearable=False),
                   ],
                 ),
                 html.Div(
@@ -169,7 +170,7 @@ def side_bar(explorer):
                   id="title-metric-y-dropdown",
                   children=[
                     html.Div(className="dropdown-label", children=[html.Label("Metric Y")]),
-                    dcc.Dropdown(id="metric-y-dropdown", value=""),
+                    dcc.Dropdown(id="metric-y-dropdown", clearable=False),
                   ],
                 ),
                 html.Div(
@@ -177,7 +178,7 @@ def side_bar(explorer):
                   id="title-metric-z-dropdown",
                   children=[
                     html.Div(className="dropdown-label", children=[html.Label("Metric Z")]),
-                    dcc.Dropdown(id="metric-z-dropdown", value=""),
+                    dcc.Dropdown(id="metric-z-dropdown", clearable=False),
                   ],
                 ),
                 html.Div(
@@ -196,6 +197,7 @@ def side_bar(explorer):
                             {"label": "Radar", "value": "radar"}
                           ],
                           value="radar",
+                          clearable=False,
                         ),
                       ],
                       style={"margin-bottom": "5px"},
@@ -214,6 +216,7 @@ def side_bar(explorer):
                             {"label": "Page Wide", "value": "page_wide"}
                           ],
                           value="default",
+                          clearable=False,
                         ),
                       ],
                       style={"margin-bottom": "5px"},
@@ -272,7 +275,7 @@ def side_bar(explorer):
                           options=[{"label": param, "value": param} for param in ["None"] + list(explorer.all_param_domains.keys())],
                           value="None",
                           placeholder="Domain",
-                          clearable=True
+                          clearable=False,
                         ),
                       ],
                       style={"margin-bottom": "5px"},
@@ -286,7 +289,7 @@ def side_bar(explorer):
                           options=[{"label": param, "value": param} for param in explorer.all_param_domains.keys()],
                           value="__main__",
                           placeholder="Domain",
-                          clearable=True
+                          clearable=False,
                         ),
                       ],
                       style={"margin-bottom": "5px"},
@@ -319,6 +322,7 @@ def side_bar(explorer):
                         {"label": "Frequency", "value": "frequency"},
                       ],
                       value="architecture",
+                      clearable=False,
                     ),
                   ],
                   style={"margin-bottom": "5px"},
@@ -337,6 +341,7 @@ def side_bar(explorer):
                         {"label": "Frequency", "value": "frequency"},
                       ],
                       value="target",
+                      clearable=False,
                     ),
                   ],
                   style={"margin-bottom": "5px"},
@@ -354,6 +359,7 @@ def side_bar(explorer):
                         {"label": "Separate", "value": "separate_legend"},
                       ],
                       value="separate_legend",
+                      clearable=False,
                     ),
                   ],
                   style={"margin-bottom": "5px"},
@@ -432,6 +438,7 @@ def side_bar(explorer):
                   ],
                 ),
                 html.H2("Export Settings"),
+                html.Div("Download in raster/vector format", style={"margin-left": "20px", "margin-bottom": "10px"}),
                 html.Div(
                   className="title-dropdown",
                   children=[
@@ -445,6 +452,7 @@ def side_bar(explorer):
                         {"label": "WEBP", "value": "webp"},
                       ],
                       value="svg",
+                      clearable=False,
                     ),
                   ],
                   style={"margin-bottom": "5px"},
@@ -460,6 +468,7 @@ def side_bar(explorer):
                         {"label": "White", "value": "rgba(255, 255, 255, 255)"},
                       ],
                       value="rgba(255, 255, 255, 0)",
+                      clearable=False,
                     ),
                   ],
                 ),
@@ -647,7 +656,6 @@ def setup_sidebar_callbacks(explorer):
   @explorer.app.callback(
     Output("main-container", "className"),
     Input("theme-dropdown", "value"),
-  
   )
   def update_theme(
     theme
