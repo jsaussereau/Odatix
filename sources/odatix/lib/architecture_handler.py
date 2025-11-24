@@ -971,19 +971,17 @@ class ArchitectureHandler:
 
             # Check if bounds are defined
             if fmax_lower_bound is None:
-                printc.error('Lower bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
+                fmax_lower_bound = hard_settings.default_fmax_lower_bound
+                # printc.error('Lower bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
             if fmax_upper_bound is None:
-                printc.error('Upper bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
-            if fmax_lower_bound is None or fmax_upper_bound is None:
-                # printc.note('You can define fmax synthesis frequency bounds like this:', script_name)
-                # printc.magenta("fmax_synthesis:")
-                # printc.magenta("  lower_bound: XXX")
-                # printc.magenta("  upper_bound: XXX")
-                # return None, None, None, warn_fmax_obsolete
-                if fmax_lower_bound is None:
-                    fmax_lower_bound = hard_settings.default_fmax_lower_bound
-                if fmax_upper_bound is None:
-                    fmax_upper_bound = hard_settings.default_fmax_upper_bound
+                fmax_upper_bound = hard_settings.default_fmax_upper_bound
+                # printc.error('Upper bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
+            # if fmax_lower_bound is None or fmax_upper_bound is None:
+            #     printc.note('You can define fmax synthesis frequency bounds like this:', script_name)
+            #     printc.magenta("fmax_synthesis:")
+            #     printc.magenta("  lower_bound: XXX")
+            #     printc.magenta("  upper_bound: XXX")
+            #     return None, None, None, warn_fmax_obsolete
 
             return fmax_lower_bound, fmax_upper_bound, None, warn_fmax_obsolete
 
