@@ -113,12 +113,12 @@ layout = html.Div(
   id=f"{__name__}-content",
   style={
     "width": "100%", 
-    "background-color": "#f6f8fa",
-    "min-height": f"calc(100vh - {navigation.top_bar_height} - {4*padding}px)",
+    "min-height": f"calc(100vh - 1.8*{navigation.top_bar_height}",
     "display": "flex",
     "justify-content": "center",
     "align-items": "center",
     "padding-top": f"{padding}px",
     "padding-bottom": f"{padding}px",
   },
+  className="home-content",
 )
