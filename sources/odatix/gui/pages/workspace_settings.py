@@ -176,7 +176,7 @@ def workspace_form(settings):
                         ),
                         dcc.Dropdown(
                             id="use_benchmark",
-                            placeholder= f"{"Yes" if OdatixSettings.DEFAULT_USE_BENCHMARK else "No"}",
+                            placeholder= f"{'Yes' if OdatixSettings.DEFAULT_USE_BENCHMARK else 'No'}",
                             options=[
                                 {"label": "Yes", "value": True},
                                 {"label": "No", "value": False},
