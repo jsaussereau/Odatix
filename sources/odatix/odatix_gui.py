@@ -57,6 +57,7 @@ max_find_port_attempts = 50
 def add_arguments(parser):
     parser.add_argument('-i', '--input', type=str, default='results', help='Directory of the result YAML files')
     parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
+    parser.add_argument('-p', '--port', type=int, default=start_port, help='Port to run the server on')
     parser.add_argument('-N', '--normal_term_mode', action='store_true', help='Do not change terminal mode')
     parser.add_argument('--safe_mode', action='store_true', help='Do not exit on internal error')
     parser.add_argument('-B', '--nobrowser', action='store_true', help='Do not open browser')
@@ -114,7 +115,7 @@ def get_local_ip():
                 s.close()
         return ip
 
-def start_odatix_app(network=False, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None):
+def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None):
 
     global ip_address
     global port
@@ -129,7 +130,10 @@ def start_odatix_app(network=False, normal_term_mode=False, safe_mode=False, do_
         host_address = '0.0.0.0'
         ip_address = get_local_ip()
 
-    port = find_free_port(host_address, start_port)
+    if preferred_port is not None:
+        port = find_free_port(host_address, preferred_port)
+    else:
+        port = find_free_port(host_address, start_port)
 
     printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + '/' + printc.colors.ENDC, end="", script_name=script_name)
     if network:
@@ -193,8 +197,9 @@ def main(args=None):
     safe_mode = args.safe_mode
     do_not_open_browser = args.nobrowser
     config_file = args.config
+    port = args.port
 
-    start_odatix_app(network, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme)
+    start_odatix_app(network, port, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme)
 
 if __name__ == "__main__":
     main()
