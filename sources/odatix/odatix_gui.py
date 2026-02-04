@@ -27,6 +27,7 @@ import socket
 import logging 
 import argparse
 from waitress import serve
+from lib.utils import get_local_ip
 
 if sys.platform == "win32":
     import msvcrt
@@ -103,17 +104,6 @@ def find_free_port(host, start_port):
         except OSError:
             port += 1
             attempts += 1
-
-def get_local_ip():
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-                s.connect(('8.8.8.8', 80))
-                ip = s.getsockname()[0]
-        except Exception:
-                ip = '127.0.0.1'
-        finally:
-                s.close()
-        return ip
 
 def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None):
 

@@ -42,6 +42,7 @@ import sys
 import glob
 import time
 import shutil
+import socket
 import fnmatch
 import platform
 import traceback
@@ -301,3 +302,14 @@ def merge_dicts_of_lists(base_dict, merging_dict):
 
 def get_timestamp_string() -> str:
   return datetime.now().strftime("%Y-%m-%d_%H-%M-%S") 
+
+def get_local_ip():
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+                s.connect(('8.8.8.8', 80))
+                ip = s.getsockname()[0]
+        except Exception:
+                ip = '127.0.0.1'
+        finally:
+                s.close()
+        return ip
