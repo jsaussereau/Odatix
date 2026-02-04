@@ -27,6 +27,7 @@ import socket
 import logging 
 import argparse
 from waitress import serve
+from lib.utils import get_local_ip
 
 if sys.platform == "win32":
     import msvcrt
@@ -115,7 +116,7 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
 
     if network:
         host_address = '0.0.0.0'
-        ip_address = socket.gethostbyname(socket.gethostname())
+        ip_address = get_local_ip()
 
     if preferred_port is not None:
         port = find_free_port(host_address, preferred_port)
