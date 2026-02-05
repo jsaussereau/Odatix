@@ -65,7 +65,7 @@ if {[catch {
     }
 
     # read systemverilog source files
-    set sverilog_filenames [get_files_recursive $rtl_path {*.sv}]
+    set sverilog_filenames [get_files_recursive $rtl_path {*.sv *.svh}]
     puts "length sv files: [llength $sverilog_filenames]"
     if {[llength $sverilog_filenames] == 0} {
         puts "$signature <cyan>note: no SystemVerilog file in source directory<end>"
