@@ -45,7 +45,20 @@ if {[catch {
     puts "**************************************"
     puts "<end>"
 
-    elaborate ${top_level_module} -library $lib_name
+    redirect -variable result {
+        elaborate ${top_level_module} -library $lib_name
+    }
+    set result [string trimright $result "\n0"]
+    puts $result
+    if {[regexp -nocase -line {^Error:} $result]} {
+        puts "$signature <bold><red>error: failed elaborating design<end>"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
+    }
 
     link
     report_progress 8 $synth_statusfile
@@ -92,8 +105,20 @@ if {[catch {
     set input_delay [expr 0.1 * $clock_period]
     set output_delay [expr 0.1 * $clock_period]
 
-
-    create_clock -name $clock_signal -period $clock_period -waveform [list 0.0 [expr $clock_period / 2.0]] [list $clock_signal]
+    redirect -variable result {
+        create_clock -name $clock_signal -period $clock_period -waveform [list 0.0 [expr $clock_period / 2.0]] [list $clock_signal]
+    }
+    set result [string trimright $result "\n0"]
+    puts $result
+    if {[regexp -nocase -line {^Error:} $result]} {
+        puts "$signature <bold><red>error: failed creating clock<end>"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
+    }
 
     set_wire_load_mode segmented
     set_clock_uncertainty -hold $clock_skew $clock_signal
