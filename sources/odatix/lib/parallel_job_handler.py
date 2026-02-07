@@ -30,6 +30,7 @@ import subprocess
 import curses
 import locale
 import io
+import threading
 
 if sys.platform == "win32":
   import msvcrt
@@ -262,6 +263,25 @@ def read_pipe_windows(pipe, job):
 # ParallelJob
 ######################################
 
+def get_elapsed_time_str(job_start_time, job_stop_time):
+  if job_start_time is not None:
+    if job_stop_time is not None:
+      stop_time = job_stop_time
+    else:
+      stop_time = time.time()
+    elapsed_seconds = int(stop_time - job_start_time)
+    days = elapsed_seconds // 86400
+    hours = (elapsed_seconds % 86400) // 3600
+    minutes = (elapsed_seconds % 3600) // 60
+    seconds = elapsed_seconds % 60
+    if days > 0:
+      elapsed_time = f"{days}d+{hours:02}:{minutes:02}" # Format Days+HH:MM
+    else:
+      elapsed_time = f"{hours:02}:{minutes:02}:{seconds:02}" # Format HH:MM:SS
+  else:
+    elapsed_time = "00:00:00"
+  return elapsed_time
+
 class ParallelJob:
   status_file_pattern = re.compile(r"(.*)")
   progress_file_pattern = re.compile(r"(.*)")
@@ -423,6 +443,386 @@ class ParallelJobHandler:
       self.theme = Theme('Color_Boxes')
     except:
       self.theme = Theme('ASCII_Highlight')
+
+    # Headless / API control state (thread-safe)
+    self._lock = threading.RLock()
+    self._command_queue = queue.Queue()
+    self._stop_event = threading.Event()
+    self._headless_thread = None
+    self._headless_running = False
+    self._headless_initialized = False
+    self._headless_logs_height = 40
+    self.showing_help = False
+
+    # API server (optional)
+    self._api_thread = None
+    self._api_server = None
+
+  ######################################
+  # Headless control / snapshot API
+  ######################################
+
+  def snapshot(self, logs_job_id=None, logs_offset=None, logs_limit=None):
+    """Return a JSON-serializable snapshot of handler + job state.
+
+    If logs_job_id is None, returns logs for the selected job.
+    """
+    with self._lock:
+      jobs = []
+      for idx, job in enumerate(self.job_list):
+        jobs.append(
+          {
+            "id": idx,
+            "display_name": job.display_name,
+            "status": job.status,
+            "progress": getattr(job, "progress", 0),
+            "directory": job.directory,
+            "tmp_dir": job.tmp_dir,
+            "target": job.target,
+            "arch": job.arch,
+            "elapsed_time": get_elapsed_time_str(job.start_time, job.stop_time),
+          }
+        )
+
+      selected_id = int(self.selected_job_index)
+      if logs_job_id is None:
+        logs_job_id = selected_id
+
+      logs = None
+      if 0 <= int(logs_job_id) < len(self.job_list):
+        job = self.job_list[int(logs_job_id)]
+        history = list(job.log_history)
+        total = len(history)
+
+        if logs_offset is None:
+          logs_offset = job.log_position
+        if logs_limit is None:
+          logs_limit = self._headless_logs_height
+
+        logs_offset = max(0, int(logs_offset))
+        logs_limit = int(logs_limit)
+
+        if logs_limit < 0:
+          # Special case: full log from offset
+          lines = history[logs_offset:]
+        else:
+          logs_limit = max(0, logs_limit)
+          lines = history[logs_offset : logs_offset + logs_limit]
+
+        logs = {
+          "job_id": int(logs_job_id),
+          "total_lines": total,
+          "offset": logs_offset,
+          "limit": logs_limit,
+          "log_position": job.log_position,
+          "autoscroll": job.autoscroll,
+          "lines": lines,
+        }
+
+      return {
+        "handler": {
+          "version": str(self.version),
+          "nb_jobs": int(self.nb_jobs),
+          "process_group": bool(self.process_group),
+          "auto_exit": bool(self.auto_exit),
+          "selected_job_index": selected_id,
+          "job_count": int(self.job_count),
+          "running": len(self.running_job_list),
+          "queued": int(self.job_queue.qsize()),
+          "retired": len(self.retired_job_list),
+          "theme": getattr(self.theme, "theme", None),
+        },
+        "jobs": jobs,
+        "logs": logs,
+      }
+
+  def select_job(self, job_id: int):
+    with self._lock:
+      job_id = int(job_id)
+      if job_id < 0 or job_id >= len(self.job_list):
+        raise IndexError("job_id out of range")
+      self.selected_job_index = job_id
+      job = self.job_list[self.selected_job_index]
+      job.log_position = max(0, len(job.log_history) - self._headless_logs_height)
+      job.autoscroll = True
+
+  def scroll_logs(self, job_id: int, delta: int):
+    with self._lock:
+      job = self.job_list[int(job_id)]
+      if delta == 0:
+        return
+      job.log_position = max(0, job.log_position + int(delta))
+      max_start = max(0, len(job.log_history) - self._headless_logs_height)
+      job.log_position = min(job.log_position, max_start)
+      job.autoscroll = False
+
+  def logs_home(self, job_id: int):
+    with self._lock:
+      job = self.job_list[int(job_id)]
+      job.log_position = 0
+      job.autoscroll = False
+
+  def logs_end(self, job_id: int):
+    with self._lock:
+      job = self.job_list[int(job_id)]
+      job.log_position = max(0, len(job.log_history) - self._headless_logs_height)
+      job.autoscroll = True
+
+  def set_logs_height(self, height: int):
+    with self._lock:
+      self._headless_logs_height = max(1, int(height))
+
+  def pause_job(self, job_id: int):
+    with self._lock:
+      job = self.job_list[int(job_id)]
+      if job.status == "running":
+        job.pause()
+
+  def start_or_resume_job(self, job_id: int):
+    with self._lock:
+      job = self.job_list[int(job_id)]
+      if job.status == "queued":
+        try:
+          self.job_queue.queue.remove(job)
+        except ValueError:
+          pass
+      if job.status in ("queued", "canceled"):
+        self.start_job(job)
+      elif job.status == "paused":
+        job.resume()
+
+  def kill_or_cancel_job(self, job_id: int):
+    with self._lock:
+      job = self.job_list[int(job_id)]
+      if job.status == "running" and job.process is not None:
+        try:
+          if sys.platform == "win32":
+            job.process.send_signal(signal.CTRL_BREAK_EVENT)
+          else:
+            os.killpg(os.getpgid(job.process.pid), signal.SIGTERM)
+          job.status = "killed"
+          self.retire_job(job, getattr(job, "progress", 0))
+          job.log_history.append(printc.colors.RED + "Job killed by user" + printc.colors.ENDC)
+        except ProcessLookupError:
+          job.log_history.append(printc.colors.RED + "Failed to kill the job" + printc.colors.ENDC)
+      elif job.status == "queued":
+        try:
+          self.job_queue.queue.remove(job)
+          job.status = "canceled"
+          job.log_history.append(printc.colors.RED + "Job canceled by user" + printc.colors.ENDC)
+        except ValueError:
+          pass
+
+  def open_job_path(self, job_id: int):
+    with self._lock:
+      job = self.job_list[int(job_id)]
+      try:
+        open_path_in_explorer(job.tmp_dir)
+      except NotImplementedError:
+        pass
+
+  def next_theme(self):
+    with self._lock:
+      self.theme.next_theme()
+
+  def request_shutdown(self):
+    self._stop_event.set()
+
+  def enqueue_command(self, name: str, **kwargs):
+    """Enqueue a control command to be executed by the headless loop."""
+    self._command_queue.put({"name": str(name), "kwargs": dict(kwargs)})
+
+  def process_pending_commands(self, max_commands: int = 100):
+    """Apply enqueued commands (used by headless loop and optionally curses loop)."""
+    processed = 0
+    while processed < int(max_commands):
+      try:
+        cmd = self._command_queue.get_nowait()
+      except queue.Empty:
+        break
+      self._apply_command(cmd)
+      processed += 1
+
+  def _apply_command(self, cmd):
+    name = cmd.get("name")
+    kwargs = cmd.get("kwargs") or {}
+
+    if name == "select":
+      self.select_job(kwargs["job_id"])
+    elif name == "pause":
+      self.pause_job(kwargs["job_id"])
+    elif name == "start":
+      self.start_or_resume_job(kwargs["job_id"])
+    elif name == "kill":
+      self.kill_or_cancel_job(kwargs["job_id"])
+    elif name == "open":
+      self.open_job_path(kwargs["job_id"])
+    elif name == "theme_next":
+      self.next_theme()
+    elif name == "logs_scroll":
+      self.scroll_logs(kwargs["job_id"], kwargs.get("delta", 0))
+    elif name == "logs_home":
+      self.logs_home(kwargs["job_id"])
+    elif name == "logs_end":
+      self.logs_end(kwargs["job_id"])
+    elif name == "set_logs_height":
+      self.set_logs_height(kwargs["height"])
+    elif name == "shutdown":
+      self.request_shutdown()
+    else:
+      raise ValueError(f"Unknown command '{name}'")
+
+  def _initialize_headless(self):
+    if self._headless_initialized:
+      return
+
+    # Start initial jobs / queue remaining jobs (same as curses mode)
+    for job in self.job_list:
+      if len(self.running_job_list) < self.nb_jobs:
+        self.start_job(job)
+      else:
+        self.queue_job(job)
+
+    self._headless_initialized = True
+
+  def _tick(self):
+    """One scheduling + IO tick (headless, no curses)."""
+    with self._lock:
+      # Update job status and progress (logic mirrored from curses loop)
+      for job in self.job_list:
+        if job in self.retired_job_list:
+          job.progress = getattr(job, "progress", 0)
+        elif job not in self.running_job_list or job.process is None:
+          job.progress = 0
+        else:
+          job.progress = job.get_progress()
+          if job.process.poll() is not None:
+            if job.process.returncode == 0:
+              if job.status == "starting":
+                job.log_history.append("")
+                self.run_job(job)
+                continue
+              else:
+                job.status = "success"
+            else:
+              job.status = "failed"
+              if job.progress is None:
+                job.progress = 0
+
+            self.retire_job(job, job.progress)
+            if not self.job_queue.empty():
+              self.start_job(self.job_queue.get())
+
+      # Collect stdout and stderr pipes
+      self.read_process_output()
+
+      # Autoscroll selected job (keep behavior similar to curses)
+      if 0 <= self.selected_job_index < len(self.job_list):
+        selected_job = self.job_list[self.selected_job_index]
+        if selected_job.autoscroll and selected_job.log_changed:
+          selected_job.log_position = max(0, len(selected_job.log_history) - self._headless_logs_height)
+
+  def _headless_loop(self, tick_interval: float):
+    with self._lock:
+      self._initialize_headless()
+      self._headless_running = True
+
+    try:
+      while not self._stop_event.is_set():
+        # Apply queued commands
+        try:
+          with self._lock:
+            self.process_pending_commands(max_commands=200)
+        except Exception as e:
+          # Keep running; record error in selected job log (best-effort)
+          with self._lock:
+            if 0 <= self.selected_job_index < len(self.job_list):
+              self.job_list[self.selected_job_index].log_history.append(
+                printc.colors.RED + f"API command error: {e}" + printc.colors.ENDC
+              )
+
+        self._tick()
+        time.sleep(float(tick_interval))
+    finally:
+      with self._lock:
+        self._headless_running = False
+
+  def start_headless(self, tick_interval: float = 0.1):
+    """Start a background thread that runs the job scheduler without curses."""
+    with self._lock:
+      if self._headless_thread is not None and self._headless_thread.is_alive():
+        return
+      self._stop_event.clear()
+      self._headless_thread = threading.Thread(
+        target=self._headless_loop, args=(tick_interval,), daemon=True
+      )
+      self._headless_thread.start()
+
+  def stop_headless(self, terminate_jobs: bool = True, timeout: float = 5.0):
+    """Stop the headless scheduler thread and optionally terminate running jobs."""
+    self.request_shutdown()
+    t = self._headless_thread
+    if t is not None:
+      t.join(timeout=float(timeout))
+    if terminate_jobs:
+      with self._lock:
+        self.terminate_all_jobs()
+
+  def run_api(self, host: str = "0.0.0.0", port: int = 8000, log_level: str = "info"):
+    """Run a FastAPI+Uvicorn server exposing REST + WebSocket controls.
+
+    Imports are lazy so this file does not require FastAPI unless you call run_api().
+    """
+    from odatix.lib.parallel_job_api import run_parallel_job_api
+
+    return run_parallel_job_api(self, host=host, port=int(port), log_level=str(log_level))
+
+  def start_api_background(
+    self,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    log_level: str = "info",
+    start_headless_on_startup: bool = False,
+    quiet: bool = True,
+  ):
+    """Start the FastAPI/Uvicorn server in a background thread.
+
+    - If you plan to run the curses monitor (`run()`), set start_headless_on_startup=False
+      so you don't run two schedulers at once.
+    - If you want the API to run standalone (no curses), set start_headless_on_startup=True.
+    """
+    from odatix.lib.parallel_job_api import create_uvicorn_server
+
+    with self._lock:
+      if self._api_thread is not None and self._api_thread.is_alive():
+        return self._api_server
+
+      self._api_server = create_uvicorn_server(
+        self,
+        host=host,
+        port=int(port),
+        log_level=str(log_level),
+        start_headless_on_startup=bool(start_headless_on_startup),
+        quiet=bool(quiet),
+      )
+
+      server = self._api_server
+
+      def _run():
+        server.run()
+
+      self._api_thread = threading.Thread(target=_run, daemon=True)
+      self._api_thread.start()
+      return self._api_server
+
+  def stop_api_background(self, timeout: float = 2.0):
+    with self._lock:
+      server = self._api_server
+      t = self._api_thread
+    if server is not None:
+      server.should_exit = True
+    if t is not None:
+      t.join(timeout=float(timeout))
 
   @staticmethod
   def set_nonblocking(fd):
@@ -600,22 +1000,7 @@ class ParallelJobHandler:
     # Display the jobs within the visible range
     for id, job in enumerate(self.job_list[self.job_index_start:self.job_index_end]):
       selected = (self.selected_job_index == self.job_index_start + id)
-      if job.start_time is not None:
-        if job.stop_time is not None:
-          stop_time = job.stop_time
-        else:
-          stop_time = time.time()
-        elapsed_seconds = int(stop_time - job.start_time)
-        days = elapsed_seconds // 86400
-        hours = (elapsed_seconds % 86400) // 3600
-        minutes = (elapsed_seconds % 3600) // 60
-        seconds = elapsed_seconds % 60
-        if days > 0:
-          elapsed_time = f"{days}d+{hours:02}:{minutes:02}" # Format Days+HH:MM
-        else:
-          elapsed_time = f"{hours:02}:{minutes:02}:{seconds:02}" # Format HH:MM:SS
-      else:
-        elapsed_time = "00:00:00"
+      elapsed_time = get_elapsed_time_str(job.start_time, job.stop_time)
       try:
         self.progress_bar(
           id=id,
@@ -1015,6 +1400,20 @@ class ParallelJobHandler:
     self.showing_help = False
 
     while True:
+      # Apply any API commands (when running with background REST/WS control)
+      try:
+        with self._lock:
+          self.process_pending_commands(max_commands=200)
+      except Exception as e:
+        try:
+          # Best-effort: show an error in selected job logs
+          if 0 <= self.selected_job_index < len(self.job_list):
+            self.job_list[self.selected_job_index].log_history.append(
+              printc.colors.RED + f"API command error: {e}" + printc.colors.ENDC
+            )
+        except Exception:
+          pass
+
       height, width = stdscr.getmaxyx()
       # If window size changes, adjust the layout
       if height != old_height or width != old_width or resize:
@@ -1060,34 +1459,35 @@ class ParallelJobHandler:
       # Add a separator
       self.update_separator(separator_top_win, self.job_index_start, 0, width)
 
-      # Update job status and progress
-      for job in self.job_list:
-        if job in self.retired_job_list:
-          job.progress = job.progress
-        elif job not in self.running_job_list or job.process is None:
-          job.progress = 0
-        else: 
-          job.progress = job.get_progress()
-          if job.process.poll() is not None:
-            if job.process.returncode == 0:
-              if job.status == "starting":
-                job.log_history.append("")
-                self.run_job(job)
-                continue
+      # Update job status and progress (protected for API concurrency)
+      with self._lock:
+        for job in self.job_list:
+          if job in self.retired_job_list:
+            job.progress = job.progress
+          elif job not in self.running_job_list or job.process is None:
+            job.progress = 0
+          else: 
+            job.progress = job.get_progress()
+            if job.process.poll() is not None:
+              if job.process.returncode == 0:
+                if job.status == "starting":
+                  job.log_history.append("")
+                  self.run_job(job)
+                  continue
+                else:
+                  job.status = "success"
               else:
-                job.status = "success"
-            else:
-              job.status = "failed"
-              if job.progress is None:
-                job.progress = 0
+                job.status = "failed"
+                if job.progress is None:
+                  job.progress = 0
 
-            self.retire_job(job, job.progress)
-            if not self.job_queue.empty():
-              self.start_job(self.job_queue.get())
-              
-            if job == selected_job:
-              selected_job.log_changed = True
-              self.update_logs(logs_win, selected_job, logs_height, width)
+              self.retire_job(job, job.progress)
+              if not self.job_queue.empty():
+                self.start_job(self.job_queue.get())
+                
+              if job == selected_job:
+                selected_job.log_changed = True
+                self.update_logs(logs_win, selected_job, logs_height, width)
 
       # Update progress window
       self.update_progress_window(progress_win, selected_job)
@@ -1100,7 +1500,8 @@ class ParallelJobHandler:
         self.update_help_popup(popup_win, width, height, popup_width, popup_height)
 
       # Collect all stdout and stderr pipes
-      self.read_process_output()
+      with self._lock:
+        self.read_process_output()
 
       # Automatically scroll if at the bottom
       if selected_job.autoscroll and selected_job.log_changed:
