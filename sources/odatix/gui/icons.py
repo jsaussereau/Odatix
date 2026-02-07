@@ -215,7 +215,34 @@ _icons = {
         height=height, 
         className=className, 
         id=id,
-        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9px"},
+        style={"scale": "0.8", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-8px", "marginTop": "5px"},
+    ),
+    "pause": lambda color, width, height, className, id: Svg(
+        children=[
+            Path(d='M2 6C2 4.11438 2 3.17157 2.58579 2.58579C3.17157 2 4.11438 2 6 2C7.88562 2 8.82843 2 9.41421 2.58579C10 3.17157 10 4.11438 10 6V18C10 19.8856 10 20.8284 9.41421 21.4142C8.82843 22 7.88562 22 6 22C4.11438 22 3.17157 22 2.58579 21.4142C2 20.8284 2 19.8856 2 18V6Z'),
+            Path(d='M14 6C14 4.11438 14 3.17157 14.5858 2.58579C15.1716 2 16.1144 2 18 2C19.8856 2 20.8284 2 21.4142 2.58579C22 3.17157 22 4.11438 22 6V18C22 19.8856 22 20.8284 21.4142 21.4142C20.8284 22 19.8856 22 18 22C16.1144 22 15.1716 22 14.5858 21.4142C14 20.8284 14 19.8856 14 18V6Z')
+        ],
+        fill=color,
+        version='1.1', 
+        viewBox='0 0 24 24', 
+        width=width, 
+        height=height, 
+        className=className, 
+        id=id,
+        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px", "marginTop": "4px"},
+    ),
+    "cross": lambda color, width, height, className, id: Svg(
+        children=[
+            Path(d='M491.613,75.643l-64.235-64.235c-15.202-15.202-39.854-15.202-55.056,0L251.507,132.222L130.686,11.407    c-15.202-15.202-39.853-15.202-55.055,0L11.401,75.643c-15.202,15.202-15.202,39.854,0,55.056l120.821,120.815L11.401,372.328    c-15.202,15.202-15.202,39.854,0,55.056l64.235,64.229c15.202,15.202,39.854,15.202,55.056,0l120.815-120.814l120.822,120.814    c15.202,15.202,39.854,15.202,55.056,0l64.235-64.229c15.202-15.202,15.202-39.854,0-55.056L370.793,251.514l120.82-120.815    C506.815,115.49,506.815,90.845,491.613,75.643z')
+        ],
+        fill=color,
+        version='1.1', 
+        viewBox='0 0 503.021 503.021',
+        width=width, 
+        height=height, 
+        className=className, 
+        id=id,
+        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9.5px", "marginTop": "4.5px"},
     ),
 }
 
