@@ -8,3 +8,6 @@ pandas
 plotly
 waitress
 dash_svg
+websockets
+fastapi
+uvicorn
