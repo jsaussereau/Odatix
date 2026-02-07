@@ -108,7 +108,7 @@ def full_header(description=True):
 
 def print_copyright():
   """Prints the copyright information."""
-  print("Copyright (C) 2022-2025 Jonathan Saussereau")
+  print("Copyright (C) 2022-2026 Jonathan Saussereau")
 
 ######################################
 # Version
