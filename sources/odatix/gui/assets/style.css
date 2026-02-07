@@ -599,6 +599,8 @@ textarea {
     width: 100%;
     max-width: 1488px;
     margin: auto;
+    margin-top: 0px;
+    margin-bottom: 30px;
 }
 
 .title-input {
@@ -884,6 +886,7 @@ h3 {
 
 .tooltip:hover::after {
     opacity: 1;
+    z-index: 999999!important;
 }
 .tooltip.delay:hover::after {
     transition-delay: 0.5s;
@@ -1076,4 +1079,167 @@ h3 {
 }
 .icon.rotated {
     transform: rotate(180deg);
+}
+
+.monitor-task-container {
+    border: 2px solid transparent;
+    border-radius: var(--theme-small-border-radius);
+}
+
+.monitor-task-container.selected {
+    border: 2px solid var(--theme-primary-color);
+    background: var(--theme-tertiary-color);
+}
+
+.monitor-task-container:hover {
+    background: var(--theme-tertiary-color);
+}
+
+.monitor-task  {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 15px;
+    height: 30px;
+    border-radius: var(--theme-small-border-radius);
+}
+
+
+.monitor-task-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: calc(50% - 75px);
+    font-size: 16px;
+}
+
+.monitor-task-status {
+    width: 50px;
+    font-weight: bold;
+    text-align: center;
+    font-size: 16px;
+}
+
+.monitor-task-runtime {
+    width: 75px;
+    min-width: 75px;
+    text-align: center;
+    font-size: 16px;
+}
+
+.monitor-task-progress-text {
+    width: 50px;
+    min-width: 50px;
+    text-align: center;
+    font-size: 16px;
+}
+
+
+.monitor-task-progress {
+    border-radius: var(--progress-bar-border-radius); 
+    width: 32%;
+    height: 22px;
+    margin-left: 0;
+    box-shadow: var(--theme-shadow-color);
+    background: var(--progress-bar-background-color);
+}
+
+/* .selected .monitor-task-progress {
+    background-color: var(--theme-element-background-color);
+} */
+
+.monitor-task-progress-bar {
+    height: 100%;
+    border-radius: var(--progress-bar-border-radius); 
+    transition: width 0.3s ease;
+}
+
+.failed .monitor-task-progress-bar {
+    background-color: var(--theme-caution-color);
+}
+
+.killed .monitor-task-progress-bar {
+    background-color: var(--theme-caution-color);
+}
+
+.running .monitor-task-progress-bar {
+    background-color: var(--theme-running-color);
+}
+
+.success .monitor-task-progress-bar {
+    background-color: var(--theme-success-color);
+}
+
+.starting .monitor-task-progress-bar {
+    background-color: var(--theme-primary-color);
+}
+
+.queued .monitor-task-progress-bar {
+    background-color: var(--theme-pause-color);
+}
+
+.paused .monitor-task-progress-bar {
+    background-color: var(--theme-pause-color);
+}
+
+
+.failed .monitor-task-status {
+    color: var(--theme-caution-color);
+}
+
+.killed .monitor-task-status {
+    color: var(--theme-caution-color);
+}
+
+.running .monitor-task-status {
+    color: var(--theme-running-color);
+}
+
+.success .monitor-task-status {
+    color: var(--theme-success-color);
+}
+
+.starting .monitor-task-status {
+    color: var(--theme-primary-color);
+}
+
+.queued .monitor-task-status {
+    color: var(--theme-primary-color);
+}
+
+.paused .monitor-task-status {
+    color: var(--theme-primary-color);
+}
+
+.monitor-log-container {
+    height: fit-content;
+}
+
+.monitor-log {
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 8px;
+    overflow: scroll;
+    padding: 12px;
+    height: calc(100% - 75px);
+}
+
+.monitor-log-container.normal {
+    height: 400px;
+}
+
+.monitor-log-container.log_view {
+    height: 85vh;
+}
+
+.monitor-log-container.split {
+    height: calc(50vh - 176px);
+}
+
+.monitor-container {
+    overflow-y: scroll;
+}
+
+.monitor-container.split {
+    height: calc(50vh - 176px);
 }

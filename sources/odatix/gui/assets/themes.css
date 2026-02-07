@@ -54,9 +54,12 @@
     --theme-disabled-error-color: #fa5252ab;
     --theme-disabled-background-color: var(--theme-tertiary-color);
     --theme-disabled-error-background-color: #FA525229;
+    --theme-running-color: #F6D32D;
     --theme-success-color: #40C057;
     --theme-warning-color: #FF8825;
     --theme-caution-color: #FA5252;
+    --theme-pause-color: #228BE6;
+    --theme-pending-color: #228BE6;
     --theme-error-color: var(--theme-caution-color);
     --theme-shadow-color: rgba(29, 37, 79, 0.1);
     --theme-text-color: #24292e;
@@ -289,6 +292,10 @@
     --secondary-highlight-border: none;
     --secondary-highlight-text-color: var(--secondary-highlight-color);
     --secondary-highlight-text-shadow: var(--theme-text-shadow);
+
+    /* progress bars */
+    --progress-bar-border-radius: var(--theme-small-border-radius);
+    --progress-bar-background-color: var(--theme-background-color);
 }
 
 .theme.odatix {
@@ -686,6 +693,12 @@
     --theme-disabled-color: #808080;
     --theme-text-color: #000000;
     --theme-text-shadow: none;
+    --theme-running-color: #dfe300;
+    --theme-success-color: #208c71;
+    --theme-warning-color: #FF8825;
+    --theme-caution-color: #e35f5f;
+    --theme-pause-color: var(--win95-blue);
+    --theme-pending-color: var(--win95-bg);
     --theme-border-color: #000000;
     --theme-overlay-background-color: #0000003d;
     --theme-contrast-background-color: #000000;
@@ -734,6 +747,9 @@
     --primary-highlight-text-color: var(--theme-contrast-text-color);
     --secondary-highlight-color: var(--theme-warning-color);
     --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+
+    /* progress bars */
+    --progress-bar-background-color: var(--win95-face);
 }
 .theme.win95 .card,
 .theme.win95 .tile,
@@ -751,6 +767,7 @@
 .theme.win95 pre,
 .theme.win95 input,
 .theme.win95 textarea,
+.theme.win95 .monitor-task-progress,
 .theme.win95 button:active {
     border-top: 2px solid var(--win95-shadow) !important;
     border-left: 2px solid var(--win95-shadow) !important;

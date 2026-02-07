@@ -498,6 +498,24 @@ def _poll_log_deltas(_n, selected_job_id, logs_state):
         "total_lines": total_i,
     }
 
+@dash.callback(
+    Output("monitor-log-container", "className"),
+    Output("monitor-container", "className"),
+    Input("config-layout-dropdown", "value"),
+)
+def _update_log_layout(layout_value):
+    log_classes = "tile title monitor-log-container"
+    container_classes = "tile title monitor-container"
+    if layout_value == "split":
+        log_classes += " split"
+        container_classes += " split"
+    elif layout_value == "log_view":
+        log_classes += " log_view"
+        container_classes += " log_view"
+    else:
+        log_classes += " normal"
+        container_classes += " normal"
+    return log_classes, container_classes
 
 @dash.callback(
     Output("monitor-log", "children"),
@@ -575,12 +593,28 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks):
 # Layout
 ######################################
 
+title_buttons = html.Div(
+    children=[
+        dcc.Dropdown(
+            id="config-layout-dropdown", 
+            options=[
+                {"label": "Normal Layout", "value": "normal"},
+                {"label": "Split Layout", "value": "split"},
+                {"label": "Log View Layout", "value": "log_view"},
+            ],
+            value="normal",
+            clearable=False,
+            style={"width": "155px"},
+        ),
+    ],
+    className="inline-flex-buttons",
+)         
 
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(
-            ui.title_tile(text="Monitor", buttons=html.Div(), tooltip="Pilot ParallelJobHandler via REST API"),
+            ui.title_tile(text="Monitor", buttons=title_buttons, tooltip="Pilot ParallelJobHandler via REST API"),
             style={"marginTop": "20px", "marginLeft": "-13px", "marginBottom": "10px"},
         ),
         html.Div(
@@ -604,7 +638,8 @@ layout = html.Div(
                         html.H3("Log output"),
                         html.Pre(id="monitor-log", className="monitor-log"),
                     ],
-                    className="tile title",
+                    className="tile title monitor-log-container",
+                    id="monitor-log-container",
                 ),
             ],
             className="tiles-container config",
