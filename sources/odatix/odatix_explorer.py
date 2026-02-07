@@ -27,7 +27,6 @@ import socket
 import logging 
 import argparse
 from waitress import serve
-from lib.utils import get_local_ip
 
 if sys.platform == "win32":
     import msvcrt
@@ -38,6 +37,7 @@ else:
 import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
 from odatix.explorer.explorer_app import ResultExplorer
+from odatix.lib.utils import get_local_ip, find_free_port
 
 sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
 
@@ -48,7 +48,6 @@ sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
 script_name = os.path.basename(__file__)
 
 start_port = 8052
-max_find_port_attempts = 50
 
 ######################################
 # Parse Arguments
@@ -85,23 +84,6 @@ def close_server(old_settings):
     if old_settings is not None:
         term_mode.restore_mode(old_settings)
     os._exit(0)
-
-def find_free_port(host, start_port):
-    """Find a free port by incrementing from the start_port."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    port = start_port
-    attempts = 0
-    while True:
-        if attempts >= max_find_port_attempts:
-            printc.error(f"Could not find any available port in range [{start_port}:{port}]", script_name)
-            sys.exit(-1)
-        try:
-            sock.bind((host, port))
-            sock.close()
-            return port
-        except OSError:
-            port += 1
-            attempts += 1
 
 def start_result_explorer(input, network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, theme=None):
 
