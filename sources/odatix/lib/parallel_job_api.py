@@ -105,7 +105,8 @@ def create_parallel_job_app(
   async def broadcaster():
     while True:
       await asyncio.sleep(float(ws_push_interval))
-      data = handler.snapshot()
+      # Keep periodic broadcasts lightweight (no logs).
+      data = handler.snapshot(logs_job_id=-1)
       payload = {"type": "snapshot", "data": data}
       dead: Set[Any] = set()
       for ws in list(connections):
@@ -132,8 +133,15 @@ def create_parallel_job_app(
       handler.stop_headless(terminate_jobs=False)
 
   @app.get("/status")
-  async def get_status():
-    return handler.snapshot()
+  async def get_status(
+    logs_job_id: Optional[int] = None,
+    logs_offset: Optional[int] = None,
+    logs_limit: Optional[int] = None,
+  ):
+    # Keep /status lightweight by default (no logs).
+    if logs_job_id is None:
+      logs_job_id = -1
+    return handler.snapshot(logs_job_id=logs_job_id, logs_offset=logs_offset, logs_limit=logs_limit)
 
   @app.get("/jobs")
   async def list_jobs():
@@ -181,7 +189,7 @@ def create_parallel_job_app(
     connections.add(ws)
 
     # Send initial state
-    await ws.send_json({"type": "snapshot", "data": handler.snapshot()})
+    await ws.send_json({"type": "snapshot", "data": handler.snapshot(logs_job_id=-1)})
 
     try:
       while True:
@@ -192,7 +200,7 @@ def create_parallel_job_app(
         msg_type = msg.get("type")
 
         if msg_type == "snapshot":
-          await ws.send_json({"type": "snapshot", "data": handler.snapshot()})
+          await ws.send_json({"type": "snapshot", "data": handler.snapshot(logs_job_id=-1)})
           continue
 
         if msg_type == "command":
@@ -207,7 +215,7 @@ def create_parallel_job_app(
             await ws.send_json({"type": "error", "message": f"unknown command: {name}"})
             continue
 
-          await ws.send_json({"type": "snapshot", "data": handler.snapshot()})
+          await ws.send_json({"type": "snapshot", "data": handler.snapshot(logs_job_id=-1)})
           continue
 
     except WebSocketDisconnect:

@@ -183,19 +183,62 @@ def monitor_task(
 
 @dash.callback(
     Output("monitor-snapshot", "data"),
+    Output("monitor-logs", "data", allow_duplicate=True),
     Output("monitor-error", "data"),
     Input("monitor-refresh", "n_intervals"),
     State("monitor-snapshot", "data"),
+    State("monitor-selected-job", "data"),
+    State("monitor-logs", "data"),
+    prevent_initial_call=True,
 )
-def _poll_status(_n, previous_snapshot):
+def _poll_status(_n, previous_snapshot, selected_job_id, logs_state):
     try:
-        snap = _api_get(DEFAULT_API_URL, "/status")
-        return snap, ""
+        # 1 request per tick: jobs + optional log deltas for selected job.
+        path = "/status"
+
+        job_id = None
+        try:
+            if selected_job_id is not None:
+                job_id = int(selected_job_id)
+        except Exception:
+            job_id = None
+
+        offset_i = None
+        if job_id is not None and isinstance(logs_state, dict) and logs_state.get("job_id") == job_id:
+            offset = logs_state.get("total_lines", 0)
+            try:
+                offset_i = max(0, int(offset))
+            except Exception:
+                offset_i = 0
+
+        if job_id is not None and offset_i is not None:
+            path = f"/status?logs_job_id={job_id}&logs_offset={offset_i}&logs_limit=500"
+
+        snap = _api_get(DEFAULT_API_URL, path)
+
+        # Merge returned deltas into the log store.
+        new_logs_state = no_update
+        if job_id is not None and offset_i is not None and isinstance(snap, dict):
+            logs_any = snap.get("logs")
+            logs = logs_any if isinstance(logs_any, dict) else {}
+            new_lines_any = logs.get("lines")
+            new_lines = new_lines_any if isinstance(new_lines_any, list) else []
+            if new_lines:
+                total = logs.get("total_lines", offset_i + len(new_lines))
+                try:
+                    total_i = int(total)
+                except Exception:
+                    total_i = offset_i + len(new_lines)
+
+                merged = list((logs_state or {}).get("lines") or []) + list(map(str, new_lines))
+                new_logs_state = {"job_id": job_id, "lines": merged, "total_lines": total_i}
+
+        return snap, new_logs_state, ""
     except Exception as e:
         # Keep the last known state so the UI does not flicker
         if previous_snapshot is None:
-            return {}, str(e)
-        return previous_snapshot, str(e)
+            return {}, no_update, str(e)
+        return previous_snapshot, no_update, str(e)
 
 
 @dash.callback(
@@ -294,6 +337,7 @@ def _select_job_from_click(_row_clicks, selected_job):
     Output({"type": "task-container", "task_id": ALL}, "className"),
     Input("monitor-selected-job", "data"),
     State("monitor-job-ids", "data"),
+    prevent_initial_call=True,
 )
 def _highlight_selected(selected_job, job_ids):
     if not isinstance(job_ids, list):
@@ -314,9 +358,9 @@ def _highlight_selected(selected_job, job_ids):
     Output({"type": "task-row", "task_id": ALL}, "className"),
     Output({"type": "task-progress-bar", "task_id": ALL}, "style"),
     Output({"type": "task-progress-text", "task_id": ALL}, "children"),
+    Output({"type": "task-runtime", "task_id": ALL}, "children"),
     Output({"type": "task-status", "task_id": ALL}, "children"),
     Output({"type": "task-status", "task_id": ALL}, "className"),
-    Output({"type": "task-runtime", "task_id": ALL}, "children"),
     Output({"type": "task-start-wrap", "task_id": ALL}, "style"),
     Output({"type": "task-pause-wrap", "task_id": ALL}, "style"),
     Output({"type": "task-stop-wrap", "task_id": ALL}, "style"),
@@ -341,9 +385,9 @@ def _update_tasks(snapshot, job_ids):
     row_class = []
     bar_style = []
     progress_text = []
+    runtime_text = []
     status_text = []
     status_class = []
-    runtime_text = []
     start_style = []
     pause_style = []
     stop_style = []
@@ -365,9 +409,9 @@ def _update_tasks(snapshot, job_ids):
         row_class.append("monitor-task " + status)
         bar_style.append({"width": f"{progress}%"})
         progress_text.append(f"{progress} %")
+        runtime_text.append(runtime)
         status_text.append(status)
         status_class.append(f"monitor-task-status {status}")
-        runtime_text.append(runtime)
 
         # Button visibility rules
         show_start = status_norm in ("queued", "paused")
@@ -382,9 +426,9 @@ def _update_tasks(snapshot, job_ids):
         row_class,
         bar_style,
         progress_text,
+        runtime_text,
         status_text,
         status_class,
-        runtime_text,
         start_style,
         pause_style,
         stop_style,
@@ -421,7 +465,7 @@ def _init_selected_job(snapshot, selected_job):
     Output("monitor-logs", "data"),
     Input("monitor-selected-job", "data"),
     State("monitor-logs", "data"),
-    prevent_initial_call=True,
+    prevent_initial_call=False,
 )
 def _fetch_full_log_on_selection(selected_job_id, current_logs):
     if selected_job_id is None:
@@ -433,7 +477,7 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs):
         raise PreventUpdate
 
     # Full log for this job (server supports logs_limit=-1)
-    snap = _api_get_slow(DEFAULT_API_URL, f"/jobs/{job_id}?logs_offset=0&logs_limit=-1")
+    snap = _api_get_slow(DEFAULT_API_URL, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
     logs_any = snap.get("logs") if isinstance(snap, dict) else None
     logs = logs_any if isinstance(logs_any, dict) else {}
     lines_any = logs.get("lines")
@@ -447,54 +491,6 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs):
     return {
         "job_id": job_id,
         "lines": list(map(str, lines)),
-        "total_lines": total_i,
-    }
-
-
-@dash.callback(
-    Output("monitor-logs", "data", allow_duplicate=True),
-    Input("monitor-refresh", "n_intervals"),
-    State("monitor-selected-job", "data"),
-    State("monitor-logs", "data"),
-    prevent_initial_call=True,
-)
-def _poll_log_deltas(_n, selected_job_id, logs_state):
-    if selected_job_id is None:
-        raise PreventUpdate
-
-    try:
-        job_id = int(selected_job_id)
-    except Exception:
-        raise PreventUpdate
-
-    if not isinstance(logs_state, dict) or logs_state.get("job_id") != job_id:
-        # No current state for this job yet; wait for full fetch.
-        raise PreventUpdate
-
-    offset = logs_state.get("total_lines", 0)
-    try:
-        offset_i = max(0, int(offset))
-    except Exception:
-        offset_i = 0
-
-    snap = _api_get(DEFAULT_API_URL, f"/jobs/{job_id}?logs_offset={offset_i}&logs_limit=500")
-    logs_any = snap.get("logs") if isinstance(snap, dict) else None
-    logs = logs_any if isinstance(logs_any, dict) else {}
-    new_lines_any = logs.get("lines")
-    new_lines = new_lines_any if isinstance(new_lines_any, list) else []
-    total = logs.get("total_lines", offset_i + len(new_lines))
-    try:
-        total_i = int(total)
-    except Exception:
-        total_i = offset_i + len(new_lines)
-
-    if not new_lines:
-        raise PreventUpdate
-
-    merged = list(logs_state.get("lines") or []) + list(map(str, new_lines))
-    return {
-        "job_id": job_id,
-        "lines": merged,
         "total_lines": total_i,
     }
 
@@ -644,7 +640,7 @@ layout = html.Div(
             ],
             className="tiles-container config",
         ),
-        dcc.Interval(id="monitor-refresh", interval=1000, n_intervals=0),
+        dcc.Interval(id="monitor-refresh", interval=500, n_intervals=0),
         dcc.Store(id="monitor-snapshot", data=None),
         dcc.Store(id="monitor-error", data=""),
         dcc.Store(id="monitor-last-action", data=None),
