@@ -37,23 +37,117 @@ dash.register_page(
     __name__,
     path=page_path,
     title='Odatix - Job Selection',
-    name='Jobs',
+    name='Run jobs',
     order=3,
 )
+
+MAX_PREVIEW_COMBINATIONS = 10000
 
 ######################################
 # UI Components
 ######################################
 
+def job_settings_form_field(
+    label: str,
+    id: str,
+    value: str="",
+    tooltip: str="",
+    placeholder: str="",
+    tooltip_options: str="secondary",
+    # type: Optional[Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]] = None,
+    type = None,
+):
+    return html.Div(
+        children=[
+            html.Label(label),
+            ui.tooltip_icon(tooltip, tooltip_options),
+            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, style={"width": "100%"}),
+        ],
+        style={"marginBottom": "12px"}
+    )
+
+def job_settings_form(settings):
+    defval = lambda k, v=None: settings.get(k, v)
+
+    return html.Div(
+        children=[
+            html.Div(style={"display": "none"}),
+            html.Div([
+                html.H3("Job Execution Settings"),
+                html.Div([
+                    dcc.Checklist(
+                        options=[{"label": "Overwrite existing result", "value": True}],
+                        value=[True] if True else [],
+                        id="overwrite",
+                        className="checklist-switch",
+                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                    ),
+                    ui.tooltip_icon("If enabled, previous results will be overwritten. (overridden by -o / --overwrite)"),
+                ], style={"marginBottom": "12px"}),
+                html.Div([
+                    dcc.Checklist(
+                        options=[{"label": "Force single threading", "value": True}],
+                        value=[True] if True else [],
+                        id="force_single_thread",
+                        className="checklist-switch",
+                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                    ),
+                    ui.tooltip_icon("If enabled, each job will run using a single thread."),
+                ], style={"marginBottom": "12px"}),
+                job_settings_form_field(
+                    label="Maximum number of parallel jobs",
+                    id="nb_jobs",
+                    value=str(defval("nb_jobs", 8)),
+                    tooltip="Maximum number of jobs to run in parallel. (overridden by -j / --jobs)",
+                ),
+            ], className="tile config"),
+            html.Div([
+                html.H3("Monitor Settings"),
+                job_settings_form_field(
+                    label="Prompt 'Continue? (Y/n)' after settings checks",
+                    id="ask_continue",
+                    value="Yes" if defval("ask_continue", False) else "No",
+                    tooltip="Ask for confirmation after checking settings. (overridden by -y / --noask)",
+                ),
+                job_settings_form_field(
+                    label="Exit monitor when all jobs are done",
+                    id="exit_when_done",
+                    value="Yes" if defval("exit_when_done", False) else "No",
+                    tooltip="Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)",
+                ),
+                job_settings_form_field(
+                    label="Size of the log history per job in the monitor",
+                    id="log_size_limit",
+                    value=str(defval("log_size_limit", 300)),
+                    tooltip="Number of log lines to keep per job. (overridden by --logsize)",
+                ),
+            ], className="tile config"),
+        ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
+    )
 
 ######################################
 # Callbacks
 ######################################
 
 @dash.callback(
+    Output("job-settings-form-container", "children"),
+    Output("job-settings-initial-settings", "data"),
+    Input(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+)
+def init_form(search, page):
+    if page != page_path:
+        return dash.no_update, dash.no_update
+
+    settings = {}
+    if settings is None:
+        settings = {}
+    return job_settings_form(settings), settings
+
+@dash.callback(
     Output("job-section", "children"),
-    Input("url", "search"),
-    State("url", "pathname"),
+    Input(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
     prevent_initial_call=True
 )
@@ -129,32 +223,46 @@ def update_param_domains(
             )
         )
 
-        all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name)
-        formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
-        # Preview tile
-        domain_tiles.append(
-            html.Div(
-                children=[
-                    html.Div(
-                        children=[
-                            html.H3("Preview", style={"marginBottom": "0px"}),
-                            html.Div(
-                                children=[
-                                    dcc.Checklist(
-                                        options=formatted_combinations,
-                                        id={"type": "preview-config-checklist", "arch": arch_name},
-                                        value=[" + ".join(comb) for comb in all_combinations],
-                                        style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
-                                    )
-                                ],
-                                style={"overflowX": "scroll", "marginBottom": "-10px"},
-                            )
-                        ],
-                    )
-                ],
-                className="tile config",
+        n_combos = workspace.count_combinations(domains_configs)
+        if n_combos > MAX_PREVIEW_COMBINATIONS:
+            domain_tiles.append(
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=[
+                                html.H3(f"Preview ({n_combos} combinations)", id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
+                                f"Too many combinations to display (> {MAX_PREVIEW_COMBINATIONS})."
+                            ],
+                        )
+                    ],
+                    className="tile config",
+                )
             )
-        )
+        else:
+            all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name)
+            if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
+                all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
+            formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
+            # Preview tile
+            domain_tiles.append(
+                html.Div(
+                    children=[
+                        html.H3(f"Preview ({n_combos} combinations)", id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
+                        html.Div(
+                            children=[
+                                dcc.Checklist(
+                                    options=formatted_combinations,
+                                    id={"type": "preview-config-checklist", "arch": arch_name},
+                                    value=[" + ".join(comb) for comb in all_combinations],
+                                    style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
+                                )
+                            ],
+                            style={"overflowX": "scroll", "marginBottom": "-10px"},
+                        )
+                    ],
+                    className="tile config",
+                )
+            )
         arch_buttons = html.Div(
             children=[
                 ui.icon_button(
@@ -249,6 +357,7 @@ def update_domain_selections(selected_per_domain, domain_ids):
 
 @dash.callback(
     Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    Output({"type": "preview-config-title", "arch": dash.MATCH}, "children"),
     Input({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
@@ -283,7 +392,17 @@ def sync_preview_values(
 
     # Domains present either before or now
     all_domains = set(prev_domains.keys()) | set(current_domains.keys())
-    for domain in all_domains:
+    # Use a deterministic order (Dash provides domain_ids in display order).
+    ordered_domains = []
+    for did in (domain_ids or []):
+        d = did.get("domain") if isinstance(did, dict) else None
+        if d and d not in ordered_domains:
+            ordered_domains.append(d)
+    for d in sorted(all_domains):
+        if d not in ordered_domains:
+            ordered_domains.append(d)
+
+    for domain in ordered_domains:
         prev_vals = set(prev_domains.get(domain, []))
         curr_vals = set(current_domains.get(domain, []))
         if prev_vals != curr_vals:
@@ -294,7 +413,10 @@ def sync_preview_values(
 
     # If no clear change is found, do nothing
     if not changed_domain:
-        return current_preview_values or []
+        n_combos = 0
+        if current_preview_values:
+            n_combos = len(current_preview_values)
+        return current_preview_values or [], f"Preview ({n_combos} combinations)"
 
     # Start from the current preview value (including manual changes)
     preview_set = set(current_preview_values or [])
@@ -303,12 +425,17 @@ def sync_preview_values(
     all_combos = workspace.generate_config_combinations(current_domains, arch_name)
     all_combo_strings = {" + ".join(c) for c in all_combos}
 
+    # Values are domain-scoped in combos as "<domain>/<cfg>" (or "<arch_name>/<cfg>" for main).
+    display_domain = arch_name if changed_domain == hard_settings.main_parameter_domain else changed_domain
+    added_tokens = {f"{display_domain}/{v}" for v in added_values}
+    removed_tokens = {f"{display_domain}/{v}" for v in removed_values}
+
     # Handle added values in the modified domain
     if added_values:
         for combo in all_combos:
             combo_str = " + ".join(combo)
-            # Only handle combos that contain at least one added value
-            if any(val in combo_str for val in added_values):
+            # Only handle combos that contain an added value for the changed domain.
+            if any(part in added_tokens for part in combo):
                 preview_set.add(combo_str)
 
     # Handle removed values in the modified domain
@@ -318,10 +445,9 @@ def sync_preview_values(
             # Do not touch the 'default' item
             if item == arch_name:
                 continue
-            # If the item is no longer a valid combo, only handle it
-            # if it included a removed value from the concerned domain.
-            # Simply check if it contains one of the removed values.
-            if any(val in item for val in removed_values):
+            parts = [p.strip() for p in str(item).split(" + ")]
+            # Only remove combos that explicitly contain the removed token for the changed domain.
+            if any(part in removed_tokens for part in parts):
                 to_remove.add(item)
         preview_set -= to_remove
 
@@ -336,17 +462,54 @@ def sync_preview_values(
         preview_set.remove(arch_name)
     result.extend(sorted(preview_set))
 
-    return result
-
+    n_combos = len(result)
+    return result, f"Preview ({n_combos} combinations)"
 
 ######################################
 # Layout
 ######################################
 
+title_buttons = html.Div(
+    children=[
+        ui.icon_button(
+            id={"page": page_path, "action": "reset-defaults"},
+            icon=icon("gear", className="icon"),
+            text="Choose Targets",
+            multiline=True,
+            tooltip="Go to the Targets page to select targets",
+            tooltip_options="bottom",
+            color="default",
+        ),
+        ui.save_button(
+            id={"page": page_path, "action": "save-all"},
+            tooltip="Save all changes",
+            disabled=True,
+        ),
+        ui.icon_button(
+            id={"page": page_path, "action": "run-jobs"},
+            icon=icon("play", className="icon"),
+            text="Run Jobs",
+            multiline=True,
+            tooltip="Run all selected architecture configurations",
+            tooltip_options="bottom",
+            color="success",
+        ),
+    ],
+    className="inline-flex-buttons",
+)
+
+
 layout = html.Div(
     children=[
-        dcc.Location(id=f"url"),
-        html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
+        dcc.Location(id=f"url_{page_path}", refresh=False),
+        html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
+        # html.H2("Synthesis settings", style={"textAlign": "center"}),
+        # html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),
+        # dcc.Store(id="job-settings-initial-settings", data=None),
+        ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "20px"}),
+        # html.H2("Targets", style={"textAlign": "center"}),
+        # html.Div(id="target-section", style={"marginBottom": "10px"}),
+        html.H2("Architectures", style={"textAlign": "center"}),
         html.Div(id="job-section", style={"marginBottom": "10px"}),
     ],
     className="page-content",
