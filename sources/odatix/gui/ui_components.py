@@ -240,7 +240,7 @@ def create_card_button(page: dict) -> Component:
             html.Img(
                 src=page["image"],
                 className="card-img",
-                style={"height": "125px"}
+                style={"maxHeight": "125px", "maxWidth": "70%"}
             ),
             html.Div(
                 page["name"],
