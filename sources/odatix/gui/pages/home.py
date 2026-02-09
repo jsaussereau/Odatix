@@ -51,12 +51,12 @@ home_cards = [
         "image": "assets/icons/architecture.png",
         "description": "Configure your architectures",
     },
-    # {
-    #     "name": "Run jobs",
-    #     "link": "/run",
-    #     "image": "assets/icons/run.png",
-    #     "description": "Run synthesis and simulation",
-    # },
+    {
+        "name": "Monitor jobs",
+        "link": "/monitor",
+        "image": "assets/icons/monitor.png",
+        "description": "Monitor currently running jobs",
+    },
     # {
     #     "name": "Export Results",
     #     "link": "/export",
