@@ -83,6 +83,24 @@ def _group_arch_selections(architectures_setting) -> dict:
         grouped.setdefault(arch_name, []).append(str(entry))
     return grouped
 
+def _extract_domain_values(arch_name: str, selections) -> dict:
+    """Return mapping of domain -> set(values) found in preview selection strings."""
+    values_by_domain = {}
+    for entry in selections or []:
+        if entry is None:
+            continue
+        parts = [p.strip() for p in str(entry).split(" + ") if p.strip()]
+        for part in parts:
+            if "/" not in part:
+                continue
+            domain, value = part.split("/", 1)
+            if domain == arch_name:
+                domain = hard_settings.main_parameter_domain
+            if not domain or value == "":
+                continue
+            values_by_domain.setdefault(domain, set()).add(value)
+    return values_by_domain
+
 ######################################
 # UI Components
 ######################################
@@ -211,6 +229,8 @@ def update_param_domains(
         domains_configs = {}
         domains = [hard_settings.main_parameter_domain] + workspace.get_param_domains(arch_path, arch_name)
         domain_tiles = []
+        arch_enabled = arch_name in selection_map
+        selected_domain_values = _extract_domain_values(arch_name, selection_map.get(arch_name, [])) if arch_enabled else {}
         for domain in domains:
             if not workspace.check_parameter_domain_use_parameters(arch_path, arch_name, domain):
                 continue
@@ -219,10 +239,15 @@ def update_param_domains(
                 continue
             configurations = [cfg[:-4] if cfg.endswith('.txt') else cfg for cfg in configurations] # Remove .txt extension
             domains_configs[domain] = configurations
+            if arch_enabled:
+                domain_selected = selected_domain_values.get(domain, set())
+                checklist_values = [cfg for cfg in configurations if cfg in domain_selected]
+            else:
+                checklist_values = configurations
             checklist = dcc.Checklist(
                 options=[{"label": cfg, "value": cfg} for cfg in configurations],
                 id={"type": "domain-config-checklist", "arch": arch_name, "domain": domain},
-                value=configurations,
+                value=checklist_values,
                 style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
             )
             domain_tile = html.Div(
@@ -290,6 +315,9 @@ def update_param_domains(
             available_values = [opt.get("value") for opt in formatted_combinations]
             selected_values = selection_map.get(arch_name, [])
             filtered_selected = [val for val in selected_values if val in available_values]
+            # Select all combinations for disabled architectures
+            if arch_name not in selection_map:
+                filtered_selected = [" + ".join(comb) for comb in all_combinations]
             # Preview tile
             domain_tiles.append(
                 html.Div(
@@ -333,7 +361,6 @@ def update_param_domains(
             ],
             className="inline-flex-buttons",
         )        
-        arch_enabled = arch_name in selection_map
         job_section = html.Div(
             children=[
                 html.Div(
