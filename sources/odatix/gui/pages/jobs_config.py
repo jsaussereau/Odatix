@@ -43,6 +43,46 @@ dash.register_page(
 
 MAX_PREVIEW_COMBINATIONS = 10000
 
+def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
+    synth_type = get_key_from_url(search, "type")
+    if synth_type == "custom_freq_synthesis":
+        return odatix_settings.get(
+            "custom_freq_synthesis_settings_file",
+            OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
+        )
+    if synth_type == "fmax_synthesis":
+        return odatix_settings.get(
+            "fmax_synthesis_settings_file",
+            OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+        )
+    return odatix_settings.get(
+        "fmax_synthesis_settings_file",
+        OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+    )
+
+def _arch_name_from_entry(entry: str) -> str:
+    first_part = str(entry).split(" + ")[0].strip()
+    if "/" in first_part:
+        return first_part.split("/")[0].strip()
+    return first_part
+
+def _group_arch_selections(architectures_setting) -> dict:
+    if not architectures_setting:
+        return {}
+    if isinstance(architectures_setting, dict):
+        architectures = list(architectures_setting)
+    else:
+        architectures = list(architectures_setting)
+    grouped = {}
+    for entry in architectures:
+        if entry is None:
+            continue
+        arch_name = _arch_name_from_entry(entry)
+        if not arch_name:
+            continue
+        grouped.setdefault(arch_name, []).append(str(entry))
+    return grouped
+
 ######################################
 # UI Components
 ######################################
@@ -162,6 +202,10 @@ def update_param_domains(
 
     arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     architectures = workspace.get_architectures(arch_path)
+
+    settings_path = _get_synth_settings_path(search, odatix_settings or {})
+    selection_settings = workspace.load_arch_selection_settings(settings_path)
+    selection_map = _group_arch_selections(selection_settings.get("architectures", []))
     job_sections = []
     for arch_name in architectures:     
         domains_configs = {}
@@ -243,6 +287,9 @@ def update_param_domains(
             if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
                 all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
             formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
+            available_values = [opt.get("value") for opt in formatted_combinations]
+            selected_values = selection_map.get(arch_name, [])
+            filtered_selected = [val for val in selected_values if val in available_values]
             # Preview tile
             domain_tiles.append(
                 html.Div(
@@ -253,7 +300,7 @@ def update_param_domains(
                                 dcc.Checklist(
                                     options=formatted_combinations,
                                     id={"type": "preview-config-checklist", "arch": arch_name},
-                                    value=[" + ".join(comb) for comb in all_combinations],
+                                    value=filtered_selected,
                                     style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
                                 )
                             ],
@@ -285,12 +332,19 @@ def update_param_domains(
                 ),
             ],
             className="inline-flex-buttons",
-        )            
+        )        
+        arch_enabled = arch_name in selection_map
         job_section = html.Div(
             children=[
                 html.Div(
                     children=[
-                        ui.title_tile(arch_name, buttons=arch_buttons, id={"type": "arch-title", "arch": arch_name}, switch=False, style={"scale": "1.01"}),
+                        ui.title_tile(
+                            arch_name,
+                            buttons=arch_buttons,
+                            id={"type": "arch-title", "arch": arch_name},
+                            switch=arch_enabled,
+                            style={"scale": "1.01"}
+                        ),
                     ], 
                     id=f"param-domain-title-div-{arch_name}",
                     className="card-matrix config",
@@ -299,7 +353,7 @@ def update_param_domains(
                 html.Div(
                     children=domain_tiles,
                     id={"type": "param-domains-container", "arch": arch_name},
-                    className="tiles-container config animated-section hide no-margin", 
+                    className="tiles-container config animated-section" + ("" if arch_enabled else " hide no-margin"),
                     style={"marginBottom": "17px"},
                 ),
                 dcc.Store(
@@ -465,6 +519,95 @@ def sync_preview_values(
     n_combos = len(result)
     return result, f"Preview ({n_combos} combinations)"
 
+
+@dash.callback(
+    Output({"page": page_path, "action": "save-all"}, "className"),
+    Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
+    Output("jobs-config-saved-selection", "data"),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+    Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
+    State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
+    State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
+    State("jobs-config-saved-selection", "data"),
+    State(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def save_architecture_selections(
+    save_n_clicks,
+    switch_values,
+    preview_values,
+    switch_ids,
+    preview_ids,
+    saved_selection,
+    search,
+    page,
+    odatix_settings,
+):
+    triggered_id = ctx.triggered_id
+    if triggered_id == f"url_{page_path}" and page != page_path:
+        return dash.no_update, dash.no_update, dash.no_update
+
+    preview_by_arch = {}
+    for val, pid in zip(preview_values or [], preview_ids or []):
+        arch = pid.get("arch") if isinstance(pid, dict) else None
+        if arch:
+            preview_by_arch[arch] = list(val or [])
+
+    enabled_archs = []
+    for val, sid in zip(switch_values or [], switch_ids or []):
+        arch = sid.get("arch") if isinstance(sid, dict) else None
+        is_enabled = bool(val)
+        if arch and is_enabled:
+            enabled_archs.append(arch)
+
+    architectures = []
+    for arch in enabled_archs:
+        selections = preview_by_arch.get(arch, [])
+        for item in selections:
+            if item is None:
+                continue
+            architectures.append(str(item))
+
+    # Remove duplicates but keep order
+    architectures = list(dict.fromkeys(architectures))
+
+    if triggered_id == {"page": page_path, "action": "save-all"}:
+        try:
+            settings_path = _get_synth_settings_path(search, odatix_settings or {})
+            base_settings = workspace.load_arch_selection_settings(settings_path)
+            payload = {
+                **base_settings,
+                "architectures": architectures,
+            }
+            workspace.save_architecture_selection(settings_path, payload)
+            return (
+                "color-button disabled icon-button tooltip delay bottom small",
+                "Nothing to save",
+                architectures,
+            )
+        except Exception:
+            return (
+                "color-button error-status icon-button tooltip bottom small",
+                "Failed to save...",
+                dash.no_update,
+            )
+
+    if (saved_selection or []) != architectures:
+        return (
+            "color-button warning icon-button tooltip bottom small tooltip",
+            "Unsaved changes!",
+            dash.no_update,
+        )
+
+    return (
+        "color-button disabled icon-button tooltip delay bottom small",
+        "Nothing to save",
+        dash.no_update,
+    )
+
 ######################################
 # Layout
 ######################################
@@ -511,6 +654,7 @@ layout = html.Div(
         # html.Div(id="target-section", style={"marginBottom": "10px"}),
         html.H2("Architectures", style={"textAlign": "center"}),
         html.Div(id="job-section", style={"marginBottom": "10px"}),
+        dcc.Store(id="jobs-config-saved-selection", data=None),
     ],
     className="page-content",
     style={
