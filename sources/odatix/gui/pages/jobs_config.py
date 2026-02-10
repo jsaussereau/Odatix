@@ -140,7 +140,7 @@ def job_settings_form(settings):
                         className="checklist-switch",
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
                     ),
-                    ui.tooltip_icon("If enabled, previous results will be overwritten. (overridden by -o / --overwrite)"),
+                    ui.tooltip_icon("If enabled, previous results will be overwritten. (overridden by -o / --overwrite)."),
                 ], style={"marginBottom": "12px"}),
                 html.Div([
                     dcc.Checklist(
@@ -160,19 +160,27 @@ def job_settings_form(settings):
                 ),
             ], className="tile config"),
             html.Div([
-                html.H3("Monitor Settings"),
-                job_settings_form_field(
-                    label="Prompt 'Continue? (Y/n)' after settings checks",
-                    id="ask_continue",
-                    value="Yes" if defval("ask_continue", False) else "No",
-                    tooltip="Ask for confirmation after checking settings. (overridden by -y / --noask)",
-                ),
-                job_settings_form_field(
-                    label="Exit monitor when all jobs are done",
-                    id="exit_when_done",
-                    value="Yes" if defval("exit_when_done", False) else "No",
-                    tooltip="Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)",
-                ),
+                html.H3("Monitor Settings (Used when jobs are run from terminal)"),
+                html.Div([
+                    dcc.Checklist(
+                        options=[{"label": "Prompt 'Continue? (Y/n)' after settings checks", "value": True}],
+                        value=[True] if True else [],
+                        id="ask_continue",
+                        className="checklist-switch",
+                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                    ),
+                    ui.tooltip_icon("Ask for confirmation after checking settings. (overridden by -y / --noask)."),
+                ], style={"marginBottom": "12px"}),
+                html.Div([
+                    dcc.Checklist(
+                        options=[{"label": "Exit monitor when all jobs are done", "value": True}],
+                        value=[True] if True else [],
+                        id="exit_when_done",
+                        className="checklist-switch",
+                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                    ),
+                    ui.tooltip_icon("Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)."),
+                ], style={"marginBottom": "12px"}),
                 job_settings_form_field(
                     label="Size of the log history per job in the monitor",
                     id="log_size_limit",
@@ -672,11 +680,11 @@ title_buttons = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
-        html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
-        # html.H2("Synthesis settings", style={"textAlign": "center"}),
-        # html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),
-        # dcc.Store(id="job-settings-initial-settings", data=None),
         ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "20px"}),
+        html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
+        html.H2("Synthesis Settings", style={"textAlign": "center"}),
+        html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),
+        dcc.Store(id="job-settings-initial-settings", data=None),
         # html.H2("Targets", style={"textAlign": "center"}),
         # html.Div(id="target-section", style={"marginBottom": "10px"}),
         html.H2("Architectures", style={"textAlign": "center"}),
