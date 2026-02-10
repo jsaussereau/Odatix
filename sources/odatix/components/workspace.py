@@ -27,6 +27,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from datetime import datetime
 from itertools import product
 from functools import reduce
+from natsort import natsorted
 import operator
 
 import odatix.components.motd as motd
@@ -45,7 +46,7 @@ def get_instances(path: str) -> list:
     """
     if not os.path.exists(path):
         return []
-    return sorted([
+    return natsorted([
         d for d in os.listdir(path)
         if os.path.isdir(os.path.join(path, d))
     ])
@@ -267,7 +268,7 @@ def get_param_domains(arch_path, arch_name) -> list:
         d for d in os.listdir(folder)
         if os.path.isdir(os.path.join(folder, d)) and not d.startswith("_")
     ]
-    return sorted(domain_list)
+    return natsorted(domain_list)
 
 def create_parameter_domain(arch_path, arch_name, domain=hard_settings.main_parameter_domain) -> None:
     """
@@ -445,7 +446,7 @@ def get_config_files(arch_path, arch_name, domain=hard_settings.main_parameter_d
     path = get_arch_domain_path(arch_path, arch_name, domain)
     if not os.path.isdir(path):
         return []
-    return sorted([
+    return natsorted([
         f for f in os.listdir(path)
         if f.endswith(".txt") and os.path.isfile(os.path.join(path, f))
     ])

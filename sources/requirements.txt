@@ -11,3 +11,4 @@ dash_svg
 websockets
 fastapi
 uvicorn
+natsort
