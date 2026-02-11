@@ -19,17 +19,23 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
+import threading
+import io
+import contextlib
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional, Sequence#, Literal
 
 import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, ansi_to_html_spans
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+import odatix.components.run_fmax_synthesis as run_fmax_synthesis
+import odatix.components.run_range_synthesis as run_range_synthesis
 
 page_path = "/jobs_config"
 
@@ -42,6 +48,84 @@ dash.register_page(
 )
 
 MAX_PREVIEW_COMBINATIONS = 10000
+
+class _ThreadSafeBuffer(io.StringIO):
+    def __init__(self):
+        super().__init__()
+        self._lock = threading.Lock()
+
+    def write(self, s):
+        with self._lock:
+            return super().write(s)
+
+    def getvalue(self):
+        with self._lock:
+            return super().getvalue()
+
+    def flush(self):
+        with self._lock:
+            return super().flush()
+
+_prepare_thread = None
+_prepare_cancel_event = threading.Event()
+_prepare_log_buffer = _ThreadSafeBuffer()
+_prepare_status = {"status": "idle", "error": None}
+_prepare_parallel_jobs = None
+_prepare_api_port = None
+
+def _reset_prepare_state():
+    global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_api_port
+    _prepare_cancel_event = threading.Event()
+    _prepare_log_buffer = _ThreadSafeBuffer()
+    _prepare_status = {"status": "running", "error": None}
+    _prepare_parallel_jobs = None
+    _prepare_api_port = None
+
+def _run_prepare_synthesis(
+    run_config_settings_filename,
+    arch_path,
+    tool,
+    work_path,
+    target_path,
+    overwrite_enabled,
+    noask,
+    exit_when_done_enabled,
+    log_size_val,
+    nb_jobs_val,
+    check_eda_tool,
+):
+    global _prepare_status, _prepare_parallel_jobs
+    try:
+        with contextlib.redirect_stdout(_prepare_log_buffer):
+            _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
+                run_config_settings_filename,
+                arch_path,
+                tool,
+                work_path,
+                target_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                check_eda_tool,
+                custom_freq_list=[],
+                debug=False,
+                keep=False,
+                cancel_event=_prepare_cancel_event,
+            )
+        _prepare_status = {"status": "done", "error": None}
+    except run_range_synthesis.SynthesisCancelled:
+        _prepare_status = {"status": "canceled", "error": None}
+    except Exception as exc:
+        _prepare_status = {"status": "error", "error": str(exc)}
+
+def _checklist_enabled(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, (list, tuple, set)):
+        return True in value or len(value) > 0
+    return bool(value)
 
 def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
     synth_type = get_key_from_url(search, "type")
@@ -155,6 +239,7 @@ def job_settings_form(settings):
                 job_settings_form_field(
                     label="Maximum number of parallel jobs",
                     id="nb_jobs",
+                    type="number",
                     value=str(defval("nb_jobs", 8)),
                     tooltip="Maximum number of jobs to run in parallel. (overridden by -j / --jobs)",
                 ),
@@ -184,6 +269,7 @@ def job_settings_form(settings):
                 job_settings_form_field(
                     label="Size of the log history per job in the monitor",
                     id="log_size_limit",
+                    type="number",
                     value=str(defval("log_size_limit", 300)),
                     tooltip="Number of log lines to keep per job. (overridden by --logsize)",
                 ),
@@ -643,6 +729,231 @@ def save_architecture_selections(
         dash.no_update,
     )
 
+# Open run popup
+@dash.callback(
+    Output("run-popup", "className"),
+    Output("run-popup-opened", "data"),
+    Input({"page": page_path, "action": "run-jobs"}, "n_clicks"),
+    prevent_initial_call=True
+)
+def show_run_popup(n_click):
+    if not ctx.triggered_id or not isinstance(ctx.triggered_id, dict) or not n_click:
+        return dash.no_update, dash.no_update
+    
+    return "overlay-odatix visible", True
+
+# Popup close
+@dash.callback(
+    Output("run-popup", "className", allow_duplicate=True),
+    Output("run-popup-opened", "data", allow_duplicate=True),
+    Input("run-cancel-btn", "n_clicks"),
+    prevent_initial_call=True
+)
+def close_run_popup(n):
+    return "overlay-odatix", False
+
+@dash.callback(
+    Output("jobs-config-run-status", "data"),
+    Input({"page": page_path, "action": "run-jobs"}, "n_clicks"),
+    State("overwrite", "value"),
+    State("force_single_thread", "value"),
+    State("nb_jobs", "value"),
+    State("ask_continue", "value"),
+    State("exit_when_done", "value"),
+    State("log_size_limit", "value"),
+    State(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def run_jobs(
+    n_clicks,
+    overwrite,
+    force_single_thread,
+    nb_jobs,
+    ask_continue,
+    exit_when_done,
+    log_size_limit,
+    search,
+    page,
+    odatix_settings,
+):
+    triggered_id = ctx.triggered_id
+    if triggered_id == f"url_{page_path}" and page != page_path:
+        return dash.no_update
+    if not n_clicks:
+        raise dash.exceptions.PreventUpdate
+
+    global _prepare_thread
+    if _prepare_thread is not None and _prepare_thread.is_alive():
+        return {
+            "status": "running",
+            "type": get_key_from_url(search, "type"),
+            "tool": get_key_from_url(search, "tool") or "vivado",
+        }
+
+    settings = odatix_settings or {}
+    synth_type = get_key_from_url(search, "type")
+    tool = get_key_from_url(search, "tool") or "vivado"
+
+    arch_path = settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    target_path = settings.get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+    work_path_root = settings.get("work_path", OdatixSettings.DEFAULT_WORK_PATH)
+
+    overwrite_enabled = _checklist_enabled(overwrite)
+    ask_continue_enabled = _checklist_enabled(ask_continue)
+    exit_when_done_enabled = _checklist_enabled(exit_when_done)
+
+    try:
+        nb_jobs_val = int(nb_jobs) if nb_jobs not in (None, "") else None
+    except Exception:
+        nb_jobs_val = None
+
+    try:
+        log_size_val = int(log_size_limit) if log_size_limit not in (None, "") else None
+    except Exception:
+        log_size_val = None
+
+    noask = True
+    check_eda_tool = True
+
+    _reset_prepare_state()
+    if synth_type == "custom_freq_synthesis":
+        run_config_settings_filename = settings.get(
+            "custom_freq_synthesis_settings_file",
+            OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
+        )
+        work_path = os.path.join(
+            work_path_root,
+            settings.get("custom_freq_synthesis_work_path", OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH),
+        )
+
+        _prepare_thread = threading.Thread(
+            target=_run_prepare_synthesis,
+            args=(
+                run_config_settings_filename,
+                arch_path,
+                tool,
+                work_path,
+                target_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                check_eda_tool,
+            ),
+            daemon=True,
+        )
+        _prepare_thread.start()
+    # else:
+    #     run_config_settings_filename = settings.get(
+    #         "fmax_synthesis_settings_file",
+    #         OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+    #     )
+    #     work_path = os.path.join(
+    #         work_path_root,
+    #         settings.get("fmax_synthesis_work_path", OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH),
+    #     )
+
+    #     def _run():
+    #         run_fmax_synthesis.prepare_synthesis(
+    #             run_config_settings_filename,
+    #             arch_path,
+    #             tool,
+    #             work_path,
+    #             target_path,
+    #             overwrite_enabled,
+    #             noask,
+    #             exit_when_done_enabled,
+    #             log_size_val,
+    #             nb_jobs_val,
+    #             False,  # continue_on_error
+    #             check_eda_tool,
+    #             forced_fmax_lower_bound=None,
+    #             forced_fmax_upper_bound=None,
+    #             debug=False,
+    #             keep=False,
+    #         )
+
+    # thread = threading.Thread(target=_run, daemon=True)
+    # thread.start()
+
+    return {
+        "status": "running",
+        "type": synth_type,
+        "tool": tool,
+    }
+
+@dash.callback(
+    Output("jobs-config-run-status", "data", allow_duplicate=True),
+    Output("run-popup-pre", "children"),
+    Output("run-confirm-btn", "className"),
+    Input("run-log-interval", "n_intervals"),
+    State("jobs-config-run-status", "data"),
+    State("run-popup-opened", "data"),
+    prevent_initial_call=True,
+)
+def poll_prepare_log(n_intervals, run_status, run_popup_opened):
+    if not run_status or not run_popup_opened:
+        raise dash.exceptions.PreventUpdate
+
+    current_status = run_status.get("status")
+    if current_status == "canceled":
+        return run_status, "", "color-button disabled icon-button"
+
+    if _prepare_status.get("status") and _prepare_status.get("status") != current_status:
+        run_status = {**run_status, **_prepare_status}
+        current_status = run_status.get("status")
+
+    if current_status in ("running", "done", "error"):
+        log_output = _prepare_log_buffer.getvalue()
+        button_class = "color-button success icon-button" if current_status == "done" else "color-button disabled icon-button"
+        return run_status, ansi_to_html_spans(log_output) if log_output else "", button_class
+
+    raise dash.exceptions.PreventUpdate
+
+@dash.callback(
+    Output("jobs-config-run-status", "data", allow_duplicate=True),
+    Output("run-popup-pre", "children", allow_duplicate=True),
+    Output("run-confirm-btn", "className", allow_duplicate=True),
+    Input("run-cancel-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def cancel_prepare_synthesis(n_clicks):
+    if not n_clicks:
+        raise dash.exceptions.PreventUpdate
+    _prepare_cancel_event.set()
+    return {"status": "canceled"}, "", "color-button disabled icon-button"
+
+@dash.callback(
+    Output("run-redirect", "href"),
+    Input("run-confirm-btn", "n_clicks"),
+    State("jobs-config-run-status", "data"),
+    prevent_initial_call=True,
+)
+def start_parallel_jobs(n_clicks, run_status):
+    if not n_clicks:
+        raise dash.exceptions.PreventUpdate
+
+    if not run_status or run_status.get("status") != "done":
+        raise dash.exceptions.PreventUpdate
+
+    if _prepare_parallel_jobs is None:
+        raise dash.exceptions.PreventUpdate
+
+    global _prepare_api_port
+    if _prepare_api_port is None:
+        _, port = _prepare_parallel_jobs.start_api_background(
+            host="127.0.0.1",
+            port=8000,
+            start_headless_on_startup=True,
+            quiet=True,
+        )
+        _prepare_api_port = port
+
+    return f"/monitor?port={_prepare_api_port}"
+
 ######################################
 # Layout
 ######################################
@@ -667,7 +978,6 @@ title_buttons = html.Div(
             id={"page": page_path, "action": "run-jobs"},
             icon=icon("play", className="icon"),
             text="Run Jobs",
-            multiline=True,
             tooltip="Run all selected architecture configurations",
             tooltip_options="bottom",
             color="success",
@@ -680,9 +990,9 @@ title_buttons = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
-        ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "20px"}),
+        ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginLeft": "-13px", "marginTop": "10px", "marginBottom": "10px"}),
         html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
-        html.H2("Synthesis Settings", style={"textAlign": "center"}),
+        html.H2("Synthesis Settings", style={"textAlign": "center", "marginBottom": "30px"}),
         html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),
         dcc.Store(id="job-settings-initial-settings", data=None),
         # html.H2("Targets", style={"textAlign": "center"}),
@@ -690,6 +1000,30 @@ layout = html.Div(
         html.H2("Architectures", style={"textAlign": "center"}),
         html.Div(id="job-section", style={"marginBottom": "10px"}),
         dcc.Store(id="jobs-config-saved-selection", data=None),
+        dcc.Store(id="jobs-config-run-status", data=None),
+        dcc.Store(id="run-popup-opened", data=False),
+        dcc.Location(id="run-redirect", refresh=True),
+        dcc.Interval(id="run-log-interval", interval=500, n_intervals=0),
+        html.Div(
+            id="run-popup",
+            className="overlay-odatix",
+            children=[
+                html.Div([
+                    html.H2("Checking settings...", style={"textAlign": "center"}),
+                    html.Pre(id="run-popup-pre", className="run-popup-pre"),
+                    html.Div([
+                        html.Button("Cancel", id="run-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
+                        ui.icon_button(
+                            icon=icon("play", className="icon"),
+                            color="disabled", 
+                            text="Start", 
+                            width="90px",
+                            id="run-confirm-btn",
+                        ),
+                    ], style={"marginTop": "18px", "display": "flex", "justifyContent": "center"}),
+                ], className="popup-odatix large")
+            ]
+        ),
     ],
     className="page-content",
     style={
