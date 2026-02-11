@@ -453,6 +453,7 @@ class ParallelJobHandler:
     self._headless_initialized = False
     self._headless_logs_height = 40
     self.showing_help = False
+    self._request_curses_exit = False
 
     # API server (optional)
     self._api_thread = None
@@ -627,6 +628,7 @@ class ParallelJobHandler:
 
   def request_shutdown(self):
     self._stop_event.set()
+    self._request_curses_exit = True
 
   def enqueue_command(self, name: str, **kwargs):
     """Enqueue a control command to be executed by the headless loop."""
@@ -1402,6 +1404,10 @@ class ParallelJobHandler:
     self.showing_help = False
 
     while True:
+      if self._request_curses_exit:
+        self.update_exit(bottom_bar)
+        self.terminate_all_jobs()
+        return False
       # Apply any API commands (when running with background REST/WS control)
       try:
         with self._lock:

@@ -28,7 +28,7 @@ from dash import no_update
 
 import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, ansi_to_html_spans
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
@@ -134,7 +134,7 @@ def monitor_task(
                                 children=[
                                     ui.icon_button(
                                         id={"type": "task-start", "task_id": task_id},
-                                        icon=icon("play", className="icon"),
+                                        icon=icon("play", className="icon", offset=True),
                                         color="success",
                                         multiline=True,
                                         tooltip="Start task",
@@ -169,7 +169,7 @@ def monitor_task(
                                 ],
                             ),
                         ],
-                        style={"display": "flex", "gap": "5px", "scale": "0.7"},
+                        className="monitor-task-button-container",
                     )
                 ]
             ),
@@ -523,11 +523,13 @@ def _render_logs(logs_state, error_message):
         logs_state = {}
     lines_any = logs_state.get("lines")
     lines = lines_any if isinstance(lines_any, list) else []
+    lines = [str(line).rstrip("\n") for line in lines]
 
-    text = "\n".join(map(str, lines))
-    if error_message:
+    text = "\n".join(lines)
+
+    if error_message: 
         text = f"API error: {error_message}\n\n" + text
-    return text
+    return ansi_to_html_spans(text)
 
 
 @dash.callback(
@@ -535,9 +537,10 @@ def _render_logs(logs_state, error_message):
     Input({"type": "task-start", "task_id": ALL}, "n_clicks"),
     Input({"type": "task-pause", "task_id": ALL}, "n_clicks"),
     Input({"type": "task-stop", "task_id": ALL}, "n_clicks"),
+    Input("monitor-stop-all", "n_clicks"),
     prevent_initial_call=True,
 )
-def _task_action(_start_clicks, _pause_clicks, _stop_clicks):
+def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks):
     if not ctx.triggered:
         raise PreventUpdate
 
@@ -556,6 +559,13 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks):
         raise PreventUpdate
 
     triggered = ctx.triggered_id
+    if triggered == "monitor-stop-all":
+        try:
+            _api_post(DEFAULT_API_URL, "/shutdown")
+            return {"ok": True, "action": "shutdown"}
+        except Exception as e:
+            return {"ok": False, "action": "shutdown", "error": str(e)}
+
     if not isinstance(triggered, dict):
         raise PreventUpdate
 
@@ -600,7 +610,14 @@ title_buttons = html.Div(
             ],
             value="normal",
             clearable=False,
-            style={"width": "155px"},
+            style={"width": "155px", "marginRight": "10px"},
+        ),
+        ui.icon_button(
+            id="monitor-stop-all",
+            icon=icon("cross", className="icon"),
+            color="caution",
+            multiline=True,
+            tooltip="Kill all tasks and exit monitor",
         ),
     ],
     className="inline-flex-buttons",

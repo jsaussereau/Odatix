@@ -130,7 +130,9 @@ def create_parallel_job_app(
       broadcast_task.cancel()
       broadcast_task = None
     if start_headless_on_startup:
-      handler.stop_headless(terminate_jobs=False)
+      handler.stop_headless()
+    else:
+      handler.terminate_all_jobs()
 
   @app.get("/status")
   async def get_status(
@@ -180,7 +182,11 @@ def create_parallel_job_app(
 
   @app.post("/shutdown")
   async def shutdown():
-    handler.enqueue_command("shutdown")
+    if start_headless_on_startup:
+      handler.enqueue_command("shutdown")
+    else:
+      handler.terminate_all_jobs()
+      handler.request_shutdown()
     return _ok("shutdown requested")
 
   @app.websocket("/ws")
