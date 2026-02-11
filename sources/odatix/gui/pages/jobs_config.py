@@ -72,16 +72,23 @@ _prepare_log_buffer = _ThreadSafeBuffer()
 _prepare_status = {"status": "idle", "error": None}
 _prepare_parallel_jobs = None
 _prepare_api_port = None
+_prepare_check_data = None
+_prepare_runtime_settings = None
+_prepare_exec_thread = None
 
 def _reset_prepare_state():
     global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_api_port
+    global _prepare_check_data, _prepare_runtime_settings, _prepare_exec_thread
     _prepare_cancel_event = threading.Event()
     _prepare_log_buffer = _ThreadSafeBuffer()
-    _prepare_status = {"status": "running", "error": None}
+    _prepare_status = {"status": "checking", "error": None}
     _prepare_parallel_jobs = None
     _prepare_api_port = None
+    _prepare_check_data = None
+    _prepare_runtime_settings = None
+    _prepare_exec_thread = None
 
-def _run_prepare_synthesis(
+def _run_check_settings(
     run_config_settings_filename,
     arch_path,
     tool,
@@ -94,10 +101,10 @@ def _run_prepare_synthesis(
     nb_jobs_val,
     check_eda_tool,
 ):
-    global _prepare_status, _prepare_parallel_jobs
+    global _prepare_status, _prepare_check_data
     try:
         with contextlib.redirect_stdout(_prepare_log_buffer):
-            _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
+            _prepare_check_data = run_range_synthesis.check_settings(
                 run_config_settings_filename,
                 arch_path,
                 tool,
@@ -114,7 +121,32 @@ def _run_prepare_synthesis(
                 keep=False,
                 cancel_event=_prepare_cancel_event,
             )
-        _prepare_status = {"status": "done", "error": None}
+        _prepare_status = {"status": "checked", "error": None}
+    except run_range_synthesis.SynthesisCancelled:
+        _prepare_status = {"status": "canceled", "error": None}
+    except Exception as exc:
+        _prepare_status = {"status": "error", "error": str(exc)}
+
+def _run_prepare_synthesis():
+    global _prepare_status, _prepare_parallel_jobs
+    try:
+        if not _prepare_check_data or not _prepare_runtime_settings:
+            raise RuntimeError("Missing preparation settings")
+        architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler = _prepare_check_data
+        runtime = _prepare_runtime_settings
+        with contextlib.redirect_stdout(_prepare_log_buffer):
+            _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
+                architecture_instances=architecture_instances,
+                prepare_job=prepare_job,
+                job_list=job_list,
+                tool_settings_file=tool_settings_file,
+                arch_handler=arch_handler,
+                exit_when_done=runtime.get("exit_when_done"),
+                log_size_limit=runtime.get("log_size_limit"),
+                nb_jobs=runtime.get("nb_jobs"),
+                cancel_event=_prepare_cancel_event,
+            )
+        _prepare_status = {"status": "prepared", "error": None}
     except run_range_synthesis.SynthesisCancelled:
         _prepare_status = {"status": "canceled", "error": None}
     except Exception as exc:
@@ -733,14 +765,15 @@ def save_architecture_selections(
 @dash.callback(
     Output("run-popup", "className"),
     Output("run-popup-opened", "data"),
+    Output("run-popup-title", "children"),
     Input({"page": page_path, "action": "run-jobs"}, "n_clicks"),
     prevent_initial_call=True
 )
 def show_run_popup(n_click):
     if not ctx.triggered_id or not isinstance(ctx.triggered_id, dict) or not n_click:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
     
-    return "overlay-odatix visible", True
+    return "overlay-odatix visible", True, "Checking settings..."
 
 # Popup close
 @dash.callback(
@@ -818,6 +851,12 @@ def run_jobs(
     check_eda_tool = True
 
     _reset_prepare_state()
+    global _prepare_runtime_settings
+    _prepare_runtime_settings = {
+        "exit_when_done": exit_when_done_enabled,
+        "log_size_limit": log_size_val,
+        "nb_jobs": nb_jobs_val,
+    }
     if synth_type == "custom_freq_synthesis":
         run_config_settings_filename = settings.get(
             "custom_freq_synthesis_settings_file",
@@ -829,7 +868,7 @@ def run_jobs(
         )
 
         _prepare_thread = threading.Thread(
-            target=_run_prepare_synthesis,
+            target=_run_check_settings,
             args=(
                 run_config_settings_filename,
                 arch_path,
@@ -880,7 +919,7 @@ def run_jobs(
     # thread.start()
 
     return {
-        "status": "running",
+        "status": "checking",
         "type": synth_type,
         "tool": tool,
     }
@@ -889,6 +928,7 @@ def run_jobs(
     Output("jobs-config-run-status", "data", allow_duplicate=True),
     Output("run-popup-pre", "children"),
     Output("run-confirm-btn", "className"),
+    Output("run-redirect", "href", allow_duplicate=True),
     Input("run-log-interval", "n_intervals"),
     State("jobs-config-run-status", "data"),
     State("run-popup-opened", "data"),
@@ -900,16 +940,28 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened):
 
     current_status = run_status.get("status")
     if current_status == "canceled":
-        return run_status, "", "color-button disabled icon-button"
+        return run_status, "", "color-button disabled icon-button", dash.no_update
 
     if _prepare_status.get("status") and _prepare_status.get("status") != current_status:
         run_status = {**run_status, **_prepare_status}
         current_status = run_status.get("status")
 
-    if current_status in ("running", "done", "error"):
+    if current_status in ("checking", "checked", "preparing", "prepared", "error"):
         log_output = _prepare_log_buffer.getvalue()
-        button_class = "color-button success icon-button" if current_status == "done" else "color-button disabled icon-button"
-        return run_status, ansi_to_html_spans(log_output) if log_output else "", button_class
+        button_class = "color-button success icon-button" if current_status == "checked" else "color-button disabled icon-button"
+        redirect_href = dash.no_update
+        if current_status == "prepared" and _prepare_parallel_jobs is not None:
+            global _prepare_api_port
+            if _prepare_api_port is None:
+                _, port = _prepare_parallel_jobs.start_api_background(
+                    host="127.0.0.1",
+                    port=8000,
+                    start_headless_on_startup=True,
+                    quiet=True,
+                )
+                _prepare_api_port = port
+            redirect_href = f"/monitor?port={_prepare_api_port}"
+        return run_status, ansi_to_html_spans(log_output) if log_output else "", button_class, redirect_href
 
     raise dash.exceptions.PreventUpdate
 
@@ -927,32 +979,34 @@ def cancel_prepare_synthesis(n_clicks):
     return {"status": "canceled"}, "", "color-button disabled icon-button"
 
 @dash.callback(
-    Output("run-redirect", "href"),
+    Output("jobs-config-run-status", "data", allow_duplicate=True),
+    Output("run-popup-title", "children", allow_duplicate=True),
+    Output("run-confirm-btn", "className", allow_duplicate=True),
     Input("run-confirm-btn", "n_clicks"),
     State("jobs-config-run-status", "data"),
     prevent_initial_call=True,
 )
-def start_parallel_jobs(n_clicks, run_status):
+def confirm_prepare_jobs(n_clicks, run_status):
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
 
-    if not run_status or run_status.get("status") != "done":
+    if not run_status or run_status.get("status") != "checked":
         raise dash.exceptions.PreventUpdate
 
-    if _prepare_parallel_jobs is None:
+    global _prepare_exec_thread
+    if _prepare_exec_thread is not None and _prepare_exec_thread.is_alive():
         raise dash.exceptions.PreventUpdate
 
-    global _prepare_api_port
-    if _prepare_api_port is None:
-        _, port = _prepare_parallel_jobs.start_api_background(
-            host="127.0.0.1",
-            port=8000,
-            start_headless_on_startup=True,
-            quiet=True,
-        )
-        _prepare_api_port = port
+    global _prepare_status
+    _prepare_status = {"status": "preparing", "error": None}
 
-    return f"/monitor?port={_prepare_api_port}"
+    _prepare_exec_thread = threading.Thread(
+        target=_run_prepare_synthesis,
+        daemon=True,
+    )
+    _prepare_exec_thread.start()
+
+    return {**run_status, "status": "preparing"}, "Preparing jobs...", "color-button disabled icon-button"
 
 ######################################
 # Layout
@@ -1009,7 +1063,7 @@ layout = html.Div(
             className="overlay-odatix",
             children=[
                 html.Div([
-                    html.H2("Checking settings...", style={"textAlign": "center"}),
+                    html.H2("Checking settings...", id="run-popup-title", style={"textAlign": "center"}),
                     html.Pre(id="run-popup-pre", className="run-popup-pre"),
                     html.Div([
                         html.Button("Cancel", id="run-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
