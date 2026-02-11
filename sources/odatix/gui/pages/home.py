@@ -52,7 +52,13 @@ home_cards = [
         "description": "Configure your architectures",
     },
     {
-        "name": "Monitor jobs",
+        "name": "Run Jobs",
+        "link": "/choose_job_type",
+        "image": "assets/icons/run.png",
+        "description": "Run synthesis at Fmax and custom frequencies",
+    },
+    {
+        "name": "Monitor Jobs",
         "link": "/monitor",
         "image": "assets/icons/monitor.png",
         "description": "Monitor currently running jobs",
