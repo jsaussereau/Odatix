@@ -132,7 +132,7 @@ def _run_prepare_synthesis():
     try:
         if not _prepare_check_data or not _prepare_runtime_settings:
             raise RuntimeError("Missing preparation settings")
-        architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler = _prepare_check_data
+        architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs = _prepare_check_data
         runtime = _prepare_runtime_settings
         with contextlib.redirect_stdout(_prepare_log_buffer):
             _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
@@ -141,9 +141,9 @@ def _run_prepare_synthesis():
                 job_list=job_list,
                 tool_settings_file=tool_settings_file,
                 arch_handler=arch_handler,
-                exit_when_done=runtime.get("exit_when_done"),
-                log_size_limit=runtime.get("log_size_limit"),
-                nb_jobs=runtime.get("nb_jobs"),
+                exit_when_done=exit_when_done,
+                log_size_limit=log_size_limit,
+                nb_jobs=nb_jobs,
                 cancel_event=_prepare_cancel_event,
             )
         _prepare_status = {"status": "prepared", "error": None}

@@ -109,7 +109,7 @@ def run_synthesis(
     keep=False,
     cancel_event=None,
 ):
-    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler = check_settings(
+    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
         tool=tool,
@@ -518,7 +518,7 @@ def check_settings(
         )
 
         job_list.append(running_arch)
-    return architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler
+    return architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs
 
 def prepare_synthesis(
     architecture_instances,
