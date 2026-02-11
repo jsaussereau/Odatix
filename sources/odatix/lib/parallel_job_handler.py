@@ -47,7 +47,7 @@ from odatix.components.motd import read_version
 from odatix.lib.curses_helper import enable_selection, disable_selection
 from odatix.lib.ansi_to_curses import AnsiToCursesConverter
 from odatix.lib.job_output_formatter import JobOutputFormatter
-from odatix.lib.utils import open_path_in_explorer
+from odatix.lib.utils import open_path_in_explorer, find_free_port
 import odatix.lib.printc as printc
 
 ENCODING = locale.getpreferredencoding()
@@ -797,6 +797,8 @@ class ParallelJobHandler:
       if self._api_thread is not None and self._api_thread.is_alive():
         return self._api_server
 
+      port = find_free_port(host, int(port))
+
       self._api_server = create_uvicorn_server(
         self,
         host=host,
@@ -813,7 +815,7 @@ class ParallelJobHandler:
 
       self._api_thread = threading.Thread(target=_run, daemon=True)
       self._api_thread.start()
-      return self._api_server
+      return self._api_server, port
 
   def stop_api_background(self, timeout: float = 2.0):
     with self._lock:
