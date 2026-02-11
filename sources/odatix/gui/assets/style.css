@@ -512,6 +512,11 @@ textarea {
     position: relative;
     text-align: center;
 }
+
+.popup-odatix.large {
+    width: 50vw;
+}
+
 .popup-odatix h3 {
     margin-top: 0;
     color: #333;
@@ -1084,15 +1089,16 @@ h3 {
 .monitor-task-container {
     border: 2px solid transparent;
     border-radius: var(--theme-small-border-radius);
+    background: var(--task-background-color);
 }
 
 .monitor-task-container.selected {
     border: 2px solid var(--theme-primary-color);
-    background: var(--theme-tertiary-color);
+    background: var(--task-background-color-selected);
 }
 
 .monitor-task-container:hover {
-    background: var(--theme-tertiary-color);
+    background: var(--task-background-color-hover);
 }
 
 .monitor-task  {
@@ -1114,7 +1120,7 @@ h3 {
 }
 
 .monitor-task-status {
-    width: 50px;
+    width: 75px;
     font-weight: bold;
     text-align: center;
     font-size: 16px;
@@ -1134,14 +1140,29 @@ h3 {
     font-size: 16px;
 }
 
+.monitor-task-button-container {
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
+    scale: 0.7;
+    width: 100px;
+}
 
 .monitor-task-progress {
     border-radius: var(--progress-bar-border-radius); 
     width: 32%;
     height: 22px;
     margin-left: 0;
-    box-shadow: var(--theme-shadow-color);
+    box-shadow: var(--progress-bar-box-shadow);
     background: var(--progress-bar-background-color);
+}
+
+.monitor-task-container:hover .monitor-task-progress {
+    background-color: var(--progress-bar-background-color-hover);
+}
+
+.monitor-task-container.selected .monitor-task-progress {
+    background-color: var(--progress-bar-background-color-selected);
 }
 
 /* .selected .monitor-task-progress {
@@ -1218,7 +1239,7 @@ h3 {
 .monitor-log {
     font-family: monospace;
     font-size: 12px;
-    line-height: 8px;
+    line-height: 16px;
     overflow: scroll;
     padding: 12px;
     height: calc(100% - 75px);
@@ -1242,4 +1263,14 @@ h3 {
 
 .monitor-container.split {
     height: calc(50vh - 176px);
+}
+
+.run-popup-pre {
+    width: 100%;
+    height: 300px;
+    overflow: scroll;
+    font-family: courier;
+    text-align: left;
+    padding: 5px;
+    font-size: 14px;
 }
