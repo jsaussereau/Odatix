@@ -1030,6 +1030,15 @@ h3 {
 .icon.disabled {
     fill: #868E964D;
 }
+.icon.pause {
+    fill: var(--theme-pause-color);
+}
+.icon.pending {
+    fill: var(--theme-pending-color);
+}
+.icon.running {
+    fill: var(--theme-running-color);
+}
 .icon.primary {
     fill: var(--theme-primary-color);
 }
@@ -1221,15 +1230,15 @@ h3 {
 }
 
 .starting .monitor-task-status {
-    color: var(--theme-primary-color);
+    color: var(--theme-running-color);
 }
 
 .queued .monitor-task-status {
-    color: var(--theme-primary-color);
+    color: var(--theme-pending-color);
 }
 
 .paused .monitor-task-status {
-    color: var(--theme-primary-color);
+    color: var(--theme-pause-color);
 }
 
 .monitor-log-container {
