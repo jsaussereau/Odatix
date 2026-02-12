@@ -108,6 +108,12 @@ html, body {
     transition: transform 0.4s ease;
 }
 
+.error-message {
+    text-align: center;
+    font-weight: bold;
+    color: var(--theme-error-color) !important;
+}
+
 .link-title1 {
     transform-origin: right center;
 }
@@ -1099,6 +1105,7 @@ h3 {
     border: 2px solid transparent;
     border-radius: var(--theme-small-border-radius);
     background: var(--task-background-color);
+	cursor: default;
 }
 
 .monitor-task-container.selected {
@@ -1282,4 +1289,8 @@ h3 {
     text-align: left;
     padding: 5px;
     font-size: 14px;
+}
+
+.hidden {
+    display: none;
 }

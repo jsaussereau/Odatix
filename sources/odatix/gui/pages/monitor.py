@@ -49,7 +49,8 @@ dash.register_page(
 # API requests
 ######################################
 
-DEFAULT_API_URL = "http://127.0.0.1:8000"
+DEFAULT_PORT = 8000
+DEFAULT_API_URL = f"http://127.0.0.1:{DEFAULT_PORT}"
 
 def _base_url(url: Optional[str]) -> str:
     if not url:
@@ -515,10 +516,14 @@ def _update_log_layout(layout_value):
 
 @dash.callback(
     Output("monitor-log", "children"),
+    Output("monitor-status", "children"),
+    Output("monitor-main-container", "className"),
+    Output("monitor-error-container", "className"),
     Input("monitor-logs", "data"),
     Input("monitor-error", "data"),
+    State(f"url_{page_path}", "search"),
 )
-def _render_logs(logs_state, error_message):
+def _render_logs(logs_state, error_message, search):
     if not isinstance(logs_state, dict):
         logs_state = {}
     lines_any = logs_state.get("lines")
@@ -526,10 +531,20 @@ def _render_logs(logs_state, error_message):
     lines = [str(line).rstrip("\n") for line in lines]
 
     text = "\n".join(lines)
+    status = ""
+    main_class_name = "visible"
+    error_class_name = "hidden"
 
     if error_message: 
-        text = f"API error: {error_message}\n\n" + text
-    return ansi_to_html_spans(text)
+        text = ""
+        # status = f"API error: {error_message}\n\n" + text$
+        port = get_key_from_url(search, "port")
+        if not port:
+            port = DEFAULT_PORT
+        status = f"Could not find any job monitor running on port {port}"
+        main_class_name = "hidden"
+        error_class_name = "visible"
+    return ansi_to_html_spans(text), status, main_class_name, error_class_name
 
 
 @dash.callback(
@@ -632,30 +647,53 @@ layout = html.Div(
         ),
         html.Div(
             children=[
-                html.Div(),
                 html.Div(
-                    children=[],
-                    id="monitor-container",
-                    className="tile title",
-                ),
+                    children=[
+                        html.Div(
+                            children=[],
+                            id="monitor-status",
+                            className="tile title error-message ",
+                        ),
 
+                    ],
+                    className="tiles-container config",
+                ),
             ],
-            className="tiles-container config",
+            id="monitor-error-container",
+            className="hidden",
         ),
         html.Div(
             children=[
-                html.Div(),
-                html.Div(),
                 html.Div(
                     children=[
-                        html.H3("Log output"),
-                        html.Pre(id="monitor-log", className="monitor-log"),
+                        html.Div(),
+                        html.Div(
+                            children=[],
+                            id="monitor-container",
+                            className="tile title",
+                        ),
+
                     ],
-                    className="tile title monitor-log-container",
-                    id="monitor-log-container",
+                    className="tiles-container config",
+                ),
+                html.Div(
+                    children=[
+                        html.Div(),
+                        html.Div(),
+                        html.Div(
+                            children=[
+                                html.H3("Log output"),
+                                html.Pre(id="monitor-log", className="monitor-log"),
+                            ],
+                            className="tile title monitor-log-container",
+                            id="monitor-log-container",
+                        ),
+                    ],
+                    className="tiles-container config",
                 ),
             ],
-            className="tiles-container config",
+            id="monitor-main-container",
+            className="hidden",
         ),
         dcc.Interval(id="monitor-refresh", interval=500, n_intervals=0),
         dcc.Store(id="monitor-snapshot", data=None),
