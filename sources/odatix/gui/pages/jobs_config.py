@@ -75,10 +75,11 @@ _prepare_api_port = None
 _prepare_check_data = None
 _prepare_runtime_settings = None
 _prepare_exec_thread = None
+_prepare_synth_type = None
 
 def _reset_prepare_state():
     global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_api_port
-    global _prepare_check_data, _prepare_runtime_settings, _prepare_exec_thread
+    global _prepare_check_data, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type
     _prepare_cancel_event = threading.Event()
     _prepare_log_buffer = _ThreadSafeBuffer()
     _prepare_status = {"status": "checking", "error": None}
@@ -87,8 +88,9 @@ def _reset_prepare_state():
     _prepare_check_data = None
     _prepare_runtime_settings = None
     _prepare_exec_thread = None
+    _prepare_synth_type = None
 
-def _run_check_settings(
+def _run_check_custom_freq_settings(
     run_config_settings_filename,
     arch_path,
     tool,
@@ -100,8 +102,11 @@ def _run_check_settings(
     log_size_val,
     nb_jobs_val,
     check_eda_tool,
+    custom_freq_list=None,
 ):
     global _prepare_status, _prepare_check_data
+    if custom_freq_list is None:
+        custom_freq_list = []
     try:
         with contextlib.redirect_stdout(_prepare_log_buffer):
             _prepare_check_data = run_range_synthesis.check_settings(
@@ -116,7 +121,7 @@ def _run_check_settings(
                 log_size_val,
                 nb_jobs_val,
                 check_eda_tool,
-                custom_freq_list=[],
+                custom_freq_list=custom_freq_list,
                 debug=False,
                 keep=False,
                 cancel_event=_prepare_cancel_event,
@@ -127,27 +132,92 @@ def _run_check_settings(
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
 
+def _run_check_fmax_settings(
+    run_config_settings_filename,
+    arch_path,
+    tool,
+    work_path,
+    target_path,
+    overwrite_enabled,
+    noask,
+    exit_when_done_enabled,
+    log_size_val,
+    nb_jobs_val,
+    continue_on_error,
+    check_eda_tool,
+):
+    global _prepare_status, _prepare_check_data
+    try:
+        with contextlib.redirect_stdout(_prepare_log_buffer):
+            _prepare_check_data = run_fmax_synthesis.check_settings(
+                run_config_settings_filename,
+                arch_path,
+                tool,
+                work_path,
+                target_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                continue_on_error,
+                check_eda_tool,
+                forced_fmax_lower_bound=None,
+                forced_fmax_upper_bound=None,
+                debug=False,
+                keep=False,
+                cancel_event=_prepare_cancel_event,
+            )
+        _prepare_status = {"status": "checked", "error": None}
+    except run_fmax_synthesis.SynthesisCancelled:
+        _prepare_status = {"status": "canceled", "error": None}
+    except Exception as exc:
+        _prepare_status = {"status": "error", "error": str(exc)}
+
 def _run_prepare_synthesis():
     global _prepare_status, _prepare_parallel_jobs
     try:
-        if not _prepare_check_data or not _prepare_runtime_settings:
+        if not _prepare_check_data:
             raise RuntimeError("Missing preparation settings")
-        architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs = _prepare_check_data
-        runtime = _prepare_runtime_settings
+        (
+            architecture_instances,
+            prepare_job,
+            job_list,
+            tool_settings_file,
+            arch_handler,
+            exit_when_done,
+            log_size_limit,
+            nb_jobs,
+        ) = _prepare_check_data
         with contextlib.redirect_stdout(_prepare_log_buffer):
-            _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
-                architecture_instances=architecture_instances,
-                prepare_job=prepare_job,
-                job_list=job_list,
-                tool_settings_file=tool_settings_file,
-                arch_handler=arch_handler,
-                exit_when_done=exit_when_done,
-                log_size_limit=log_size_limit,
-                nb_jobs=nb_jobs,
-                cancel_event=_prepare_cancel_event,
-            )
+            if _prepare_synth_type == "fmax_synthesis":
+                _prepare_parallel_jobs = run_fmax_synthesis.prepare_synthesis(
+                    architecture_instances=architecture_instances,
+                    prepare_job=prepare_job,
+                    job_list=job_list,
+                    tool_settings_file=tool_settings_file,
+                    arch_handler=arch_handler,
+                    exit_when_done=exit_when_done,
+                    log_size_limit=log_size_limit,
+                    nb_jobs=nb_jobs,
+                    cancel_event=_prepare_cancel_event,
+                )
+            else:
+                _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
+                    architecture_instances=architecture_instances,
+                    prepare_job=prepare_job,
+                    job_list=job_list,
+                    tool_settings_file=tool_settings_file,
+                    arch_handler=arch_handler,
+                    exit_when_done=exit_when_done,
+                    log_size_limit=log_size_limit,
+                    nb_jobs=nb_jobs,
+                    cancel_event=_prepare_cancel_event,
+                )
         _prepare_status = {"status": "prepared", "error": None}
     except run_range_synthesis.SynthesisCancelled:
+        _prepare_status = {"status": "canceled", "error": None}
+    except run_fmax_synthesis.SynthesisCancelled:
         _prepare_status = {"status": "canceled", "error": None}
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
@@ -851,12 +921,8 @@ def run_jobs(
     check_eda_tool = True
 
     _reset_prepare_state()
-    global _prepare_runtime_settings
-    _prepare_runtime_settings = {
-        "exit_when_done": exit_when_done_enabled,
-        "log_size_limit": log_size_val,
-        "nb_jobs": nb_jobs_val,
-    }
+    global _prepare_synth_type
+    _prepare_synth_type = synth_type
     if synth_type == "custom_freq_synthesis":
         run_config_settings_filename = settings.get(
             "custom_freq_synthesis_settings_file",
@@ -868,7 +934,7 @@ def run_jobs(
         )
 
         _prepare_thread = threading.Thread(
-            target=_run_check_settings,
+            target=_run_check_custom_freq_settings,
             args=(
                 run_config_settings_filename,
                 arch_path,
@@ -880,6 +946,37 @@ def run_jobs(
                 exit_when_done_enabled,
                 log_size_val,
                 nb_jobs_val,
+                check_eda_tool,
+            ),
+            daemon=True,
+        )
+        _prepare_thread.start()
+    elif synth_type == "fmax_synthesis":
+        run_config_settings_filename = settings.get(
+            "fmax_synthesis_settings_file",
+            OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+        )
+        work_path = os.path.join(
+            work_path_root,
+            settings.get("fmax_synthesis_work_path", OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH),
+        )
+
+        continue_on_error = True
+
+        _prepare_thread = threading.Thread(
+            target=_run_check_fmax_settings,
+            args=(
+                run_config_settings_filename,
+                arch_path,
+                tool,
+                work_path,
+                target_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                continue_on_error,
                 check_eda_tool,
             ),
             daemon=True,
