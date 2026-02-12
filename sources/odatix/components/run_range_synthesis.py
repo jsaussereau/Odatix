@@ -42,15 +42,12 @@ from odatix.lib.variables import replace_variables, Variables
 
 script_name = os.path.basename(__file__)
 
-
 class SynthesisCancelled(Exception):
     pass
-
 
 def _check_cancel(cancel_event):
     if cancel_event is not None and cancel_event.is_set():
         raise SynthesisCancelled()
-
 
 ######################################
 # Parse Arguments
@@ -138,14 +135,6 @@ def run_synthesis(
         cancel_event=cancel_event,
     )
     start_parallel_jobs(parallel_jobs)
-
-def start_parallel_jobs(
-    parallel_jobs, 
-    use_api=True,
-    start_headless_on_startup=False,
-):
-    _, actual_port = parallel_jobs.start_api_background(host="127.0.0.1", port=8000, start_headless_on_startup=start_headless_on_startup, quiet=True)
-    job_exit_success = parallel_jobs.run()
 
 def check_settings(
     run_config_settings_filename,
@@ -544,6 +533,15 @@ def prepare_synthesis(
         log_size_limit=log_size_limit,
     )
     return parallel_jobs
+
+def start_parallel_jobs(
+    parallel_jobs, 
+    use_api=True,
+    start_headless_on_startup=False,
+):
+    _, actual_port = parallel_jobs.start_api_background(host="127.0.0.1", port=8000, start_headless_on_startup=start_headless_on_startup, quiet=True)
+    if not start_headless_on_startup:
+        job_exit_success = parallel_jobs.run()
 
 ######################################
 # Main
