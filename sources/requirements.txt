@@ -1,7 +1,7 @@
 PyYAML
 ruamel.yaml
 argcomplete
-dash
+dash<4.0
 Flask
 numpy
 pandas
