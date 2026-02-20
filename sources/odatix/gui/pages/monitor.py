@@ -464,9 +464,10 @@ def _init_selected_job(snapshot, selected_job):
 
 @dash.callback(
     Output("monitor-logs", "data"),
+    Output("monitor-error", "data", allow_duplicate=True),
     Input("monitor-selected-job", "data"),
     State("monitor-logs", "data"),
-    prevent_initial_call=False,
+    prevent_initial_call="initial_duplicate",
 )
 def _fetch_full_log_on_selection(selected_job_id, current_logs):
     if selected_job_id is None:
@@ -477,23 +478,27 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs):
     except Exception:
         raise PreventUpdate
 
-    # Full log for this job (server supports logs_limit=-1)
-    snap = _api_get_slow(DEFAULT_API_URL, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
-    logs_any = snap.get("logs") if isinstance(snap, dict) else None
-    logs = logs_any if isinstance(logs_any, dict) else {}
-    lines_any = logs.get("lines")
-    lines = lines_any if isinstance(lines_any, list) else []
-    total = logs.get("total_lines", len(lines))
     try:
-        total_i = int(total)
-    except Exception:
-        total_i = len(lines)
+        # Full log for this job (server supports logs_limit=-1)
+        snap = _api_get_slow(DEFAULT_API_URL, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
+        logs_any = snap.get("logs") if isinstance(snap, dict) else None
+        logs = logs_any if isinstance(logs_any, dict) else {}
+        lines_any = logs.get("lines")
+        lines = lines_any if isinstance(lines_any, list) else []
+        total = logs.get("total_lines", len(lines))
+        try:
+            total_i = int(total)
+        except Exception:
+            total_i = len(lines)
 
-    return {
-        "job_id": job_id,
-        "lines": list(map(str, lines)),
-        "total_lines": total_i,
-    }
+        return {
+            "job_id": job_id,
+            "lines": list(map(str, lines)),
+            "total_lines": total_i,
+        }, ""
+    except Exception as e:
+        # Keep current logs, but surface error to switch UI to error container.
+        return current_logs if current_logs is not None else {}, str(e)
 
 @dash.callback(
     Output("monitor-log-container", "className"),
