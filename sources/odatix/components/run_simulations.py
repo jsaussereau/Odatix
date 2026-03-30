@@ -20,21 +20,23 @@
 #
 
 import os
-import re
 import sys
 import yaml
 import argparse
-import subprocess
 
 from odatix.components.replace_params import replace_params
+from odatix.components.run_common import (
+    normalize_run_settings,
+    confirm_valid_jobs,
+    replace_and_write_param_domains,
+    start_parallel_jobs as start_parallel_jobs_common,
+)
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.simulation_handler import SimulationHandler
-from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, get_timestamp_string
-from odatix.lib.prepare_work import edit_config_file
-from odatix.lib.check_tool import check_tool
+from odatix.lib.utils import copytree, create_dir, ask_to_continue, get_timestamp_string
 from odatix.lib.run_settings import get_sim_settings
 
 script_name = os.path.basename(__file__)
@@ -116,28 +118,14 @@ def check_settings(
         printc.note("Check out examples Odatix's documentation for more information.", script_name)
         sys.exit(-1)
 
-    if overwrite:
-        overwrite = True
-    else:
-        overwrite = _overwrite
-
-    if exit_when_done:
-        exit_when_done = True
-    else:
-        exit_when_done = _exit_when_done
-
-    if log_size_limit is not None:
-        log_size_limit = int(log_size_limit)
-    else:
-        log_size_limit = _log_size_limit
-
-    if nb_jobs is not None:
-        nb_jobs = int(nb_jobs)
-    else:
-        nb_jobs = _nb_jobs
-    
-    if noask:
-        ask_continue = False
+    overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs = normalize_run_settings(
+        overwrite=overwrite,
+        noask=noask,
+        exit_when_done=exit_when_done,
+        log_size_limit=log_size_limit,
+        nb_jobs=nb_jobs,
+        defaults=(_overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs),
+    )
 
     ParallelJob.set_patterns(hard_settings.sim_status_pattern)
 
@@ -169,14 +157,7 @@ def check_settings(
     # print checklist summary
     sim_handler.print_summary()
 
-    # ask to quit or continue
-    valid_sim_count = sim_handler.get_valid_sim_count()
-    if valid_sim_count > 0:
-        if ask_continue:
-            printc.bold("\nTotal: " + str(valid_sim_count))
-            ask_to_continue()
-    else:
-        sys.exit(-1)
+    confirm_valid_jobs(sim_handler.get_valid_sim_count(), ask_continue, ask_to_continue, script_name=script_name)
 
     print()
 
@@ -228,35 +209,14 @@ def check_settings(
                 if debug: 
                     print()
 
-            # Replace domain parameters
-            domain_dict=dict()
-            nb_domain = 0
-            arch_config = re.sub('.*/', '', sim_instance.architecture.arch_name)
-            domain_dict["__main__"] = arch_config
-            # if timestamp is not None:
-            #   domain_dict["__timestamp__"] = timestamp 
-            for param_domain in sim_instance.architecture.param_domains:
-                if param_domain.use_parameters:
-                    param_target_file = os.path.join(sim_instance.tmp_dir, sim_instance.architecture.param_target_filename)
-                    if debug: 
-                        printc.subheader("Replace parameters for \"" + param_domain.domain + "/" + param_domain.domain_value+ "\"")
-                    success = replace_params(
-                        base_text_file=param_target_file,
-                        replacement_text_file=param_domain.param_file,
-                        output_file=param_target_file,
-                        start_delimiter=param_domain.start_delimiter,
-                        stop_delimiter=param_domain.stop_delimiter,
-                        replace_all_occurrences=False,
-                        silent=False if debug else True,
-                    )
-                    if success:
-                        nb_domain = nb_domain + 1
-                        domain_dict[param_domain.domain] = param_domain.domain_value
-                    if debug: 
-                        print()
-            
-            with open(os.path.join(sim_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
-                yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False
+            replace_and_write_param_domains(
+                tmp_dir=sim_instance.tmp_dir,
+                arch_name=sim_instance.architecture.arch_name,
+                param_domains=sim_instance.architecture.param_domains,
+                default_target_filename=sim_instance.architecture.param_target_filename,
+                target_filename_getter=lambda _param_domain: sim_instance.architecture.param_target_filename,
+                debug=debug,
+                timestamp=None,
             )
 
             # replace parameters again (override)
@@ -334,15 +294,11 @@ def start_parallel_jobs(
     use_api=True,
     start_headless_on_startup=False,
 ):
-    if use_api:
-        parallel_jobs.start_api_background(
-            host="127.0.0.1",
-            port=8000,
-            start_headless_on_startup=start_headless_on_startup,
-            quiet=True,
-        )
-    if not start_headless_on_startup:
-        job_exit_success = parallel_jobs.run()
+    start_parallel_jobs_common(
+        parallel_jobs=parallel_jobs,
+        use_api=use_api,
+        start_headless_on_startup=start_headless_on_startup,
+    )
 
 ######################################
 # Main
@@ -374,7 +330,7 @@ def main(args, settings=None):
     if args.work is not None:
         work_path = args.work
     else:
-        work_path = os.path.join(settings.work_path, settings.simulation_work_path)
+        work_path = os.path.join(str(settings.work_path), str(settings.simulation_work_path))
 
     overwrite = args.overwrite
     noask = args.noask
