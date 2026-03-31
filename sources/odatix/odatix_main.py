@@ -33,13 +33,13 @@ from odatix.components.motd import *
 import odatix.components.run_simulations as run_sim
 import odatix.components.run_fmax_synthesis as run_synth
 import odatix.components.run_range_synthesis as run_range
+import odatix.components.run_workflow as run_workflow
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
 import odatix.components.clean as cln
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
 
-import odatix.lib.settings as settings
 from odatix.lib.settings import OdatixSettings
 import odatix.lib.printc as printc
 from odatix.lib.utils import *
@@ -110,6 +110,11 @@ class ArgParser:
     run_sim.add_arguments(ArgParser.sim_parser)
     ArgParser.add_nobanner(ArgParser.sim_parser)
 
+    # Define parser for the 'workflow' command
+    ArgParser.workflow_parser = subparsers.add_parser("workflow", help="run workflows", formatter_class=formatter)
+    run_workflow.add_arguments(ArgParser.workflow_parser)
+    ArgParser.add_nobanner(ArgParser.workflow_parser)
+
     # Define parser for the 'results' command
     ArgParser.res_parser = subparsers.add_parser("results", help="export benchmark results", formatter_class=formatter)
     ArgParser.res_parser.add_argument("-t", "--tool", default="all", help="eda tool in use, or 'all'")
@@ -168,6 +173,9 @@ class ArgParser:
     print()
     printc.bold("Simulation:\n  ", printc.colors.CYAN, end="")
     ArgParser.sim_parser.print_help()
+    print()
+    printc.bold("Workflow:\n  ", printc.colors.CYAN, end="")
+    ArgParser.workflow_parser.print_help()
     print()
     printc.bold("Results:", printc.colors.CYAN)
     printc.cyan("- All Results:\n  ", end="")
@@ -243,6 +251,18 @@ def run_simulations(args):
   success = True
   try:
     run_sim.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
+def run_workflows(args):
+  success = True
+  try:
+    run_workflow.main(args)
   except SystemExit as e:
     if e.code != EXIT_SUCCESS:
       success = False
@@ -435,6 +455,8 @@ def main(args=None):
     success = OdatixSettings.init_directory_nodialog(args.examples, prog)
   elif args.command == "sim":
     success = run_simulations(args)
+  elif args.command == "workflow":
+    success = run_workflows(args)
   elif args.command == "fmax":
     success = run_fmax_synthesis(args)
   elif args.command == "freq":

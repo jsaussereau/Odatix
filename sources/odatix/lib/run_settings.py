@@ -102,3 +102,37 @@ def get_sim_settings(settings_filename):
       log_size_limit = DEFAULT_LOG_SIZE_LIMIT
 
   return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, simulations
+
+
+def get_workflow_settings(settings_filename):
+  # failsafe
+  if settings_filename is None:
+    printc.error("No settings file specified: get_workflow_settings(settings_filename) -> settings_filename is None", script_name)
+    sys.exit(-1)
+
+  # get workflow settings from yaml file
+  if not os.path.isfile(settings_filename):
+    printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
+    sys.exit(-1)
+
+  with open(settings_filename, 'r') as f:
+    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    try:
+      overwrite = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
+      ask_continue = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
+      nb_jobs = read_from_list("nb_jobs", settings_data, settings_filename, type=int, script_name=script_name)
+      workflows = read_from_list("workflows", settings_data, settings_filename, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      sys.exit(-1)  # if a key is missing
+
+    # Optional keys
+    try:
+      exit_when_done = read_from_list("exit_when_done", settings_data, settings_filename, optional=True, type=bool, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      exit_when_done = DEFAULT_EXIT_WHEN_DONE
+    try:
+      log_size_limit = read_from_list("log_size_limit", settings_data, settings_filename, optional=True, type=int, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      log_size_limit = DEFAULT_LOG_SIZE_LIMIT
+
+  return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, workflows
