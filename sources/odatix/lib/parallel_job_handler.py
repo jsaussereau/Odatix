@@ -704,10 +704,23 @@ class ParallelJobHandler:
                 job.log_history.append("")
                 self.run_job(job)
                 continue
+              elif hasattr(job, "_task_pipeline"):
+                if self._start_next_task(job):
+                  continue
+                self._clear_task_pipeline(job)
+                job.status = "success"
               else:
                 job.status = "success"
             else:
               job.status = "failed"
+              if hasattr(job, "_current_task_name"):
+                job.log_history.append(
+                  printc.colors.RED + "error: task '" + str(job._current_task_name) + "' failed" + printc.colors.ENDC
+                )
+                job.log_history.append(
+                  printc.colors.CYAN + "note: look for earlier error to solve this issue" + printc.colors.ENDC
+                )
+              self._clear_task_pipeline(job)
               if job.progress is None:
                 job.progress = 0
 
@@ -1232,6 +1245,90 @@ class ParallelJobHandler:
         return job_index
     return -1
 
+  @staticmethod
+  def _task_name(task):
+    taskname = getattr(task, "name", None)
+    if taskname is None and hasattr(task, "getName"):
+      taskname = task.getName()
+    if taskname is None:
+      taskname = str(task)
+    return str(taskname)
+
+  @staticmethod
+  def _task_full_command(task):
+    task_command = getattr(task, "command", None)
+    if task_command is None and hasattr(task, "getCommand"):
+      task_command = task.getCommand()
+    if task_command is None:
+      task_command = ""
+
+    cmdlines = task_command.split("\n")
+    cmdlines = [ln.lstrip().rstrip() for ln in cmdlines]
+    return " && ".join([c[1:] if c.startswith("@") else c for c in cmdlines if c])
+
+  def _build_task_pipeline(self, job):
+    pipeline = []
+    for _, tasks in sorted(job.command.items(), key=lambda x: x[0]):
+      for task in tasks:
+        taskname = self._task_name(task)
+        full_command = self._task_full_command(task)
+        if full_command:
+          pipeline.append((taskname, full_command))
+    return pipeline
+
+  @staticmethod
+  def _clear_task_pipeline(job):
+    for attr in ("_task_pipeline", "_task_index", "_current_task_name"):
+      if hasattr(job, attr):
+        delattr(job, attr)
+
+  def _start_next_task(self, job):
+    pipeline = getattr(job, "_task_pipeline", None)
+    if pipeline is None:
+      return False
+
+    task_index = int(getattr(job, "_task_index", 0))
+    if task_index >= len(pipeline):
+      return False
+
+    taskname, full_command = pipeline[task_index]
+    job._task_index = task_index + 1
+    job._current_task_name = taskname
+
+    job.log_history.append(printc.colors.CYAN + "Run job task '" + taskname + "'" + printc.colors.ENDC)
+    job.log_history.append(printc.colors.BOLD + " > " + full_command + printc.colors.ENDC)
+
+    preexec_fn = None
+    if sys.platform != "win32" and self.process_group:
+      preexec_fn = os.setpgrp
+
+    process = subprocess.Popen(
+      STD_BUF + full_command,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+      cwd=job.directory,
+      shell=True,
+      universal_newlines=True,
+      bufsize=1,
+      preexec_fn=preexec_fn,
+      encoding="utf-8",
+      errors='replace',
+    )
+
+    if job.start_time is None:
+      job.start_time = time.time()
+    job.process = process
+    job.status = "running"
+
+    if sys.platform == "win32":
+      threading.Thread(target=read_pipe_windows, args=(process.stdout, job), daemon=True).start()
+      threading.Thread(target=read_pipe_windows, args=(process.stderr, job), daemon=True).start()
+    else:
+      self.set_nonblocking(process.stdout)
+      self.set_nonblocking(process.stderr)
+
+    return True
+
   def run_job(self, job):
     if isinstance(job.command, str):
       job.log_history.append(printc.colors.CYAN + "Run job command" + printc.colors.ENDC)
@@ -1266,104 +1363,13 @@ class ParallelJobHandler:
         self.set_nonblocking(process.stdout)
         self.set_nonblocking(process.stderr)
     elif isinstance(job.command, dict):
-      for stage, tasks in sorted(job.command.items(), key=lambda x: x[0]):
-        for task in tasks:
-          taskname = getattr(task, "name", None)
-          if taskname is None and hasattr(task, "getName"):
-            taskname = task.getName()
-          if taskname is None:
-            taskname = str(task)
+      if not hasattr(job, "_task_pipeline"):
+        job._task_pipeline = self._build_task_pipeline(job)
+        job._task_index = 0
 
-          task_command = getattr(task, "command", None)
-          if task_command is None and hasattr(task, "getCommand"):
-            task_command = task.getCommand()
-          if task_command is None:
-            task_command = ""
-
-          cmdlines = task_command.split("\n")
-          cmdlines = [ln.lstrip().rstrip() for ln in cmdlines]
-          full_command = " && ".join([c[1:] if c.startswith("@") else c for c in cmdlines if c])
-
-          job.log_history.append(printc.colors.CYAN + "Run job task '" + taskname + "'" + printc.colors.ENDC)
-          job.log_history.append(printc.colors.BOLD + " > " + full_command + printc.colors.ENDC)
-
-          preexec_fn = None
-          if sys.platform != "win32" and self.process_group:
-            preexec_fn = os.setpgrp
-
-          try:
-            process = subprocess.Popen(
-              STD_BUF + full_command,
-              stdout=subprocess.PIPE,
-              stderr=subprocess.PIPE,
-              cwd=job.directory,
-              shell=True,
-              universal_newlines=True,
-              bufsize=1,
-              preexec_fn=preexec_fn,
-              encoding="utf-8",
-              errors='replace',
-            )
-
-            if job.start_time is None:
-              job.start_time = time.time()
-            job.process = process
-            job.status = "running"
-
-            def append_log_line(line):
-              if not line:
-                return
-              job.log_history.append(line)
-              if job.log_size_limit != -1 and len(job.log_history) > job.log_size_limit:
-                job.log_history = job.log_history[-job.log_size_limit:]
-              job.log_changed = True
-
-            if sys.platform == "win32":
-              stdout_data, stderr_data = process.communicate()
-              if stdout_data:
-                for line in stdout_data.splitlines(keepends=True):
-                  append_log_line(line)
-              if stderr_data:
-                for line in stderr_data.splitlines(keepends=True):
-                  append_log_line(line)
-            else:
-              if process.stdout is not None:
-                self.set_nonblocking(process.stdout)
-              if process.stderr is not None:
-                self.set_nonblocking(process.stderr)
-
-              pipes = [pipe for pipe in (process.stdout, process.stderr) if pipe is not None]
-
-              while True:
-                read_ready, _, _ = select.select(pipes, [], [], 0.1)
-                for pipe in read_ready:
-                  while True:
-                    line = pipe.readline()
-                    if not line:
-                      break
-                    append_log_line(line)
-
-                if process.poll() is not None:
-                  # Drain any remaining output
-                  for pipe in pipes:
-                    while True:
-                      line = pipe.readline()
-                      if not line:
-                        break
-                      append_log_line(line)
-                  break
-
-            if process.returncode != 0:
-              raise subprocess.CalledProcessError(process.returncode, full_command)
-
-          except subprocess.CalledProcessError:
-            job.status = "failed"
-            job.log_history.append(printc.colors.RED + "error: task '" + taskname + "' failed" + printc.colors.ENDC)
-            job.log_history.append(printc.colors.CYAN + "note: look for earlier error to solve this issue" + printc.colors.ENDC)
-            return
-
-      # Toutes les tâches ont été exécutées avec succès
-      job.status = "completed"
+      if not self._start_next_task(job):
+        self._clear_task_pipeline(job)
+        job.status = "success"
 
   def queue_job(self, job):
     job.status = "queued"
@@ -1582,10 +1588,23 @@ class ParallelJobHandler:
                   job.log_history.append("")
                   self.run_job(job)
                   continue
+                elif hasattr(job, "_task_pipeline"):
+                  if self._start_next_task(job):
+                    continue
+                  self._clear_task_pipeline(job)
+                  job.status = "success"
                 else:
                   job.status = "success"
               else:
                 job.status = "failed"
+                if hasattr(job, "_current_task_name"):
+                  job.log_history.append(
+                    printc.colors.RED + "error: task '" + str(job._current_task_name) + "' failed" + printc.colors.ENDC
+                  )
+                  job.log_history.append(
+                    printc.colors.CYAN + "note: look for earlier error to solve this issue" + printc.colors.ENDC
+                  )
+                self._clear_task_pipeline(job)
                 if job.progress is None:
                   job.progress = 0
 
