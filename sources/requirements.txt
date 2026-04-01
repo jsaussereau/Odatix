@@ -12,3 +12,4 @@ websockets
 fastapi
 uvicorn
 natsort
+wosit
