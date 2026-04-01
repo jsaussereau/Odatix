@@ -382,6 +382,31 @@ class ParallelJobHandler:
 
         self._headless_initialized = True
 
+    def _append_job_log(self, job, line):
+        if not line:
+            return
+        job.log_history.append(line)
+        limit = getattr(job, "log_size_limit", self.log_size_limit)
+        if limit != -1 and len(job.log_history) > limit:
+            job.log_history = job.log_history[-limit:]
+        job.log_changed = True
+
+    def _drain_process_pipes(self, job):
+        if job.process is None or sys.platform == "win32":
+            return
+
+        for pipe in (job.process.stdout, job.process.stderr):
+            if pipe is None:
+                continue
+            while True:
+                try:
+                    line = pipe.readline()
+                except Exception:
+                    break
+                if not line:
+                    break
+                self._append_job_log(job, line)
+
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
         for job in self.job_list:
             if job in self.retired_job_list:
@@ -391,6 +416,9 @@ class ParallelJobHandler:
             else:
                 job.progress = job.get_progress()
                 if job.process.poll() is not None:
+                    # Drain remaining buffered output before state transition/retire.
+                    self._drain_process_pipes(job)
+
                     if job.process.returncode == 0:
                         if job.status == "starting":
                             job.log_history.append("")
@@ -1102,10 +1130,21 @@ class ParallelJobHandler:
     def read_process_output(self):
         if sys.platform == "win32":
             return
-        
-        pipes = [job.process.stdout for job in self.running_job_list] + [
-            job.process.stderr for job in self.running_job_list
-        ]
+
+        for job in self.running_job_list:
+            job.log_changed = False
+
+        pipes = []
+        for job in self.running_job_list:
+            if job.process is None:
+                continue
+            if job.process.stdout is not None:
+                pipes.append(job.process.stdout)
+            if job.process.stderr is not None:
+                pipes.append(job.process.stderr)
+
+        if not pipes:
+            return
         
         try:
             read_ready, _, _ = select.select(pipes, [], [], 0.1)
@@ -1114,15 +1153,11 @@ class ParallelJobHandler:
         
         for pipe in read_ready:
             for job in self.running_job_list:
-                job.log_changed = False
-                if pipe in (job.process.stdout, job.process.stderr):
+                if job.process is not None and pipe in (job.process.stdout, job.process.stderr):
                     while True:
                         line = pipe.readline()
                         if line:
-                            job.log_history.append(line)
-                            if self.log_size_limit != -1 and len(job.log_history) > self.log_size_limit:
-                                job.log_history = job.log_history[-self.log_size_limit:]
-                            job.log_changed = True
+                            self._append_job_log(job, line)
                         else:
                             break
 
