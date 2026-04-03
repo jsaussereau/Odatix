@@ -127,6 +127,7 @@ def add_arguments(parser):
     parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
     parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
     parser.add_argument("-k", "--keep", action="store_true", help="store workflow batch with a timestamp in the configuration name")
+    parser.add_argument("-r", "--resume", action="store_true", help="resume from existing work directories (do not delete/recreate them)")
     parser.add_argument("--logsize", help="size of the log history per job in the monitor")
     parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
     parser.add_argument('-c', '--config', default=OdatixSettings.DEFAULT_SETTINGS_FILE, help='global settings file for Odatix (default: ' + OdatixSettings.DEFAULT_SETTINGS_FILE + ')')
@@ -142,7 +143,7 @@ def parse_arguments():
 # Run Workflows
 ######################################
 
-def run_workflows(run_config_settings_filename, workflow_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug=False, keep=False):
+def run_workflows(run_config_settings_filename, workflow_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug=False, keep=False, resume=False):
     workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         workflow_path=workflow_path,
@@ -162,6 +163,7 @@ def run_workflows(run_config_settings_filename, workflow_path, work_path, overwr
         exit_when_done=exit_when_done,
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
+        resume=resume,
     )
     start_parallel_jobs(parallel_jobs)
 
@@ -356,8 +358,9 @@ def check_settings(
 
     job_list = []
 
-    def prepare_job(workflow_instance):
-        create_dir(workflow_instance.tmp_dir)
+    def prepare_job(workflow_instance, resume=False):
+        if not (resume and os.path.isdir(workflow_instance.tmp_dir)):
+            create_dir(workflow_instance.tmp_dir)
 
         # copy source files
         copytree(
@@ -433,9 +436,10 @@ def prepare_workflows(
     exit_when_done,
     log_size_limit,
     nb_jobs,
+    resume=False,
 ):
     for workflow_instance in workflow_instances:
-        prepare_job(workflow_instance)
+        prepare_job(workflow_instance, resume=resume)
 
     parallel_jobs = ParallelJobHandler(
         job_list=job_list,
@@ -492,6 +496,7 @@ def main(args, settings=None):
     nb_jobs = args.jobs
     debug = args.debug
     keep = args.keep
+    resume = args.resume
 
     run_workflows(
         run_config_settings_filename,
@@ -504,6 +509,7 @@ def main(args, settings=None):
         nb_jobs,
         debug,
         keep,
+        resume,
     )
 
 
