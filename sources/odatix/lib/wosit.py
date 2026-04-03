@@ -19,6 +19,7 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
 from wosit.Maker import Maker
 
 def createTaskGraph(
@@ -34,18 +35,27 @@ def createTaskGraph(
     maker = Maker()
 
     for task in tasks:
-        targ = task.get("name")
-        if targ is None:
+        target = task.get("name")
+        if target is None:
             raise ValueError("Each task must have a 'name' key.")
-        srcs = task.get("dependencies", [])
+        sources = task.get("dependencies", [])
 
-        tmp_cmds = task["commands"]
-        cmds = "\n".join(tmp_cmds)
+        commands = task.get("commands", [])
+        commands = "\n".join(commands)
 
+        # Optional task path. It can be absolute or relative to work directory.
+        task_path = task.get("path", None) 
+        if task_path is not None:
+            if os.path.isabs(task_path):
+                path = task_path
+            else:
+                path = os.path.join(path, task_path) if path else task_path
+        
         maker.addRule(
-            target=targ,
-            source=srcs,
-            command=cmds
+            target=target,
+            source=sources,
+            command=commands,
+            path=path,
         )
 
     return maker

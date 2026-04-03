@@ -397,14 +397,19 @@ def check_settings(
             timestamp=None,
         )
 
-        # try:
-        maker = createTaskGraph(workflow_instance.tasks)
-        execusion_stages = maker.getStages(name="main", max_process=1)
-        # except Exception as e:
-        #     printc.error("Error while creating task graph for workflow \"" + workflow_instance.workflow_display_name + "\". Please check your workflow settings file and task definitions.", script_name)
-        #     printc.cyan("error details: ", end="", script_name=script_name)
-        #     print(str(e))
-        #     sys.exit(-1)
+        try:
+            maker = createTaskGraph(workflow_instance.tasks)
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(workflow_instance.tmp_dir)
+                execusion_stages = maker.getStages(name="main", max_process=1)
+            finally:
+                os.chdir(old_cwd)
+        except Exception as e:
+            printc.error("Error while creating task graph for workflow \"" + workflow_instance.workflow_display_name + "\". Please check your workflow settings file and task definitions.", script_name)
+            printc.cyan("error details: ", end="", script_name=script_name)
+            print(str(e))
+            sys.exit(-1)
 
         progress_file = os.path.join(workflow_instance.tmp_dir, workflow_instance.progress_file)
 
