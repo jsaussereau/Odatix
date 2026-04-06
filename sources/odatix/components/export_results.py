@@ -22,6 +22,7 @@
 import os
 import sys
 import yaml
+import json
 import re
 import csv
 import argparse
@@ -200,6 +201,41 @@ def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
     return None
 
 
+def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
+  """
+  Parse a JSON file to extract a value associated with a key.
+
+  Args:
+      file (str): Path to the JSON file.
+      key (str): Key to search for in the JSON data.
+      error_prefix (str): Prefix for error messages.
+
+  Returns:
+      Any | None: Extracted value, or None if not found or on error.
+  """
+  if not os.path.isfile(file):
+    if error_if_missing:
+      printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+    return None
+
+  with open(file, "r") as json_file:
+    try:
+      data = json.load(json_file)
+      if key:
+        if isinstance(data, dict):
+          value = data.get(key, None)
+          if value is None and error_if_missing:
+            printc.error(error_prefix + 'Could not find key "' + key + '" in json "' + file + '"', script_name=script_name)
+          return value
+        if error_if_missing:
+          printc.error(error_prefix + 'JSON file "' + file + '" does not contain a dictionary at top level', script_name=script_name)
+        return None
+      return data
+    except json.JSONDecodeError as e:
+      printc.error(f'{error_prefix}Could not parse json file "{file}": {str(e)}', script_name=script_name)
+      return None
+
+
 ######################################
 # Validate Tool Settings
 ######################################
@@ -338,6 +374,14 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
       value = parse_yaml(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+    elif type == "json":
+      try:
+        file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
+      except (KeyNotInListError, BadValueInListError):
+        banned_metrics.append(metric)
+        continue
+      key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
+      value = parse_json(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
     elif type == "benchmark":
       if not use_benchmark:
         banned_metrics.append(metric)

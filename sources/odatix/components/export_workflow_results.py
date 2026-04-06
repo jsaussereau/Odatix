@@ -24,6 +24,7 @@ import re
 import csv
 import sys
 import yaml
+import json
 import argparse
 
 import odatix.lib.printc as printc
@@ -117,6 +118,27 @@ def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
             return None
 
 
+def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
+    if not os.path.isfile(file):
+        if error_if_missing:
+            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+        return None
+
+    with open(file, "r") as json_file:
+        try:
+            data = json.load(json_file)
+            if key is None:
+                return data
+            if data is None:
+                return None
+            if isinstance(data, dict):
+                return data.get(key, None)
+            return None
+        except json.JSONDecodeError as e:
+            printc.error(f'{error_prefix}Could not parse json file "{file}": {str(e)}', script_name=script_name)
+            return None
+
+
 def convert_to_numeric(data):
     if isinstance(data, (int, float)):
         return data
@@ -193,6 +215,11 @@ def _extract_run_metrics(run_dir, metrics_def, error_prefix=""):
             key = settings.get("key", None)
             if file is not None:
                 value = parse_yaml(os.path.join(run_dir, file), key, error_if_missing, error_prefix)
+        elif metric_type == "json":
+            file = settings.get("file")
+            key = settings.get("key", None)
+            if file is not None:
+                value = parse_json(os.path.join(run_dir, file), key, error_if_missing, error_prefix)
         elif metric_type == "operation":
             op = settings.get("op")
             if op is not None:
