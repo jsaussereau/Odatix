@@ -43,6 +43,7 @@ from odatix.lib.run_settings import get_workflow_settings
 from odatix.lib.wosit import createTaskGraph
 
 script_name = os.path.basename(__file__)
+WORKFLOW_META_FILENAME = "workflow_meta.yml"
 
 
 class WorkflowInstance:
@@ -65,6 +66,7 @@ class WorkflowInstance:
         progress_file,
         tasks,
         workflow_settings_file,
+        workflow_definition_dir,
     ):
         self.workflow_name = workflow_name
         self.workflow_display_name = workflow_display_name
@@ -83,6 +85,7 @@ class WorkflowInstance:
         self.progress_file = progress_file
         self.tasks = tasks
         self.workflow_settings_file = workflow_settings_file
+        self.workflow_definition_dir = workflow_definition_dir
 
 
 
@@ -327,6 +330,7 @@ def check_settings(
                 progress_file=progress_file,
                 tasks=tasks,
                 workflow_settings_file=workflow_settings_file,
+                workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
             )
         )
         valid_workflows.append(workflow_display_name)
@@ -357,6 +361,33 @@ def check_settings(
     def prepare_job(workflow_instance, resume=False):
         if not (resume and os.path.isdir(workflow_instance.tmp_dir)):
             create_dir(workflow_instance.tmp_dir)
+
+        # Write run metadata to make post-processing/export robust.
+        workflow_meta_file = os.path.join(workflow_instance.tmp_dir, WORKFLOW_META_FILENAME)
+        try:
+            with open(workflow_meta_file, "w") as f:
+                yaml.dump(
+                    {
+                        "workflow_full": workflow_instance.workflow_full,
+                        "workflow_name": workflow_instance.workflow_name,
+                        "workflow_display_name": workflow_instance.workflow_display_name,
+                        "workflow_param_dir": workflow_instance.workflow_param_dir,
+                        "workflow_config": workflow_instance.workflow_config,
+                        "workflow_definition_dir": workflow_instance.workflow_definition_dir,
+                        "workflow_settings_file": workflow_instance.workflow_settings_file,
+                    },
+                    f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                )
+        except Exception as e:
+            printc.warning(
+                "Could not write workflow metadata file \""
+                + workflow_meta_file
+                + "\": "
+                + str(e),
+                script_name,
+            )
 
         # copy source files
         copytree(
