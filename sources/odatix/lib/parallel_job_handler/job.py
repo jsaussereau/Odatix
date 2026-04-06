@@ -85,8 +85,17 @@ class ParallelJob:
                     content = f.read()
                 for match in re.finditer(ParallelJob.progress_file_pattern, content):
                     parts = ParallelJob.progress_file_pattern.search(match.group())
-                    if len(parts.groups()) >= 2:
-                        progress = int(parts.group(2))
+                    if parts is None:
+                        continue
+                    groups = parts.groups()
+                    # Generic mode: support 1-group regex (e.g. "Progress: ([0-9]+)")
+                    # and keep compatibility with older 2-groups patterns.
+                    if len(groups) >= 1:
+                        group_index = 2 if len(groups) >= 2 else 1
+                        value = parts.group(group_index)
+                        if value is None:
+                            continue
+                        progress = int(value)
             if progress > 100:
                 progress = 100
             return progress
@@ -113,8 +122,15 @@ class ParallelJob:
                 content = f.read()
             for match in re.finditer(ParallelJob.progress_file_pattern, content):
                 parts = ParallelJob.progress_file_pattern.search(match.group())
-                if len(parts.groups()) >= 2:
-                    synth_progress = int(parts.group(2))
+                if parts is None:
+                    continue
+                groups = parts.groups()
+                if len(groups) >= 1:
+                    group_index = 2 if len(groups) >= 2 else 1
+                    value = parts.group(group_index)
+                    if value is None:
+                        continue
+                    synth_progress = int(value)
 
         # Compute total progress
         if fmax_totalstep != 0:
