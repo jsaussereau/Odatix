@@ -256,6 +256,24 @@ def _discover_runs(work_root):
     return runs
 
 
+def _get_workflow_config_key(meta, workflow_param_dir, fallback_run_name):
+    workflow_full = meta.get("workflow_full")
+    if isinstance(workflow_full, str) and workflow_full != "":
+        if "/" in workflow_full:
+            # Keep config + parameter domains, e.g. "default+voltage"
+            return workflow_full.split("/", 1)[1]
+        # No explicit config: keep workflow name and optional "+domains"
+        if workflow_full == workflow_param_dir or workflow_full.startswith(workflow_param_dir + "+"):
+            return workflow_full
+        return workflow_full
+
+    workflow_config = meta.get("workflow_config")
+    if isinstance(workflow_config, str) and workflow_config != "":
+        return workflow_config
+
+    return fallback_run_name
+
+
 def export_workflow_results(work_root, workflow_path, output_dir, output_filename=DEFAULT_OUTPUT_FILENAME):
     all_units = {}
     out = {"units": all_units, "workflows": {}}
@@ -272,7 +290,7 @@ def export_workflow_results(work_root, workflow_path, output_dir, output_filenam
 
         workflow_param_dir = meta.get("workflow_param_dir", fallback_param_dir)
         workflow_full = meta.get("workflow_full", fallback_param_dir + "/" + run_name)
-        workflow_config = meta.get("workflow_config", run_name)
+        workflow_config_key = _get_workflow_config_key(meta, workflow_param_dir, run_name)
 
         workflow_definition_dir = meta.get("workflow_definition_dir")
         if workflow_definition_dir is None:
@@ -290,10 +308,11 @@ def export_workflow_results(work_root, workflow_path, output_dir, output_filenam
         if workflow_param_dir not in out["workflows"]:
             out["workflows"][workflow_param_dir] = {}
 
-        out["workflows"][workflow_param_dir][workflow_config] = {
+        out["workflows"][workflow_param_dir][workflow_config_key] = {
             "run_dir": run_dir,
             "workflow_param_dir": workflow_param_dir,
             "workflow_definition_dir": workflow_definition_dir,
+            "workflow_full": workflow_full,
             "metrics": run_metrics,
         }
 
