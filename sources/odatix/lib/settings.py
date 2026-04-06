@@ -147,6 +147,18 @@ class OdatixSettings:
                     printc.cyan("error details: ", end="", script_name=script_name)
                     print(str(e))
                     return None
+
+        # Empty YAML file -> valid but empty config (defaults will be applied).
+        if settings_data is None:
+            settings_data = {}
+
+        # Top-level settings must be a mapping.
+        if not isinstance(settings_data, dict):
+            printc.error(
+                "Workspace settings file \"" + settings_filename + "\" is not a valid YAML file.",
+                script_name,
+            )
+            return None
         return settings_data
 
     @staticmethod
