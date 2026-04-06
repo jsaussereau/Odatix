@@ -265,9 +265,18 @@ def check_settings(
             if source_blacklist is False:
                 source_blacklist = None
 
-            param_target_file = read_from_list("param_target_file", workflow_settings, workflow_settings_file, script_name=script_name)
-            start_delimiter = read_from_list("start_delimiter", workflow_settings, workflow_settings_file, script_name=script_name)
-            stop_delimiter = read_from_list("stop_delimiter", workflow_settings, workflow_settings_file, script_name=script_name)
+            # Check if use_parameters is explicitly set to False
+            use_parameters = workflow_settings.get("use_parameters", True)
+
+            if use_parameters:
+                param_target_file = read_from_list("param_target_file", workflow_settings, workflow_settings_file, script_name=script_name)
+                start_delimiter = read_from_list("start_delimiter", workflow_settings, workflow_settings_file, script_name=script_name)
+                stop_delimiter = read_from_list("stop_delimiter", workflow_settings, workflow_settings_file, script_name=script_name)
+            else:
+                param_target_file = None
+                start_delimiter = None
+                stop_delimiter = None
+
             tasks = read_from_list("tasks", workflow_settings, workflow_settings_file, type=list, script_name=script_name)
         except (KeyNotInListError, BadValueInListError):
             invalid_workflows.append(workflow_display_name)
