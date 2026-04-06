@@ -36,6 +36,7 @@ import odatix.components.run_range_synthesis as run_range
 import odatix.components.run_workflow as run_workflow
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
+import odatix.components.export_workflow_results as exp_workflow_res
 import odatix.components.clean as cln
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
@@ -139,6 +140,11 @@ class ArgParser:
     exp_res.add_arguments(ArgParser.exp_res_parser)
     ArgParser.add_nobanner(ArgParser.exp_res_parser)
 
+    # Define parser for the 'res_workflow' command
+    ArgParser.exp_workflow_res_parser = subparsers.add_parser("res_workflow", help="export workflow results")
+    exp_workflow_res.add_arguments(ArgParser.exp_workflow_res_parser)
+    ArgParser.add_nobanner(ArgParser.exp_workflow_res_parser)
+
     # Define parser for the 'clean' command
     ArgParser.clean_parser = subparsers.add_parser("clean", help="clean directory", formatter_class=formatter)
     cln.add_arguments(ArgParser.clean_parser)
@@ -191,6 +197,12 @@ class ArgParser:
     print(ArgParser.exp_res_parser.format_usage(), end="")
     print("  run ", end="")
     printc.bold(prog + " res_synth -h", end="")
+    print(" for more details")
+    print()
+    printc.cyan("- Workflow Results:\n  ", end="")
+    print(ArgParser.exp_workflow_res_parser.format_usage(), end="")
+    print("  run ", end="")
+    printc.bold(prog + " res_workflow -h", end="")
     print(" for more details")
     print()
     printc.bold("Clean:\n  ", printc.colors.CYAN, end="")
@@ -356,6 +368,18 @@ def export_results(args):
     success = False
   return success
 
+def export_workflow_results(args):
+  success = True
+  try:
+    exp_workflow_res.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
 def export_all_results(args):
   success = True
   try:
@@ -467,6 +491,8 @@ def main(args=None):
     success = export_benchmark(args)
   elif args.command in "res_synth":
     success = export_results(args)
+  elif args.command == "res_workflow":
+    success = export_workflow_results(args)
   elif args.command in "generate":
     success = generate_configs(args)
   elif args.command in "replace":
