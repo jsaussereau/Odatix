@@ -114,6 +114,7 @@ class ArgParser:
     # Define parser for the 'workflow' command
     ArgParser.workflow_parser = subparsers.add_parser("workflow", help="run workflows", formatter_class=formatter)
     run_workflow.add_arguments(ArgParser.workflow_parser)
+    ArgParser.workflow_parser.add_argument('-e', '--noexport', action='store_true', help='do not export workflow results after workflow execution')
     ArgParser.add_nobanner(ArgParser.workflow_parser)
 
     # Define parser for the 'results' command
@@ -281,6 +282,23 @@ def run_workflows(args):
   except Exception as e:
     internal_error(e, error_logfile, script_name)
     success = False
+
+  if success and not args.noexport:
+    try:
+      newargs = argparse.Namespace(
+        work=args.work,
+        respath=None,
+        output=exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
+        config=args.config,
+      )
+      exp_workflow_res.main(newargs)
+    except SystemExit as e:
+      if e.code != EXIT_SUCCESS:
+        success = False
+    except Exception as e:
+      internal_error(e, error_logfile, script_name)
+      success = False
+
   return success
 
 def run_fmax_synthesis(args):
