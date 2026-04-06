@@ -89,10 +89,12 @@ class OdatixSettings:
     DEFAULT_SIMULATION_WORK_PATH = "simulations"
     DEFAULT_FMAX_SYNTHESIS_WORK_PATH = "fmax_synthesis"
     DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH = "custom_freq_synthesis"
+    DEFAULT_WORKFLOW_WORK_PATH = "workflows"
     DEFAULT_RESULT_PATH = "results"
     DEFAULT_USERCONFIG_PATH = "odatix_userconfig"
     DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
     DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
+    DEFAULT_WORKFLOW_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "workflows")
     DEFAULT_TARGET_PATH = DEFAULT_USERCONFIG_PATH
     DEFAULT_USE_BENCHMARK = False
     DEFAULT_BENCHMARK_FILE = "results/benchmark.yml"
@@ -100,7 +102,8 @@ class OdatixSettings:
     DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
     DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
     DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml")
-    
+    DEFAULT_WORKFLOW_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "workflow_settings.yml")
+
     odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
     odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
     odatix_init_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_init"))
@@ -220,9 +223,11 @@ class OdatixSettings:
         self.simulation_work_path, _ = get_from_dict("simulation_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_WORK_PATH, silent=silent, script_name=script_name)
         self.fmax_synthesis_work_path, _ = get_from_dict("fmax_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH, silent=silent, script_name=script_name)
         self.custom_freq_synthesis_work_path, _ = get_from_dict("custom_freq_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH, silent=silent, script_name=script_name)
+        self.workflow_work_path, _ = get_from_dict("workflow_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_WORK_PATH, silent=silent, script_name=script_name)
         self.result_path, _ = get_from_dict("result_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_RESULT_PATH, silent=silent, script_name=script_name)
         self.arch_path, _ = get_from_dict("arch_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ARCH_PATH, silent=silent, script_name=script_name)
         self.sim_path, _ = get_from_dict("sim_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIM_PATH, silent=silent, script_name=script_name)
+        self.workflow_path, _ = get_from_dict("workflow_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_PATH, silent=silent, script_name=script_name)
         self.target_path, _ = get_from_dict("target_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TARGET_PATH, silent=silent, script_name=script_name)
         self.use_benchmark, _ = get_from_dict("use_benchmark", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_USE_BENCHMARK, type=bool, silent=silent, script_name=script_name)
         self.benchmark_file, _ = get_from_dict("benchmark_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_BENCHMARK_FILE, silent=silent, script_name=script_name)
@@ -230,7 +235,8 @@ class OdatixSettings:
         self.simulation_settings_file, _ = get_from_dict("simulation_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE, silent=silent, script_name=script_name)
         self.fmax_synthesis_settings_file, _ = get_from_dict("fmax_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.custom_freq_synthesis_settings_file, _ = get_from_dict("custom_freq_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
-        
+        self.workflow_settings_file, _ = get_from_dict("workflow_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE , silent=silent, script_name=script_name)
+
         # Depreciation warnings
         no_longer_supported = False
         if "sim_work_path" in settings_data:

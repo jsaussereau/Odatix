@@ -44,10 +44,6 @@ from odatix.lib.wosit import createTaskGraph
 
 script_name = os.path.basename(__file__)
 
-DEFAULT_WORKFLOW_SETTINGS_FILE = os.path.join(OdatixSettings.DEFAULT_USERCONFIG_PATH, "workflow_settings.yml")
-DEFAULT_WORKFLOW_PATH = os.path.join(OdatixSettings.DEFAULT_USERCONFIG_PATH, "workflow")
-DEFAULT_WORKFLOW_WORK_PATH = "workflow"
-
 
 class WorkflowInstance:
     def __init__(
@@ -482,17 +478,17 @@ def main(args, settings=None):
     if args.input is not None:
         run_config_settings_filename = args.input
     else:
-        run_config_settings_filename = DEFAULT_WORKFLOW_SETTINGS_FILE
+        run_config_settings_filename = settings.workflow_settings_file
 
     if args.workflowpath is not None:
         workflow_path = args.workflowpath
     else:
-        workflow_path = DEFAULT_WORKFLOW_PATH
+        workflow_path = settings.workflow_path
 
     if args.work is not None:
         work_path = args.work
     else:
-        work_path = os.path.join(str(settings.work_path), DEFAULT_WORKFLOW_WORK_PATH)
+        work_path = os.path.join(str(settings.work_path), str(settings.workflow_work_path))
 
     overwrite = args.overwrite
     noask = args.noask
