@@ -67,6 +67,7 @@ class WorkflowInstance:
         tasks,
         workflow_settings_file,
         workflow_definition_dir,
+        no_main_configuration=False,
     ):
         self.workflow_name = workflow_name
         self.workflow_display_name = workflow_display_name
@@ -86,6 +87,7 @@ class WorkflowInstance:
         self.tasks = tasks
         self.workflow_settings_file = workflow_settings_file
         self.workflow_definition_dir = workflow_definition_dir
+        self.no_main_configuration = no_main_configuration
 
 
 
@@ -225,6 +227,11 @@ def check_settings(
             requested_param_domains,
         ) = ArchitectureHandler.get_basic(workflow_full)
 
+        # If no explicit config is provided (e.g. "workflow_simple" instead of
+        # "workflow_simple/default"), treat it as the main/default configuration
+        # and skip main parameter replacement.
+        no_main_configuration = workflow_config == workflow_param_dir
+
         workflow_settings_file = os.path.join(workflow_path, workflow_param_dir, hard_settings.param_settings_filename)
 
         if not os.path.isfile(workflow_settings_file):
@@ -290,10 +297,12 @@ def check_settings(
             )
 
         param_file = os.path.join(workflow_path, workflow_param_dir, workflow_config + ".txt")
-        if not os.path.isfile(param_file):
+        if not no_main_configuration and not os.path.isfile(param_file):
             printc.error("Workflow parameter file \"" + param_file + "\" does not exist", script_name)
             invalid_workflows.append(workflow_display_name)
             continue
+        if no_main_configuration:
+            param_file = None
 
         param_domains = []
         if len(requested_param_domains) > 0:
@@ -331,6 +340,7 @@ def check_settings(
                 tasks=tasks,
                 workflow_settings_file=workflow_settings_file,
                 workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
+                no_main_configuration=no_main_configuration,
             )
         )
         valid_workflows.append(workflow_display_name)
@@ -398,20 +408,21 @@ def check_settings(
             dirs_exist_ok=True,
         )
 
-        # replace main parameters
-        if debug:
-            printc.subheader("Replace main parameters")
+        # replace main parameters (skip when no explicit main configuration is selected)
+        if not workflow_instance.no_main_configuration:
+            if debug:
+                printc.subheader("Replace main parameters")
 
-        param_target_file = os.path.join(workflow_instance.tmp_dir, workflow_instance.param_target_file)
-        replace_params(
-            base_text_file=param_target_file,
-            replacement_text_file=workflow_instance.param_file,
-            output_file=param_target_file,
-            start_delimiter=workflow_instance.start_delimiter,
-            stop_delimiter=workflow_instance.stop_delimiter,
-            replace_all_occurrences=False,
-            silent=False if debug else True,
-        )
+            param_target_file = os.path.join(workflow_instance.tmp_dir, workflow_instance.param_target_file)
+            replace_params(
+                base_text_file=param_target_file,
+                replacement_text_file=workflow_instance.param_file,
+                output_file=param_target_file,
+                start_delimiter=workflow_instance.start_delimiter,
+                stop_delimiter=workflow_instance.stop_delimiter,
+                replace_all_occurrences=False,
+                silent=False if debug else True,
+            )
 
         # replace domain parameters and write param_domains.yml
         replace_and_write_param_domains(
