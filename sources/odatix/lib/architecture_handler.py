@@ -27,6 +27,8 @@ import yaml
 import copy
 import itertools
 
+from natsort import natsorted
+
 from os.path import isfile
 from os.path import isdir
 
@@ -1061,7 +1063,7 @@ class ArchitectureHandler:
             if has_wildcard and added_count == 0:
                 printc.warning(f"Wildcard \"{arch_request}\" did not match any configuration", script_name)
         # Remove duplicates
-        architectures = list(dict.fromkeys(architectures))
+        architectures = natsorted(list(dict.fromkeys(architectures)))
         return architectures
 
     def create_list_from_range(lower_bound, upper_bound, step):
