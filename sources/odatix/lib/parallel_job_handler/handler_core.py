@@ -364,27 +364,97 @@ class ParallelJobHandler:
     def _append_job_log(self, job, line):
         if not line:
             return
-        job.log_history.append(line)
+
+        if isinstance(line, bytes):
+            try:
+                text = line.decode(ENCODING, errors="replace")
+            except Exception:
+                text = line.decode("utf-8", errors="replace")
+        else:
+            text = str(line)
+
+        text = text.replace("\r\n", "\n")
+        pending = getattr(job, "_log_pending", "")
+        overwrite = bool(getattr(job, "_log_overwrite", False))
+
+        def _store_log(stored_line, do_overwrite=False):
+            if stored_line is None:
+                return
+            stored_line = str(stored_line).replace("\x00", "")
+            if stored_line == "":
+                return
+            if do_overwrite and len(job.log_history) > 0:
+                job.log_history[-1] = stored_line
+            else:
+                job.log_history.append(stored_line)
+
+        for ch in text:
+            if ch == "\r":
+                _store_log(pending, overwrite)
+                pending = ""
+                overwrite = True
+            elif ch == "\n":
+                _store_log(pending, overwrite)
+                pending = ""
+                overwrite = False
+            else:
+                pending += ch
+
+        # Keep the current carriage-return line live-updated in place.
+        if overwrite and pending != "":
+            _store_log(pending, do_overwrite=True)
+
+        job._log_pending = pending
+        job._log_overwrite = overwrite
+
         limit = getattr(job, "log_size_limit", self.log_size_limit)
         if limit != -1 and len(job.log_history) > limit:
             job.log_history = job.log_history[-limit:]
         job.log_changed = True
+
+    def _flush_job_log_buffer(self, job):
+        pending = getattr(job, "_log_pending", "")
+        overwrite = bool(getattr(job, "_log_overwrite", False))
+        if pending:
+            if overwrite and len(job.log_history) > 0:
+                job.log_history[-1] = pending
+            else:
+                job.log_history.append(pending)
+            limit = getattr(job, "log_size_limit", self.log_size_limit)
+            if limit != -1 and len(job.log_history) > limit:
+                job.log_history = job.log_history[-limit:]
+            job.log_changed = True
+        job._log_pending = ""
+        job._log_overwrite = False
 
     def _drain_process_pipes(self, job):
         if job.process is None or sys.platform == "win32":
             return
 
         for pipe in (job.process.stdout, job.process.stderr):
-            if pipe is None:
-                continue
-            while True:
-                try:
-                    line = pipe.readline()
-                except Exception:
-                    break
-                if not line:
-                    break
-                self._append_job_log(job, line)
+            self._read_available_pipe_data(job, pipe)
+
+    def _read_available_pipe_data(self, job, pipe):
+        if pipe is None:
+            return
+
+        try:
+            fd = pipe.fileno()
+        except Exception:
+            return
+
+        while True:
+            try:
+                chunk = os.read(fd, 4096)
+            except BlockingIOError:
+                break
+            except OSError:
+                break
+
+            if not chunk:
+                break
+
+            self._append_job_log(job, chunk)
 
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
         for job in self.job_list:
@@ -397,6 +467,7 @@ class ParallelJobHandler:
                 if job.process.poll() is not None:
                     # Drain remaining buffered output before state transition/retire.
                     self._drain_process_pipes(job)
+                    self._flush_job_log_buffer(job)
 
                     if job.process.returncode == 0:
                         if job.status == "starting":
@@ -576,10 +647,7 @@ class ParallelJobHandler:
                 stderr=subprocess.PIPE if sys.platform != "win32" else subprocess.STDOUT,
                 cwd=job.tmp_dir,
                 shell=True,
-                universal_newlines=True,
-                bufsize=1,
-                encoding="utf-8",
-                errors='replace',
+                bufsize=0,
             )
 
             self.set_nonblocking(process.stdout)
@@ -659,11 +727,8 @@ class ParallelJobHandler:
             stderr=subprocess.PIPE,
             cwd=job.directory,
             shell=True,
-            universal_newlines=True,
-            bufsize=1,
+            bufsize=0,
             preexec_fn=preexec_fn,
-            encoding="utf-8",
-            errors='replace',
         )
 
         if job.start_time is None:
@@ -672,8 +737,8 @@ class ParallelJobHandler:
         job.status = "running"
 
         if sys.platform == "win32":
-            threading.Thread(target=read_pipe_windows, args=(process.stdout, job), daemon=True).start()
-            threading.Thread(target=read_pipe_windows, args=(process.stderr, job), daemon=True).start()
+            threading.Thread(target=read_pipe_windows, args=(process.stdout, job, self._append_job_log), daemon=True).start()
+            threading.Thread(target=read_pipe_windows, args=(process.stderr, job, self._append_job_log), daemon=True).start()
         else:
             self.set_nonblocking(process.stdout)
             self.set_nonblocking(process.stderr)
@@ -695,11 +760,8 @@ class ParallelJobHandler:
                 stderr=subprocess.PIPE,
                 cwd=job.directory,
                 shell=True,
-                universal_newlines=True,
-                bufsize=1,
+                bufsize=0,
                 preexec_fn=preexec_fn,
-                encoding="utf-8",
-                errors='replace',
             )
 
             if job.start_time is None:
@@ -708,8 +770,8 @@ class ParallelJobHandler:
             job.status = "running"
 
             if sys.platform == "win32":
-                threading.Thread(target=read_pipe_windows, args=(process.stdout, job), daemon=True).start()
-                threading.Thread(target=read_pipe_windows, args=(process.stderr, job), daemon=True).start()
+                threading.Thread(target=read_pipe_windows, args=(process.stdout, job, self._append_job_log), daemon=True).start()
+                threading.Thread(target=read_pipe_windows, args=(process.stderr, job, self._append_job_log), daemon=True).start()
             else:
                 self.set_nonblocking(process.stdout)
                 self.set_nonblocking(process.stderr)
@@ -775,12 +837,8 @@ class ParallelJobHandler:
         for pipe in read_ready:
             for job in self.running_job_list:
                 if job.process is not None and pipe in (job.process.stdout, job.process.stderr):
-                    while True:
-                        line = pipe.readline()
-                        if line:
-                            self._append_job_log(job, line)
-                        else:
-                            break
+                    self._read_available_pipe_data(job, pipe)
+                    break
 
     def curses_main(self, stdscr):
         return curses_ui.curses_main(self, stdscr)

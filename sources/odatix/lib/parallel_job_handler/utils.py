@@ -21,16 +21,19 @@
 
 import time
 
-def read_pipe_windows(pipe, job):
+def read_pipe_windows(pipe, job, append_callback=None):
     while True:
         try:
             data = pipe.readline()
             if not data:
                 break
-            job.log_history.append(data)
-            if job.log_size_limit != -1 and len(job.log_history) > job.log_size_limit:
-                job.log_history = job.log_history[-job.log_size_limit:]
-            job.log_changed = True
+            if append_callback is not None:
+                append_callback(job, data)
+            else:
+                job.log_history.append(data)
+                if job.log_size_limit != -1 and len(job.log_history) > job.log_size_limit:
+                    job.log_history = job.log_history[-job.log_size_limit:]
+                job.log_changed = True
         except OSError:
             break
 
