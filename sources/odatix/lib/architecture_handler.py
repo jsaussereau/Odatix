@@ -989,9 +989,12 @@ class ArchitectureHandler:
     def configuration_wildcard(full_architectures, arch_path=OdatixSettings.DEFAULT_ARCH_PATH, target=""):
         architectures = []
         joker_archs = []
-        for arch in full_architectures:
-            arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, target, False)
+        for arch_request in full_architectures:
+            arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch_request, target, False)
+            has_wildcard = False
+            added_count = 0
             if arch.endswith("/*"):
+                has_wildcard = True
                 # get param dir (arch name before '/*')
                 arch_param_dir = re.sub(r'/\*', '', arch)
                 arch_param = os.path.join(arch_path, arch_param_dir)
@@ -1000,7 +1003,7 @@ class ArchitectureHandler:
                     files = [f[:-4] for f in os.listdir(arch_param) if os.path.isfile(os.path.join(arch_param, f)) and f.endswith(".txt")]
                     joker_archs = [os.path.join(arch_param_dir, file) for file in sorted(files)]
                     if len(joker_archs) == 0:
-                        printc.note(f"No configuration found in \"{arch_param}\"", script_name)
+                        printc.warning(f"Wildcard \"{arch_request}\" did not match any configuration in \"{arch_param}\"", script_name)
                 else:
                     printc.error(f"The architecture directory \"{arch_param}\" does not exist", script_name)
             else:
@@ -1012,6 +1015,7 @@ class ArchitectureHandler:
             if len(requested_param_domains) > 0:
                 for requested_param_domain in requested_param_domains:
                     if requested_param_domain.endswith("/*"):
+                        has_wildcard = True
                         param_domain = re.sub(r'/\*', '', requested_param_domain)
                         # get parameter domain dir
                         arch_param = os.path.join(arch_path, arch_param_dir)
@@ -1023,6 +1027,11 @@ class ArchitectureHandler:
                         if os.path.isdir(param_domain_dir):
                             files = [f[:-4] for f in os.listdir(param_domain_dir) if os.path.isfile(os.path.join(param_domain_dir, f)) and f.endswith(".txt")]
                             joker_param_domain[param_domain] = sorted(files)
+                            if len(joker_param_domain[param_domain]) == 0:
+                                printc.warning(
+                                    f"Wildcard \"{requested_param_domain}\" did not match any configuration in \"{param_domain_dir}\"",
+                                    script_name,
+                                )
                         else:
                             printc.error(f"The parameter domain directory \"{param_domain_dir}\" does not exist", script_name)
                             existing_domains = [d for d in os.listdir(arch_param) if os.path.isdir(os.path.join(arch_param, d))]
@@ -1044,8 +1053,13 @@ class ArchitectureHandler:
                     for param_combination in itertools.product(*param_values):
                         param_string = "+".join(f"{param_keys[i]}/{param_combination[i]}" for i in range(len(param_keys)))
                         architectures.append(f"{arch_instance}+{param_string}")
+                        added_count += 1
             else:
-                architectures = architectures + joker_archs  
+                architectures = architectures + joker_archs
+                added_count += len(joker_archs)
+
+            if has_wildcard and added_count == 0:
+                printc.warning(f"Wildcard \"{arch_request}\" did not match any configuration", script_name)
         # Remove duplicates
         architectures = list(dict.fromkeys(architectures))
         return architectures
