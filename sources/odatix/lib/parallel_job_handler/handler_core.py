@@ -23,6 +23,7 @@ import os
 import sys
 import re
 import time
+import shutil
 import queue
 import select
 import signal
@@ -79,11 +80,11 @@ error = None
 
 class ParallelJobHandler:
     def __init__(self, job_list, nb_jobs=4, process_group=True, auto_exit=False, format_yaml=None, log_size_limit=200):
-        self.job_list = job_list
-        self.nb_jobs = nb_jobs
-        self.process_group = process_group
-        self.auto_exit = auto_exit
-        self.log_size_limit = log_size_limit
+        self.job_list = list(job_list) if job_list is not None else []
+        self.nb_jobs = int(nb_jobs)
+        self.process_group = bool(process_group)
+        self.auto_exit = bool(auto_exit)
+        self.log_size_limit = int(log_size_limit)
 
         self.version = read_version()
 
@@ -92,30 +93,35 @@ class ParallelJobHandler:
         self.job_queue = queue.Queue()
         self.selected_job_index = 0
         self.previous_log_size = 0
-        self.max_title_length = max(len(job.display_name) for job in job_list)
+        if len(self.job_list) > 0:
+            self.max_title_length = max(len(job.display_name) for job in self.job_list)
+        else:
+            self.max_title_length = 0
 
         self.selection_enabled = False
 
         self.converter = AnsiToCursesConverter()
-        if format_yaml is not None:
-            self.formatter = JobOutputFormatter(format_yaml)
-        else:
-            self.formatter = None
+        self.format_yaml = None
+        self.formatter = None
+        self._set_formatter(format_yaml)
 
-        # Initial calculation of max displayed jobs
-        height, _ = curses.initscr().getmaxyx()
+        # Initial calculation of max displayed jobs.
+        # Keep constructor headless-safe: do not initialize curses here.
+        term_size = shutil.get_terminal_size((120, 40))
+        height = int(getattr(term_size, "lines", 40))
         self.job_count = len(self.job_list)
-        displayed_jobs_cmd = height // 2 - 2 # Default to half the remaining screen height
-        max_displayed_jobs = min(self.job_count, displayed_jobs_cmd)
+        displayed_jobs_cmd = max(1, height // 2 - 2)  # Half-screen default.
+        max_progress_height = max(1, height - 5)  # Keep at least one log line.
+        preferred_jobs_height = max(displayed_jobs_cmd, self.job_count)
+        max_displayed_jobs = min(max_progress_height, preferred_jobs_height)
         
         # Job list
         self.job_index_start = 0
-        self.job_index_end = max_displayed_jobs
+        self.job_index_end = max_displayed_jobs if self.job_count > 0 else 0
 
         try:
-            print(" ")
             self.theme = Theme('Color_Boxes')
-        except:
+        except Exception:
             self.theme = Theme('ASCII_Highlight')
 
         # Headless / API control state (thread-safe)
@@ -132,6 +138,31 @@ class ParallelJobHandler:
         # API server (optional)
         self._api_thread = None
         self._api_server = None
+
+    def _set_formatter(self, format_yaml):
+        """Configure log formatter from a YAML file path.
+
+        Passing None keeps caller-defined behavior (used by configure_runtime), while
+        passing an empty value disables formatting.
+        """
+        if format_yaml in ("", False):
+            self.format_yaml = None
+            self.formatter = None
+            return
+
+        if format_yaml is None:
+            return
+
+        path = str(format_yaml)
+        try:
+            resolved = os.path.realpath(os.path.expandvars(os.path.expanduser(path)))
+            if os.path.isfile(resolved):
+                path = resolved
+        except Exception:
+            pass
+
+        self.format_yaml = path
+        self.formatter = JobOutputFormatter(path)
 
     ######################################
     # Headless control / snapshot API
@@ -159,7 +190,10 @@ class ParallelJobHandler:
                     }
                 )
 
-            selected_id = int(self.selected_job_index)
+            if self.job_count > 0:
+                selected_id = int(self.selected_job_index)
+            else:
+                selected_id = -1
             if logs_job_id is None:
                 logs_job_id = selected_id
 
@@ -200,6 +234,7 @@ class ParallelJobHandler:
                     "nb_jobs": int(self.nb_jobs),
                     "process_group": bool(self.process_group),
                     "auto_exit": bool(self.auto_exit),
+                    "format_yaml": self.format_yaml,
                     "selected_job_index": selected_id,
                     "job_count": int(self.job_count),
                     "running": len(self.running_job_list),
@@ -246,6 +281,58 @@ class ParallelJobHandler:
     def set_logs_height(self, height: int):
         with self._lock:
             self._headless_logs_height = max(1, int(height))
+
+    def configure_runtime(self, nb_jobs=None, process_group=None, auto_exit=None, log_size_limit=None, format_yaml=None):
+        """Update runtime scheduling options (daemon mode).
+
+        Any argument set to None keeps the current value.
+        """
+        with self._lock:
+            if nb_jobs is not None:
+                self.nb_jobs = max(1, int(nb_jobs))
+            if process_group is not None:
+                self.process_group = bool(process_group)
+            if auto_exit is not None:
+                self.auto_exit = bool(auto_exit)
+            if log_size_limit is not None:
+                self.log_size_limit = int(log_size_limit)
+            if format_yaml is not None:
+                self._set_formatter(format_yaml)
+
+            self._fill_running_slots_from_queue_unlocked()
+
+    def _fill_running_slots_from_queue_unlocked(self):
+        while len(self.running_job_list) < self.nb_jobs and not self.job_queue.empty():
+            self.start_job(self.job_queue.get())
+
+    def _schedule_new_job_unlocked(self, job):
+        if len(self.running_job_list) < self.nb_jobs:
+            self.start_job(job)
+        else:
+            self.queue_job(job)
+
+    def add_job(self, job):
+        """Add a new job to this handler and schedule it if already running headless."""
+        with self._lock:
+            self.job_list.append(job)
+            self.job_count = len(self.job_list)
+            self.max_title_length = max(self.max_title_length, len(job.display_name))
+
+            if self.job_count == 1:
+                self.selected_job_index = 0
+                self.job_index_start = 0
+                self.job_index_end = 1
+            else:
+                if self.job_index_end <= self.job_index_start:
+                    self.job_index_end = self.job_index_start + 1
+                self.job_index_end = min(self.job_count, self.job_index_end)
+
+            if self._headless_initialized:
+                self._schedule_new_job_unlocked(job)
+
+    def add_jobs(self, jobs):
+        for job in jobs:
+            self.add_job(job)
 
     def pause_job(self, job_id: int):
         with self._lock:
@@ -354,10 +441,7 @@ class ParallelJobHandler:
 
         # Start initial jobs / queue remaining jobs (same as curses mode)
         for job in self.job_list:
-            if len(self.running_job_list) < self.nb_jobs:
-                self.start_job(job)
-            else:
-                self.queue_job(job)
+            self._schedule_new_job_unlocked(job)
 
         self._headless_initialized = True
 
@@ -701,8 +785,20 @@ class ParallelJobHandler:
             return
 
     @staticmethod
+    def _stage_sort_key(stage):
+        if isinstance(stage, int):
+            return (0, stage)
+        stage_str = str(stage)
+        if stage_str.lstrip("-").isdigit():
+            return (0, int(stage_str))
+        return (1, stage_str)
+
+    @staticmethod
     def _task_name(task):
-        taskname = getattr(task, "name", None)
+        if isinstance(task, dict):
+            taskname = task.get("name", None)
+        else:
+            taskname = getattr(task, "name", None)
         if taskname is None and hasattr(task, "getName"):
             taskname = task.getName()
         if taskname is None:
@@ -711,11 +807,17 @@ class ParallelJobHandler:
 
     @staticmethod
     def _task_full_command(task):
-        task_command = getattr(task, "command", None)
+        if isinstance(task, dict):
+            task_command = task.get("command", None)
+        else:
+            task_command = getattr(task, "command", None)
         if task_command is None and hasattr(task, "getCommand"):
             task_command = task.getCommand()
         if task_command is None:
             task_command = ""
+
+        if isinstance(task_command, list):
+            task_command = "\n".join(map(str, task_command))
 
         cmdlines = task_command.split("\n")
         cmdlines = [ln.lstrip().rstrip() for ln in cmdlines]
@@ -723,7 +825,7 @@ class ParallelJobHandler:
 
     def _build_task_pipeline(self, job):
         pipeline = []
-        for _, tasks in sorted(job.command.items(), key=lambda x: x[0]):
+        for _, tasks in sorted(job.command.items(), key=lambda x: self._stage_sort_key(x[0])):
             for task in tasks:
                 taskname = self._task_name(task)
                 full_command = self._task_full_command(task)

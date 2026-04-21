@@ -20,6 +20,7 @@
 #
 
 import os
+import sys
 import re
 import time
 import signal
@@ -75,6 +76,110 @@ class ParallelJob:
         ParallelJob.status_file_pattern = status_file_pattern
         ParallelJob.progress_file_pattern = progress_file_pattern
 
+    @staticmethod
+    def _extract_int_from_pattern(content, pattern, default_group_index=1):
+        if pattern is None:
+            return None
+
+        def _int_from_match(parts):
+            groups = parts.groups()
+            if len(groups) < 1:
+                return None
+
+            candidate_indexes = []
+            if isinstance(default_group_index, int) and default_group_index >= 1:
+                candidate_indexes.append(default_group_index)
+            if len(groups) >= 2 and 2 not in candidate_indexes:
+                candidate_indexes.append(2)
+            if 1 not in candidate_indexes:
+                candidate_indexes.append(1)
+            for idx in range(1, len(groups) + 1):
+                if idx not in candidate_indexes:
+                    candidate_indexes.append(idx)
+
+            for idx in candidate_indexes:
+                try:
+                    value = parts.group(idx)
+                except IndexError:
+                    continue
+                if value in (None, ""):
+                    continue
+                try:
+                    return int(str(value).strip())
+                except (TypeError, ValueError):
+                    continue
+            return None
+
+        # Parse from newest line first so long files remain cheap to process.
+        for line in reversed(content.splitlines()):
+            # Keep matching bounded even if user regex is overly permissive.
+            line_tail = line[-4096:]
+            parts = pattern.search(line_tail)
+            if parts is None:
+                continue
+            value = _int_from_match(parts)
+            if value is not None:
+                return value
+
+            # Final per-line fallback: extract last plain integer token.
+            fallback_matches = re.findall(r"[0-9]+", line_tail)
+            if fallback_matches:
+                try:
+                    return int(fallback_matches[-1])
+                except (TypeError, ValueError):
+                    pass
+
+        # Backward-compatible fallback for patterns that rely on multi-line matching.
+        content_tail = content[-65536:]
+        parts = pattern.search(content_tail)
+        if parts is None:
+            # Last-resort fallback without regex match.
+            fallback_matches = re.findall(r"[0-9]+", content_tail)
+            if fallback_matches:
+                try:
+                    return int(fallback_matches[-1])
+                except (TypeError, ValueError):
+                    return None
+            return None
+
+        value = _int_from_match(parts)
+        if value is not None:
+            return value
+
+        fallback_matches = re.findall(r"[0-9]+", content_tail)
+        if fallback_matches:
+            try:
+                return int(fallback_matches[-1])
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    @staticmethod
+    def _extract_fmax_status(content, pattern):
+        if pattern is None:
+            return None
+
+        for line in reversed(content.splitlines()):
+            line_tail = line[-4096:]
+            parts = pattern.search(line_tail)
+            if parts is None:
+                continue
+            if len(parts.groups()) < 4:
+                continue
+            try:
+                return int(parts.group(2)), int(parts.group(3)), int(parts.group(4))
+            except (TypeError, ValueError):
+                continue
+
+        content_tail = content[-65536:]
+        parts = pattern.search(content_tail)
+        if parts is None or len(parts.groups()) < 4:
+            return None
+        try:
+            return int(parts.group(2)), int(parts.group(3)), int(parts.group(4))
+        except (TypeError, ValueError):
+            return None
+
     def get_progress(self):
         if self.progress_mode == "fmax":
             return self.get_progress_fmax()
@@ -83,19 +188,13 @@ class ParallelJob:
             if os.path.isfile(self.progress_file):
                 with open(self.progress_file, "r") as f:
                     content = f.read()
-                for match in re.finditer(ParallelJob.progress_file_pattern, content):
-                    parts = ParallelJob.progress_file_pattern.search(match.group())
-                    if parts is None:
-                        continue
-                    groups = parts.groups()
-                    # Generic mode: support 1-group regex (e.g. "Progress: ([0-9]+)")
-                    # and keep compatibility with older 2-groups patterns.
-                    if len(groups) >= 1:
-                        group_index = 2 if len(groups) >= 2 else 1
-                        value = parts.group(group_index)
-                        if value is None:
-                            continue
-                        progress = int(value)
+                parsed_progress = ParallelJob._extract_int_from_pattern(
+                    content,
+                    ParallelJob.progress_file_pattern,
+                    default_group_index=1,
+                )
+                if parsed_progress is not None:
+                    progress = parsed_progress
             if progress > 100:
                 progress = 100
             return progress
@@ -108,29 +207,22 @@ class ParallelJob:
         if os.path.isfile(self.status_file):
             with open(self.status_file, "r") as f:
                 content = f.read()
-            for match in re.finditer(ParallelJob.status_file_pattern, content):
-                parts = ParallelJob.status_file_pattern.search(match.group())
-                if len(parts.groups()) >= 4:
-                    fmax_progress = int(parts.group(2))
-                    fmax_step = int(parts.group(3))
-                    fmax_totalstep = int(parts.group(4))
+            parsed_fmax_status = ParallelJob._extract_fmax_status(content, ParallelJob.status_file_pattern)
+            if parsed_fmax_status is not None:
+                fmax_progress, fmax_step, fmax_totalstep = parsed_fmax_status
 
         # Get progress from synth status file
         synth_progress = 0
         if os.path.isfile(self.progress_file):
             with open(self.progress_file, "r") as f:
                 content = f.read()
-            for match in re.finditer(ParallelJob.progress_file_pattern, content):
-                parts = ParallelJob.progress_file_pattern.search(match.group())
-                if parts is None:
-                    continue
-                groups = parts.groups()
-                if len(groups) >= 1:
-                    group_index = 2 if len(groups) >= 2 else 1
-                    value = parts.group(group_index)
-                    if value is None:
-                        continue
-                    synth_progress = int(value)
+            parsed_synth_progress = ParallelJob._extract_int_from_pattern(
+                content,
+                ParallelJob.progress_file_pattern,
+                default_group_index=1,
+            )
+            if parsed_synth_progress is not None:
+                synth_progress = parsed_synth_progress
 
         # Compute total progress
         if fmax_totalstep != 0:

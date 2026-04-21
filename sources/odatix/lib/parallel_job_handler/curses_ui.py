@@ -1,6 +1,23 @@
 # ********************************************************************** #
 #                                Odatix                                  #
 # ********************************************************************** #
+#
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Odatix.
+# Odatix is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Odatix is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+#
 
 import curses
 import os
@@ -212,10 +229,11 @@ def update_progress_window(handler, progress_win):
 def update_separator(handler, separator_win, val, ref, width):
     dim = handler.showing_help and curses.A_DIM
     separator_win.erase()
-    if val == ref:
+    remaining = max(0, int(val) - int(ref))
+    if remaining == 0:
         separator_text = handler.theme.get("bar") * (width - 1)
     else:
-        message = f"{val - ref} more"
+        message = f"{remaining} more"
         padding = 4
         separator_text = handler.theme.get("bar") * padding + message + handler.theme.get("bar") * (width - len(message) - padding - 1)
     try:
@@ -229,6 +247,7 @@ def update_help(bottom_bar):
     bottom_bar.erase()
 
     help_text = [
+        ("d", "Detach"),
         ("q", "Quit"),
         ("h", "Help Menu"),
         ("c", "Cursor Mode"),
@@ -263,7 +282,8 @@ def update_help(bottom_bar):
 def show_exit_confirmation(bottom_bar):
     try:
         bottom_bar.erase()
-        bottom_bar.addstr(" Kill all jobs and exit: Yes (", curses.color_pair(NORMAL) | curses.A_REVERSE)
+        prompt = " Kill all jobs and stop daemon: Yes ("
+        bottom_bar.addstr(prompt, curses.color_pair(NORMAL) | curses.A_REVERSE)
         bottom_bar.addstr("y", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
         bottom_bar.addstr(") / No (", curses.color_pair(NORMAL) | curses.A_REVERSE)
         bottom_bar.addstr("n", curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
@@ -289,6 +309,17 @@ def update_exit(bottom_bar):
         bottom_bar.refresh()
     except curses.error:
         pass
+
+
+def on_quit_after_finished(handler):
+    callback = getattr(handler, "on_quit_after_finished", None)
+    if callback is None:
+        return
+    try:
+        callback()
+    except Exception:
+        # Best effort hook: quitting the monitor should still succeed.
+        return
 
 
 def update_logs(handler, logs_win, selected_job, logs_height, width):
@@ -321,12 +352,13 @@ def update_logs(handler, logs_win, selected_job, logs_height, width):
 def update_help_popup(popup_win, popup_width, popup_height):
     help_text = [
         ("q"          , "Quit"),
+        ("d"          , "Detach monitor"),
         ("PageUp    n", "Select next job"),
         ("PageDown  p", "Select previous job"),
-        ("Up        u", "Scroll log"),
-        ("Down      d", "Scroll log"),
+        ("Up         ", "Scroll log up"),
+        ("Down       ", "Scroll log down"),
         ("Home/End"   , "Scroll to top/bottom"),
-        ("+/-"        , "Change progress window zize"),
+        ("+/-"        , "Change progress window size"),
         ("Space"      , "Pause selected job"),
         ("k"          , "Kill selected job"),
         ("s"          , "Start/resume selected job"),
@@ -455,14 +487,25 @@ def curses_main(handler, stdscr):
         else:
             handler.queue_job(job)
 
-    total_jobs_count = len(handler.job_list)
-
-    stdscr.nodelay(True)
+    # Cap the UI loop to ~20 FPS and avoid a tight busy loop.
+    stdscr.timeout(50)
 
     resize = False
     resize_hold = False
 
     handler.showing_help = False
+
+    def get_runtime_counters():
+        active_jobs_count = int(getattr(handler, "_remote_running", len(handler.running_job_list)))
+        queued_jobs_count = int(getattr(handler, "_remote_queued", handler.job_queue.qsize()))
+        retired_jobs_count = int(getattr(handler, "_remote_retired", len(handler.retired_job_list)))
+        total_jobs_count = int(getattr(handler, "_remote_total_jobs", len(handler.job_list)))
+
+        finished_now = active_jobs_count == 0 and queued_jobs_count == 0
+        if total_jobs_count > 0:
+            finished_now = finished_now and retired_jobs_count >= total_jobs_count
+
+        return active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now
 
     while True:
         if handler._request_curses_exit:
@@ -512,21 +555,28 @@ def curses_main(handler, stdscr):
             old_height = height
             resize = False
 
-        active_jobs_count = len(handler.running_job_list)
-        queued_jobs_count = handler.job_queue.qsize()
-        if active_jobs_count == 0 and queued_jobs_count == 0:
-            finished = True
-
-        retired_jobs_count = len(handler.retired_job_list)
-
-        update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
-        update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
-
         with handler._lock:
             handler._update_jobs_state(
                 selected_job=selected_job,
                 on_selected_retired=lambda: update_logs(handler, logs_win, selected_job, logs_height, width),
             )
+
+        active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now = get_runtime_counters()
+        finished = finished or finished_now
+
+        update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
+        update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
+
+        # Keep the local selected_job reference synchronized with handler state.
+        # This is required when job objects are replaced (e.g. daemon attach mode).
+        if handler.job_count > 0:
+            handler.selected_job_index = max(0, min(handler.selected_job_index, handler.job_count - 1))
+            refreshed_selected_job = handler.job_list[handler.selected_job_index]
+            if refreshed_selected_job is not selected_job:
+                selected_job = refreshed_selected_job
+                selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
+                selected_job.autoscroll = True
+                update_logs(handler, logs_win, selected_job, logs_height, width)
 
         update_progress_window(handler, progress_win)
         update_separator(handler, separator_middle_win, handler.job_count, handler.job_index_end, width)
@@ -546,7 +596,6 @@ def curses_main(handler, stdscr):
         old_width = width
 
         key = stdscr.getch()
-        curses.flushinp()
 
         def update_selected_job():
             job = handler.job_list[handler.selected_job_index]
@@ -641,11 +690,14 @@ def curses_main(handler, stdscr):
                 selected_job = update_selected_job()
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
-            elif key == curses.KEY_UP or key == ord("u") or key == ord("U"):
+            elif key == curses.KEY_UP:
                 scroll_up_logs(selected_job)
 
-            elif key == curses.KEY_DOWN or key == ord("d") or key == ord("D"):
+            elif key == curses.KEY_DOWN:
                 scroll_down_logs(selected_job)
+
+            elif key == ord("d") or key == ord("D"):
+                return True
 
             elif key == curses.KEY_HOME:
                 selected_job.log_position = 0
@@ -686,8 +738,7 @@ def curses_main(handler, stdscr):
                 handler.kill_or_cancel_job(handler.selected_job_index)
 
             elif key == ord(' '):
-                if selected_job.status == "running":
-                    selected_job.pause()
+                handler.pause_job(handler.selected_job_index)
 
             elif key == ord('s') or key == ord('S'):
                 handler.start_or_resume_job(handler.selected_job_index)
@@ -706,7 +757,17 @@ def curses_main(handler, stdscr):
                 if handler.auto_exit and finished:
                     return True
                 if key == ord("q") or key == ord("Q"):
+                    if not finished and hasattr(handler, "_sync_snapshot"):
+                        try:
+                            handler._sync_snapshot(force=True)
+                        except Exception:
+                            pass
+
+                        active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now = get_runtime_counters()
+                        finished = finished or finished_now
+
                     if finished:
+                        on_quit_after_finished(handler)
                         return True
                     ask_exit = True
 

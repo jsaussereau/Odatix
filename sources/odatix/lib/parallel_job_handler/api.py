@@ -43,7 +43,11 @@ Server->client messages (JSON):
 
 import asyncio
 import importlib
+import re
 from typing import Any, Dict, Optional, Set
+
+from odatix.lib.parallel_job_handler.serialization import payload_to_job
+from odatix.lib.parallel_job_handler.job import ParallelJob
 
 
 def _null_uvicorn_log_config() -> Dict[str, Any]:
@@ -86,6 +90,7 @@ def create_parallel_job_app(
     tick_interval: float = 0.1,
     ws_push_interval: float = 0.25,
     start_headless_on_startup: bool = True,
+    shutdown_callback=None,
 ):
     FastAPI, WebSocket, WebSocketDisconnect, JSONResponse = _require_fastapi()
 
@@ -105,6 +110,8 @@ def create_parallel_job_app(
     async def broadcaster():
         while True:
             await asyncio.sleep(float(ws_push_interval))
+            if not connections:
+                continue
             # Keep periodic broadcasts lightweight (no logs).
             data = handler.snapshot(logs_job_id=-1)
             payload = {"type": "snapshot", "data": data}
@@ -180,6 +187,46 @@ def create_parallel_job_app(
         handler.enqueue_command("open", job_id=job_id)
         return _ok("open requested", job_id=job_id)
 
+    @app.post("/jobs/enqueue")
+    async def enqueue_jobs(payload: Dict[str, Any]):
+        if not isinstance(payload, dict):
+            raise ValueError("payload must be a JSON object")
+
+        options = payload.get("options")
+        if isinstance(options, dict):
+            handler.configure_runtime(
+                nb_jobs=options.get("nb_jobs"),
+                process_group=options.get("process_group"),
+                auto_exit=options.get("auto_exit"),
+                log_size_limit=options.get("log_size_limit"),
+                format_yaml=options.get("format_yaml"),
+            )
+
+            progress_pattern = options.get("progress_pattern")
+            status_pattern = options.get("status_pattern")
+            if progress_pattern is not None:
+                try:
+                    compiled_progress = re.compile(str(progress_pattern))
+                    compiled_status = re.compile(str(status_pattern)) if status_pattern else None
+                    ParallelJob.set_patterns(compiled_progress, compiled_status)
+                except Exception:
+                    # Keep daemon alive even if a malformed pattern is sent.
+                    pass
+
+        jobs_data = payload.get("jobs")
+        if not isinstance(jobs_data, list):
+            raise ValueError("'jobs' must be a list")
+
+        added = 0
+        for item in jobs_data:
+            if not isinstance(item, dict):
+                raise ValueError("each job entry must be a JSON object")
+            job = payload_to_job(item, default_log_size_limit=getattr(handler, "log_size_limit", 200))
+            handler.add_job(job)
+            added += 1
+
+        return _ok("jobs enqueued", added=added, total_jobs=len(handler.job_list))
+
     @app.post("/shutdown")
     async def shutdown():
         if start_headless_on_startup:
@@ -187,6 +234,8 @@ def create_parallel_job_app(
         else:
             handler.terminate_all_jobs()
             handler.request_shutdown()
+        if callable(shutdown_callback):
+            shutdown_callback()
         return _ok("shutdown requested")
 
     @app.websocket("/ws")
@@ -249,6 +298,7 @@ def create_uvicorn_server(
     log_level: str = "info",
     start_headless_on_startup: bool = True,
     quiet: bool = False,
+    shutdown_callback=None,
 ):
     try:
         uvicorn = importlib.import_module("uvicorn")
@@ -258,6 +308,7 @@ def create_uvicorn_server(
     app = create_parallel_job_app(
         handler,
         start_headless_on_startup=start_headless_on_startup,
+        shutdown_callback=shutdown_callback,
     )
 
     log_config = None
