@@ -31,6 +31,7 @@ import subprocess
 import curses
 import locale
 import io
+import contextlib
 import threading
 
 if sys.platform == "win32":
@@ -73,6 +74,24 @@ if sys.platform == "win32":
 
 script_name = os.path.basename(__file__)
 error = None
+
+
+class _JobLogWriter(io.TextIOBase):
+    """Write redirected stdout/stderr text directly into a job log stream."""
+
+    def __init__(self, write_fn):
+        super().__init__()
+        self._write_fn = write_fn
+
+    def write(self, s):
+        if not s:
+            return 0
+        text = str(s)
+        self._write_fn(text)
+        return len(text)
+
+    def flush(self):
+        return
 
 ######################################
 # ParallelJobHandler
@@ -576,6 +595,73 @@ class ParallelJobHandler:
 
             self._append_job_log(job, chunk, stream_key=stream_key)
 
+    def _run_post_success_export(self, job):
+        export_config = getattr(job, "post_run_export", None)
+        if not isinstance(export_config, dict):
+            return True
+
+        export_kind = str(export_config.get("kind", "")).strip().lower()
+        if export_kind == "":
+            return True
+
+        job.status = "exporting"
+        self._append_job_log(
+            job,
+            printc.colors.CYAN + "Export job results..." + printc.colors.ENDC + "\n",
+            stream_key="export",
+        )
+
+        try:
+            if export_kind == "synthesis":
+                from odatix.components.export_results import export_single_job_result
+                export_fn = export_single_job_result
+            elif export_kind == "workflow":
+                from odatix.components.export_workflow_results import export_single_workflow_job
+                export_fn = export_single_workflow_job
+            else:
+                self._append_job_log(
+                    job,
+                    printc.colors.YELLOW
+                    + "warning: unsupported export kind '"
+                    + export_kind
+                    + "'"
+                    + printc.colors.ENDC
+                    + "\n",
+                    stream_key="export",
+                )
+                self._flush_job_log_buffer(job)
+                return False
+
+            writer = _JobLogWriter(lambda data: self._append_job_log(job, data, stream_key="export"))
+            with contextlib.redirect_stdout(writer), contextlib.redirect_stderr(writer):
+                success = bool(export_fn(job=job, export_config=export_config))
+        except Exception as e:
+            self._append_job_log(
+                job,
+                printc.colors.RED + "error: export failed: " + str(e) + printc.colors.ENDC + "\n",
+                stream_key="export",
+            )
+            self._flush_job_log_buffer(job)
+            return False
+
+        if success:
+            job.status = "success"
+            self._append_job_log(
+                job,
+                printc.colors.GREEN + "Export finished" + printc.colors.ENDC + "\n",
+                stream_key="export",
+            )
+            self._flush_job_log_buffer(job)
+            return True
+
+        self._append_job_log(
+            job,
+            printc.colors.RED + "error: export step reported failure" + printc.colors.ENDC + "\n",
+            stream_key="export",
+        )
+        self._flush_job_log_buffer(job)
+        return False
+
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
         for job in self.job_list:
             if job in self.retired_job_list:
@@ -601,6 +687,10 @@ class ParallelJobHandler:
                             job.status = "success"
                         else:
                             job.status = "success"
+
+                        if job.status == "success":
+                            if not self._run_post_success_export(job):
+                                job.status = "failed"
                     else:
                         job.status = "failed"
                         if hasattr(job, "_current_task_name"):

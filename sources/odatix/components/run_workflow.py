@@ -32,6 +32,7 @@ from odatix.components.run_common import (
     replace_and_write_param_domains,
     start_parallel_jobs as start_parallel_jobs_common,
 )
+import odatix.components.export_workflow_results as exp_workflow_res
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
@@ -145,7 +146,22 @@ def parse_arguments():
 # Run Workflows
 ######################################
 
-def run_workflows(run_config_settings_filename, workflow_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug=False, keep=False, resume=False, detach=False):
+def run_workflows(
+    run_config_settings_filename,
+    workflow_path,
+    work_path,
+    overwrite,
+    noask,
+    exit_when_done,
+    log_size_limit,
+    nb_jobs,
+    debug=False,
+    keep=False,
+    resume=False,
+    output_dir=None,
+    output_filename=exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
+    detach=False,
+):
     workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         workflow_path=workflow_path,
@@ -167,6 +183,15 @@ def run_workflows(run_config_settings_filename, workflow_path, work_path, overwr
         nb_jobs=nb_jobs,
         resume=resume,
     )
+
+    exp_workflow_res.configure_workflow_job_exports(
+        parallel_jobs=parallel_jobs,
+        work_root=work_path,
+        workflow_path=workflow_path,
+        output_dir=output_dir,
+        output_filename=output_filename,
+    )
+
     start_parallel_jobs(parallel_jobs, detach=detach)
 
 
@@ -566,6 +591,8 @@ def main(args, settings=None):
         debug,
         keep,
         resume,
+        settings.result_path,
+        exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
         detach,
     )
 

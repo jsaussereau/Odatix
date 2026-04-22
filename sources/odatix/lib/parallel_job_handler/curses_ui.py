@@ -111,6 +111,8 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
                 color = curses.color_pair(RED + offset)
             elif status == "running":
                 color = curses.color_pair(WHITE + offset)
+            elif status == "exporting":
+                color = curses.color_pair(CYAN + offset)
             elif status == "success":
                 color = curses.color_pair(GREEN + offset)
             elif status == "queued" or status == "paused":
@@ -146,6 +148,8 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
             window.addstr(id, pos, status, curses.color_pair(RED + offset) | attr)
         elif status == "running":
             window.addstr(id, pos, status, curses.color_pair(YELLOW + offset) | attr)
+        elif status == "exporting":
+            window.addstr(id, pos, status, curses.color_pair(CYAN + offset) | attr)
         elif status == "success":
             window.addstr(id, pos, status, curses.color_pair(GREEN + offset) | attr)
         elif status == "queued" or status == "paused":

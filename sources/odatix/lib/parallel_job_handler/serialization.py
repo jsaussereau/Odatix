@@ -131,6 +131,10 @@ def deserialize_command(payload):
 
 
 def job_to_payload(job):
+    post_run_export = getattr(job, "post_run_export", None)
+    if not isinstance(post_run_export, dict):
+        post_run_export = None
+
     return {
         "command": serialize_command(job.command),
         "directory": str(job.directory),
@@ -144,6 +148,7 @@ def job_to_payload(job):
         "tmp_dir": str(job.tmp_dir or "."),
         "log_size_limit": int(getattr(job, "log_size_limit", 200)),
         "progress_mode": str(getattr(job, "progress_mode", "default")),
+        "post_run_export": post_run_export,
     }
 
 
@@ -156,7 +161,7 @@ def payload_to_job(payload, default_log_size_limit=200):
 
     log_size_limit = payload.get("log_size_limit", default_log_size_limit)
 
-    return ParallelJob(
+    job = ParallelJob(
         process=None,
         command=command,
         directory=str(payload.get("directory", ".")),
@@ -172,3 +177,9 @@ def payload_to_job(payload, default_log_size_limit=200):
         progress_mode=str(payload.get("progress_mode", "default")),
         status="idle",
     )
+
+    post_run_export = payload.get("post_run_export")
+    if isinstance(post_run_export, dict):
+        job.post_run_export = post_run_export
+
+    return job

@@ -237,6 +237,9 @@ class ParallelJob:
     def pause(self):
         """Suspend the job execution."""
         if self.process and self.status == "running":
+            if sys.platform == "win32":
+                self.log_history.append(printc.colors.YELLOW + "Pause is not supported on Windows" + printc.colors.ENDC)
+                return
             os.killpg(os.getpgid(self.process.pid), signal.SIGSTOP) # Suspend process
             self.status = "paused"
             self.stop_time = time.time()
@@ -245,6 +248,9 @@ class ParallelJob:
     def resume(self):
         """Resume the job execution."""
         if self.process and self.status == "paused":
+            if sys.platform == "win32":
+                self.log_history.append(printc.colors.YELLOW + "Resume is not supported on Windows" + printc.colors.ENDC)
+                return
             os.killpg(os.getpgid(self.process.pid), signal.SIGCONT) # Resume execution
             self.status = "running"
             self.start_time += time.time() - self.stop_time # Adjust the start time to reflect the paused duration

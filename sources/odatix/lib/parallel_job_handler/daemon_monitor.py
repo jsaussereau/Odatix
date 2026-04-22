@@ -199,7 +199,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
             else:
                 job.stop_time = None
         else:
-            if job.status in ("running", "starting", "paused"):
+            if job.status in ("running", "starting", "paused", "exporting"):
                 if job.start_time is None:
                     job.start_time = now
                 job.stop_time = None
@@ -288,7 +288,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 self.job_index_end = max(min_end, self.job_index_end)
 
             self.running_job_list = [
-                job for job in self.job_list if job.status in ("running", "starting", "paused")
+                job for job in self.job_list if job.status in ("running", "starting", "paused", "exporting")
             ]
             self.retired_job_list = [
                 job for job in self.job_list if job.status in ("success", "failed", "killed", "canceled")

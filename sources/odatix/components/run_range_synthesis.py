@@ -25,6 +25,7 @@ import argparse
 
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
 from odatix.components.run_common import confirm_valid_jobs, start_parallel_jobs as start_parallel_jobs_common
+import odatix.components.export_results as exp_res
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJob
@@ -97,6 +98,10 @@ def run_synthesis(
     custom_freq_list=[],
     debug=False,
     keep=False,
+    export_output_dir=None,
+    use_benchmark=False,
+    benchmark_file=None,
+    custom_metrics_file=None,
     cancel_event=None,
     detach=False,
 ):
@@ -128,6 +133,18 @@ def run_synthesis(
         nb_jobs=nb_jobs,
         cancel_event=cancel_event,
     )
+
+    exp_res.configure_synthesis_job_exports(
+        parallel_jobs=parallel_jobs,
+        result_type="custom_freq_synthesis",
+        work_path=work_path,
+        tool=tool,
+        output_dir=export_output_dir,
+        use_benchmark=use_benchmark,
+        benchmark_file=benchmark_file,
+        custom_metrics_file=custom_metrics_file,
+    )
+
     start_parallel_jobs(parallel_jobs, detach=detach)
 
 def check_settings(
@@ -307,6 +324,8 @@ def main(args, settings=None):
     debug = args.debug
     keep = args.keep
     detach = args.detach
+    use_benchmark = bool(getattr(settings, "use_benchmark", False))
+    benchmark_file = getattr(settings, "benchmark_file", None)
 
     if args.at_freq is None:
         custom_freq_list = []
@@ -329,7 +348,27 @@ def main(args, settings=None):
         else:
             sys.exit(-1)
 
-    run_synthesis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, custom_freq_list, debug, keep, detach=detach)
+    run_synthesis(
+        run_config_settings_filename=run_config_settings_filename,
+        arch_path=arch_path,
+        tool=tool,
+        work_path=work_path,
+        target_path=target_path,
+        overwrite=overwrite,
+        noask=noask,
+        exit_when_done=exit_when_done,
+        log_size_limit=log_size_limit,
+        nb_jobs=nb_jobs,
+        check_eda_tool=check_eda_tool,
+        custom_freq_list=custom_freq_list,
+        debug=debug,
+        keep=keep,
+        export_output_dir=settings.result_path,
+        use_benchmark=use_benchmark,
+        benchmark_file=benchmark_file,
+        custom_metrics_file=None,
+        detach=detach,
+    )
 
 
 if __name__ == "__main__":
