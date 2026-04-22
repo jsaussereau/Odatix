@@ -307,23 +307,21 @@ def run_workflows(args):
   except Exception as e:
     internal_error(e, error_logfile, script_name)
     success = False
-
-  if success and not args.noexport:
-    try:
-      newargs = argparse.Namespace(
-        work=args.work,
-        respath=None,
-        output=exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
-        config=args.config,
-      )
-      exp_workflow_res.main(newargs)
-    except SystemExit as e:
-      if e.code != EXIT_SUCCESS:
-        success = False
-    except Exception as e:
-      internal_error(e, error_logfile, script_name)
-      success = False
-
+  # if success and not args.noexport:
+  #   try:
+  #     newargs = argparse.Namespace(
+  #       work=args.work,
+  #       respath=None,
+  #       output=exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
+  #       config=args.config,
+  #     )
+  #     exp_workflow_res.main(newargs)
+  #   except SystemExit as e:
+  #     if e.code != EXIT_SUCCESS:
+  #       success = False
+  #   except Exception as e:
+  #     internal_error(e, error_logfile, script_name)
+  #     success = False
   return success
 
 def run_fmax_synthesis(args):
@@ -336,25 +334,25 @@ def run_fmax_synthesis(args):
   except Exception as e:
     internal_error(e, error_logfile, script_name)
     success = False
-  if success and not args.noexport:
-    try:
-      newargs = argparse.Namespace(
-        tool = args.tool,
-        format = exp_res.DEFAULT_FORMAT,
-        use_benchmark = None,
-        benchmark_file = None,
-        work = args.work,
-        respath = None,
-        metrics = None,
-        config = args.config,
-      )
-      exp_res.main(newargs)
-    except SystemExit as e:
-      if e.code != EXIT_SUCCESS:
-        success = False
-    except Exception as e:
-      internal_error(e, error_logfile, script_name)
-      success = False
+  # if success and not args.noexport:
+  #   try:
+  #     newargs = argparse.Namespace(
+  #       tool = args.tool,
+  #       format = exp_res.DEFAULT_FORMAT,
+  #       use_benchmark = None,
+  #       benchmark_file = None,
+  #       work = args.work,
+  #       respath = None,
+  #       metrics = None,
+  #       config = args.config,
+  #     )
+  #     exp_res.main(newargs)
+  #   except SystemExit as e:
+  #     if e.code != EXIT_SUCCESS:
+  #       success = False
+  #   except Exception as e:
+  #     internal_error(e, error_logfile, script_name)
+  #     success = False
   return success
 
 def run_range_synthesis(args):
@@ -367,25 +365,25 @@ def run_range_synthesis(args):
   except Exception as e:
     internal_error(e, error_logfile, script_name)
     success = False
-  if success and not args.noexport:
-    try:
-      newargs = argparse.Namespace(
-        tool = args.tool,
-        format = exp_res.DEFAULT_FORMAT,
-        use_benchmark = None,
-        benchmark_file = None,
-        work = args.work,
-        respath = None,
-        metrics = None,
-        config = args.config,
-      )
-      exp_res.main(newargs)
-    except SystemExit as e:
-      if e.code != EXIT_SUCCESS:
-        success = False
-    except Exception as e:
-      internal_error(e, error_logfile, script_name)
-      success = False
+  # if success and not args.noexport:
+  #   try:
+  #     newargs = argparse.Namespace(
+  #       tool = args.tool,
+  #       format = exp_res.DEFAULT_FORMAT,
+  #       use_benchmark = None,
+  #       benchmark_file = None,
+  #       work = args.work,
+  #       respath = None,
+  #       metrics = None,
+  #       config = args.config,
+  #     )
+  #     exp_res.main(newargs)
+  #   except SystemExit as e:
+  #     if e.code != EXIT_SUCCESS:
+  #       success = False
+  #   except Exception as e:
+  #     internal_error(e, error_logfile, script_name)
+  #     success = False
   return success
 
 def monitor_daemon(args):
