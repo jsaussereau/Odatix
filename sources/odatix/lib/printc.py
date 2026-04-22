@@ -29,6 +29,7 @@ class colors:
   CYAN = "\033[96m"
   ENDC = "\033[0m"
   BOLD = "\033[1m"
+  BOLD_END = "\033[22m"
   BLINK = "\033[5m"
   UNDERLINE = "\033[4m"
 

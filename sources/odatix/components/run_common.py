@@ -89,16 +89,23 @@ def replace_and_write_param_domains(
         yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False)
 
 
-def start_parallel_jobs(parallel_jobs: ParallelJobHandler, use_api=True, start_headless_on_startup=False, detach=False):
+def start_parallel_jobs(
+    parallel_jobs: ParallelJobHandler,
+    use_api=True,
+    start_headless_on_startup=False,
+    detach=False,
+    session=None,
+):
     """Enqueue jobs into the background daemon, then optionally attach monitor.
 
     The `use_api` and `start_headless_on_startup` arguments are kept for
     backward compatibility with older call sites.
     """
-    _state, _response = enqueue_parallel_jobs(parallel_jobs)
+    _state, _response = enqueue_parallel_jobs(parallel_jobs, session=session)
     if not detach:
         attach_monitor(
             host=_state.get("host", "127.0.0.1"),
             port=int(_state.get("port", 8000)),
+            session=session,
             auto_exit=bool(getattr(parallel_jobs, "auto_exit", False)),
         )

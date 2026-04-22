@@ -31,11 +31,14 @@ from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
 from odatix.lib.utils import find_free_port
 
 
-def _write_state_file(state_file, host, port):
+def _write_state_file(state_file, host, port, session_name):
+    session_name = str(session_name or host).strip() or str(host)
     state = {
         "pid": os.getpid(),
         "host": str(host),
         "port": int(port),
+        "session_name": session_name,
+        "session_id": "{}.{}".format(os.getpid(), session_name),
         "started_at": int(time.time()),
     }
     tmp_file = state_file + ".tmp"
@@ -56,6 +59,7 @@ def add_arguments(parser):
     parser.add_argument("--state-file", required=True, help="Path to daemon state JSON file")
     parser.add_argument("--host", default="127.0.0.1", help="Daemon API host")
     parser.add_argument("--port", type=int, default=8000, help="Preferred daemon API port")
+    parser.add_argument("--session-name", default=None, help="Optional daemon session name")
     parser.add_argument("--jobs", type=int, default=4, help="Default maximum number of parallel jobs")
     parser.add_argument("--logsize", type=int, default=200, help="Default log history limit per job")
 
@@ -66,7 +70,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def run_daemon(state_file, host="127.0.0.1", port=8000, jobs=4, logsize=200):
+def run_daemon(state_file, host="127.0.0.1", port=8000, jobs=4, logsize=200, session_name=None):
     state_file = os.path.realpath(os.path.expanduser(str(state_file)))
     state_dir = os.path.dirname(state_file)
     if state_dir:
@@ -103,7 +107,7 @@ def run_daemon(state_file, host="127.0.0.1", port=8000, jobs=4, logsize=200):
     )
     server_ref["server"] = server
 
-    _write_state_file(state_file=state_file, host=host, port=port)
+    _write_state_file(state_file=state_file, host=host, port=port, session_name=session_name)
 
     try:
         server.run()
@@ -122,6 +126,7 @@ def main(args=None):
         state_file=args.state_file,
         host=args.host,
         port=args.port,
+        session_name=args.session_name,
         jobs=args.jobs,
         logsize=args.logsize,
     )

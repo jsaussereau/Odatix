@@ -52,6 +52,7 @@ def add_arguments(parser):
     parser.add_argument('-o', '--overwrite', action='store_true', help='overwrite existing results')
     parser.add_argument('-y', '--noask', action='store_true', help='do not ask to continue')
     parser.add_argument('-d', '--detach', action='store_true', help='enqueue jobs to daemon and return without attaching monitor')
+    parser.add_argument('-S', '--session', help='daemon session name or selector')
     parser.add_argument('-i', '--input', help='input settings file')
     parser.add_argument('-a', '--archpath', help='architecture directory')
     parser.add_argument('-s', '--simpath', help='simulation directory')
@@ -73,7 +74,21 @@ def parse_arguments():
 # Run Simulations
 ######################################
 
-def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug=False, keep=False, detach=False):
+def run_simulations(
+    run_config_settings_filename,
+    arch_path,
+    sim_path,
+    work_path,
+    overwrite,
+    noask,
+    exit_when_done,
+    log_size_limit,
+    nb_jobs,
+    debug=False,
+    keep=False,
+    detach=False,
+    daemon_session=None,
+):
     simulation_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
@@ -95,7 +110,7 @@ def run_simulations(run_config_settings_filename, arch_path, sim_path, work_path
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
     )
-    start_parallel_jobs(parallel_jobs, detach=detach)
+    start_parallel_jobs(parallel_jobs, detach=detach, session=daemon_session)
 
 
 def check_settings(
@@ -295,12 +310,14 @@ def start_parallel_jobs(
     use_api=True,
     start_headless_on_startup=False,
     detach=False,
+    session=None,
 ):
     start_parallel_jobs_common(
         parallel_jobs=parallel_jobs,
         use_api=use_api,
         start_headless_on_startup=start_headless_on_startup,
         detach=detach,
+        session=session,
     )
 
 ######################################
@@ -343,8 +360,23 @@ def main(args, settings=None):
     debug = args.debug
     keep = args.keep
     detach = args.detach
+    daemon_session = args.session
 
-    run_simulations(run_config_settings_filename, arch_path, sim_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug, keep, detach)
+    run_simulations(
+        run_config_settings_filename,
+        arch_path,
+        sim_path,
+        work_path,
+        overwrite,
+        noask,
+        exit_when_done,
+        log_size_limit,
+        nb_jobs,
+        debug,
+        keep,
+        detach,
+        daemon_session,
+    )
 
 
 if __name__ == "__main__":
