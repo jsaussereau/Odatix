@@ -122,6 +122,7 @@ def _expand_env_tokens(path):
 def add_arguments(parser):
     parser.add_argument('-o', '--overwrite', action='store_true', help='overwrite existing results')
     parser.add_argument('-y', '--noask', action='store_true', help='do not ask to continue')
+    parser.add_argument('-d', '--detach', action='store_true', help='enqueue jobs to daemon and return without attaching monitor')
     parser.add_argument('-i', '--input', help='input settings file')
     parser.add_argument('-p', '--workflowpath', help='workflow directory')
     parser.add_argument('-w', '--work', help='workflow work directory')
@@ -144,7 +145,7 @@ def parse_arguments():
 # Run Workflows
 ######################################
 
-def run_workflows(run_config_settings_filename, workflow_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug=False, keep=False, resume=False):
+def run_workflows(run_config_settings_filename, workflow_path, work_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, debug=False, keep=False, resume=False, detach=False):
     workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         workflow_path=workflow_path,
@@ -166,7 +167,7 @@ def run_workflows(run_config_settings_filename, workflow_path, work_path, overwr
         nb_jobs=nb_jobs,
         resume=resume,
     )
-    start_parallel_jobs(parallel_jobs)
+    start_parallel_jobs(parallel_jobs, detach=detach)
 
 
 def check_settings(
@@ -507,11 +508,13 @@ def start_parallel_jobs(
     parallel_jobs,
     use_api=True,
     start_headless_on_startup=False,
+    detach=False,
 ):
     start_parallel_jobs_common(
         parallel_jobs=parallel_jobs,
         use_api=use_api,
         start_headless_on_startup=start_headless_on_startup,
+        detach=detach,
     )
 
 
@@ -549,6 +552,7 @@ def main(args, settings=None):
     debug = args.debug
     keep = args.keep
     resume = args.resume
+    detach = args.detach
 
     run_workflows(
         run_config_settings_filename,
@@ -562,6 +566,7 @@ def main(args, settings=None):
         debug,
         keep,
         resume,
+        detach,
     )
 
 

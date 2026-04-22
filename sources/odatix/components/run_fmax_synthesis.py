@@ -49,6 +49,7 @@ def add_arguments(parser):
     parser.add_argument("-t", "--tool", default="vivado", help="eda tool in use (default: vivado)")
     parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
     parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
+    parser.add_argument("-d", "--detach", action="store_true", help="enqueue jobs to daemon and return without attaching monitor")
     parser.add_argument("-i", "--input", help="input settings file")
     parser.add_argument("-a", "--archpath", help="architecture directory")
     parser.add_argument("-w", "--work", help="work directory")
@@ -98,6 +99,7 @@ def run_synthesis(
     debug=False,
     keep=False,
     cancel_event=None,
+    detach=False,
 ):
     architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs = check_settings(
         run_config_settings_filename=run_config_settings_filename,
@@ -129,7 +131,7 @@ def run_synthesis(
         nb_jobs=nb_jobs,
         cancel_event=cancel_event,
     )
-    start_parallel_jobs(parallel_jobs)
+    start_parallel_jobs(parallel_jobs, detach=detach)
 
 def check_settings(
     run_config_settings_filename,
@@ -263,11 +265,13 @@ def start_parallel_jobs(
     parallel_jobs, 
     use_api=True,
     start_headless_on_startup=False,
+    detach=False,
 ):
     start_parallel_jobs_common(
         parallel_jobs=parallel_jobs,
         use_api=use_api,
         start_headless_on_startup=start_headless_on_startup,
+        detach=detach,
     )
 
     # # Summary
@@ -325,6 +329,7 @@ def main(args, settings=None):
     check_eda_tool = not args.trust
     debug = args.debug
     keep = args.keep
+    detach = args.detach
 
     if args.from_freq is not None and args.to_freq is not None:
         if not ArchitectureHandler.check_bounds(args.from_freq, args.to_freq):
@@ -347,6 +352,7 @@ def main(args, settings=None):
         forced_fmax_upper_bound=args.to_freq,
         debug=debug,
         keep=keep,
+        detach=detach,
     )
 
 

@@ -1,6 +1,23 @@
 # ********************************************************************** #
 #                                Odatix                                  #
 # ********************************************************************** #
+#
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Odatix.
+# Odatix is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Odatix is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+#
 
 import os
 import re
@@ -9,6 +26,7 @@ import yaml
 from odatix.components.replace_params import replace_params
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler
+from odatix.lib.parallel_job_handler.daemon_control import enqueue_parallel_jobs, attach_monitor
 
 
 def normalize_run_settings(overwrite, noask, exit_when_done, log_size_limit, nb_jobs, defaults):
@@ -71,13 +89,16 @@ def replace_and_write_param_domains(
         yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False)
 
 
-def start_parallel_jobs(parallel_jobs: ParallelJobHandler, use_api=True, start_headless_on_startup=False):
-    if use_api:
-        parallel_jobs.start_api_background(
-            host="127.0.0.1",
-            port=8000,
-            start_headless_on_startup=start_headless_on_startup,
-            quiet=True,
+def start_parallel_jobs(parallel_jobs: ParallelJobHandler, use_api=True, start_headless_on_startup=False, detach=False):
+    """Enqueue jobs into the background daemon, then optionally attach monitor.
+
+    The `use_api` and `start_headless_on_startup` arguments are kept for
+    backward compatibility with older call sites.
+    """
+    _state, _response = enqueue_parallel_jobs(parallel_jobs)
+    if not detach:
+        attach_monitor(
+            host=_state.get("host", "127.0.0.1"),
+            port=int(_state.get("port", 8000)),
+            auto_exit=bool(getattr(parallel_jobs, "auto_exit", False)),
         )
-    if not start_headless_on_startup:
-        parallel_jobs.run()
