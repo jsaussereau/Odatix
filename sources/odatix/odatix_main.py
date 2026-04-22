@@ -41,6 +41,7 @@ import odatix.components.clean as cln
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
 
+import odatix.lib.parallel_job_handler.daemon_control as daemon_control
 from odatix.lib.settings import OdatixSettings
 import odatix.lib.printc as printc
 from odatix.lib.utils import *
@@ -117,6 +118,21 @@ class ArgParser:
     ArgParser.workflow_parser.add_argument('-e', '--noexport', action='store_true', help='do not export workflow results after workflow execution')
     ArgParser.add_nobanner(ArgParser.workflow_parser)
 
+    # Define parser for the 'monitor' command
+    ArgParser.monitor_parser = subparsers.add_parser("monitor", help="attach to background daemon monitor", formatter_class=formatter)
+    ArgParser.monitor_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
+    ArgParser.monitor_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
+
+    # Define parser for the 'stop' command
+    ArgParser.stop_parser = subparsers.add_parser("stop", help="stop background daemon", formatter_class=formatter)
+    ArgParser.stop_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
+    ArgParser.stop_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
+
+    # Define parser for the 'ls' command
+    ArgParser.ls_parser = subparsers.add_parser("ls", help="list active background daemons", formatter_class=formatter)
+    ArgParser.ls_parser.add_argument('--host', default=None, help='daemon API host (optional explicit endpoint)')
+    ArgParser.ls_parser.add_argument('--port', type=int, default=None, help='daemon API port (optional explicit endpoint)')
+
     # Define parser for the 'results' command
     ArgParser.res_parser = subparsers.add_parser("results", help="export benchmark results", formatter_class=formatter)
     ArgParser.res_parser.add_argument("-t", "--tool", default="all", help="eda tool in use, or 'all'")
@@ -183,6 +199,15 @@ class ArgParser:
     print()
     printc.bold("Workflow:\n  ", printc.colors.CYAN, end="")
     ArgParser.workflow_parser.print_help()
+    print()
+    printc.bold("Monitor:\n  ", printc.colors.CYAN, end="")
+    ArgParser.monitor_parser.print_help()
+    print()
+    printc.bold("Daemon Control:\n  ", printc.colors.CYAN, end="")
+    ArgParser.stop_parser.print_help()
+    print()
+    printc.bold("Daemon List:\n  ", printc.colors.CYAN, end="")
+    ArgParser.ls_parser.print_help()
     print()
     printc.bold("Results:", printc.colors.CYAN)
     printc.cyan("- All Results:\n  ", end="")
@@ -363,6 +388,42 @@ def run_range_synthesis(args):
       success = False
   return success
 
+def monitor_daemon(args):
+  success = True
+  try:
+    daemon_control.attach_monitor(host=args.host, port=args.port)
+  except Exception as e:
+    printc.error(str(e), script_name)
+    success = False
+  return success
+
+def stop_daemon(args):
+  success = True
+  try:
+    stopped = daemon_control.stop_daemon(host=args.host, port=args.port)
+    if stopped:
+      printc.note("Daemon stopped", script_name)
+    else:
+      printc.warning("Could not confirm daemon shutdown", script_name)
+      success = False
+  except Exception as e:
+    printc.error(str(e), script_name)
+    success = False
+  return success
+
+def list_daemons(args):
+  success = True
+  try:
+    daemons = daemon_control.list_daemons(host=args.host, port=args.port)
+    if len(daemons) == 0:
+      printc.note("No active daemon found", script_name)
+      return success
+    print(daemon_control.format_daemons_table(daemons))
+  except Exception as e:
+    printc.error(str(e), script_name)
+    success = False
+  return success
+
 def export_benchmark(args):
   success = True
   try:
@@ -482,6 +543,9 @@ def main(args=None):
   except AttributeError:
     args.nobanner = False
 
+  if args.command == "monitor" or args.command == "stop" or args.command == "ls":
+    args.nobanner = True
+
   # Display init dialog
   if args.init:
     OdatixSettings.init_directory_dialog(prog=prog)
@@ -499,6 +563,12 @@ def main(args=None):
     success = run_simulations(args)
   elif args.command == "workflow":
     success = run_workflows(args)
+  elif args.command == "monitor":
+    success = monitor_daemon(args)
+  elif args.command == "stop":
+    success = stop_daemon(args)
+  elif args.command == "ls":
+    success = list_daemons(args)
   elif args.command == "fmax":
     success = run_fmax_synthesis(args)
   elif args.command == "freq":
@@ -518,7 +588,14 @@ def main(args=None):
   elif args.command in "clean":
     success = clean(args)
 
-  sys.exit(success)
+  if isinstance(success, bool):
+    exit_code = EXIT_SUCCESS if success else 1
+  elif isinstance(success, int):
+    exit_code = success
+  else:
+    exit_code = EXIT_SUCCESS if success else 1
+
+  sys.exit(exit_code)
 
 if __name__ == "__main__":
   main()
