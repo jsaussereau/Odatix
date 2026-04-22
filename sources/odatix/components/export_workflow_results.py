@@ -274,6 +274,149 @@ def _get_workflow_config_key(meta, workflow_param_dir, fallback_run_name):
     return fallback_run_name
 
 
+def _load_existing_workflow_output(output_file):
+    out = {"units": {}, "workflows": {}}
+    if not os.path.isfile(output_file):
+        return out
+
+    with open(output_file, "r") as f:
+        try:
+            loaded = yaml.safe_load(f)
+        except yaml.YAMLError:
+            return out
+
+    if not isinstance(loaded, dict):
+        return out
+
+    units = loaded.get("units")
+    workflows = loaded.get("workflows")
+    if isinstance(units, dict):
+        out["units"] = units
+    if isinstance(workflows, dict):
+        out["workflows"] = workflows
+
+    return out
+
+
+def configure_workflow_job_exports(
+    parallel_jobs,
+    *,
+    work_root,
+    workflow_path,
+    output_dir,
+    output_filename=DEFAULT_OUTPUT_FILENAME,
+):
+    if work_root is None or workflow_path is None or output_dir is None:
+        return 0
+
+    work_root = os.path.realpath(str(work_root))
+    workflow_path = os.path.realpath(str(workflow_path))
+    output_dir = os.path.realpath(str(output_dir))
+    output_filename = str(output_filename)
+
+    configured = 0
+    for job in list(getattr(parallel_jobs, "job_list", []) or []):
+        run_dir = os.path.realpath(str(getattr(job, "tmp_dir", "")))
+        if not run_dir:
+            continue
+
+        try:
+            rel_path = os.path.relpath(run_dir, work_root)
+        except Exception:
+            continue
+
+        if rel_path.startswith(".."):
+            continue
+
+        job.post_run_export = {
+            "kind": "workflow",
+            "run_dir": run_dir,
+            "work_root": work_root,
+            "workflow_path": workflow_path,
+            "output_dir": output_dir,
+            "output_filename": output_filename,
+        }
+        configured += 1
+
+    return configured
+
+
+def export_single_workflow_job(job, export_config=None):
+    config = export_config if isinstance(export_config, dict) else getattr(job, "post_run_export", None)
+    if not isinstance(config, dict):
+        printc.error("Missing per-job workflow export configuration", script_name=script_name)
+        return False
+
+    run_dir = os.path.realpath(str(config.get("run_dir", getattr(job, "tmp_dir", ""))))
+    work_root = os.path.realpath(str(config.get("work_root", "")))
+    workflow_path = os.path.realpath(str(config.get("workflow_path", "")))
+    output_dir = os.path.realpath(str(config.get("output_dir", "")))
+    output_filename = str(config.get("output_filename", DEFAULT_OUTPUT_FILENAME))
+
+    if run_dir == "" or workflow_path == "" or output_dir == "":
+        printc.error("Per-job workflow export configuration is incomplete", script_name=script_name)
+        return False
+
+    if not os.path.isdir(run_dir):
+        printc.error('Workflow run directory "' + run_dir + '" does not exist', script_name=script_name)
+        return False
+
+    fallback_param_dir = os.path.basename(os.path.dirname(run_dir))
+    fallback_run_name = os.path.basename(run_dir)
+
+    if work_root != "":
+        try:
+            rel = os.path.relpath(run_dir, work_root)
+            parts = [part for part in rel.split(os.sep) if part not in ("", ".")]
+            if len(parts) >= 2:
+                fallback_param_dir = parts[0]
+                fallback_run_name = parts[1]
+        except Exception:
+            pass
+
+    meta_path = os.path.join(run_dir, WORKFLOW_META_FILENAME)
+    meta = parse_yaml(meta_path, error_if_missing=False)
+    if not isinstance(meta, dict):
+        meta = {}
+
+    workflow_param_dir = meta.get("workflow_param_dir", fallback_param_dir)
+    workflow_full = meta.get("workflow_full", workflow_param_dir + "/" + fallback_run_name)
+    workflow_config_key = _get_workflow_config_key(meta, workflow_param_dir, fallback_run_name)
+
+    workflow_definition_dir = meta.get("workflow_definition_dir")
+    if workflow_definition_dir is None:
+        workflow_definition_dir = os.path.join(workflow_path, workflow_param_dir)
+
+    metrics_file = os.path.join(workflow_definition_dir, WORKFLOW_METRICS_FILENAME)
+    metrics_def = _load_metrics(metrics_file)
+    if metrics_def is None:
+        return False
+
+    run_metrics, run_units = _extract_run_metrics(run_dir, metrics_def, error_prefix=workflow_full + " => ")
+
+    output_file = os.path.join(output_dir, output_filename)
+    out = _load_existing_workflow_output(output_file)
+    out["units"].update(run_units)
+
+    if workflow_param_dir not in out["workflows"]:
+        out["workflows"][workflow_param_dir] = {}
+
+    out["workflows"][workflow_param_dir][workflow_config_key] = {
+        "run_dir": run_dir,
+        "workflow_param_dir": workflow_param_dir,
+        "workflow_definition_dir": workflow_definition_dir,
+        "workflow_full": workflow_full,
+        "metrics": run_metrics,
+    }
+
+    os.makedirs(output_dir, exist_ok=True)
+    with open(output_file, "w") as f:
+        yaml.dump(out, f, default_flow_style=False, sort_keys=False)
+
+    printc.say('Workflow results updated in "' + output_file + '"', script_name=script_name)
+    return True
+
+
 def export_workflow_results(work_root, workflow_path, output_dir, output_filename=DEFAULT_OUTPUT_FILENAME):
     all_units = {}
     out = {"units": all_units, "workflows": {}}

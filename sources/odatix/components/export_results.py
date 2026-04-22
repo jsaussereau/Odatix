@@ -39,6 +39,11 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 banned_metrics = []
 banned_arch = []
 
+
+def _reset_banned_lists():
+  banned_metrics.clear()
+  banned_arch.clear()
+
 ######################################
 # Settings
 ######################################
@@ -634,6 +639,8 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       tools = list(set(tools))
 
   for tool in tools:
+    _reset_banned_lists()
+
     data = {}
     units = {}
     cur_units = {}
@@ -719,6 +726,245 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       printc.error('Could not write "' + output_file + '"', script_name=script_name)
       printc.cyan("error details: ", script_name=script_name, end="")
       print(str(e))
+
+
+def _load_metrics_for_tool(tool, custom_metrics_file=None):
+  tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, tool_settings_filename)
+  tool_settings = validate_tool_settings(tool_settings_file)
+  if tool_settings is None:
+    return None, None
+
+  if custom_metrics_file is None:
+    metrics_file, defined = get_from_dict("default_metrics_file", tool_settings, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
+    if not defined:
+      return None, None
+  else:
+    metrics_file = custom_metrics_file
+
+  variables = Variables(
+    odatix_path=OdatixSettings.odatix_path,
+    odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+  )
+  metrics_file = replace_variables(metrics_file, variables)
+
+  if not os.path.isfile(metrics_file):
+    printc.error('Metrics definition file "' + os.path.realpath(metrics_file) + '" does not exist', script_name)
+    return None, None
+
+  with open(metrics_file, "r") as file:
+    try:
+      metrics_data = yaml.safe_load(file)
+    except yaml.YAMLError as e:
+      printc.error("Error in metrics definition file: " + str(e), script_name)
+      return None, None
+
+  if metrics_data is None:
+    metrics_data = {}
+
+  return metrics_data, metrics_file
+
+
+def _load_existing_results(output_file):
+  payload = {
+    "units": {},
+    "fmax_synthesis": {},
+    "custom_freq_synthesis": {},
+  }
+
+  if not os.path.isfile(output_file):
+    return payload
+
+  with open(output_file, "r") as f:
+    try:
+      loaded = yaml.safe_load(f)
+    except yaml.YAMLError:
+      return payload
+
+  if not isinstance(loaded, dict):
+    return payload
+
+  for key in payload:
+    value = loaded.get(key)
+    if isinstance(value, dict):
+      payload[key] = value
+
+  return payload
+
+
+def configure_synthesis_job_exports(
+  parallel_jobs,
+  *,
+  result_type,
+  work_path,
+  tool,
+  output_dir,
+  use_benchmark=False,
+  benchmark_file=None,
+  custom_metrics_file=None,
+):
+  if work_path is None or output_dir is None or tool is None:
+    return 0
+
+  if result_type not in ("fmax_synthesis", "custom_freq_synthesis"):
+    printc.error('Unsupported synthesis result type "' + str(result_type) + '" for per-job export', script_name)
+    return 0
+
+  input_tool_path = os.path.realpath(os.path.join(str(work_path), str(tool)))
+  output_dir = os.path.realpath(str(output_dir))
+
+  configured = 0
+  for job in list(getattr(parallel_jobs, "job_list", []) or []):
+    tmp_dir = os.path.realpath(str(getattr(job, "tmp_dir", "")))
+    if not tmp_dir:
+      continue
+
+    try:
+      rel_path = os.path.relpath(tmp_dir, input_tool_path)
+    except Exception:
+      continue
+
+    if rel_path.startswith(".."):
+      continue
+
+    parts = [part for part in rel_path.split(os.sep) if part not in ("", ".")]
+    if len(parts) < 3:
+      continue
+
+    target = parts[0]
+    architecture = parts[1]
+    configuration = parts[2]
+    frequency = parts[3] if len(parts) >= 4 else None
+
+    if result_type == "custom_freq_synthesis" and frequency is None:
+      continue
+
+    job.post_run_export = {
+      "kind": "synthesis",
+      "result_type": result_type,
+      "tool": str(tool),
+      "input_tool_path": input_tool_path,
+      "output_dir": output_dir,
+      "target": str(target),
+      "architecture": str(architecture),
+      "configuration": str(configuration),
+      "frequency": str(frequency) if frequency is not None else None,
+      "use_benchmark": bool(use_benchmark),
+      "benchmark_file": benchmark_file,
+      "custom_metrics_file": custom_metrics_file,
+    }
+    configured += 1
+
+  return configured
+
+
+def export_single_job_result(job, export_config=None):
+  config = export_config if isinstance(export_config, dict) else getattr(job, "post_run_export", None)
+  if not isinstance(config, dict):
+    printc.error("Missing per-job synthesis export configuration", script_name=script_name)
+    return False
+
+  result_type = str(config.get("result_type", ""))
+  if result_type not in ("fmax_synthesis", "custom_freq_synthesis"):
+    printc.error('Unsupported synthesis result type "' + result_type + '"', script_name=script_name)
+    return False
+
+  tool = str(config.get("tool", ""))
+  input_tool_path = str(config.get("input_tool_path", ""))
+  output_dir = str(config.get("output_dir", ""))
+  target = str(config.get("target", ""))
+  architecture = str(config.get("architecture", ""))
+  configuration = str(config.get("configuration", ""))
+  frequency = config.get("frequency", None)
+  if frequency is not None:
+    frequency = str(frequency)
+
+  if tool == "" or input_tool_path == "" or output_dir == "":
+    printc.error("Per-job export configuration is incomplete", script_name=script_name)
+    return False
+
+  if target == "" or architecture == "" or configuration == "":
+    printc.error("Per-job export target/architecture/configuration is missing", script_name=script_name)
+    return False
+
+  if result_type == "custom_freq_synthesis" and (frequency is None or frequency == ""):
+    printc.error("Per-job custom frequency export is missing frequency", script_name=script_name)
+    return False
+
+  use_benchmark = bool(config.get("use_benchmark", False))
+  benchmark_file = config.get("benchmark_file", None)
+  if use_benchmark and not benchmark_file:
+    printc.warning("Benchmark export enabled but benchmark file is not configured. Disabling benchmark metrics.", script_name=script_name)
+    use_benchmark = False
+
+  metrics_data, metrics_file = _load_metrics_for_tool(
+    tool=tool,
+    custom_metrics_file=config.get("custom_metrics_file", None),
+  )
+  if metrics_data is None:
+    return False
+
+  _reset_banned_lists()
+
+  output_dir = os.path.realpath(output_dir)
+  output_file = os.path.join(output_dir, "results_" + tool + ".yml")
+  payload = _load_existing_results(output_file)
+
+  units = payload["units"]
+  data = {
+    "fmax_synthesis": payload["fmax_synthesis"],
+    "custom_freq_synthesis": payload["custom_freq_synthesis"],
+  }
+
+  data[result_type].setdefault(target, {})
+  data[result_type][target].setdefault(architecture, {})
+  if result_type == "custom_freq_synthesis":
+    data[result_type][target][architecture].setdefault(configuration, {})
+
+  updated_data, _ = process_configuration(
+    input=input_tool_path,
+    target=target,
+    architecture=architecture,
+    configuration=configuration,
+    frequency=frequency,
+    type=result_type,
+    result_key=result_type,
+    units=units,
+    data=data,
+    metrics_data=metrics_data,
+    metrics_file=metrics_file,
+    use_benchmark=use_benchmark,
+    benchmark_file=benchmark_file,
+  )
+
+  if updated_data is None:
+    printc.warning(
+      "Could not export results for " + target + "/" + architecture + "/" + configuration,
+      script_name=script_name,
+    )
+    return False
+
+  os.makedirs(output_dir, exist_ok=True)
+  try:
+    with open(output_file, "w") as file:
+      yaml.dump(
+        {
+          "units": units,
+          "fmax_synthesis": data.get("fmax_synthesis", {}),
+          "custom_freq_synthesis": data.get("custom_freq_synthesis", {}),
+        },
+        file,
+        default_style=None,
+        default_flow_style=False,
+        sort_keys=False,
+      )
+  except Exception as e:
+    printc.error('Could not write "' + output_file + '"', script_name=script_name)
+    printc.cyan("error details: ", script_name=script_name, end="")
+    print(str(e))
+    return False
+
+  printc.say('Results updated in "' + output_file + '"', script_name=script_name)
+  return True
 
 
 ######################################
