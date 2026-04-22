@@ -84,7 +84,7 @@ class AnsiToCursesConverter:
         self.current_color = curses.color_pair(0)
         self.current_intensity = A_NORMAL
 
-    def add_ansi_str(self, win, text, debug_win=None, width=-1, dim=False):
+    def add_ansi_str(self, win, text, debug_win=None, width=-1, dim=False, x_offset=0):
         """
         Add a string with ANSI escape sequences to a curses window.
 
@@ -104,6 +104,8 @@ class AnsiToCursesConverter:
         segments = ansi_escape.split(text)
 
         current_width = 0
+        x_offset = max(0, int(x_offset))
+        consumed_chars = 0
         truncated = False
         dim = dim and curses.A_DIM
 
@@ -113,6 +115,14 @@ class AnsiToCursesConverter:
         for i, segment in enumerate(segments):
             if i % 2 == 0:
                 # Normal text
+                if x_offset > 0:
+                    if consumed_chars + len(segment) <= x_offset:
+                        consumed_chars += len(segment)
+                        continue
+                    start_idx = max(0, x_offset - consumed_chars)
+                    segment = segment[start_idx:]
+                    consumed_chars = x_offset
+
                 if width > 0:
                     remaining_width = width - current_width
                     if remaining_width > 0:

@@ -21,6 +21,7 @@
 
 import curses
 import os
+import re
 import signal
 import sys
 
@@ -49,6 +50,12 @@ REVERSE_CYAN = 16
 REVERSE_BLACK = 17
 REVERSE_WHITE = 18
 REVERSE_GREY = 19
+
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _visible_text_len(text):
+    return len(ANSI_ESCAPE_RE.sub("", str(text)))
 
 
 def progress_bar(handler, window, id, progress, elapsed_time, title, title_size, width, status="", selected=False):
@@ -329,6 +336,28 @@ def on_quit_after_finished(handler):
 def update_logs(handler, logs_win, selected_job, logs_height, width):
     history = selected_job.log_history
     log_length = len(history)
+    x_offset = int(getattr(selected_job, "log_x_offset", 0))
+
+    # Keep a right bound to avoid scrolling past the longest available line.
+    if width > 0:
+        max_visible_len = int(getattr(selected_job, "_max_visible_log_len", 0))
+        cache_size = int(getattr(selected_job, "_max_visible_log_len_cache_size", -1))
+        if max_visible_len <= 0 or cache_size != log_length or selected_job.log_changed:
+            max_visible_len = 0
+            for raw_line in history:
+                line = raw_line
+                if handler.formatter is not None:
+                    line = handler.formatter.replace_in_line(line)
+                max_visible_len = max(max_visible_len, _visible_text_len(line))
+            selected_job._max_visible_log_len = max_visible_len
+            selected_job._max_visible_log_len_cache_size = log_length
+        max_offset = max(0, max_visible_len - width) + 1
+        if x_offset > max_offset:
+            x_offset = max_offset
+            selected_job.log_x_offset = x_offset
+    else:
+        selected_job.log_x_offset = 0
+        x_offset = 0
 
     if log_length < handler.previous_log_size:
         for i in range(log_length, handler.previous_log_size):
@@ -345,7 +374,7 @@ def update_logs(handler, logs_win, selected_job, logs_height, width):
             logs_win.move(i, 0)
             if handler.formatter is not None:
                 line = handler.formatter.replace_in_line(line)
-            handler.converter.add_ansi_str(logs_win, line, width=width, dim=handler.showing_help)
+            handler.converter.add_ansi_str(logs_win, line, width=width, dim=handler.showing_help, x_offset=x_offset)
         except curses.error:
             pass
 
@@ -484,6 +513,8 @@ def curses_main(handler, stdscr):
     ask_exit = False
 
     selected_job = handler.job_list[handler.selected_job_index]
+    if not hasattr(selected_job, "log_x_offset"):
+        selected_job.log_x_offset = 0
 
     for job in handler.job_list:
         if len(handler.running_job_list) < handler.nb_jobs:
@@ -580,6 +611,7 @@ def curses_main(handler, stdscr):
                 selected_job = refreshed_selected_job
                 selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
                 selected_job.autoscroll = True
+                selected_job.log_x_offset = 0
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
         update_progress_window(handler, progress_win)
@@ -605,6 +637,7 @@ def curses_main(handler, stdscr):
             job = handler.job_list[handler.selected_job_index]
             job.log_position = max(0, len(job.log_history) - logs_height)
             job.autoscroll = True
+            job.log_x_offset = 0
             return job
 
         def scroll_up_logs(selected):
@@ -618,6 +651,16 @@ def curses_main(handler, stdscr):
                 selected.log_position = min(len(selected.log_history) - logs_height, selected.log_position + 3)
                 selected.autoscroll = False
                 update_logs(handler, logs_win, selected, logs_height, width)
+
+        def scroll_left_logs(selected):
+            current = int(getattr(selected, "log_x_offset", 0))
+            selected.log_x_offset = max(0, current - 4)
+            update_logs(handler, logs_win, selected, logs_height, width)
+
+        def scroll_right_logs(selected):
+            current = int(getattr(selected, "log_x_offset", 0))
+            selected.log_x_offset = current + 4
+            update_logs(handler, logs_win, selected, logs_height, width)
 
         def scroll_up_progress():
             handler.job_index_start -= 1
@@ -700,12 +743,19 @@ def curses_main(handler, stdscr):
             elif key == curses.KEY_DOWN:
                 scroll_down_logs(selected_job)
 
+            elif key == curses.KEY_LEFT:
+                scroll_left_logs(selected_job)
+
+            elif key == curses.KEY_RIGHT:
+                scroll_right_logs(selected_job)
+
             elif key == ord("d") or key == ord("D"):
                 return True
 
             elif key == curses.KEY_HOME:
                 selected_job.log_position = 0
                 selected_job.autoscroll = False
+                selected_job.log_x_offset = 0
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
             elif key == curses.KEY_END:
