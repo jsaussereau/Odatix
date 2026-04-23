@@ -336,6 +336,17 @@ def on_quit_after_finished(handler):
 def update_logs(handler, logs_win, selected_job, logs_height, width):
     history = selected_job.log_history
     log_length = len(history)
+
+    if logs_win is None or logs_height <= 0:
+        handler.previous_log_size = log_length
+        return
+
+    max_log_position = max(0, log_length - logs_height)
+    if selected_job.autoscroll:
+        selected_job.log_position = max_log_position
+    else:
+        selected_job.log_position = max(0, min(int(selected_job.log_position), max_log_position))
+
     x_offset = int(getattr(selected_job, "log_x_offset", 0))
 
     # Keep a right bound to avoid scrolling past the longest available line.
@@ -479,26 +490,71 @@ def curses_main(handler, stdscr):
     old_height = height
 
     # Adjust window positions
-    progress_height = handler.job_index_end - handler.job_index_start
     header_height = 1
     separator_height = 1
     help_height = 1
-    logs_height = height - progress_height - 2*separator_height - help_height - header_height
+    header_win = None
+    separator_top_win = None
+    progress_win = None
+    separator_middle_win = None
+    logs_win = None
+    bottom_bar = None
+    popup_win = None
+
+    def _max_progress_height(screen_height):
+        # Header + top separator + progress + middle separator + logs + help bar.
+        return max(1, int(screen_height) - header_height - 2 * separator_height - help_height)
+
+    def _clamp_progress_height(desired_height, screen_height):
+        return max(1, min(int(desired_height), _max_progress_height(screen_height)))
+
+    def sync_progress_indices():
+        if handler.job_count <= 0:
+            handler.job_index_start = 0
+            handler.job_index_end = 0
+            return
+
+        max_start = max(0, handler.job_count - 1)
+        handler.job_index_start = max(0, min(handler.job_index_start, max_start))
+        handler.job_index_end = min(handler.job_count, handler.job_index_start + progress_height)
+        if handler.job_index_end <= handler.job_index_start:
+            handler.job_index_end = handler.job_index_start + 1
+
+    # Default: max(total_height/2, total_jobs), clamped to available screen content height.
+    progress_height = _clamp_progress_height(min(height // 2, handler.job_count), height)
+    logs_height = max(0, height - progress_height - 2 * separator_height - help_height - header_height)
     popup_width = min(50, width - 4)
-    popup_height = min(19, height - 4)
-    popup_height = max(popup_height, 3)
+    popup_height = max(3, min(19, height - 4))
     start_x = (width - popup_width) // 2
     start_y = (height - popup_height) // 2
+    sync_progress_indices()
 
-    try:
+    def recreate_windows():
+        nonlocal header_win, separator_top_win, progress_win, separator_middle_win
+        nonlocal logs_win, bottom_bar, popup_win
+        nonlocal progress_height, logs_height, popup_width, popup_height, start_x, start_y
+
+        progress_height = _clamp_progress_height(progress_height, height)
+        logs_height = max(0, height - progress_height - 2 * separator_height - help_height - header_height)
+        popup_width = min(50, width - 4)
+        popup_height = max(3, min(20, height - 4))
+        start_x = (width - popup_width) // 2
+        start_y = (height - popup_height) // 2
+        sync_progress_indices()
+
         header_win = curses.newwin(header_height, width, 0, 0)
         separator_top_win = curses.newwin(separator_height, width, header_height, 0)
         progress_win = curses.newwin(progress_height, width, header_height + separator_height, 0)
         separator_middle_win = curses.newwin(separator_height, width, header_height + separator_height + progress_height, 0)
-        logs_win = curses.newwin(logs_height, width, header_height + separator_height + progress_height + separator_height, 0)
+        logs_win = None
+        if logs_height > 0:
+            logs_win = curses.newwin(logs_height, width, header_height + separator_height + progress_height + separator_height, 0)
         bottom_bar = curses.newwin(help_height, width, height - help_height, 0)
         popup_win = curses.newwin(popup_height, popup_width, start_y, start_x)
         popup_win.box()
+
+    try:
+        recreate_windows()
     except curses.error:
         stdscr.clear()
         try:
@@ -563,21 +619,8 @@ def curses_main(handler, stdscr):
 
         height, width = stdscr.getmaxyx()
         if height != old_height or width != old_width or resize:
-            popup_width = min(50, width - 4)
-            popup_height = min(20, height - 4)
-            popup_height = max(popup_height, 3)
-            start_x = (width - popup_width) // 2
-            start_y = (height - popup_height) // 2
             try:
-                progress_height = handler.job_index_end - handler.job_index_start
-                logs_height = height - progress_height - 2*separator_height - help_height - header_height
-
-                separator_top_win = curses.newwin(separator_height, width, header_height, 0)
-                progress_win = curses.newwin(progress_height, width, header_height + separator_height, 0)
-                separator_middle_win = curses.newwin(separator_height, width, header_height + separator_height + progress_height, 0)
-                logs_win = curses.newwin(logs_height, width, header_height + separator_height + progress_height + separator_height, 0)
-                bottom_bar = curses.newwin(help_height, width, height - help_height, 0)
-                popup_win = curses.newwin(popup_height, popup_width, start_y, start_x)
+                recreate_windows()
                 update_logs(handler, logs_win, selected_job, logs_height, width)
             except curses.error:
                 try:
@@ -590,12 +633,15 @@ def curses_main(handler, stdscr):
             old_width = width
             old_height = height
             resize = False
+            help_static_drawn = False
 
         with handler._lock:
             handler._update_jobs_state(
                 selected_job=selected_job,
                 on_selected_retired=lambda: update_logs(handler, logs_win, selected_job, logs_height, width),
             )
+
+        sync_progress_indices()
 
         active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now = get_runtime_counters()
         finished = finished or finished_now
@@ -673,12 +719,14 @@ def curses_main(handler, stdscr):
             update_logs(handler, logs_win, selected, logs_height, width)
 
         def scroll_up_progress():
-            handler.job_index_start -= 1
-            handler.job_index_end -= 1
+            if handler.job_index_start > 0:
+                handler.job_index_start -= 1
+                sync_progress_indices()
 
         def scroll_down_progress():
-            handler.job_index_start += 1
-            handler.job_index_end += 1
+            if handler.job_index_end < handler.job_count:
+                handler.job_index_start += 1
+                sync_progress_indices()
 
         if not handler.showing_help:
             if key == curses.KEY_MOUSE:
@@ -687,18 +735,10 @@ def curses_main(handler, stdscr):
                 if resize_hold:
                     y = min(y, height - 2)
                     relative_y = y - (header_height + separator_height)
-                    new_job_index_end = handler.job_index_start + relative_y
-
-                    if new_job_index_end <= handler.job_index_start:
-                        handler.job_index_end = handler.job_index_start + 1
-                        resize = True
-                    elif new_job_index_end >= handler.job_count:
-                        remainder = new_job_index_end - handler.job_count
-                        handler.job_index_end = handler.job_count
-                        handler.job_index_start = max(0, handler.job_index_start - remainder)
-                        resize = True
-                    else:
-                        handler.job_index_end = new_job_index_end
+                    new_progress_height = _clamp_progress_height(relative_y, height)
+                    if new_progress_height != progress_height:
+                        progress_height = new_progress_height
+                        sync_progress_indices()
                         resize = True
 
                 if button & curses.BUTTON1_CLICKED or button & curses.BUTTON1_DOUBLE_CLICKED:
@@ -722,13 +762,13 @@ def curses_main(handler, stdscr):
                     if progress_win.enclose(y, x):
                         if handler.job_index_start > 0:
                             scroll_up_progress()
-                    elif logs_win.enclose(y, x):
+                    elif logs_win is not None and logs_win.enclose(y, x):
                         scroll_up_logs(selected_job)
                 elif button & curses.BUTTON5_PRESSED:
                     if progress_win.enclose(y, x):
-                        if handler.job_index_end <= len(handler.job_list) - 1:
+                        if handler.job_index_end < handler.job_count:
                             scroll_down_progress()
-                    elif logs_win.enclose(y, x):
+                    elif logs_win is not None and logs_win.enclose(y, x):
                         scroll_down_logs(selected_job)
 
             elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):
@@ -774,20 +814,17 @@ def curses_main(handler, stdscr):
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
             elif key == ord("+") or key == ord("="):
-                if logs_height > 0:
-                    if handler.job_index_end < handler.job_count:
-                        handler.job_index_end += 1
-                        resize = True
-                    elif handler.job_index_start > 0:
-                        handler.job_index_start -= 1
-                        resize = True
+                new_progress_height = _clamp_progress_height(progress_height + 1, height)
+                if new_progress_height != progress_height:
+                    progress_height = new_progress_height
+                    sync_progress_indices()
+                    resize = True
 
             elif key == ord("-") or key == ord("_"):
-                if handler.selected_job_index < handler.job_index_end - 1:
-                    handler.job_index_end -= 1
-                    resize = True
-                elif handler.job_index_start < handler.job_index_end - 1:
-                    handler.job_index_start += 1
+                new_progress_height = _clamp_progress_height(progress_height - 1, height)
+                if new_progress_height != progress_height:
+                    progress_height = new_progress_height
+                    sync_progress_indices()
                     resize = True
 
             elif key == ord("c") or key == ord("C"):
@@ -843,12 +880,14 @@ def curses_main(handler, stdscr):
 
                 if button & curses.BUTTON1_CLICKED and mouse_y == close_y and close_x <= mouse_x <= close_x + 2:
                     handler.showing_help = False
-                    logs_win.erase()
+                    if logs_win is not None:
+                        logs_win.erase()
                     update_logs(handler, logs_win, selected_job, logs_height, width)
 
             elif key in [ord('h'), ord('H'), ord('?'), ord('q'), ord('Q')]:
                 handler.showing_help = False
-                logs_win.erase()
+                if logs_win is not None:
+                    logs_win.erase()
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
         if ask_exit:
