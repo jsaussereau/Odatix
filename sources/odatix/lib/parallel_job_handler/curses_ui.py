@@ -527,6 +527,7 @@ def curses_main(handler, stdscr):
 
     resize = False
     resize_hold = False
+    help_static_drawn = False
 
     handler.showing_help = False
 
@@ -599,35 +600,44 @@ def curses_main(handler, stdscr):
         active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now = get_runtime_counters()
         finished = finished or finished_now
 
-        update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
-        update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
+        if not handler.showing_help:
+            help_static_drawn = False
 
-        # Keep the local selected_job reference synchronized with handler state.
-        # This is required when job objects are replaced (e.g. daemon attach mode).
-        if handler.job_count > 0:
-            handler.selected_job_index = max(0, min(handler.selected_job_index, handler.job_count - 1))
-            refreshed_selected_job = handler.job_list[handler.selected_job_index]
-            if refreshed_selected_job is not selected_job:
-                selected_job = refreshed_selected_job
-                selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-                selected_job.autoscroll = True
-                selected_job.log_x_offset = 0
-                update_logs(handler, logs_win, selected_job, logs_height, width)
+            update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
+            update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
 
-        update_progress_window(handler, progress_win)
-        update_separator(handler, separator_middle_win, handler.job_count, handler.job_index_end, width)
+            # Keep the local selected_job reference synchronized with handler state.
+            # This is required when job objects are replaced (e.g. daemon attach mode).
+            if handler.job_count > 0:
+                handler.selected_job_index = max(0, min(handler.selected_job_index, handler.job_count - 1))
+                refreshed_selected_job = handler.job_list[handler.selected_job_index]
+                if refreshed_selected_job is not selected_job:
+                    selected_job = refreshed_selected_job
+                    selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
+                    selected_job.autoscroll = True
+                    selected_job.log_x_offset = 0
+                    update_logs(handler, logs_win, selected_job, logs_height, width)
 
-        if handler.showing_help:
-            update_help_popup(popup_win, popup_width, popup_height)
+            update_progress_window(handler, progress_win)
+            update_separator(handler, separator_middle_win, handler.job_count, handler.job_index_end, width)
+        elif not help_static_drawn:
+            # Draw a single dimmed snapshot behind the popup, then keep it stable
+            # while help is open to avoid flicker from continuous progress redraws.
+            update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
+            update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
+            update_progress_window(handler, progress_win)
+            update_separator(handler, separator_middle_win, handler.job_count, handler.job_index_end, width)
+            update_logs(handler, logs_win, selected_job, logs_height, width)
+            help_static_drawn = True
 
         with handler._lock:
             handler.read_process_output()
 
-        if selected_job.autoscroll and selected_job.log_changed:
+        if not handler.showing_help and selected_job.autoscroll and selected_job.log_changed:
             selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
             update_logs(handler, logs_win, selected_job, logs_height, width)
 
-        if width != old_width:
+        if not handler.showing_help and width != old_width:
             update_logs(handler, logs_win, selected_job, logs_height, width)
         old_width = width
 
@@ -805,7 +815,7 @@ def curses_main(handler, stdscr):
 
             elif key in [ord("h"), ord("H"), ord("?")]:
                 handler.showing_help = True
-                update_logs(handler, logs_win, selected_job, logs_height, width)
+                help_static_drawn = False
 
             else:
                 if handler.auto_exit and finished:
@@ -851,6 +861,10 @@ def curses_main(handler, stdscr):
                 ask_exit = False
         else:
             update_help(bottom_bar)
+
+        # Draw help popup last so it always stays above logs/progress redraws.
+        if handler.showing_help:
+            update_help_popup(popup_win, popup_width, popup_height)
 
 
 def run(handler):
