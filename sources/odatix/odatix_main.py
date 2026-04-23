@@ -120,16 +120,21 @@ class ArgParser:
 
     # Define parser for the 'monitor' command
     ArgParser.monitor_parser = subparsers.add_parser("monitor", help="attach to background daemon monitor", formatter_class=formatter)
+    ArgParser.monitor_parser.add_argument('-S', '--session', default=None, help='daemon session name or selector')
     ArgParser.monitor_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
     ArgParser.monitor_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
 
     # Define parser for the 'stop' command
     ArgParser.stop_parser = subparsers.add_parser("stop", help="stop background daemon", formatter_class=formatter)
+    stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
+    stop_selector_group.add_argument('-S', '--session', default=None, help='daemon session name or selector')
+    stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all daemon sessions')
     ArgParser.stop_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
     ArgParser.stop_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
 
     # Define parser for the 'ls' command
     ArgParser.ls_parser = subparsers.add_parser("ls", help="list active background daemons", formatter_class=formatter)
+    ArgParser.ls_parser.add_argument('-S', '--session', default=None, help='filter daemon sessions by name/prefix')
     ArgParser.ls_parser.add_argument('--host', default=None, help='daemon API host (optional explicit endpoint)')
     ArgParser.ls_parser.add_argument('--port', type=int, default=None, help='daemon API port (optional explicit endpoint)')
 
@@ -336,7 +341,18 @@ def run_range_synthesis(args):
 def monitor_daemon(args):
   success = True
   try:
-    daemon_control.attach_monitor(host=args.host, port=args.port)
+    daemon_control.attach_monitor(host=args.host, port=args.port, session=args.session)
+  except daemon_control.MultipleDaemonsError as e:
+    if args.session is not None and args.session != "":
+      printc.warning(f"Multiple sessions match '{args.session}':", script_name)
+    else:
+      printc.warning("Multiple sessions found:", script_name)
+    if isinstance(e.daemons, list) and len(e.daemons) > 0:
+      print(daemon_control.format_daemons_table(e.daemons))
+    else:
+      printc.cyan(str(e), script_name)
+    printc.note("Use the -S/--session option to specify a session", script_name)
+    success = False
   except Exception as e:
     printc.error(str(e), script_name)
     success = False
@@ -345,12 +361,45 @@ def monitor_daemon(args):
 def stop_daemon(args):
   success = True
   try:
-    stopped = daemon_control.stop_daemon(host=args.host, port=args.port)
-    if stopped:
-      printc.note("Daemon stopped", script_name)
-    else:
-      printc.warning("Could not confirm daemon shutdown", script_name)
+    if args.all:
+      result = daemon_control.stop_all_daemons(host=args.host, port=args.port)
+      total = int(result.get("total", 0))
+      stopped = int(result.get("stopped", 0))
+      failed = result.get("failed", [])
+
+      if total == 0:
+        printc.note("No active session found", script_name)
+        return success
+
+      if len(failed) == 0:
+        printc.cyan(f"Stopped {stopped} session(s)", script_name)
+        return success
+
+      printc.warning(f"Stopped {stopped}/{total} session(s)", script_name)
+      if isinstance(failed, list) and len(failed) > 0:
+        printc.cyan("Sessions that could not be stopped:", script_name)
+        print(daemon_control.format_daemons_table(failed))
       success = False
+      return success
+
+    stopped = daemon_control.stop_daemon(host=args.host, port=args.port, session=args.session)
+    session_label = args.session if args.session not in (None, "") else "daemon"
+    if stopped:
+      printc.note(f"Session {session_label} stopped", script_name)
+    else:
+      printc.warning(f"Could not confirm shutdown of session {session_label}", script_name)
+      success = False
+  except daemon_control.MultipleDaemonsError as e:
+    if args.session is not None and args.session != "":
+      printc.warning(f"Multiple sessions match '{args.session}':", script_name)
+    else:
+      printc.warning("Multiple sessions found:", script_name)
+    if isinstance(e.daemons, list) and len(e.daemons) > 0:
+      print(daemon_control.format_daemons_table(e.daemons))
+    else:
+      printc.cyan(str(e), script_name)
+    printc.note("Use the -S/--session option to specify a session or -a/--all to stop all sessions", script_name)
+    success = False
   except Exception as e:
     printc.error(str(e), script_name)
     success = False
@@ -359,9 +408,9 @@ def stop_daemon(args):
 def list_daemons(args):
   success = True
   try:
-    daemons = daemon_control.list_daemons(host=args.host, port=args.port)
+    daemons = daemon_control.list_daemons(host=args.host, port=args.port, session=args.session)
     if len(daemons) == 0:
-      printc.note("No active daemon found", script_name)
+      printc.note("No active session found", script_name)
       return success
     print(daemon_control.format_daemons_table(daemons))
   except Exception as e:
