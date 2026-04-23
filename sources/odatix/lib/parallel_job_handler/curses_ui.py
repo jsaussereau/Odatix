@@ -506,7 +506,7 @@ def curses_main(handler, stdscr):
         return max(1, int(screen_height) - header_height - 2 * separator_height - help_height)
 
     def _clamp_progress_height(desired_height, screen_height):
-        return max(1, min(int(desired_height), _max_progress_height(screen_height)))
+        return max(1, min(int(desired_height), _max_progress_height(screen_height), handler.job_count))
 
     def sync_progress_indices():
         if handler.job_count <= 0:
