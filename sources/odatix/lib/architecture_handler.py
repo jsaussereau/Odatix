@@ -36,6 +36,7 @@ from odatix.lib import hard_settings
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.utils import *
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
+from odatix.lib.parallel_job_handler.daemon_control import list_daemon_jobs
 import odatix.lib.printc as printc
 from odatix.lib.variables import replace_variables, Variables
 from odatix.lib.param_domain import ParamDomain
@@ -196,6 +197,8 @@ class Architecture:
 
 class ArchitectureHandler:
 
+    DAEMON_RESTARTABLE_STATUSES = ("failed", "killed", "canceled", "cancelled")
+
     def __init__(
         self,
         work_path,
@@ -261,13 +264,74 @@ class ArchitectureHandler:
         self.overwrite_archs = []
         self.error_archs = []
         self.incomplete_archs = []
+        self.daemon_archs = []
         self.new_archs = []
         self.deprecation_notice_archs = []
+        self._daemon_jobs_by_tmp_dir = None
+
+    @staticmethod
+    def _normalize_tmp_dir(tmp_dir):
+        if tmp_dir is None:
+            return ""
+        try:
+            return os.path.realpath(os.path.expanduser(str(tmp_dir)))
+        except Exception:
+            return str(tmp_dir)
+
+    @staticmethod
+    def _format_daemon_entry(entry):
+        status = str(entry.get("status", "unknown"))
+        session_id = str(entry.get("session_id", "")).strip()
+        if session_id == "":
+            return " {}(session status: {}){}".format(printc.colors.GREY, status, printc.colors.ENDC)
+        return " {}({} in session {}){}".format(printc.colors.GREY, status, session_id, printc.colors.ENDC)
+
+    def _refresh_daemon_jobs_index(self):
+        self._daemon_jobs_by_tmp_dir = {}
+        try:
+            daemon_jobs = list_daemon_jobs(workspace_root=self.work_path)
+        except Exception:
+            daemon_jobs = []
+
+        for job in daemon_jobs:
+            if not isinstance(job, dict):
+                continue
+
+            normalized_tmp_dir = ArchitectureHandler._normalize_tmp_dir(job.get("tmp_dir", ""))
+            if normalized_tmp_dir == "":
+                continue
+
+            status = str(job.get("status", "")).strip().lower()
+            if status == "":
+                status = "unknown"
+
+            self._daemon_jobs_by_tmp_dir.setdefault(normalized_tmp_dir, []).append(
+                {
+                    "status": status,
+                    "session_id": str(job.get("session_id", "")).strip(),
+                }
+            )
+
+    def _get_daemon_job_decision(self, tmp_dir):
+        if self._daemon_jobs_by_tmp_dir is None:
+            self._refresh_daemon_jobs_index()
+
+        normalized_tmp_dir = ArchitectureHandler._normalize_tmp_dir(tmp_dir)
+        daemon_entries = self._daemon_jobs_by_tmp_dir.get(normalized_tmp_dir, [])
+        if len(daemon_entries) == 0:
+            return "none", None
+
+        for entry in daemon_entries:
+            if entry["status"] not in ArchitectureHandler.DAEMON_RESTARTABLE_STATUSES:
+                return "skip", entry
+
+        return "replace", daemon_entries[0]
 
     def get_architectures(self, architectures, targets, constraint_filename="", install_path="", range_mode=False, keep=False, timestamp=""):
 
         self.reset_lists()
         self.architecture_instances = []
+        self._refresh_daemon_jobs_index()
 
         only_one_target = len(targets) == 1
 
@@ -366,28 +430,70 @@ class ArchitectureHandler:
 
                                 # check if the architecture is in cache and has a status file
                                 status_file = os.path.join(freq_arch.tmp_dir, self.work_log_path, self.fmax_status_filename)
+                                local_state = "new"
                                 if isdir(freq_arch.tmp_dir) and isfile(status_file):
                                     # check if the previous synthesis has completed
                                     sf = open(status_file, "r")
                                     if self.valid_status in sf.read():
                                         if self.overwrite:
                                             printc.warning("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\".", script_name)
-                                            self.overwrite_archs.append(unformatted_display_name)
-                                            self.architecture_instances.append(freq_arch)
-                                            self.valid_archs.append(unformatted_display_name + formatted_freq)
+                                            local_state = "overwrite"
                                         else:
                                             printc.note("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\". Skipping.", script_name)
                                             self.cached_archs.append(freq_arch.arch_display_name)
+                                            local_state = "cached"
                                     else: 
                                         printc.warning("The previous synthesis for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\" has not finished or the directory has been corrupted.", script_name)
-                                        self.incomplete_archs.append(freq_arch.arch_display_name)
-                                        self.architecture_instances.append(freq_arch)
-                                        self.valid_archs.append(unformatted_display_name + formatted_freq)
+                                        local_state = "incomplete"
                                     sf.close()
+
+                                if local_state == "cached":
+                                    continue
+
+                                daemon_decision, daemon_entry = self._get_daemon_job_decision(freq_arch.tmp_dir)
+                                if daemon_decision == "skip":
+                                    daemon_status = str(daemon_entry.get("status", "unknown"))
+                                    daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
+                                    printc.note(
+                                        "Found existing daemon job for \""
+                                        + unformatted_display_name
+                                        + "\" @ "
+                                        + str(freq)
+                                        + " MHz with target \""
+                                        + target
+                                        + "\" (session \""
+                                        + daemon_session
+                                        + "\", status \""
+                                        + daemon_status
+                                        + "\"). Skipping.",
+                                        script_name,
+                                    )
+                                    self.daemon_archs.append(freq_arch.arch_display_name + ArchitectureHandler._format_daemon_entry(daemon_entry))
+                                    continue
+                                elif daemon_decision == "replace":
+                                    daemon_status = str(daemon_entry.get("status", "unknown"))
+                                    printc.warning(
+                                        "Found previously failed/canceled daemon job for \""
+                                        + unformatted_display_name
+                                        + "\" @ "
+                                        + str(freq)
+                                        + " MHz with target \""
+                                        + target
+                                        + "\" (status \""
+                                        + daemon_status
+                                        + "\"). Re-enqueueing.",
+                                        script_name,
+                                    )
+
+                                if local_state == "overwrite":
+                                    self.overwrite_archs.append(unformatted_display_name)
+                                elif local_state == "incomplete":
+                                    self.incomplete_archs.append(freq_arch.arch_display_name)
                                 else:
                                     self.new_archs.append(unformatted_display_name + formatted_freq)
-                                    self.architecture_instances.append(freq_arch)
-                                    self.valid_archs.append(unformatted_display_name + formatted_freq)
+
+                                self.architecture_instances.append(freq_arch)
+                                self.valid_archs.append(unformatted_display_name + formatted_freq)
 
         return self.architecture_instances
 
@@ -665,6 +771,7 @@ class ArchitectureHandler:
 
             # check if the architecture is in cache and has a status file
             if not range_mode:
+                local_state = "new"
                 if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
                     # check if the previous synth_fmax has completed
                     sf = open(fmax_status_file, "r")
@@ -673,22 +780,57 @@ class ArchitectureHandler:
                         if self.valid_frequency_search in ff.read():
                             if self.overwrite:
                                 printc.warning("Found cached results for \"" + arch + "\" with target \"" + target + "\".", script_name)
-                                self.overwrite_archs.append(arch_display_name + formatted_bound)
+                                local_state = "overwrite"
                             else:
                                 printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
                                 self.cached_archs.append(arch_display_name)
                                 return None
                         else:
                             printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
-                            self.incomplete_archs.append(arch_display_name + formatted_bound)
+                            local_state = "incomplete"
                         ff.close()
                     else: 
                         printc.warning("The previous synthesis for \"" + arch + "\" has not finished or the directory has been corrupted.", script_name)
-                        self.incomplete_archs.append(arch_display_name + formatted_bound)
+                        local_state = "incomplete"
                     sf.close()
+
+                daemon_decision, daemon_entry = self._get_daemon_job_decision(tmp_dir)
+                if daemon_decision == "skip":
+                    daemon_status = str(daemon_entry.get("status", "unknown"))
+                    daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
+                    printc.note(
+                        "Found existing daemon job for \""
+                        + arch
+                        + "\" with target \""
+                        + target
+                        + "\" (session \""
+                        + daemon_session
+                        + "\", status \""
+                        + daemon_status
+                        + "\"). Skipping.",
+                        script_name,
+                    )
+                    self.daemon_archs.append(arch_display_name + formatted_bound + ArchitectureHandler._format_daemon_entry(daemon_entry))
+                    return None
+                elif daemon_decision == "replace":
+                    daemon_status = str(daemon_entry.get("status", "unknown"))
+                    printc.warning(
+                        "Found previously failed/canceled daemon job for \""
+                        + arch
+                        + "\" with target \""
+                        + target
+                        + "\" (status \""
+                        + daemon_status
+                        + "\"). Re-enqueueing.",
+                        script_name,
+                    )
+
+                if local_state == "overwrite":
+                    self.overwrite_archs.append(arch_display_name + formatted_bound)
+                elif local_state == "incomplete":
+                    self.incomplete_archs.append(arch_display_name + formatted_bound)
                 else:
-                    if not range_mode:
-                        self.new_archs.append(arch_display_name + formatted_bound)
+                    self.new_archs.append(arch_display_name + formatted_bound)
 
 
         # Retrieve target-specific settings if they exist
@@ -1090,6 +1232,7 @@ class ArchitectureHandler:
         ArchitectureHandler.print_arch_list(self.cached_archs, "Existing results (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
         ArchitectureHandler.print_arch_list(self.overwrite_archs, "Existing results (will be overwritten)", printc.colors.YELLOW)
         ArchitectureHandler.print_arch_list(self.incomplete_archs, "Incomplete results (will be overwritten)", printc.colors.YELLOW)
+        ArchitectureHandler.print_arch_list(self.daemon_archs, "Already managed in a session (skipped)", printc.colors.CYAN)
         ArchitectureHandler.print_arch_list(self.new_archs, "New architectures", printc.colors.ENDC)
         ArchitectureHandler.print_arch_list(self.error_archs, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
 

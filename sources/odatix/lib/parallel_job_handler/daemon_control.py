@@ -863,6 +863,52 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None):
     return _filter_daemons_by_session_selector(daemons, session)
 
 
+def list_daemon_jobs(workspace_root=None, session=None):
+    """Return jobs currently known by active daemon sessions.
+
+    Each returned job dictionary includes daemon metadata fields:
+    ``session_id``, ``session_name``, ``host`` and ``port``.
+    """
+    jobs = []
+    daemons = list_daemons(workspace_root=workspace_root, session=session)
+
+    for daemon in daemons:
+        try:
+            snapshot = _api_request(
+                _state_base_url(daemon),
+                "GET",
+                "/status?logs_job_id=-1",
+                timeout=1.0,
+            )
+        except Exception:
+            continue
+
+        daemon_jobs = snapshot.get("jobs", [])
+        if not isinstance(daemon_jobs, list):
+            continue
+
+        session_id = str(daemon.get("session_id", _session_id_from_state(daemon)))
+        session_name = str(daemon.get("session_name", _session_name_from_state(daemon)))
+        host = str(daemon.get("host", DEFAULT_HOST))
+        try:
+            port = int(daemon.get("port", DEFAULT_PORT))
+        except Exception:
+            port = DEFAULT_PORT
+
+        for job in daemon_jobs:
+            if not isinstance(job, dict):
+                continue
+
+            entry = dict(job)
+            entry["session_id"] = session_id
+            entry["session_name"] = session_name
+            entry["host"] = host
+            entry["port"] = port
+            jobs.append(entry)
+
+    return jobs
+
+
 def format_daemons_table(daemons):
     """Format the daemon list into a table with aligned columns."""
     columns = [
