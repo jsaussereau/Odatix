@@ -45,6 +45,7 @@ from odatix.lib.wosit import createTaskGraph
 
 script_name = os.path.basename(__file__)
 WORKFLOW_META_FILENAME = "workflow_meta.yml"
+WORKFLOW_COMMAND_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 class WorkflowInstance:
@@ -91,14 +92,73 @@ class WorkflowInstance:
         self.no_main_configuration = no_main_configuration
 
 
+def _read_command_parameter_value(param_file):
+    if param_file is None or not os.path.isfile(param_file):
+        return None
 
-def _replace_runtime_vars(self, value):
-    if not isinstance(value, str):
+    with open(param_file, "r") as f:
+        content = f.read().strip()
+
+    if content == "":
+        return ""
+
+    # Commands are single-line shell entries, so multi-line values are folded.
+    if "\n" in content:
+        return " ".join(line.strip() for line in content.splitlines() if line.strip() != "")
+
+    return content
+
+
+def _build_workflow_command_substitutions(workflow_instance):
+    substitutions = {}
+
+    if workflow_instance.param_file is not None:
+        main_value = _read_command_parameter_value(workflow_instance.param_file)
+        if main_value is not None:
+            substitutions[workflow_instance.workflow_param_dir] = main_value
+
+    for param_domain in workflow_instance.param_domains:
+        value = _read_command_parameter_value(param_domain.param_file)
+        if value is not None:
+            substitutions[param_domain.domain] = value
+
+    return substitutions
+
+
+def _replace_workflow_command_vars(value, substitutions):
+    if not isinstance(value, str) or len(substitutions) == 0:
         return value
-    out = value
-    out = out.replace("$tmp_dir", self.tmp_dir)
-    out = out.replace("$workflow_dir", self.workflow_dir)
-    return out
+
+    def _replace_var(match):
+        var_name = match.group(1)
+        return substitutions.get(var_name, match.group(0))
+
+    return WORKFLOW_COMMAND_VAR_PATTERN.sub(_replace_var, value)
+
+
+def _resolve_workflow_tasks(tasks, substitutions):
+    if len(substitutions) == 0:
+        return tasks
+
+    resolved_tasks = []
+    for task in tasks:
+        if not isinstance(task, dict):
+            resolved_tasks.append(task)
+            continue
+
+        resolved_task = dict(task)
+
+        commands = resolved_task.get("commands")
+        if isinstance(commands, list):
+            resolved_task["commands"] = [_replace_workflow_command_vars(command, substitutions) for command in commands]
+
+        task_path = resolved_task.get("path")
+        if isinstance(task_path, str):
+            resolved_task["path"] = _replace_workflow_command_vars(task_path, substitutions)
+
+        resolved_tasks.append(resolved_task)
+
+    return resolved_tasks
 
 
 
@@ -472,8 +532,11 @@ def check_settings(
             timestamp=None,
         )
 
+        substitutions = _build_workflow_command_substitutions(workflow_instance)
+        resolved_tasks = _resolve_workflow_tasks(workflow_instance.tasks, substitutions)
+
         try:
-            maker = createTaskGraph(workflow_instance.tasks)
+            maker = createTaskGraph(resolved_tasks)
             old_cwd = os.getcwd()
             try:
                 os.chdir(workflow_instance.tmp_dir)
