@@ -70,6 +70,7 @@ class WorkflowInstance:
         workflow_settings_file,
         workflow_definition_dir,
         no_main_configuration=False,
+        use_parameters=True,
     ):
         self.workflow_name = workflow_name
         self.workflow_display_name = workflow_display_name
@@ -90,6 +91,7 @@ class WorkflowInstance:
         self.workflow_settings_file = workflow_settings_file
         self.workflow_definition_dir = workflow_definition_dir
         self.no_main_configuration = no_main_configuration
+        self.use_parameters = use_parameters
 
 
 def _read_command_parameter_value(param_file):
@@ -394,11 +396,11 @@ def check_settings(
             )
 
         param_file = os.path.join(workflow_path, workflow_param_dir, workflow_config + ".txt")
-        if not no_main_configuration and not os.path.isfile(param_file):
+        if use_parameters and not no_main_configuration and not os.path.isfile(param_file):
             printc.error("Workflow parameter file \"" + param_file + "\" does not exist", script_name)
             invalid_workflows.append(workflow_display_name)
             continue
-        if no_main_configuration:
+        if no_main_configuration or not use_parameters:
             param_file = None
 
         param_domains = []
@@ -438,6 +440,7 @@ def check_settings(
                 workflow_settings_file=workflow_settings_file,
                 workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
                 no_main_configuration=no_main_configuration,
+                use_parameters=use_parameters,
             )
         )
         valid_workflows.append(workflow_display_name)
@@ -506,7 +509,7 @@ def check_settings(
         )
 
         # replace main parameters (skip when no explicit main configuration is selected)
-        if not workflow_instance.no_main_configuration:
+        if workflow_instance.use_parameters and not workflow_instance.no_main_configuration:
             if debug:
                 printc.subheader("Replace main parameters")
 
