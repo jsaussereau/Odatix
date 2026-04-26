@@ -24,6 +24,7 @@
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -34,18 +35,19 @@ import urllib.request
 from odatix.lib.parallel_job_handler.serialization import job_to_payload
 from odatix.lib.parallel_job_handler.job import ParallelJob
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
+import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8000
+DEFAULT_HOST = hard_settings.daemon_default_host
+DEFAULT_PORT = hard_settings.daemon_default_port
 
-DAEMON_STATE_DIR = os.path.join(".odatix", "parallel_job_daemon")
-DAEMON_STATE_FILE = "state.json"
-DAEMON_LOG_FILE = "daemon.log"
-DAEMON_STATE_PREFIX = "state."
-DAEMON_STATE_SUFFIX = ".json"
-DAEMON_LOG_PREFIX = "daemon."
-DAEMON_LOG_SUFFIX = ".log"
+DAEMON_STATE_DIR = hard_settings.daemon_state_dirname
+DAEMON_STATE_FILE = hard_settings.daemon_state_file
+DAEMON_LOG_FILE = hard_settings.daemon_log_file
+DAEMON_STATE_PREFIX = hard_settings.daemon_state_prefix
+DAEMON_STATE_SUFFIX = hard_settings.daemon_state_suffix
+DAEMON_LOG_PREFIX = hard_settings.daemon_log_prefix
+DAEMON_LOG_SUFFIX = hard_settings.daemon_log_suffix
 
 
 class DaemonControlError(RuntimeError):
@@ -227,6 +229,14 @@ def _delete_state_file(state_file):
         pass
 
 
+def _delete_log_file(log_file):
+    try:
+        if os.path.isfile(log_file):
+            os.remove(log_file)
+    except Exception:
+        pass
+
+
 def _iter_state_files(paths):
     state_dir = paths.get("state_dir")
     if not state_dir or not os.path.isdir(state_dir):
@@ -332,9 +342,14 @@ def _resolve_session_selector(daemons, selector, allow_missing=False):
     raise DaemonControlError("No session matches '{}'".format(selector))
 
 
-def _spawn_daemon(paths, host, port, jobs, logsize, session_name=None):
+def _spawn_daemon(paths, host, port, jobs, logsize, session_name=None, daemon_log_enabled=None):
     os.makedirs(paths["state_dir"], exist_ok=True)
     session_name = _normalize_session_name(session_name, default_name=host)
+    daemon_log_enabled = (
+        hard_settings.daemon_log_enabled_default
+        if daemon_log_enabled is None
+        else bool(daemon_log_enabled)
+    )
 
     command = [
         sys.executable,
@@ -354,33 +369,40 @@ def _spawn_daemon(paths, host, port, jobs, logsize, session_name=None):
         str(int(logsize)),
     ]
 
-    with open(paths["log_file"], "ab") as log_file:
-        env = os.environ.copy()
-        sources_dir = os.path.join(paths["workspace_root"], "sources")
-        if os.path.isdir(os.path.join(sources_dir, "odatix")):
-            previous = env.get("PYTHONPATH", "")
-            if previous:
-                env["PYTHONPATH"] = sources_dir + os.pathsep + previous
-            else:
-                env["PYTHONPATH"] = sources_dir
-
-        popen_kwargs = {
-            "stdin": subprocess.DEVNULL,
-            "stdout": log_file,
-            "stderr": log_file,
-            "cwd": paths["workspace_root"],
-            "close_fds": True,
-            "env": env,
-        }
-
-        if sys.platform == "win32":
-            detached = getattr(subprocess, "DETACHED_PROCESS", 0)
-            new_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            popen_kwargs["creationflags"] = detached | new_group
+    env = os.environ.copy()
+    sources_dir = os.path.join(paths["workspace_root"], "sources")
+    if os.path.isdir(os.path.join(sources_dir, "odatix")):
+        previous = env.get("PYTHONPATH", "")
+        if previous:
+            env["PYTHONPATH"] = sources_dir + os.pathsep + previous
         else:
-            popen_kwargs["start_new_session"] = True
+            env["PYTHONPATH"] = sources_dir
 
-        subprocess.Popen(command, **popen_kwargs)
+    popen_kwargs = {
+        "stdin": subprocess.DEVNULL,
+        "cwd": paths["workspace_root"],
+        "close_fds": True,
+        "env": env,
+    }
+
+    if sys.platform == "win32":
+        detached = getattr(subprocess, "DETACHED_PROCESS", 0)
+        new_group = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        popen_kwargs["creationflags"] = detached | new_group
+    else:
+        popen_kwargs["start_new_session"] = True
+
+    if daemon_log_enabled:
+        with open(paths["log_file"], "ab") as log_file:
+            popen_kwargs["stdout"] = log_file
+            popen_kwargs["stderr"] = log_file
+            subprocess.Popen(command, **popen_kwargs)
+        return
+
+    _delete_log_file(paths["log_file"])
+    popen_kwargs["stdout"] = subprocess.DEVNULL
+    popen_kwargs["stderr"] = subprocess.DEVNULL
+    subprocess.Popen(command, **popen_kwargs)
 
 
 def ensure_daemon_running(
@@ -390,6 +412,7 @@ def ensure_daemon_running(
     jobs=4,
     logsize=200,
     session=None,
+    daemon_log_enabled=None,
     startup_timeout=15.0,
 ):
     workspace_root = detect_workspace_root(workspace_root)
@@ -420,7 +443,15 @@ def ensure_daemon_running(
         session_name = _normalize_session_name(None, default_name=host)
 
     _delete_state_file(paths["state_file"])
-    _spawn_daemon(paths, host=host, port=port, jobs=jobs, logsize=logsize, session_name=session_name)
+    _spawn_daemon(
+        paths,
+        host=host,
+        port=port,
+        jobs=jobs,
+        logsize=logsize,
+        session_name=session_name,
+        daemon_log_enabled=daemon_log_enabled,
+    )
 
     deadline = time.time() + float(startup_timeout)
     while time.time() < deadline:
@@ -433,9 +464,16 @@ def ensure_daemon_running(
             return state
         time.sleep(0.15)
 
-    raise DaemonControlError(
-        "Could not start Odatix daemon (see log: {})".format(paths["log_file"])
+    daemon_log_enabled = (
+        hard_settings.daemon_log_enabled_default
+        if daemon_log_enabled is None
+        else bool(daemon_log_enabled)
     )
+    if daemon_log_enabled:
+        raise DaemonControlError(
+            "Could not start Odatix daemon (see log: {})".format(paths["log_file"])
+        )
+    raise DaemonControlError("Could not start Odatix daemon")
 
 
 def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None):
@@ -451,6 +489,7 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None):
         jobs=getattr(parallel_jobs, "nb_jobs", 4),
         logsize=getattr(parallel_jobs, "log_size_limit", 200),
         session=session,
+        daemon_log_enabled=getattr(parallel_jobs, "daemon_log_enabled", None),
     )
 
     payload = {
@@ -552,6 +591,11 @@ def _delete_state_files_for_daemon(paths, target_state):
     if isinstance(target_state_file, str) and target_state_file.strip() != "":
         _delete_state_file(target_state_file)
 
+    if isinstance(target_state, dict):
+        session_name = _session_name_from_state(target_state)
+        if session_name != "":
+            _delete_log_file(os.path.join(paths["state_dir"], _log_filename_for_session(session_name)))
+
     target_key = _state_key(target_state)
     target_host = str((target_state or {}).get("host", DEFAULT_HOST)) if isinstance(target_state, dict) else DEFAULT_HOST
     try:
@@ -571,7 +615,30 @@ def _delete_state_files_for_daemon(paths, target_state):
             and loaded_port == target_port
         ) if isinstance(loaded, dict) else False
         if loaded_key == target_key or same_endpoint:
+            session_name = _session_name_from_state(loaded)
+            if session_name != "":
+                _delete_log_file(os.path.join(paths["state_dir"], _log_filename_for_session(session_name)))
             _delete_state_file(state_file)
+
+
+def _cleanup_workspace_daemon_dir_if_empty(workspace_root):
+    workspace_root = detect_workspace_root(workspace_root)
+    workspace_daemons, _ = _filter_by_workspace(
+        list_daemons(workspace_root=workspace_root),
+        workspace_root=workspace_root,
+    )
+    if len(workspace_daemons) > 0:
+        return
+
+    paths = get_daemon_paths(workspace_root)
+    state_dir = paths.get("state_dir")
+    if not state_dir or not os.path.isdir(state_dir):
+        return
+
+    try:
+        shutil.rmtree(state_dir)
+    except Exception:
+        pass
 
 
 def _stop_daemon_from_state(state, workspace_root):
@@ -587,6 +654,7 @@ def _stop_daemon_from_state(state, workspace_root):
     while time.time() < deadline:
         if not daemon_is_alive(state, timeout=0.3):
             _delete_state_files_for_daemon(paths, state)
+            _cleanup_workspace_daemon_dir_if_empty(cleanup_workspace_root)
             return True
         time.sleep(0.1)
 
@@ -604,7 +672,9 @@ def _stop_daemon_from_state(state, workspace_root):
         time.sleep(0.1)
 
     _delete_state_files_for_daemon(paths, state)
-    return not daemon_is_alive(state, timeout=0.3)
+    stopped = not daemon_is_alive(state, timeout=0.3)
+    _cleanup_workspace_daemon_dir_if_empty(cleanup_workspace_root)
+    return stopped
 
 
 def stop_daemon(workspace_root=None, host=None, port=None, session=None):
@@ -623,6 +693,7 @@ def stop_all_daemons(workspace_root=None, host=None, port=None):
     daemons = list_daemons(workspace_root=workspace_root, host=host, port=port)
 
     if len(daemons) == 0:
+        _cleanup_workspace_daemon_dir_if_empty(workspace_root)
         return {"total": 0, "stopped": 0, "failed": []}
 
     stopped = 0
@@ -635,6 +706,8 @@ def stop_all_daemons(workspace_root=None, host=None, port=None):
                 failed.append(daemon)
         except Exception:
             failed.append(daemon)
+
+    _cleanup_workspace_daemon_dir_if_empty(workspace_root)
 
     return {
         "total": len(daemons),
@@ -676,10 +749,8 @@ def _workspace_root_from_state_file(state_file):
 
     state_file = os.path.realpath(os.path.expanduser(str(state_file)))
     state_dir = os.path.dirname(state_file)
-    dot_odatix_dir = os.path.dirname(state_dir)
-
-    if os.path.basename(dot_odatix_dir) == ".odatix":
-        return os.path.dirname(dot_odatix_dir)
+    if os.path.basename(state_dir) == DAEMON_STATE_DIR:
+        return os.path.dirname(state_dir)
 
     return None
 

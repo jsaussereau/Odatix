@@ -28,6 +28,7 @@ import time
 import urllib.request
 
 import odatix.lib.printc as printc
+import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import curses_ui
 from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
 from odatix.lib.parallel_job_handler.job import ParallelJob
@@ -108,7 +109,13 @@ class _QueueCounter:
 class DaemonMonitorHandler(ParallelJobHandler):
     """API-backed handler that mimics ParallelJobHandler for curses_ui."""
 
-    def __init__(self, host="127.0.0.1", port=8000, poll_interval=0.25, auto_exit=False):
+    def __init__(
+        self,
+        host=hard_settings.daemon_default_host,
+        port=hard_settings.daemon_default_port,
+        poll_interval=0.25,
+        auto_exit=False,
+    ):
         super().__init__(job_list=[], nb_jobs=1, process_group=True, auto_exit=bool(auto_exit), log_size_limit=200)
 
         self._base_url = "http://{}:{}".format(str(host), int(port))
@@ -548,7 +555,12 @@ class DaemonMonitorHandler(ParallelJobHandler):
             self._append_error(e)
 
 
-def run_monitor(host="127.0.0.1", port=8000, poll_interval=0.25, auto_exit=False):
+def run_monitor(
+    host=hard_settings.daemon_default_host,
+    port=hard_settings.daemon_default_port,
+    poll_interval=0.25,
+    auto_exit=False,
+):
     handler = DaemonMonitorHandler(
         host=str(host),
         port=int(port),
@@ -559,8 +571,8 @@ def run_monitor(host="127.0.0.1", port=8000, poll_interval=0.25, auto_exit=False
 
 
 def add_arguments(parser):
-    parser.add_argument("--host", default="127.0.0.1", help="Daemon API host")
-    parser.add_argument("--port", type=int, default=8000, help="Daemon API port")
+    parser.add_argument("--host", default=hard_settings.daemon_default_host, help="Daemon API host")
+    parser.add_argument("--port", type=int, default=hard_settings.daemon_default_port, help="Daemon API port")
     parser.add_argument("--poll", type=float, default=0.25, help="Polling interval in seconds")
     parser.add_argument("--auto-exit", action="store_true", help="Exit monitor when all jobs are completed")
 

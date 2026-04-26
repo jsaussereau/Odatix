@@ -29,6 +29,7 @@ import time
 from odatix.lib.parallel_job_handler.api import create_uvicorn_server
 from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
 from odatix.lib.utils import find_free_port
+import odatix.lib.hard_settings as hard_settings
 
 
 def _write_state_file(state_file, host, port, session_name):
@@ -55,10 +56,21 @@ def _delete_state_file(state_file):
         pass
 
 
+def _cleanup_state_dir_if_empty(state_file):
+    try:
+        state_dir = os.path.dirname(os.path.realpath(os.path.expanduser(str(state_file))))
+        if not state_dir or not os.path.isdir(state_dir):
+            return
+        if len(os.listdir(state_dir)) == 0:
+            os.rmdir(state_dir)
+    except Exception:
+        pass
+
+
 def add_arguments(parser):
     parser.add_argument("--state-file", required=True, help="Path to daemon state JSON file")
-    parser.add_argument("--host", default="127.0.0.1", help="Daemon API host")
-    parser.add_argument("--port", type=int, default=8000, help="Preferred daemon API port")
+    parser.add_argument("--host", default=hard_settings.daemon_default_host, help="Daemon API host")
+    parser.add_argument("--port", type=int, default=hard_settings.daemon_default_port, help="Preferred daemon API port")
     parser.add_argument("--session-name", default=None, help="Optional daemon session name")
     parser.add_argument("--jobs", type=int, default=4, help="Default maximum number of parallel jobs")
     parser.add_argument("--logsize", type=int, default=200, help="Default log history limit per job")
@@ -70,7 +82,14 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def run_daemon(state_file, host="127.0.0.1", port=8000, jobs=4, logsize=200, session_name=None):
+def run_daemon(
+    state_file,
+    host=hard_settings.daemon_default_host,
+    port=hard_settings.daemon_default_port,
+    jobs=4,
+    logsize=200,
+    session_name=None,
+):
     state_file = os.path.realpath(os.path.expanduser(str(state_file)))
     state_dir = os.path.dirname(state_file)
     if state_dir:
@@ -117,6 +136,7 @@ def run_daemon(state_file, host="127.0.0.1", port=8000, jobs=4, logsize=200, ses
         except Exception:
             pass
         _delete_state_file(state_file)
+        _cleanup_state_dir_if_empty(state_file)
 
 
 def main(args=None):

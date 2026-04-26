@@ -53,6 +53,7 @@ from odatix.lib.parallel_job_handler.theme import Theme
 from odatix.lib.parallel_job_handler.job import ParallelJob
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str, read_pipe_windows
 from odatix.lib.parallel_job_handler import curses_ui
+import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
 
 ENCODING = locale.getpreferredencoding()
@@ -773,7 +774,7 @@ class ParallelJobHandler:
             with self._lock:
                 self.terminate_all_jobs()
 
-    def run_api(self, host: str = "0.0.0.0", port: int = 8000, log_level: str = "info"):
+    def run_api(self, host: str = "0.0.0.0", port: int = hard_settings.daemon_default_port, log_level: str = "info"):
         """Run a FastAPI+Uvicorn server exposing REST + WebSocket controls.
 
         Imports are lazy so this file does not require FastAPI unless you call run_api().
@@ -784,8 +785,8 @@ class ParallelJobHandler:
 
     def start_api_background(
         self,
-        host: str = "127.0.0.1",
-        port: int = 8000,
+        host: str = hard_settings.daemon_default_host,
+        port: int = hard_settings.daemon_default_port,
         log_level: str = "info",
         start_headless_on_startup: bool = False,
         quiet: bool = True,

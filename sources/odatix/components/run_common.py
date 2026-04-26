@@ -104,8 +104,8 @@ def start_parallel_jobs(
     _state, _response = enqueue_parallel_jobs(parallel_jobs, session=session)
     if not detach:
         attach_monitor(
-            host=_state.get("host", "127.0.0.1"),
-            port=int(_state.get("port", 8000)),
+            host=_state.get("host", hard_settings.daemon_default_host),
+            port=int(_state.get("port", hard_settings.daemon_default_port)),
             session=session,
             auto_exit=bool(getattr(parallel_jobs, "auto_exit", False)),
         )

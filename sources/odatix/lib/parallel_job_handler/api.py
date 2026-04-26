@@ -48,6 +48,7 @@ from typing import Any, Dict, Optional, Set
 
 from odatix.lib.parallel_job_handler.serialization import payload_to_job
 from odatix.lib.parallel_job_handler.job import ParallelJob
+import odatix.lib.hard_settings as hard_settings
 
 
 def _null_uvicorn_log_config() -> Dict[str, Any]:
@@ -294,7 +295,7 @@ def create_uvicorn_server(
     handler,
     *,
     host: str = "0.0.0.0",
-    port: int = 8000,
+    port: int = hard_settings.daemon_default_port,
     log_level: str = "info",
     start_headless_on_startup: bool = True,
     quiet: bool = False,
@@ -334,7 +335,7 @@ def run_parallel_job_api(
     handler,
     *,
     host: str = "0.0.0.0",
-    port: int = 8000,
+    port: int = hard_settings.daemon_default_port,
     log_level: str = "info",
     start_headless_on_startup: bool = True,
 ):

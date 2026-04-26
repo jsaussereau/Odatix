@@ -67,6 +67,18 @@ max_preview_values = 500
 # Misc
 main_parameter_domain = "__main__"
 
+# Daemon
+daemon_state_dirname = ".odatix_sessions"
+daemon_default_host = "127.0.0.1"
+daemon_default_port = 8000
+daemon_state_file = "state.json"
+daemon_log_file = "daemon.log"
+daemon_state_prefix = "state."
+daemon_state_suffix = ".json"
+daemon_log_prefix = "daemon."
+daemon_log_suffix = ".log"
+daemon_log_enabled_default = False
+
 default_supported_tools = ["vivado", "design_compiler", "openlane"]
 
 invalid_filename_characters = ['<', '>', ':', '"', '/', '\\', '|', '?', '*', ' ']
