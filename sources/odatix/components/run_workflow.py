@@ -163,6 +163,149 @@ def _resolve_workflow_tasks(tasks, substitutions):
     return resolved_tasks
 
 
+def _parse_workflow_task_platforms(platforms_value, task_name):
+    if isinstance(platforms_value, str):
+        platforms = [platforms_value.strip()]
+    elif isinstance(platforms_value, (list, tuple, set)):
+        platforms = []
+        for value in platforms_value:
+            if not isinstance(value, str):
+                raise ValueError(
+                    "Task \"{}\" has an invalid \"platforms\" entry. "
+                    "Expected strings, got {}.".format(task_name, type(value).__name__)
+                )
+            stripped = value.strip()
+            if stripped != "":
+                platforms.append(stripped)
+    else:
+        raise ValueError(
+            "Task \"{}\" has an invalid \"platforms\" value of type {}. "
+            "Expected a string or a list of strings.".format(task_name, type(platforms_value).__name__)
+        )
+
+    platforms = [platform for platform in platforms if platform != ""]
+    if len(platforms) == 0:
+        raise ValueError("Task \"{}\" has an empty \"platforms\" value.".format(task_name))
+
+    return platforms
+
+
+def _select_platform_task_implementations(tasks, current_platform):
+    grouped_tasks = {}
+    ordered_task_names = []
+
+    for task in tasks:
+        if not isinstance(task, dict):
+            raise ValueError("Each task must be a mapping/object in \"tasks\".")
+
+        task_name = task.get("name")
+        if not isinstance(task_name, str) or task_name.strip() == "":
+            raise ValueError("Each task must have a non-empty \"name\" key.")
+        task_name = task_name.strip()
+
+        if task_name not in grouped_tasks:
+            grouped_tasks[task_name] = []
+            ordered_task_names.append(task_name)
+
+        grouped_tasks[task_name].append(task)
+
+    selected_tasks = []
+    for task_name in ordered_task_names:
+        candidates = grouped_tasks[task_name]
+        default_implementations = []
+        matching_platform_implementations = []
+
+        for candidate in candidates:
+            has_platforms_key = "platforms" in candidate and candidate.get("platforms") not in (None, False, "")
+            has_legacy_platform_key = "platform" in candidate and candidate.get("platform") not in (None, False, "")
+
+            if has_platforms_key and has_legacy_platform_key:
+                raise ValueError(
+                    "Task \"{}\" defines both \"platform\" and \"platforms\". "
+                    "Please keep only \"platforms\".".format(task_name)
+                )
+
+            if not has_platforms_key and not has_legacy_platform_key:
+                default_implementations.append(candidate)
+                continue
+
+            platforms_value = candidate.get("platforms") if has_platforms_key else candidate.get("platform")
+            platforms = _parse_workflow_task_platforms(platforms_value, task_name)
+            if current_platform in platforms:
+                matching_platform_implementations.append(candidate)
+
+        if len(default_implementations) > 1:
+            raise ValueError(
+                "Task \"{}\" has more than one default implementation "
+                "(without \"platforms\").".format(task_name)
+            )
+
+        if len(matching_platform_implementations) > 1:
+            raise ValueError(
+                "Task \"{}\" has more than one implementation matching platform \"{}\".".format(
+                    task_name, current_platform
+                )
+            )
+
+        selected_task = None
+        if len(matching_platform_implementations) == 1:
+            selected_task = matching_platform_implementations[0]
+        elif len(default_implementations) == 1:
+            selected_task = default_implementations[0]
+
+        if selected_task is None:
+            continue
+
+        selected_task = dict(selected_task)
+        selected_task.pop("platforms", None)
+        selected_task.pop("platform", None)
+        selected_tasks.append(selected_task)
+
+    return selected_tasks
+
+
+def _validate_selected_workflow_tasks(tasks, current_platform):
+    task_names = set()
+    for task in tasks:
+        task_name = task.get("name")
+        if isinstance(task_name, str) and task_name.strip() != "":
+            task_names.add(task_name.strip())
+
+    if "main" not in task_names:
+        raise ValueError(
+            "No implementation selected for task \"main\" on platform \"{}\". "
+            "Define matching \"platforms\" values or a default implementation without \"platforms\".".format(
+                current_platform
+            )
+        )
+
+    missing_dependencies = []
+    for task in tasks:
+        task_name = task.get("name", "<unknown>")
+        dependencies = task.get("dependencies", [])
+
+        if isinstance(dependencies, str):
+            dependencies = [dependencies]
+
+        if not isinstance(dependencies, list):
+            continue
+
+        for dependency in dependencies:
+            if isinstance(dependency, str) and dependency not in task_names:
+                missing_dependencies.append((task_name, dependency))
+
+    if len(missing_dependencies) > 0:
+        missing_dependencies = sorted(set(missing_dependencies))
+        formatted_missing_dependencies = ", ".join(
+            ["\"{}\" -> \"{}\"".format(task_name, dependency) for task_name, dependency in missing_dependencies]
+        )
+        raise ValueError(
+            "Some dependencies reference tasks that are not selected for platform \"{}\": {}".format(
+                current_platform, formatted_missing_dependencies
+            )
+        )
+
+
 
 def _expand_env_tokens(path):
     if not isinstance(path, str):
@@ -535,8 +678,11 @@ def check_settings(
             timestamp=None,
         )
 
+        selected_tasks = _select_platform_task_implementations(workflow_instance.tasks, sys.platform)
+
         substitutions = _build_workflow_command_substitutions(workflow_instance)
-        resolved_tasks = _resolve_workflow_tasks(workflow_instance.tasks, substitutions)
+        resolved_tasks = _resolve_workflow_tasks(selected_tasks, substitutions)
+        _validate_selected_workflow_tasks(resolved_tasks, sys.platform)
 
         try:
             maker = createTaskGraph(resolved_tasks)
