@@ -1,0 +1,60 @@
+
+##############################################
+# Target settings for Genus
+##############################################
+
+
+constraint_file: timing_constraints.txt
+
+tool_install_path: "" # Design Compiler should be in your $PATH
+
+force_single_thread: No # Single thread is not supported yet with Design Compiler
+
+script_copy_enable: No
+script_copy_source: "/dev/null"
+
+# ASIC technology target
+# for genus we don't have h18_2V2 and h18_2V7
+# h18_3.3V and h18_5.0V: just the I/O lib is avaible
+
+targets:
+#  - AMS_c35_1V8
+  # - AMS_c35_2V2
+  # - AMS_c35_2V7
+  # - AMS_c35_3V3
+   - AMS_h18_1V8
+  # - AMS_h18_2V2
+  # - AMS_h18_3V3
+  # - AMS_h18_5V0
+  # - XFAB180CMOS
+
+# Replace with your own synopsys_dc_setup.tcl for each technology
+target_settings:
+  AMS_c35_1V8:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_c35_1V8/genus_setup.tcl
+  AMS_c35_2V2:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_c35_2V2/genus_setup.tcl
+  AMS_c35_2V7:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_c35_2V7/genus_setup.tcl
+  AMS_c35_3V3:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_c35_3V3/genus_setup.tcl
+  AMS_h18_1V8:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_h18_1V8/genus_setup.tcl
+  AMS_h18_2V2:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_h18_2V2/genus_setup.tcl
+  AMS_h18_3V3:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_h18_3V3/genus_setup.tcl
+  AMS_h18_5V0:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_h18_5V0/genus_setup.tcl
+  XFAB180CMOS:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/XFAB_180nm_CMOS/genus_setup.tcl
+
