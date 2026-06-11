@@ -44,6 +44,15 @@ unix:
 
 ##############################################
 
+# Command for RTL analysis
+  analysis_command:
+    - make -f $eda_tools_path/genus/makefile.mk analyse
+    - WORK_DIR=$work_path
+    - SCRIPT_DIR=$script_path
+    - LOG_DIR=$log_path
+
+################################################
+
 # Log formatting
 
 ##############################################
@@ -72,6 +81,7 @@ format:
     red: ['<red>']
     green: ['<green>']
     cyan: ['<cyan>']
+    yellow: ['<yellow>']
 
   ##############################################
 

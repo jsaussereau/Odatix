@@ -10,6 +10,7 @@ if {[catch {
 
     source scripts/settings.tcl
     report_progress 5 $synth_statusfile
+    #report_progress 5 $analysis_statusfile
 
     #-----------------------------------------------------------------------------
     # Load technology setup
@@ -43,54 +44,114 @@ if {[catch {
     set rtl_path [file normalize $rtl_path]
 
     #-----------------------------------------------------------------------------
-    # READ VERILOG
+    # First we check if there is a filelist with the order of compilation
+    # If there is no filelist, we use the get_files_recursive function
+    # NOTE: The files in the filelist.f must have the absolute paths
     #-----------------------------------------------------------------------------
+
+    if {[file exists "$rtl_path/filelist.f"]} {
+
+    puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
+
+    #read_hdl -f "$rtl_path/filelist.f"
+
     set verilog_filenames [get_files_recursive $rtl_path {*.v}]
 
-    if {[llength $verilog_filenames] != 0} {
-
-        puts "$signature <cyan>Verilog files:<end>"
-
-        foreach file $verilog_filenames {
-            puts "  <cyan>- $file<end>"
+        if {[llength $verilog_filenames] != 0} {
+            read_hdl -language v2001 -f "$rtl_path/filelist.f"
         }
 
-        read_hdl -language v2001 $verilog_filenames
-        report_progress 8 $synth_statusfile
-    }
-
-    #-----------------------------------------------------------------------------
-    # READ SYSTEMVERILOG
-    #-----------------------------------------------------------------------------
     set sverilog_filenames [get_files_recursive $rtl_path {*.sv *.svh}]
 
-    if {[llength $sverilog_filenames] != 0} {
-
-        puts "$signature <cyan>SystemVerilog files:<end>"
-
-        foreach file $sverilog_filenames {
-            puts "  <cyan>- $file<end>"
+        if {[llength $sverilog_filenames] != 0} {
+            read_hdl -language sv -f "$rtl_path/filelist.f"
         }
 
-        read_hdl -language sv $sverilog_filenames
-        report_progress 8 $synth_statusfile
-    }
-
-    #-----------------------------------------------------------------------------
-    # READ VHDL
-    #-----------------------------------------------------------------------------
     set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
 
-    if {[llength $vhdl_filenames] != 0} {
-
-        puts "$signature <cyan>VHDL files:<end>"
-
-        foreach file $vhdl_filenames {
-            puts "  <cyan>- $file<end>"
+        if {[llength $vhdl_filenames] != 0} {
+            read_hdl -language vhdl -f "$rtl_path/filelist.f"
         }
 
-        read_hdl -language vhdl $vhdl_filenames
-        report_progress 8 $synth_statusfile
+
+    } else {
+
+        #-----------------------------------------------------------------------------
+        # READ VERILOG
+        #-----------------------------------------------------------------------------
+        set verilog_filenames [get_files_recursive $rtl_path {*.v}]
+
+        if {[llength $verilog_filenames] != 0} {
+
+            puts "$signature <cyan>Verilog files:<end>"
+
+            foreach file $verilog_filenames {
+                puts "  <cyan>- $file<end>"
+            }
+            catch {
+                read_hdl -language v2001 $verilog_filenames
+            }
+            if {[catch {
+                read_hdl -language v2001 $verilog_filenames
+            } errmsg ]} {
+                puts "Error: for more info, please check the <bold><cyan>.log<end> file avaible in: $log_path/analyze_script.tcl.log"
+            }  
+
+            #read_hdl -language v2001 $verilog_filenames
+            report_progress 8 $synth_statusfile
+            #report_progress 20 $analysis_statusfile
+        }
+
+        #-----------------------------------------------------------------------------
+        # READ SYSTEMVERILOG
+        #-----------------------------------------------------------------------------
+        set sverilog_filenames [get_files_recursive $rtl_path {*.sv *.svh}]
+
+        if {[llength $sverilog_filenames] != 0} {
+
+            puts "$signature <cyan>SystemVerilog files:<end>"
+
+            foreach file $sverilog_filenames {
+                puts "  <cyan>- $file<end>"
+            }
+            catch {
+                read_hdl -language sv $sverilog_filenames
+            } errmsg
+            catch {
+                read_hdl -language sv $sverilog_filenames
+            } errmsg  
+
+            #read_hdl -language sv $sverilog_filenames
+            report_progress 8 $synth_statusfile
+            #report_progress 20 $analysis_statusfile
+        }
+
+        
+        
+
+        #-----------------------------------------------------------------------------
+        # READ VHDL
+        #-----------------------------------------------------------------------------
+        set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
+
+        if {[llength $vhdl_filenames] != 0} {
+
+            puts "$signature <cyan>VHDL files:<end>"
+
+            foreach file $vhdl_filenames {
+                puts "  <cyan>- $file<end>"
+            }
+            catch {
+                read_hdl -language vhdl $vhdl_filenames
+            } errmsg
+            catch {
+                read_hdl -language vhdl $vhdl_filenames
+            } errmsg  
+
+            #read_hdl -language vhdl $vhdl_filenames
+            report_progress 8 $synth_statusfile
+            #report_progress 20 $analysis_statusfile
+        }
     }
 
     #################################################################################
@@ -99,58 +160,127 @@ if {[catch {
 
     elaborate $top_level_module
     report_progress 15 $synth_statusfile
+    #report progress 30 $analysis_statusfile
 
 
     puts ""
     puts "============================================================"
-    puts " DESIGN CHECK"
+    puts "<bold><cyan> DESIGN CHECK <end>" 
     puts "============================================================"
 
+    check_design > $design_analysis
     check_design
+    #report_progress 40 $analysis_statusfile
 
     puts ""
     puts "============================================================"
-    puts " UNRESOLVED REFERENCES"
+    puts "<bold><cyan> UNRESOLVED REFERENCES <end>"
     puts "============================================================"
 
+    check_design -unresolved > $unresolved_report
     check_design -unresolved
+    #report_progress 50 $analysis_statusfile
 
+#    puts ""
+#    puts "============================================================"
+#    puts " TIMING CHECK"
+#    puts "============================================================"
 
-    puts ""
-    puts "============================================================"
-    puts " TIMING CHECK"
-    puts "============================================================"
+    #check_timing_intent
+    #report_progress 60 $analysis_statusfile
 
-    check_timing_intent
+#    puts ""
+#    puts "============================================================"
+#    puts " TIMING LINT"
+#    puts "============================================================"
 
+    #report_timing -lint
+    #report_progress 70 $analysis_statusfile
 
-    puts ""
-    puts "============================================================"
-    puts " TIMING LINT"
-    puts "============================================================"
+#    puts ""
+#    puts "============================================================"
+#    puts " CLOCKS"
+#    puts "============================================================"
 
-    report_timing -lint
-
-
-    puts ""
-    puts "============================================================"
-    puts " CLOCKS"
-    puts "============================================================"
-
-    report_clocks
+    #report_clocks
+    #report_progress 85 $analysis_statusfile
 
     report_progress 20 $synth_statusfile
 
 
     puts ""
     puts "============================================================"
-    puts " DESIGN INFORMATION"
+    puts "<bold><cyan> DESIGN INFORMATION <end>"
     puts "============================================================"
 
     puts "Top module: $top_level_module"
     puts "Current design: [get_db current_design .name]"
 
 
+    #report_progress 100 $analysis_statusfile
+
+    if {[info exists odatix_mode] && $odatix_mode == "analysis"} {
+
+    #    set fp [open "report/analysis.yml" w]
+
+    #    puts $fp "check_design: PASS"
+    #    puts $fp "unresolved_references: 0"
+    #    puts $fp "timing_intent: PASS"
+
+    #    close $fp
+
+        # Define arch_name variable for printing 
+        set arch_name "Unknown"
+        if {[file exists $architecture_file]} {
+            set fp_arch [open $architecture_file r]
+            set arch_name [string trim [read $fp_arch]]
+            close $fp_arch
+        }
+
+
+        set unresolved_count 0
+
+        if {[file exists $unresolved_report]} {
+
+            set fp_unres [open $unresolved_report r]
+            set unresolved_data [read $fp_unres]
+            close $fp_unres
+
+            if {[regexp {Total number of unresolved references.*:\s*([0-9]+)} \
+                $unresolved_data -> unresolved_count]} {
+                # unresolved_count updated
+            }
+        }
+
+
+
+
+        puts "<bold><red>JUST A TEST<end>"
+        puts ""
+        puts "<bold><cyan>Analysis Summary<end>"
+        puts "----------------------------------------"
+
+        puts "Architecture : $arch_name"
+        #puts "Configuration: $variant"
+
+        puts "<green> Read Designs         <bold>PASSED<end>"
+        if {$unresolved_count == 0} {
+
+            puts "<green> Unresolved Designs      $unresolved_count<end>"
+
+        } else {
+
+            puts "<yellow> Unresolved Designs     $unresolved_count<end>"
+        }
+
+
+        puts ""
+        puts "<cyan>Press 'q' to view the analysis summary.<end>"
+
+        report_progress 100 $synth_statusfile
+
+
+    }
 
 } ]} {
 

@@ -27,7 +27,7 @@ SYNTH_FREQ_SCRIPT       = find_fmax.tcl
 
 ########################################################
 
-GENUS                   = /softs/cadence/genus/21.19-s055_1/bin/genus
+GENUS                   = genus #/softs/cadence/genus/21.19-s055_1/bin/genus
 
 ########################################################
 
@@ -89,7 +89,7 @@ synth: logdir
 .PHONY: analyse
 analyse: logdir
 	@cd $(WORK_DIR); \
-	$(GENUS) -batch -execute "source $(SCRIPT_DIR)/$(INIT_SCRIPT); source $(SCRIPT_DIR)/$(ANALYZE_SCRIPT); exit" \
+	$(GENUS) -batch -execute "set odatix_mode analysis; source $(SCRIPT_DIR)/$(INIT_SCRIPT); source $(SCRIPT_DIR)/$(ANALYZE_SCRIPT); exit" \
 	| tee $(LOG_DIR)/$(ANALYZE_SCRIPT).log \
 	| sed $(GENUS_COLOR); \
 	EXIT_CODE=$${PIPESTATUS[0]}; \
