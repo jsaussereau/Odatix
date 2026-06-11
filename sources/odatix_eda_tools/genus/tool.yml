@@ -1,0 +1,83 @@
+##############################################
+
+# Settings for Cadence Genus
+
+##############################################
+
+process_group: True
+
+# Default metrics file for this tool
+
+default_metrics_file: $eda_tools_path/genus/metrics.yml
+
+unix:
+
+##############################################
+
+# Command to check if the tool is installed
+
+##############################################
+  tool_test_command:
+    - make -f $eda_tools_path/genus/makefile.mk test_tool
+
+##############################################
+
+# Command for fmax synthesis
+
+##############################################
+  fmax_synthesis_command:
+    - make -f $eda_tools_path/genus/makefile.mk synth_fmax
+    - WORK_DIR=$work_path
+    - SCRIPT_DIR=$script_path
+    - LOG_DIR=$log_path
+
+##############################################
+
+# Command for custom frequency synthesis
+
+##############################################
+  custom_freq_synthesis_command:
+    - make -f $eda_tools_path/genus/makefile.mk synth
+    - WORK_DIR=$work_path
+    - SCRIPT_DIR=$script_path
+    - LOG_DIR=$log_path
+
+##############################################
+
+# Log formatting
+
+##############################################
+
+format:
+
+  ##############################################
+
+  # Format the whole log line
+
+  ##############################################
+  logs:
+    error: ['<error>', 'Error:']
+    warning: ['<warning>', 'Warning:']
+    info: ['<note>', 'Information:']
+    trace: ['<trace>', 'Command:']
+
+  ##############################################
+
+  # Format tags
+
+  ##############################################
+  tags:
+    bold: ['<bold>']
+    end: ['<end>']
+    red: ['<red>']
+    green: ['<green>']
+    cyan: ['<cyan>']
+
+  ##############################################
+
+  # Replace sequences
+
+  ##############################################
+  replace:
+    - '(Slack (VIOLATED))': '<red>$1<end>'
+    - '(Slack (MET))': '<green>$1<end>'
