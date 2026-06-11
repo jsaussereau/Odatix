@@ -95,6 +95,14 @@ def _parse_elapsed_seconds(elapsed):
     return max(0, (h * 3600) + (m * 60) + s)
 
 
+def _is_active_log_status(status):
+    return str(status) in ("running", "starting", "paused", "queued", "exporting")
+
+
+def _is_terminal_log_status(status):
+    return str(status) in ("success", "failed", "killed", "canceled")
+
+
 class _QueueCounter:
     def __init__(self):
         self._count = 0
@@ -329,9 +337,17 @@ class DaemonMonitorHandler(ParallelJobHandler):
             self._selected_remote_id = remote_id
             full_refresh = True
 
+        terminal_status = _is_terminal_log_status(job.status)
+        if terminal_status:
+            if not bool(getattr(job, "_remote_terminal_sync_done", False)):
+                # Ensure we capture trailing lines emitted right before completion.
+                full_refresh = True
+        else:
+            job._remote_terminal_sync_done = False
+
         if not full_refresh:
             now = time.time()
-            if job.status in ("running", "starting", "paused", "queued"):
+            if _is_active_log_status(job.status):
                 poll_interval = self._logs_poll_interval_active
             else:
                 poll_interval = self._logs_poll_interval_idle
@@ -382,6 +398,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     job.log_changed = True
             else:
                 offset = int(getattr(job, "_remote_log_total", 0))
+                limit = int(getattr(job, "log_size_limit", self.log_size_limit))
                 snap = _api_get(
                     self._base_url,
                     "/status?logs_job_id={}&logs_offset={}&logs_limit=500".format(remote_id, offset),
@@ -435,6 +452,57 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     if lines:
                         job.log_history.extend([str(x) for x in lines])
                         job.log_changed = True
+                    elif (
+                        limit != -1
+                        and _is_active_log_status(job.status)
+                        and int(total) == offset
+                        and int(total) >= max(1, int(limit))
+                    ):
+                        # Daemon history may be a rolling fixed-size buffer.
+                        # In that case total_lines can stay constant while newer lines
+                        # replace older ones, so offset-only incremental fetch stalls.
+                        fetch_limit = max(0, int(limit))
+                        fetch_offset = max(0, int(total) - fetch_limit)
+                        tail_snap = _api_get(
+                            self._base_url,
+                            "/status?logs_job_id={}&logs_offset={}&logs_limit={}".format(
+                                remote_id,
+                                fetch_offset,
+                                fetch_limit,
+                            ),
+                            timeout=1.2,
+                        )
+                        tail_logs = tail_snap.get("logs") if isinstance(tail_snap, dict) else {}
+                        tail_lines = tail_logs.get("lines") if isinstance(tail_logs, dict) else []
+                        if not isinstance(tail_lines, list):
+                            tail_lines = []
+
+                        new_history = [str(x) for x in tail_lines]
+                        if job.log_history != new_history:
+                            job.log_history = new_history
+                            max_log_position = max(0, len(job.log_history) - 1)
+                            job.log_position = max(0, min(int(job.log_position), max_log_position))
+                            job.log_changed = True
+                    elif _is_active_log_status(job.status) and int(total) == offset and int(total) > 0:
+                        # Some tools frequently refresh progress in-place with '\r'.
+                        # In that case total_lines does not grow, so probe the tail line explicitly.
+                        tail_offset = max(0, int(total) - 1)
+                        tail_snap = _api_get(
+                            self._base_url,
+                            "/status?logs_job_id={}&logs_offset={}&logs_limit=1".format(remote_id, tail_offset),
+                            timeout=1.0,
+                        )
+                        tail_logs = tail_snap.get("logs") if isinstance(tail_snap, dict) else {}
+                        tail_lines = tail_logs.get("lines") if isinstance(tail_logs, dict) else []
+                        if isinstance(tail_lines, list) and len(tail_lines) > 0:
+                            tail_line = str(tail_lines[-1])
+                            if job.log_history:
+                                if job.log_history[-1] != tail_line:
+                                    job.log_history[-1] = tail_line
+                                    job.log_changed = True
+                            else:
+                                job.log_history.append(tail_line)
+                                job.log_changed = True
                     job._remote_log_total = int(total)
 
             limit = int(getattr(job, "log_size_limit", self.log_size_limit))
@@ -445,6 +513,9 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     job.log_position = max(0, int(job.log_position) - dropped)
                 else:
                     job.log_position = 0
+
+            if terminal_status:
+                job._remote_terminal_sync_done = True
         except Exception as e:
             self._append_error(e)
 
