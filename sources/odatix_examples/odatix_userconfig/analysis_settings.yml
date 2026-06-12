@@ -1,0 +1,120 @@
+
+##############################################
+# Odatix settings for custom freq synthesis
+##############################################
+---
+
+# overwrite existing results
+overwrite:        No   # overridden by -o / --overwrite
+
+# prompt 'Continue? (Y/n)' after settings checks
+ask_continue:     Yes  # overridden by -y / --noask
+
+# exit monitor when all jobs are done
+exit_when_done:   No   # overridden by -E / --exit
+
+# size of the log history per job in the monitor
+log_size_limit:   300  # overridden by --logsize
+
+# maximum number of parallel jobs
+nb_jobs:          8    # overridden by -j / --jobs
+
+# targeted architectures
+
+architectures: 
+
+#--------------------------------------------#
+# Add your own designs!
+#--------------------------------------------#
+
+  #- Your_Design/Your_1st_Configuration
+  #- Your_Design/Your_2nd_Configuration
+  #- Your_Design/Your_3rd_Configuration
+  
+  # or 
+  
+  # - Your_Design/*
+   - RISCV_SuperScalar/04bits
+
+
+#--------------------------------------------#
+# Examples
+#--------------------------------------------#
+
+# Work with every supported EDA tools
+
+#  - Example_Counter_verilog/04bits # this configuration fails with openlane 
+   - Example_Counter_verilog/08bits
+   - Example_Counter_verilog/16bits
+#  - Example_Counter_verilog/24bits
+#  - Example_Counter_verilog/32bits
+#  - Example_Counter_verilog/48bits
+#  - Example_Counter_verilog/64bits
+
+# Currenly only works with Vivado and Design Compiler
+
+   - Example_Counter_vhdl/04bits
+   - Example_Counter_vhdl/08bits
+  # - Example_Counter_vhdl/16bits
+  # - Example_Counter_vhdl/24bits
+  # - Example_Counter_vhdl/32bits
+  # - Example_Counter_vhdl/48bits
+  # - Example_Counter_vhdl/64bits
+
+   - Example_Counter_sv/04bits
+   - Example_Counter_sv/08bits
+  # - Example_Counter_sv/16bits
+  # - Example_Counter_sv/24bits
+  # - Example_Counter_sv/32bits
+  # - Example_Counter_sv/48bits
+  # - Example_Counter_sv/64bits
+
+  # - Example_Counter_chisel/04bits
+  # - Example_Counter_chisel/08bits
+  # - Example_Counter_chisel/16bits
+  # - Example_Counter_chisel/24bits
+  # - Example_Counter_chisel/32bits
+  # - Example_Counter_chisel/48bits
+  # - Example_Counter_chisel/64bits
+
+  # - Example_ALU_sv/04bits
+   - Example_ALU_sv/08bits
+   - Example_ALU_sv/16bits
+  # - Example_ALU_sv/24bits
+  # - Example_ALU_sv/32bits
+  # - Example_ALU_sv/48bits
+  # - Example_ALU_sv/64bits
+
+  # - Example_ALU_chisel/04bits
+  # - Example_ALU_chisel/08bits
+  # - Example_ALU_chisel/16bits
+  # - Example_ALU_chisel/24bits
+  # - Example_ALU_chisel/32bits
+  # - Example_ALU_chisel/48bits
+  # - Example_ALU_chisel/64bits
+
+  # - Example_Shift_Register_sv/04bits
+  # - Example_Shift_Register_sv/08bits
+   - Example_Shift_Register_sv/16bits
+   - Example_Shift_Register_sv/24bits
+  # - Example_Shift_Register_sv/32bits
+  # - Example_Shift_Register_sv/48bits
+  # - Example_Shift_Register_sv/64bits
+
+  # - Example_Shift_Register_chisel/04bits
+  # - Example_Shift_Register_chisel/08bits
+  # - Example_Shift_Register_chisel/16bits
+  # - Example_Shift_Register_chisel/24bits
+  # - Example_Shift_Register_chisel/32bits
+  # - Example_Shift_Register_chisel/48bits
+  # - Example_Shift_Register_chisel/64bits
+
+   - Example_Mult/04bits
+   - Example_Mult/08bits
+   - Example_Mult/16bits # this configuration fails with vivado 
+   - Example_Mult/24bits
+  # - Example_Mult/32bits
+  # - Example_Mult/48bits
+  # - Example_Mult/64bits
+
+...
