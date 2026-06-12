@@ -89,7 +89,15 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis'):
     sys.exit(-1)
 
   # Retrieve synthesis command based on the requested type
-  synthesis_key = "fmax_synthesis_command" if synth_type == 'fmax_synthesis' else "custom_freq_synthesis_command"
+  # synthesis_key = "fmax_synthesis_command" if synth_type == 'fmax_synthesis' else "custom_freq_synthesis_command"
+  # Choose of synthesis key 
+  if synth_type == "fmax_synthesis":
+    synthesis_key = "fmax_synthesis_command" 
+  elif synth_type == "analysis":
+    synthesis_key = "analysis_command"
+  else:
+    synthesis_key = "custom_freq_synthesis_command"
+
   synthesis_command, synthesis_supported = get_from_dict(synthesis_key, platform_settings, tool_settings_file, silent=True, script_name=script_name)
 
   if not synthesis_supported:

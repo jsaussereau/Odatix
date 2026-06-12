@@ -4,6 +4,12 @@
 pipx/Asterism*
 pipx/build
 
+# Python virtual environment
+odatix_venv/
+
+# Odatix sessions
+.odatix_sessions/
+
 # Work
 work/*
 work*
@@ -25,6 +31,10 @@ change_names_verilog
 default.svf
 filenames*.log
 LIB_*_autoread
+
+# Genus
+genus.log
+genus.cmd
 
 # Results
 results/*

@@ -49,30 +49,28 @@ if {[catch {
     # NOTE: The files in the filelist.f must have the absolute paths
     #-----------------------------------------------------------------------------
 
+
+
     if {[file exists "$rtl_path/filelist.f"]} {
 
-    puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
+        puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
 
-    #read_hdl -f "$rtl_path/filelist.f"
+        set fp [open "$rtl_path/filelist.f" r]
 
-    set verilog_filenames [get_files_recursive $rtl_path {*.v}]
-
-        if {[llength $verilog_filenames] != 0} {
-            read_hdl -language v2001 -f "$rtl_path/filelist.f"
+        while {[gets $fp line] >= 0} {
+            set line [string trim $line]
+            if {$line eq ""} {
+                continue
+            }
+            if {[string match "*.v" $line]} {
+                read_hdl -language v2001 $line
+            } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {
+                read_hdl -language sv $line
+            } elseif {[string match "*.vhd" $line]} {
+                read_hdl -language vhdl $line
+            }
         }
-
-    set sverilog_filenames [get_files_recursive $rtl_path {*.sv *.svh}]
-
-        if {[llength $sverilog_filenames] != 0} {
-            read_hdl -language sv -f "$rtl_path/filelist.f"
-        }
-
-    set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
-
-        if {[llength $vhdl_filenames] != 0} {
-            read_hdl -language vhdl -f "$rtl_path/filelist.f"
-        }
-
+        close $fp
 
     } else {
 

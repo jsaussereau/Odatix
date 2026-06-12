@@ -86,8 +86,8 @@ synth: logdir
 	exit $$EXIT_CODE 
 
 
-.PHONY: analyse
-analyse: logdir
+.PHONY: analyze
+analyze: logdir
 	@cd $(WORK_DIR); \
 	$(GENUS) -batch -execute "set odatix_mode analysis; source $(SCRIPT_DIR)/$(INIT_SCRIPT); source $(SCRIPT_DIR)/$(ANALYZE_SCRIPT); exit" \
 	| tee $(LOG_DIR)/$(ANALYZE_SCRIPT).log \

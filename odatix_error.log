@@ -1,0 +1,28 @@
+Date and Time: 2026-06-12 14:24:05
+
+System Information:
+  OS: Linux
+  OS Version: #1 SMP Mon May 4 13:45:48 EDT 2026
+  Python Version: 3.8.20
+  Machine: x86_64
+
+Odatix Version: 3.8.0-dev
+
+
+Command:
+  /net/users/mcirolinimic/Documents/stage/GITHUB_Odatix/Odatix/odatix_venv/bin/odatix analyze --tool vivado -oT
+
+Traceback (most recent call last):
+  File "/net/users/mcirolinimic/Documents/stage/GITHUB_Odatix/Odatix/sources/odatix/odatix_main.py", line 355, in run_analysis
+    analyze.main(args)
+  File "/net/users/mcirolinimic/Documents/stage/GITHUB_Odatix/Odatix/sources/odatix/components/run_analysis.py", line 536, in main
+    run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug, keep)
+  File "/net/users/mcirolinimic/Documents/stage/GITHUB_Odatix/Odatix/sources/odatix/components/run_analysis.py", line 462, in run_analysis
+    summary = generate_analysis_summary(
+  File "/net/users/mcirolinimic/Documents/stage/GITHUB_Odatix/Odatix/sources/odatix/components/analyse_results.py", line 352, in generate_analysis_summary
+    errors = get_genus_errors(
+  File "/net/users/mcirolinimic/Documents/stage/GITHUB_Odatix/Odatix/sources/odatix/components/analyse_results.py", line 30, in get_genus_errors
+    if not os.path.exists(log_file):
+  File "/net/opt/rhel8/python/3.8.20/lib/python3.8/genericpath.py", line 19, in exists
+    os.stat(path)
+TypeError: stat: path should be string, bytes, os.PathLike or integer, not NoneType

@@ -9,33 +9,37 @@ process_group: True
 default_metrics_file: $eda_tools_path/design_compiler/metrics.yml
 
 unix:
+  # Optional constants (anchors) for reuse
+  constants:
+    - &dc_unix dc_shell
+    - &dc_args -x
 
   # Command to check if the tool is installed
-  tool_test_command: 
-    - make -f $eda_tools_path/design_compiler/makefile.mk test_tool
+  tool_test_command:
+    - *dc_unix
+    - *dc_args
+    - "exit"
 
   # Command for fmax synthesis
-  fmax_synthesis_command: 
-    - make -f $eda_tools_path/design_compiler/makefile.mk synth_fmax
-    - WORK_DIR=$work_path
-    - SCRIPT_DIR=$script_path
-    - LOG_DIR=$log_path
+  fmax_synthesis_command:
+    - cd $work_path;
+    - *dc_unix
+    - *dc_args
+    - "'source scripts/find_fmax.tcl; quit'"
 
   # Command for RTL analysis
   analysis_command:
-    - make -f $eda_tools_path/design_compiler/makefile.mk analyse
-    - WORK_DIR=$work_path
-    - SCRIPT_DIR=$script_path
-    - LOG_DIR=$log_path
+    - cd $work_path;
+    - *dc_unix
+    - *dc_args
+    - "'set odatix_mode analysis; source scripts/init_script.tcl; source scripts/analyze_script.tcl; quit'"
 
   # Command for custom frequency synthesis
-  custom_freq_synthesis_command: 
-    - make -f $eda_tools_path/design_compiler/makefile.mk synth
-    - WORK_DIR=$work_path
-    - SCRIPT_DIR=$script_path
-    - LOG_DIR=$log_path
-
-
+  custom_freq_synthesis_command:
+    - cd $work_path;
+    - *dc_unix
+    - *dc_args
+    - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
 
 # Log formatting
 format:
@@ -73,8 +77,3 @@ format:
     - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
     - "(Slack \\(MET\\))": "<green>$1<end>"
     - "(.* completed successfully)": "<green>$1<end>"
-
-
-
-
-
