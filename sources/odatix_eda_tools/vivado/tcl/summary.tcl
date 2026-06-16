@@ -65,7 +65,7 @@ proc timing_summary {freq_rep timing_rep} {
 
     puts ""
     set pwd [pwd]
-    puts "Complete timning report can be found in \"$pwd/$timing_rep\""
+    puts "Complete timming report can be found in \"$pwd/$timing_rep\""
 }
 
 
