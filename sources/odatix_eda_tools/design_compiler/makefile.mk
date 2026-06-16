@@ -84,8 +84,8 @@ synth: logdir
 	echo "result logged to \"$(LOG_DIR)/$(SYNTH_SCRIPT).log\""; \
 	exit $$EXIT_CODE
 
-.PHONY: analyse
-analyse: logdir
+.PHONY: analyze
+analyze: logdir
 	@cd $(WORK_DIR); \
 	$(DC_COMPILER) -no_gui -x "cd ../../../../../../; set odatix_mode analysis; source $(SCRIPT_DIR)/$(INIT_SCRIPT); source $(SCRIPT_DIR)/$(ANALYZE_SCRIPT); quit" \
 	| tee $(LOG_DIR)/$(ANALYZE_SCRIPT).log \

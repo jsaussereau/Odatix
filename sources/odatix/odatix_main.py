@@ -109,7 +109,7 @@ class ArgParser:
     ArgParser.add_nobanner(ArgParser.range_parser)
 
     # Define parser for the 'analyze' command
-    ArgParser.analyze_parser = subparsers.add_parser("analyze", help="run rtl analysis")
+    ArgParser.analyze_parser = subparsers.add_parser("analyze", help="run rtl analysis", formatter_class=formatter)
     analyze.add_arguments(ArgParser.analyze_parser)
     ArgParser.analyze_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.analyze_parser)
@@ -207,7 +207,7 @@ class ArgParser:
     printc.bold("Custom Frequency Synthesis:\n  ", printc.colors.CYAN, end="")
     ArgParser.range_parser.print_help()
     print()
-    printc.bold("Analysis RTL files:\n  ", printc.colors.CYAN, end="")
+    printc.bold("RTL Analysis:\n  ", printc.colors.CYAN, end="")
     ArgParser.analyze_parser.print_help()
     print()
     printc.bold("Simulation:\n  ", printc.colors.CYAN, end="")

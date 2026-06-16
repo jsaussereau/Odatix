@@ -333,6 +333,7 @@ def generate_analysis_summary(root_dir, output_file, tool):
                 root,
                 "analyze_script.tcl.log"
             )
+            
 
         architecture = os.path.relpath(
             root,
@@ -523,6 +524,7 @@ def generate_analysis_summary(root_dir, output_file, tool):
                 print(
                     f"    -> {inst}"
                 )
+            print( f"Maybe your Design will not be synthesized correctly, for more info, please check the {BOLD}{MAGENTA}.log{RESET} file: {BOLD}{result['log_file']}{RESET}")
         else:
 
             print(
@@ -535,11 +537,11 @@ def generate_analysis_summary(root_dir, output_file, tool):
                 print(
                     f"    -> {result['error_count']} Genus error(s)"
                 )
-                print( f"For more info, please check the {BOLD}{MAGENTA}.log{RESET} file: {result['log_file']}")
+                print( f"For more info, please check the {BOLD}{MAGENTA}.log{RESET} file: {BOLD}{result['log_file']}{RESET}")
 
             elif result.get("tool") == "design_compiler":
                 print( f"    -> {result['error_count']} Design Compiler error(s)" )
-                print( f"For more info, please check the {BOLD}{MAGENTA}.log{RESET} file: {result['log_file']}" )
+                print( f"For more info, please check the {BOLD}{MAGENTA}.log{RESET} file: {BOLD}{result['log_file']}{RESET}" )
 
 
     print("")

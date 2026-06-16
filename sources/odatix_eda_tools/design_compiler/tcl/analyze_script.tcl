@@ -69,6 +69,7 @@ if {[catch {
 
         set verilog_error 0
         set sverilog_error 0
+        set vhdl_error 0
 
         # read verilog source files
         set verilog_filenames [get_files_recursive $rtl_path {*.v}]
@@ -126,7 +127,7 @@ if {[catch {
                 puts "$signature tool says -> $errmsg"
                 if {$verilog_error == 1 && $sverilog_error == 1} {
                     puts "$signature <red>error: failed reading both Verilog/SystemVerilog and VHDL source files, exiting"
-                    exit -1
+                    set vhdl_error 1
                 }
             }
         }
@@ -155,6 +156,7 @@ if {[catch {
         report_reference > $unresolved_report
         report_reference
         check_design
+        link > $report_path/link.rep
 
         report_progress 80 $synth_statusfile
 
@@ -196,8 +198,9 @@ if {[catch {
 
 
 
-        puts "<bold><red>JUST A TEST<end>"
-        puts ""
+        puts " "
+        puts " "
+        puts "----------------------------------------"
         puts "<bold><cyan>Analysis Summary<end>"
         puts "----------------------------------------"
 
@@ -207,7 +210,7 @@ if {[catch {
 
 
         if {!$code_error} { 
-            puts "Read Designs: <bold><green>PASS<end>"
+            puts "Read Designs: <bold><green>PASSED<end>"
         } else {
                 puts "Read Designs     : <bold><red>FAILED<end>"
                 puts "Missing signal   : <bold><red>$signal_name<end>"

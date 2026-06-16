@@ -42,7 +42,7 @@ from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
 #ADDED BY Michelotti
-from odatix.components.analyse_results import generate_analysis_summary
+from odatix.components.analyze_results import generate_analysis_summary
 
 
 script_name = os.path.basename(__file__)
@@ -93,6 +93,15 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
+
+  if tool not in ["genus", "design_compiler"]:
+    printc.error(
+      f" error: Analysis flow is not yet implemented for tool '{tool}'"
+    )
+    printc.note(
+      "Supported tools are: design_compiler, genus"
+    )
+    sys.exit(1)
 
   if architectures is None:
     printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)

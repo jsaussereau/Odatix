@@ -46,7 +46,7 @@ if {[catch {
     #-----------------------------------------------------------------------------
     # First we check if there is a filelist with the order of compilation
     # If there is no filelist, we use the get_files_recursive function
-    # NOTE: The files in the filelist.f must have the absolute paths
+    # NOTE: The files in the filelist.f must have the absolute path
     #-----------------------------------------------------------------------------
 
 
@@ -93,6 +93,7 @@ if {[catch {
                 read_hdl -language v2001 $verilog_filenames
             } errmsg ]} {
                 puts "Error: for more info, please check the <bold><cyan>.log<end> file avaible in: $log_path/analyze_script.tcl.log"
+                exit -1
             }  
 
             #read_hdl -language v2001 $verilog_filenames
@@ -115,9 +116,12 @@ if {[catch {
             catch {
                 read_hdl -language sv $sverilog_filenames
             } errmsg
-            catch {
+            if {[catch {
                 read_hdl -language sv $sverilog_filenames
-            } errmsg  
+            } errmsg ]} {
+                exit -1
+            }
+
 
             #read_hdl -language sv $sverilog_filenames
             report_progress 8 $synth_statusfile
@@ -142,9 +146,11 @@ if {[catch {
             catch {
                 read_hdl -language vhdl $vhdl_filenames
             } errmsg
-            catch {
+            if {[catch {
                 read_hdl -language vhdl $vhdl_filenames
-            } errmsg  
+            } errmsg ]} {
+                exit -1
+            } 
 
             #read_hdl -language vhdl $vhdl_filenames
             report_progress 8 $synth_statusfile
@@ -253,8 +259,9 @@ if {[catch {
 
 
 
-        puts "<bold><red>JUST A TEST<end>"
-        puts ""
+        puts " "
+        puts " "
+        puts "----------------------------------------"
         puts "<bold><cyan>Analysis Summary<end>"
         puts "----------------------------------------"
 

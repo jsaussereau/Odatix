@@ -23,7 +23,7 @@ unix:
 
   # Command for RTL analysis
   analysis_command:
-    - make -f $eda_tools_path/design_compiler/makefile.mk analyse
+    - make -f $eda_tools_path/design_compiler/makefile.mk analyze
     - WORK_DIR=$work_path
     - SCRIPT_DIR=$script_path
     - LOG_DIR=$log_path
