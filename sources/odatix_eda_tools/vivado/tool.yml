@@ -14,6 +14,9 @@ unix:
     - &vivado_init_unix export LC_ALL=C; unset LANGUAGE; # Prevent known vivado bugs
     - &vivado_unix vivado
     - &vivado_opt_unix -mode tcl -notrace
+    - &vivado_fmax_opt_unix -log $log_path/fmax_synthesis.log
+    - &vivado_custom_freq_opt_unix -log $log_path/synthesis.log
+    - &vivado_analyze_opt_unix -log $log_path/analysis.log
     - &source_init_script_unix -source $script_path/init_script.tcl
     - &source_analyze_script_unix -source $script_path/analyze_script.tcl
     - &source_elaborate_script_unix -source $script_path/elaborate_script.tcl
@@ -31,6 +34,7 @@ unix:
     - *vivado_init_unix
     - *vivado_unix
     - *vivado_opt_unix
+    - *vivado_fmax_opt_unix
     - *source_init_script_unix
     - *source_analyze_script_unix
     - *source_synth_freq_script_unix
@@ -41,6 +45,7 @@ unix:
     - *vivado_init_unix
     - *vivado_unix
     - *vivado_opt_unix
+    - *vivado_custom_freq_opt_unix
     - *source_init_script_unix
     - *source_analyze_script_unix
     - *source_synth_script_unix
@@ -51,6 +56,7 @@ unix:
     - *vivado_init_unix
     - *vivado_unix
     - *vivado_opt_unix
+    - *vivado_analyze_opt_unix
     - *source_init_script_unix
     - *source_analyze_script_unix
     - *source_elaborate_script_unix
