@@ -217,7 +217,7 @@ def check_settings(
         context["targets"],
         context["constraint_file"],
         context["install_path"],
-        range_mode=True,
+        run_mode="custom_freq",
         keep=keep,
         timestamp=timestamp,
     )

@@ -242,7 +242,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   )
 
   timestamp = get_timestamp_string()
-  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path, range_mode=False,  keep=keep, timestamp=timestamp)
+  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path, keep=keep, timestamp=timestamp)
 
   # Print checklist summary
   arch_handler.print_summary()

@@ -223,6 +223,7 @@ def check_settings(
         context["targets"],
         context["constraint_file"],
         context["install_path"],
+        run_mode="fmax",
         keep=keep,
         timestamp=timestamp,
     )
