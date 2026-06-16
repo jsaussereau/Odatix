@@ -94,12 +94,13 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
 
   work_path = os.path.join(work_path, tool)
 
-  if tool not in ["genus", "design_compiler"]:
+  supported_tools = hard_settings.default_supported_tools
+  if tool not in supported_tools:
     printc.error(
-      f" error: Analysis flow is not yet implemented for tool '{tool}'"
+      f" Analysis flow is not yet implemented for tool '{tool}'"
     )
     printc.note(
-      "Supported tools are: design_compiler, genus"
+      "Supported tools are: " + ", ".join(supported_tools)
     )
     sys.exit(1)
 
