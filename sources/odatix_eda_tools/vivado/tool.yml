@@ -16,6 +16,7 @@ unix:
     - &vivado_opt_unix -mode tcl -notrace
     - &source_init_script_unix -source $script_path/init_script.tcl
     - &source_analyze_script_unix -source $script_path/analyze_script.tcl
+    - &source_elaborate_script_unix -source $script_path/elaborate_script.tcl
     - &source_synth_script_unix -source $script_path/synth_script.tcl
     - &source_synth_freq_script_unix -source $script_path/find_fmax.tcl
     - &source_exit_script_unix -source $script_path/exit.tcl
@@ -52,6 +53,7 @@ unix:
     - *vivado_opt_unix
     - *source_init_script_unix
     - *source_analyze_script_unix
+    - *source_elaborate_script_unix
     - *source_exit_script_unix
 
 
