@@ -64,10 +64,6 @@ def add_arguments(parser):
   parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
   parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
   parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
-  # parser.add_argument("--from", dest="from_freq", type=int, help="override range lower bound for custom frequency synthesis (in MHz)")
-  # parser.add_argument("--to", dest="to_freq", type=int, help="override range upper bound for custom frequency synthesis (in MHz)")
-  # parser.add_argument("--step", dest="step_freq", type=int, help="override range step bound for custom frequency synthesis (in MHz)")
-  # parser.add_argument("--at", dest="at_freq", action='append', type=int, help="override freqency at which custom frequency synthesis should be run (in MHz)")
   parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
   parser.add_argument("--logsize", help="size of the log history per job in the monitor")
   parser.add_argument(

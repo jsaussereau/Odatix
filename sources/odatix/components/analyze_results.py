@@ -13,6 +13,10 @@ RESET   = "\033[0m"
 
 
 ERROR_PRIORITY = [
+    "Undeclared signal",
+    "Module not found",
+    "RTL Elaboration failed",
+    "synth_design failed",
     "Reference to undeclared variable",
     "VER-956",
     "Parsing error",
@@ -23,7 +27,7 @@ ERROR_PRIORITY = [
 ]
 
 
-def get_genus_errors(log_file):
+def get_analysis_errorsrs(log_file):
 
     errors = []
 
@@ -93,81 +97,6 @@ def get_genus_errors(log_file):
                     "VER-956"
                 )
 
-        #
-        # DC: Cannot find design
-        #
-#        elif "Cannot find the design" in line:
-
-#            match = re.search(
-#                r"Cannot find the design '([^']+)'",
-#                line
-#            )
-
-#            if match:
-
-#                errors.append(
-#                    f"Missing design: {match.group(1)}"
-#                )
-
- #           else:
-
-#                errors.append(
-#                    "Cannot find design"
-#                )
-
-        #
-        # DC: Can't find design
-        #
-#        elif "Can't find design" in line:
-
-#            match = re.search(
-#                r"Can't find design '([^']+)'",
-#                line
-#            )
-
-#            if match:
-
-#                errors.append(
-#                    f"Missing design: {match.group(1)}"
-#                )
-
-#            else:
-
-#                errors.append(
-#                    "Can't find design"
-#                )
-
-        #
-        # DC: Current design is not defined
-        #
-#        elif "Current design is not defined" in line:
-#
-#            errors.append(
-#                "Current design is not defined"
-#            )
-
-        #
-        # DC: Unresolved reference
-
-       # elif "Unable to resolve reference" in line:
-#
-#            unresolved_instances = []#
-#
-#            match = re.search(
-#                r"Unable to resolve reference '([^']+)' in '([^']+)'",
-#                line
-#            )#
-#
-#            if match:#
-#
-#                unresolved_instances.append(
-#                    match.group(1)
-#                )
-        #
-        #
-        # DC: unresolved references
-        #
-        
 
         #
         # DC: Compilation failed
@@ -203,6 +132,62 @@ def get_genus_errors(log_file):
 
             errors.append(
                 "Could not find HDL design"
+            )
+
+        #
+        # Vivado: undeclared signal
+        #
+        elif "is not declared" in line:
+
+            match = re.search(
+                r"'([^']+)' is not declared",
+                line
+            )
+
+            if match:
+                errors.append(
+                    f"Undeclared signal: {match.group(1)}"
+                )
+            else:
+                errors.append(
+                    "Undeclared signal"
+                )
+
+        #
+        # Vivado: module not found
+        #
+        elif "module '" in line and "not found" in line:
+
+            match = re.search(
+                r"module '([^']+)' not found",
+                line
+            )
+
+            if match:
+                errors.append(
+                    f"Module not found: {match.group(1)}"
+                )
+            else:
+                errors.append(
+                    "Module not found"
+                )
+
+        #
+        # Vivado: RTL elaboration failed
+        #
+        elif "RTL Elaboration failed" in line:
+
+            errors.append(
+                "RTL Elaboration failed"
+            )
+
+        #
+        # Vivado: synth_design failed
+        #
+        elif "synth_design failed" in line:
+
+            errors.append(
+                "synth_design failed"
             )
 
         #
@@ -312,45 +297,28 @@ def generate_analysis_summary(root_dir, output_file, tool):
         #
         # Architecture folders contain genus.log
         #
-        log_file = None
+        if "analysis.log" not in files:
+            continue
+        
+        log_file = os.path.join(
+            root,
+            "analysis.log"
+        )
 
-        if tool == "genus":
 
-            if "genus.log" not in files:
-                continue
-
-            log_file = os.path.join(
-                root,
-                "genus.log"
-            )
-
-        elif tool == "design_compiler":
-
-            if "analyze_script.tcl.log" not in files:
-                continue
-
-            log_file = os.path.join(
-                root,
-                "analyze_script.tcl.log"
-            )
-            
 
         architecture = os.path.relpath(
             root,
             root_dir
         )
 
-#        genus_log = os.path.join(
-#            root,
-#            "genus.log"
-#        )
 
         unresolved_file = os.path.join(
             root,
             "report",
             "unresolved.rep"
         )
-        errors = get_genus_errors(
+        errors = get_analysis_errorsrs(
             log_file
         )
 
@@ -494,6 +462,9 @@ def generate_analysis_summary(root_dir, output_file, tool):
 
     elif tool_name == "genus":
         tool_name = "CADENCE GENUS"
+    
+    elif tool_name == "vivado":
+        tool_name = "XILINX VIVADO"
 
     print(
         f"{CYAN}TOOL:{RESET} "
@@ -542,6 +513,11 @@ def generate_analysis_summary(root_dir, output_file, tool):
             elif result.get("tool") == "design_compiler":
                 print( f"    -> {result['error_count']} Design Compiler error(s)" )
                 print( f"For more info, please check the {BOLD}{MAGENTA}.log{RESET} file: {BOLD}{result['log_file']}{RESET}" )
+
+            elif result.get("tool") == "vivado":
+                print( f"    -> {result['error_count']} Vivado error(s)" )
+                print( f"For more info, please check the {BOLD}{MAGENTA}.log{RESET} file: {BOLD}{result['log_file']}{RESET}" )
+
 
 
     print("")
