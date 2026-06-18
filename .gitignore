@@ -33,11 +33,14 @@ filenames*.log
 LIB_*_autoread
 
 # Genus
-genus.log
-genus.cmd
+genus.log*
+genus.cmd*
 
 # Results
 results/*
+
+#odatix error (for developers)
+odatix_error.log
 
 # Build
 sources/build
