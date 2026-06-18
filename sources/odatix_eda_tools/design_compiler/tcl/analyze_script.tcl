@@ -40,7 +40,10 @@ if {[catch {
     ######################################
 
 
-
+    set verilog_error 0
+    set sverilog_error 0
+    set vhdl_error 0
+    
     # Read from filelist (the file must be named filelist.f)
     if {[file exists "$rtl_path/filelist.f"]} {
 
@@ -64,12 +67,11 @@ if {[catch {
     } else {
         #read from sources
         suppress_message { AUTOREAD-303 AUTOREAD-107 AUTOREAD-105 AUTOREAD-102 AUTOREAD-100 VER-26 }
+
+
         
         set rtl_path [file normalize $rtl_path]
 
-        set verilog_error 0
-        set sverilog_error 0
-        set vhdl_error 0
 
         # read verilog source files
         set verilog_filenames [get_files_recursive $rtl_path {*.v}]
@@ -179,9 +181,9 @@ if {[catch {
         set code_error 0
 
 
-        if {[file exists "$log_path/analyze_script.tcl.log"]} {
+        if {[file exists "$log_path/analysis.log"]} {
 
-            set fp_log [open "$log_path/analyze_script.tcl.log" r]
+            set fp_log [open "$log_path/analysis.log" r]
             set log_data [read $fp_log]
             close $fp_log
 
@@ -227,7 +229,7 @@ if {[catch {
                 puts "<yellow>Unresolved Designs: $unresolved_count<end>"
             }
         } else {
-            puts "<red> There are some errors in the code, please check the full .log avaible in:<end> $log_path/analyze_script.tcl.log"
+            puts "<red> There are some errors in the code, please check the full .log avaible in:<end> $log_path/analysis.log"
 
         }
 
@@ -235,30 +237,15 @@ if {[catch {
         puts ""
         puts "<cyan>Press 'q' to view the analysis summary.<end>"
 
-        report_progress 100 $synth_statusfile
-
+        if {!$vhdl_error && !$sverilog_error && !$verilog_error && !$code_error} {
+            report_progress 100 $synth_statusfile
+        } else {
+            exit -1
+        }
 
 
     }
 
-
-
-
-    # Create design
-    #elaborate ${top_level_module} -library $lib_name
-
-    # Set current design
-    #current_design $top_level_module
-
-    # Resolve references
-    #link
-
-    # Reports
-    #check_design > $design_analysis
-    #report_reference
-    #check_design
-
-    #############################################################################
 
 
 } ]} {
