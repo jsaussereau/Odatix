@@ -31,7 +31,7 @@ fmax_synthesis:
         Total_Power: 0.09307
         Param_Domains:
           __main__: 04bits
-          __timestamp__: 2026-06-12_14-31-27
+          __timestamp__: 2026-06-17_05-18-35
       08bits:
         Fmax: 118
         Cell_Area: 10101.0
@@ -48,7 +48,7 @@ fmax_synthesis:
         Total_Power: 0.1885
         Param_Domains:
           __main__: 08bits
-          __timestamp__: 2026-06-12_14-31-27
+          __timestamp__: 2026-06-17_05-18-35
       16bits:
         Fmax: 105
         Cell_Area: 30648.8
@@ -65,7 +65,7 @@ fmax_synthesis:
         Total_Power: 0.4352
         Param_Domains:
           __main__: 16bits
-          __timestamp__: 2026-06-12_14-31-27
+          __timestamp__: 2026-06-17_05-18-35
       32bits:
         Fmax: 92
         Cell_Area: 69123.6
@@ -154,7 +154,7 @@ custom_freq_synthesis:
           Total_Power: 0.05363
           Param_Domains:
             __main__: 08bits
-            __timestamp__: 2026-06-12_14-43-49
+            __timestamp__: 2026-06-17_05-20-46
         100MHz:
           Frequency: 100
           Cell_Area: 7553.0
@@ -171,7 +171,7 @@ custom_freq_synthesis:
           Total_Power: 0.1327
           Param_Domains:
             __main__: 08bits
-            __timestamp__: 2026-06-12_14-43-49
+            __timestamp__: 2026-06-17_05-20-46
       04bits:
         100MHz:
           Frequency: 100
@@ -189,7 +189,7 @@ custom_freq_synthesis:
           Total_Power: 0.06251
           Param_Domains:
             __main__: 04bits
-            __timestamp__: 2026-06-12_14-43-49
+            __timestamp__: 2026-06-17_05-20-46
         50MHz:
           Frequency: 50
           Cell_Area: 2566.2
@@ -206,7 +206,7 @@ custom_freq_synthesis:
           Total_Power: 0.03114
           Param_Domains:
             __main__: 04bits
-            __timestamp__: 2026-06-12_14-43-49
+            __timestamp__: 2026-06-17_05-20-46
       16bits:
         50MHz:
           Frequency: 50
@@ -224,7 +224,7 @@ custom_freq_synthesis:
           Total_Power: 0.1201
           Param_Domains:
             __main__: 16bits
-            __timestamp__: 2026-06-12_14-43-49
+            __timestamp__: 2026-06-17_05-20-46
         100MHz:
           Frequency: 100
           Cell_Area: 27664.0
@@ -241,7 +241,7 @@ custom_freq_synthesis:
           Total_Power: 0.3793
           Param_Domains:
             __main__: 16bits
-            __timestamp__: 2026-06-12_14-43-49
+            __timestamp__: 2026-06-17_05-20-46
       24bits:
         50MHz:
           Frequency: 50
@@ -259,4 +259,126 @@ custom_freq_synthesis:
           Total_Power: 0.1757
           Param_Domains:
             __main__: 24bits
-            __timestamp__: 2026-06-12_14-43-49
+            __timestamp__: 2026-06-17_05-20-46
+        100MHz:
+          Frequency: 100
+          Cell_Area: 66666.6
+          Total_Area: 79788.6
+          Comb_Area: 60114.6
+          Noncomb_Area: 6552.0
+          Buf_Inv_Area: 14232.4
+          Macro_Area: 0.0
+          Net_Area: 13122.0
+          Cell_count: 723
+          Internal_Power: 0.4123
+          Switching_Power: 0.4047
+          Leakage_Power: 886880.0
+          Total_Power: 0.8178
+          Param_Domains:
+            __main__: 24bits
+            __timestamp__: 2026-06-17_05-20-46
+      32bits:
+        50MHz:
+          Frequency: 50
+          Cell_Area: 29939.0
+          Total_Area: 38165.0
+          Comb_Area: 21203.0
+          Noncomb_Area: 8736.0
+          Buf_Inv_Area: 4622.8
+          Macro_Area: 0.0
+          Net_Area: 8226.0
+          Cell_count: 379
+          Internal_Power: 0.1626
+          Switching_Power: 0.07522
+          Leakage_Power: 362590.0
+          Total_Power: 0.2382
+          Param_Domains:
+            __main__: 32bits
+            __timestamp__: 2026-06-17_05-20-46
+        100MHz:
+          Frequency: 100
+          Cell_Area: 78187.2
+          Total_Area: 94216.2
+          Comb_Area: 69451.2
+          Noncomb_Area: 8736.0
+          Buf_Inv_Area: 15488.2
+          Macro_Area: 0.0
+          Net_Area: 16029.0
+          Cell_count: 864
+          Internal_Power: 0.4906
+          Switching_Power: 0.423
+          Leakage_Power: 987780.0
+          Total_Power: 0.9146
+          Param_Domains:
+            __main__: 32bits
+            __timestamp__: 2026-06-17_05-20-46
+      48bits:
+        50MHz:
+          Frequency: 50
+          Cell_Area: 45773.0
+          Total_Area: 58355.0
+          Comb_Area: 32669.0
+          Noncomb_Area: 13104.0
+          Buf_Inv_Area: 7134.4
+          Macro_Area: 0.0
+          Net_Area: 12582.0
+          Cell_count: 598
+          Internal_Power: 0.24
+          Switching_Power: 0.1092
+          Leakage_Power: 527360.0
+          Total_Power: 0.3498
+          Param_Domains:
+            __main__: 48bits
+            __timestamp__: 2026-06-17_05-20-46
+        100MHz:
+          Frequency: 100
+          Cell_Area: 162616.999
+          Total_Area: 196240.999
+          Comb_Area: 149512.999
+          Noncomb_Area: 13104.0
+          Buf_Inv_Area: 35817.6
+          Macro_Area: 0.0
+          Net_Area: 33624.0
+          Cell_count: 1812
+          Internal_Power: 0.8545
+          Switching_Power: 0.8267
+          Leakage_Power: 2147400.0
+          Total_Power: 1.6834
+          Param_Domains:
+            __main__: 48bits
+            __timestamp__: 2026-06-17_05-20-46
+      64bits:
+        50MHz:
+          Frequency: 50
+          Cell_Area: 61880.0
+          Total_Area: 78728.0
+          Comb_Area: 44408.0
+          Noncomb_Area: 17472.0
+          Buf_Inv_Area: 9919.0
+          Macro_Area: 0.0
+          Net_Area: 16848.0
+          Cell_count: 807
+          Internal_Power: 0.3192
+          Switching_Power: 0.1434
+          Leakage_Power: 706390.0
+          Total_Power: 0.4634
+          Param_Domains:
+            __main__: 64bits
+            __timestamp__: 2026-06-17_05-20-46
+        100MHz:
+          Frequency: 100
+          Cell_Area: 117208.0
+          Total_Area: 143290.0
+          Comb_Area: 99099.0
+          Noncomb_Area: 18109.0
+          Buf_Inv_Area: 24915.8
+          Macro_Area: 0.0
+          Net_Area: 26082.0
+          Cell_count: 1363
+          Internal_Power: 0.8125
+          Switching_Power: 0.5487
+          Leakage_Power: 1468900.0
+          Total_Power: 1.3628
+          Param_Domains:
+            __main__: 64bits
+            __timestamp__: 2026-06-17_05-20-46

@@ -58,9 +58,10 @@ unix:
     - *vivado_opt_unix
     - *vivado_analyze_opt_unix
     - *source_init_script_unix
-    - *source_analyze_script_unix
+    - *source_analyze_script_unix 
     - *source_elaborate_script_unix
     - *source_exit_script_unix
+
 
 
 windows:
