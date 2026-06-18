@@ -539,8 +539,50 @@ def main(args, settings=None):
 #    else:
 #      sys.exit(-1)
 
-  run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug, keep)
+  if tool == "all":
 
+      tools = [
+          "genus",
+          "design_compiler",
+          "vivado"
+      ]
+
+      for current_tool in tools:
+          print()
+          print("=" * 80)
+          print(f"Running analysis with {current_tool}")
+          print("=" * 80)
+          run_analysis(
+              run_config_settings_filename,
+              arch_path,
+              current_tool,
+              work_path,
+              target_path,
+              overwrite,
+              noask,
+              exit_when_done,
+              log_size_limit,
+              nb_jobs,
+              check_eda_tool,
+              debug,
+              keep
+          )
+  else:
+      run_analysis(
+          run_config_settings_filename,
+          arch_path,
+          tool,
+          work_path,
+          target_path,
+          overwrite,
+          noask,
+          exit_when_done,
+          log_size_limit,
+          nb_jobs,
+          check_eda_tool,
+          debug,
+          keep
+      )
 
 if __name__ == "__main__":
   args = parse_arguments()
