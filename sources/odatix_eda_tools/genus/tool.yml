@@ -16,7 +16,7 @@ unix:
   # Command to check if the tool is installed
   tool_test_command:
     - *genus_unix
-    - *genus_args
+    - "-version"
     - "exit"
 
   # Command for fmax synthesis
