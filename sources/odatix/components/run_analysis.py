@@ -41,8 +41,18 @@ from odatix.lib.check_tool import check_tool
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
-#ADDED BY Michelotti
 from odatix.components.analyze_results import generate_analysis_summary
+
+
+## define colors
+RED     = "\033[91m"
+GREEN   = "\033[92m"
+YELLOW  = "\033[93m"
+BLUE    = "\033[94m"
+CYAN    = "\033[96m"
+MAGENTA = "\033[95m"
+BOLD    = "\033[1m"
+RESET   = "\033[0m"
 
 
 script_name = os.path.basename(__file__)
@@ -54,7 +64,7 @@ script_name = os.path.basename(__file__)
 
 
 def add_arguments(parser):
-  parser.add_argument("-t", "--tool", default="vivado", help="eda tool in use (default: vivado)")
+  parser.add_argument("-t", "--tool", nargs="+", default="vivado", help="eda tool in use (default: vivado)")
   parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
   parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
   parser.add_argument("-i", "--input", help="input settings file")
@@ -156,9 +166,9 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   # Get tool settings
   tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
   process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file,  synth_type='analysis')
-  print("\033[91m========== DEBUG ==========\033[0m")
-  print("\033[93mrun_command =\033[0m", run_command)
-  print("\033[91m===========================\033[0m")
+  #print("\033[91m========== DEBUG ==========\033[0m")
+  #print("\033[93mrun_command =\033[0m", run_command)
+  #print("\033[91m===========================\033[0m")
 
   with open(eda_target_filename, "r") as f:
     try:
@@ -459,8 +469,6 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   job_exit_success = parallel_jobs.run()
 
 
-######################### ADDED BY Michelotti ##################################
-
 
   # Generate global report
   analysis_file = os.path.join(work_path, "analysis.yml")
@@ -468,15 +476,42 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   summary = generate_analysis_summary(
       root_dir=work_path,
       output_file=analysis_file,
-      tool = tool
-  )
+      tool=tool
+    )
 
   print(
-      "[run_analysis.py] Analysis summary generated: "
-      f"{summary['passed']} PASSED, "
-      f"{summary['warnings']} WARNING, "
-      f"{summary['failed']} FAILED"
+    "[run_analysis.py] Analysis summary generated: "
+    f"{GREEN}{summary['passed']} PASSED{RESET}, "
+    f"{YELLOW}{summary['warnings']} WARNING{RESET}, "
+    f"{RED}{summary['failed']} FAILED{RESET}"
   )
+  return summary
+
+
+def get_colored_table_symbol(status, column_width=12):
+  """
+  Calculates string centers manually before wrapping in ANSI escapes 
+  so columns stay perfectly straight in the terminal matrix.
+  """
+  if status == "PASSED":
+    raw_symbol = "✓"
+    color = GREEN
+  elif status == "WARNING":
+    raw_symbol = "⚠"
+    color = YELLOW
+  elif status == "FAILED":
+    raw_symbol = "✗"
+    color = RED
+  else:
+    raw_symbol = "-"
+    color = BLUE
+
+  # Position the target symbol natively inside plain space cushions
+  left_padding = (column_width - 1) // 2
+  right_padding = column_width - 1 - left_padding
+  
+  return f"{' ' * left_padding}{BOLD}{color}{raw_symbol}{RESET}{' ' * right_padding}"
+
 
 ############################################################################
 
@@ -484,9 +519,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
 # Main
 ######################################
 
-
 def main(args, settings=None):
-  # Get settings
   if settings is None:
     settings = OdatixSettings(args.config)
     if not settings.valid:
@@ -518,71 +551,81 @@ def main(args, settings=None):
   debug = args.debug
   keep = args.keep
 
-#  if args.at_freq is None:
-#    custom_freq_list = []
-#  else:
-#    custom_freq_list = args.at_freq
+  supported_tools = hard_settings.default_supported_tools
+  all_summaries = {}
+  count = 0
 
-#  if args.to_freq is not None and (args.from_freq is None or args.step_freq is None):
-#    printc.error("--to cannot be used without --from and --step", script_name=script_name)
-#    sys.exit(-1)
-#  elif args.from_freq is not None and (args.to_freq is None or args.step_freq is None):
-#    printc.error("--from cannot be used without --to and --step", script_name=script_name)
-#    sys.exit(-1)
-#  elif args.step_freq is not None and (args.to_freq is None or args.from_freq is None):
-#    printc.error("--step cannot be used without --from and --to", script_name=script_name)
-#    sys.exit(-1)
-#  elif args.from_freq is not None and args.to_freq is not None and args.step_freq is not None:
-#    if ArchitectureHandler.check_bounds(args.from_freq, args.to_freq, args.step_freq, synth_type="custom frequency synthesis"):
-#      range_list = ArchitectureHandler.create_list_from_range(args.from_freq, args.to_freq, args.step_freq)
-#      custom_freq_list = custom_freq_list + range_list
-#    else:
-#      sys.exit(-1)
+  for current_tool in tool:
+    exit_when_done = True
 
-  if tool == "all":
+    # ask for continue only for the first time
+    if count == 1:
+      noask = True
+    else:
+      noask = False
+      count = 1
 
-      tools = [
-          "genus",
-          "design_compiler",
-          "vivado"
-      ]
+    if current_tool not in supported_tools:
+      printc.warning(f"Tool '{current_tool}' is not supported. Skipping.")
+      continue
 
-      for current_tool in tools:
-          print()
-          print("=" * 80)
-          print(f"Running analysis with {current_tool}")
-          print("=" * 80)
-          run_analysis(
-              run_config_settings_filename,
-              arch_path,
-              current_tool,
-              work_path,
-              target_path,
-              overwrite,
-              noask,
-              exit_when_done,
-              log_size_limit,
-              nb_jobs,
-              check_eda_tool,
-              debug,
-              keep
-          )
-  else:
-      run_analysis(
-          run_config_settings_filename,
-          arch_path,
-          tool,
-          work_path,
-          target_path,
-          overwrite,
-          noask,
-          exit_when_done,
-          log_size_limit,
-          nb_jobs,
-          check_eda_tool,
-          debug,
-          keep
-      )
+    print()
+    printc.bold("=" * 80, printc.colors.CYAN)
+    printc.bold(f"Running analysis with {current_tool}", printc.colors.GREEN)
+    printc.bold("=" * 80, printc.colors.CYAN)
+
+    summary = run_analysis(
+                run_config_settings_filename,
+                arch_path,
+                current_tool,
+                work_path,
+                target_path,
+                overwrite,
+                noask,
+                exit_when_done,
+                log_size_limit,
+                nb_jobs,
+                check_eda_tool,
+                debug,
+                keep
+            )
+
+    all_summaries[current_tool] = summary
+  
+  comparison = {}
+
+  for tool_name, summary in all_summaries.items():
+    for result in summary["results"]:
+      arch = result["architecture"]
+      arch = arch.replace("/log", "")
+      parts = arch.split("/")
+
+      if len(parts) >= 2:
+        arch = "/".join(parts[-2:])
+
+      if arch not in comparison:
+        comparison[arch] = {}
+      comparison[arch][tool_name] = result["status"]
+
+  # Global Cross-Validation Summary Layout
+  print()
+  printc.bold("=" * 80, printc.colors.CYAN)
+  printc.bold("SUMMARY".center(80), printc.colors.YELLOW)
+  printc.bold("=" * 80, printc.colors.CYAN)
+
+  # Column headers match standard fixed widths
+  print(f"{BOLD}{CYAN}{'Architecture':<44} {'DC':^12} {'Genus':^12} {'Vivado':^12}{RESET}")
+  print(f"{CYAN}{'-' * 83}{RESET}")
+
+  for arch in sorted(comparison):
+      dc_cell = get_colored_table_symbol(comparison[arch].get("design_compiler", ""))
+      genus_cell = get_colored_table_symbol(comparison[arch].get("genus", ""))
+      vivado_cell = get_colored_table_symbol(comparison[arch].get("vivado", ""))
+
+      # Print line with native space alignments cleanly respected
+      print(f"{arch:<44} {dc_cell} {genus_cell} {vivado_cell}")
+  print()
+
 
 if __name__ == "__main__":
   args = parse_arguments()
