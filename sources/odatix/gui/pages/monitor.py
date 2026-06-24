@@ -26,13 +26,12 @@ import requests
 from dash.exceptions import PreventUpdate
 from dash import no_update
 
-import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url, ansi_to_html_spans
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
+from odatix.lib.parallel_job_handler import daemon_control
 
 page_path = "/monitor"
 
@@ -49,26 +48,118 @@ dash.register_page(
 # API requests
 ######################################
 
-DEFAULT_PORT = 8000
-DEFAULT_API_URL = f"http://127.0.0.1:{DEFAULT_PORT}"
+DEFAULT_HOST = hard_settings.daemon_default_host
+DEFAULT_PORT = hard_settings.daemon_default_port
 
-def _base_url(url: Optional[str]) -> str:
-    if not url:
-        return DEFAULT_API_URL
-    return str(url).rstrip("/")
 
-def _api_get(url: str, path: str):
-    r = requests.get(_base_url(url) + path, timeout=0.4)
+def _normalize_optional_str(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "":
+        return None
+    return text
+
+
+def _parse_optional_port(value: Optional[str]) -> Optional[int]:
+    value = _normalize_optional_str(value)
+    if value is None:
+        return None
+    try:
+        port = int(value)
+    except Exception as e:
+        raise ValueError(f"Invalid port: {value}") from e
+    if port <= 0 or port > 65535:
+        raise ValueError(f"Invalid port: {value}")
+    return port
+
+
+def _monitor_query(search: Optional[str]) -> dict:
+    host = _normalize_optional_str(get_key_from_url(search, "host"))
+    session = _normalize_optional_str(get_key_from_url(search, "session"))
+    if session is None:
+        # CLI compatibility: `-S` short option represented in URL.
+        session = _normalize_optional_str(get_key_from_url(search, "S"))
+
+    # Backward compatibility: old monitor links only provided `?port=...`.
+    port = _parse_optional_port(get_key_from_url(search, "port"))
+
+    return {
+        "host": host,
+        "port": port,
+        "session": session,
+    }
+
+
+def _query_key(query: dict) -> str:
+    host = query.get("host")
+    port = query.get("port")
+    session = query.get("session")
+    return f"host={host}|port={port}|session={session}"
+
+
+def _resolve_daemon_target(search: Optional[str], current_daemon_state: Optional[dict] = None) -> dict:
+    query = _monitor_query(search)
+    key = _query_key(query)
+
+    if isinstance(current_daemon_state, dict):
+        if current_daemon_state.get("query_key") == key and current_daemon_state.get("base_url"):
+            return current_daemon_state
+
+    state = daemon_control._resolve_state_for_attach_or_stop(
+        host=query.get("host"),
+        port=query.get("port"),
+        session=query.get("session"),
+    )
+
+    host = str(state.get("host", query.get("host") or DEFAULT_HOST))
+    port = int(state.get("port", query.get("port") or DEFAULT_PORT))
+
+    return {
+        "query_key": key,
+        "host": host,
+        "port": port,
+        "session": str(state.get("session", query.get("session") or "")),
+        "session_name": str(state.get("session_name", "")),
+        "session_id": str(state.get("session_id", "")),
+        "base_url": f"http://{host}:{port}",
+    }
+
+
+def _format_monitor_error(error, daemon_state: Optional[dict] = None):
+    if isinstance(error, ValueError):
+        return str(error)
+
+    if isinstance(error, daemon_control.MultipleDaemonsError):
+        return str(error) + " (add ?session=<session_name_or_prefix> to the monitor URL)"
+
+    if isinstance(error, daemon_control.DaemonControlError):
+        return str(error)
+
+    if isinstance(error, requests.RequestException):
+        if isinstance(daemon_state, dict):
+            host = daemon_state.get("host", DEFAULT_HOST)
+            port = daemon_state.get("port", DEFAULT_PORT)
+            session_id = str(daemon_state.get("session_id", "")).strip()
+            if session_id != "":
+                return f"Could not reach daemon session '{session_id}' on {host}:{port}"
+            return f"Could not reach daemon on {host}:{port}"
+        return "Could not reach daemon API"
+
+    return str(error)
+
+def _api_get(base_url: str, path: str):
+    r = requests.get(str(base_url).rstrip("/") + path, timeout=0.4)
     r.raise_for_status()
     return r.json()
 
-def _api_get_slow(url: str, path: str, timeout: float = 2.0):
-    r = requests.get(_base_url(url) + path, timeout=float(timeout))
+def _api_get_slow(base_url: str, path: str, timeout: float = 2.0):
+    r = requests.get(str(base_url).rstrip("/") + path, timeout=float(timeout))
     r.raise_for_status()
     return r.json()
 
-def _api_post(url: str, path: str, params: Optional[dict] = None):
-    r = requests.post(_base_url(url) + path, params=params or {}, timeout=0.6)
+def _api_post(base_url: str, path: str, params: Optional[dict] = None):
+    r = requests.post(str(base_url).rstrip("/") + path, params=params or {}, timeout=0.6)
     r.raise_for_status()
     if r.headers.get("content-type", "").startswith("application/json"):
         return r.json()
@@ -186,14 +277,20 @@ def monitor_task(
     Output("monitor-snapshot", "data"),
     Output("monitor-logs", "data", allow_duplicate=True),
     Output("monitor-error", "data"),
+    Output("monitor-daemon", "data"),
     Input("monitor-refresh", "n_intervals"),
     State("monitor-snapshot", "data"),
     State("monitor-selected-job", "data"),
     State("monitor-logs", "data"),
+    State("monitor-daemon", "data"),
+    State(f"url_{page_path}", "search"),
     prevent_initial_call=True,
 )
-def _poll_status(_n, previous_snapshot, selected_job_id, logs_state):
+def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_state, search):
     try:
+        resolved_daemon = _resolve_daemon_target(search, daemon_state)
+        base_url = resolved_daemon.get("base_url")
+
         # 1 request per tick: jobs + optional log deltas for selected job.
         path = "/status"
 
@@ -215,7 +312,7 @@ def _poll_status(_n, previous_snapshot, selected_job_id, logs_state):
         if job_id is not None and offset_i is not None:
             path = f"/status?logs_job_id={job_id}&logs_offset={offset_i}&logs_limit=500"
 
-        snap = _api_get(DEFAULT_API_URL, path)
+        snap = _api_get(base_url, path)
 
         # Merge returned deltas into the log store.
         new_logs_state = no_update
@@ -234,12 +331,13 @@ def _poll_status(_n, previous_snapshot, selected_job_id, logs_state):
                 merged = list((logs_state or {}).get("lines") or []) + list(map(str, new_lines))
                 new_logs_state = {"job_id": job_id, "lines": merged, "total_lines": total_i}
 
-        return snap, new_logs_state, ""
+        return snap, new_logs_state, "", resolved_daemon
     except Exception as e:
         # Keep the last known state so the UI does not flicker
+        err = _format_monitor_error(e, daemon_state)
         if previous_snapshot is None:
-            return {}, no_update, str(e)
-        return previous_snapshot, no_update, str(e)
+            return {}, no_update, err, None
+        return previous_snapshot, no_update, err, None
 
 
 @dash.callback(
@@ -467,9 +565,11 @@ def _init_selected_job(snapshot, selected_job):
     Output("monitor-error", "data", allow_duplicate=True),
     Input("monitor-selected-job", "data"),
     State("monitor-logs", "data"),
+    State("monitor-daemon", "data"),
+    State(f"url_{page_path}", "search"),
     prevent_initial_call="initial_duplicate",
 )
-def _fetch_full_log_on_selection(selected_job_id, current_logs):
+def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, search):
     if selected_job_id is None:
         raise PreventUpdate
 
@@ -479,8 +579,10 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs):
         raise PreventUpdate
 
     try:
+        resolved_daemon = _resolve_daemon_target(search, daemon_state)
+        base_url = resolved_daemon.get("base_url")
         # Full log for this job (server supports logs_limit=-1)
-        snap = _api_get_slow(DEFAULT_API_URL, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
+        snap = _api_get_slow(base_url, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
         logs_any = snap.get("logs") if isinstance(snap, dict) else None
         logs = logs_any if isinstance(logs_any, dict) else {}
         lines_any = logs.get("lines")
@@ -498,7 +600,7 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs):
         }, ""
     except Exception as e:
         # Keep current logs, but surface error to switch UI to error container.
-        return current_logs if current_logs is not None else {}, str(e)
+        return current_logs if current_logs is not None else {}, _format_monitor_error(e, daemon_state)
 
 @dash.callback(
     Output("monitor-log-container", "className"),
@@ -542,11 +644,7 @@ def _render_logs(logs_state, error_message, search):
 
     if error_message: 
         text = ""
-        # status = f"API error: {error_message}\n\n" + text$
-        port = get_key_from_url(search, "port")
-        if not port:
-            port = DEFAULT_PORT
-        status = f"Could not find any job monitor running on port {port}"
+        status = str(error_message)
         main_class_name = "hidden"
         error_class_name = "visible"
     return ansi_to_html_spans(text), status, main_class_name, error_class_name
@@ -558,11 +656,19 @@ def _render_logs(logs_state, error_message, search):
     Input({"type": "task-pause", "task_id": ALL}, "n_clicks"),
     Input({"type": "task-stop", "task_id": ALL}, "n_clicks"),
     Input("monitor-stop-all", "n_clicks"),
+    State("monitor-daemon", "data"),
+    State(f"url_{page_path}", "search"),
     prevent_initial_call=True,
 )
-def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks):
+def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, daemon_state, search):
     if not ctx.triggered:
         raise PreventUpdate
+
+    try:
+        resolved_daemon = _resolve_daemon_target(search, daemon_state)
+        base_url = resolved_daemon.get("base_url")
+    except Exception as e:
+        return {"ok": False, "error": _format_monitor_error(e, daemon_state)}
 
     # Dash will also trigger this callback when components are added/removed
     # during polling refreshes. Only treat it as an action on a real click.
@@ -581,10 +687,10 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks):
     triggered = ctx.triggered_id
     if triggered == "monitor-stop-all":
         try:
-            _api_post(DEFAULT_API_URL, "/shutdown")
+            _api_post(base_url, "/shutdown")
             return {"ok": True, "action": "shutdown"}
         except Exception as e:
-            return {"ok": False, "action": "shutdown", "error": str(e)}
+            return {"ok": False, "action": "shutdown", "error": _format_monitor_error(e, daemon_state)}
 
     if not isinstance(triggered, dict):
         raise PreventUpdate
@@ -600,18 +706,23 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks):
 
     try:
         if action_type == "task-start":
-            _api_post(DEFAULT_API_URL, f"/jobs/{job_id}/start")
+            _api_post(base_url, f"/jobs/{job_id}/start")
             return {"ok": True, "action": "start", "job_id": job_id}
         if action_type == "task-pause":
-            _api_post(DEFAULT_API_URL, f"/jobs/{job_id}/pause")
+            _api_post(base_url, f"/jobs/{job_id}/pause")
             return {"ok": True, "action": "pause", "job_id": job_id}
         if action_type == "task-stop":
-            _api_post(DEFAULT_API_URL, f"/jobs/{job_id}/kill")
+            _api_post(base_url, f"/jobs/{job_id}/kill")
             return {"ok": True, "action": "kill", "job_id": job_id}
 
         return {"ok": False, "error": f"Unknown action type: {action_type}"}
     except Exception as e:
-        return {"ok": False, "action": action_type, "job_id": job_id, "error": str(e)}
+        return {
+            "ok": False,
+            "action": action_type,
+            "job_id": job_id,
+            "error": _format_monitor_error(e, daemon_state),
+        }
 
 
 
@@ -704,6 +815,7 @@ layout = html.Div(
         dcc.Store(id="monitor-snapshot", data=None),
         dcc.Store(id="monitor-error", data=""),
         dcc.Store(id="monitor-last-action", data=None),
+        dcc.Store(id="monitor-daemon", data=None),
         dcc.Store(id="monitor-selected-job", data=0),
         dcc.Store(id="monitor-logs", data=None),
         dcc.Store(id="monitor-job-ids", data=[]),
