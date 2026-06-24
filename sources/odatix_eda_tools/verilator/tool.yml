@@ -1,0 +1,67 @@
+##################################################
+# Settings for verilator (just for RTL analysis)
+##################################################
+
+process_group: True
+
+# Default metrics file for this tool
+default_metrics_file: $eda_tools_path/genus/metrics.yml
+
+unix:
+  # Optional constants (anchors) for reuse
+  constants:
+    - &verilator_unix verilator
+    - &verilator_args --lint-only
+    - &verilator_top --top-module
+
+  # Command to check if the tool is installed
+  tool_test_command:
+    - *verilator_unix
+    - "--version"
+
+  # Command for RTL analysis
+  analysis_command:
+    - cd $work_path;
+    - *verilator_unix
+    - *verilator_args
+    - $top_level_file
+    - *verilator_top
+    - $top_level_module
+
+
+# Log formatting
+format:
+
+  # Format the whole log line
+  logs:
+    error:         ['<error>', 'Error:']
+    warning:       ['<warning>', 'Warning:']
+    info:          ['<note>', 'Information:']
+    trace:         ['<trace>', 'Command:']
+
+  # Format tags (replaced by the corresponding format escape code)
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    black:         ['<black>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    blue:          ['<blue>']
+    magenta:       ['<magenta>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+    white:         ['<lgrey>']
+    light_red:     ['<lred>']
+    light_green:   ['<lgreen>']
+    light_yellow:  ['<lyellow>']
+    light_blue:    ['<lblue>']
+    light_magenta: ['<lmagenta>']
+    light_cyan:    ['<lcyan>']
+    light_white:   ['<white>']
+  
+  # Replace sequences (regular expressions)
+  replace:
+    - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
+    - "(Slack \\(MET\\))": "<green>$1<end>"
+    - "(.* completed successfully)": "<green>$1<end>"
