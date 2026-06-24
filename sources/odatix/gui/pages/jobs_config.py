@@ -23,6 +23,7 @@ import os
 import threading
 import io
 import contextlib
+from urllib.parse import quote
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional, Sequence#, Literal
@@ -36,6 +37,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
+from odatix.lib.parallel_job_handler import daemon_control
 
 page_path = "/jobs_config"
 
@@ -71,24 +73,51 @@ _prepare_cancel_event = threading.Event()
 _prepare_log_buffer = _ThreadSafeBuffer()
 _prepare_status = {"status": "idle", "error": None}
 _prepare_parallel_jobs = None
-_prepare_api_port = None
+_prepare_monitor_href = None
 _prepare_check_data = None
 _prepare_runtime_settings = None
 _prepare_exec_thread = None
 _prepare_synth_type = None
+_prepare_enqueued = False
+_prepare_enqueue_lock = threading.Lock()
 
 def _reset_prepare_state():
-    global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_api_port
-    global _prepare_check_data, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type
+    global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_monitor_href
+    global _prepare_check_data, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
     _prepare_cancel_event = threading.Event()
     _prepare_log_buffer = _ThreadSafeBuffer()
     _prepare_status = {"status": "checking", "error": None}
     _prepare_parallel_jobs = None
-    _prepare_api_port = None
+    _prepare_monitor_href = None
     _prepare_check_data = None
     _prepare_runtime_settings = None
     _prepare_exec_thread = None
     _prepare_synth_type = None
+    _prepare_enqueued = False
+
+
+def _normalize_session_selector(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "" or text == "__new_session__":
+        return None
+    return text
+
+
+def _session_option(daemon: dict) -> dict:
+    host = str(daemon.get("host", hard_settings.daemon_default_host))
+    port = int(daemon.get("port", hard_settings.daemon_default_port))
+    session_id = str(daemon.get("session_id", "")).strip()
+    session_name = str(daemon.get("session_name", "")).strip()
+
+    value = session_id or session_name or f"{host}:{port}"
+    label = session_id or session_name or f"{host}:{port}"
+    return {
+        "label": label,
+        "value": value,
+        "title": f"{host}:{port}",
+    }
 
 def _run_check_custom_freq_settings(
     run_config_settings_filename,
@@ -230,13 +259,13 @@ def _checklist_enabled(value) -> bool:
     return bool(value)
 
 def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
-    synth_type = get_key_from_url(search, "type")
-    if synth_type == "custom_freq_synthesis":
+    run_mode = get_key_from_url(search, "type")
+    if run_mode == "custom_freq_synthesis":
         return odatix_settings.get(
             "custom_freq_synthesis_settings_file",
             OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
         )
-    if synth_type == "fmax_synthesis":
+    if run_mode == "fmax_synthesis":
         return odatix_settings.get(
             "fmax_synthesis_settings_file",
             OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
@@ -298,6 +327,7 @@ def job_settings_form_field(
     tooltip: str="",
     placeholder: str="",
     tooltip_options: str="secondary",
+    style: Optional[dict]=None,
     # type: Optional[Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]] = None,
     type = None,
 ):
@@ -307,10 +337,10 @@ def job_settings_form_field(
             ui.tooltip_icon(tooltip, tooltip_options),
             dcc.Input(id=id, value=value, type=type, placeholder=placeholder, style={"width": "100%"}),
         ],
-        style={"marginBottom": "12px"}
+        style={"marginBottom": "12px", **(style or {})},
     )
 
-def job_settings_form(settings):
+def job_settings_form(settings, run_mode="default"):
     defval = lambda k, v=None: settings.get(k, v)
 
     return html.Div(
@@ -347,27 +377,7 @@ def job_settings_form(settings):
                 ),
             ], className="tile config"),
             html.Div([
-                html.H3("Monitor Settings (Used when jobs are run from terminal)"),
-                html.Div([
-                    dcc.Checklist(
-                        options=[{"label": "Prompt 'Continue? (Y/n)' after settings checks", "value": True}],
-                        value=[True] if True else [],
-                        id="ask_continue",
-                        className="checklist-switch",
-                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
-                    ),
-                    ui.tooltip_icon("Ask for confirmation after checking settings. (overridden by -y / --noask)."),
-                ], style={"marginBottom": "12px"}),
-                html.Div([
-                    dcc.Checklist(
-                        options=[{"label": "Exit monitor when all jobs are done", "value": True}],
-                        value=[True] if True else [],
-                        id="exit_when_done",
-                        className="checklist-switch",
-                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
-                    ),
-                    ui.tooltip_icon("Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)."),
-                ], style={"marginBottom": "12px"}),
+                html.H3("Monitor Settings"),
                 job_settings_form_field(
                     label="Size of the log history per job in the monitor",
                     id="log_size_limit",
@@ -375,13 +385,133 @@ def job_settings_form(settings):
                     value=str(defval("log_size_limit", 300)),
                     tooltip="Number of log lines to keep per job. (overridden by --logsize)",
                 ),
+                # html.H3("CLI Settings"),
+                # html.Div([
+                #     dcc.Checklist(
+                #         options=[{"label": "Prompt 'Continue? (Y/n)' after settings checks", "value": True}],
+                #         value=[True] if True else [],
+                #         id="ask_continue",
+                #         className="checklist-switch",
+                #         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                #     ),
+                #     ui.tooltip_icon("Ask for confirmation after checking settings. (overridden by -y / --noask)."),
+                # ], style={"marginBottom": "12px"}),
+                # html.Div([
+                #     dcc.Checklist(
+                #         options=[{"label": "Exit terminal monitor when all jobs are done", "value": True}],
+                #         value=[True] if True else [],
+                #         id="exit_when_done",
+                #         className="checklist-switch",
+                #         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                #     ),
+                #     ui.tooltip_icon("Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)."),
+                # ], style={"marginBottom": "12px"}),
             ], className="tile config"),
-        ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
+            html.Div([
+                html.H3("Custom Frequency Synthesis Settings"),
+                dcc.Checklist(
+                    options=[{"label": "Override frequencies", "value": True}],
+                    value=[True] if True else [],
+                    id="override-arch-frequencies",
+                    className="checklist-switch",
+                    style={"marginBottom": "15px", "display": "inline-block"},
+                ),
+                ui.tooltip_icon("Override architecture-specific frequencies."),
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=[
+                                html.Label("On/Off", style={"marginTop": "2px", "marginBottom": "-2px"}),
+                                dcc.Checklist(
+                                    options=[{"label": "", "value": True}],
+                                    value=[True] if True else [],
+                                    id="use-custom-freq-list",
+                                    className="checklist-switch",
+                                    style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
+                                ),
+                            ],
+                            style={"display": "flex", "flexDirection": "column", "gap": "10px"},
+                        ),
+                        job_settings_form_field(
+                            label="Target frequencies (MHz)",
+                            id="target_frequencies",
+                            type="number",
+                            value=str(defval("target_frequencies", 1000)),
+                            tooltip="Comma-separated target frequencies for the synthesis.",
+                            style={"width": "100%"},
+                        ),
+                    ],
+                    style={"display": "flex", "flexDirection": "row", "gap": "25px"},
+                ),
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=[
+                                html.Label("On/Off", style={"marginTop": "2px", "marginBottom": "-2px"}),
+                                dcc.Checklist(
+                                    options=[{"label": "", "value": True}],
+                                    value=[] if False else [],
+                                    id="use-custom-freq-range",
+                                    className="checklist-switch",
+                                    style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
+                                ),
+                            ],
+                            style={"display": "flex", "flexDirection": "column", "gap": "10px"}
+                        ),
+                        job_settings_form_field(
+                            label="From (MHz)",
+                            id="from_frequency",
+                            type="number",
+                            value=str(defval("from_frequency", 1000)),
+                            tooltip="Lower frequency for the synthesis.",
+                        ),
+                        job_settings_form_field(
+                            label="To (MHz)",
+                            id="to_frequency",
+                            type="number",
+                            value=str(defval("to_frequency", 2000)),
+                            tooltip="Upper frequency for the synthesis.",
+                        ),
+                        job_settings_form_field(
+                            label="Step (MHz)",
+                            id="step_frequency",
+                            type="number",
+                            value=str(defval("step_frequency", 100)),
+                            tooltip="Frequency step for the synthesis.",
+                        ),
+                    ],
+                    style={"display": "flex", "flexDirection": "row", "gap": "25px"},
+                )
+            ], className="tile config", style={"display": "none" if run_mode != "custom_freq_synthesis" else "block"}),
+        ], className="tiles-container config flex-tiles-container", style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
 ######################################
 # Callbacks
 ######################################
+
+@dash.callback(
+    Output({"page": page_path, "action": "session-dropdown"}, "options"),
+    Output({"page": page_path, "action": "session-dropdown"}, "value"),
+    Input(f"url_{page_path}", "search"),
+    Input("run-log-interval", "n_intervals"),
+    State({"page": page_path, "action": "session-dropdown"}, "value"),
+)
+def update_session_dropdown(_search, _n, current_value):
+    options = [{"label": "New session...", "value": "__new_session__", "title": "Run jobs in a new session"}]
+    try:
+        daemons = daemon_control.list_daemons()
+    except Exception:
+        daemons = []
+
+    options.extend(_session_option(daemon) for daemon in daemons)
+
+    values = {option.get("value") for option in options}
+    selected = str(current_value).strip() if current_value is not None else "__new_session__"
+    if selected not in values:
+        selected = "__new_session__"
+
+    return options, selected
 
 @dash.callback(
     Output("job-settings-form-container", "children"),
@@ -393,10 +523,12 @@ def init_form(search, page):
     if page != page_path:
         return dash.no_update, dash.no_update
 
+    run_mode = get_key_from_url(search, "type")
+
     settings = {}
     if settings is None:
         settings = {}
-    return job_settings_form(settings), settings
+    return job_settings_form(settings, run_mode), settings
 
 @dash.callback(
     Output("job-section", "children"),
@@ -864,6 +996,7 @@ def close_run_popup(n):
     State("ask_continue", "value"),
     State("exit_when_done", "value"),
     State("log_size_limit", "value"),
+    State({"page": page_path, "action": "session-dropdown"}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
@@ -877,6 +1010,7 @@ def run_jobs(
     ask_continue,
     exit_when_done,
     log_size_limit,
+    selected_session,
     search,
     page,
     odatix_settings,
@@ -896,7 +1030,7 @@ def run_jobs(
         }
 
     settings = odatix_settings or {}
-    synth_type = get_key_from_url(search, "type")
+    run_mode = get_key_from_url(search, "type")
     tool = get_key_from_url(search, "tool") or "vivado"
 
     arch_path = settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
@@ -922,8 +1056,12 @@ def run_jobs(
 
     _reset_prepare_state()
     global _prepare_synth_type
-    _prepare_synth_type = synth_type
-    if synth_type == "custom_freq_synthesis":
+    global _prepare_runtime_settings
+    _prepare_synth_type = run_mode
+    _prepare_runtime_settings = {
+        "session": _normalize_session_selector(selected_session),
+    }
+    if run_mode == "custom_freq_synthesis":
         run_config_settings_filename = settings.get(
             "custom_freq_synthesis_settings_file",
             OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
@@ -951,7 +1089,7 @@ def run_jobs(
             daemon=True,
         )
         _prepare_thread.start()
-    elif synth_type == "fmax_synthesis":
+    elif run_mode == "fmax_synthesis":
         run_config_settings_filename = settings.get(
             "fmax_synthesis_settings_file",
             OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
@@ -1017,7 +1155,7 @@ def run_jobs(
 
     return {
         "status": "checking",
-        "type": synth_type,
+        "type": run_mode,
         "tool": tool,
     }
 
@@ -1043,21 +1181,51 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened):
         run_status = {**run_status, **_prepare_status}
         current_status = run_status.get("status")
 
-    if current_status in ("checking", "checked", "preparing", "prepared", "error"):
+    if current_status in ("checking", "checked", "preparing", "prepared", "launched", "error"):
         log_output = _prepare_log_buffer.getvalue()
         button_class = "color-button success icon-button" if current_status == "checked" else "color-button disabled icon-button"
         redirect_href = dash.no_update
         if current_status == "prepared" and _prepare_parallel_jobs is not None:
-            global _prepare_api_port
-            if _prepare_api_port is None:
-                _, port = _prepare_parallel_jobs.start_api_background(
-                    host="127.0.0.1",
-                    port=8000,
-                    start_headless_on_startup=True,
-                    quiet=True,
-                )
-                _prepare_api_port = port
-            redirect_href = f"/monitor?port={_prepare_api_port}"
+            global _prepare_monitor_href, _prepare_enqueued
+            should_enqueue = False
+            with _prepare_enqueue_lock:
+                if not _prepare_enqueued and _prepare_monitor_href is None:
+                    _prepare_enqueued = True
+                    should_enqueue = True
+
+            if should_enqueue:
+                try:
+                    session_selector = None
+                    if isinstance(_prepare_runtime_settings, dict):
+                        session_selector = _normalize_session_selector(_prepare_runtime_settings.get("session"))
+
+                    state, _response = daemon_control.enqueue_parallel_jobs(
+                        _prepare_parallel_jobs,
+                        session=session_selector,
+                    )
+
+                    session_id = str(state.get("session_id", "")).strip()
+                    session_name = str(state.get("session_name", "")).strip()
+                    if session_id:
+                        _prepare_monitor_href = f"/monitor?session={quote(session_id, safe='')}"
+                    elif session_name:
+                        _prepare_monitor_href = f"/monitor?session={quote(session_name, safe='')}"
+                    else:
+                        host = str(state.get("host", hard_settings.daemon_default_host))
+                        port = int(state.get("port", hard_settings.daemon_default_port))
+                        _prepare_monitor_href = f"/monitor?host={quote(host, safe='')}&port={port}"
+                    run_status = {**run_status, "status": "launched"}
+                except Exception as exc:
+                    with _prepare_enqueue_lock:
+                        _prepare_enqueued = False
+                    run_status = {"status": "error", "error": str(exc)}
+                    if log_output:
+                        log_output = log_output + "\n\n"
+                    log_output = log_output + f"Failed to enqueue jobs in daemon session: {exc}"
+                    return run_status, ansi_to_html_spans(log_output), "color-button disabled icon-button", dash.no_update
+
+            if _prepare_monitor_href is not None:
+                redirect_href = _prepare_monitor_href
         return run_status, ansi_to_html_spans(log_output) if log_output else "", button_class, redirect_href
 
     raise dash.exceptions.PreventUpdate
@@ -1111,9 +1279,20 @@ def confirm_prepare_jobs(n_clicks, run_status):
 
 title_buttons = html.Div(
     children=[
+        dcc.Dropdown(
+            id={"page": page_path, "action": "session-dropdown"},
+            options=[
+                {"label": "New session...", "value": "__new_session__"},
+            ],
+            placeholder="Select a session",
+            value="__new_session__",
+            clearable=False,
+            style={"width": "155px", "marginRight": "10px"},
+        ),
         ui.icon_button(
             id={"page": page_path, "action": "reset-defaults"},
             icon=icon("gear", className="icon"),
+            link="/select_targets?tool=vivado",
             text="Choose Targets",
             multiline=True,
             tooltip="Go to the Targets page to select targets",
@@ -1143,7 +1322,7 @@ layout = html.Div(
         dcc.Location(id=f"url_{page_path}", refresh=False),
         ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginLeft": "-13px", "marginTop": "10px", "marginBottom": "10px"}),
         html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
-        html.H2("Synthesis Settings", style={"textAlign": "center", "marginBottom": "30px"}),
+        html.H2("Job Settings", style={"textAlign": "center", "marginBottom": "30px"}),
         html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),
         dcc.Store(id="job-settings-initial-settings", data=None),
         # html.H2("Targets", style={"textAlign": "center"}),
