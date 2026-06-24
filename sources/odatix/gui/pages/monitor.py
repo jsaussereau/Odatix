@@ -221,16 +221,11 @@ def _session_option(daemon):
     session_name = str(daemon.get("session_name", "")).strip()
 
     value = session_id or session_name or f"{host}:{port}"
-    if session_name and session_name != session_id:
-        label = session_name
-        hover_text = f"{session_id} ({host}:{port})"
-    elif session_id:
+    if session_id:
         label = f"{session_id}"
-        hover_text = f"{session_id} ({host}:{port})"
+        hover_text = f"{host}:{port}"
     else:
         label = f"{host}:{port}"
-        hover_text = f"{host}:{port}"
-
     return {
         "label": label,
         "value": value,
@@ -281,7 +276,7 @@ def monitor_task(
                     html.Div(
                         f"{name}",
                         className="monitor-task-name",
-                        id={"type": "task-select", "task_id": task_id},
+                        id={"type": "task-display-name", "task_id": task_id},
                         n_clicks=0,
                     ),
                     html.Div(
@@ -398,6 +393,9 @@ def _update_session_dropdown(_n, search, current_value, daemon_state):
     if selected is None and len(options) > 0:
         selected = options[0].get("value")
 
+    # prevent update if the selected value is already the same as the current value
+    if selected == current_value:
+        raise PreventUpdate
     return options, selected
 
 @dash.callback(
@@ -583,6 +581,7 @@ def _highlight_selected(selected_job, job_ids):
 
 @dash.callback(
     Output({"type": "task-row", "task_id": ALL}, "className"),
+    Output({"type": "task-display-name", "task_id": ALL}, "children"),
     Output({"type": "task-progress-bar", "task_id": ALL}, "style"),
     Output({"type": "task-progress-text", "task_id": ALL}, "children"),
     Output({"type": "task-runtime", "task_id": ALL}, "children"),
@@ -611,6 +610,7 @@ def _update_tasks(snapshot, job_ids):
 
     row_class = []
     bar_style = []
+    display_name_text = []
     progress_text = []
     runtime_text = []
     status_text = []
@@ -620,7 +620,9 @@ def _update_tasks(snapshot, job_ids):
     stop_style = []
 
     for job_id in job_ids:
+
         job = by_id.get(job_id, {})
+        display_name = str(job.get("display_name") or f"job{job_id}")
         status = str(job.get("status") or "unknown")
         status_norm = status.lower().strip()
 
@@ -633,6 +635,7 @@ def _update_tasks(snapshot, job_ids):
 
         runtime = str(job.get("elapsed_time") or "--:--:--")
 
+        display_name_text.append(display_name)
         row_class.append("monitor-task " + status)
         bar_style.append({"width": f"{progress}%"})
         progress_text.append(f"{progress} %")
@@ -651,6 +654,7 @@ def _update_tasks(snapshot, job_ids):
 
     return (
         row_class,
+        display_name_text,
         bar_style,
         progress_text,
         runtime_text,
@@ -869,7 +873,7 @@ title_buttons = html.Div(
             placeholder="Select a session",
             value=None,
             clearable=False,
-            style={"width": "155px", "marginRight": "10px"},
+            style={"width": "200px", "marginRight": "10px"},
         ),
         dcc.Dropdown(
             id="config-layout-dropdown", 
