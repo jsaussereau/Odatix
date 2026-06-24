@@ -254,6 +254,7 @@ def monitor_task(
     return html.Div(
         className="monitor-task-container" + (" selected" if selected else ""),
         id={"type": "task-container", "task_id": task_id},
+        n_clicks=0,
         children=[
             html.Div(
                 className="monitor-task " + status,
@@ -505,7 +506,7 @@ def _sync_job_list(snapshot, previous_job_ids, selected_job):
 
 @dash.callback(
     Output("monitor-selected-job", "data"),
-    Input({"type": "task-select", "task_id": ALL}, "n_clicks"),
+    Input({"type": "task-container", "task_id": ALL}, "n_clicks"),
     State("monitor-selected-job", "data"),
     prevent_initial_call=True,
 )
@@ -526,9 +527,9 @@ def _select_job_from_click(_row_clicks, selected_job):
     except Exception:
         raise PreventUpdate
 
-    # If the user clicked the task name, select that job for the Dash view.
+    # If the user clicked a task container, select that job for the Dash view.
     triggered = ctx.triggered_id
-    if isinstance(triggered, dict) and triggered.get("type") == "task-select":
+    if isinstance(triggered, dict) and triggered.get("type") == "task-container":
         task_id = triggered.get("task_id")
         if task_id is None:
             raise PreventUpdate
