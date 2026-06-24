@@ -58,7 +58,7 @@ class OdatixApp:
             name=__name__, 
             use_pages=True,
             title="Odatix",
-            update_title="Odatix - Updating...",
+            update_title=None,
             suppress_callback_exceptions=True
         )
 
