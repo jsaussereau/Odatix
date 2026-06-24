@@ -91,6 +91,41 @@ def _monitor_query(search: Optional[str]) -> dict:
     }
 
 
+def _pick_session_value(daemons, selector: Optional[str]) -> Optional[str]:
+    selector = _normalize_optional_str(selector)
+    if selector is None:
+        return None
+
+    def _value_from_daemon(entry):
+        session_id = _normalize_optional_str(entry.get("session_id"))
+        if session_id is not None:
+            return session_id
+        session_name = _normalize_optional_str(entry.get("session_name"))
+        if session_name is not None:
+            return session_name
+        return None
+
+    exact = []
+    prefix = []
+    for daemon in daemons:
+        value = _value_from_daemon(daemon)
+        if value is None:
+            continue
+
+        value_lower = value.lower()
+        selector_lower = selector.lower()
+        if value_lower == selector_lower:
+            exact.append(value)
+        elif value_lower.startswith(selector_lower):
+            prefix.append(value)
+
+    if len(exact) == 1:
+        return exact[0]
+    if len(prefix) == 1:
+        return prefix[0]
+    return None
+
+
 def _query_key(query: dict) -> str:
     host = query.get("host")
     port = query.get("port")
@@ -98,8 +133,20 @@ def _query_key(query: dict) -> str:
     return f"host={host}|port={port}|session={session}"
 
 
-def _resolve_daemon_target(search: Optional[str], current_daemon_state: Optional[dict] = None) -> dict:
+def _resolve_daemon_target(
+    search: Optional[str],
+    current_daemon_state: Optional[dict] = None,
+    session_override: Optional[str] = None,
+) -> dict:
     query = _monitor_query(search)
+
+    session_override = _normalize_optional_str(session_override)
+    if session_override is not None:
+        # When dropdown selection is explicit, use session resolution mode.
+        query["session"] = session_override
+        query["host"] = None
+        query["port"] = None
+
     key = _query_key(query)
 
     if isinstance(current_daemon_state, dict):
@@ -147,6 +194,30 @@ def _format_monitor_error(error, daemon_state: Optional[dict] = None):
         return "Could not reach daemon API"
 
     return str(error)
+
+
+def _session_option(daemon):
+    host = str(daemon.get("host", DEFAULT_HOST))
+    port = int(daemon.get("port", DEFAULT_PORT))
+    session_id = str(daemon.get("session_id", "")).strip()
+    session_name = str(daemon.get("session_name", "")).strip()
+
+    value = session_id or session_name or f"{host}:{port}"
+    if session_name and session_name != session_id:
+        label = session_name
+        hover_text = f"{session_id} ({host}:{port})"
+    elif session_id:
+        label = f"{session_id}"
+        hover_text = f"{session_id} ({host}:{port})"
+    else:
+        label = f"{host}:{port}"
+        hover_text = f"{host}:{port}"
+
+    return {
+        "label": label,
+        "value": value,
+        "title": hover_text,
+    }
 
 def _api_get(base_url: str, path: str):
     r = requests.get(str(base_url).rstrip("/") + path, timeout=0.4)
@@ -274,6 +345,43 @@ def monitor_task(
 ######################################
 
 @dash.callback(
+    Output("session-dropdown", "options"),
+    Output("session-dropdown", "value"),
+    Input("monitor-refresh", "n_intervals"),
+    State(f"url_{page_path}", "search"),
+    State("session-dropdown", "value"),
+    State("monitor-daemon", "data"),
+)
+def _update_session_dropdown(_n, search, current_value, daemon_state):
+    try:
+        daemons = daemon_control.list_daemons()
+    except Exception:
+        daemons = []
+
+    options = [_session_option(daemon) for daemon in daemons]
+    values = {option.get("value") for option in options}
+
+    selected = _normalize_optional_str(current_value)
+    if selected not in values:
+        selected = None
+
+    query_session = _monitor_query(search).get("session")
+    if selected is None:
+        selected = _pick_session_value(daemons, query_session)
+
+    if selected is None and isinstance(daemon_state, dict):
+        state_session = _normalize_optional_str(daemon_state.get("session_id"))
+        if state_session is None:
+            state_session = _normalize_optional_str(daemon_state.get("session_name"))
+        if state_session in values:
+            selected = state_session
+
+    if selected is None and len(options) == 1:
+        selected = options[0].get("value")
+
+    return options, selected
+
+@dash.callback(
     Output("monitor-snapshot", "data"),
     Output("monitor-logs", "data", allow_duplicate=True),
     Output("monitor-error", "data"),
@@ -284,11 +392,12 @@ def monitor_task(
     State("monitor-logs", "data"),
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
+    State("session-dropdown", "value"),
     prevent_initial_call=True,
 )
-def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_state, search):
+def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_state, search, selected_session):
     try:
-        resolved_daemon = _resolve_daemon_target(search, daemon_state)
+        resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
         base_url = resolved_daemon.get("base_url")
 
         # 1 request per tick: jobs + optional log deltas for selected job.
@@ -567,9 +676,10 @@ def _init_selected_job(snapshot, selected_job):
     State("monitor-logs", "data"),
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
+    State("session-dropdown", "value"),
     prevent_initial_call="initial_duplicate",
 )
-def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, search):
+def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, search, selected_session):
     if selected_job_id is None:
         raise PreventUpdate
 
@@ -579,7 +689,7 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, se
         raise PreventUpdate
 
     try:
-        resolved_daemon = _resolve_daemon_target(search, daemon_state)
+        resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
         base_url = resolved_daemon.get("base_url")
         # Full log for this job (server supports logs_limit=-1)
         snap = _api_get_slow(base_url, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
@@ -658,14 +768,15 @@ def _render_logs(logs_state, error_message, search):
     Input("monitor-stop-all", "n_clicks"),
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
+    State("session-dropdown", "value"),
     prevent_initial_call=True,
 )
-def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, daemon_state, search):
+def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, daemon_state, search, selected_session):
     if not ctx.triggered:
         raise PreventUpdate
 
     try:
-        resolved_daemon = _resolve_daemon_target(search, daemon_state)
+        resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
         base_url = resolved_daemon.get("base_url")
     except Exception as e:
         return {"ok": False, "error": _format_monitor_error(e, daemon_state)}
@@ -732,6 +843,15 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, da
 
 title_buttons = html.Div(
     children=[
+        dcc.Dropdown(
+            id="session-dropdown", 
+            options=[
+            ],
+            placeholder="Select a session",
+            value=None,
+            clearable=False,
+            style={"width": "155px", "marginRight": "10px"},
+        ),
         dcc.Dropdown(
             id="config-layout-dropdown", 
             options=[
