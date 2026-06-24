@@ -40,7 +40,7 @@ dash.register_page(
     path=page_path,
     title='Odatix - Monitor',
     update_title='Odatix - Monitor',
-    name='monitor',
+    name='Monitor',
     order=6,
 )
 
@@ -153,20 +153,38 @@ def _resolve_daemon_target(
         if current_daemon_state.get("query_key") == key and current_daemon_state.get("base_url"):
             return current_daemon_state
 
-    state = daemon_control._resolve_state_for_attach_or_stop(
-        host=query.get("host"),
-        port=query.get("port"),
-        session=query.get("session"),
-    )
+    try:
+        state = daemon_control._resolve_state_for_attach_or_stop(
+            host=query.get("host"),
+            port=query.get("port"),
+            session=query.get("session"),
+        )
+    except daemon_control.MultipleDaemonsError:
+        # Default monitor behavior in GUI: when several sessions exist and no
+        # explicit selector is provided, attach to the first discovered one.
+        if query.get("session") is None and query.get("host") is None and query.get("port") is None:
+            daemons = daemon_control.list_daemons()
+            if len(daemons) == 0:
+                raise
+            state = daemons[0]
+        else:
+            raise
 
     host = str(state.get("host", query.get("host") or DEFAULT_HOST))
     port = int(state.get("port", query.get("port") or DEFAULT_PORT))
+    session = (
+        state.get("session")
+        or state.get("session_id")
+        or state.get("session_name")
+        or query.get("session")
+        or ""
+    )
 
     return {
         "query_key": key,
         "host": host,
         "port": port,
-        "session": str(state.get("session", query.get("session") or "")),
+        "session": str(session),
         "session_name": str(state.get("session_name", "")),
         "session_id": str(state.get("session_id", "")),
         "base_url": f"http://{host}:{port}",
@@ -377,7 +395,7 @@ def _update_session_dropdown(_n, search, current_value, daemon_state):
         if state_session in values:
             selected = state_session
 
-    if selected is None and len(options) == 1:
+    if selected is None and len(options) > 0:
         selected = options[0].get("value")
 
     return options, selected
