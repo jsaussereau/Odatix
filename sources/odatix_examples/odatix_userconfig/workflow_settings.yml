@@ -26,10 +26,13 @@ workflows:
   # Command placeholder example (main workflow config value)
   - cli_profile/default
   - cli_profile/aggressive
-
+  
+  # Multiple virtual parameter domains (variables) replaced in command placeholders
+  - param_domains_cli_variables + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
+  
   # Multiple parameter domains replaced in command placeholders
   - param_domains_cli + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
-  
+
   # Multiple parameter domains replaced in a json
   - param_domains_json + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
 
