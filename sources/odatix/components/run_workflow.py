@@ -689,7 +689,7 @@ def check_settings(
             old_cwd = os.getcwd()
             try:
                 os.chdir(workflow_instance.tmp_dir)
-                execusion_stages = maker.getStages(name="main", max_process=1)
+                execution_stages = maker.getStages(name="main", max_process=1)
             finally:
                 os.chdir(old_cwd)
         except Exception as e:
@@ -698,11 +698,15 @@ def check_settings(
             print(str(e))
             sys.exit(-1)
 
+        if execution_stages is None or len(execution_stages) == 0:
+            printc.error("Failed to generate execution stages for workflow \"" + workflow_instance.workflow_display_name + "\". Please check your workflow settings file and task definitions.", script_name)
+            sys.exit(-1)
+
         progress_file = os.path.join(workflow_instance.tmp_dir, workflow_instance.progress_file)
 
         running_workflow = ParallelJob(
             process=None,
-            command=execusion_stages,
+            command=execution_stages,
             directory=workflow_instance.tmp_dir,
             generate_rtl=False,
             generate_command="",
