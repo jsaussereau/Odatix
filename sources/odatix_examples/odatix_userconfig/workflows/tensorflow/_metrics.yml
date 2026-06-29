@@ -1,0 +1,45 @@
+##############################################
+# Metrics for this workflow
+##############################################
+
+metrics:
+  final_loss:
+    type: json
+    settings:
+      file: workflow_results.json
+      key: final_loss
+    format: "%.6f"
+
+  final_accuracy:
+    type: json
+    settings:
+      file: workflow_results.json
+      key: final_accuracy
+    format: "%.6f"
+
+  final_val_loss:
+    type: json
+    settings:
+      file: workflow_results.json
+      key: final_val_loss
+    format: "%.6f"
+
+  final_val_accuracy:
+    type: json
+    settings:
+      file: workflow_results.json
+      key: final_val_accuracy
+    format: "%.6f"
+
+  best_val_accuracy:
+    type: json
+    settings:
+      file: workflow_results.json
+      key: best_val_accuracy
+    format: "%.6f"
+
+  generalization_gap:
+    type: operation
+    settings:
+      op: "final_val_loss - final_loss"
+    format: "%.6f"

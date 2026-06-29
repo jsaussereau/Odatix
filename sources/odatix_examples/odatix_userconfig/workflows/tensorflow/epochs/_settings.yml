@@ -1,0 +1,15 @@
+start_delimiter: 'EPOCHS = '
+stop_delimiter: "\n"
+param_target_file: "train.py"
+
+generate_configurations: Yes
+generate_configurations_settings:
+  template: "${epochs}"
+  name: "${epochs}"
+  variables:
+    epochs:
+      type: range
+      settings:
+        from: 5
+        to: 50
+        step: 5

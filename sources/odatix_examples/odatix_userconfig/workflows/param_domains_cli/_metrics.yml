@@ -1,0 +1,22 @@
+##############################################
+# Metrics for this workflow
+##############################################
+
+metrics:
+  average_travel_time:
+    type: json
+    settings:
+      file: workflow_results.json
+      key: average_travel_time
+
+  co2_emissions:
+    type: json
+    settings:
+      file: workflow_results.json
+      key: co2_emissions
+
+  congestion_level:
+    type: json
+    settings:
+      file: workflow_results.json
+      key: congestion_level

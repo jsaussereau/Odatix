@@ -1,0 +1,27 @@
+##############################################
+# Metrics for this workflow
+##############################################
+
+metrics:
+  profile:
+    type: regex
+    settings:
+      file: output.txt
+      pattern: "profile: (.*)"
+      group_id: 1
+
+  ascii_sum:
+    type: regex
+    settings:
+      file: output.txt
+      pattern: "ascii_sum: ([0-9]+)"
+      group_id: 1
+    format: "%.0f"
+
+  complexity_score:
+    type: regex
+    settings:
+      file: output.txt
+      pattern: "complexity_score: ([0-9.]+)"
+      group_id: 1
+    format: "%.3f"

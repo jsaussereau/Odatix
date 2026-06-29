@@ -1,0 +1,31 @@
+# Design sources (that will be copied into each work directory)
+sources:
+  path: examples/workflow_tensorflow
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: ".*Progress: ([0-9]+)*"
+
+# Generated design settings
+use_parameters: No
+
+# Design workflow settings
+tasks:
+  - name: main
+    dependencies: 
+      - /tmp/odatix_tensorflow_example_env/bin/python3
+    commands:
+      - /tmp/odatix_tensorflow_example_env/bin/python3 train.py
+
+  - name: /tmp/odatix_tensorflow_example_env/bin/python3
+    commands:
+      - python3.10 -m venv /tmp/odatix_tensorflow_example_env
+      - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install --upgrade pip
+      - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install tensorflow
+      - echo "Virtual environment setup successful with python 3.14."
+    on_failure_commands:
+      - python3.10 -m venv /tmp/odatix_tensorflow_example_env
+      - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install --upgrade pip
+      - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install tensorflow
+      - echo "Virtual environment setup successful with python 3.10."
