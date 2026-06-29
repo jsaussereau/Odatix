@@ -102,8 +102,6 @@ if {[catch {
         set odatix_mode [lindex $argv 0]
     }
 
-    puts "DEBUG mode = $odatix_mode"
-
     if {$odatix_mode == "analysis"} {
         report_progress 100 $synth_statusfile
     }

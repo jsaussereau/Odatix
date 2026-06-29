@@ -1,45 +1,35 @@
 ##################################################
-# Settings for verilator (just for RTL analysis)
+# Settings for Verilator (RTL Analysis)
 ##################################################
 
 process_group: True
 
 # Default metrics file for this tool
 default_metrics_file: $eda_tools_path/genus/metrics.yml
-
 unix:
-  # Optional constants (anchors) for reuse
+
   constants:
     - &verilator_unix verilator
-    - &verilator_args --lint-only
-    - &verilator_top --top-module
 
-  # Command to check if the tool is installed
+  # Check if Verilator is installed
   tool_test_command:
     - *verilator_unix
-    - "--version"
+    - --version
 
-  # Command for RTL analysis
+  # RTL Analysis
   analysis_command:
     - cd $work_path;
-    - *verilator_unix
-    - *verilator_args
-    - $top_level_file
-    - *verilator_top
-    - $top_level_module
-
+    - make -f $eda_tools_path/verilator/makefile.mk analyze
 
 # Log formatting
 format:
 
-  # Format the whole log line
   logs:
     error:         ['<error>', 'Error:']
     warning:       ['<warning>', 'Warning:']
     info:          ['<note>', 'Information:']
     trace:         ['<trace>', 'Command:']
 
-  # Format tags (replaced by the corresponding format escape code)
   tags:
     bold:          ['<bold>']
     end:           ['<end>']
@@ -59,9 +49,6 @@ format:
     light_magenta: ['<lmagenta>']
     light_cyan:    ['<lcyan>']
     light_white:   ['<white>']
-  
-  # Replace sequences (regular expressions)
+
   replace:
-    - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
-    - "(Slack \\(MET\\))": "<green>$1<end>"
     - "(.* completed successfully)": "<green>$1<end>"
