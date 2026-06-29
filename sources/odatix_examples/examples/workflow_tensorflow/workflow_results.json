@@ -1,0 +1,8 @@
+{
+  "epochs": 5,
+  "final_loss": 1.0829237699508667,
+  "final_accuracy": 0.38999998569488525,
+  "final_val_loss": 1.089712381362915,
+  "final_val_accuracy": 0.375,
+  "best_val_accuracy": 0.375
+}

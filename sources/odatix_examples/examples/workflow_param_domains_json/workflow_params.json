@@ -1,0 +1,7 @@
+{
+    "num_vehicles": 150,
+    "signal_timing": 45,
+    "max_speed": 60,
+    "road_length": 1,
+    "other": ""
+}
