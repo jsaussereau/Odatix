@@ -35,6 +35,7 @@ from odatix.components.run_common import (
 import odatix.components.export_workflow_results as exp_workflow_res
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
+from odatix.lib.config_generator import ConfigGenerator
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
@@ -46,6 +47,7 @@ from odatix.lib.wosit import createTaskGraph
 script_name = os.path.basename(__file__)
 WORKFLOW_META_FILENAME = "workflow_meta.yml"
 WORKFLOW_COMMAND_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+WORKFLOW_VIRTUAL_DOMAIN_SAFE_VALUE_PATTERN = re.compile(r"[^A-Za-z0-9_.-]")
 
 
 class WorkflowInstance:
@@ -71,6 +73,7 @@ class WorkflowInstance:
         workflow_definition_dir,
         no_main_configuration=False,
         use_parameters=True,
+        extra_command_substitutions=None,
     ):
         self.workflow_name = workflow_name
         self.workflow_display_name = workflow_display_name
@@ -92,6 +95,9 @@ class WorkflowInstance:
         self.workflow_definition_dir = workflow_definition_dir
         self.no_main_configuration = no_main_configuration
         self.use_parameters = use_parameters
+        self.extra_command_substitutions = (
+            dict(extra_command_substitutions) if isinstance(extra_command_substitutions, dict) else {}
+        )
 
 
 def _read_command_parameter_value(param_file):
@@ -114,6 +120,10 @@ def _read_command_parameter_value(param_file):
 def _build_workflow_command_substitutions(workflow_instance):
     substitutions = {}
 
+    if isinstance(workflow_instance.extra_command_substitutions, dict):
+        for key, value in workflow_instance.extra_command_substitutions.items():
+            substitutions[str(key)] = str(value)
+
     if workflow_instance.param_file is not None:
         main_value = _read_command_parameter_value(workflow_instance.param_file)
         if main_value is not None:
@@ -125,6 +135,230 @@ def _build_workflow_command_substitutions(workflow_instance):
             substitutions[param_domain.domain] = value
 
     return substitutions
+
+
+def _sanitize_virtual_param_domain_value(value):
+    value = str(value).strip()
+    if value == "":
+        return "_"
+    sanitized = WORKFLOW_VIRTUAL_DOMAIN_SAFE_VALUE_PATTERN.sub("_", value)
+    if sanitized == "":
+        return "_"
+    return sanitized
+
+
+def _get_workflow_virtual_domain_names(workflow_settings):
+    if not isinstance(workflow_settings, dict):
+        return set()
+    generate_settings = workflow_settings.get("generate_configurations_settings")
+    if not isinstance(generate_settings, dict):
+        return set()
+    variables = generate_settings.get("variables")
+    if not isinstance(variables, dict):
+        return set()
+    return set(name for name in variables.keys() if isinstance(name, str) and name.strip() != "")
+
+
+def _normalize_workflow_requests_for_virtual_domain_wildcards(workflow_requests, workflow_path, debug=False):
+    """
+    Normalize workflow requests before wildcard expansion.
+
+    If a request uses only virtual-domain wildcards (for example
+    workflow_name + var/* + other/*), strip these selectors so the generic
+    wildcard resolver does not expect physical parameter-domain directories.
+    """
+    normalized_requests = []
+    for request in workflow_requests:
+        (
+            workflow,
+            workflow_param_dir,
+            _workflow_config,
+            _workflow_display_name,
+            _workflow_param_dir_work,
+            _workflow_config_dir_work,
+            requested_param_domains,
+        ) = ArchitectureHandler.get_basic(request)
+
+        if len(requested_param_domains) == 0:
+            normalized_requests.append(request)
+            continue
+
+        workflow_settings_file = os.path.join(workflow_path, workflow_param_dir, hard_settings.param_settings_filename)
+        if not os.path.isfile(workflow_settings_file):
+            normalized_requests.append(request)
+            continue
+
+        try:
+            with open(workflow_settings_file, "r") as f:
+                workflow_settings = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        except Exception:
+            normalized_requests.append(request)
+            continue
+
+        virtual_domain_names = _get_workflow_virtual_domain_names(workflow_settings)
+        if len(virtual_domain_names) == 0:
+            normalized_requests.append(request)
+            continue
+
+        dropped_virtual_wildcards = False
+        kept_param_domains = []
+        for requested_param_domain in requested_param_domains:
+            domain = re.sub('/.*', '', requested_param_domain)
+            value = re.sub('.*/', '', requested_param_domain)
+            if domain in virtual_domain_names and value == "*":
+                dropped_virtual_wildcards = True
+                continue
+            kept_param_domains.append(requested_param_domain)
+
+        if dropped_virtual_wildcards:
+            normalized_request = workflow
+            if len(kept_param_domains) > 0:
+                normalized_request = workflow + "+" + "+".join(kept_param_domains)
+            if debug:
+                printc.note(
+                    "Using generated workflow variables for wildcard selector(s) in request \""
+                    + request
+                    + "\".",
+                    script_name,
+                )
+            normalized_requests.append(normalized_request)
+        else:
+            normalized_requests.append(request)
+
+    return normalized_requests
+
+
+def _build_workflow_virtual_param_domain_variants(workflow_settings, workflow_settings_file, debug=False):
+    """
+    Build workflow variants from generate_configurations_settings.variables.
+
+    Variants are only generated when generate_configurations is not enabled.
+    This preserves the existing meaning of generate_configurations while
+    allowing variable-based command placeholders to emulate parameter domains.
+    """
+    generate_enabled = bool(workflow_settings.get("generate_configurations", False))
+    if generate_enabled:
+        return []
+
+    generate_settings = workflow_settings.get("generate_configurations_settings")
+    if not isinstance(generate_settings, dict):
+        return []
+
+    variables = generate_settings.get("variables")
+    if not isinstance(variables, dict) or len(variables) == 0:
+        return []
+
+    variable_names = [name for name in variables.keys() if isinstance(name, str) and name.strip() != ""]
+    if len(variable_names) == 0:
+        printc.error(
+            "Invalid workflow variable settings in \""
+            + workflow_settings_file
+            + "\": no valid variable names found in \"generate_configurations_settings.variables\".",
+            script_name,
+        )
+        return None
+
+    synthetic_template = "\n".join([f"{variable_name}: ${{{variable_name}}}" for variable_name in variable_names])
+    synthetic_name = "__workflow_virtual__" + "__".join([f"${{{variable_name}}}" for variable_name in variable_names])
+
+    generator_data = {
+        "generate_configurations": True,
+        "generate_configurations_settings": {
+            "template": synthetic_template,
+            "name": synthetic_name,
+            "variables": variables,
+        },
+    }
+
+    generator = ConfigGenerator(data=generator_data, silent=True, debug=debug)
+    if not generator.valid:
+        printc.error(
+            "Invalid \"generate_configurations_settings.variables\" in workflow settings file \""
+            + workflow_settings_file
+            + "\".",
+            script_name,
+        )
+        return None
+
+    generated = generator.generate()
+    if not isinstance(generated, tuple) or len(generated) != 2:
+        printc.error(
+            "Could not generate workflow variable combinations from \""
+            + workflow_settings_file
+            + "\".",
+            script_name,
+        )
+        return None
+
+    generated_params, _all_values = generated
+    if not isinstance(generated_params, dict):
+        printc.error(
+            "Could not generate workflow variable combinations from \""
+            + workflow_settings_file
+            + "\".",
+            script_name,
+        )
+        return None
+
+    variants = []
+    for rendered_values in generated_params.values():
+        try:
+            parsed_values = yaml.load(rendered_values, Loader=yaml.loader.BaseLoader)
+        except yaml.YAMLError as e:
+            printc.error(
+                "Could not parse generated workflow variables from \""
+                + workflow_settings_file
+                + "\": "
+                + str(e),
+                script_name,
+            )
+            return None
+
+        if not isinstance(parsed_values, dict):
+            printc.error(
+                "Could not parse generated workflow variables from \""
+                + workflow_settings_file
+                + "\": generated values are not a mapping.",
+                script_name,
+            )
+            return None
+
+        substitutions = {}
+        requested_param_domains = []
+
+        for variable_name in variable_names:
+            raw_value = parsed_values.get(variable_name, "")
+            value = str(raw_value).strip() if raw_value is not None else ""
+            substitutions[variable_name] = value
+
+            variable_cfg = variables.get(variable_name, {})
+            unit = ""
+            if isinstance(variable_cfg, dict):
+                unit_value = variable_cfg.get("unit", "")
+                if unit_value is not None:
+                    unit = str(unit_value)
+
+            display_value = value + unit if unit != "" else value
+            requested_param_domains.append(variable_name + "/" + _sanitize_virtual_param_domain_value(display_value))
+
+        variants.append(
+            {
+                "requested_param_domains": requested_param_domains,
+                "substitutions": substitutions,
+            }
+        )
+
+    if debug and len(variants) > 0:
+        printc.note(
+            "Generated "
+            + str(len(variants))
+            + " workflow variants from \"generate_configurations_settings.variables\" in \""
+            + workflow_settings_file
+            + "\".",
+            script_name,
+        )
+
+    return variants
 
 
 def _replace_workflow_command_vars(value, substitutions):
@@ -435,6 +669,11 @@ def check_settings(
         sys.exit(-1)
 
     workflow_requests = [item for item in workflows if isinstance(item, str) and item.strip() != ""]
+    workflow_requests = _normalize_workflow_requests_for_virtual_domain_wildcards(
+        workflow_requests=workflow_requests,
+        workflow_path=workflow_path,
+        debug=debug,
+    )
     expanded_workflows = ArchitectureHandler.configuration_wildcard(workflow_requests, arch_path=workflow_path)
 
     if expanded_workflows is None:
@@ -546,10 +785,20 @@ def check_settings(
         if no_main_configuration or not use_parameters:
             param_file = None
 
+        virtual_domain_names = _get_workflow_virtual_domain_names(workflow_settings)
+        requested_physical_param_domains = []
+        requested_virtual_param_domains = []
+        for requested_param_domain in requested_param_domains:
+            domain = re.sub('/.*', '', requested_param_domain)
+            if domain in virtual_domain_names:
+                requested_virtual_param_domains.append(requested_param_domain)
+            else:
+                requested_physical_param_domains.append(requested_param_domain)
+
         param_domains = []
-        if len(requested_param_domains) > 0:
+        if len(requested_physical_param_domains) > 0:
             param_domains = ParamDomain.get_param_domains(
-                requested_param_domains=requested_param_domains,
+                requested_param_domains=requested_physical_param_domains,
                 architecture=workflow_param_dir,
                 arch_path=workflow_path,
                 param_settings_filename=hard_settings.param_settings_filename,
@@ -559,34 +808,102 @@ def check_settings(
                 invalid_workflows.append(workflow_display_name)
                 continue
 
-        workflow_config_dir_work = workflow_config_dir_work + "_" + timestamp if keep and timestamp != "" else workflow_config_dir_work
-        tmp_dir = os.path.join(work_path, workflow_param_dir_work, workflow_config_dir_work)
-
-        workflow_instances.append(
-            WorkflowInstance(
-                workflow_name=workflow,
-                workflow_display_name=workflow_display_name,
-                workflow_full=workflow_full,
-                workflow_param_dir=workflow_param_dir,
-                workflow_config=workflow_config,
-                tmp_dir=tmp_dir,
-                source_path=source_path,
-                source_whitelist=source_whitelist,
-                source_blacklist=source_blacklist,
-                param_target_file=param_target_file,
-                start_delimiter=start_delimiter,
-                stop_delimiter=stop_delimiter,
-                param_file=param_file,
-                param_domains=param_domains,
-                progress_file=progress_file,
-                tasks=tasks,
+        virtual_param_domain_variants = [{"requested_param_domains": [], "substitutions": {}}]
+        if len(virtual_domain_names) > 0:
+            generated_virtual_variants = _build_workflow_virtual_param_domain_variants(
+                workflow_settings=workflow_settings,
                 workflow_settings_file=workflow_settings_file,
-                workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
-                no_main_configuration=no_main_configuration,
-                use_parameters=use_parameters,
+                debug=debug,
             )
-        )
-        valid_workflows.append(workflow_display_name)
+            if generated_virtual_variants is None:
+                invalid_workflows.append(workflow_display_name)
+                continue
+
+            if len(requested_virtual_param_domains) > 0:
+                filtered_virtual_variants = []
+                for virtual_variant in generated_virtual_variants:
+                    variant_domains = set(virtual_variant.get("requested_param_domains", []))
+                    keep_variant = True
+                    for requested_virtual_domain in requested_virtual_param_domains:
+                        domain = re.sub('/.*', '', requested_virtual_domain)
+                        value = re.sub('.*/', '', requested_virtual_domain)
+                        if value == "*":
+                            continue
+                        if (domain + "/" + value) not in variant_domains:
+                            keep_variant = False
+                            break
+                    if keep_variant:
+                        filtered_virtual_variants.append(virtual_variant)
+
+                if len(filtered_virtual_variants) == 0:
+                    printc.error(
+                        "No workflow variable combination matches selector(s) for workflow \""
+                        + workflow_display_name
+                        + "\".",
+                        script_name,
+                    )
+                    param_domain = re.sub('/.*', '', requested_virtual_param_domains[0])
+                    param_domain_value = re.sub('.*/', '', requested_virtual_param_domains[0])
+                    printc.tip("Add a parameter-domain config file \"" + param_domain_value + ".txt\" in \"" + os.path.join(workflow_param_dir, param_domain) + "\" ", script_name)
+                    printc.magenta("or add a variable \"" + param_domain + "\" generating the value \"" + param_domain_value + "\" to the workflow settings file \"" + workflow_settings_file + "\".")
+                    invalid_workflows.append(workflow_display_name)
+                    continue
+
+                virtual_param_domain_variants = filtered_virtual_variants
+            elif len(requested_param_domains) == 0:
+                if len(generated_virtual_variants) > 0:
+                    virtual_param_domain_variants = generated_virtual_variants
+
+        for virtual_variant in virtual_param_domain_variants:
+            variant_requested_param_domains = requested_physical_param_domains + list(
+                virtual_variant.get("requested_param_domains", [])
+            )
+
+            workflow_full_variant = workflow
+            if len(variant_requested_param_domains) > 0:
+                workflow_full_variant = workflow + "+" + "+".join(variant_requested_param_domains)
+
+            (
+                _workflow_variant,
+                _workflow_param_dir_variant,
+                _workflow_config_variant,
+                workflow_display_name_variant,
+                workflow_param_dir_work_variant,
+                workflow_config_dir_work_variant,
+                _variant_domains,
+            ) = ArchitectureHandler.get_basic(workflow_full_variant)
+
+            workflow_config_dir_work_variant = (
+                workflow_config_dir_work_variant + "_" + timestamp if keep and timestamp != "" else workflow_config_dir_work_variant
+            )
+            tmp_dir = os.path.join(work_path, workflow_param_dir_work_variant, workflow_config_dir_work_variant)
+
+            workflow_instances.append(
+                WorkflowInstance(
+                    workflow_name=workflow,
+                    workflow_display_name=workflow_display_name_variant,
+                    workflow_full=workflow_full_variant,
+                    workflow_param_dir=workflow_param_dir,
+                    workflow_config=workflow_config,
+                    tmp_dir=tmp_dir,
+                    source_path=source_path,
+                    source_whitelist=source_whitelist,
+                    source_blacklist=source_blacklist,
+                    param_target_file=param_target_file,
+                    start_delimiter=start_delimiter,
+                    stop_delimiter=stop_delimiter,
+                    param_file=param_file,
+                    param_domains=param_domains,
+                    progress_file=progress_file,
+                    tasks=tasks,
+                    workflow_settings_file=workflow_settings_file,
+                    workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
+                    no_main_configuration=no_main_configuration,
+                    use_parameters=use_parameters,
+                    extra_command_substitutions=virtual_variant.get("substitutions", {}),
+                )
+            )
+            valid_workflows.append(workflow_display_name_variant)
 
     if first_progress_regex is None:
         first_progress_regex = hard_settings.sim_status_pattern.pattern
