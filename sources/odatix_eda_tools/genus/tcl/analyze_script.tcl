@@ -20,7 +20,7 @@ if {[catch {
     # GENUS SETUP 
     #################################################################################
 
-    suppress_messages {LBR-9 VLOGPT-6 HPT-76 CDFG-818 VHDL-639 VLOGPT-37}
+    suppress_messages {LBR-9 VLOGPT-6 HPT-76 CDFG-818 VHDL-639 VLOGPT-37 VHDLPT-800 VHDLPT-801}
 
     ## Here it's the absolut path, we have to change for scripts/genus_setup.tcl
     if { [catch { source scripts/genus_setup.tcl } errmsg] } { 
