@@ -52,6 +52,12 @@ home_cards = [
         "description": "Configure your architectures",
     },
     {
+        "name": "Workflows",
+        "link": "/workflows",
+        "image": "assets/icons/workflow.png",
+        "description": "Configure your workflows",
+    },
+    {
         "name": "Run Jobs",
         "link": "/choose_job_type",
         "image": "assets/icons/run.png",

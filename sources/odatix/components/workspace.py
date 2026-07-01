@@ -148,6 +148,95 @@ def create_simulation(path, name) -> None:
     """
     create_instance(path, name)
 
+
+######################################
+# Workflows
+######################################
+
+def get_workflows(path: str) -> list:
+    """
+    Get the list of workflows.
+    """
+    return get_instances(path)
+
+def workflow_exists(path, name) -> bool:
+    """
+    Check if a specific workflow exists.
+    """
+    return instance_exists(path, name)
+
+def duplicate_workflow(path, source_name, target_name) -> None:
+    """
+    Duplicate a workflow.
+    """
+    duplicate_instance(path, source_name, target_name)
+
+def delete_workflow(path, name) -> None:
+    """
+    Delete a workflow.
+    """
+    delete_instance(path, name)
+
+def rename_workflow(path, old_name, new_name) -> None:
+    """
+    Rename a workflow.
+    """
+    rename_instance(path, old_name, new_name)
+
+def create_workflow(path, name) -> None:
+    """
+    Create a new workflow.
+    """
+    create_instance(path, name)
+
+def get_workflow_path(workflow_path, workflow_name) -> str:
+    """
+    Get the path of a specific workflow.
+    """
+    return os.path.join(workflow_path, workflow_name)
+
+def get_workflow_settings_path(workflow_path, workflow_name) -> str:
+    """
+    Get the settings file path of a specific workflow.
+    """
+    return os.path.join(get_workflow_path(workflow_path, workflow_name), hard_settings.param_settings_filename)
+
+def load_workflow_settings(workflow_path, workflow_name) -> dict:
+    """
+    Load workflow settings.
+    """
+    path = get_workflow_settings_path(workflow_path, workflow_name)
+    return load_yaml_file(path, default={})
+
+def update_workflow_settings(workflow_path, workflow_name, settings_to_update) -> None:
+    """
+    Update workflow settings while preserving comments and untouched keys.
+    """
+    path = get_workflow_settings_path(workflow_path, workflow_name)
+    yaml_obj = YAML()
+
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            settings = yaml_obj.load(f)
+            if settings is None:
+                settings = CommentedMap()
+    else:
+        settings = CommentedMap()
+
+    for key, value in settings_to_update.items():
+        if key == "generate_configurations_settings" and isinstance(value, dict):
+            value = copy.deepcopy(value)
+            _compact_list_variables_in_config_settings(value)
+        settings[key] = value
+
+    save_yaml_file(path, settings, yaml_obj=yaml_obj)
+
+def save_workflow_settings(workflow_path, workflow_name, settings) -> None:
+    """
+    Save workflow settings.
+    """
+    update_workflow_settings(workflow_path, workflow_name, settings)
+
 ######################################
 # Architecture Settings
 ######################################
@@ -492,6 +581,41 @@ def delete_all_config_files(arch_path, arch_name, domain=hard_settings.main_para
     for f in os.listdir(path):
         if f.endswith(".txt"):
             os.remove(os.path.join(path, f))
+
+
+######################################
+# Workflow Configuration Files
+######################################
+
+def get_workflow_config_files(workflow_path, workflow_name) -> list:
+    """
+    Get configuration files for a workflow.
+    """
+    return get_config_files(workflow_path, workflow_name, hard_settings.main_parameter_domain)
+
+def load_workflow_config_file(workflow_path, workflow_name, filename) -> str:
+    """
+    Load a workflow configuration file.
+    """
+    return load_config_file(workflow_path, workflow_name, hard_settings.main_parameter_domain, filename)
+
+def save_workflow_config_file(workflow_path, workflow_name, filename, content) -> None:
+    """
+    Save a workflow configuration file.
+    """
+    save_config_file(workflow_path, workflow_name, hard_settings.main_parameter_domain, filename, content)
+
+def delete_workflow_config_file(workflow_path, workflow_name, filename) -> None:
+    """
+    Delete a workflow configuration file.
+    """
+    delete_config_file(workflow_path, workflow_name, hard_settings.main_parameter_domain, filename)
+
+def delete_all_workflow_config_files(workflow_path, workflow_name) -> None:
+    """
+    Delete all workflow configuration files.
+    """
+    delete_all_config_files(workflow_path, workflow_name, hard_settings.main_parameter_domain)
 
 def count_combinations(domains_configs):
     """Return the number of possible combinations for the current domains_configs dict."""
