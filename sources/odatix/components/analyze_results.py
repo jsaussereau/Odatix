@@ -40,17 +40,17 @@ ERROR_PRIORITY = [
 
 def get_analysis_errors_and_warnings(log_file):
     errors = []
-    warnings = []
+    critical_warnings = []
+    standard_warning_count = 0
 
     if not os.path.exists(log_file):
-        return errors, warnings
+        return errors, critical_warnings, standard_warning_count
 
     genus_lookahead_lines_left = 0
     genus_error_pending = False
-    genus_warning_active = False
 
-    # Keywords for dangerous warnings you care about (filtering out benign alerts)
-    DANGEROUS_WARNING_KEYWORDS = ["black box", "blackbox", "unresolved", "cannot resolve", "cannot find", "modmissing", "missing"]
+    # Structural / Functional danger keywords
+    BLACKBOX_KEYWORDS = ["black box", "blackbox", "unresolved", "cannot resolve", "cannot find", "modmissing", "missing"]
 
     with open(log_file, "r", errors="ignore") as f:
         for line in f:
@@ -81,30 +81,25 @@ def get_analysis_errors_and_warnings(log_file):
                 continue
                 
             elif "%Warning" in line_str:
-                if any(k in line_str.lower() for k in DANGEROUS_WARNING_KEYWORDS):
-                    warnings.append(line_str)
+                if any(k in line_str.lower() for k in BLACKBOX_KEYWORDS):
+                    critical_warnings.append(line_str)
+                else:
+                    standard_warning_count += 1
                 continue
 
-            # --- CADENCE GENUS MULTI-LINE WARNING TRACKER ---
-            if "Warning :" in line_str or "Warn :" in line_str:
-                genus_warning_active = any(k in line_str.lower() for k in DANGEROUS_WARNING_KEYWORDS)
-                if genus_warning_active:
-                    if not any(x in line_str for x in ["LINK-1806", "fetching", "loading"]):
-                        warnings.append(line_str)
-                continue
-            elif line_str.startswith(":") and genus_warning_active:
-                # Capture subsequent indented contextual summary statements for Genus warnings
-                warnings.append(line_str.lstrip(": ").strip())
-                continue
-            else:
-                # Reset if context block snaps
-                if not line_str.startswith(":"):
-                    genus_warning_active = False
+            # --- BROAD ENGINE WARNING CATCHMENT ---
+            is_warning = (
+                any(line_str.lower().startswith(x) for x in ["warning:", "warn:", "(warning)", "critical warning:"]) or
+                "warn" in line_str.lower() or 
+                any(c in line_str for c in ["(MW-", "(VLOGPT-", "(LINT-"])
+            )
 
-            # Standard General Warnings (DC, Vivado)
-            if any(x in line_str.lower() for x in ["warning:", "(warning)"]):
-                if any(k in line_str.lower() for k in DANGEROUS_WARNING_KEYWORDS):
-                    warnings.append(line_str)
+            if is_warning:
+                if not any(x in line_str for x in ["LINK-1806", "fetching", "loading"]):
+                    if any(k in line_str.lower() for k in BLACKBOX_KEYWORDS):
+                        critical_warnings.append(line_str)
+                    else:
+                        standard_warning_count += 1
                 continue
 
             # Process lookahead windows for Genus undeclared variables
@@ -185,9 +180,9 @@ def get_analysis_errors_and_warnings(log_file):
     if genus_error_pending:
         errors.append("Reference to undeclared variable")
 
-    return list(dict.fromkeys(errors)), list(dict.fromkeys(warnings))
+    return list(dict.fromkeys(errors)), list(dict.fromkeys(critical_warnings)), standard_warning_count
 
-
+    
 def get_most_relevant_error(errors):
     for priority in ERROR_PRIORITY:
         if match := next((err for err in errors if priority in err), None):
@@ -206,11 +201,19 @@ def get_genus_unresolved_info(unresolved_file):
         for line in f:
             line_str = line.strip()
             if line_str.startswith("hinst:"):
-                unresolved_instances.append(line_str.replace("hinst:", ""))
+                raw_instance = line_str.replace("hinst:", "").strip()
+                module_name = raw_instance.split("/")[-1] if "/" in raw_instance else raw_instance
+                if "." in module_name:
+                    module_name = module_name.split(".")[-1]
+                
+                formatted_msg = f"Unresolved: {module_name} (Missing Module)"
+                if formatted_msg not in unresolved_instances:
+                    unresolved_instances.append(formatted_msg)
+            
             if match := re.search(r"Total number of unresolved references.*:\s*(\d+)", line_str):
                 unresolved_count = int(match.group(1))
 
-    return unresolved_count, unresolved_instances
+    return max(unresolved_count, len(unresolved_instances)), unresolved_instances
 
 
 def get_dc_unresolved_info(log_file):
@@ -222,17 +225,19 @@ def get_dc_unresolved_info(log_file):
     with open(log_file, "r", errors="ignore") as f:
         for line in f:
             line_str = line.strip()
-            if match := re.search(r"Unable to resolve reference '([^']+)' in '([^']+)'", line_str):
+            if match := re.search(r"Cannot find the design '([^']+)'", line_str):
                 instance = match.group(1)
-                if instance not in unresolved_instances:
-                    unresolved_instances.append(instance)
-            elif match := re.search(r"Cannot find the design '([^']+)'", line_str):
+                msg = f"Unresolved: {instance} (Missing Module)"
+                if msg not in unresolved_instances:
+                    unresolved_instances.append(msg)
+            elif match := re.search(r"Unable to resolve reference '([^']+)' in '([^']+)'", line_str):
                 instance = match.group(1)
-                if instance not in unresolved_instances:
-                    unresolved_instances.append(f"{instance} (Missing Module)")
+                msg = f"Unresolved: {instance} (Missing Module)"
+                if msg not in unresolved_instances:
+                    unresolved_instances.append(msg)
             elif match := re.search(r"Design '([^']+)' has.*unresolved references", line_str):
                 instance = match.group(1)
-                msg = f"Hierarchy Link Issue ({instance})"
+                msg = f"Unresolved: Hierarchy Link Issue ({instance})"
                 if msg not in unresolved_instances:
                     unresolved_instances.append(msg)
 
@@ -253,15 +258,13 @@ def generate_analysis_summary(root_dir, output_file, tool):
         match_arch = re.search(r"([^/]+/[^/]+)(?:/log)?$", rel_path)
         architecture = match_arch.group(1) if match_arch else rel_path
 
-        # FIXED: Absolute directory calculations for Genus/DC structures
-        if rel_path.endswith("log"):
-            analysis_dir = os.path.dirname(os.path.dirname(root))
-        else:
-            analysis_dir = root
+        base_dir = root
+        if os.path.basename(base_dir) == "log":
+            base_dir = os.path.dirname(base_dir)
             
-        unresolved_file = os.path.join(analysis_dir, "report", "unresolved.rep")
+        unresolved_file = os.path.join(base_dir, "report", "unresolved.rep")
 
-        errors, warnings = get_analysis_errors_and_warnings(log_file)
+        errors, critical_log_warnings, standard_warning_count = get_analysis_errors_and_warnings(log_file)
 
         if tool == "design_compiler":
             unresolved_count, unresolved_instances = get_dc_unresolved_info(log_file)
@@ -270,10 +273,13 @@ def generate_analysis_summary(root_dir, output_file, tool):
         else:
             unresolved_count, unresolved_instances = 0, []
 
+        blackbox_warnings = unresolved_instances + [w for w in critical_log_warnings if w not in unresolved_instances]
+        total_warn_count = len(blackbox_warnings) + standard_warning_count
+
         if errors:
             status = "FAILED"
             error_message = get_most_relevant_error(errors)
-        elif unresolved_count > 0 or warnings:
+        elif total_warn_count > 0:
             status = "WARNING"
             error_message = ""
         else:
@@ -286,10 +292,10 @@ def generate_analysis_summary(root_dir, output_file, tool):
             "log_file": log_file,
             "status": status,
             "error": error_message,
-            "all_warnings": warnings,
+            "blackbox_warnings": blackbox_warnings,
+            "standard_warning_count": standard_warning_count,
             "error_count": len(errors),
-            "unresolved_references": unresolved_count,
-            "instances": unresolved_instances
+            "warning_count": total_warn_count
         })
 
     if not results:
@@ -304,35 +310,35 @@ def generate_analysis_summary(root_dir, output_file, tool):
 
     total = len(results)
     passed = sum(1 for r in results if r["status"] == "PASSED")
-    warnings_cnt = sum(1 for r in results if r["status"] == "WARNING")
     failed = sum(1 for r in results if r["status"] == "FAILED")
+    warnings_cnt = sum(1 for r in results if r["status"] == "WARNING")
+    total_warnings_sum = sum(r["warning_count"] for r in results)
 
     # Generate Output File Report
     with open(output_file, "w") as f:
         f.write("=========================================\n")
         f.write("         ANALYSIS SUMMARY\n")
         f.write("=========================================\n\n")
-        f.write(f"Total: {total} | PASSED: {passed} | WARNING: {warnings_cnt} | FAILED: {failed}\n\n")
+        f.write(f"Total: {total} | PASSED: {passed} | TOTAL WARNINGS: {total_warnings_sum} | FAILED: {failed}\n\n")
 
         for result in results:
             if result["status"] == "PASSED":
                 f.write(f"{result['architecture']}: ✓ PASSED\n")
             elif result["status"] == "WARNING":
-                ref_msg = f"{result['unresolved_references']} unresolved references" if result['unresolved_references'] else "critical design warnings detected"
-                f.write(f"{result['architecture']}: ⚠ WARNING ({ref_msg})\n")
-                combined_warnings = [f"Unresolved Ref: {i}" for i in result["instances"]] + result["all_warnings"]
-                for wrn in combined_warnings[:3]:
-                    f.write(f"    -> {wrn}\n")
-                if len(combined_warnings) > 3:
-                    remaining = len(combined_warnings) - 3
-                    f.write(f"    -> {remaining} more warning(s).... please check the log\n")
+                f.write(f"{result['architecture']}: ⚠ WARNING ({result['warning_count']} warning(s) detected)\n")
+                if result["blackbox_warnings"]:
+                    for wrn in result["blackbox_warnings"][:3]:
+                        f.write(f"    -> {wrn}\n")
+                    if len(result["blackbox_warnings"]) > 3:
+                        remaining = len(result["blackbox_warnings"]) - 3
+                        f.write(f"    -> {remaining} more critical warning(s).... please check the log file\n")
+                if result["standard_warning_count"] > 0:
+                    f.write(f"    -> Info: {result['standard_warning_count']} standard warning(s) masked. Check log file for layout metrics.\n")
             else:
                 f.write(f"{result['architecture']}: ✗ FAILED\n")
                 f.write(f"    -> {result['error']}\n")
-                tool_label = TOOL_NAMES.get(result['tool'], "Tool").title()
-                f.write(f"    -> {result['error_count']} {tool_label} error(s)\n")
 
-    # Console Output Execution
+    # --- STREAMLINED SUMMARY PRESENTATION ---
     print(f"\n{CYAN}========================================={RESET}")
     print(f"{BOLD}{CYAN}         ANALYSIS SUMMARY{RESET}")
     print(f"{CYAN}========================================={RESET}")
@@ -345,48 +351,51 @@ def generate_analysis_summary(root_dir, output_file, tool):
 
     for result in results:
         arch = result['architecture']
-        log_p = result['log_file']
+        log_path = result['log_file']
 
         if result["status"] == "PASSED":
-            print(f"{arch}: {GREEN}✓ PASSED{RESET}")
+            print(f"{GREEN}✓  {BOLD}{arch}{RESET}")
+            
         elif result["status"] == "WARNING":
-            ref_msg = f"{result['unresolved_references']} unresolved references" if result['unresolved_references'] else "critical design warnings detected"
-            print(f"{arch}: {YELLOW}⚠ WARNING{RESET} ({ref_msg})")
-            combined_warnings = [f"Unresolved: {i}" for i in result["instances"]] + result["all_warnings"]
-            for wrn in combined_warnings[:3]:
-                print(f"    -> {YELLOW}{wrn}{RESET}")
-            if len(combined_warnings) > 3:
-                remaining = len(combined_warnings) - 3
-                print(f"    -> {BOLD}{YELLOW}{remaining} more warning(s).... please check the log{RESET}")
-            print(f"Maybe your Design will not be synthesized correctly. For more info, check log: {BOLD}{MAGENTA}{log_p}{RESET}")
-        else:
-            print(f"{arch}: {RED}✗ FAILED{RESET}")
-            error_msg = result['error']
-            if "Error:" in error_msg or "%Error" in error_msg:
-                print(f"    -> {RED}{error_msg}{RESET}")
-            elif ":" in error_msg:
-                prefix, symbol = error_msg.split(":", 1)
-                print(f"    -> {prefix}:{RED}{symbol}{RESET}")
-            else:
-                print(f"    -> {RED}{error_msg}{RESET}")
+            print(f"{YELLOW}⚠  {BOLD}{arch}{RESET} {YELLOW}({result.get('warning_count', 0)} warnings){RESET}")
+            bbs = result.get("blackbox_warnings", [])
+            if bbs:
+                clean_warn = bbs[0].replace("Warning: ", "").replace("WARNING: ", "").strip()
+                print(f"   ├─ {YELLOW}Primary issue: {clean_warn}{RESET}")
+            elif result.get("standard_warning_count", 0) > 0:
+                print(f"   └─ {YELLOW}INFO: {result['standard_warning_count']} standard warning(s) logged.{RESET}")
+            print(f"   └─ Log: For more info please check {MAGENTA}{log_path}{RESET}")
                 
-            tool_label = TOOL_NAMES.get(result['tool'], "Tool").title()
-            print(f"    -> {result['error_count']} {tool_label} error(s)")
-            print(f"For more info, check log: {BOLD}{MAGENTA}{log_p}{RESET}")
+        else:
+            print(f"{RED}✗  {BOLD}{arch}{RESET}")
+            error_msg = result.get('error', 'Unknown Error')
+            clean_err = error_msg.split("For more info")[0].strip()
+            if clean_err.lower().startswith("error:"):
+                clean_err = clean_err[6:].strip()
+                
+            print(f"   ├─ {RED}Error: {clean_err}{RESET}")
+            print(f"   └─ Log: For more info please check {MAGENTA}{log_path}{RESET}")
 
     print(f"\nAnalysis written to: {output_file}\n")
 
     return {
-        "tool": tool, "total": total, "passed": passed, "PASSED": passed,
-        "warnings": warnings_cnt, "WARNINGS": warnings_cnt, "failed": failed, "FAILED": failed,
+        "tool": tool,
+        "total": total,
+        "passed": passed,
+        "PASSED": passed,
+        "warnings": warnings_cnt,
+        "WARNINGS": warnings_cnt,
+        "failed": failed,
+        "FAILED": failed,
         "results": results
     }
 
 
 if __name__ == "__main__":
-    target_tool = "genus" 
+    target_tool = "design_compiler" 
+    
     generate_analysis_summary(
-        root_dir="work/analysis/genus",
+        root_dir="work/analysis/design_compiler",
         output_file="analysis_report.txt",
         tool=target_tool
     )

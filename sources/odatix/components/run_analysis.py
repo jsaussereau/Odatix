@@ -479,12 +479,6 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
       tool=tool
     )
 
-  print(
-    "[run_analysis.py] Analysis summary generated: "
-    f"{GREEN}{summary['passed']} PASSED{RESET}, "
-    f"{YELLOW}{summary['warnings']} WARNING{RESET}, "
-    f"{RED}{summary['failed']} FAILED{RESET}"
-  )
   return summary
 
 def get_colored_table_symbol(status, column_width=12):
