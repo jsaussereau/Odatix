@@ -66,5 +66,11 @@ report_progress 95 $synth_statusfile
 #################################################################################
 
 write_hdl > $result_path/${top_level_module}_netlist.v
+write_sdf > $result_path/${top_level_module}.sdf
+write_sdc > $result_path/${top_level_module}.sdc
+
+
+
+
 report_progress 100 $synth_statusfile
 puts "Synthesis completed successfully!"
