@@ -195,24 +195,24 @@ def get_workflow_path(workflow_path, workflow_name) -> str:
     """
     return os.path.join(workflow_path, workflow_name)
 
-def get_workflow_settings_path(workflow_path, workflow_name) -> str:
+def get_workflow_settings_path(workflow_path, workflow_name, domain=hard_settings.main_parameter_domain) -> str:
     """
-    Get the settings file path of a specific workflow.
+    Get the settings file path of a specific workflow (or one of its parameter domains).
     """
-    return os.path.join(get_workflow_path(workflow_path, workflow_name), hard_settings.param_settings_filename)
+    return os.path.join(get_arch_domain_path(workflow_path, workflow_name, domain), hard_settings.param_settings_filename)
 
-def load_workflow_settings(workflow_path, workflow_name) -> dict:
+def load_workflow_settings(workflow_path, workflow_name, domain=hard_settings.main_parameter_domain) -> dict:
     """
     Load workflow settings.
     """
-    path = get_workflow_settings_path(workflow_path, workflow_name)
+    path = get_workflow_settings_path(workflow_path, workflow_name, domain)
     return load_yaml_file(path, default={})
 
-def update_workflow_settings(workflow_path, workflow_name, settings_to_update) -> None:
+def update_workflow_settings(workflow_path, workflow_name, settings_to_update, domain=hard_settings.main_parameter_domain) -> None:
     """
     Update workflow settings while preserving comments and untouched keys.
     """
-    path = get_workflow_settings_path(workflow_path, workflow_name)
+    path = get_workflow_settings_path(workflow_path, workflow_name, domain)
     yaml_obj = YAML()
 
     if os.path.exists(path):
@@ -231,11 +231,11 @@ def update_workflow_settings(workflow_path, workflow_name, settings_to_update) -
 
     save_yaml_file(path, settings, yaml_obj=yaml_obj)
 
-def save_workflow_settings(workflow_path, workflow_name, settings) -> None:
+def save_workflow_settings(workflow_path, workflow_name, settings, domain=hard_settings.main_parameter_domain) -> None:
     """
     Save workflow settings.
     """
-    update_workflow_settings(workflow_path, workflow_name, settings)
+    update_workflow_settings(workflow_path, workflow_name, settings, domain)
 
 ######################################
 # Architecture Settings
@@ -523,6 +523,28 @@ def update_domain_settings(arch_path, arch_name, domain, settings_to_update) -> 
     # Save back, preserving comments and formatting
     with open(path, "w") as f:
         yaml_obj.dump(settings, f)
+
+
+#######################################
+# Generic Instance Domain Settings (Architectures & Workflows)
+#######################################
+
+def load_instance_domain_settings(path, name, domain=hard_settings.main_parameter_domain, kind="arch") -> dict:
+    """
+    Load the settings of a parameter domain, for either an architecture or a workflow.
+    """
+    if kind == "workflow":
+        return load_workflow_settings(path, name, domain)
+    return load_architecture_settings(path, name, domain)
+
+def update_instance_domain_settings(path, name, domain, settings_to_update, kind="arch") -> None:
+    """
+    Update the settings of a parameter domain, for either an architecture or a workflow.
+    """
+    if kind == "workflow":
+        update_workflow_settings(path, name, settings_to_update, domain)
+    else:
+        update_domain_settings(path, name, domain, settings_to_update)
 
 
 ######################################
