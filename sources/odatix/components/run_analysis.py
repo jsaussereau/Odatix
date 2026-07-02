@@ -64,7 +64,7 @@ script_name = os.path.basename(__file__)
 
 
 def add_arguments(parser):
-  parser.add_argument("-t", "--tool", nargs="+", default="vivado", help="eda tool in use (default: vivado)")
+  parser.add_argument("-t", "--tool", nargs="+", default=["vivado"], help="eda tool in use (default: vivado)")
   parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
   parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
   parser.add_argument("-i", "--input", help="input settings file")
