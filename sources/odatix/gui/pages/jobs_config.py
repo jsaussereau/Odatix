@@ -341,7 +341,8 @@ def job_settings_form_field(
     )
 
 def job_settings_form(settings, run_mode="default"):
-    defval = lambda k, v=None: settings.get(k, v)
+    frequencies = settings.get("frequencies", {})
+    range = frequencies.get("range", {})
 
     return html.Div(
         children=[
@@ -351,7 +352,7 @@ def job_settings_form(settings, run_mode="default"):
                 html.Div([
                     dcc.Checklist(
                         options=[{"label": "Overwrite existing result", "value": True}],
-                        value=[True] if True else [],
+                        value=[True] if settings.get("overwrite", False) else [],
                         id="overwrite",
                         className="checklist-switch",
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
@@ -361,7 +362,7 @@ def job_settings_form(settings, run_mode="default"):
                 html.Div([
                     dcc.Checklist(
                         options=[{"label": "Force single threading", "value": True}],
-                        value=[True] if True else [],
+                        value=[True] if settings.get("force_single_thread", True) else [],
                         id="force_single_thread",
                         className="checklist-switch",
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
@@ -372,7 +373,7 @@ def job_settings_form(settings, run_mode="default"):
                     label="Maximum number of parallel jobs",
                     id="nb_jobs",
                     type="number",
-                    value=str(defval("nb_jobs", 8)),
+                    value=str(settings.get("nb_jobs", 8)),
                     tooltip="Maximum number of jobs to run in parallel. (overridden by -j / --jobs)",
                 ),
             ], className="tile config"),
@@ -382,36 +383,36 @@ def job_settings_form(settings, run_mode="default"):
                     label="Size of the log history per job in the monitor",
                     id="log_size_limit",
                     type="number",
-                    value=str(defval("log_size_limit", 300)),
+                    value=str(settings.get("log_size_limit", 300)),
                     tooltip="Number of log lines to keep per job. (overridden by --logsize)",
                 ),
-                # html.H3("CLI Settings"),
-                # html.Div([
-                #     dcc.Checklist(
-                #         options=[{"label": "Prompt 'Continue? (Y/n)' after settings checks", "value": True}],
-                #         value=[True] if True else [],
-                #         id="ask_continue",
-                #         className="checklist-switch",
-                #         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
-                #     ),
-                #     ui.tooltip_icon("Ask for confirmation after checking settings. (overridden by -y / --noask)."),
-                # ], style={"marginBottom": "12px"}),
-                # html.Div([
-                #     dcc.Checklist(
-                #         options=[{"label": "Exit terminal monitor when all jobs are done", "value": True}],
-                #         value=[True] if True else [],
-                #         id="exit_when_done",
-                #         className="checklist-switch",
-                #         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
-                #     ),
-                #     ui.tooltip_icon("Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)."),
-                # ], style={"marginBottom": "12px"}),
+                html.H3("CLI Settings"),
+                html.Div([
+                    dcc.Checklist(
+                        options=[{"label": "Ask for confirmation after checking settings", "value": True}],
+                        value=[True] if True else [],
+                        id="ask_continue",
+                        className="checklist-switch",
+                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                    ),
+                    ui.tooltip_icon("Prompt 'Continue? (Y/n)' after settings checks. (overridden by -y / --noask)."),
+                ], style={"marginBottom": "12px"}),
+                html.Div([
+                    dcc.Checklist(
+                        options=[{"label": "Exit terminal monitor when all jobs are done", "value": True}],
+                        value=[True] if True else [],
+                        id="exit_when_done",
+                        className="checklist-switch",
+                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                    ),
+                    ui.tooltip_icon("Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)."),
+                ], style={"marginBottom": "12px"}),
             ], className="tile config"),
             html.Div([
                 html.H3("Custom Frequency Synthesis Settings"),
                 dcc.Checklist(
                     options=[{"label": "Override frequencies", "value": True}],
-                    value=[True] if True else [],
+                    value=[True] if frequencies.get("override", False) else [],
                     id="override-arch-frequencies",
                     className="checklist-switch",
                     style={"marginBottom": "15px", "display": "inline-block"},
@@ -421,10 +422,10 @@ def job_settings_form(settings, run_mode="default"):
                     children=[
                         html.Div(
                             children=[
-                                html.Label("On/Off", style={"marginTop": "2px", "marginBottom": "-2px"}),
+                                html.Label("List", style={"marginTop": "2px", "marginBottom": "-2px"}),
                                 dcc.Checklist(
                                     options=[{"label": "", "value": True}],
-                                    value=[True] if True else [],
+                                    value=[True] if frequencies.get("use_custom_freq_list", False) else [],
                                     id="use-custom-freq-list",
                                     className="checklist-switch",
                                     style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
@@ -435,8 +436,8 @@ def job_settings_form(settings, run_mode="default"):
                         job_settings_form_field(
                             label="Target frequencies (MHz)",
                             id="target_frequencies",
-                            type="number",
-                            value=str(defval("target_frequencies", 1000)),
+                            type="text",
+                            value=", ".join(str(f) for f in frequencies.get("list", [])),
                             tooltip="Comma-separated target frequencies for the synthesis.",
                             style={"width": "100%"},
                         ),
@@ -447,10 +448,10 @@ def job_settings_form(settings, run_mode="default"):
                     children=[
                         html.Div(
                             children=[
-                                html.Label("On/Off", style={"marginTop": "2px", "marginBottom": "-2px"}),
+                                html.Label("Range", style={"marginTop": "2px", "marginBottom": "-2px"}),
                                 dcc.Checklist(
                                     options=[{"label": "", "value": True}],
-                                    value=[] if False else [],
+                                    value=[True] if frequencies.get("use_custom_freq_range", False) else [],
                                     id="use-custom-freq-range",
                                     className="checklist-switch",
                                     style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
@@ -462,21 +463,21 @@ def job_settings_form(settings, run_mode="default"):
                             label="From (MHz)",
                             id="from_frequency",
                             type="number",
-                            value=str(defval("from_frequency", 1000)),
+                            value=str(range.get("from", "")),
                             tooltip="Lower frequency for the synthesis.",
                         ),
                         job_settings_form_field(
                             label="To (MHz)",
                             id="to_frequency",
                             type="number",
-                            value=str(defval("to_frequency", 2000)),
+                            value=str(range.get("to", "")),
                             tooltip="Upper frequency for the synthesis.",
                         ),
                         job_settings_form_field(
                             label="Step (MHz)",
                             id="step_frequency",
                             type="number",
-                            value=str(defval("step_frequency", 100)),
+                            value=str(range.get("step", "")),
                             tooltip="Frequency step for the synthesis.",
                         ),
                     ],
@@ -518,14 +519,18 @@ def update_session_dropdown(_search, _n, current_value):
     Output("job-settings-initial-settings", "data"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
+    State("odatix-settings", "data"),
 )
-def init_form(search, page):
+def init_form(search, page, odatix_settings):
     if page != page_path:
         return dash.no_update, dash.no_update
 
     run_mode = get_key_from_url(search, "type")
-
-    settings = {}
+    settings_path = _get_synth_settings_path(search, odatix_settings or {})
+    
+    settings = workspace.load_arch_selection_settings(settings_path)
+    if run_mode == "custom_freq_synthesis":
+        settings = workspace.get_frequencies_form_values(settings)
     if settings is None:
         settings = {}
     return job_settings_form(settings, run_mode), settings
@@ -882,6 +887,13 @@ def sync_preview_values(
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
+    Input("override-arch-frequencies", "value"),
+    Input("use-custom-freq-list", "value"),
+    Input("target_frequencies", "value"),
+    Input("use-custom-freq-range", "value"),
+    Input("from_frequency", "value"),
+    Input("to_frequency", "value"),
+    Input("step_frequency", "value"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
     State("jobs-config-saved-selection", "data"),
@@ -894,6 +906,13 @@ def save_architecture_selections(
     save_n_clicks,
     switch_values,
     preview_values,
+    override_arch_frequencies,
+    use_custom_freq_list,
+    target_frequencies,
+    use_custom_freq_range,
+    from_frequency,
+    to_frequency,
+    step_frequency,
     switch_ids,
     preview_ids,
     saved_selection,
@@ -929,19 +948,37 @@ def save_architecture_selections(
     # Remove duplicates but keep order
     architectures = list(dict.fromkeys(architectures))
 
+    run_mode = get_key_from_url(search, "type")
+    current_settings = {
+        "architectures": architectures,
+    }
+    if run_mode == "custom_freq_synthesis":
+        current_settings["frequencies"] = workspace.create_custom_frequencies_settings_dict(
+            _checklist_enabled(override_arch_frequencies),
+            target_frequencies,
+            from_frequency,
+            to_frequency,
+            step_frequency,
+        )
+
+    if isinstance(saved_selection, dict):
+        saved_settings = saved_selection
+    else:
+        saved_settings = {"architectures": saved_selection or []}
+
     if triggered_id == {"page": page_path, "action": "save-all"}:
         try:
             settings_path = _get_synth_settings_path(search, odatix_settings or {})
             base_settings = workspace.load_arch_selection_settings(settings_path)
             payload = {
                 **base_settings,
-                "architectures": architectures,
+                **current_settings,
             }
-            workspace.save_architecture_selection(settings_path, payload)
+            workspace.save_architecture_selection(settings_path, payload, run_mode=run_mode, use_custom_freq_list=use_custom_freq_list, use_custom_freq_range=use_custom_freq_range)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
-                architectures,
+                current_settings,
             )
         except Exception:
             return (
@@ -950,12 +987,21 @@ def save_architecture_selections(
                 dash.no_update,
             )
 
-    if (saved_selection or []) != architectures:
+    if saved_settings.get("architectures", []) != current_settings.get("architectures", []):
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
             dash.no_update,
         )
+
+    if run_mode == "custom_freq_synthesis":
+        saved_frequencies = saved_settings.get("frequencies", {})
+        if saved_frequencies != current_settings.get("frequencies", {}):
+            return (
+                "color-button warning icon-button tooltip bottom small tooltip",
+                "Unsaved changes!",
+                dash.no_update,
+            )
 
     return (
         "color-button disabled icon-button tooltip delay bottom small",
