@@ -38,7 +38,7 @@ dash.register_page(
     path=page_path,
     title='Odatix - Workspace Settings',
     name='Workspace',
-    order=3,
+    order=10,
 )
 
 ######################################

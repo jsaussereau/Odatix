@@ -33,8 +33,8 @@ dash.register_page(
     __name__,
     path=page_path,
     title='Odatix - Choose Job Type',
-    name='choose_job_type',
-    order=8,
+    name='Run Jobs',
+    order=6,
 )
 
 ######################################
