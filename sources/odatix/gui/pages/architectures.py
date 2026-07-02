@@ -51,7 +51,7 @@ def normal_card(name, card_type: str = "arch"):
     unique_key = str(uuid.uuid4())
     return html.Div(
         [
-            html.Div(name, style={"fontWeight": "bold", "fontSize": "1.2em", "textAlign": "center"}),
+            html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.2em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden"}),
             html.Div([
                 html.Div([
                     ui.icon_button(
