@@ -88,7 +88,7 @@ def normal_card(name):
                                 icon=icon("edit", className="icon black"),
                                 text="Edit Configs",
                                 color="default",
-                                link=f"/workflow_config_editor?workflow={name}",
+                                link=f"/config_editor?workflow={name}",
                                 multiline=True,
                                 width="100px",
                             ),
