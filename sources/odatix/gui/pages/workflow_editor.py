@@ -151,6 +151,61 @@ def format_tasks(tasks):
         return ""
     return yaml.safe_dump(tasks, sort_keys=False, default_flow_style=False).strip()
 
+def wf_build_tasks_list(names, dependencies_vals, commands_vals, path_vals, platforms_vals):
+    """
+    Build the workflow tasks list from task card field values.
+    """
+    tasks = []
+    has_main = False
+    nb = len(names) if isinstance(names, list) else 0
+    for idx in range(nb):
+        name = str(names[idx]).strip() if idx < len(names) and names[idx] is not None else ""
+        if name == "":
+            continue
+
+        dependencies_raw = dependencies_vals[idx] if idx < len(dependencies_vals) else ""
+        dependencies = [
+            x.strip() for x in str(dependencies_raw).split(",")
+            if x is not None and str(x).strip() != ""
+        ]
+
+        commands_raw = commands_vals[idx] if idx < len(commands_vals) else ""
+        commands = [
+            line.strip() for line in str(commands_raw).splitlines()
+            if line is not None and str(line).strip() != ""
+        ]
+
+        task = {
+            "name": name,
+            "commands": commands,
+        }
+        if name == "main":
+            has_main = True
+        if len(dependencies) > 0:
+            task["dependencies"] = dependencies
+
+        task_path = str(path_vals[idx]).strip() if idx < len(path_vals) and path_vals[idx] is not None else ""
+        if task_path != "":
+            task["path"] = task_path
+
+        platforms_raw = platforms_vals[idx] if idx < len(platforms_vals) else ""
+        platforms = [
+            x.strip() for x in str(platforms_raw).split(",")
+            if x is not None and str(x).strip() != ""
+        ]
+        if len(platforms) == 1:
+            task["platforms"] = platforms[0]
+        elif len(platforms) > 1:
+            task["platforms"] = platforms
+
+        tasks.append(task)
+
+    # Always keep at least the mandatory main task.
+    if not has_main:
+        tasks.insert(0, {"name": "main", "commands": []})
+
+    return tasks
+
 def wf_build_variables_dict(
     titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals
 ):
@@ -368,25 +423,6 @@ def workflow_form(settings):
                 ],
                 className="tile config",
             ),
-            html.Div(
-                [
-                    html.H3("Tasks (YAML List)"),
-                    ui.tooltip_icon("List of workflow tasks (name, dependencies, commands, optional path/platforms)."),
-                    dcc.Textarea(
-                        id="wf-tasks-yaml",
-                        value=format_tasks(defval("tasks", [])),
-                        className="auto-resize-textarea",
-                        style={
-                            "width": "100%",
-                            "minHeight": "220px",
-                            "resize": "vertical",
-                            "fontFamily": "monospace",
-                            "fontWeight": "500",
-                        },
-                    ),
-                ],
-                className="tile config",
-            ),
         ],
         className="tiles-container config",
         style={"marginTop": "-10px", "marginBottom": "20px"},
@@ -545,7 +581,107 @@ def wf_variable_card(
         "verticalAlign": "top"
     })
 
-def wf_add_card(text: str = "Add new variable"):
+def wf_task_card(name="main", dependencies_value="", commands_value="", path_value="", platforms_value=""):
+    is_main = str(name).strip() == "main"
+    return html.Div([
+        html.Div(
+            children=[
+                dcc.Input(
+                    value=name,
+                    type="text",
+                    id={"type": "wf-task-field-name", "name": name},
+                    className="title-input",
+                    disabled=is_main,
+                    style={
+                        "width": "calc(100% - 20px)",
+                        "marginLeft": "5px",
+                        "marginRight": "5px",
+                        "marginTop": "-5px",
+                        "marginBottom": "2px",
+                        "fontWeight": "bold",
+                        "fontSize": "1.1em",
+                        "height": "10px",
+                        "textAlign": "center",
+                    },
+                ),
+                html.Label("Dependencies", style={"fontWeight": "bold", "fontSize": "1em"}),
+                dcc.Input(
+                    value=dependencies_value,
+                    type="text",
+                    placeholder="task_a, task_b",
+                    id={"type": "wf-task-field-dependencies", "name": name},
+                    className="value-input",
+                    style={"width": "100%", "marginBottom": "8px"},
+                ),
+                html.Label("Commands (one per line)", style={"fontWeight": "bold", "fontSize": "1em"}),
+                dcc.Textarea(
+                    value=commands_value,
+                    id={"type": "wf-task-field-commands", "name": name},
+                    className="auto-resize-textarea",
+                    style={
+                        "width": "100%",
+                        "minHeight": "110px",
+                        "resize": "vertical",
+                        "fontFamily": "monospace",
+                        "fontWeight": "500",
+                        "marginBottom": "8px",
+                    },
+                ),
+                html.Div(
+                    children=[
+                        html.Label("Path (optional)", style={"fontWeight": "bold", "fontSize": "1em"}),
+                        dcc.Input(
+                            value=path_value,
+                            type="text",
+                            id={"type": "wf-task-field-path", "name": name},
+                            className="value-input",
+                            style={"width": "100%", "marginBottom": "8px"},
+                        ),
+                        html.Label("Platforms (optional)", style={"fontWeight": "bold", "fontSize": "1em"}),
+                        dcc.Input(
+                            value=platforms_value,
+                            type="text",
+                            placeholder="linux, win32",
+                            id={"type": "wf-task-field-platforms", "name": name},
+                            className="value-input",
+                            style={"width": "100%", "marginBottom": "8px"},
+                        ),
+                    ],
+                    id={"type": "wf-more-task-field-div", "name": name},
+                    className="expandable-area",
+                    style=Style.hidden,
+                ),
+            ],
+            style={"width": "calc(100% - 10px)"}
+        ),
+        html.Div([
+            html.Div([
+                ui.icon_button(
+                    icon=icon("more", className="icon normal rotate", id={"type": "wf-more-task-fields-icon", "name": name}),
+                    color="default",
+                    id={"type": "wf-more-fields-task", "name": name},
+                    tooltip="Show/Hide extra fields",
+                    tooltip_options="bottom small",
+                )
+            ], id={"type": "wf-more-fields-task-div", "name": name}, style={"display": "flex", "alignItems": "center"}),
+            html.Div([
+                ui.duplicate_button(id={"type": "wf-duplicate-task", "name": name}),
+                html.Div() if is_main else ui.delete_button(id={"type": "wf-delete-task", "name": name}),
+            ], style={"display": "flex", "flexDirection": "horizontal", "alignItems": "center"}),
+        ], style={
+            "marginTop": "8px",
+            "display": "flex",
+            "flexDirection": "row",
+            "width": "100%",
+            "justifyContent": "space-between",
+        }),
+    ],
+    className="tile config",
+    style={"marginLeft": "10px"},
+    id={"type": "wf-task-card", "name": name},
+)
+
+def wf_add_card(prefix: str = "wf-variable", text: str = "Add new variable", mode="variable"):
     return html.Div(
         html.Div(
             html.Div(
@@ -562,13 +698,15 @@ def wf_add_card(text: str = "Add new variable"):
                 ],
                 style={"display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"}
             ),
-            id="wf-new-variable",
+            id=f"{prefix}-new",
             n_clicks=0,
             style={"textDecoration": "none", "height": "100%"},
         ),
-        className=f"card configs add hover",
-        id="wf-add-variable-card",
-        style={
+        className="tile config add hover" if mode == "task" else "card configs add hover",
+        id=f"{prefix}-add-card",
+        style= {
+            "marginLeft": "10px",
+        } if mode == "task" else {
             "padding": "10px",
             "margin": "5px",
             "display": "inline-block",
@@ -576,6 +714,57 @@ def wf_add_card(text: str = "Add new variable"):
             "boxSizing": "border-box"
         },
     )
+
+def wf_cards_from_tasks(tasks):
+    cards = []
+    has_main = False
+    if isinstance(tasks, list):
+        for idx, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                continue
+            name = str(task.get("name", "")).strip()
+            if name == "":
+                name = f"task{idx + 1}"
+            if name == "main":
+                has_main = True
+
+            dependencies = task.get("dependencies", [])
+            if isinstance(dependencies, str):
+                dependencies_value = dependencies
+            elif isinstance(dependencies, list):
+                dependencies_value = ", ".join([str(x) for x in dependencies if str(x).strip()])
+            else:
+                dependencies_value = ""
+
+            commands = task.get("commands", [])
+            if isinstance(commands, list):
+                commands_value = "\n".join([str(x) for x in commands if str(x).strip()])
+            elif isinstance(commands, str):
+                commands_value = commands
+            else:
+                commands_value = ""
+
+            path_value = str(task.get("path", "")) if task.get("path", "") is not None else ""
+
+            platforms = task.get("platforms", "")
+            if isinstance(platforms, list):
+                platforms_value = ", ".join([str(x) for x in platforms if str(x).strip()])
+            else:
+                platforms_value = str(platforms) if platforms is not None else ""
+
+            cards.append(
+                wf_task_card(
+                    name=name,
+                    dependencies_value=dependencies_value,
+                    commands_value=commands_value,
+                    path_value=path_value,
+                    platforms_value=platforms_value,
+                )
+            )
+    if not has_main:
+        cards.insert(0, wf_task_card(name="main"))
+    cards.append(wf_add_card(prefix="wf-task", text="Add new task", mode="task"))
+    return cards
 
 def wf_cards_from_variables(variables):
     cards = []
@@ -602,7 +791,107 @@ def wf_cards_from_variables(variables):
                 sources_value=", ".join(map(str, var_settings.get("sources", []))),
                 format_value=str(var_keys.get("format", "")),
             ))
-    cards.append(wf_add_card())
+    cards.append(wf_add_card(prefix="wf-variable", text="Add new variable"))
+    return cards
+
+@dash.callback(
+    Output("wf-task-cards-row", "children", allow_duplicate=True),
+    Input("wf-task-new", "n_clicks"),
+    Input({"type": "wf-duplicate-task", "name": dash.ALL}, "n_clicks"),
+    Input({"type": "wf-delete-task", "name": dash.ALL}, "n_clicks"),
+    State("wf-task-cards-row", "children"),
+    State({"type": "wf-task-field-name", "name": dash.ALL}, "value"),
+    State({"type": "wf-task-field-dependencies", "name": dash.ALL}, "value"),
+    State({"type": "wf-task-field-commands", "name": dash.ALL}, "value"),
+    State({"type": "wf-task-field-path", "name": dash.ALL}, "value"),
+    State({"type": "wf-task-field-platforms", "name": dash.ALL}, "value"),
+    prevent_initial_call=True,
+)
+def update_wf_task_cards(
+    new_click,
+    duplicate_clicks,
+    delete_clicks,
+    cards,
+    task_names,
+    task_dependencies,
+    task_commands,
+    task_paths,
+    task_platforms,
+):
+    trigger_id = ctx.triggered_id
+
+    if cards is None:
+        cards = []
+
+    if cards and isinstance(cards[-1], dict) and cards[-1].get("props", {}).get("id") == "wf-task-add-card":
+        cards = cards[:-1]
+
+    if trigger_id == "wf-task-new" and new_click:
+        existing_names = [
+            card.get("props", {}).get("id", {}).get("name", "")
+            for card in cards
+            if isinstance(card.get("props", {}).get("id", {}), dict)
+        ]
+        idx = 1
+        while f"task{idx}" in existing_names:
+            idx += 1
+        cards.append(wf_task_card(name=f"task{idx}"))
+
+    if isinstance(trigger_id, dict):
+        trig_type = trigger_id.get("type")
+        trig_name = trigger_id.get("name")
+
+        idx = None
+        for i, card in enumerate(cards):
+            card_id = card.get("props", {}).get("id", {})
+            if isinstance(card_id, dict) and card_id.get("type") == "wf-task-card" and card_id.get("name") == trig_name:
+                idx = i
+                break
+
+        if trig_type == "wf-delete-task" and idx is not None:
+            if trig_name == "main":
+                cards.append(wf_add_card(prefix="wf-task", text="Add new task", mode=task))
+                return cards
+            cards = [
+                card for card in cards
+                if not (
+                    isinstance(card.get("props", {}).get("id", {}), dict)
+                    and card.get("props", {}).get("id", {}).get("type") == "wf-task-card"
+                    and card.get("props", {}).get("id", {}).get("name") == trig_name
+                )
+            ]
+        elif trig_type == "wf-duplicate-task" and idx is not None and idx < len(duplicate_clicks) and duplicate_clicks[idx]:
+            existing_names = [
+                card.get("props", {}).get("id", {}).get("name", "")
+                for card in cards
+                if isinstance(card.get("props", {}).get("id", {}), dict)
+            ]
+            copy_idx = 1
+            while f"{trig_name}_copy{copy_idx}" in existing_names:
+                copy_idx += 1
+            new_name = f"{trig_name}_copy{copy_idx}"
+
+            cards.append(
+                wf_task_card(
+                    name=new_name,
+                    dependencies_value=task_dependencies[idx] if idx < len(task_dependencies) else "",
+                    commands_value=task_commands[idx] if idx < len(task_commands) else "",
+                    path_value=task_paths[idx] if idx < len(task_paths) else "",
+                    platforms_value=task_platforms[idx] if idx < len(task_platforms) else "",
+                )
+            )
+
+    # Enforce mandatory main task card.
+    has_main = False
+    for card in cards:
+        card_id = card.get("props", {}).get("id", {}) if isinstance(card, dict) else {}
+        if isinstance(card_id, dict) and card_id.get("type") == "wf-task-card" and card_id.get("name") == "main":
+            has_main = True
+            break
+    if not has_main:
+        cards.insert(0, wf_task_card(name="main"))
+
+    cards.append(wf_add_card(prefix="wf-task", text="Add new task", mode="task"))
     return cards
 
 
@@ -613,6 +902,7 @@ def wf_cards_from_variables(variables):
 @dash.callback(
     Output("workflow-form-container", "children"),
     Output("workflow-initial-settings", "data"),
+    Output("wf-task-cards-row", "children"),
     Output("wf-variable-cards-row", "children"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
@@ -620,16 +910,17 @@ def wf_cards_from_variables(variables):
 )
 def init_form(search, page, odatix_settings):
     if page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     workflow_name = get_key_from_url(search, "workflow")
     if not workflow_name:
-        return workflow_form({}), {}, wf_cards_from_variables({})
+        return workflow_form({}), {}, wf_cards_from_tasks([]), wf_cards_from_variables({})
 
     workflow_path = _get_workflow_path(odatix_settings)
     settings = normalize_workflow_settings(workspace.load_workflow_settings(workflow_path, workflow_name))
     variables = settings.get("generate_configurations_settings", {}).get("variables", {})
-    return workflow_form(settings), settings, wf_cards_from_variables(variables)
+    tasks = settings.get("tasks", [])
+    return workflow_form(settings), settings, wf_cards_from_tasks(tasks), wf_cards_from_variables(variables)
 
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
@@ -647,7 +938,11 @@ def init_form(search, page, odatix_settings):
     Input("wf-stop-delimiter", "value"),
     Input("wf-progress-file", "value"),
     Input("wf-progress-regex", "value"),
-    Input("wf-tasks-yaml", "value"),
+    Input({"type": "wf-task-field-name", "name": dash.ALL}, "value"),
+    Input({"type": "wf-task-field-dependencies", "name": dash.ALL}, "value"),
+    Input({"type": "wf-task-field-commands", "name": dash.ALL}, "value"),
+    Input({"type": "wf-task-field-path", "name": dash.ALL}, "value"),
+    Input({"type": "wf-task-field-platforms", "name": dash.ALL}, "value"),
     Input({"type": "wf-variable-title", "name": dash.ALL}, "value"),
     Input({"type": "wf-variable-type", "name": dash.ALL}, "value"),
     Input({"type": "wf-variable-field-base", "name": dash.ALL}, "value"),
@@ -682,7 +977,11 @@ def save_and_status(
     stop_delimiter,
     progress_file,
     progress_regex,
-    tasks_yaml,
+    task_names,
+    task_dependencies,
+    task_commands,
+    task_paths,
+    task_platforms,
     variable_titles,
     variable_types,
     variable_base_vals,
@@ -713,26 +1012,13 @@ def save_and_status(
     else:
         reference_settings = normalize_workflow_settings(saved_settings)
 
-    try:
-        parsed_tasks = yaml.safe_load(tasks_yaml) if tasks_yaml and tasks_yaml.strip() else []
-    except Exception:
-        return (
-            "color-button error-status icon-button tooltip bottom",
-            "Invalid YAML in tasks section",
-            dash.no_update,
-            saved_settings,
-        )
-
-    if parsed_tasks is None:
-        parsed_tasks = []
-
-    if not isinstance(parsed_tasks, list):
-        return (
-            "color-button error-status icon-button tooltip bottom",
-            "Tasks must be a YAML list",
-            dash.no_update,
-            saved_settings,
-        )
+    parsed_tasks = wf_build_tasks_list(
+        task_names,
+        task_dependencies,
+        task_commands,
+        task_paths,
+        task_platforms,
+    )
 
     variables = wf_build_variables_dict(
         variable_titles, variable_types, variable_base_vals, variable_from_vals, variable_to_vals,
@@ -823,7 +1109,6 @@ def save_and_status(
             )
 
     if current_settings != reference_settings or workflow_title_value != (workflow_name or ""):
-        print(f"current_settings = \n{current_settings}\nreference_settings = \n{reference_settings}")
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
@@ -945,6 +1230,36 @@ def toggle_wf_more_fields(n_clicks, expandable_area_styles, icon_classes, metada
     return new_expandable_area_styles, new_icon_classes
 
 @dash.callback(
+    Output({"type": "wf-more-task-field-div", "name": dash.ALL}, "style"),
+    Output({"type": "wf-more-task-fields-icon", "name": dash.ALL}, "className"),
+    Input({"type": "wf-more-fields-task", "name": dash.ALL}, "n_clicks"),
+    State({"type": "wf-more-task-field-div", "name": dash.ALL}, "style"),
+    State({"type": "wf-more-task-fields-icon", "name": dash.ALL}, "className"),
+    State({"type": "wf-task-field-name", "name": dash.ALL}, "value"),
+)
+def toggle_wf_task_more_fields(n_clicks, expandable_area_styles, icon_classes, task_names):
+    trigger_id = ctx.triggered_id
+    if not isinstance(trigger_id, dict) or "name" not in trigger_id:
+        return [dash.no_update] * len(n_clicks), [dash.no_update] * len(n_clicks)
+
+    index = None
+    for i, current_name in enumerate(task_names):
+        if trigger_id.get("name") == current_name:
+            index = i
+            break
+
+    new_expandable_area_styles = list(expandable_area_styles)
+    new_icon_classes = list(icon_classes)
+    if index is not None:
+        if n_clicks[index] % 2 == 0:
+            new_expandable_area_styles[index] = Style.hidden
+            new_icon_classes[index] = "icon normal rotate"
+        else:
+            new_expandable_area_styles[index] = Style.visible
+            new_icon_classes[index] = "icon normal rotate rotated"
+    return new_expandable_area_styles, new_icon_classes
+
+@dash.callback(
     Output("wf-variable-cards-row", "children", allow_duplicate=True),
     Input("wf-new-variable", "n_clicks"),
     Input({"type": "wf-duplicate-var", "name": dash.ALL}, "n_clicks"),
@@ -975,7 +1290,7 @@ def update_wf_variable_cards(
         cards = []
 
     # Remove the Add card if present
-    if cards and isinstance(cards[-1], dict) and cards[-1].get('props', {}).get('id') == "wf-add-variable-card":
+    if cards and isinstance(cards[-1], dict) and cards[-1].get('props', {}).get('id') == "wf-variable-add-card":
         cards = cards[:-1]
 
     # Add new variable
@@ -1046,15 +1361,29 @@ layout = html.Div(
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "workflow-title-div"}, style={"marginTop": "20px"}),
         html.Div(id="workflow-form-container"),
-        ui.title_tile(text="Variable Definition", id="wf-variable-title", tooltip="Variables can be used inside commands and can also be used to generate configurations."),
-        html.Div([
-            html.Div(
-                id="wf-variable-cards-row",
-                children=[wf_add_card()],
-                className="card-matrix configs",
-                style={"marginLeft": "13px", "marginBottom": "30px"},
-            ),
-        ]),
+        html.Div(
+            children=[
+                ui.title_tile(text="Task Definition", id="wf-task-title", tooltip="Tasks can be used to define the steps of the workflow."),
+                html.Div([
+                    html.Div(
+                        id="wf-task-cards-row",
+                        children=[wf_add_card(prefix="wf-task", text="Add new task", mode="task")],
+                        className="tiles-container config",
+                        style={"display": "flex", "justifyContent": "flex-start", "alignItems": "flex-start", "flexWrap": "wrap", "marginBottom": "30px"},
+                    ),
+                ]),
+                ui.title_tile(text="Variable Definition", id="wf-variable-title", tooltip="Variables can be used inside commands and can also be used to generate configurations."),
+                html.Div([
+                    html.Div(
+                        id="wf-variable-cards-row",
+                        children=[wf_add_card(prefix="wf-variable", text="Add new variable")],
+                        className="card-matrix configs",
+                        style={"marginLeft": "13px", "marginBottom": "30px"},
+                    ),
+                ]),
+            ],
+            style={"marginLeft": "-13px"}
+        ),
         dcc.Store(id="workflow-initial-settings", data=None),
         dcc.Store(id="workflow-saved-settings", data=None),
     ],
