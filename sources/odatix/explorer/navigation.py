@@ -472,6 +472,18 @@ def side_bar(explorer):
                     ),
                   ],
                 ),
+                html.Div("Download data", style={"margin-left": "20px", "margin-top": "10px", "margin-bottom": "10px"}),
+                html.Div(
+                  id="dl-csv-div",
+                  children = [
+                    html.Button(
+                      "Download CSV",
+                      id="download-csv",
+                      n_clicks=0,
+                    ),
+                  ],
+                  style={"margin-left": "20px", "margin-bottom": "10px"},
+                )
               ],
             )
           ], className="sidebar-content", style={"width": side_bar_width}),

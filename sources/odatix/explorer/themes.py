@@ -68,6 +68,15 @@ themes = {
     "button_color":" #aaaaaa",
     "button_active_color": "#ffffff",
   },
+  "gradient": {
+    "base_template": "plotly_white",
+    "nav_bgcolor": "#e5ecf6",
+    "page_bgcolor": "#ffffff",
+    "plot_bgcolor": "#ffffff",
+    "button_color":" #aaaaaa",
+    "button_active_color": "#ffffff",
+    "legend_default_color": "#24292e",
+  },
   "candy": {
     "base_template": "odatix_darker",
     "nav_bgcolor":"#E156E8",
@@ -129,6 +138,14 @@ templates["candy"] = go.layout.Template(
     plot_bgcolor=get_plot_bgcolor("candy"),
     polar_bgcolor=get_plot_bgcolor("candy"),
     barcornerradius=10000,
+  )
+)
+
+templates["gradient"] = go.layout.Template(
+  layout = copy.deepcopy(templates["plotly"].layout).update(
+    paper_bgcolor=get_page_bgcolor("gradient"),
+    plot_bgcolor=get_plot_bgcolor("gradient"),
+    polar_bgcolor=get_plot_bgcolor("gradient"),
   )
 )
 

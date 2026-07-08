@@ -239,12 +239,13 @@ def create_line_graph(
               targets, target, selected_metric_display, unit, color_id, symbol_id, 
               toggle_legendgroup, toggle_connect_gaps
             )
-  return fig, selected_metric_display, selected_metric_display_unit
+  return fig, selected_metric_display, selected_metric_display_unit, filtered_df
 
 def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all_target_inputs, all_domains_inputs):
 
   @explorer.app.callback(
     Output("graph-lines", "children"),
+    Output("graph-lines-dl", "data"),
     [
       Input("yaml-dropdown", "value"),
       Input("metric-dropdown", "value"),
@@ -264,6 +265,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       Input("color-mode-dropdown", "value"),
       Input("symbol-mode-dropdown", "value"),
       Input("dl-format-dropdown", "value"),
+      Input("download-csv", "n_clicks"),
       Input("background-dropdown", "value"),
       Input("theme-dropdown", "value"),
       Input("toggle-unique-architectures", "value"),
@@ -291,6 +293,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     color_mode,
     symbol_mode,
     dl_format,
+    download_csv,
     background,
     theme,
     toggle_unique_architectures,
@@ -298,8 +301,9 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
     dissociate_domain,
     *checklist_values,
   ):
+    download = dash.no_update
     if explorer is None:
-      return html.Div(className="error", children=[html.Div("Loading...")])
+      return html.Div(className="error", children=[html.Div("Loading...")]), download
     
     try:
 
@@ -307,7 +311,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       target_checklist_values = checklist_values[len(all_architecture_inputs):len(all_architecture_inputs) + len(all_target_inputs)]
       domain_checklist_values = checklist_values[len(all_architecture_inputs) + len(all_target_inputs):]
 
-      fig, selected_metric_display, selected_metric_display_unit = create_line_graph(
+      fig, selected_metric_display, selected_metric_display_unit, filtered_df = create_line_graph(
         explorer,
         selected_yaml,
         selected_metric,
@@ -362,6 +366,12 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
       filename = "Odatix-{}-{}-{}".format(
         os.path.splitext(selected_yaml)[0], __name__, selected_metric
       )
+
+      triggered_id = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+      if "download-csv" == triggered_id:
+        if filtered_df is not None and not filtered_df.empty:
+          csv_string = filtered_df.to_csv(index=False, encoding='utf-8')
+          download = dcc.send_string(csv_string, filename=filename + ".csv")
       
       return html.Div(
         [
@@ -382,6 +392,6 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
           )
         ],
         style={"width": "100%", "height": "100%", "display": "inline-block", "vertical-align": "top"},
-      )
+      ), download
     except Exception as e:
-      return content_lib.generate_error_div(e)
+      return content_lib.generate_error_div(e), download

@@ -361,7 +361,7 @@ def setup_callbacks(explorer, all_checklist_inputs, all_architecture_inputs, all
             },
           )
         ],
-        style={"width": "100%", "height": "100%", "display": "inline-block", "vertical-align": "top"},
+        style={"width": "100%", "height": "100%", "display": "inline-block", "verticalAlign": "top"},
       )
     except Exception as e:
       return content_lib.generate_error_div(e)

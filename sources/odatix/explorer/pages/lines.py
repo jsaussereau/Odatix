@@ -39,7 +39,8 @@ layout = html.Div(
       id="graph-lines",
       style={"width": "100%", "height": "100%"},
       className="graph-container"
-    )
+    ),
+    dcc.Download(id="graph-lines-dl"),
   ],
   id = f"{__name__}-content",
   style={"width": "100%", "height": f"calc(100vh - {navigation.top_bar_height})"},

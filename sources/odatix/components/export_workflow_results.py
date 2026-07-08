@@ -28,6 +28,7 @@ import json
 import argparse
 
 import odatix.lib.printc as printc
+import odatix.lib.results_schema as results_schema
 from odatix.lib.settings import OdatixSettings
 
 script_name = os.path.basename(__file__)
@@ -256,46 +257,24 @@ def _discover_runs(work_root):
     return runs
 
 
-def _get_workflow_config_key(meta, workflow_param_dir, fallback_run_name):
-    workflow_full = meta.get("workflow_full")
-    if isinstance(workflow_full, str) and workflow_full != "":
-        if "/" in workflow_full:
-            # Keep config + parameter domains, e.g. "default+voltage"
-            return workflow_full.split("/", 1)[1]
-        # No explicit config: keep workflow name and optional "+domains"
-        if workflow_full == workflow_param_dir or workflow_full.startswith(workflow_param_dir + "+"):
-            return workflow_full
-        return workflow_full
-
-    workflow_config = meta.get("workflow_config")
-    if isinstance(workflow_config, str) and workflow_config != "":
-        return workflow_config
-
-    return fallback_run_name
-
-
 def _load_existing_workflow_output(output_file):
-    out = {"units": {}, "workflows": {}}
+    """
+    Load an existing results file (any supported format version) as
+    (units, records). Older formats are auto-converted to v2 records, so the
+    next write upgrades the file in place.
+    """
     if not os.path.isfile(output_file):
-        return out
+        return {}, []
 
-    with open(output_file, "r") as f:
-        try:
-            loaded = yaml.safe_load(f)
-        except yaml.YAMLError:
-            return out
+    try:
+        results_file = results_schema.load_results_file(output_file)
+    except Exception:
+        printc.warning('Could not parse existing results file "' + output_file + '", starting over', script_name=script_name)
+        return {}, []
 
-    if not isinstance(loaded, dict):
-        return out
+    return results_file.units, results_file.records
 
-    units = loaded.get("units")
-    workflows = loaded.get("workflows")
-    if isinstance(units, dict):
-        out["units"] = units
-    if isinstance(workflows, dict):
-        out["workflows"] = workflows
 
-    return out
 
 
 def configure_workflow_job_exports(
@@ -381,7 +360,6 @@ def export_single_workflow_job(job, export_config=None):
 
     workflow_param_dir = meta.get("workflow_param_dir", fallback_param_dir)
     workflow_full = meta.get("workflow_full", workflow_param_dir + "/" + fallback_run_name)
-    workflow_config_key = _get_workflow_config_key(meta, workflow_param_dir, fallback_run_name)
 
     workflow_definition_dir = meta.get("workflow_definition_dir")
     if workflow_definition_dir is None:
@@ -394,24 +372,21 @@ def export_single_workflow_job(job, export_config=None):
 
     run_metrics, run_units = _extract_run_metrics(run_dir, metrics_def, error_prefix=workflow_full + " => ")
 
+    record = results_schema.make_workflow_record(
+        workflow=workflow_param_dir,
+        workflow_full=workflow_full,
+        fallback_configuration=fallback_run_name,
+        run_dir=run_dir,
+        workflow_definition_dir=workflow_definition_dir,
+        metrics=run_metrics,
+    )
+
     output_file = os.path.join(output_dir, output_filename)
-    out = _load_existing_workflow_output(output_file)
-    out["units"].update(run_units)
+    units, records = _load_existing_workflow_output(output_file)
+    units.update(run_units)
+    records = results_schema.upsert_records(records, [record])
 
-    if workflow_param_dir not in out["workflows"]:
-        out["workflows"][workflow_param_dir] = {}
-
-    out["workflows"][workflow_param_dir][workflow_config_key] = {
-        "run_dir": run_dir,
-        "workflow_param_dir": workflow_param_dir,
-        "workflow_definition_dir": workflow_definition_dir,
-        "workflow_full": workflow_full,
-        "metrics": run_metrics,
-    }
-
-    os.makedirs(output_dir, exist_ok=True)
-    with open(output_file, "w") as f:
-        yaml.dump(out, f, default_flow_style=False, sort_keys=False)
+    results_schema.dump_results_file(output_file, units, records)
 
     printc.say('Workflow results updated in "' + output_file + '"', script_name=script_name)
     return True
@@ -419,7 +394,7 @@ def export_single_workflow_job(job, export_config=None):
 
 def export_workflow_results(work_root, workflow_path, output_dir, output_filename=DEFAULT_OUTPUT_FILENAME):
     all_units = {}
-    out = {"units": all_units, "workflows": {}}
+    records = []
 
     runs = _discover_runs(work_root)
     if len(runs) == 0:
@@ -433,7 +408,6 @@ def export_workflow_results(work_root, workflow_path, output_dir, output_filenam
 
         workflow_param_dir = meta.get("workflow_param_dir", fallback_param_dir)
         workflow_full = meta.get("workflow_full", fallback_param_dir + "/" + run_name)
-        workflow_config_key = _get_workflow_config_key(meta, workflow_param_dir, run_name)
 
         workflow_definition_dir = meta.get("workflow_definition_dir")
         if workflow_definition_dir is None:
@@ -448,21 +422,19 @@ def export_workflow_results(work_root, workflow_path, output_dir, output_filenam
         run_metrics, run_units = _extract_run_metrics(run_dir, metrics_def, error_prefix=error_prefix)
         all_units.update(run_units)
 
-        if workflow_param_dir not in out["workflows"]:
-            out["workflows"][workflow_param_dir] = {}
+        records.append(
+            results_schema.make_workflow_record(
+                workflow=workflow_param_dir,
+                workflow_full=workflow_full,
+                fallback_configuration=run_name,
+                run_dir=run_dir,
+                workflow_definition_dir=workflow_definition_dir,
+                metrics=run_metrics,
+            )
+        )
 
-        out["workflows"][workflow_param_dir][workflow_config_key] = {
-            "run_dir": run_dir,
-            "workflow_param_dir": workflow_param_dir,
-            "workflow_definition_dir": workflow_definition_dir,
-            "workflow_full": workflow_full,
-            "metrics": run_metrics,
-        }
-
-    os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, output_filename)
-    with open(output_file, "w") as f:
-        yaml.dump(out, f, default_flow_style=False, sort_keys=False)
+    results_schema.dump_results_file(output_file, all_units, records)
 
     printc.say('Workflow results written to "' + output_file + '"', script_name=script_name)
 
