@@ -31,6 +31,7 @@ import odatix.lib.printc as printc
 from odatix.lib.utils import internal_error
 import odatix.lib.term_mode as term_mode
 from odatix.lib.settings import OdatixSettings
+from odatix.explorer.integration import register_explorer
 
 script_name = os.path.basename(__file__)
 error_logfile = "odatix-gui_error.log"
@@ -63,6 +64,8 @@ class OdatixApp:
         )
 
         self.app.server.register_error_handler(Exception, self.handle_flask_exception)
+
+        register_explorer(self.app, settings=self.odatix_settings)
 
         self.setup_layout()
         self.setup_callbacks()
