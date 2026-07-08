@@ -32,7 +32,7 @@ from odatix.gui.css_helper import Style
 top_bar_height = "50px"
 side_bar_width = "0px"
 
-topbar_pages = ["Architectures", "Workspace"]
+topbar_pages = ["Architectures", "Workflows", "Run Jobs", "Monitor", "Explorer", "Workspace"]
 
 def top_bar(gui):
     version = motd.read_version()
