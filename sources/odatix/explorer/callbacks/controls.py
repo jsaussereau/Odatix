@@ -1,0 +1,100 @@
+# ********************************************************************** #
+#                                Odatix                                  #
+# ********************************************************************** #
+#
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Odatix.
+# Odatix is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Odatix is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+#
+
+"""
+Axis and style dropdowns: options discovered from the data, current values
+repaired when they disappear from the selection.
+"""
+
+import dash
+from dash import Input, Output, State
+
+from odatix.explorer.core.store import STORE
+import odatix.explorer.core.query as query
+import odatix.explorer.core.schema as schema
+from odatix.explorer.charts.spec import FigureSpec, NONE_VALUE, resolve_defaults
+
+
+def _options(names):
+  return [{"label": schema.metric_display_name(name) if name not in (NONE_VALUE,) else name, "value": name} for name in names]
+
+
+def _dimension_options(dimensions, include_none=True):
+  names = ([NONE_VALUE] if include_none else []) + list(dimensions)
+  return [{"label": "None" if name == NONE_VALUE else name, "value": name} for name in names]
+
+
+def register_callbacks():
+  @dash.callback(
+    Output("xp-axis-x", "options"),
+    Output("xp-axis-x", "value"),
+    Output("xp-axis-y", "options"),
+    Output("xp-axis-y", "value"),
+    Output("xp-axis-z", "options"),
+    Output("xp-axis-z", "value"),
+    Output("xp-color-by", "options"),
+    Output("xp-color-by", "value"),
+    Output("xp-symbol-by", "options"),
+    Output("xp-symbol-by", "value"),
+    Output("xp-legend-group-by", "options"),
+    Output("xp-legend-group-by", "value"),
+    Output("xp-dissociate-by", "options"),
+    Output("xp-dissociate-by", "value"),
+    Input("xp-data-version", "data"),
+    Input("xp-source-select", "value"),
+    State("xp-axis-x", "value"),
+    State("xp-axis-y", "value"),
+    State("xp-axis-z", "value"),
+    State("xp-color-by", "value"),
+    State("xp-symbol-by", "value"),
+    State("xp-legend-group-by", "value"),
+    State("xp-dissociate-by", "value"),
+    State("xp-chart-kind", "data"),
+  )
+  def update_control_options(_version, sources, x, y, z, color_by, symbol_by, legend_group_by, dissociate, kind):
+    df = query.select_dataframe(STORE, sources=sources)
+    dimensions, metrics = query.discover(df, STORE, sources)
+
+    # Repair values that no longer exist through the generic defaults
+    spec = FigureSpec(
+      kind=kind if kind != "overview" else "lines",
+      x=x, y=y, z=z,
+      color_by=color_by, symbol_by=symbol_by, legend_group_by=legend_group_by,
+      dissociate=None if dissociate in (None, NONE_VALUE) else dissociate,
+    )
+    resolve_defaults(spec, dimensions, metrics)
+
+    if kind in ("scatter", "scatter3d"):
+      x_options = _options(metrics)
+    else:
+      x_options = _dimension_options(dimensions, include_none=False) + _options([metric for metric in metrics if metric not in dimensions])
+
+    dim_options = _dimension_options(dimensions)
+
+    return (
+      x_options, spec.x,
+      _options(metrics), spec.y,
+      _options(metrics), spec.z,
+      dim_options, spec.color_by,
+      dim_options, spec.symbol_by,
+      dim_options, spec.legend_group_by,
+      dim_options, spec.dissociate if spec.dissociate else NONE_VALUE,
+    )

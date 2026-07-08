@@ -19,7 +19,15 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-class Style:
-  visible_div = {"display": "block"}
-  visible = {"display": "flex"}
-  hidden = {"display": "none"}
+"""
+Importing this package registers every explorer page (dash.register_page)
+into the current Dash app. A dash.Dash(use_pages=True) app must exist first.
+"""
+
+import odatix.explorer.pages.home
+import odatix.explorer.pages.lines
+import odatix.explorer.pages.columns
+import odatix.explorer.pages.scatter
+import odatix.explorer.pages.scatter3d
+import odatix.explorer.pages.radar
+import odatix.explorer.pages.overview

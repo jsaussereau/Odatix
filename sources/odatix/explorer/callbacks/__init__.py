@@ -19,23 +19,28 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-import dash
-from dash import html
+"""
+Explorer callback registration. All callbacks use dash.callback (module
+level), so they register into whichever Dash app exists in the process
+(Odatix GUI or the standalone shell). Registration is idempotent.
+"""
 
-dash.register_page(
-  __name__,
-  name='PageNotFound'
-)
+_registered = False
 
-layout = html.Div(
-  [
-    html.Div(
-      [
-        html.H1("404", id="p404-h1"),
-        html.H2("Oops, page not found!", id="p404-h2")
-      ],
-      id="p404"
-    )
-  ],
-  id="p404-container"
-)
+
+def register_callbacks():
+  global _registered
+  if _registered:
+    return
+
+  import odatix.explorer.callbacks.data as data
+  import odatix.explorer.callbacks.controls as controls
+  import odatix.explorer.callbacks.filters as filters
+  import odatix.explorer.callbacks.figure as figure
+
+  data.register_callbacks()
+  controls.register_callbacks()
+  filters.register_callbacks()
+  figure.register_callbacks()
+
+  _registered = True
