@@ -27,6 +27,7 @@ import dash
 from dash import dcc, html, Input, Output
 from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line
 
+from odatix.components import home_shared
 from odatix.explorer.core.store import STORE
 
 _STROKE = "var(--theme-primary-color, #228BE6)"
@@ -81,42 +82,25 @@ def _pictogram(kind):
 
 
 _CARDS = [
-  ("Lines", "/explorer/lines", "lines", "Metric vs any dimension, point by point"),
-  ("Columns", "/explorer/columns", "columns", "Bar comparison across configurations"),
-  ("Scatter", "/explorer/scatter", "scatter", "Any metric against any other metric"),
-  ("Scatter 3D", "/explorer/scatter3d", "scatter3d", "Three metrics in one 3D view"),
-  ("Radar", "/explorer/radar", "radar", "Polar view of a metric"),
-  ("Overview", "/explorer/overview", "overview", "Every metric at a glance"),
+  {"name": "Lines", "link": "/explorer/lines", "kind": "lines", "description": "Metric vs any dimension, point by point"},
+  {"name": "Columns", "link": "/explorer/columns", "kind": "columns", "description": "Bar comparison across configurations"},
+  {"name": "Scatter", "link": "/explorer/scatter", "kind": "scatter", "description": "Any metric against any other metric"},
+  {"name": "Scatter 3D", "link": "/explorer/scatter3d", "kind": "scatter3d", "description": "Three metrics in one 3D view"},
+  {"name": "Radar", "link": "/explorer/radar", "kind": "radar", "description": "Polar view of a metric"},
+  {"name": "Overview", "link": "/explorer/overview", "kind": "overview", "description": "Every metric at a glance"},
 ]
 
 
-def _card(name, href, kind, description):
-  return dcc.Link(
-    html.Div(
-      [
-        _pictogram(kind),
-        html.Div(name, className="xp-card-title"),
-        html.Div(description, className="xp-card-description"),
-      ],
-      className="xp-card",
-    ),
-    href=href,
-    className="xp-card-link",
-  )
+def _card_visual(card):
+  return _pictogram(card.get("kind"))
 
 
 def layout(**kwargs):
   return html.Div(
     [
       dcc.Interval(id="xp-home-poll", interval=3000),
-      html.Div(
-        [
-          html.H1("Odatix Explorer", className="xp-home-title"),
-          html.P("Visualize, compare and explore your results.", className="xp-home-subtitle"),
-        ],
-        className="xp-home-header",
-      ),
-      html.Div([_card(*card) for card in _CARDS], className="xp-card-grid"),
+      home_shared.home_header("Odatix Explorer", "Visualize, compare and explore your results."),
+      home_shared.home_card_grid(_CARDS, _card_visual),
       html.Div(id="xp-home-sources", className="xp-home-sources"),
     ],
     className="xp-home",
