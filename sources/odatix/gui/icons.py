@@ -25,234 +25,146 @@ from typing import Union
 ######################################
 # Icon Definitions
 ######################################
+#
+# Small line-art UI glyphs, drawn in the clean Odatix Explorer / card
+# pictogram style: single-color outlines on a shared 24x24 grid, stroked with
+# `currentColor`. The color is driven by the ".icon <color>" CSS classes and
+# the button/tooltip context (see style.css, which sets `color`, not `fill`);
+# alignment/centering is handled by the container (e.g. ".icon-button").
+
+
+def _line_icon(children, width, height, className, id, view_box="0 0 24 24", style_extra=None):
+    # stroke-width / linecap / linejoin are inherited SVG properties: the Svg
+    # component does not accept them as props, so they are set (in camelCase)
+    # through the CSS `style` and cascade to the child shapes.
+    style = {
+        "width": width,
+        "height": height,
+        "strokeWidth": "1.5",
+        "strokeLinecap": "round",
+        "strokeLinejoin": "round",
+    }
+    if style_extra:
+        style.update(style_extra)
+    return Svg(
+        children,
+        viewBox=view_box,
+        width=width,
+        height=height,
+        fill="none",
+        stroke="currentColor",
+        className=className,
+        id=id,
+        style=style,
+    )
+
 
 _icons = {
-    "save": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M19,0H1C0.448,0,0,0.448,0,1v22c0,0.552,0.448,1,1,1h22c0.552,0,1-0.448,1-1V5L19,0z M6,3c0-0.552,0.448-1,1-1h10 c0.552,0,1,0.448,1,1v6c0,0.552-0.448,1-1,1H7c-0.552,0-1-0.448-1-1V3z M20,22H4v-7c0-0.552,0.448-1,1-1h14c0.552,0,1,0.448,1,1V22 z'), 
-            Path(d='M16,9h-4V3h4V9z')
-        ], 
-        enableBackground='new 0 0 24 24', 
-        fill=color,
-        version='1.1', 
-        viewBox='0 0 24 24', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"scale": "0.8", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9px"},
-    ),
+    # Floppy disk
+    "save": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"),
+        Polyline(points="17 21 17 13 7 13 7 21"),
+        Polyline(points="7 3 7 8 15 8"),
+    ], width, height, className, id),
 
-    "duplicate": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(id='path1', d='M24,7H6V6c0-1.105,0.895-2,2-2h19c1.105,0,2,0.895,2,2v14c0,1.105-0.895,2-2,2h-1V9C26,7.895,25.105,7,24,7z', style={'fill': '{color}', 'fillOpacity': '1'}), 
-            Path(id='path2', d='M22,9H3c-1.105,0-2,0.895-2,2v13c0,1.105,0.895,2,2,2h19c1.105,0,2-0.895,2-2V11C24,9.895,23.105,9,22,9z M16,19h-3v3  c0,0.552-0.448,1-1,1h0c-0.552,0-1-0.448-1-1v-3H8c-0.552,0-1-0.448-1-1v0c0-0.552,0.448-1,1-1h3v-3c0-0.552,0.448-1,1-1h0  c0.552,0,1,0.448,1,1v3h3c0.552,0,1,0.448,1,1v0C17,18.552,16.552,19,16,19z', style={'fill': '{color}', 'fillOpacity': '1'})
-        ], 
-        version='1.1', 
-        viewBox='0 0 30 30', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={'enableBackground': 'new 0 0 30 30', "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    ),
+    # Two stacked cards + plus
+    "duplicate": lambda color, width, height, className, offset, id: _line_icon([
+        Rect(x="8", y="8", width="13", height="13", rx="2"),
+        Path(d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"),
+        Line(x1="14.5", y1="11.5", x2="14.5", y2="17.5"),
+        Line(x1="11.5", y1="14.5", x2="17.5", y2="14.5"),
+    ], width, height, className, id),
 
-    "delete": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M 14.984375 2.4863281 A 1.0001 1.0001 0 0 0 14 3.5 L 14 4 L 8.5 4 A 1.0001 1.0001 0 0 0 7.4863281 5 L 6 5 A 1.0001 1.0001 0 1 0 6 7 L 24 7 A 1.0001 1.0001 0 1 0 24 5 L 22.513672 5 A 1.0001 1.0001 0 0 0 21.5 4 L 16 4 L 16 3.5 A 1.0001 1.0001 0 0 0 14.984375 2.4863281 z M 6 9 L 7.7929688 24.234375 C 7.9109687 25.241375 8.7633438 26 9.7773438 26 L 20.222656 26 C 21.236656 26 22.088031 25.241375 22.207031 24.234375 L 24 9 L 6 9 z')
-        ], 
-        fill=color, 
-        viewBox='0 0 30 30', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-11px"},
-    ),
+    # Trash can
+    "delete": lambda color, width, height, className, offset, id: _line_icon([
+        Polyline(points="3 6 5 6 21 6"),
+        Path(d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"),
+        Line(x1="10", y1="11", x2="10", y2="17"),
+        Line(x1="14", y1="11", x2="14", y2="17"),
+    ], width, height, className, id),
 
-    "generate": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M454.321,219.727l-38.766-51.947l20.815-61.385c2.046-6.032,0.489-12.704-4.015-17.208 c-4.504-4.504-11.175-6.061-17.208-4.015l-61.384,20.815l-51.951-38.766c-5.103-3.809-11.929-4.392-17.605-1.499 c-5.676,2.893-9.217,8.755-9.136,15.125l0.829,64.815l-52.923,37.426c-5.201,3.678-7.863,9.989-6.867,16.282 c0.996,6.291,5.479,11.471,11.561,13.363l43.844,13.63L14.443,483.432c-6.535,6.534-6.535,17.131,0,23.666s17.131,6.535,23.666,0 l257.073-257.072l13.629,43.843c2.172,6.986,8.638,11.768,15.984,11.768c5.375,0,10.494-2.595,13.66-7.072l37.426-52.923 l64.815,0.828c6.322,0.051,12.233-3.462,15.125-9.136S458.131,224.833,454.321,219.727z'), 
-            Polygon(points='173.373,67.274 160.014,42.848 146.656,67.274 122.23,80.632 146.656,93.992 160.014,118.417 173.373,93.992 197.799,80.632 '), 
-            Polygon(points='362.946,384.489 352.14,364.731 341.335,384.489 321.577,395.294 341.335,406.1 352.14,425.856 362.946,406.1 382.703,395.294 '), 
-            Polygon(points='378.142,19.757 367.337,0 356.531,19.757 336.774,30.563 356.531,41.369 367.337,61.126 378.142,41.369 397.9,30.563 '), 
-            Polygon(points='490.635,142.513 484.167,130.689 477.701,142.513 465.876,148.979 477.701,155.446 484.167,167.27 490.635,155.446 502.458,148.979 '), 
-            Polygon(points='492.626,294.117 465.876,301.951 439.128,294.117 446.962,320.865 439.128,347.615 465.876,339.781 492.626,347.615 484.791,320.865 ')
-        ], 
-        fill=color, 
-        stroke=color, 
-        version='1.1', 
-        viewBox='0 0 512 512', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    ),
+    # Magic wand + sparkles
+    "generate": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M3 21 L13.75 10.5"),
+        Path(d="M15.5 3.5 L17 7 L20.5 8.5 L17 10 L15.5 13.5 L14 10 L10.5 8.5 L14 7 Z"),
+        Path(d="M6.5 3.4 v3.2 M4.9 5 h3.2"),
+        Path(d="M19.5 13.7 v2.6 M18.2 15 h2.6"),
+    ], width, height, className, id),
 
-    "edit": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(clipRule='evenodd', d='m 1.9999992,4.5524381 c 0,-0.55228 0.44772,-1 1,-1 h 5 c 0.5523,0 1,-0.44771 1,-1 0,-0.55228 -0.4477,-1 -1,-1 h -5 c -1.65685,0 -3.00000001559839,1.34315 -3.00000001559839,3 V 15.552398 c 0,1.6569 1.34315001559839,3 3.00000001559839,3 H 13.999999 c 1.6569,0 3,-1.3431 3,-3 v -5 c 0,-0.5522 -0.4477,-0.9999999 -1,-0.9999999 -0.5523,0 -1,0.4477999 -1,0.9999999 v 5 c 0,0.5523 -0.4477,1 -1,1 H 2.9999992 c -0.55228,0 -1,-0.4477 -1,-1 z'), 
-            Path(clipRule='evenodd', d='M 16.198836,5.5077741 17.61855,4.0880593 c 0.431053,-0.4310131 0.64654,-0.6465157 0.761714,-0.878998 0.219202,-0.442317 0.219202,-0.9616275 0,-1.4039525 C 18.26509,1.5726345 18.049603,1.357124 17.61855,0.92611089 c -0.430973,-0.4310131 -0.646539,-0.6465157 -0.879021,-0.7617213 -0.442278,-0.2191862 -0.961628,-0.2191862 -1.403905,0 -0.232483,0.1152056 -0.447969,0.3307082 -0.879022,0.7617213 l -1.43758,1.43762731 c 0.761872,1.304778 1.857645,2.3921404 3.179814,3.1440359 z M 11.869259,3.51347 6.4382172,8.9444951 c -0.336005,0.336036 -0.504007,0.504015 -0.614469,0.710411 -0.110455,0.206396 -0.157054,0.4393529 -0.250245,0.9053449 l -0.442233,2.287923 c -0.04,0.206946 0.03492,0.327339 0.106275,0.40538 0.06958,0.07608 0.219605,0.185561 0.40692,0.167654 l 2.339946,-0.450039 c 0.46596,-0.0932 0.698933,-0.139759 0.905329,-0.250269 0.206396,-0.110431 0.374398,-0.278409 0.710403,-0.614445 L 15.046124,6.6604621 C 13.764214,5.8576437 12.679903,4.7807473 11.869259,3.51347 Z')
-        ],
-        fill=color, 
-        version='1.1', 
-        viewBox='0 0 18.544666 18.552398',
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"scale": "0.9", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    ),
+    # Pencil
+    "edit": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M12 20h9"),
+        Path(d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"),
+    ], width, height, className, id),
 
-    "more": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(clipRule='evenodd', d='M7.293 9.293a1 1 0 0 1 1.414 0L12 12.586l3.293-3.293a1 1 0 1 1 1.414 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 0-1.414Z')
-        ],
-        fill=color, 
-        viewBox='0 0 24 24', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"scale": "1.1", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    ),
+    # Chevron down
+    "more": lambda color, width, height, className, offset, id: _line_icon([
+        Polyline(points="6 9 12 15 18 9"),
+    ], width, height, className, id),
 
-    "clean": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Rect(id='rect243', height='15.193717', rx='1.9656206', ry='1.9656206', width='6.0562363', x='18.168709', y='5.106328'),
-            Rect(id='rect245', height='6.5874848', rx='1.96562', ry='1.96562', width='22.2062', x='10.093726', y='21.937542'), 
-            Path(id='path247', d='m 10.09375,29.9375 c -0.1612638,8.271839 -2.8773742,13.350762 -5.2070312,18.912109 2.9125172,1.059983 5.7970882,1.76223 8.6582032,2.179688 L 16.363281,41.0625 16.564453,51.361328 C 23.655756,51.906261 30.612187,50.775071 37.505859,48.849609 33.592214,43.215682 32.560187,36.695808 32.300781,29.9375 Z'),
-            Rect(id='rect253', height='4.8960323', width='6.0562363', x='18.168709', y='15.404013')
-        ],
-        fill=color, 
-        version='1.1', 
-        viewBox='0 0 50 50', 
-        transform='rotate(45 0 0)',
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-6px"},
-    ),
-    
-    "gear": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M511.956,308.448L512,206.866l-65.97-7.239c-3.584-12.101-8.323-23.822-14.165-35.037l42.198-52.531l-71.812-71.845    L350.48,81.766c-11.115-6.041-22.751-10.987-34.783-14.783l-7.318-66.961H206.797l-7.21,65.973    c-11.988,3.556-23.608,8.248-34.726,14.021l-52.475-42.265l-71.938,71.72l41.484,51.825c-6.058,11.109-11.02,22.741-14.831,34.763    L0.134,203.29L0,304.872l65.963,7.295c3.573,12.101,8.301,23.826,14.135,35.049L37.856,399.71l71.751,71.907l51.807-41.507    c11.112,6.052,22.744,11.008,34.769,14.815l7.261,66.966l101.582,0.088l7.266-65.967c12.1-3.578,23.826-8.313,35.043-14.149    l52.513,42.22l71.876-71.783l-41.529-51.788c6.046-11.112,10.997-22.747,14.8-34.777L511.956,308.448z M256.021,347.705    c-50.659,0-91.727-41.068-91.727-91.727s41.068-91.727,91.727-91.727c50.659,0,91.727,41.068,91.727,91.727    S306.681,347.705,256.021,347.705z')
-        ], 
-        fill=color, 
-        version='1.1', 
-        viewBox='0 0 512 512',
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    ),
+    # Broom
+    "clean": lambda color, width, height, className, offset, id: _line_icon([
+        Rect(x="10.7", y="2.2", width="2.6", height="7.3", rx="0.9"),
+        Line(x1="10.7", y1="6.7", x2="13.3", y2="6.7"),
+        Rect(x="7.2", y="9.5", width="9.6", height="3.4", rx="1.1"),
+        Path(d="M7.6 12.9 c-0.07 3.5 -1.2 5.6 -2.2 8 1.25 0.45 2.5 0.75 3.7 0.93 L10.3 17.5 l0.09 4.4 c3 0.23 6 -0.25 9 -1.08 -1.7 -2.4 -2.1 -5.1 -2.2 -7.9 Z"),
+    ], width, height, className, id),
 
-    "back": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M464.344,207.418l0.768,0.168H135.888l103.496-103.724c5.068-5.064,7.848-11.924,7.848-19.124    c0-7.2-2.78-14.012-7.848-19.088L223.28,49.538c-5.064-5.064-11.812-7.864-19.008-7.864c-7.2,0-13.952,2.78-19.016,7.844    L7.844,226.914C2.76,231.998-0.02,238.77,0,245.974c-0.02,7.244,2.76,14.02,7.844,19.096l177.412,177.412    c5.064,5.06,11.812,7.844,19.016,7.844c7.196,0,13.944-2.788,19.008-7.844l16.104-16.112c5.068-5.056,7.848-11.808,7.848-19.008    c0-7.196-2.78-13.592-7.848-18.652L134.72,284.406h329.992c14.828,0,27.288-12.78,27.288-27.6v-22.788    C492,219.198,479.172,207.418,464.344,207.418z')
-        ],
-        fill=color,
-        version='1.1', 
-        viewBox='0 0 492 492',
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-5px"},
-    ),
-    
-    "check": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M34.459 1.375a2.999 2.999 0 0 0-4.149.884L13.5 28.17l-8.198-7.58a2.999 2.999 0 1 0-4.073 4.405l10.764 9.952s.309.266.452.359a2.999 2.999 0 0 0 4.15-.884L35.343 5.524a2.999 2.999 0 0 0-.884-4.149z')
-        ], 
-        fill=color,
-        version='1.1', 
-        viewBox='0 0 36 36', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    ),
+    # Cog / settings
+    "gear": lambda color, width, height, className, offset, id: _line_icon([
+        Circle(cx="12", cy="12", r="3"),
+        Path(d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"),
+    ], width, height, className, id),
 
-    "tooltip": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-.696-3.534c.63 0 1.332-.288 2.196-1.458l.911-1.22a.334.334 0 0 0-.074-.472.38.38 0 0 0-.505.06l-1.475 1.679a.241.241 0 0 1-.279.061.211.211 0 0 1-.12-.244l1.858-7.446a.499.499 0 0 0-.575-.613l-3.35.613a.35.35 0 0 0-.276.258l-.086.334a.25.25 0 0 0 .243.312h1.73l-1.476 5.922c-.054.234-.144.63-.144.918 0 .666.396 1.296 1.422 1.296zm1.83-10.536c.702 0 1.242-.414 1.386-1.044.036-.144.054-.306.054-.414 0-.504-.396-.972-1.134-.972-.702 0-1.242.414-1.386 1.044a1.868 1.868 0 0 0-.054.414c0 .504.396.972 1.134.972z')
-        ], 
-        fill=color,
-        version='1.1', 
-        viewBox='0 0 24 24', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    ),
-    "reset": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M960 0v213.333c411.627 0 746.667 334.934 746.667 746.667S1371.627 1706.667 960 1706.667 213.333 1371.733 213.333 960c0-197.013 78.4-382.507 213.334-520.747v254.08H640V106.667H53.333V320h191.04C88.64 494.08 0 720.96 0 960c0 529.28 430.613 960 960 960s960-430.72 960-960S1489.387 0 960 0')
-        ],  
-        fill=color,
-        version='1.1', 
-        viewBox='0 0 1920 1920',
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"scale": "0.85", "transform": "rotate(90deg)", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px"},
-    ),
-    "play": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M464.7,221.5L86.1,7.3C52.5-11.7,25,7.5,25,50v412c0,42.5,27.5,61.7,61.1,42.7l378.6-214.1  C498.2,271.5,498.2,240.5,464.7,221.5z')
-        ],
-        fill=color,
-        version='1.1', 
-        viewBox='0 0 512 512', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"scale": "0.8", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9px", "transform": "translateY(6px)" if offset else "translateY(0px)"},
-    ),
-    "pause": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M2 6C2 4.11438 2 3.17157 2.58579 2.58579C3.17157 2 4.11438 2 6 2C7.88562 2 8.82843 2 9.41421 2.58579C10 3.17157 10 4.11438 10 6V18C10 19.8856 10 20.8284 9.41421 21.4142C8.82843 22 7.88562 22 6 22C4.11438 22 3.17157 22 2.58579 21.4142C2 20.8284 2 19.8856 2 18V6Z'),
-            Path(d='M14 6C14 4.11438 14 3.17157 14.5858 2.58579C15.1716 2 16.1144 2 18 2C19.8856 2 20.8284 2 21.4142 2.58579C22 3.17157 22 4.11438 22 6V18C22 19.8856 22 20.8284 21.4142 21.4142C20.8284 22 19.8856 22 18 22C16.1144 22 15.1716 22 14.5858 21.4142C14 20.8284 14 19.8856 14 18V6Z')
-        ],
-        fill=color,
-        version='1.1', 
-        viewBox='0 0 24 24', 
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-10px", "marginTop": "4px"},
-    ),
-    "cross": lambda color, width, height, className, offset, id: Svg(
-        children=[
-            Path(d='M491.613,75.643l-64.235-64.235c-15.202-15.202-39.854-15.202-55.056,0L251.507,132.222L130.686,11.407    c-15.202-15.202-39.853-15.202-55.055,0L11.401,75.643c-15.202,15.202-15.202,39.854,0,55.056l120.821,120.815L11.401,372.328    c-15.202,15.202-15.202,39.854,0,55.056l64.235,64.229c15.202,15.202,39.854,15.202,55.056,0l120.815-120.814l120.822,120.814    c15.202,15.202,39.854,15.202,55.056,0l64.235-64.229c15.202-15.202,15.202-39.854,0-55.056L370.793,251.514l120.82-120.815    C506.815,115.49,506.815,90.845,491.613,75.643z')
-        ],
-        fill=color,
-        version='1.1', 
-        viewBox='0 0 503.021 503.021',
-        width=width, 
-        height=height, 
-        className=className, 
-        id=id,
-        style={"scale": "0.85", "width": width, "height": height, "minWidth": width, "minHeight": height, "marginLeft": "-9.5px", "marginTop": "4.5px"},
-    ),
+    # Arrow left
+    "back": lambda color, width, height, className, offset, id: _line_icon([
+        Line(x1="19", y1="12", x2="5", y2="12"),
+        Polyline(points="12 19 5 12 12 5"),
+    ], width, height, className, id),
+
+    # Check mark
+    "check": lambda color, width, height, className, offset, id: _line_icon([
+        Polyline(points="20 6 9 17 4 12"),
+    ], width, height, className, id),
+
+    # Info circle
+    "tooltip": lambda color, width, height, className, offset, id: _line_icon([
+        Circle(cx="12", cy="12", r="10"),
+        Line(x1="12", y1="16", x2="12", y2="11"),
+        Line(x1="12", y1="8", x2="12.01", y2="8"),
+    ], width, height, className, id),
+
+    # Refresh arrow
+    "reset": lambda color, width, height, className, offset, id: _line_icon([
+        Polyline(points="23 4 23 10 17 10"),
+        Path(d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"),
+    ], width, height, className, id),
+
+    # Play triangle
+    "play": lambda color, width, height, className, offset, id: _line_icon([
+        Polygon(points="6 4 20 12 6 20"),
+    ], width, height, className, id),
+
+    # Pause bars
+    "pause": lambda color, width, height, className, offset, id: _line_icon([
+        Rect(x="6.5", y="4", width="4", height="16", rx="1.5"),
+        Rect(x="13.5", y="4", width="4", height="16", rx="1.5"),
+    ], width, height, className, id),
+
+    # Close cross
+    "cross": lambda color, width, height, className, offset, id: _line_icon([
+        Line(x1="18", y1="6", x2="6", y2="18"),
+        Line(x1="6", y1="6", x2="18", y2="18"),
+    ], width, height, className, id),
 }
 
 def icon(name: str, color: str = "#fff", width: str = "24px", height: str = "24px", className: str = "", offset: bool = False, id: Union[str, dict]="") -> Svg:
     """
-    Return an icon as a Dash SVG component.
+    Return a small line-art UI glyph as a Dash SVG component. The glyph is
+    stroked with `currentColor`; its color comes from the ".icon <color>" CSS
+    classes or the button/tooltip context, not from the `color` argument.
     Args:
         name (str): Name of the icon.
-        color (str, optional): Color of the icon.
-        offset (bool, optional): Whether to apply an offset to the icon.
     """
     svg_icon = _icons.get(name)
 
@@ -260,3 +172,150 @@ def icon(name: str, color: str = "#fff", width: str = "24px", height: str = "24p
         return Svg(width=width, height=height) # Empty SVG
 
     return svg_icon(color, width, height, className, offset, id)
+
+
+######################################
+# Card Pictograms
+######################################
+#
+# Larger line-art pictograms used on menu/card pages, in the clean Odatix
+# Explorer style: a primary-colored line drawing (theme accent) with a few
+# secondary strokes in the text color. Colors reference theme CSS variables
+# directly, so pictograms follow the active theme.
+
+_PRIMARY = "var(--theme-primary-color, #228BE6)"
+_TEXT = "var(--theme-text-color, #24292e)"
+
+
+def _picto(children, size, className="xp-card-pictogram"):
+    return Svg(
+        children,
+        viewBox="0 0 48 48",
+        width=size,
+        height=size,
+        fill="none",
+        className=className,
+        style={"width": size, "height": size},
+    )
+
+
+_pictograms = {
+    # Workflows: connected task nodes
+    "workflow": lambda size: _picto([
+        Line(x1="14", y1="12", x2="30", y2="12", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
+        Line(x1="14", y1="24", x2="34", y2="24", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
+        Line(x1="14", y1="36", x2="26", y2="36", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
+        Circle(cx="8", cy="12", r="3.5", fill=_PRIMARY),
+        Circle(cx="8", cy="24", r="3.5", fill=_PRIMARY),
+        Circle(cx="8", cy="36", r="3.5", fill=_PRIMARY),
+        Line(x1="8", y1="15.5", x2="8", y2="20.5", stroke=_PRIMARY, strokeWidth="2"),
+        Line(x1="8", y1="27.5", x2="8", y2="32.5", stroke=_PRIMARY, strokeWidth="2"),
+    ], size),
+    # RTL architectures: chip
+    "architecture": lambda size: _picto([
+        Rect(x="15", y="15", width="18", height="18", rx="3", stroke=_PRIMARY, strokeWidth="2.5"),
+        Rect(x="21", y="21", width="6", height="6", rx="1", fill=_PRIMARY),
+        Line(x1="19", y1="11", x2="19", y2="15", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="24", y1="11", x2="24", y2="15", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="29", y1="11", x2="29", y2="15", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="19", y1="33", x2="19", y2="37", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="24", y1="33", x2="24", y2="37", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="29", y1="33", x2="29", y2="37", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="11", y1="19", x2="15", y2="19", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="11", y1="24", x2="15", y2="24", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="11", y1="29", x2="15", y2="29", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="33", y1="19", x2="37", y2="19", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="33", y1="24", x2="37", y2="24", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Line(x1="33", y1="29", x2="37", y2="29", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+    ], size),
+    # Run jobs: play
+    "run": lambda size: _picto([
+        Circle(cx="24", cy="24", r="16", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4"),
+        Polygon(points="19,16 33,24 19,32", fill=_PRIMARY),
+    ], size),
+    # Monitor: activity pulse
+    "monitor": lambda size: _picto([
+        Rect(x="7", y="10", width="34", height="24", rx="3", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5"),
+        Polyline(points="12,24 18,24 21,18 26,30 29,24 36,24", stroke=_PRIMARY, strokeWidth="2.5", fill="none", strokeLinecap="round", strokeLinejoin="round"),
+        Line(x1="18", y1="40", x2="30", y2="40", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
+    ], size),
+    # Explore results: chart + magnifier
+    "explorer": lambda size: _picto([
+        Rect(x="8", y="8", width="24", height="24", rx="3", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5"),
+        Rect(x="13", y="20", width="3.5", height="7", rx="1", fill=_PRIMARY),
+        Rect(x="19", y="15", width="3.5", height="12", rx="1", fill=_PRIMARY, fillOpacity="0.7"),
+        Rect(x="25", y="18", width="3.5", height="9", rx="1", fill=_PRIMARY, fillOpacity="0.5"),
+        Circle(cx="32", cy="32", r="6", stroke=_PRIMARY, strokeWidth="2.5"),
+        Line(x1="36.5", y1="36.5", x2="41", y2="41", stroke=_PRIMARY, strokeWidth="2.5", strokeLinecap="round"),
+    ], size),
+    # Workspace / settings: gear
+    "workspace": lambda size: _picto([
+        # Same cog outline as the small "gear" icon, scaled onto the 48x48 grid
+        Path(d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
+             transform="translate(4.8 4.8) scale(1.6)",
+             stroke=_PRIMARY, strokeWidth="1.6", strokeLinecap="round", strokeLinejoin="round"),
+        Circle(cx="24", cy="24", r="7", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.55"),
+    ], size),
+    # Documentation: book
+    "documentation": lambda size: _picto([
+        Path(d="M10 12 a3 3 0 0 1 3-3 h9 v30 h-9 a3 3 0 0 0-3 3 z", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinejoin="round"),
+        Path(d="M38 12 a3 3 0 0 0-3-3 h-9 v30 h9 a3 3 0 0 1 3 3 z", stroke=_PRIMARY, strokeWidth="2.5", strokeLinejoin="round"),
+        Line(x1="29", y1="16", x2="34", y2="16", stroke=_PRIMARY, strokeWidth="2", strokeLinecap="round"),
+        Line(x1="29", y1="22", x2="34", y2="22", stroke=_PRIMARY, strokeWidth="2", strokeLinecap="round"),
+    ], size),
+    # Generic EDA tool: chip + gear
+    "eda_tool": lambda size: _picto([
+        Rect(x="10", y="10", width="20", height="20", rx="3", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5"),
+        Rect(x="16", y="16", width="8", height="8", rx="1", fill=_TEXT, fillOpacity="0.3"),
+        Circle(cx="33", cy="33", r="5", stroke=_PRIMARY, strokeWidth="2.5"),
+        Path(d="M33 25 v3 M33 38 v3 M25 33 h3 M38 33 h3", stroke=_PRIMARY, strokeWidth="2", strokeLinecap="round"),
+    ], size),
+    # Fmax synthesis: rising bars with peak
+    "fmax": lambda size: _picto([
+        Line(x1="9", y1="39", x2="39", y2="39", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
+        Rect(x="12", y="28", width="5", height="11", rx="1", fill=_PRIMARY, fillOpacity="0.5"),
+        Rect(x="21", y="20", width="5", height="19", rx="1", fill=_PRIMARY, fillOpacity="0.75"),
+        Rect(x="30", y="12", width="5", height="27", rx="1", fill=_PRIMARY),
+        Polyline(points="14,26 24,18 33,10", stroke=_TEXT, strokeWidth="2", fill="none", strokeOpacity="0.5", strokeLinecap="round", strokeLinejoin="round"),
+    ], size),
+    # Custom frequency: sine wave
+    "custom_freq": lambda size: _picto([
+        Path(d="M8 24 q5 -14 10 0 t10 0 t10 0", stroke=_PRIMARY, strokeWidth="2.5", fill="none", strokeLinecap="round"),
+        Line(x1="8", y1="34", x2="40", y2="34", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
+    ], size),
+    # RTL analysis: document with lines + magnifier
+    "analysis": lambda size: _picto([
+        Path(d="M13 8 h14 l8 8 v24 a2 2 0 0 1-2 2 H13 a2 2 0 0 1-2-2 V10 a2 2 0 0 1 2-2 z", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinejoin="round"),
+        Line(x1="16", y1="18", x2="24", y2="18", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
+        Line(x1="16", y1="23", x2="28", y2="23", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
+        Circle(cx="24", cy="30", r="5", stroke=_PRIMARY, strokeWidth="2.5"),
+        Line(x1="27.8", y1="33.8", x2="32", y2="38", stroke=_PRIMARY, strokeWidth="2.5", strokeLinecap="round"),
+    ], size),
+    # Empty workspace: dashed folder / plus
+    "workspace_empty": lambda size: _picto([
+        Rect(x="9", y="13", width="30", height="24", rx="3", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeDasharray="4 4"),
+        Line(x1="24", y1="19", x2="24", y2="31", stroke=_PRIMARY, strokeWidth="2.5", strokeLinecap="round"),
+        Line(x1="18", y1="25", x2="30", y2="25", stroke=_PRIMARY, strokeWidth="2.5", strokeLinecap="round"),
+    ], size),
+    # Workspace with examples: stacked cards
+    "workspace_examples": lambda size: _picto([
+        Rect(x="14", y="9", width="24", height="18", rx="3", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4"),
+        Rect(x="10", y="15", width="24", height="18", rx="3", fill="var(--theme-element-background-color, #fff)", stroke=_PRIMARY, strokeWidth="2.5"),
+        Line(x1="15", y1="21", x2="29", y2="21", stroke=_PRIMARY, strokeWidth="2", strokeOpacity="0.7", strokeLinecap="round"),
+        Line(x1="15", y1="26", x2="24", y2="26", stroke=_PRIMARY, strokeWidth="2", strokeOpacity="0.7", strokeLinecap="round"),
+    ], size),
+}
+
+
+def pictogram(name: str, size: str = "52px", className: str = "xp-card-pictogram") -> Svg:
+    """
+    Return a large line-art card pictogram (Odatix Explorer style) as a Dash
+    SVG component, colored via theme CSS variables.
+    Args:
+        name (str): Name of the pictogram.
+        size (str): Width/height of the square pictogram.
+    """
+    builder = _pictograms.get(name)
+    if not builder:
+        return Svg(viewBox="0 0 48 48", width=size, height=size, className=className, style={"width": size, "height": size})
+    return builder(size)
