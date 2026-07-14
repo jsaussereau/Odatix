@@ -56,6 +56,7 @@ def createTaskGraph(
             source=sources,
             command=commands,
             path=path,
+            phony=True,
         )
 
     return maker
