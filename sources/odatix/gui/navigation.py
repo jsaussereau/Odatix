@@ -28,11 +28,50 @@ import odatix.gui.themes as themes
 import odatix.components.motd as motd
 
 from odatix.gui.css_helper import Style
+from odatix.gui.icons import icon
 
 top_bar_height = "50px"
 side_bar_width = "0px"
 
-topbar_pages = ["Architectures", "Workflows", "Run Jobs", "Monitor", "Explorer", "Workspace"]
+# Topbar dropdown menus: (category label, [(page name, href), ...])
+nav_groups = [
+    ("Configure", [
+        ("Architectures", "/architectures"),
+        ("Workflows", "/workflows"),
+    ]),
+    ("Jobs", [
+        ("Run", "/choose_job_type"),
+        ("Monitor", "/monitor"),
+    ]),
+    ("Settings", [
+        ("Workspace", "/workspace"),
+    ]),
+    ("Explorer", [
+        ("Lines", "/explorer/lines"),
+        ("Columns", "/explorer/columns"),
+        ("Scatter", "/explorer/scatter"),
+        ("Scatter 3D", "/explorer/scatter3d"),
+        ("Radar", "/explorer/radar"),
+        ("Overview", "/explorer/overview"),
+    ]),
+]
+
+
+def _nav_group(label, items):
+    return html.Div(
+        [
+            html.Span(
+                [label, icon("more", width="13px", height="13px", className="nav-chevron")],
+                className="nav-group-label",
+                tabIndex="0",
+            ),
+            html.Div(
+                [dcc.Link(name, href=href, className="nav-dropdown-link") for name, href in items],
+                className="nav-dropdown",
+            ),
+        ],
+        className="nav-group",
+    )
 
 def top_bar(gui):
     version = motd.read_version()
@@ -60,29 +99,40 @@ def top_bar(gui):
             html.Div([
                 html.Div(
                     [
-                        html.Div(
-                            dcc.Link(f"{page['name']}", href=page["relative_path"], className="nav-link"),
-                        ) for page in dash.page_registry.values() if page["name"] in topbar_pages
+                        html.Span(className="nav-burger-line"),
+                        html.Span(className="nav-burger-line"),
+                        html.Span(className="nav-burger-line"),
                     ],
-                    className="nav-links",
+                    id="nav-burger",
+                    className="nav-burger",
+                    n_clicks=0,
                 ),
-                html.Div(
-                    children=[
-                        dcc.Dropdown(
-                            id="theme-dropdown",
-                            options=[{"label": f"{theme}", "value": f"{theme}"} for theme in themes.list],
-                            value=gui.start_theme,
-                            className="theme-dropdown",
-                            clearable=False,
-                            style={"width": "150px", "marginRight": "20px", "marginTop": "3px"},
-                        )
-                    ],
-                    className="tooltip delay bottom auto",
-                    **{"data-tooltip": "Select Theme"},
+                html.Div([
+                    html.Div(
+                        [_nav_group(label, items) for label, items in nav_groups],
+                        className="nav-groups",
+                    ),
+                    html.Div(
+                        children=[
+                            dcc.Dropdown(
+                                id="theme-dropdown",
+                                options=[{"label": f"{theme}", "value": f"{theme}"} for theme in themes.list],
+                                value=gui.start_theme,
+                                className="theme-dropdown",
+                                clearable=False,
+                                style={"width": "150px"},
+                            )
+                        ],
+                        className="nav-theme tooltip delay bottom auto",
+                        **{"data-tooltip": "Select Theme"},
+                    ),
+                ],
+                id="nav-menu",
+                className="nav-menu",
                 ),
             ],
             id="nav-right",
-            style={"display": "flex", "position": "absolute", "right": "0", "alignItems": "center", "justifyContent": "right", "zIndex": "1000"},)
+            className="nav-right",)
         ],
         style={"height": f"{top_bar_height}"},
         className="navbar",
@@ -119,6 +169,22 @@ def side_bar(gui):
 
 
 def setup_callbacks(gui):
+    # Toggle the mobile burger menu on click, close it on navigation
+    gui.app.clientside_callback(
+        """
+        function(n_clicks, pathname, cls) {
+            const ctx = window.dash_clientside.callback_context;
+            const trigger = (ctx.triggered && ctx.triggered.length) ? ctx.triggered[0].prop_id : "";
+            const open = trigger.startsWith("nav-burger") && !(cls || "").includes("open");
+            return [open ? "nav-menu open" : "nav-menu", open ? "nav-burger open" : "nav-burger"];
+        }
+        """,
+        [Output("nav-menu", "className"), Output("nav-burger", "className")],
+        [Input("nav-burger", "n_clicks"), Input("url-global", "pathname")],
+        [State("nav-menu", "className")],
+        prevent_initial_call=True,
+    )
+
     @gui.app.callback(
         Output("theme", "className"),
         Input("theme-dropdown", "value"),
