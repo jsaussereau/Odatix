@@ -29,7 +29,7 @@ setup(
     description="A FPGA/ASIC toolbox for design space exploration",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/jsaussereau/Asterism",
+    url="https://github.com/jsaussereau/Odatix",
     packages=package_list,
     package_data={
         'odatix': [
