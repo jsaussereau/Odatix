@@ -23,6 +23,8 @@ import urllib.parse
 import re
 from dash import html
 
+from odatix.lib.settings import OdatixSettings
+
 def get_key_from_url(url, key):
     """
     Extract the value of a specific key from a URL query string.
@@ -31,6 +33,29 @@ def get_key_from_url(url, key):
         return None
     params = urllib.parse.parse_qs(url.lstrip("?"))
     return params.get(key, [None])[0]
+
+def get_instance_mode(url):
+    """
+    Determine whether a URL refers to a workflow (?workflow=...) or an
+    architecture (?arch=...), and return (mode, name). Defaults to "arch"
+    when neither is present.
+    """
+    workflow_name = get_key_from_url(url, "workflow")
+    if workflow_name:
+        return "workflow", workflow_name
+    return "arch", get_key_from_url(url, "arch")
+
+def get_instance_context(url, odatix_settings):
+    """
+    Determine whether a URL refers to a workflow or an architecture, and
+    return (mode, name, base_path) using the paths configured in odatix_settings.
+    """
+    mode, name = get_instance_mode(url)
+    if mode == "workflow":
+        base_path = odatix_settings.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
+    else:
+        base_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    return mode, name, base_path
 
 _ANSI_PATTERN = re.compile(r"[\x1b\033]\[[0-9;]*m")
 

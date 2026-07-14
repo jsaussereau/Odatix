@@ -902,7 +902,7 @@ layout = html.Div(
         dcc.Location(id=f"url_{page_path}"),
         html.Div(
             ui.title_tile(text="Monitor", buttons=title_buttons, tooltip="Pilot ParallelJobHandler via REST API"),
-            style={"marginTop": "20px", "marginLeft": "-13px", "marginBottom": "10px"},
+            style={"marginTop": "20px", "marginBottom": "10px"},
         ),
         html.Div(
             children=[

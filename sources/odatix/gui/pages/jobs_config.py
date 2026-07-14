@@ -39,7 +39,7 @@ import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
 from odatix.lib.parallel_job_handler import daemon_control
 
-page_path = "/jobs_config"
+page_path = "/run_jobs"
 
 dash.register_page(
     __name__,
@@ -708,7 +708,6 @@ def update_param_domains(
                     ], 
                     id=f"param-domain-title-div-{arch_name}",
                     className="card-matrix config",
-                    style={"marginLeft": "-13px"},
                 ),
                 html.Div(
                     children=domain_tiles,
@@ -1366,7 +1365,7 @@ title_buttons = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
-        ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginLeft": "-13px", "marginTop": "10px", "marginBottom": "10px"}),
+        ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "10px"}),
         html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
         html.H2("Job Settings", style={"textAlign": "center", "marginBottom": "30px"}),
         html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),

@@ -170,13 +170,14 @@ def variable_field(
                         id={"type": f"variable-field-{name}", "name": var},
                         className="value-input",
                         style={
-                            "width": "calc(100% - 20px)",
+                            "width": "calc(100% - 10px)",
                             "marginLeft": "5px",
                             "marginRight": "5px",
                             "marginBottom": "5px",
                             "fontSize": "0.9em",
                             "height": "10px",
                             "zIndex": "900",
+                            "padding": "15px 10px",
                         },
                     ) if options is None else dcc.Dropdown(
                         id={"type": f"variable-field-{name}", "name": var},
@@ -186,10 +187,11 @@ def variable_field(
                         style={
                             "fontSize": "0.95em",
                             "zIndex": "900",
+                            "width": "100%",
                         },
                     ),
                 ], 
-                style={"marginTop": "5px"}
+                style={"marginTop": "5px", "width": "100%"},
             ),
         ],
         id={"type": f"variable-field-{name}-div", "name": var},
@@ -242,6 +244,7 @@ def variable_card(
                 ],
                 value=type_value,
                 clearable=False,
+                style={"width": "100%"},
             ),
             html.Div(
                 children=[ 
@@ -993,7 +996,6 @@ layout = html.Div(
                 ],
                 id={"type": "variable-cards-row"},
                 className=f"card-matrix configs", 
-                style={"marginLeft": "13px"},
             ),
         ]),
         ui.title_tile(text="Generation Preview", id="gen-preview", buttons=preview_title_tile_buttons),
@@ -1001,7 +1003,7 @@ layout = html.Div(
             html.Div(
                 id={"type": "config-cards-row"},
                 className=f"card-matrix configs", 
-                style={"marginLeft": "13px", "marginBottom": "30px"},
+                style={"marginBottom": "30px"},
             ),
         ]),
         dcc.Store(id={"type": "update_url", "id": page_path}),

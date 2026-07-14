@@ -51,7 +51,7 @@ def normal_card(name, card_type: str = "arch"):
     unique_key = str(uuid.uuid4())
     return html.Div(
         [
-            html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.2em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden"}),
+            html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
             html.Div([
                 html.Div([
                     ui.icon_button(
@@ -60,7 +60,7 @@ def normal_card(name, card_type: str = "arch"):
                         text="Settings",
                         color="default",
                         link=f"/{card_type}_editor?{card_type}={name}",
-                        width="100px",
+                        width="auto",
                     ),
                     ui.icon_button(
                         id=f"button-open-{card_type}-{name}",
@@ -68,28 +68,29 @@ def normal_card(name, card_type: str = "arch"):
                         text="Edit Configs",
                         color="default",
                         link=f"/config_editor?{card_type}={name}",
-                        multiline=True,
-                        width="100px",
+                        width="auto",
                     ),
-                ], style={"display": "flex"}),
+                ], style={"display": "flex", "gap": "4px"}),
                 html.Div([
                     ui.duplicate_button(id={"type": "button-duplicate", "card_type": card_type, "name": name}),
                     ui.delete_button(id={"type": "button-delete", "card_type": card_type, "name": name}),
-                ], style={"display": "flex", "alignItems": "center"}),
+                ], style={"display": "flex", "alignItems": "center", "gap": "4px"}),
             ], style={
-                "marginTop": "8px",
+                "marginTop": "14px",
                 "display": "flex",
                 "flexDirection": "row",
                 "width": "100%",
+                "alignItems": "center",
+                "gap": "4px",
                 "justifyContent": "space-between",
             }),
         ],
         className="card",
         style={
-            "padding": "18px",
-            "margin": "10px",
-            "width": "300px",
-            "height": "100px",
+            "padding": "18px 20px",
+            "margin": "0",
+            "width": "100%",
+            "boxSizing": "border-box",
         },
         key=unique_key
     )
@@ -100,28 +101,28 @@ def add_card(text: str, card_type: str = "arch"):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "color": "var(--add-card-text-color)"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em", "color": "var(--add-card-text-color)"}),
                     html.Div(
                         "+",
                         style={
-                            "fontSize": "2.5em",
-                            "lineHeight": "80px",
-                            "height": "80px",
+                            "fontSize": "2em",
+                            "lineHeight": "1",
+                            "marginTop": "8px",
                         }
                     ),
-                ], 
+                ],
                 style={"textAlign": "center"}
             ),
             id=btn_id,
             n_clicks=0,
-            style={"textDecoration": "none", "color": "var(--add-card-text-color)"},
+            style={"textDecoration": "none", "color": "var(--add-card-text-color)", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"},
         ),
         className="card add hover",
         style={
-            "padding": "18px",
-            "margin": "10px",
-            "width": "300px",
-            "height": "100px",
+            "padding": "18px 20px",
+            "margin": "0",
+            "width": "100%",
+            "boxSizing": "border-box",
         },
     )
 
@@ -311,10 +312,10 @@ layout = html.Div(
         dcc.Location(id="url", refresh='callback-nav'),
         html.Div(
             children=[
-                html.H2("Architectures", style={"textAlign": "center"}),
-                html.Div(id="arch-cards-matrix", className="card-matrix"),
+                ui.page_header("Architectures", "Configure your RTL architectures and their configurations."),
+                html.Div(id="arch-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
                 # html.H2("Simulations", style={"textAlign": "center", "marginTop": "40px"}),
-                html.Div(id="sim-cards-matrix", className="card-matrix"),
+                html.Div(id="sim-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],
             style={
                 "display": "block",
@@ -367,8 +368,8 @@ layout = html.Div(
     ],
     className="page-content",
     style={
-        "padding": "0 16%",
-        "display": "flex",  
+        "padding": "0 32px 24px",
+        "display": "flex",
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },

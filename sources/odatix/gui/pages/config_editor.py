@@ -250,7 +250,7 @@ def instance_title(mode:str="arch", instance_name:str=""):
             style={"position": "relative"},
         )],
         className="card-matrix config",
-        style={"marginLeft": "-13px", "marginBottom": "0px"},
+        style={"marginBottom": "0px"},
     )
 
 def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, domain_uuid:str=hard_settings.main_parameter_domain, mode:str="arch", instance_name:str=""):
@@ -401,17 +401,17 @@ def config_parameters_form(domain_uuid, settings, mode="arch"):
                     html.Div([
                         html.Label("Param Target File"),
                         ui.tooltip_icon("The file used as the target for parameter replacement. This is typically the top-level design file or a design configuration file."),
-                        dcc.Input(id={"type": "param_target_file", "domain_uuid": domain_uuid}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default" if mode == "arch" else "", style={"width": "95%"}),
+                        dcc.Input(id={"type": "param_target_file", "domain_uuid": domain_uuid}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default" if mode == "arch" else "", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Start Delimiter"),
                         ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file."),
-                        dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "95%"}),
+                        dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Stop Delimiter"),
                         ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file."),
-                        dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "95%"}),
+                        dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                 ],
                 id={"type": "params-config-fields", "domain_uuid": domain_uuid}, className="animated-section" if use_parameters else "animated-section hide",
@@ -520,16 +520,16 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             id={"type": "preview-pre", "domain_uuid": domain_uuid},
             className="preview-pane",
             style={
-                "width": "95%",
-                "max-width": "600px",
-                "height": "235px",
-                "min-height": "235px",
+                "width": "100%",
+                "height": "270px",
+                "min-height": "270px",
                 "fontFamily": "monospace",
                 "fontWeight": "normal",
                 "padding": "5px",
                 "overflow": "auto",
                 "whiteSpace": "pre-wrap",
                 "resize": "vertical",
+                "box-sizing": "border-box",
             }
         )
     else:
@@ -572,7 +572,6 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                 ], 
                 id=f"param-domain-title-div-{domain_uuid}",
                 className="card-matrix config",
-                style={"marginLeft": "-13px"},
             ),
             html.Div(
                 children=[
@@ -586,7 +585,6 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                     html.Div(id={"type": "preview-pane", "domain_uuid": domain_uuid}, className="tile config"),
                 ], 
                 className="card-matrix config",
-                style={"marginLeft": "-13px"},
             ),
             html.Div([
                 html.Div(
@@ -650,7 +648,6 @@ def update_param_domains(
                 html.Div("No architecture or workflow selected.", className="error")
             ],
             className="card-matrix config",
-            style={"marginLeft": "-13px"},
         ), dash.no_update, dash.no_update
 
     add_domain_div = html.Div(
@@ -658,7 +655,6 @@ def update_param_domains(
             add_parameter_domain_button("Add new parameter domain")
         ],
         className="card-matrix config",
-        style={"marginLeft": "-13px"},
     )
 
     if not workspace.instance_exists(base_path, instance_name):
@@ -1297,7 +1293,7 @@ layout = html.Div(
     ],
     className="page-content",
     style={
-        "padding": "0 16%",
+        "padding": "0",
         "display": "flex",  
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",

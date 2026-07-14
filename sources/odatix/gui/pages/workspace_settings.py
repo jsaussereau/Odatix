@@ -367,7 +367,7 @@ layout = html.Div(
         html.Div(
             ui.title_tile(text="Workspace Settings", buttons=title_buttons, tooltip="Leave blank to use default values"), 
             id={"page": page_path, "type": "workspace-title-div"}, 
-            style={"marginTop": "20px", "marginLeft": "-13px", "marginBottom": "10px"}
+            style={"marginTop": "20px", "marginBottom": "10px"}
         ),
         html.Div(id="workspace-form-container"),
         dcc.Store(id="save-state", data=""),

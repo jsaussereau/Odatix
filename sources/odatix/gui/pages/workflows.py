@@ -70,7 +70,7 @@ def normal_card(name):
     unique_key = str(uuid.uuid4())
     return html.Div(
         [
-            html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.2em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden"}),
+            html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
             html.Div(
                 [
                     html.Div(
@@ -81,7 +81,7 @@ def normal_card(name):
                                 text="Settings",
                                 color="default",
                                 link=f"/workflow_editor?workflow={name}",
-                                width="100px",
+                                width="auto",
                             ),
                             ui.icon_button(
                                 id=f"button-open-workflow-{name}",
@@ -89,35 +89,36 @@ def normal_card(name):
                                 text="Edit Configs",
                                 color="default",
                                 link=f"/config_editor?workflow={name}",
-                                multiline=True,
-                                width="100px",
+                                width="auto",
                             ),
                         ],
-                        style={"display": "flex"},
+                        style={"display": "flex", "gap": "4px"},
                     ),
                     html.Div(
                         [
                             ui.duplicate_button(id={"type": "workflow-button-duplicate", "name": name}),
                             ui.delete_button(id={"type": "workflow-button-delete", "name": name}),
                         ],
-                        style={"display": "flex", "alignItems": "center"},
+                        style={"display": "flex", "alignItems": "center", "gap": "4px"},
                     ),
                 ],
                 style={
-                    "marginTop": "8px",
+                    "marginTop": "14px",
                     "display": "flex",
                     "flexDirection": "row",
                     "width": "100%",
+                    "alignItems": "center",
+                    "gap": "4px",
                     "justifyContent": "space-between",
                 },
             ),
         ],
         className="card",
         style={
-            "padding": "18px",
-            "margin": "10px",
-            "width": "300px",
-            "height": "100px",
+            "padding": "18px 20px",
+            "margin": "0",
+            "width": "100%",
+            "boxSizing": "border-box",
         },
         key=unique_key,
     )
@@ -128,13 +129,13 @@ def add_card(text: str):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "color": "var(--add-card-text-color)"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em", "color": "var(--add-card-text-color)"}),
                     html.Div(
                         "+",
                         style={
-                            "fontSize": "2.5em",
-                            "lineHeight": "80px",
-                            "height": "80px",
+                            "fontSize": "2em",
+                            "lineHeight": "1",
+                            "marginTop": "8px",
                         },
                     ),
                 ],
@@ -142,14 +143,14 @@ def add_card(text: str):
             ),
             id=btn_id,
             n_clicks=0,
-            style={"textDecoration": "none", "color": "var(--add-card-text-color)"},
+            style={"textDecoration": "none", "color": "var(--add-card-text-color)", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"},
         ),
         className="card add hover",
         style={
-            "padding": "18px",
-            "margin": "10px",
-            "width": "300px",
-            "height": "100px",
+            "padding": "18px 20px",
+            "margin": "0",
+            "width": "100%",
+            "boxSizing": "border-box",
         },
     )
 
@@ -285,8 +286,8 @@ layout = html.Div(
         dcc.Location(id="url", refresh="callback-nav"),
         html.Div(
             children=[
-                html.H2("Workflows", style={"textAlign": "center"}),
-                html.Div(id="workflow-cards-matrix", className="card-matrix"),
+                ui.page_header("Workflows", "Configure your workflows and their configurations."),
+                html.Div(id="workflow-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],
             style={
                 "display": "block",
@@ -328,7 +329,7 @@ layout = html.Div(
     ],
     className="page-content",
     style={
-        "padding": "0 16%",
+        "padding": "0 32px 24px",
         "display": "flex",
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",

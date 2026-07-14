@@ -306,7 +306,7 @@ def workflow_title(workflow_name):
             style={"position": "relative"},
         ),
         className="card-matrix config",
-        style={"marginTop": "0px", "marginBottom": "10px", "marginLeft": "-13px"},
+        style={"marginTop": "0px", "marginBottom": "10px"},
     )
 
 def workflow_form_field(
@@ -452,13 +452,14 @@ def wf_variable_field(
                         id={"type": f"wf-variable-field-{name}", "name": var},
                         className="value-input",
                         style={
-                            "width": "calc(100% - 20px)",
+                            "width": "calc(100% - 10px)",
                             "marginLeft": "5px",
                             "marginRight": "5px",
                             "marginBottom": "5px",
                             "fontSize": "0.9em",
                             "height": "10px",
                             "zIndex": "900",
+                            "padding": "15px 10px",
                         },
                     ) if options is None else dcc.Dropdown(
                         id={"type": f"wf-variable-field-{name}", "name": var},
@@ -468,10 +469,11 @@ def wf_variable_field(
                         style={
                             "fontSize": "0.95em",
                             "zIndex": "900",
+                            "width": "100%",
                         },
                     ),
                 ],
-                style={"marginTop": "5px"}
+                style={"marginTop": "5px", "width": "100%"},
             ),
         ],
         id={"type": f"wf-variable-field-{name}-div", "name": var},
@@ -522,6 +524,7 @@ def wf_variable_card(
                 ],
                 value=type_value,
                 clearable=False,
+                style={"width": "100%"},
             ),
             html.Div(
                 children=[
@@ -677,7 +680,6 @@ def wf_task_card(name="main", dependencies_value="", commands_value="", path_val
         }),
     ],
     className="tile config",
-    style={"marginLeft": "10px"},
     id={"type": "wf-task-card", "name": name},
 )
 
@@ -705,7 +707,6 @@ def wf_add_card(prefix: str = "wf-variable", text: str = "Add new variable", mod
         className="tile config add hover" if mode == "task" else "card configs add hover",
         id=f"{prefix}-add-card",
         style= {
-            "marginLeft": "10px",
         } if mode == "task" else {
             "padding": "10px",
             "margin": "5px",
@@ -1369,7 +1370,7 @@ layout = html.Div(
                         id="wf-task-cards-row",
                         children=[wf_add_card(prefix="wf-task", text="Add new task", mode="task")],
                         className="tiles-container config",
-                        style={"display": "flex", "justifyContent": "flex-start", "alignItems": "flex-start", "flexWrap": "wrap", "marginBottom": "30px"},
+                        style={"display": "flex", "justifyContent": "flex-start", "alignItems": "flex-start", "flexWrap": "wrap", "marginBottom": "30px", "columnGap": "var(--tile-gap)"},
                     ),
                 ]),
                 ui.title_tile(text="Variable Definition", id="wf-variable-title", tooltip="Variables can be used inside commands and can also be used to generate configurations."),
@@ -1378,11 +1379,10 @@ layout = html.Div(
                         id="wf-variable-cards-row",
                         children=[wf_add_card(prefix="wf-variable", text="Add new variable")],
                         className="card-matrix configs",
-                        style={"marginLeft": "13px", "marginBottom": "30px"},
+                        style={"marginBottom": "30px"},
                     ),
                 ]),
             ],
-            style={"marginLeft": "-13px"}
         ),
         dcc.Store(id="workflow-initial-settings", data=None),
         dcc.Store(id="workflow-saved-settings", data=None),

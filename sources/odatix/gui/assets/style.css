@@ -51,7 +51,9 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 0px; 
+    margin: 0px;
+    position: relative;
+    z-index: 3000;
 }
 
 .navbar .nav-links {
@@ -61,9 +63,9 @@ html, body {
 
 .navbar .nav-links a {
     color: white;
-    margin: 0 15px;
+    margin: 0 14px;
     text-decoration: none;
-    font-size: 18px;
+    font-size: 15px;
 }
 
 .navbar .nav-links a:hover {
@@ -195,10 +197,10 @@ html, body {
 
 button {
     font-size: var(--button-font-size);
-    padding: 10px 15px;
+    padding: 8px 14px;
     margin-right: 5px;
     font-family: var(--theme-font-family), Arial;
-    font-weight: 515;
+    font-weight: 600;
     line-height: var(--button-line-height);
     cursor: pointer;
     border-radius: var(--button-border-radius);
@@ -308,6 +310,16 @@ textarea {
     color: var(--theme-text-color);
 }
 
+/* Keep topbar dropdown menus above Plotly layers (modebar, graph overlays). */
+.navbar .Select,
+.navbar .Select-menu-outer {
+    z-index: 4000 !important;
+}
+
+.navbar .Select-menu-outer {
+    position: absolute;
+}
+
 .Select-value:hover {
     background-color: var(--dropdown-background-hover);
     border-color: var(--main-border-color-hover);
@@ -321,8 +333,8 @@ textarea {
     text-shadow: var(--pre-text-shadow);
     font-weight: 600;
     margin: 10px;
-    margin-left: 20px;
-    margin-right: 20px;
+    margin-left: 0;
+    margin-right: 0;
     padding: 10px;
     box-shadow: 0 1px 0 rgba(27, 31, 35, 0.04); 
 }
@@ -371,12 +383,12 @@ textarea {
     text-align: center;
 }
 .tile.center h1 {
-    font-size: 100px; 
+    font-size: 40px;
     margin: 10px;
 }
 .tile.center h2 {
-    font-size: 40px; 
-    margin: 20px;
+    font-size: 24px;
+    margin: 14px;
 }
 
 .home-container {
@@ -401,26 +413,23 @@ textarea {
     flex-direction: column;
     justify-content: space-between;
     text-decoration: none;
-    transition: all .2s cubic-bezier(0.175, 0.885, 0, 1);
+    /* transition: all .2s cubic-bezier(0.175, 0.885, 0, 1); */
+    box-sizing: border-box;
 }
+.tile.add,
 .card.add {
     background: var(--add-card-background);
     border: var(--add-card-border);
     color: var(--card-text-color);
 }
 .card.configs {
-    width: 256px;
+    width: var(--tile-half-width);
     overflow: visible !important;
     /* height: 200px; */
 }
-.card.configs.add {
-    width: 277px;
-}
+
 .card.configs.wide {
-    width: 705px;
-}
-.card.configs.add.wide {
-    width: calc(705px + 21px);
+    width: var(--tile-width);
 }
 
 /* @media screen and (max-width: 600px) {
@@ -448,43 +457,94 @@ textarea {
 
 .card-title  {
     text-align: center;
-    font-size: 1.25em;
-    font-weight: bold;
+    font-size: 1.05em;
+    font-weight: 700;
 }
 
 .card-description {
     text-align: center;
-    margin: 25px;
+    margin: 12px 16px 4px;
+    color: var(--theme-text-color);
+    opacity: 0.7;
+    font-size: 0.92em;
+    line-height: 1.4;
 }
 
 .card-matrix {
     display: grid;
-    grid-template-columns: repeat(auto-fit, 350px);
-    gap: 10px;
-    justify-content: center; 
+    grid-template-columns: repeat(auto-fit, 360px);
+    gap: 16px;
+    justify-content: center;
 }
 .card-matrix.config {
-    grid-template-columns: repeat(auto-fit, 750px);
+    grid-template-columns: repeat(auto-fit, calc(var(--tile-width) + var(--tile-gap)));
     gap: 0px;
 }
 .card-matrix.configs {
-    grid-template-columns: repeat(auto-fit, 300px);
+    grid-template-columns: repeat(auto-fit, calc(var(--tile-half-width) + var(--tile-gap)));
     gap: 0px;
+	max-width: calc(var(--tile-width) * 2 + 2*var(--tile-gap));
+	margin: auto;
 }
 .card-matrix.configs.wide {
-    grid-template-columns: repeat(auto-fit, 750px);
+    grid-template-columns: repeat(auto-fit, calc(var(--tile-width) + var(--tile-gap)));
     gap: 0px;
 }
 
 .home.card {
-    width: 450px;
-    height: 320px;
+    width: 240px;
+    height: 188px;
+    padding: 22px 18px;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
 }
 
 .card.hover:hover {
     cursor: pointer;
     box-shadow: var(--card-hover-box-shadow);
     transform: var(--card-hover-transform);
+}
+
+/* Modern card visuals & layout helpers (Odatix Explorer style) */
+.card-pictogram-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 64px;
+    margin-bottom: 6px;
+}
+.card-pictogram {
+    display: block;
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, 240px);
+    gap: 16px;
+    justify-content: center;
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    padding: 0 24px;
+}
+
+.page-header {
+    text-align: center;
+    margin: 28px auto 24px;
+    padding: 0 16px;
+}
+.page-header-title {
+    margin: 0 0 6px;
+    font-size: 28px;
+    font-weight: 700;
+}
+.page-header-subtitle {
+    margin: 0;
+    opacity: 0.65;
+    font-size: 15px;
 }
 
 .overlay-odatix {
@@ -525,16 +585,16 @@ textarea {
 
 .popup-odatix h3 {
     margin-top: 0;
-    color: #333;
+    color: var(--theme-text-color);
 }
 .popup-odatix .close {
     position: absolute;
     top: 16px;
     right: 24px;
-    font-size: 30px;
+    font-size: 26px;
     font-weight: bold;
     text-decoration: none;
-    color: #333;
+    color: var(--theme-text-color);
     background: none;
     border: none;
     cursor: pointer;
@@ -554,36 +614,36 @@ textarea {
     width: 80%;
     max-width: 500px;
     margin-bottom: 16px;
-    padding: 24px 32px;
+    padding: 18px 22px;
+    box-sizing: border-box;
     background-color: var(--card-background);
     color: var(--card-text-color);
     box-shadow: var(--card-box-shadow);
     border: var(--card-border);
     border-radius: var(--card-border-radius);
     break-inside: avoid;
-    clip-path: path('M10% 50% C14% 22%, 32% 14%, 46% 28% C60% 18%, 78% 22%, 84% 44% C92% 58%, 82% 74%, 64% 84% C50% 94%, 32% 90%, 20% 76% C8% 66%, 6% 58%, 10% 50% Z');
-    transition: 
-        /* width 0.4s cubic-bezier(0.4, 0.2, 0.2, 1), */
-        height 0.4s cubic-bezier(0.4, 0.2, 0.2, 1),
-        transform 0.4s cubic-bezier(0.4, 0.2, 0.2, 1);
+    transition:
+        height 0.3s cubic-bezier(0.4, 0.2, 0.2, 1),
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
 }
 
 .tile.hover:hover {
     cursor: pointer;
-    box-shadow: var(--card-hover-box-shadow);
-    transform: var(--card-hover-transform);
+    box-shadow: var(--tile-hover-box-shadow);
+    transform: var(--tile-hover-transform);
 }
 
 .tile.config {
     justify-self: center;
-    max-width: 660px;
-    width: 660px;
+    max-width: var(--tile-width);
+    width: var(--tile-width);
 }
 
 .tile.title {
     justify-self: center;
-    max-width: 1410px;
-    width: 1410px;
+    width: calc(2 * var(--tile-width) + var(--tile-gap));
+    max-width: calc(2 * var(--tile-width) + var(--tile-gap));
     height: fit-content;
 }
 .tile.title.add {
@@ -597,18 +657,23 @@ textarea {
 }
 
 .tiles-container {
-    column-width: 450px;
-    column-gap: 16px;
+    column-width: 520px;
+    column-gap: 15px;
     width: 100%;
     max-width: 1000px;
     margin: auto;
 }
 
+.flex-tiles-container {
+    display: flex;
+    column-gap: 20px !important;
+}
+
 .tiles-container.config {
-    column-width: 600px;
-    column-gap: 10px;
+    column-width: var(--tile-width);
+    max-width: calc(2 * var(--tile-width) + var(--tile-gap));
+    column-gap: var(--tile-gap);
     width: 100%;
-    max-width: 1488px;
     margin: auto;
     margin-top: 0px;
     margin-bottom: 30px;
@@ -616,7 +681,7 @@ textarea {
 
 .title-input {
     margin-top: -10px;
-    font-size: 24px;
+    font-size: 20px;
     font-weight: bold;
     background-color: var(--title-input-background);
     border: var(--title-input-border);
@@ -653,62 +718,70 @@ textarea {
     justify-content: flex-end;
     width: 100px;
 }
-@media screen and (max-width: 2205px) {
-    .tile.title {
-        width: 1110px;
-        max-width: 1110px;
+.inline-flex-buttons button {
+    margin-left: 2px;
+    margin-right: 2px;
+}
+
+@media screen and (max-width: 1580px) {
+    .theme {
+        --tile-width: calc(var(--tile-half-width) * 1.5 + 0.5 * var(--tile-gap)) !important;
     }
     .tile.config {
-        max-width: 510px;
-        width: 510px;
-    }
-    .tiles-container.config {
-        column-width: 450px;
-        max-width: 1187px;
-    }
-    .card-matrix.config {
-        grid-template-columns: repeat(auto-fit, 600px);
-        gap: 0px;
+        width: var(--tile-width);
+        max-width: var(--tile-width);
     }
     .card.configs.wide {
-        width: 554px;
-        max-width: 554px;
+        width: var(--tile-width);
+        max-width: var(--tile-width);
     }
     .card.configs.add.wide {
-        width: calc(554px + 21px);
-        max-width: calc(554px + 21px);
+        width: calc(var(--tile-width) + 21px);
+        max-width: calc(var(--tile-width) + 21px);
     }
     .card-matrix.configs.wide {
         grid-template-columns: repeat(auto-fit, 600px);
         gap: 0px;
     }
 }
-@media screen and (max-width: 1765px) {
+@media screen and (max-width: 1250px) {
+    .theme {
+        --tile-width: calc(2 * var(--tile-half-width) + var(--tile-gap)) !important;
+    }
+    .card-matrix.config {
+        grid-template-columns: repeat(auto-fit, var(--tile-width));
+    }
     .tile.title {
-        width: 810px;
-        max-width: 810px;
+        width: var(--tile-width);
+        max-width: var(--tile-width);
     }
     .tile.config {
-        max-width: 810px;
-        width: 810px;
+        max-width: var(--tile-width);
+        width: var(--tile-width);
     }
     .tiles-container.config {
-        column-width: 600px;
-        max-width: 890px;
+        max-width: var(--tile-width);
+        width: var(--tile-width);
+    }
+    .flex-tiles-container {
+        display: block;
     }
 }
-@media screen and (max-width: 1324px) {
+@media screen and (max-width: 1000px) {
+    .theme {
+        --tile-width: 560px;
+    }
     .tile.title {
-        width: 510px;
-        max-width: 510px;
+        width: var(--tile-width);
+        max-width: var(--tile-width);
     }
     .tile.config {
-        max-width: 510px;
-        width: 510px;
+        max-width: var(--tile-width);
+        width: var(--tile-width);
     }
     .tiles-container.config {
-        column-width: 600px;
-        max-width: 590px;
+        column-width: var(--tile-width);
+        max-width: var(--tile-width);
     }
     .title-input {
         width: 275px;
@@ -732,30 +805,31 @@ textarea {
         margin-top: 0 !important;
     }
 }
-@media screen and (max-width: 882px) {
+@media screen and (max-width: 700px) {
+    .theme {
+        --tile-width: calc(100vw - 40px) !important;
+    }
     .tile.config {
-        margin-left: -20px;
-        width: 390px;
-        max-width: 390px;
+        width: 100%;
+        max-width: 100%;
     }
     .tiles-container.config {
-        column-width: 600px;
-        max-width: 420px;
+        column-width: var(--tile-width);
+        max-width: var(--tile-width);
     }
     .tile.title {
-        margin-left: 10px;
-        width: 390px;
-        max-width: 390px;
+        width: var(--tile-width);
+        max-width: var(--tile-width);
     }
     .card.configs {
         padding: 32px;
-        width: calc(390px + 44px);
-        max-width: calc(390px + 44px);
+        width: 100%;
+        max-width: 100%;
     }
     .card.configs.wide {
         padding: 32px;
-        width: calc(390px + 44px);
-        max-width: calc(390px + 44px);
+        width: 100%;
+        max-width: 100%;
     }
     .card-matrix.configs {
         grid-template-columns: none;
@@ -787,6 +861,16 @@ textarea {
 
 h3 {
     margin-top: 0px;
+}
+
+/* Consistent, non-oversized page headings */
+.page-content > h2,
+.page-content h2.page-title {
+    font-size: 22px;
+    font-weight: 700;
+}
+.tile.title h3 {
+    font-size: 20px;
 }
 
 .status{
@@ -826,7 +910,7 @@ h3 {
 
 .tooltip .icon {
     cursor: help;
-    fill: var(--tooltip-icon-color);
+    color: var(--tooltip-icon-color);
     filter: var(--tooltip-icon-filter);
 }
 
@@ -903,13 +987,25 @@ h3 {
     transition-delay: 0.5s;
 }
 
+/* Label buttons (icon + text): consistent height, normal padding */
 .icon-button {
-    width: 39px;
-    height: 39px;
+    height: 36px;
+    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    margin-right: 0;
+}
+/* Compact square icon-only buttons */
+.icon-button.icon-only {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
 }
 .icon-label-button {
     min-width: 300px;
-    height: 39px;
+    height: 34px;
 }
 
 .color-button.caution {
@@ -1015,63 +1111,68 @@ h3 {
     display: none;
 }
 
+/* Line-art icons are stroked with currentColor, so color is driven via
+   `color` (not `fill`); a bare `.icon` shows no fill. */
+.icon {
+    fill: none;
+}
 .icon.black {
-    fill: #24292e;
+    color: #24292e;
 }
 .icon.red {
-    fill: #FA5252;
+    color: #FA5252;
 }
 .icon.blue {
-    fill: #228BE6;
+    color: #228BE6;
 }
 .icon.orange {
-    fill: #FD7E14;
+    color: #FD7E14;
 }
 .icon.green {
-    fill: #40C057;
+    color: #40C057;
 }
 .icon.grey {
-    fill: #868E964D;
+    color: #868E964D;
 }
 .icon.disabled {
-    fill: #868E964D;
+    color: #868E964D;
 }
 .icon.pause {
-    fill: var(--theme-pause-color);
+    color: var(--theme-pause-color);
 }
 .icon.pending {
-    fill: var(--theme-pending-color);
+    color: var(--theme-pending-color);
 }
 .icon.running {
-    fill: var(--theme-running-color);
+    color: var(--theme-running-color);
 }
 .icon.primary {
-    fill: var(--theme-primary-color);
+    color: var(--theme-primary-color);
 }
 .icon.secondary {
-    fill: var(--theme-secondary-color);
+    color: var(--theme-secondary-color);
 }
 .icon.tertiary {
-    fill: var(--theme-tertiary-color);
+    color: var(--theme-tertiary-color);
 }
 .icon.accent {
-    fill: var(--theme-accent-color);
+    color: var(--theme-accent-color);
 }
 .icon.action {
-    fill: var(--theme-action-color);
+    color: var(--theme-action-color);
 }
 .icon.warning {
-    fill: var(--theme-warning-color);
+    color: var(--theme-warning-color);
 }
 .icon.caution {
-    fill: var(--theme-caution-color);
+    color: var(--theme-caution-color);
 }
 .icon.success {
-    fill: var(--theme-success-color);
+    color: var(--theme-success-color);
 }
 
 .icon.back-button {
-    fill: var(--back-button-color);
+    color: var(--back-button-color);
     filter: var(--back-button-filter);
     transition: transform 0.2s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
@@ -1082,7 +1183,7 @@ h3 {
 
 .icon-button .icon {
     transition: var(--button-transition);
-    fill: var(--button-icon-color);
+    color: var(--button-icon-color);
     cursor: grab;
 }
 
@@ -1211,6 +1312,10 @@ h3 {
     background-color: var(--theme-primary-color);
 }
 
+.exporting .monitor-task-progress-bar {
+    background-color: var(--theme-primary-color);
+}
+
 .queued .monitor-task-progress-bar {
     background-color: var(--theme-pause-color);
 }
@@ -1238,6 +1343,10 @@ h3 {
 
 .starting .monitor-task-status {
     color: var(--theme-running-color);
+}
+
+.exporting .monitor-task-status {
+    color: var(--theme-primary-color);
 }
 
 .queued .monitor-task-status {
@@ -1293,4 +1402,12 @@ h3 {
 
 .hidden {
     display: none;
+}
+
+.expandable-area {
+    flex-direction: column;
+}
+
+.dash-input {
+    box-sizing: border-box;
 }
