@@ -23,8 +23,7 @@ import os
 import sys
 import webbrowser
 from threading import Thread
-import socket
-import logging 
+import logging
 import argparse
 from waitress import serve
 
@@ -33,10 +32,15 @@ if sys.platform == "win32":
 else:
     import select
 
+# Add parent dir to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sources_dir = os.path.realpath(os.path.join(current_dir, os.pardir))
+if sources_dir not in sys.path:
+    sys.path.append(sources_dir)
 
 import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
-from odatix.explorer.explorer_app import ResultExplorer
+from odatix.explorer.standalone import ExplorerStandaloneApp
 from odatix.lib.utils import get_local_ip, find_free_port
 
 sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
@@ -78,7 +82,7 @@ def parse_arguments():
 ######################################
 
 def open_browser():
-    webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
+    webbrowser.open("http://" + ip_address + ':' + str(port) + "/explorer", new=0, autoraise=True)
 
 def close_server(old_settings):
     if old_settings is not None:
@@ -105,6 +109,9 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
     else:
         port = find_free_port(host_address, start_port)
 
+    if not os.path.isdir(input):
+        printc.warning('Result directory "' + input + '" does not exist (yet). Results will appear as soon as they are written.', script_name=script_name)
+
     printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + '/' + printc.colors.ENDC, end="", script_name=script_name)
     if network:
         print(" (network-accessible)")
@@ -125,7 +132,7 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
     else:
         old_settings = term_mode.set_raw_mode()
 
-    result_explorer = ResultExplorer(
+    result_explorer = ExplorerStandaloneApp(
         result_path=input,
         old_settings=old_settings,
         safe_mode=safe_mode,
@@ -135,7 +142,7 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
     # Start the server
     serve_thread = Thread(target=serve, args=(result_explorer.app.server,), kwargs={'host': host_address, 'port': port})
     serve_thread.start()
-    
+
     try:
         while True:
             # Check if a key is pressed

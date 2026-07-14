@@ -33,6 +33,11 @@ if sys.platform == "win32":
 else:
     import select
 
+# Add parent dir to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sources_dir = os.path.realpath(os.path.join(current_dir, os.pardir))
+if sources_dir not in sys.path:
+    sys.path.append(sources_dir)
 
 import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
