@@ -213,8 +213,6 @@ _pictograms = {
     ], size),
     # RTL architectures: chip
     "architecture": lambda size: _picto([
-        Rect(x="15", y="15", width="18", height="18", rx="3", stroke=_PRIMARY, strokeWidth="2.5"),
-        Rect(x="21", y="21", width="6", height="6", rx="1", fill=_PRIMARY),
         Line(x1="19", y1="11", x2="19", y2="15", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
         Line(x1="24", y1="11", x2="24", y2="15", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
         Line(x1="29", y1="11", x2="29", y2="15", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
@@ -227,6 +225,8 @@ _pictograms = {
         Line(x1="33", y1="19", x2="37", y2="19", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
         Line(x1="33", y1="24", x2="37", y2="24", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
         Line(x1="33", y1="29", x2="37", y2="29", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.6", strokeLinecap="round"),
+        Rect(x="15", y="15", width="18", height="18", rx="3", stroke=_PRIMARY, strokeWidth="2.5"),
+        Rect(x="21", y="21", width="6", height="6", rx="1", fill=_PRIMARY),
     ], size),
     # Run jobs: play
     "run": lambda size: _picto([
