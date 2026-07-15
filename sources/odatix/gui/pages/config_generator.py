@@ -285,7 +285,7 @@ def variable_card(
             html.Div([
                 ui.duplicate_button(id={"type": "duplicate-var", "name": name}),
                 ui.delete_button(id={"type": "delete-var", "name": name}),
-            ], style={"display": "flex", "flexDirection": "hotizontal", "alignItems": "center"}),
+            ], style={"display": "flex", "flexDirection": "hotizontal", "alignItems": "center", "gap": "5px"}),
         ], style={
             "marginTop": "8px",
             "display": "flex",

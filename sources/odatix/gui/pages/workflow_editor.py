@@ -565,7 +565,7 @@ def wf_variable_card(
             html.Div([
                 ui.duplicate_button(id={"type": "wf-duplicate-var", "name": name}),
                 ui.delete_button(id={"type": "wf-delete-var", "name": name}),
-            ], style={"display": "flex", "flexDirection": "hotizontal", "alignItems": "center"}),
+            ], style={"display": "flex", "flexDirection": "hotizontal", "alignItems": "center", "gap": "5px"}),
         ], style={
             "marginTop": "8px",
             "display": "flex",
@@ -671,7 +671,7 @@ def wf_task_card(name="main", dependencies_value="", commands_value="", path_val
             html.Div([
                 ui.duplicate_button(id={"type": "wf-duplicate-task", "name": name}),
                 html.Div() if is_main else ui.delete_button(id={"type": "wf-delete-task", "name": name}),
-            ], style={"display": "flex", "flexDirection": "horizontal", "alignItems": "center"}),
+            ], style={"display": "flex", "flexDirection": "horizontal", "alignItems": "center", "gap": "5px"}),
         ], style={
             "marginTop": "8px",
             "display": "flex",
@@ -1263,7 +1263,7 @@ def toggle_wf_task_more_fields(n_clicks, expandable_area_styles, icon_classes, t
 
 @dash.callback(
     Output("wf-variable-cards-row", "children", allow_duplicate=True),
-    Input("wf-new-variable", "n_clicks"),
+    Input("wf-variable-new", "n_clicks"),
     Input({"type": "wf-duplicate-var", "name": dash.ALL}, "n_clicks"),
     Input({"type": "wf-delete-var", "name": dash.ALL}, "n_clicks"),
     State("wf-variable-cards-row", "children"),
@@ -1296,7 +1296,7 @@ def update_wf_variable_cards(
         cards = cards[:-1]
 
     # Add new variable
-    if trigger_id == "wf-new-variable" and new_click:
+    if trigger_id == "wf-variable-new" and new_click:
         existing_names = [card.get('props', {}).get('id', {}).get('name', '') for card in cards if isinstance(card.get('props', {}).get('id', {}), dict)]
         var_idx = 1
         while f"var{var_idx}" in existing_names:

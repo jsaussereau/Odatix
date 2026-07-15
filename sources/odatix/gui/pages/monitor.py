@@ -891,7 +891,7 @@ title_buttons = html.Div(
             icon=icon("cross", className="icon"),
             color="caution",
             multiline=True,
-            tooltip="Kill all tasks and exit monitor",
+            tooltip="Kill all tasks and exit session",
         ),
     ],
     className="inline-flex-buttons",
