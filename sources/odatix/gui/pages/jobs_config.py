@@ -1318,6 +1318,16 @@ def confirm_prepare_jobs(n_clicks, run_status):
 
     return {**run_status, "status": "preparing"}, "Preparing jobs...", "color-button disabled icon-button"
 
+# Point the "Choose Targets" button to the current EDA tool
+@dash.callback(
+    Output({"page": page_path, "action": "choose-targets", "is_link": True}, "href"),
+    Input(f"url_{page_path}", "search"),
+)
+def update_choose_targets_link(search):
+    tool = get_key_from_url(search, "tool") or "vivado"
+    return f"/select_targets?tool={quote(tool)}"
+
+
 ######################################
 # Layout
 ######################################
@@ -1335,9 +1345,9 @@ title_buttons = html.Div(
             style={"width": "155px", "marginRight": "10px"},
         ),
         ui.icon_button(
-            id={"page": page_path, "action": "reset-defaults"},
+            id={"page": page_path, "action": "choose-targets"},
             icon=icon("gear", className="icon"),
-            link="/select_targets?tool=vivado",
+            link="/select_targets",  # href updated from the url by update_choose_targets_link
             text="Choose Targets",
             multiline=True,
             tooltip="Go to the Targets page to select targets",
