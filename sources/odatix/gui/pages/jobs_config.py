@@ -37,6 +37,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
+import odatix.components.run_workflow as run_workflow
 from odatix.lib.parallel_job_handler import daemon_control
 
 page_path = "/run_jobs"
@@ -203,46 +204,97 @@ def _run_check_fmax_settings(
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
 
+def _run_check_workflow_settings(
+    run_config_settings_filename,
+    workflow_path,
+    work_path,
+    overwrite_enabled,
+    noask,
+    exit_when_done_enabled,
+    log_size_val,
+    nb_jobs_val,
+):
+    global _prepare_status, _prepare_check_data
+    try:
+        with contextlib.redirect_stdout(_prepare_log_buffer):
+            _prepare_check_data = run_workflow.check_settings(
+                run_config_settings_filename,
+                workflow_path,
+                work_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                debug=False,
+                keep=False,
+            )
+        _prepare_status = {"status": "checked", "error": None}
+    except SystemExit:
+        # check_settings() calls sys.exit(-1) on invalid workflow settings
+        # instead of raising: turn that into a normal error status.
+        _prepare_status = {"status": "error", "error": "Invalid workflow settings. See log above for details."}
+    except Exception as exc:
+        _prepare_status = {"status": "error", "error": str(exc)}
+
 def _run_prepare_synthesis():
     global _prepare_status, _prepare_parallel_jobs
     try:
         if not _prepare_check_data:
             raise RuntimeError("Missing preparation settings")
-        (
-            architecture_instances,
-            prepare_job,
-            job_list,
-            tool_settings_file,
-            arch_handler,
-            exit_when_done,
-            log_size_limit,
-            nb_jobs,
-        ) = _prepare_check_data
         with contextlib.redirect_stdout(_prepare_log_buffer):
-            if _prepare_synth_type == "fmax_synthesis":
-                _prepare_parallel_jobs = run_fmax_synthesis.prepare_synthesis(
-                    architecture_instances=architecture_instances,
+            if _prepare_synth_type == "workflow":
+                (
+                    workflow_instances,
+                    prepare_job,
+                    job_list,
+                    exit_when_done,
+                    log_size_limit,
+                    nb_jobs,
+                ) = _prepare_check_data
+                _prepare_parallel_jobs = run_workflow.prepare_workflows(
+                    workflow_instances=workflow_instances,
                     prepare_job=prepare_job,
                     job_list=job_list,
-                    tool_settings_file=tool_settings_file,
-                    arch_handler=arch_handler,
                     exit_when_done=exit_when_done,
                     log_size_limit=log_size_limit,
                     nb_jobs=nb_jobs,
-                    cancel_event=_prepare_cancel_event,
                 )
             else:
-                _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
-                    architecture_instances=architecture_instances,
-                    prepare_job=prepare_job,
-                    job_list=job_list,
-                    tool_settings_file=tool_settings_file,
-                    arch_handler=arch_handler,
-                    exit_when_done=exit_when_done,
-                    log_size_limit=log_size_limit,
-                    nb_jobs=nb_jobs,
-                    cancel_event=_prepare_cancel_event,
-                )
+                (
+                    architecture_instances,
+                    prepare_job,
+                    job_list,
+                    tool_settings_file,
+                    arch_handler,
+                    exit_when_done,
+                    log_size_limit,
+                    nb_jobs,
+                ) = _prepare_check_data
+                if _prepare_synth_type == "fmax_synthesis":
+                    _prepare_parallel_jobs = run_fmax_synthesis.prepare_synthesis(
+                        architecture_instances=architecture_instances,
+                        prepare_job=prepare_job,
+                        job_list=job_list,
+                        tool_settings_file=tool_settings_file,
+                        arch_handler=arch_handler,
+                        exit_when_done=exit_when_done,
+                        log_size_limit=log_size_limit,
+                        nb_jobs=nb_jobs,
+                        cancel_event=_prepare_cancel_event,
+                    )
+                else:
+                    _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
+                        architecture_instances=architecture_instances,
+                        prepare_job=prepare_job,
+                        job_list=job_list,
+                        tool_settings_file=tool_settings_file,
+                        arch_handler=arch_handler,
+                        exit_when_done=exit_when_done,
+                        log_size_limit=log_size_limit,
+                        nb_jobs=nb_jobs,
+                        cancel_event=_prepare_cancel_event,
+                    )
         _prepare_status = {"status": "prepared", "error": None}
     except run_range_synthesis.SynthesisCancelled:
         _prepare_status = {"status": "canceled", "error": None}
@@ -275,6 +327,50 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
         OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
     )
 
+def _run_context(search, odatix_settings) -> dict:
+    """
+    Resolve everything that differs between job types (architectures vs
+    workflows) from the ?type=... url parameter.
+
+    Returns a dict with:
+        mode           : "workflow" or "arch"
+        base_path      : architectures / workflows directory
+        settings_path  : the selection settings file to read/write
+        selection_key  : the yaml key holding the selection ("workflows" / "architectures")
+        instances      : list of instance names to display
+        settings_link  : lambda name -> settings editor url
+        config_link    : lambda name -> config editor url
+        settings_text  : label of the settings button
+        title          : plural heading of the instance section
+    """
+    settings = odatix_settings or {}
+    run_mode = get_key_from_url(search, "type")
+    if run_mode == "workflow":
+        base_path = settings.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
+        return {
+            "mode": "workflow",
+            "base_path": base_path,
+            "settings_path": settings.get("workflow_settings_file", OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE),
+            "selection_key": "workflows",
+            "instances": workspace.get_workflows(base_path),
+            "settings_link": lambda name: f"/workflow_editor?workflow={name}",
+            "config_link": lambda name: f"/config_editor?workflow={name}",
+            "settings_text": "Workflow Settings",
+            "title": "Workflows",
+        }
+    base_path = settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    return {
+        "mode": "arch",
+        "base_path": base_path,
+        "settings_path": _get_synth_settings_path(search, settings),
+        "selection_key": "architectures",
+        "instances": workspace.get_architectures(base_path),
+        "settings_link": lambda name: f"/arch_editor?arch={name}",
+        "config_link": lambda name: f"/config_editor?arch={name}",
+        "settings_text": "Architecture Settings",
+        "title": "Architectures",
+    }
+
 def _arch_name_from_entry(entry: str) -> str:
     first_part = str(entry).split(" + ")[0].strip()
     if "/" in first_part:
@@ -297,6 +393,40 @@ def _group_arch_selections(architectures_setting) -> dict:
             continue
         grouped.setdefault(arch_name, []).append(str(entry))
     return grouped
+
+def _workflow_virtual_variant_combos(base_path, workflow_name):
+    """
+    Resolve the virtual parameter domains of a workflow (command-placeholder
+    variables defined under "generate_configurations_settings.variables" in
+    its _settings.yml, see run_workflow.py), by reusing the exact generation
+    logic run_workflow.check_settings() uses at run time.
+
+    Returns:
+        combos        : list of [workflow_name, "domain/value", ...], one per
+                         generated variant (empty if the workflow has none).
+        domain_values : dict domain name -> sorted list of distinct values
+                        seen across combos (for display only).
+        error         : error message if the variable settings are invalid,
+                         else None.
+    """
+    settings = workspace.load_workflow_settings(base_path, workflow_name)
+    virtual_domain_names = run_workflow.get_workflow_virtual_domain_names(settings)
+    if not virtual_domain_names:
+        return [], {}, None
+
+    settings_file = workspace.get_workflow_settings_path(base_path, workflow_name)
+    variants = run_workflow.build_workflow_virtual_param_domain_variants(settings, settings_file, debug=False)
+    if variants is None:
+        return [], {}, "Invalid workflow variable settings. Check the workflow settings file."
+
+    combos = [[workflow_name] + variant["requested_param_domains"] for variant in variants]
+    domain_values = {}
+    for combo in combos:
+        for token in combo[1:]:
+            domain, _, value = token.partition("/")
+            domain_values.setdefault(domain, set()).add(value)
+    domain_values = {domain: sorted(values) for domain, values in domain_values.items()}
+    return combos, domain_values, None
 
 def _extract_domain_values(arch_name: str, selections) -> dict:
     """Return mapping of domain -> set(values) found in preview selection strings."""
@@ -537,6 +667,8 @@ def init_form(search, page, odatix_settings):
 
 @dash.callback(
     Output("job-section", "children"),
+    Output("job-section-heading", "children"),
+    Output("jobs-config-main-title", "children"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
@@ -549,16 +681,17 @@ def update_param_domains(
 
     if triggered_id == "url":
         if page != page_path:
-            return dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    architectures = workspace.get_architectures(arch_path)
+    context = _run_context(search, odatix_settings)
+    arch_path = context["base_path"]
+    architectures = context["instances"]
 
-    settings_path = _get_synth_settings_path(search, odatix_settings or {})
+    settings_path = context["settings_path"]
     selection_settings = workspace.load_arch_selection_settings(settings_path)
-    selection_map = _group_arch_selections(selection_settings.get("architectures", []))
+    selection_map = _group_arch_selections(selection_settings.get(context["selection_key"], []))
     job_sections = []
-    for arch_name in architectures:     
+    for arch_name in architectures:
         domains_configs = {}
         domains = [hard_settings.main_parameter_domain] + workspace.get_param_domains(arch_path, arch_name)
         domain_tiles = []
@@ -600,6 +733,40 @@ def update_param_domains(
             )
             domain_tiles.append(domain_tile)
 
+        # Virtual parameter domains (workflow command-placeholder variables)
+        virtual_combos = []
+        if context["mode"] == "workflow":
+            virtual_combos, virtual_domain_values, virtual_error = _workflow_virtual_variant_combos(arch_path, arch_name)
+            if virtual_error:
+                domain_tiles.append(
+                    html.Div(
+                        html.Div(virtual_error, className="error-message"),
+                        className="tile config",
+                    )
+                )
+            elif virtual_domain_values:
+                domain_tiles.append(
+                    html.Div(
+                        children=[
+                            html.H3("Workflow Variables", style={"marginBottom": "0px"}),
+                            html.Div(
+                                [
+                                    html.Div(
+                                        [
+                                            html.Span(f"{domain}: ", style={"fontWeight": "bold"}),
+                                            html.Span(", ".join(values)),
+                                        ],
+                                        style={"marginTop": "4px"},
+                                    )
+                                    for domain, values in virtual_domain_values.items()
+                                ],
+                                style={"marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
+                            ),
+                        ],
+                        className="tile config",
+                    )
+                )
+
         # Default configuration tile
         domain_tiles.append(
              html.Div(
@@ -625,7 +792,7 @@ def update_param_domains(
             )
         )
 
-        n_combos = workspace.count_combinations(domains_configs)
+        n_combos = workspace.count_combinations(domains_configs) + len(virtual_combos)
         if n_combos > MAX_PREVIEW_COMBINATIONS:
             domain_tiles.append(
                 html.Div(
@@ -641,7 +808,7 @@ def update_param_domains(
                 )
             )
         else:
-            all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name)
+            all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name) + virtual_combos
             if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
                 all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
             formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
@@ -675,25 +842,25 @@ def update_param_domains(
             children=[
                 ui.icon_button(
                     icon=icon("gear", className="icon"),
-                    text="Architecture Settings",
+                    text=context["settings_text"],
                     color="default",
-                    link=f"/arch_editor?arch={arch_name}",
+                    link=context["settings_link"](arch_name),
                     multiline=True,
                     width="135px",
                 ),
                 ui.icon_button(
                     icon=icon("edit", className="icon blue"),
                     text="Edit Configs",
-                    tooltip="Open the Configuration Editor for this architecture",
+                    tooltip=f"Open the Configuration Editor for this {context['mode']}",
                     tooltip_options="bottom delay",
                     color="default",
-                    link=f"/config_editor?arch={arch_name}",
+                    link=context["config_link"](arch_name),
                     multiline=False,
                     width="135px",
                 ),
             ],
             className="inline-flex-buttons",
-        )        
+        )
         job_section = html.Div(
             children=[
                 html.Div(
@@ -727,7 +894,8 @@ def update_param_domains(
             id = {"type": "job-section", "arch": arch_name},
         )
         job_sections.append(job_section)
-    return job_sections
+    main_title = f"Select {context['mode'] if context['mode'] == 'workflow' else 'architecture'} configurations to run"
+    return job_sections, context["title"], main_title
 
 
 @dash.callback(
@@ -824,12 +992,13 @@ def sync_preview_values(
             removed_values = prev_vals - curr_vals
             break
 
-    # If no clear change is found, do nothing
+    # If no clear change is found, do nothing. The title is intentionally left
+    # untouched: it reflects the total number of available combinations
+    # (fixed at render time in update_param_domains), not how many are
+    # currently checked -- recomputing it from len(current_preview_values)
+    # here would show the checked count instead once any items are unchecked.
     if not changed_domain:
-        n_combos = 0
-        if current_preview_values:
-            n_combos = len(current_preview_values)
-        return current_preview_values or [], f"Preview ({n_combos} combinations)"
+        return current_preview_values or [], dash.no_update
 
     # Start from the current preview value (including manual changes)
     preview_set = set(current_preview_values or [])
@@ -875,8 +1044,9 @@ def sync_preview_values(
         preview_set.remove(arch_name)
     result.extend(sorted(preview_set))
 
-    n_combos = len(result)
-    return result, f"Preview ({n_combos} combinations)"
+    # Same reasoning as above: the title shows the total available combination
+    # count, not how many ended up checked -- leave it untouched.
+    return result, dash.no_update
 
 
 @dash.callback(
@@ -947,9 +1117,11 @@ def save_architecture_selections(
     # Remove duplicates but keep order
     architectures = list(dict.fromkeys(architectures))
 
+    context = _run_context(search, odatix_settings)
     run_mode = get_key_from_url(search, "type")
+    selection_key = context["selection_key"]
     current_settings = {
-        "architectures": architectures,
+        selection_key: architectures,
     }
     if run_mode == "custom_freq_synthesis":
         current_settings["frequencies"] = workspace.create_custom_frequencies_settings_dict(
@@ -963,11 +1135,11 @@ def save_architecture_selections(
     if isinstance(saved_selection, dict):
         saved_settings = saved_selection
     else:
-        saved_settings = {"architectures": saved_selection or []}
+        saved_settings = {selection_key: saved_selection or []}
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
         try:
-            settings_path = _get_synth_settings_path(search, odatix_settings or {})
+            settings_path = context["settings_path"]
             base_settings = workspace.load_arch_selection_settings(settings_path)
             payload = {
                 **base_settings,
@@ -986,7 +1158,7 @@ def save_architecture_selections(
                 dash.no_update,
             )
 
-    if saved_settings.get("architectures", []) != current_settings.get("architectures", []):
+    if saved_settings.get(selection_key, []) != current_settings.get(selection_key, []):
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
@@ -1078,7 +1250,8 @@ def run_jobs(
     run_mode = get_key_from_url(search, "type")
     tool = get_key_from_url(search, "tool") or "vivado"
 
-    arch_path = settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    # arch_path for architecture modes, workflow_path for workflow mode
+    base_path = _run_context(search, odatix_settings)["base_path"]
     target_path = settings.get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
     work_path_root = settings.get("work_path", OdatixSettings.DEFAULT_WORK_PATH)
 
@@ -1120,7 +1293,7 @@ def run_jobs(
             target=_run_check_custom_freq_settings,
             args=(
                 run_config_settings_filename,
-                arch_path,
+                base_path,
                 tool,
                 work_path,
                 target_path,
@@ -1150,7 +1323,7 @@ def run_jobs(
             target=_run_check_fmax_settings,
             args=(
                 run_config_settings_filename,
-                arch_path,
+                base_path,
                 tool,
                 work_path,
                 target_path,
@@ -1165,6 +1338,41 @@ def run_jobs(
             daemon=True,
         )
         _prepare_thread.start()
+    elif run_mode == "workflow":
+        run_config_settings_filename = settings.get(
+            "workflow_settings_file",
+            OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE,
+        )
+        work_path = os.path.join(
+            work_path_root,
+            settings.get("workflow_work_path", OdatixSettings.DEFAULT_WORKFLOW_WORK_PATH),
+        )
+
+        _prepare_thread = threading.Thread(
+            target=_run_check_workflow_settings,
+            args=(
+                run_config_settings_filename,
+                base_path,
+                work_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+            ),
+            daemon=True,
+        )
+        _prepare_thread.start()
+
+    else:
+        global _prepare_status
+        message = (
+            "Running this type of job from the GUI is not available yet.\n"
+            "Your selection is saved: launch it from a terminal."
+        )
+        _prepare_log_buffer.write(message)
+        _prepare_status = {"status": "error", "error": message}
+        return {"status": "error", "type": run_mode, "tool": tool, "error": message}
     # else:
     #     run_config_settings_filename = settings.get(
     #         "fmax_synthesis_settings_file",
@@ -1375,14 +1583,14 @@ title_buttons = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
-        ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "10px"}),
+        ui.title_tile("Select architecture configurations to run", id="jobs-config-main-title", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "10px"}),
         html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
         html.H2("Job Settings", style={"textAlign": "center", "marginBottom": "30px"}),
         html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),
         dcc.Store(id="job-settings-initial-settings", data=None),
         # html.H2("Targets", style={"textAlign": "center"}),
         # html.Div(id="target-section", style={"marginBottom": "10px"}),
-        html.H2("Architectures", style={"textAlign": "center"}),
+        html.H2("Architectures", id="job-section-heading", style={"textAlign": "center"}),
         html.Div(id="job-section", style={"marginBottom": "10px"}),
         dcc.Store(id="jobs-config-saved-selection", data=None),
         dcc.Store(id="jobs-config-run-status", data=None),
