@@ -495,7 +495,7 @@ def wf_variable_card(
                 id={"type": "wf-variable-title", "name": name},
                 className="title-input",
                 style={
-                    "width": "calc(100% - 20px)",
+                    "width": "100%",
                     "marginLeft": "5px",
                     "marginRight": "5px",
                     "marginTop": "-5px",
@@ -596,7 +596,7 @@ def wf_task_card(name="main", dependencies_value="", commands_value="", path_val
                     className="title-input",
                     disabled=is_main,
                     style={
-                        "width": "calc(100% - 20px)",
+                        "width": "100%",
                         "marginLeft": "5px",
                         "marginRight": "5px",
                         "marginTop": "-5px",
@@ -628,6 +628,7 @@ def wf_task_card(name="main", dependencies_value="", commands_value="", path_val
                         "fontFamily": "monospace",
                         "fontWeight": "500",
                         "marginBottom": "8px",
+                        "boxSizing": "border-box",
                     },
                 ),
                 html.Div(
@@ -655,7 +656,7 @@ def wf_task_card(name="main", dependencies_value="", commands_value="", path_val
                     style=Style.hidden,
                 ),
             ],
-            style={"width": "calc(100% - 10px)"}
+            style={"width": "100%"}
         ),
         html.Div([
             html.Div([

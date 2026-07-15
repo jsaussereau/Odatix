@@ -72,6 +72,220 @@ html, body {
     text-decoration: underline;
 }
 
+/* ---- Topbar dropdown navigation ---- */
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    justify-content: right;
+    position: absolute;
+    right: 0;
+    z-index: 1000;
+}
+
+.navbar .nav-menu {
+    display: flex;
+    align-items: center;
+}
+
+.navbar .nav-groups {
+    display: flex;
+    align-items: center;
+    margin-right: 14px;
+}
+
+.nav-group {
+    position: relative;
+}
+
+.nav-group-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: white;
+    font-size: 15px;
+    padding: 15px 12px;
+    cursor: default;
+    user-select: none;
+    white-space: nowrap;
+}
+
+/* Group label is a real link (group has its own page): navigable, not just a hover target */
+a.nav-group-label {
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.navbar .nav-link-button {
+    display: flex;
+    align-items: center;
+    color: white;
+    font-size: 15px;
+    padding: 15px 12px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.navbar .nav-link-button:hover {
+    text-decoration: underline;
+}
+
+.nav-chevron {
+    transition: transform 0.2s ease;
+}
+
+.nav-group:hover .nav-chevron,
+.nav-group:focus-within .nav-chevron {
+    transform: rotate(180deg);
+}
+
+.nav-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-direction: column;
+    background: var(--navbar-background);
+    backdrop-filter: blur(10px);
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    min-width: 160px;
+    padding: 6px 0;
+}
+
+.nav-group:hover .nav-dropdown {
+    display: flex;
+}
+
+.navbar .nav-dropdown a {
+    color: white;
+    text-decoration: none;
+    font-size: 14px;
+    padding: 8px 18px;
+    white-space: nowrap;
+}
+
+.navbar .nav-dropdown a:hover {
+    background: rgba(255, 255, 255, 0.12);
+    text-decoration: none;
+}
+
+.navbar .nav-theme {
+    margin-right: 20px;
+}
+
+.nav-burger {
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    cursor: pointer;
+    padding: 12px 16px;
+}
+
+.nav-burger-line {
+    display: block;
+    width: 22px;
+    height: 2px;
+    border-radius: 2px;
+    background: white;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.nav-burger.open .nav-burger-line:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.nav-burger.open .nav-burger-line:nth-child(2) {
+    opacity: 0;
+}
+
+.nav-burger.open .nav-burger-line:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+@media screen and (max-width: 850px) {
+    .nav-burger {
+        display: flex;
+    }
+
+    /* Static so the absolute .nav-menu panel anchors to the navbar itself */
+    .nav-right {
+        position: static;
+        margin-left: auto;
+    }
+
+    .navbar .nav-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        background: var(--navbar-background);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+        padding: 4px 0 14px;
+        max-height: calc(100vh - 50px);
+        overflow-y: auto;
+    }
+
+    .navbar .nav-menu.open {
+        display: flex;
+    }
+
+    .navbar .nav-groups {
+        flex-direction: column;
+        align-items: stretch;
+        margin-right: 0;
+    }
+
+    .nav-group-label {
+        padding: 12px 22px 4px;
+        font-size: 12px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.65;
+    }
+
+    .nav-chevron {
+        display: none;
+    }
+
+    /* Sub-links always visible under their category header */
+    .nav-dropdown {
+        display: flex;
+        position: static;
+        transform: none;
+        background: none;
+        backdrop-filter: none;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 0;
+    }
+
+    .navbar .nav-dropdown a {
+        padding: 10px 34px;
+        font-size: 15px;
+    }
+
+    /* Plain link button (no dropdown): looks like a leaf item, not a section header */
+    .navbar .nav-link-button {
+        padding: 10px 22px;
+        font-size: 15px;
+    }
+
+    .navbar .nav-theme {
+        margin: 10px 22px 0;
+    }
+
+    .navbar #navbar-title {
+        margin-left: 5px !important;
+    }
+}
+
 .navbar .title {
     position: relative;
     top: 0px;

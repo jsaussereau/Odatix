@@ -595,9 +595,9 @@
     --theme-border-style: 0.5px solid;
     --theme-large-border-style: 0.5px solid;
     --theme-border-color: #d1d5da;
-    --theme-small-border-radius: 3px;
-    --theme-normal-border-radius: 3px;
-    --theme-large-border-radius: 3px;
+    --theme-small-border-radius: 5px;
+    --theme-normal-border-radius: 5px;
+    --theme-large-border-radius: 5px;
     --theme-overlay-background-color: #3131313d;
 
     /* navbar */
