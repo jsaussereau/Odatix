@@ -162,6 +162,13 @@ def read_from_list(key, input_list, filename, raise_if_missing=True, optional=Fa
     Retrieves a value from a dictionary, with error handling and type validation.
     """
     parent_string = "" if parent == None else ", inside list \"" + parent + "\","
+    if not isinstance(input_list, dict):
+        # e.g. empty YAML file (None) or scalar where a mapping was expected
+        if print_error:
+            printc.error("Cannot find key \"" + key + "\"" + parent_string + " in \"" + filename + "\" because the file or parent key is empty or not a mapping.", script_name)
+        if raise_if_missing:
+            raise KeyNotInListError
+        return False
     if key in input_list:
         value = input_list[key]
         if type is None:
@@ -277,8 +284,15 @@ def internal_error(e, error_logfile, script_name):
 def safe_df_append(df, row, ignore_index=True):
     if hasattr(df, 'append'):
         return df.append(row, ignore_index=ignore_index)
-    else:
+    elif hasattr(df, '_append'):
         return df._append(row, ignore_index=ignore_index)
+    else:
+        # pandas >= 3.0: no (private) append anymore
+        import pandas as pd
+        row_df = row if isinstance(row, pd.DataFrame) else pd.DataFrame([row])
+        if df.empty:
+            return row_df.reset_index(drop=True) if ignore_index else row_df
+        return pd.concat([df, row_df], ignore_index=ignore_index)
 
 def open_path_in_explorer(path):
     """Opens the given path in the system file explorer."""
