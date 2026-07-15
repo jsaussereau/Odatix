@@ -1,0 +1,27 @@
+# Design sources (that will be coppied into each work directory)
+sources:
+  path: examples/workflow_metric_sweep
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: "Progress: ([0-9]+)"
+
+# Generated design settings
+use_parameters: No
+
+# Design workflow settings
+tasks:
+  - name: main
+    commands:
+      - python3 simulate_ber.py --channel_gain ${channel_gain} --ebno_from 1 --ebno_to 3 --ebno_step 0.5
+
+# One configuration per channel_gain value. Each run's results.csv holds
+# several EBNO points -- see _metrics.yml for how they get expanded into
+# one record per point (rather than one record per configuration).
+generate_configurations_settings:
+  variables:
+    channel_gain:
+      type: list
+      settings:
+        list: [0.5, 1.0]

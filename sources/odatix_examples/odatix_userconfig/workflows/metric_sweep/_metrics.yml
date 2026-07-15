@@ -1,0 +1,39 @@
+##############################################
+# Metrics for this workflow
+##############################################
+#
+# results.csv has one row per EBNO point (e.g. FER/BER for EBNO=1, 1.5, 2, ...).
+# "multiple: true" tells Odatix to extract every row instead of just the first
+# one, and the "metadata" block below expands each run into one record per
+# row, tagged with its own EBNO value -- as if each EBNO point had been run
+# as a separate configuration.
+
+metrics:
+  FER:
+    type: csv
+    multiple: true
+    settings:
+      file: results.csv
+      key: FER
+
+  BER:
+    type: csv
+    multiple: true
+    settings:
+      file: results.csv
+      key: BER
+
+  # "operation" metrics are evaluated once per expanded row, using that row's
+  # own FER/BER values.
+  fer_over_ber:
+    type: operation
+    settings:
+      op: "FER / BER"
+
+metadata:
+  EBNO:
+    type: csv
+    multiple: true
+    settings:
+      file: results.csv
+      key: EBNO
