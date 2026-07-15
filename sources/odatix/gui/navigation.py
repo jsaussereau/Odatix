@@ -33,20 +33,26 @@ from odatix.gui.icons import icon
 top_bar_height = "50px"
 side_bar_width = "0px"
 
-# Topbar dropdown menus: (category label, [(page name, href), ...])
+# Topbar entries, either:
+#   (label, href)                 -> plain link button, no dropdown (e.g. Monitor)
+#   (label, href, [(name, href)]) -> group: hovering opens the dropdown, clicking
+#                                     the label itself navigates to href (e.g. Run,
+#                                     Explorer). href may be "" for a group with no
+#                                     page of its own (e.g. Configure): its label is
+#                                     then just a hover target, not a link.
 nav_groups = [
-    ("Configure", [
-        ("Architectures", "/architectures"),
+    ("Configure", "", [
         ("Workflows", "/workflows"),
+        ("RTL Architectures", "/architectures"),
     ]),
-    ("Jobs", [
-        ("Run", "/choose_job_type"),
-        ("Monitor", "/monitor"),
+    ("Run", "/choose_job_type", [
+        ("Workflows", "/run_jobs?type=workflow"),
+        ("RTL Analysis", "/run_jobs?type=analyze"),
+        ("Fmax Synthesis", "/choose_eda_tool?type=fmax_synthesis"),
+        ("Custom Synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
     ]),
-    ("Settings", [
-        ("Workspace", "/workspace"),
-    ]),
-    ("Explorer", [
+    ("Monitor", "/monitor"),
+    ("Explorer", "/explorer", [
         ("Lines", "/explorer/lines"),
         ("Columns", "/explorer/columns"),
         ("Scatter", "/explorer/scatter"),
@@ -54,19 +60,30 @@ nav_groups = [
         ("Radar", "/explorer/radar"),
         ("Overview", "/explorer/overview"),
     ]),
+    ("Settings", "/workspace", [
+        ("Workspace", "/workspace"),
+    ]),
 ]
 
 
-def _nav_group(label, items):
+def _nav_entry(entry):
+    if len(entry) == 2:
+        label, href = entry
+        return dcc.Link(label, href=href, className="nav-link-button")
+
+    label, href, items = entry
+    header_content = [label, icon("more", width="13px", height="13px", className="nav-chevron")]
+    if href:
+        header = dcc.Link(header_content, href=href, className="nav-group-label")
+    else:
+        # No page of its own: keep it a non-navigable hover/focus target.
+        header = html.Span(header_content, className="nav-group-label", tabIndex="0")
+
     return html.Div(
         [
-            html.Span(
-                [label, icon("more", width="13px", height="13px", className="nav-chevron")],
-                className="nav-group-label",
-                tabIndex="0",
-            ),
+            header,
             html.Div(
-                [dcc.Link(name, href=href, className="nav-dropdown-link") for name, href in items],
+                [dcc.Link(name, href=item_href, className="nav-dropdown-link") for name, item_href in items],
                 className="nav-dropdown",
             ),
         ],
@@ -109,7 +126,7 @@ def top_bar(gui):
                 ),
                 html.Div([
                     html.Div(
-                        [_nav_group(label, items) for label, items in nav_groups],
+                        [_nav_entry(entry) for entry in nav_groups],
                         className="nav-groups",
                     ),
                     html.Div(
