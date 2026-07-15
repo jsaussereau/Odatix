@@ -20,8 +20,7 @@
 #
 
 import dash
-from dash import html, dcc, Input, Output, State, ctx
-from typing import Optional, Sequence#, Literal
+from dash import html, dcc, Input, Output, State, ctx, ALL, MATCH
 
 import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
@@ -29,7 +28,6 @@ from odatix.gui.utils import get_key_from_url
 import odatix.gui.ui_components as ui
 from odatix.gui.css_helper import Style
 import odatix.gui.navigation as navigation
-import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 
 page_path = "/select_targets"
@@ -42,43 +40,58 @@ dash.register_page(
     order=3,
 )
 
-MAX_PREVIEW_COMBINATIONS = 10000
+tool_display_names = {
+    "vivado": "Vivado",
+    "design_compiler": "Design Compiler",
+    "genus": "Genus",
+    "openlane": "OpenLane",
+}
+
+save_button_disabled = "color-button disabled icon-button"
+save_button_enabled = "color-button warning icon-button tooltip delay bottom auto caution"
+
+
+def get_tool_display_name(tool):
+    if not tool:
+        return ""
+    return tool_display_names.get(tool, tool.replace("_", " ").title())
+
 
 ######################################
 # UI Components
 ######################################
 
-
-def target_card(tool_uuid, target_name, target_layout="normal"):
-    display_name = target_name[:-4] if target_name.endswith(".txt") else target_name
+def target_card(target):
+    name = target["name"]
+    enabled = target.get("enabled", True)
+    extra_fields_open = bool(target.get("script_copy_enable", False)) or str(target.get("script_copy_source", "")).strip() != ""
 
     return html.Div([
         html.Div([
             dcc.Input(
-                value=f"{display_name}",
+                value=name,
                 type="text",
-                id={"type": "config-title", "tool_uuid": tool_uuid, "target_name": target_name},
+                id={"type": "target-title", "name": name},
                 className="title-input",
                 style={
-                    "width": "calc(100% - 20px)",
+                    "width": "calc(100% - var(--tile-gap))",
                     "marginLeft": "5px",
                     "marginRight": "5px",
                     "fontWeight": "bold",
                     "fontSize": "1.1em",
-                    "height": "10px",
                     "marginTop": "-5px",
                     "marginBottom": "2px",
                     "textAlign": "center",
                 },
             )
         ]),
-        dcc.Store(id={"type": "config-metadata", "tool_uuid": tool_uuid, "target_name": target_name}, data={"tool_uuid": tool_uuid, "target_name": target_name}),
+        dcc.Store(id={"type": "target-metadata", "name": name}, data=target),
         html.Div([
             html.Div([
                 dcc.Checklist(
                     options=[{"label": "Enable", "value": True}],
-                    value=[True] if True else [],
-                    id="overwrite",
+                    value=[True] if enabled else [],
+                    id={"type": "target-enable", "name": name},
                     className="checklist-switch",
                     style={"marginBottom": "12px", "marginTop": "10px", "marginLeft": "5px", "display": "inline-block"},
                 ),
@@ -86,15 +99,19 @@ def target_card(tool_uuid, target_name, target_layout="normal"):
             html.Div([
                 html.Div([
                     ui.icon_button(
-                        icon=icon("more", className="icon normal rotate", id={"type": "more-fields-icon", "target_name": target_name}),
+                        icon=icon(
+                            "more",
+                            className="icon normal rotate rotated" if extra_fields_open else "icon normal rotate",
+                            id={"type": "target-more-icon", "name": name},
+                        ),
                         color="default",
-                        id={"type": "more-fields", "target_name": target_name},
+                        id={"type": "target-more", "name": name},
                         tooltip="Show/Hide extra fields",
                         tooltip_options="bottom small",
                     )
-                ], id={"type": "more-fields-div", "target_name": target_name}, style={"display": "flex", "alignItems": "center"}),
-                ui.duplicate_button(id={"type": "duplicate-config", "tool_uuid": tool_uuid, "target_name": target_name}),
-                ui.delete_button(id={"type": "delete-config", "tool_uuid": tool_uuid, "target_name": target_name}),
+                ], style={"display": "flex", "alignItems": "center"}),
+                ui.duplicate_button(id={"type": "target-duplicate", "name": name}),
+                ui.delete_button(id={"type": "target-delete", "name": name}),
             ], style={"display": "flex", "alignItems": "center", "marginLeft": "0px"}, className="inline-flex-buttons"),
         ], style={
             "marginTop": "8px",
@@ -103,16 +120,49 @@ def target_card(tool_uuid, target_name, target_layout="normal"):
             "width": "100%",
             "justifyContent": "space-between",
         }),
-        dcc.Store(id={"type": "initial-title", "tool_uuid": tool_uuid, "target_name": target_name}, data=display_name),
-    ], 
-    className="card configs", 
-    id={"type": "config-card", "tool_uuid": tool_uuid, "target_name": target_name},
+        # Extra fields: optional per-target settings (target_settings.<name> in the yaml)
+        html.Div([
+            html.Div([
+                html.Label("Script copy", style={"fontWeight": "bold", "fontSize": "1em"}),
+                dcc.Checklist(
+                    options=[{"label": "Enable script copy", "value": True}],
+                    value=[True] if target.get("script_copy_enable", False) else [],
+                    id={"type": "target-script-copy-enable", "name": name},
+                    className="checklist-switch",
+                    style={"marginTop": "5px", "marginLeft": "5px"},
+                ),
+                html.Div("script_copy_source", style={"marginTop": "10px", "marginLeft": "5px", "marginBottom": "5px"}),
+                dcc.Input(
+                    value=target.get("script_copy_source", ""),
+                    type="text",
+                    placeholder="/path/to/script",
+                    id={"type": "target-script-copy-source", "name": name},
+                    className="value-input",
+                    style={
+                        "width": "calc(100% - var(--tile-gap))",
+                        "marginLeft": "5px",
+                        "marginRight": "5px",
+                        "marginBottom": "5px",
+                        "fontSize": "0.9em",
+                        # "height": "10px",
+                    },
+                ),
+            ], style={"marginTop": "5px", "textAlign": "left"}),
+        ],
+        id={"type": "target-extra-div", "name": name},
+        style=Style.visible_div if extra_fields_open else Style.hidden,
+        ),
+    ],
+    className="card configs" + ("" if enabled else " target-disabled"),
+    id={"type": "target-card", "name": name},
     style={
-        "padding": "10px", 
-        "margin": "5px", 
-        "display": "inline-block", 
-        "verticalAlign": "top"
+        "padding": "10px",
+        "margin": "5px",
+        "display": "inline-block",
+        "verticalAlign": "top",
+        "boxSizing": "border-box",
     })
+
 
 def add_card(text: str = "Add new target"):
     return html.Div(
@@ -130,101 +180,256 @@ def add_card(text: str = "Add new target"):
                             "marginBottom": "-15px",
                         }
                     ),
-                ], 
+                ],
                 style={"display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"}
             ),
-            id="new-variable",
+            id="add-target-card",
             n_clicks=0,
             style={"textDecoration": "none", "height": "100%"},
         ),
-        className=f"card configs add hover",
-        id="add-config-card",
+        className="card configs add hover",
         style={
             "padding": "10px",
             "margin": "5px",
             "display": "inline-block",
             "verticalAlign": "top",
-            "boxSizing": "border-box"
+            "boxSizing": "border-box",
         },
     )
 
 
-def target_field(
-    var: str,
-    # type: Literal['text', 'number', 'password', 'email', 'range', 'search', 'tel', 'url', 'hidden'] = "text",
-    type = "text",
-    name: str = "",
-    label: Optional[str] = None,
-    options: Optional[list] = None,
-    value: str = "",
-    placeholder: str = "",
-    default_style: dict = Style.hidden
-):
-    if label is None:
-        label = name
-    return html.Div(
-        children=[
-            html.Div(
-                children=[
-                    html.Label(label, style={"fontWeight": "bold", "fontSize": "1em"}),
-                    dcc.Input(
-                        value=value,
-                        type=type,
-                        placeholder=placeholder,
-                        id={"type": f"variable-field-{name}", "name": var},
-                        className="value-input",
-                        style={
-                            "width": "calc(100% - 20px)",
-                            "marginLeft": "5px",
-                            "marginRight": "5px",
-                            "marginBottom": "5px",
-                            "fontSize": "0.9em",
-                            "height": "10px",
-                            "zIndex": "900",
-                        },
-                    ) if options is None else dcc.Dropdown(
-                        id={"type": f"variable-field-{name}", "name": var},
-                        options=options,
-                        value=value,
-                        clearable=False,
-                        style={
-                            "fontSize": "0.95em",
-                            "zIndex": "900",
-                        },
-                    ),
-                ], 
-                style={"marginTop": "5px"}
-            ),
-        ],
-        id={"type": f"variable-field-{name}-div", "name": var},
-        style=default_style
-    )
+def build_cards(search, odatix_settings):
+    tool = get_key_from_url(search, "tool")
+    if not tool:
+        return [html.Div(
+            "No EDA tool selected. Open this page with ?tool=<tool> (e.g. from the Run Jobs page).",
+            className="error-message",
+            style={"width": "100%", "marginTop": "20px"},
+        )]
+    target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+    targets = workspace.get_targets(target_path, tool)
+    cards = [target_card(target) for target in targets]
+    cards.append(add_card())
+    return cards
+
 
 ######################################
 # Callbacks
 ######################################
 
+# Load the page content from the url (?tool=<tool>)
 @dash.callback(
-    Output({"type": "target-cards-row", "tool_uuid": "Vivado"}, "children"),
+    Output("target-cards-row", "children"),
+    Output("select-targets-title", "children"),
     Input(f"url_{page_path}", "search"),
-    prevent_initial_call=True
+    State("odatix-settings", "data"),
 )
-def update_target_cards(
-    search,
-):
-    return [
-        target_card(
-            tool_uuid="Vivado",
-            target_name="xc7a35tcsg324-1",
-            target_layout="wide",
-        ),
-        target_card(
-            tool_uuid="Vivado",
-            target_name="xc7a100tcsg324-1",
-            target_layout="wide",
-        ),
-        add_card(),
-    ]
+def load_page(search, odatix_settings):
+    tool = get_key_from_url(search, "tool")
+    title = f"{get_tool_display_name(tool)} Targets" if tool else "Targets"
+    return build_cards(search, odatix_settings), title
+
+
+# Show/hide the extra fields of a target card
+@dash.callback(
+    Output({"type": "target-extra-div", "name": MATCH}, "style"),
+    Output({"type": "target-more-icon", "name": MATCH}, "className"),
+    Input({"type": "target-more", "name": MATCH}, "n_clicks"),
+    State({"type": "target-extra-div", "name": MATCH}, "style"),
+    prevent_initial_call=True,
+)
+def toggle_extra_fields(n_clicks, current_style):
+    # Based on the current state (not n_clicks parity): extra fields may
+    # start open by default (e.g. script copy already configured).
+    is_open = current_style == Style.visible_div
+    if is_open:
+        return Style.hidden, "icon normal rotate"
+    return Style.visible_div, "icon normal rotate rotated"
+
+
+# Dim the card when the target is disabled
+@dash.callback(
+    Output({"type": "target-card", "name": MATCH}, "className"),
+    Input({"type": "target-enable", "name": MATCH}, "value"),
+    prevent_initial_call=True,
+)
+def update_card_enabled_style(enable_value):
+    return "card configs" if enable_value else "card configs target-disabled"
+
+
+# Enable the save button on any edit, save all changes on click
+@dash.callback(
+    Output({"page": page_path, "action": "save-all"}, "className"),
+    Output("target-cards-row", "children", allow_duplicate=True),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+    Input({"type": "target-title", "name": ALL}, "value"),
+    Input({"type": "target-enable", "name": ALL}, "value"),
+    Input({"type": "target-script-copy-enable", "name": ALL}, "value"),
+    Input({"type": "target-script-copy-source", "name": ALL}, "value"),
+    State({"type": "target-metadata", "name": ALL}, "data"),
+    State(f"url_{page_path}", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def save_or_mark_dirty(save_n_clicks, titles, enables, script_copy_enables, script_copy_sources, metadata, search, odatix_settings):
+    trigger_id = ctx.triggered_id
+
+    if trigger_id == {"page": page_path, "action": "save-all"}:
+        if not save_n_clicks:
+            return dash.no_update, dash.no_update
+        tool = get_key_from_url(search, "tool")
+        if not tool:
+            return dash.no_update, dash.no_update
+        target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+
+        targets = []
+        for i, meta in enumerate(metadata):
+            targets.append({
+                "name": str(titles[i] or "").strip(),
+                "original_name": meta.get("name", ""),
+                "enabled": bool(enables[i]),
+                "script_copy_enable": bool(script_copy_enables[i]),
+                "script_copy_source": str(script_copy_sources[i] or ""),
+            })
+        workspace.save_target_selection(target_path, tool, targets)
+        return save_button_disabled, build_cards(search, odatix_settings)
+
+    # Any other trigger: compare current values against the loaded metadata
+    for i, meta in enumerate(metadata):
+        if str(titles[i] or "") != str(meta.get("name", "")):
+            return save_button_enabled, dash.no_update
+        if bool(enables[i]) != bool(meta.get("enabled", True)):
+            return save_button_enabled, dash.no_update
+        if bool(script_copy_enables[i]) != bool(meta.get("script_copy_enable", False)):
+            return save_button_enabled, dash.no_update
+        if str(script_copy_sources[i] or "") != str(meta.get("script_copy_source", "")):
+            return save_button_enabled, dash.no_update
+    return save_button_disabled, dash.no_update
+
+
+# Add a new target
+@dash.callback(
+    Output("target-cards-row", "children", allow_duplicate=True),
+    Input("add-target-card", "n_clicks"),
+    State(f"url_{page_path}", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def handle_add_target(n_clicks, search, odatix_settings):
+    if not n_clicks:
+        return dash.no_update
+    tool = get_key_from_url(search, "tool")
+    if not tool:
+        return dash.no_update
+    target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+
+    for i in range(1, 1001):
+        candidate = f"new_target_{i}"
+        if not workspace.target_exists(target_path, tool, candidate):
+            break
+    else:
+        return dash.no_update
+
+    try:
+        workspace.add_target(target_path, tool, candidate)
+    except Exception:
+        return dash.no_update
+    return build_cards(search, odatix_settings)
+
+
+# Duplicate a target
+@dash.callback(
+    Output("target-cards-row", "children", allow_duplicate=True),
+    Input({"type": "target-duplicate", "name": ALL}, "n_clicks_timestamp"),
+    State({"type": "target-duplicate", "name": ALL}, "id"),
+    State(f"url_{page_path}", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def handle_duplicate_target(timestamps, btn_ids, search, odatix_settings):
+    triggered = ctx.triggered_id
+    if not triggered or not isinstance(triggered, dict) or not timestamps or not btn_ids:
+        return dash.no_update
+
+    idx = max(range(len(timestamps)), key=lambda i: timestamps[i] or 0)
+    if btn_ids[idx] != triggered or not timestamps[idx]:
+        return dash.no_update
+
+    tool = get_key_from_url(search, "tool")
+    if not tool:
+        return dash.no_update
+    target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+
+    name = triggered["name"]
+    for i in range(1, 1001):
+        candidate = f"{name}_copy{i}"
+        if not workspace.target_exists(target_path, tool, candidate):
+            break
+    else:
+        return dash.no_update
+
+    try:
+        workspace.duplicate_target(target_path, tool, name, candidate)
+    except Exception:
+        return dash.no_update
+    return build_cards(search, odatix_settings)
+
+
+# Open the delete confirmation popup
+@dash.callback(
+    Output("target-delete-popup", "className"),
+    Output("target-delete-popup-message", "children"),
+    Output("target-delete-info", "data"),
+    Input({"type": "target-delete", "name": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def show_delete_popup(n_clicks):
+    if not ctx.triggered_id or not isinstance(ctx.triggered_id, dict) or all(not n for n in n_clicks):
+        return dash.no_update, dash.no_update, dash.no_update
+    name = ctx.triggered_id["name"]
+    msg = f"Do you really want to delete target '{name}'?"
+    return "overlay-odatix visible", msg, {"name": name}
+
+
+# Close the delete confirmation popup
+@dash.callback(
+    Output("target-delete-popup", "className", allow_duplicate=True),
+    Input("target-delete-cancel-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def close_delete_popup(n_clicks):
+    return "overlay-odatix"
+
+
+# Delete a target
+@dash.callback(
+    Output("target-delete-popup", "className", allow_duplicate=True),
+    Output("target-delete-error", "children"),
+    Output("target-cards-row", "children", allow_duplicate=True),
+    Input("target-delete-confirm-btn", "n_clicks"),
+    State("target-delete-info", "data"),
+    State(f"url_{page_path}", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def do_delete_target(n_clicks, info, search, odatix_settings):
+    if not n_clicks or not info:
+        return dash.no_update, dash.no_update, dash.no_update
+
+    tool = get_key_from_url(search, "tool")
+    if not tool:
+        return dash.no_update, dash.no_update, dash.no_update
+    target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+
+    name = info["name"]
+    if not workspace.target_exists(target_path, tool, name):
+        return dash.no_update, "Target not found.", dash.no_update
+    try:
+        workspace.remove_target(target_path, tool, name)
+    except Exception as e:
+        return dash.no_update, f"Error: {e}", dash.no_update
+    return "overlay-odatix", "", build_cards(search, odatix_settings)
+
 
 ######################################
 # Layout
@@ -245,23 +450,44 @@ title_buttons = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
-        html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
-        ui.title_tile("Vivado targets", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "20px"}),
-        # html.H2("Vivado Targets", style={"textAlign": "center"}),
+        ui.title_tile("Targets", id="select-targets-title", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "20px"}),
         html.Div(id="target-section", style={"marginBottom": "10px"}, children=[
             html.Div(
-                id={"type": "target-cards-row", "tool_uuid": "Vivado"},
-                style={
-                    "display": "flex",
-                    "flexWrap": "wrap",
-                    "justifyContent": "center",
-                },
+                id="target-cards-row",
+                className="card-matrix configs",
             ),
         ]),
+        dcc.Store(id="target-delete-info"),
+        html.Div(
+            id="target-delete-popup",
+            className="overlay-odatix",
+            children=[
+                html.Div([
+                    html.H2("Warning"),
+                    html.Div(id="target-delete-popup-message"),
+                    html.Div(
+                        "The target and its settings will be removed from the target file. "
+                        "Disable it instead if you may need it later.",
+                        style={"marginTop": "10px", "color": "#FA5252", "fontWeight": "bold"},
+                    ),
+                    html.Div([
+                        ui.icon_button(
+                            icon=icon("delete", className="icon"),
+                            color="caution",
+                            text="Delete",
+                            width="90px",
+                            id="target-delete-confirm-btn",
+                        ),
+                        html.Button("Cancel", id="target-delete-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
+                    ], style={"marginTop": "18px", "display": "flex", "justifyContent": "center"}),
+                    html.Div(id="target-delete-error", style={"color": "red", "marginTop": "10px"}),
+                ], className="popup-odatix")
+            ]
+        ),
     ],
     className="page-content",
     style={
-        "display": "flex",  
+        "display": "flex",
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },

@@ -19,7 +19,9 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import io
 import os
+import re
 import shutil
 import copy
 import yaml
@@ -719,8 +721,277 @@ def create_config_gen_variable_dict(name: str, type: str, settings: dict, format
     return var_dict
 
 
+######################################
+# EDA Target Files
+######################################
+#
+# Target files ("target_<tool>.yml") hold the synthesis targets of one EDA
+# tool. The run flows only consume the "targets" list, so disabled targets are
+# kept as commented-out entries of that list ("# - <target>"), the historical
+# hand-written format of these files: they stay in the file and can be
+# re-enabled later. A "disabled_targets" list is also understood when reading.
+# Per-target options such as "script_copy_enable" / "script_copy_source" live
+# in the "target_settings" mapping, which is already understood by
+# ArchitectureHandler.
+
+# "  - name" (enabled) or "  # - name" (disabled), optional trailing comment
+_target_item_pattern = re.compile(r'^\s+-\s*([^#]+?)\s*(?:#.*)?$')
+_target_commented_pattern = re.compile(r'^\s*#\s*-\s*([^#]+?)\s*(?:#.*)?$')
+_targets_key_pattern = re.compile(r'^targets\s*:')
+_commented_target_line_pattern = re.compile(r'^\s*#\s*-\s*\S')
+
+
+def _scan_targets_block(text):
+    """
+    Scan the "targets:" block of a target file, line by line, and return the
+    ordered list of (name, enabled) entries: plain list items are enabled,
+    commented-out items ("# - <target>") are disabled.
+    """
+    entries = []
+    in_block = False
+    for line in text.splitlines():
+        if _targets_key_pattern.match(line):
+            in_block = True
+            continue
+        if not in_block:
+            continue
+        item_match = _target_item_pattern.match(line)
+        commented_match = _target_commented_pattern.match(line)
+        if item_match:
+            entries.append((item_match.group(1).strip().strip("\"'"), True))
+        elif commented_match:
+            entries.append((commented_match.group(1).strip().strip("\"'"), False))
+        elif line.strip() == "" or line.lstrip().startswith("#"):
+            continue  # blank lines and other comments do not end the block
+        elif not line[0].isspace():
+            in_block = False  # next top-level key
+    return entries
+
+
+def _scrub_commented_targets(commented_map, key):
+    """
+    Remove "# - <target>" lines from the ruamel comments attached to a key,
+    keeping any other comment line. Tokens left empty are dropped entirely
+    (empty comment tokens corrupt the ruamel emitter output).
+    """
+    ca_items = getattr(getattr(commented_map, "ca", None), "items", None)
+    if not ca_items or key not in ca_items:
+        return
+
+    def scrub_token(token):
+        if token is None or not hasattr(token, "value"):
+            return token
+        kept = [line for line in token.value.splitlines(keepends=True) if not _commented_target_line_pattern.match(line)]
+        token.value = "".join(kept)
+        return token if token.value != "" else None
+
+    slots = ca_items[key]
+    for i, slot in enumerate(slots):
+        if isinstance(slot, list):
+            kept_tokens = [t for t in (scrub_token(token) for token in slot) if t is not None]
+            slots[i] = kept_tokens if kept_tokens else None
+        else:
+            slots[i] = scrub_token(slot)
+    if all(slot is None for slot in slots):
+        del ca_items[key]
+
+def get_target_file_path(target_path, tool) -> str:
+    """
+    Get the path of the target file of an EDA tool.
+    """
+    return os.path.join(target_path, f"target_{tool}.yml")
+
+
+def target_file_exists(target_path, tool) -> bool:
+    """
+    Check if the target file of an EDA tool exists.
+    """
+    return os.path.isfile(get_target_file_path(target_path, tool))
+
+
+def get_targets(target_path, tool) -> list:
+    """
+    Get the normalized target list of an EDA tool. Commented-out entries of
+    the "targets" list ("# - <target>") are returned as disabled targets.
+
+    Returns:
+        list of dicts: {"name", "enabled", "script_copy_enable", "script_copy_source"},
+        in file order.
+    """
+    path = get_target_file_path(target_path, tool)
+    data = load_yaml_file(path, default={})
+    if not isinstance(data, dict):
+        data = {}
+
+    # File order (with commented-out entries as disabled targets)
+    entries = []
+    if os.path.isfile(path):
+        try:
+            with open(path, "r") as f:
+                entries = _scan_targets_block(f.read())
+        except OSError:
+            entries = []
+
+    seen = {name for name, _ in entries}
+
+    # Merge entries only visible to the yaml parser (e.g. flow-style lists)
+    enabled_names = data.get("targets") or []
+    disabled_names = data.get("disabled_targets") or []
+    if isinstance(enabled_names, list):
+        entries += [(str(n), True) for n in enabled_names if str(n) not in seen]
+        seen.update(str(n) for n in enabled_names)
+    if isinstance(disabled_names, list):
+        entries += [(str(n), False) for n in disabled_names if str(n) not in seen]
+
+    target_settings = data.get("target_settings")
+    if not isinstance(target_settings, dict):
+        target_settings = {}
+
+    targets = []
+    added = set()
+    for name, enabled in entries:
+        name = str(name)
+        if name == "" or name in added:
+            continue
+        added.add(name)
+        settings = target_settings.get(name)
+        settings = settings if isinstance(settings, dict) else {}
+        targets.append({
+            "name": name,
+            "enabled": enabled,
+            "script_copy_enable": _parse_bool(settings.get("script_copy_enable", False)),
+            "script_copy_source": str(settings.get("script_copy_source", "") or ""),
+        })
+    return targets
+
+
+def target_exists(target_path, tool, name) -> bool:
+    """
+    Check if a target exists (enabled or disabled) for an EDA tool.
+    """
+    return any(target["name"] == name for target in get_targets(target_path, tool))
+
+
+def save_target_selection(target_path, tool, targets) -> None:
+    """
+    Save the target list of an EDA tool while preserving comments and any
+    other key of the target file (constraint_file, tool_install_path, ...).
+    Disabled targets are written as commented-out entries of the "targets"
+    list ("# - <target>").
+
+    Args:
+        targets: list of dicts {"name", "enabled", "script_copy_enable",
+            "script_copy_source"} and optionally "original_name" (for renames:
+            existing per-target settings are carried over).
+    """
+    path = get_target_file_path(target_path, tool)
+    yaml_obj = YAML()
+
+    settings = None
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            settings = yaml_obj.load(f)
+    if settings is None:
+        settings = CommentedMap()
+
+    old_target_settings = settings.get("target_settings")
+    if not isinstance(old_target_settings, dict):
+        old_target_settings = {}
+
+    ordered = []  # (name, enabled), deduplicated
+    new_target_settings = CommentedMap()
+    seen = set()
+    for target in targets:
+        name = str(target.get("name", "")).strip()
+        original_name = str(target.get("original_name") or name)
+        if name == "":
+            name = original_name
+        if name == "" or name in seen:
+            continue
+        seen.add(name)
+        ordered.append((name, bool(target.get("enabled", True))))
+
+        # Carry over existing per-target settings (possibly under the old name)
+        per_target = old_target_settings.get(original_name, old_target_settings.get(name))
+        per_target = copy.deepcopy(per_target) if isinstance(per_target, dict) else CommentedMap()
+        if _parse_bool(target.get("script_copy_enable", False)):
+            per_target["script_copy_enable"] = True
+            per_target["script_copy_source"] = str(target.get("script_copy_source", "") or "")
+        else:
+            per_target.pop("script_copy_enable", None)
+            per_target.pop("script_copy_source", None)
+        if per_target:
+            new_target_settings[name] = per_target
+
+    # Old commented-out target entries are re-emitted below: remove them from
+    # the comments attached to the "targets" key (comments that precede the
+    # first list item live there; comments attached to the old list items are
+    # dropped with the list itself).
+    _scrub_commented_targets(settings, "targets")
+
+    # The whole block is rewritten textually below ("targets: []" placeholder)
+    settings["targets"] = []
+    settings.pop("disabled_targets", None)  # legacy representation
+    if new_target_settings:
+        settings["target_settings"] = new_target_settings
+    else:
+        settings.pop("target_settings", None)
+
+    buffer = io.StringIO()
+    yaml_obj.dump(settings, buffer)
+    text = buffer.getvalue()
+
+    if ordered:
+        block_lines = ["targets:"]
+        for name, enabled in ordered:
+            block_lines.append(f"  - {name}" if enabled else f"  # - {name}")
+        text = re.sub(r"(?m)^targets:\s*\[\]\s*$", lambda _: "\n".join(block_lines), text, count=1)
+
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(path, "w") as f:
+        f.write(text)
+
+
+def add_target(target_path, tool, name, enabled=True) -> None:
+    """
+    Add a new target to the target file of an EDA tool.
+    """
+    targets = get_targets(target_path, tool)
+    if any(target["name"] == name for target in targets):
+        raise ValueError(f"Target '{name}' already exists.")
+    targets.append({"name": name, "enabled": enabled, "script_copy_enable": False, "script_copy_source": ""})
+    save_target_selection(target_path, tool, targets)
+
+
+def duplicate_target(target_path, tool, source_name, target_name) -> None:
+    """
+    Duplicate a target (including its per-target settings).
+    """
+    targets = get_targets(target_path, tool)
+    source = next((target for target in targets if target["name"] == source_name), None)
+    if source is None:
+        raise ValueError(f"Source target '{source_name}' does not exist.")
+    if any(target["name"] == target_name for target in targets):
+        raise ValueError(f"Target '{target_name}' already exists.")
+    duplicate = dict(source)
+    duplicate["name"] = target_name
+    duplicate["original_name"] = source_name  # carry per-target settings over
+    targets.append(duplicate)
+    save_target_selection(target_path, tool, targets)
+
+
+def remove_target(target_path, tool, name) -> None:
+    """
+    Remove a target (and its per-target settings) from the target file.
+    """
+    targets = [target for target in get_targets(target_path, tool) if target["name"] != name]
+    save_target_selection(target_path, tool, targets)
+
+
 #######################################
-# Architecture Selection 
+# Architecture Selection
 #######################################
 
 DEFAULT_ARCH_SELECTION_SETTINGS = {
@@ -805,6 +1076,8 @@ def save_architecture_selection(path, settings, run_mode="default", use_custom_f
         run_mode_display = "fmax synthesis"
     elif run_mode == "custom_freq_synthesis":
         run_mode_display = "custom frequency synthesis"
+    elif run_mode == "workflow":
+        run_mode_display = "workflows"
     else:
         run_mode_display = run_mode
 
@@ -852,10 +1125,11 @@ f"""##############################################
     data.yaml_set_comment_before_after_key(key='nb_jobs', before="\n maximum number of parallel jobs")
     data.yaml_add_eol_comment(key='nb_jobs', comment="overridden by -j / --jobs")
 
-    # force_single_thread
-    force_single_thread_val = "Yes" if settings.get('force_single_thread', False) else "No"
-    data['force_single_thread'] = force_single_thread_val
-    data.yaml_set_comment_before_after_key(key='force_single_thread', before="\n force single thread execution (to avoid cpu overload when running many jobs in parallel)")
+    # force_single_thread (not relevant for workflows)
+    if run_mode != "workflow":
+        force_single_thread_val = "Yes" if settings.get('force_single_thread', False) else "No"
+        data['force_single_thread'] = force_single_thread_val
+        data.yaml_set_comment_before_after_key(key='force_single_thread', before="\n force single thread execution (to avoid cpu overload when running many jobs in parallel)")
 
     if run_mode == "custom_freq_synthesis":
         # frequencies
@@ -892,10 +1166,15 @@ f"""##############################################
         data['frequencies'] = frequencies_data
         data.yaml_set_comment_before_after_key(key='frequencies', before="\n synthesis frequencies (in MHz)")
 
-    # architectures
-    architectures = settings.get('architectures', {})
-    data['architectures'] = architectures
-    data.yaml_set_comment_before_after_key(key='architectures', before="\n targeted architectures")
+    # targeted instances (architectures or workflows)
+    if run_mode == "workflow":
+        workflows = settings.get('workflows', settings.get('architectures', []))
+        data['workflows'] = workflows
+        data.yaml_set_comment_before_after_key(key='workflows', before="\n targeted workflows")
+    else:
+        architectures = settings.get('architectures', {})
+        data['architectures'] = architectures
+        data.yaml_set_comment_before_after_key(key='architectures', before="\n targeted architectures")
 
     save_yaml_file(path, data, yaml_obj=yaml_obj)
 

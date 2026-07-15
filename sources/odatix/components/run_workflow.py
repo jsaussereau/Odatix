@@ -147,7 +147,7 @@ def _sanitize_virtual_param_domain_value(value):
     return sanitized
 
 
-def _get_workflow_virtual_domain_names(workflow_settings):
+def get_workflow_virtual_domain_names(workflow_settings):
     if not isinstance(workflow_settings, dict):
         return set()
     generate_settings = workflow_settings.get("generate_configurations_settings")
@@ -195,7 +195,7 @@ def _normalize_workflow_requests_for_virtual_domain_wildcards(workflow_requests,
             normalized_requests.append(request)
             continue
 
-        virtual_domain_names = _get_workflow_virtual_domain_names(workflow_settings)
+        virtual_domain_names = get_workflow_virtual_domain_names(workflow_settings)
         if len(virtual_domain_names) == 0:
             normalized_requests.append(request)
             continue
@@ -228,7 +228,7 @@ def _normalize_workflow_requests_for_virtual_domain_wildcards(workflow_requests,
     return normalized_requests
 
 
-def _build_workflow_virtual_param_domain_variants(workflow_settings, workflow_settings_file, debug=False):
+def build_workflow_virtual_param_domain_variants(workflow_settings, workflow_settings_file, debug=False):
     """
     Build workflow variants from generate_configurations_settings.variables.
 
@@ -785,7 +785,7 @@ def check_settings(
         if no_main_configuration or not use_parameters:
             param_file = None
 
-        virtual_domain_names = _get_workflow_virtual_domain_names(workflow_settings)
+        virtual_domain_names = get_workflow_virtual_domain_names(workflow_settings)
         requested_physical_param_domains = []
         requested_virtual_param_domains = []
         for requested_param_domain in requested_param_domains:
@@ -810,7 +810,7 @@ def check_settings(
 
         virtual_param_domain_variants = [{"requested_param_domains": [], "substitutions": {}}]
         if len(virtual_domain_names) > 0:
-            generated_virtual_variants = _build_workflow_virtual_param_domain_variants(
+            generated_virtual_variants = build_workflow_virtual_param_domain_variants(
                 workflow_settings=workflow_settings,
                 workflow_settings_file=workflow_settings_file,
                 debug=debug,
