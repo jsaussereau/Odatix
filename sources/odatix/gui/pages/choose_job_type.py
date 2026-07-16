@@ -33,8 +33,8 @@ dash.register_page(
     __name__,
     path=page_path,
     title='Odatix - Choose Job Type',
-    name='choose_job_type',
-    order=8,
+    name='Run Jobs',
+    order=6,
 )
 
 ######################################
@@ -47,58 +47,41 @@ padding = 20
 
 run_jobs_cards = [
     {
+        "name": "Run Workflow",
+        "link":  "/run_jobs?type=workflow",
+        "icon": "workflow",
+        "description": "Run a workflow",
+    },
+    {
+        "name": "Run RTL Analysis",
+        "link": "/choose_eda_tool?type=analyze",
+        "icon": "analysis",
+        "description": "Check if your RTL is synthetizable with the selected EDA tools",
+    },
+    {
         "name": "Run Fmax Synthesis",
         "link": "/choose_eda_tool?type=fmax_synthesis",
-        "image": "assets/icons/run.png",
+        "icon": "fmax",
         "description": "Find the maximum frequency for your design",
     },
     {
         "name": "Run Custom Synthesis",
         "link": "/choose_eda_tool?type=custom_freq_synthesis",
-        "image": "assets/icons/run.png",
+        "icon": "custom_freq",
         "description": "Run synthesis at custom frequencies",
     },
-    # {
-    #     "name": "Run Simulations",
-    #     "link": "/choose_eda_tool?type=simulation",
-    #     "image": "assets/icons/run.png",
-    #     "description": "Run simulations for validation and benchmarks",
-    # },
 ]
 
 home_layout = [
+    ui.page_header("Run Jobs", "Choose what you want to run."),
     html.Div(
-        children=[
-            html.Div(
-                [ui.create_card_button(card) for card in run_jobs_cards],
-                style={
-                    "display": "flex",
-                    "flexWrap": "wrap",
-                    "justifyContent": "center",
-                    "gap": "20px",
-                    "paddingLeft": "50px",
-                    "paddingRight": "50px",
-                },
-            ),
-        ],
+        ui.card_grid([ui.create_card_button(card) for card in run_jobs_cards]),
         id=f"{__name__}-content",
         style={
             "display": "flex",
             "justifyContent": "center",
-            "alignItems": "center",
-            "paddingTop": f"{padding}px",
             "paddingBottom": f"{padding}px",
         },
-    ),
-    html.H4(
-        "Icons designed by Freepik from Flaticon",
-        style={
-            "textAlign": "center",
-            "color": "#aaa",
-            "marginTop": "20px",
-            "fontSize": "12px",
-            "fontWeight": "normal",
-        }
     ),
 ]
 
@@ -117,11 +100,11 @@ layout = html.Div(
     id="run_jobs-page",
     className="page-content",
     style={
-        "width": "100%", 
+        "width": "100%",
         "minHeight": f"calc(100vh - {navigation.top_bar_height})",
-        "display": "flex",  
+        "display": "flex",
         "flexDirection": "column",
-        "justifyContent": "center",
-        "alignItems": "center",
+        "justifyContent": "flex-start",
+        "alignItems": "stretch",
     }
 )

@@ -33,6 +33,7 @@ from odatix.components.motd import *
 import odatix.components.run_simulations as run_sim
 import odatix.components.run_fmax_synthesis as run_synth
 import odatix.components.run_range_synthesis as run_range
+import odatix.components.run_analysis as analyze
 import odatix.components.run_workflow as run_workflow
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
@@ -106,6 +107,13 @@ class ArgParser:
     run_range.add_arguments(ArgParser.range_parser)
     ArgParser.range_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.range_parser)
+
+    # Define parser for the 'analyze' command
+    ArgParser.analyze_parser = subparsers.add_parser("analyze", help="run rtl analysis", formatter_class=formatter)
+    analyze.add_arguments(ArgParser.analyze_parser)
+    ArgParser.analyze_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
+    ArgParser.add_nobanner(ArgParser.analyze_parser)
+    #######################################################
 
     # Define parser for the 'sim' command
     ArgParser.sim_parser = subparsers.add_parser("sim", help="run simulations", formatter_class=formatter)
@@ -198,6 +206,9 @@ class ArgParser:
     print()
     printc.bold("Custom Frequency Synthesis:\n  ", printc.colors.CYAN, end="")
     ArgParser.range_parser.print_help()
+    print()
+    printc.bold("RTL Analysis:\n  ", printc.colors.CYAN, end="")
+    ArgParser.analyze_parser.print_help()
     print()
     printc.bold("Simulation:\n  ", printc.colors.CYAN, end="")
     ArgParser.sim_parser.print_help()
@@ -337,6 +348,19 @@ def run_range_synthesis(args):
     internal_error(e, error_logfile, script_name)
     success = False
   return success
+
+def run_analysis(args):
+    success = True
+    try:
+        analyze.main(args)
+    except SystemExit as e:
+        if e.code != EXIT_SUCCESS:
+            success = False
+    except Exception as e:
+        internal_error(e, error_logfile, script_name)
+        success = False
+
+    return success
 
 def monitor_daemon(args):
   success = True
@@ -567,6 +591,8 @@ def main(args=None):
     success = run_fmax_synthesis(args)
   elif args.command == "freq":
     success = run_range_synthesis(args)
+  elif args.command == "analyze":
+    success = run_analysis(args)
   elif args.command == "results":
     success = export_all_results(args)
   elif args.command in "res_benchmark":

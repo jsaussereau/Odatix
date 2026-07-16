@@ -24,6 +24,7 @@ import sys
 import argparse
 
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
+from odatix.components import workspace as workspace_utils
 from odatix.components.run_common import confirm_valid_jobs, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
 import odatix.lib.printc as printc
@@ -80,6 +81,30 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def _load_settings_custom_frequencies(run_config_settings_filename):
+    settings_payload = workspace_utils.load_yaml_file(run_config_settings_filename, default={})
+    frequencies = settings_payload.get("frequencies", {})
+
+    override_arch_frequencies = bool(frequencies.get("override", False))
+    custom_freq_list = []
+
+    list_data = frequencies.get("list", [])
+    if list_data:
+        custom_freq_list.extend(list_data)
+
+    range_data = frequencies.get("range", {})
+    lower_bound = range_data.get("from")
+    upper_bound = range_data.get("to")
+    step = range_data.get("step")
+    if lower_bound is not None and upper_bound is not None and step is not None:
+        if ArchitectureHandler.check_bounds(lower_bound, upper_bound, step, synth_type="custom frequency synthesis"):
+            range_list = ArchitectureHandler.create_list_from_range(lower_bound, upper_bound, step)
+            custom_freq_list.extend(range_list)
+    # Keep order stable while removing duplicates.
+    custom_freq_list = list(dict.fromkeys(custom_freq_list))
+    return custom_freq_list, override_arch_frequencies
+
+
 ######################################
 # Run Synthesis
 ######################################
@@ -96,7 +121,7 @@ def run_synthesis(
     log_size_limit,
     nb_jobs,
     check_eda_tool,
-    custom_freq_list=[],
+    custom_freq_list=None,
     debug=False,
     keep=False,
     export_output_dir=None,
@@ -161,12 +186,31 @@ def check_settings(
     log_size_limit,
     nb_jobs,
     check_eda_tool,
-    custom_freq_list=[],
+    custom_freq_list=None,
     debug=False,
     keep=False,
     cancel_event=None,
 ):
     _check_cancel(cancel_event)
+
+    if custom_freq_list is None:
+        custom_freq_list = []
+
+    cli_custom_freq_list = list(custom_freq_list)
+    settings_custom_freq_list, override_arch_frequencies = _load_settings_custom_frequencies(run_config_settings_filename)
+
+    # Priority order:
+    # 1) CLI (--at / --from --to --step)
+    # 2) settings frequencies when override=true
+    # 3) architecture-specific settings
+    # 4) fallback frequencies list
+    # 5) default frequencies list
+    forced_custom_freq_list = cli_custom_freq_list
+    if len(forced_custom_freq_list) == 0 and override_arch_frequencies and len(settings_custom_freq_list) > 0:
+        forced_custom_freq_list = settings_custom_freq_list
+
+    fallback_custom_freq_list = settings_custom_freq_list if len(settings_custom_freq_list) > 0 else None
+
     context = load_synthesis_context(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
@@ -206,7 +250,8 @@ def check_settings(
         valid_frequency_search=hard_settings.valid_frequency_search,
         forced_fmax_lower_bound=None,
         forced_fmax_upper_bound=None,
-        forced_custom_freq_list=custom_freq_list,
+        forced_custom_freq_list=forced_custom_freq_list,
+        fallback_custom_freq_list=fallback_custom_freq_list,
         overwrite=context["overwrite"],
         force_single_thread=context["force_single_thread"],
     )
@@ -217,7 +262,7 @@ def check_settings(
         context["targets"],
         context["constraint_file"],
         context["install_path"],
-        range_mode=True,
+        run_mode="custom_freq",
         keep=keep,
         timestamp=timestamp,
     )

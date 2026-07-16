@@ -1,0 +1,44 @@
+# Design sources (that will be copied into each work directory)
+sources:
+  path: examples/workflow_simple
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: "Progress:\\s*([0-9]+)"
+
+# Generated design settings
+use_parameters: No
+
+# Design workflow settings
+#
+# This example showcases platform-specific implementations for the same task name.
+# Exactly one "main" implementation is selected according to sys.platform.
+tasks:
+  - name: main
+    platforms: [linux, darwin]
+    commands:
+      - echo 'Linux/MacOS Task...'
+      - sleep 1
+      - echo 'step 1/3 done'
+      - "echo 'Progress: 60' > progress.txt"
+      - sleep 1
+      - echo 'step 2/3 done'
+      - "echo 'Progress: 80' > progress.txt"
+      - sleep 1
+      - echo 'step 3/3 done'
+      - "echo 'Progress: 100' > progress.txt"
+
+  - name: main
+    platforms: win32 # powershell
+    commands:
+      - commands:Write-Host "Windows Task..."
+      - Start-Sleep -Seconds 1
+      - Write-Host "step 1/3 done"
+      - '"Progress: 60" | Set-Content progress.txt'
+      - Start-Sleep -Seconds 1
+      - Write-Host "step 2/3 done"
+      - '"Progress: 80" | Set-Content progress.txt'
+      - Start-Sleep -Seconds 1
+      - Write-Host "step 3/3 done"
+      - '"Progress: 100" | Set-Content progress.txt'

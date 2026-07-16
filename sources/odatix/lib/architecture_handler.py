@@ -221,6 +221,7 @@ class ArchitectureHandler:
         forced_fmax_upper_bound,
         forced_custom_freq_list,
         overwrite,
+        fallback_custom_freq_list=None,
         continue_on_error=False,
         force_single_thread=False,
     ):
@@ -247,6 +248,7 @@ class ArchitectureHandler:
         self.forced_fmax_lower_bound = forced_fmax_lower_bound
         self.forced_fmax_upper_bound = forced_fmax_upper_bound
         self.forced_custom_freq_list = forced_custom_freq_list
+        self.fallback_custom_freq_list = fallback_custom_freq_list
 
         self.overwrite = overwrite
         self.continue_on_error = continue_on_error
@@ -327,7 +329,7 @@ class ArchitectureHandler:
 
         return "replace", daemon_entries[0]
 
-    def get_architectures(self, architectures, targets, constraint_filename="", install_path="", range_mode=False, keep=False, timestamp=""):
+    def get_architectures(self, architectures, targets, constraint_filename="", install_path="", run_mode="default", keep=False, timestamp=""):
 
         self.reset_lists()
         self.architecture_instances = []
@@ -407,14 +409,11 @@ class ArchitectureHandler:
                         synthesis = True,
                         constraint_filename = constraint_filename,
                         install_path = install_path,
-                        range_mode = range_mode,
+                        run_mode = run_mode,
                         keep=keep,
                         timestamp=timestamp,
                     )
-                    if not range_mode:
-                        if architecture_instance is not None:
-                            self.architecture_instances.append(architecture_instance)
-                    else:
+                    if run_mode == "custom_freq":
                         if architecture_instance is not None:
                             for freq in architecture_instance.range_list:
                                 freq_arch = copy.copy(architecture_instance)
@@ -495,6 +494,9 @@ class ArchitectureHandler:
                                 self.architecture_instances.append(freq_arch)
                                 self.valid_archs.append(unformatted_display_name + formatted_freq)
 
+                    else:
+                        if architecture_instance is not None:
+                            self.architecture_instances.append(architecture_instance)
         return self.architecture_instances
 
     @staticmethod
@@ -535,7 +537,7 @@ class ArchitectureHandler:
 
         return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains
     
-    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", range_mode=False, keep=False, timestamp=""):
+    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp=""):
         
         arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
 
@@ -733,7 +735,8 @@ class ArchitectureHandler:
                 target=target, 
                 settings_data=settings_data, 
                 settings_filename=settings_filename, 
-                range_mode=range_mode
+                run_mode=run_mode,
+                fallback_custom_freq_list=self.fallback_custom_freq_list,
             )
 
             # Override by bounds from --from and --to if used
@@ -753,13 +756,13 @@ class ArchitectureHandler:
                 printc.magenta("  upper_bound: XXX")
 
             # check if frequencies are valid
-            if range_mode:
-                if range_list is None or range_list == []: 
+            if run_mode == "fmax":
+                if not ArchitectureHandler.check_bounds(fmax_lower_bound, fmax_upper_bound):
                     self.banned_arch_param.append(arch_param_dir)
                     self.error_archs.append(arch_display_name)
                     return None
-            else:
-                if not ArchitectureHandler.check_bounds(fmax_lower_bound, fmax_upper_bound):
+            elif run_mode == "custom_freq":
+                if range_list is None or range_list == []: 
                     self.banned_arch_param.append(arch_param_dir)
                     self.error_archs.append(arch_display_name)
                     return None
@@ -767,10 +770,13 @@ class ArchitectureHandler:
             fmax_lower_bound = str(fmax_lower_bound)
             fmax_upper_bound = str(fmax_upper_bound)
 
-            formatted_bound = " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC)
+            if run_mode == "fmax":
+                formatted_bound = " {}({} - {} MHz){}".format(printc.colors.GREY, fmax_lower_bound, fmax_upper_bound, printc.colors.ENDC)
+            else:
+                formatted_bound = ""
 
             # check if the architecture is in cache and has a status file
-            if not range_mode:
+            if run_mode == "fmax":
                 local_state = "new"
                 if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
                     # check if the previous synth_fmax has completed
@@ -832,6 +838,8 @@ class ArchitectureHandler:
                 else:
                     self.new_archs.append(arch_display_name + formatted_bound)
 
+            elif run_mode == "default":
+                self.new_archs.append(arch_display_name)
 
         # Retrieve target-specific settings if they exist
         target_specific_data, target_specific_defined = get_from_dict(target, settings_data, settings_filename, silent=True)
@@ -872,7 +880,7 @@ class ArchitectureHandler:
                 return None
 
         # passed all check: added to the list
-        if not range_mode:
+        if run_mode in ["default", "fmax"]:
             self.valid_archs.append(arch_display_name)
             self.checked_arch_param.append(arch_param_dir)
 
@@ -945,7 +953,7 @@ class ArchitectureHandler:
         return use_parameters, start_delimiter, stop_delimiter, param_target_filename
 
     @staticmethod
-    def get_frequency_settings(arch_config, target, settings_data, settings_filename, range_mode):
+    def get_frequency_settings(arch_config, target, settings_data, settings_filename, run_mode, fallback_custom_freq_list=None):
         """
         Retrieves frequency synthesis settings from the YAML configuration.
 
@@ -954,7 +962,8 @@ class ArchitectureHandler:
                 target (str): The target FPGA/ASIC.
                 settings_data (dict): The parsed YAML settings data.
                 settings_filename (str): Name of the YAML file.
-                range_mode (bool): Whether to use custom frequency synthesis.
+                run_mode (str): The mode of operation (e.g., "fmax", "custom_freq").
+                fallback_custom_freq_list (list, optional): A fallback list of custom frequencies to use instead of default values.
 
         Returns:
                 tuple: (fmax_lower_bound, fmax_upper_bound, custom_freq_list, warn_fmax_obsolete).
@@ -988,7 +997,7 @@ class ArchitectureHandler:
                 arch_fmax_data, arch_fmax_defined =  get_from_dict("fmax_synthesis", arch_specific_data, settings_filename, silent=True)
                 arch_custom_freq_data, arch_custom_freq_defined = get_from_dict("custom_freq_synthesis", arch_specific_data, settings_filename, silent=True)
 
-        if range_mode: # Custom frequency synthesis
+        if run_mode == "custom_freq": # Custom frequency synthesis
 
             # Get lower bound
             lower_bound_defined = False
@@ -1073,7 +1082,10 @@ class ArchitectureHandler:
                 # printc.magenta("  upper_bound: XXX")
                 # printc.magenta("  step: XXX")
                 # printc.magenta("  list: [XXX, XXX, XXX] # append to the list generated by range")
-                custom_freq_list = hard_settings.default_custom_freq_list
+                if fallback_custom_freq_list is not None and fallback_custom_freq_list != []:
+                    custom_freq_list = list(fallback_custom_freq_list)
+                else:
+                    custom_freq_list = hard_settings.default_custom_freq_list
 
             return None, None, custom_freq_list, warn_fmax_obsolete
 

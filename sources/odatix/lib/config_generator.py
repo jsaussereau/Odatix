@@ -36,6 +36,14 @@ dimension_types = ("bool", "range", "list", "multiples", "power_of_two")
 modification_types = ("union", "disjunctive_union", "intersection", "difference")
 combo_types = ("function", "conversion", "format")
 
+
+def _safe_sorted(values):
+  """Sort values, falling back to string comparison for mixed types."""
+  try:
+    return sorted(values)
+  except TypeError:
+    return sorted(values, key=str)
+
 ######################################
 # Generator
 ######################################
@@ -157,7 +165,7 @@ class ConfigGenerator:
         dict: A dictionary where keys are variable names and values are lists of all possible values for those variables.
     """
     if not self.valid or not self.enabled:
-      return {}
+      return {}, {}
 
     sources_used = set()
     for variable, config in self.variables.items():
@@ -165,21 +173,26 @@ class ConfigGenerator:
       if value_type in modification_types:
         settings, settings_defined = get_from_dict("settings", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
         if not settings_defined:
-          return {}
+          return {}, {}
         sources, sources_defined = get_from_dict("sources", settings, self.yaml_file, parent=f"{variable}[settings]", behavior=Key.MANTADORY, type=list, script_name=script_name)
         if not sources_defined:
-          return {}
+          return {}, {}
         for source in sources:
           sources_used.add(source)
       elif value_type not in dimension_types and value_type not in combo_types:
         printc.error(f'Invalid type \"{value_type}\" for variable "{variable}", in ' + self.yaml_file + '".', script_name)
-        return {}
+        return {}, {}
 
     dimension_vars = {}
+    source_dim_vars = {}  # dimension variables used only as union/intersection/etc. sources:
+                          # excluded from the combination cross product, but still shown in the preview
     for variable, config in self.variables.items():
       value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
-      if value_type in dimension_types and variable not in sources_used:
-        dimension_vars[variable] = self.generate_values_for_dim(variable, config)
+      if value_type in dimension_types:
+        if variable in sources_used:
+          source_dim_vars[variable] = self.generate_values_for_dim(variable, config)
+        else:
+          dimension_vars[variable] = self.generate_values_for_dim(variable, config)
 
     result_set = set()
     for variable, config in self.variables.items():
@@ -217,19 +230,40 @@ class ConfigGenerator:
               result_set = set()
               printc.warning(f'Invalid operation for variable "{variable}", in ' + self.yaml_file + '".', script_name)
 
-            dimension_vars[variable] = sorted(result_set)
+            dimension_vars[variable] = _safe_sorted(result_set)
 
     if self.debug:
       printc.note(f"dimension_vars after set operations: {dimension_vars}", script_name)
 
-    var_names = list(dimension_vars.keys())
-    combos = list(itertools.product(*(dimension_vars[k] for k in var_names)))
-    final_configs = {}
-    all_vars_values= {}
-    values = set()
+    # Group dimension variables: variables sharing the same non-empty "group"
+    # are zipped together (their values matched position by position) instead of
+    # being cross-combined, so a "couple" of variables stays paired. Ungrouped
+    # variables each form their own singleton group and are cross-combined as
+    # before. The cross product is then taken over the groups.
+    grouped_var_names = self._group_dimension_vars(dimension_vars)
+    group_row_lists = []
+    for members in grouped_var_names:
+      member_values = [dimension_vars[member] for member in members]
+      if len(members) > 1:
+        lengths = [len(values) for values in member_values]
+        if len(set(lengths)) > 1:
+          printc.warning(
+            f'Paired variables {members} have different value counts {lengths}; '
+            f'pairing is truncated to the shortest ({min(lengths)}), in "' + self.yaml_file + '".',
+            script_name,
+          )
+      # zip(*member_values) yields one tuple per paired position (length 1 for
+      # a singleton group), turned into a {variable: value} row.
+      rows = [dict(zip(members, combo)) for combo in zip(*member_values)]
+      group_row_lists.append(rows)
 
-    for combo in combos:
-      value_map = dict(zip(var_names, combo))
+    final_configs = {}
+    computed_values = {}  # per-variable sets of values computed by function/format/conversion
+
+    for group_combo in itertools.product(*group_row_lists):
+      value_map = {}
+      for row in group_combo:
+        value_map.update(row)
       for variable, config in self.variables.items():
         value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
         if value_type == "function":
@@ -238,27 +272,18 @@ class ConfigGenerator:
             op, _ = get_from_dict("op", settings, self.yaml_file, silent=True, script_name=script_name)
             if op:
               evaluated_expr = self.evaluate_expression(op, value_map)
-              value_map[variable] = evaluated_expr
-              values.add(evaluated_expr)
+              if evaluated_expr is not None:
+                value_map[variable] = evaluated_expr
+                computed_values.setdefault(variable, set()).add(evaluated_expr)
         elif value_type == "format":
           settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
           if defined:
             source, source_defined = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
-            formatted_values = {}
-            for k, v in value_map.items():
-              var_cfg = self.variables.get(k, {})
-              format_str = None
-              if var_cfg.get("type") == "format":
-                settings = var_cfg.get("settings", {})
-                format_str = settings.get("format", None)
-              else:
-                format_str = var_cfg.get("format", None)
-              formatted_values[k] = self.format_value(v, format_str)
-            for name, value in formatted_values.items():
-              if source_defined:
-                source = str(source).replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
-            value_map[variable] = source
-            values.add(source)
+            if source_defined:
+              formatted_values = self.format_value_map(value_map)
+              source = self.substitute_variables(str(source), formatted_values)
+              value_map[variable] = source
+              computed_values.setdefault(variable, set()).add(source)
         elif value_type == "conversion":
           settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
           if defined:
@@ -270,35 +295,82 @@ class ConfigGenerator:
             if source in value_map:
               converted = self.apply_conversion(value_map[source], from_type, to_type)
               value_map[variable] = converted
-              values.add(converted)
+              computed_values.setdefault(variable, set()).add(converted)
             else:
               printc.warning(f'Source "{source}" not found for conversion variable "{variable}"', script_name)
-        all_vars_values[variable] = sorted(values)
 
-      formatted_values = {}
-      for k, v in value_map.items():
-        var_cfg = self.variables.get(k, {})
-        format_str = None
-        if var_cfg.get("type") == "format":
-          settings = var_cfg.get("settings", {})
-          format_str = settings.get("format", None)
-        else:
-          format_str = var_cfg.get("format", None)
-        formatted_values[k] = self.format_value(v, format_str)
-      final_template = self.template
-      final_name = self.name_template
-      for name, value in formatted_values.items():
-        final_template = final_template.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
-        final_name = final_name.replace(f"${name}", str(value)).replace(f"${{{name}}}", str(value))
-
-      final_configs[final_name] = final_template
+      formatted_values = self.format_value_map(value_map)
+      final_name = self.substitute_variables(self.name_template, formatted_values)
+      final_configs[final_name] = self.substitute_variables(self.template, formatted_values)
 
     if self.debug:
       printc.note(f"generated {len(final_configs)} configurations.", script_name)
 
-    all_dim_vard_values = {k: sorted(set(v)) if isinstance(v, list) else [v] for k, v in dimension_vars.items()}
-    all_vars_values.update(all_dim_vard_values)
+    all_vars_values = {k: _safe_sorted(v) for k, v in computed_values.items()}
+    all_dim_var_values = {k: _safe_sorted(set(v)) if isinstance(v, list) else [v] for k, v in dimension_vars.items()}
+    all_source_dim_var_values = {k: _safe_sorted(set(v)) if isinstance(v, list) else [v] for k, v in source_dim_vars.items()}
+    all_vars_values.update(all_dim_var_values)
+    all_vars_values.update(all_source_dim_var_values)
     return final_configs, all_vars_values
+
+  def _variable_group(self, variable):
+    """Return the non-empty "group" label of a variable, or None if ungrouped."""
+    config = self.variables.get(variable, {})
+    group = config.get("group", None) if isinstance(config, dict) else None
+    if group is None or str(group).strip() == "":
+      return None
+    return str(group).strip()
+
+  def _group_dimension_vars(self, dimension_vars):
+    """
+    Group dimension variable names for the combination step.
+
+    Variables sharing the same non-empty "group" are returned together (to be
+    zipped); every other variable forms its own singleton group. Order follows
+    the first appearance of each variable / group.
+
+    Returns:
+        list of lists of variable names.
+    """
+    ordered_groups = []
+    group_lists = {}
+    for variable in dimension_vars:
+      group = self._variable_group(variable)
+      if group is None:
+        ordered_groups.append([variable])
+      elif group in group_lists:
+        group_lists[group].append(variable)
+      else:
+        new_group = [variable]
+        group_lists[group] = new_group
+        ordered_groups.append(new_group)
+    return ordered_groups
+
+  def format_value_map(self, value_map):
+    """
+    Format every value of a value map with its variable's format string, if any.
+    """
+    formatted_values = {}
+    for k, v in value_map.items():
+      var_cfg = self.variables.get(k, {})
+      if var_cfg.get("type") == "format":
+        format_str = var_cfg.get("settings", {}).get("format", None)
+      else:
+        format_str = var_cfg.get("format", None)
+      formatted_values[k] = self.format_value(v, format_str)
+    return formatted_values
+
+  @staticmethod
+  def substitute_variables(text, values):
+    """
+    Replace $var and ${var} placeholders in a string. Longer variable names are
+    replaced first so that a variable whose name is a prefix of another
+    (e.g. $WIDTH / $WIDTH_OUT) cannot corrupt the substitution.
+    """
+    for name in sorted(values, key=len, reverse=True):
+      value = str(values[name])
+      text = text.replace(f"${{{name}}}", value).replace(f"${name}", value)
+    return text
 
   def generate_values_for_dim(self, var_name, var_config):
     """
@@ -345,6 +417,9 @@ class ConfigGenerator:
       to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
       step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", default_value=1, silent=True, script_name=script_name)
       if to_defined and from_defined:
+        if step_value == 0:
+          printc.error('"step" must not be 0 for range "' + name + "[settings]" + '", in "' + self.yaml_file + '".', script_name)
+          return []
         values = list(range(from_value, to_value + 1, step_value))
       else:
         printc.note('You can define it like this:', script_name)
@@ -364,7 +439,11 @@ class ConfigGenerator:
         from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", type=int, silent=True, script_name=script_name)
         to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", type=int, silent=True, script_name=script_name)
         if to_defined and from_defined:
-          values = [2**i for i in range(int(math.log2(from_value)), int(math.log2(to_value)) + 1)]
+          if from_value <= 0 or to_value <= 0:
+            printc.error('"from" and "to" must be strictly positive for power_of_two "' + name + "[settings]" + '", in "' + self.yaml_file + '".', script_name)
+            return []
+          # ceil on the lower bound so no generated value falls below "from"
+          values = [2**i for i in range(math.ceil(math.log2(from_value)), int(math.log2(to_value)) + 1)]
         else:
           printc.error('Cannot find a valid power_of_two definition for "' + name + "[settings]" + '", in "' + self.yaml_file + '".', script_name)
           printc.note('You can define it like this:', script_name)
@@ -430,7 +509,7 @@ class ConfigGenerator:
         printc.warning(f'Cannot convert a None value from "{from_type}" to "{to_type}"', script_name)
         return value
       if from_type == "bin":
-        dec_value = int(value, 2)
+        dec_value = int(str(value), 2)
         if to_type == "dec":
           return str(dec_value)
         elif to_type == "hex":
@@ -442,13 +521,13 @@ class ConfigGenerator:
         elif to_type == "hex":
           return hex(dec_value)[2:]
       elif from_type == "hex":
-        dec_value = int(value, 16)
+        dec_value = int(str(value), 16)
         if to_type == "bin":
           return bin(dec_value)[2:]
         elif to_type == "dec":
           return str(dec_value)
       printc.warning(f'Conversion from "{from_type}" to "{to_type}" is not supported', script_name)
-    except ValueError:
+    except (ValueError, TypeError):
       printc.error(f'Invalid value "{value}" for conversion from "{from_type}" to "{to_type}"', script_name)
     return value
 

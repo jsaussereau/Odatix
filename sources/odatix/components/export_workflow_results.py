@@ -28,6 +28,7 @@ import json
 import argparse
 
 import odatix.lib.printc as printc
+import odatix.lib.results_schema as results_schema
 from odatix.lib.settings import OdatixSettings
 
 script_name = os.path.basename(__file__)
@@ -76,6 +77,26 @@ def parse_regex(file, pattern, group_id, error_if_missing=True, error_prefix="")
     return None
 
 
+def parse_regex_all(file, pattern, group_id, error_if_missing=True, error_prefix=""):
+    """Like parse_regex, but return the list of every match (one per record row)."""
+    if not os.path.isfile(file):
+        if error_if_missing:
+            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+        return None
+
+    with open(file, "r") as f:
+        try:
+            content = f.read()
+            values = [match.group(group_id) for match in re.finditer(pattern, content)]
+        except Exception as e:
+            printc.error(error_prefix + 'Could not get values from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name)
+            return None
+
+    if not values and error_if_missing:
+        printc.error(error_prefix + 'No match for regex "' + pattern + '" in file "' + file + '"', script_name=script_name)
+    return values
+
+
 def parse_csv(file, key, error_if_missing=True, error_prefix=""):
     if not os.path.isfile(file):
         if error_if_missing:
@@ -84,7 +105,7 @@ def parse_csv(file, key, error_if_missing=True, error_prefix=""):
 
     with open(file, mode="r") as csv_file:
         try:
-            reader = csv.DictReader(csv_file)
+            reader = csv.DictReader(csv_file, skipinitialspace=True)
             for row in reader:
                 if key in row:
                     return row[key]
@@ -95,6 +116,29 @@ def parse_csv(file, key, error_if_missing=True, error_prefix=""):
             return None
 
     return None
+
+
+def parse_csv_all(file, key, error_if_missing=True, error_prefix=""):
+    """Like parse_csv, but return the list of every row's value for `key`."""
+    if not os.path.isfile(file):
+        if error_if_missing:
+            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+        return None
+
+    values = []
+    with open(file, mode="r") as csv_file:
+        try:
+            reader = csv.DictReader(csv_file, skipinitialspace=True)
+            for row in reader:
+                if key in row:
+                    values.append(row[key])
+        except csv.Error as e:
+            printc.error(error_prefix + 'An error occurred while reading csv file "' + file + '": ' + str(e), script_name=script_name)
+            return None
+
+    if not values and error_if_missing:
+        printc.error(error_prefix + 'Could not find key "' + key + '" in csv "' + file + '"', script_name=script_name)
+    return values
 
 
 def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
@@ -161,83 +205,238 @@ def calculate_operation(op_str, results, error_if_missing=True, error_prefix="")
 
 
 def _load_metrics(metrics_file):
+    """
+    Load a workflow metrics definition file.
+
+    Returns:
+        tuple: (metrics, metadata), or (None, None) on a hard error.
+            - metrics:  metric name -> definition, extracted into record["metrics"]
+            - metadata: dimension name -> definition, extracted into record["meta"]
+
+    "metadata" is an optional sibling mapping of "metrics" that describes extra
+    meta dimensions (e.g. an EBNO sweep column). Combined with a "multiple: true"
+    field, it lets a single run expand into several records that differ only by
+    those metadata values -- as if the same configuration had been run several
+    times. It is only honored when metrics live under an explicit "metrics" key.
+    """
     if not os.path.isfile(metrics_file):
-        return None
+        return None, None
     with open(metrics_file, "r") as f:
         try:
             data = yaml.safe_load(f)
         except yaml.YAMLError as e:
             printc.error('Could not parse metrics file "' + metrics_file + '": ' + str(e), script_name)
-            return None
+            return None, None
     if data is None:
-        return {}
+        return {}, {}
     if not isinstance(data, dict):
         printc.error('Metrics file "' + metrics_file + '" must contain a YAML mapping at top level', script_name)
-        return None
+        return None, None
 
     # Workflow metrics can be defined directly at top level or under a
     # dedicated "metrics" key (same style as synthesis metrics files).
-    metrics = data.get("metrics", data)
+    if "metrics" in data:
+        metrics = data.get("metrics")
+        metadata = data.get("metadata", {})
+    else:
+        metrics = data
+        metadata = {}
+
     if metrics is None:
-        return {}
+        metrics = {}
     if not isinstance(metrics, dict):
         printc.error('Key "metrics" in "' + metrics_file + '" must be a YAML mapping', script_name)
+        return None, None
+
+    if metadata is None:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        printc.error('Key "metadata" in "' + metrics_file + '" must be a YAML mapping', script_name)
+        return None, None
+
+    return metrics, metadata
+
+
+def _finalize_value(value, content, numeric):
+    """
+    Apply an optional "format" to an extracted value. When no format is given
+    and numeric is True, convert numeric-looking strings to int/float.
+    """
+    if value is None:
         return None
-    return metrics
+    if "format" in content:
+        try:
+            return convert_to_numeric(content["format"] % float(value))
+        except Exception:
+            return value
+    if numeric:
+        return convert_to_numeric(value)
+    return value
 
 
-def _extract_run_metrics(run_dir, metrics_def, error_prefix=""):
-    results = {}
+def _extract_direct_value(run_dir, name, content, error_prefix=""):
+    """
+    Extract a single non-"operation" field from a run directory.
+
+    Returns a scalar, or a list of values when the field is "multiple: true".
+    Returns None when the field is not extractable.
+    """
+    metric_type = content.get("type")
+    settings = content.get("settings", {})
+    error_if_missing = bool(content.get("error_if_missing", True))
+    multiple = bool(content.get("multiple", False))
+
+    if metric_type == "regex":
+        file = settings.get("file")
+        pattern = settings.get("pattern")
+        group_id = settings.get("group_id")
+        if file is None or pattern is None or group_id is None:
+            return None
+        path = os.path.join(run_dir, file)
+        if multiple:
+            return parse_regex_all(path, pattern, int(group_id), error_if_missing, error_prefix)
+        return parse_regex(path, pattern, int(group_id), error_if_missing, error_prefix)
+
+    if metric_type == "csv":
+        file = settings.get("file")
+        key = settings.get("key")
+        if file is None or key is None:
+            return None
+        path = os.path.join(run_dir, file)
+        if multiple:
+            return parse_csv_all(path, key, error_if_missing, error_prefix)
+        return parse_csv(path, key, error_if_missing, error_prefix)
+
+    if metric_type == "yaml":
+        file = settings.get("file")
+        key = settings.get("key", None)
+        if file is None:
+            return None
+        return parse_yaml(os.path.join(run_dir, file), key, error_if_missing, error_prefix)
+
+    if metric_type == "json":
+        file = settings.get("file")
+        key = settings.get("key", None)
+        if file is None:
+            return None
+        return parse_json(os.path.join(run_dir, file), key, error_if_missing, error_prefix)
+
+    return None
+
+
+def _extract_run_records(run_dir, metrics_def, metadata_def=None, error_prefix=""):
+    """
+    Extract the metrics (and optional metadata dimensions) for a single run.
+
+    A field marked "multiple: true" is extracted as a list of values; when any
+    field is multiple, the run is expanded into one record per row (aligned by
+    index). Scalar fields are broadcast to every row, and "operation" metrics
+    are evaluated per row from the other fields' row values.
+
+    Returns:
+        tuple: (records, units) where records is a list of (meta_extra, metrics)
+        tuples -- a single tuple normally, one per expanded row otherwise.
+    """
+    metadata_def = metadata_def or {}
     units = {}
 
-    for metric, content in metrics_def.items():
+    # Phase A: extract every direct (non-operation) field exactly once.
+    direct = {}   # name -> scalar, or list when the field is "multiple"
+    is_list = {}  # name -> whether the field expands the run into rows
+    role = {}     # name -> "meta" or "metric"
+    op_fields = []  # (name, content, role) evaluated per row in phase C
+
+    def register(name, content, field_role):
         if not isinstance(content, dict):
-            continue
+            return
+        if field_role == "metric" and "unit" in content:
+            units[name] = content["unit"]
 
         metric_type = content.get("type")
-        settings = content.get("settings", {})
-        error_if_missing = bool(content.get("error_if_missing", True))
+        if metric_type == "operation":
+            op_fields.append((name, content, field_role))
+            return
+        if metric_type not in ("regex", "csv", "yaml", "json"):
+            printc.warning('Unsupported workflow metric type "' + str(metric_type) + '" for metric "' + name + '"', script_name)
+            direct[name] = None
+            is_list[name] = False
+            role[name] = field_role
+            return
 
-        value = None
-        if metric_type == "regex":
-            file = settings.get("file")
-            pattern = settings.get("pattern")
-            group_id = settings.get("group_id")
-            if file is not None and pattern is not None and group_id is not None:
-                value = parse_regex(os.path.join(run_dir, file), pattern, int(group_id), error_if_missing, error_prefix)
-        elif metric_type == "csv":
-            file = settings.get("file")
-            key = settings.get("key")
-            if file is not None and key is not None:
-                value = parse_csv(os.path.join(run_dir, file), key, error_if_missing, error_prefix)
-        elif metric_type == "yaml":
-            file = settings.get("file")
-            key = settings.get("key", None)
-            if file is not None:
-                value = parse_yaml(os.path.join(run_dir, file), key, error_if_missing, error_prefix)
-        elif metric_type == "json":
-            file = settings.get("file")
-            key = settings.get("key", None)
-            if file is not None:
-                value = parse_json(os.path.join(run_dir, file), key, error_if_missing, error_prefix)
-        elif metric_type == "operation":
-            op = settings.get("op")
-            if op is not None:
-                value = calculate_operation(op, results, error_if_missing, error_prefix)
+        multiple = bool(content.get("multiple", False))
+        raw = _extract_direct_value(run_dir, name, content, error_prefix)
+
+        if multiple:
+            if raw is None:
+                values = []
+            elif isinstance(raw, list):
+                values = raw
+            else:
+                values = [raw]
+            direct[name] = [_finalize_value(v, content, numeric=True) for v in values]
+            is_list[name] = True
         else:
-            printc.warning('Unsupported workflow metric type "' + str(metric_type) + '" for metric "' + metric + '"', script_name)
+            direct[name] = _finalize_value(raw, content, numeric=(field_role == "meta"))
+            is_list[name] = False
+        role[name] = field_role
 
-        if value is not None and "format" in content:
-            try:
-                value = convert_to_numeric(content["format"] % float(value))
-            except Exception:
-                pass
+    for name, content in metrics_def.items():
+        register(name, content, "metric")
+    for name, content in metadata_def.items():
+        register(name, content, "meta")
 
-        results[metric] = value
-        if "unit" in content:
-            units[metric] = content["unit"]
+    # Phase B: number of expanded rows, taken from the "multiple" fields.
+    lengths = [len(direct[name]) for name in direct if is_list[name]]
+    if not lengths:
+        n_rows = 1
+    else:
+        n_rows = min(lengths)
+        if any(length != n_rows for length in lengths):
+            printc.warning(
+                error_prefix + "Multiple metrics have mismatched lengths "
+                + str(sorted(set(lengths))) + "; aligning on the shortest (" + str(n_rows) + ")",
+                script_name,
+            )
 
-    return results, units
+    # Phase C: build one (meta_extra, metrics) record per row.
+    records = []
+    for i in range(n_rows):
+        meta_extra = {}
+        metrics = {}
+        row_values = {}
+        for name in direct:
+            value = direct[name][i] if is_list[name] else direct[name]
+            row_values[name] = value
+            (meta_extra if role[name] == "meta" else metrics)[name] = value
+        for name, content, field_role in op_fields:
+            op = content.get("settings", {}).get("op")
+            error_if_missing = bool(content.get("error_if_missing", True))
+            value = calculate_operation(op, row_values, error_if_missing, error_prefix) if op is not None else None
+            value = _finalize_value(value, content, numeric=(field_role == "meta"))
+            row_values[name] = value
+            (meta_extra if field_role == "meta" else metrics)[name] = value
+        records.append((meta_extra, metrics))
+
+    return records, units
+
+
+def _build_workflow_records(run_records, *, workflow_param_dir, workflow_full, fallback_configuration, run_dir, workflow_definition_dir):
+    """Turn (meta_extra, metrics) tuples into v2 workflow records."""
+    built = []
+    for meta_extra, metrics in run_records:
+        record = results_schema.make_workflow_record(
+            workflow=workflow_param_dir,
+            workflow_full=workflow_full,
+            fallback_configuration=fallback_configuration,
+            run_dir=run_dir,
+            workflow_definition_dir=workflow_definition_dir,
+            metrics=metrics,
+        )
+        for key, value in meta_extra.items():
+            # setdefault protects the reserved workflow meta keys (type, workflow, ...)
+            record["meta"].setdefault(str(key), value)
+        built.append(record)
+    return built
 
 
 def _discover_runs(work_root):
@@ -256,46 +455,24 @@ def _discover_runs(work_root):
     return runs
 
 
-def _get_workflow_config_key(meta, workflow_param_dir, fallback_run_name):
-    workflow_full = meta.get("workflow_full")
-    if isinstance(workflow_full, str) and workflow_full != "":
-        if "/" in workflow_full:
-            # Keep config + parameter domains, e.g. "default+voltage"
-            return workflow_full.split("/", 1)[1]
-        # No explicit config: keep workflow name and optional "+domains"
-        if workflow_full == workflow_param_dir or workflow_full.startswith(workflow_param_dir + "+"):
-            return workflow_full
-        return workflow_full
-
-    workflow_config = meta.get("workflow_config")
-    if isinstance(workflow_config, str) and workflow_config != "":
-        return workflow_config
-
-    return fallback_run_name
-
-
 def _load_existing_workflow_output(output_file):
-    out = {"units": {}, "workflows": {}}
+    """
+    Load an existing results file (any supported format version) as
+    (units, records). Older formats are auto-converted to v2 records, so the
+    next write upgrades the file in place.
+    """
     if not os.path.isfile(output_file):
-        return out
+        return {}, []
 
-    with open(output_file, "r") as f:
-        try:
-            loaded = yaml.safe_load(f)
-        except yaml.YAMLError:
-            return out
+    try:
+        results_file = results_schema.load_results_file(output_file)
+    except Exception:
+        printc.warning('Could not parse existing results file "' + output_file + '", starting over', script_name=script_name)
+        return {}, []
 
-    if not isinstance(loaded, dict):
-        return out
+    return results_file.units, results_file.records
 
-    units = loaded.get("units")
-    workflows = loaded.get("workflows")
-    if isinstance(units, dict):
-        out["units"] = units
-    if isinstance(workflows, dict):
-        out["workflows"] = workflows
 
-    return out
 
 
 def configure_workflow_job_exports(
@@ -381,37 +558,33 @@ def export_single_workflow_job(job, export_config=None):
 
     workflow_param_dir = meta.get("workflow_param_dir", fallback_param_dir)
     workflow_full = meta.get("workflow_full", workflow_param_dir + "/" + fallback_run_name)
-    workflow_config_key = _get_workflow_config_key(meta, workflow_param_dir, fallback_run_name)
 
     workflow_definition_dir = meta.get("workflow_definition_dir")
     if workflow_definition_dir is None:
         workflow_definition_dir = os.path.join(workflow_path, workflow_param_dir)
 
     metrics_file = os.path.join(workflow_definition_dir, WORKFLOW_METRICS_FILENAME)
-    metrics_def = _load_metrics(metrics_file)
+    metrics_def, metadata_def = _load_metrics(metrics_file)
     if metrics_def is None:
         return False
 
-    run_metrics, run_units = _extract_run_metrics(run_dir, metrics_def, error_prefix=workflow_full + " => ")
+    run_records, run_units = _extract_run_records(run_dir, metrics_def, metadata_def, error_prefix=workflow_full + " => ")
+
+    new_records = _build_workflow_records(
+        run_records,
+        workflow_param_dir=workflow_param_dir,
+        workflow_full=workflow_full,
+        fallback_configuration=fallback_run_name,
+        run_dir=run_dir,
+        workflow_definition_dir=workflow_definition_dir,
+    )
 
     output_file = os.path.join(output_dir, output_filename)
-    out = _load_existing_workflow_output(output_file)
-    out["units"].update(run_units)
+    units, records = _load_existing_workflow_output(output_file)
+    units.update(run_units)
+    records = results_schema.upsert_records(records, new_records)
 
-    if workflow_param_dir not in out["workflows"]:
-        out["workflows"][workflow_param_dir] = {}
-
-    out["workflows"][workflow_param_dir][workflow_config_key] = {
-        "run_dir": run_dir,
-        "workflow_param_dir": workflow_param_dir,
-        "workflow_definition_dir": workflow_definition_dir,
-        "workflow_full": workflow_full,
-        "metrics": run_metrics,
-    }
-
-    os.makedirs(output_dir, exist_ok=True)
-    with open(output_file, "w") as f:
-        yaml.dump(out, f, default_flow_style=False, sort_keys=False)
+    results_schema.dump_results_file(output_file, units, records)
 
     printc.say('Workflow results updated in "' + output_file + '"', script_name=script_name)
     return True
@@ -419,7 +592,7 @@ def export_single_workflow_job(job, export_config=None):
 
 def export_workflow_results(work_root, workflow_path, output_dir, output_filename=DEFAULT_OUTPUT_FILENAME):
     all_units = {}
-    out = {"units": all_units, "workflows": {}}
+    records = []
 
     runs = _discover_runs(work_root)
     if len(runs) == 0:
@@ -433,36 +606,33 @@ def export_workflow_results(work_root, workflow_path, output_dir, output_filenam
 
         workflow_param_dir = meta.get("workflow_param_dir", fallback_param_dir)
         workflow_full = meta.get("workflow_full", fallback_param_dir + "/" + run_name)
-        workflow_config_key = _get_workflow_config_key(meta, workflow_param_dir, run_name)
 
         workflow_definition_dir = meta.get("workflow_definition_dir")
         if workflow_definition_dir is None:
             workflow_definition_dir = os.path.join(workflow_path, workflow_param_dir)
 
         metrics_file = os.path.join(workflow_definition_dir, WORKFLOW_METRICS_FILENAME)
-        metrics_def = _load_metrics(metrics_file)
+        metrics_def, metadata_def = _load_metrics(metrics_file)
         if metrics_def is None:
             continue
 
         error_prefix = workflow_full + " => "
-        run_metrics, run_units = _extract_run_metrics(run_dir, metrics_def, error_prefix=error_prefix)
+        run_records, run_units = _extract_run_records(run_dir, metrics_def, metadata_def, error_prefix=error_prefix)
         all_units.update(run_units)
 
-        if workflow_param_dir not in out["workflows"]:
-            out["workflows"][workflow_param_dir] = {}
+        records.extend(
+            _build_workflow_records(
+                run_records,
+                workflow_param_dir=workflow_param_dir,
+                workflow_full=workflow_full,
+                fallback_configuration=run_name,
+                run_dir=run_dir,
+                workflow_definition_dir=workflow_definition_dir,
+            )
+        )
 
-        out["workflows"][workflow_param_dir][workflow_config_key] = {
-            "run_dir": run_dir,
-            "workflow_param_dir": workflow_param_dir,
-            "workflow_definition_dir": workflow_definition_dir,
-            "workflow_full": workflow_full,
-            "metrics": run_metrics,
-        }
-
-    os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, output_filename)
-    with open(output_file, "w") as f:
-        yaml.dump(out, f, default_flow_style=False, sort_keys=False)
+    results_schema.dump_results_file(output_file, all_units, records)
 
     printc.say('Workflow results written to "' + output_file + '"', script_name=script_name)
 

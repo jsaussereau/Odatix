@@ -1,4 +1,3 @@
-
 ##############################################
 # Settings for Design Compiler
 ##############################################
@@ -24,13 +23,23 @@ unix:
   fmax_synthesis_command:
     - cd $work_path;
     - *dc_unix
+    - "-output_log_file log/fmax.log"
     - *dc_args
     - "'source scripts/find_fmax.tcl; quit'"
+
+  # Command for RTL analysis
+  analysis_command:
+    - cd $work_path;
+    - *dc_unix
+    - "-output_log_file log/analysis.log"
+    - *dc_args
+    - "'set odatix_mode analysis; source scripts/init_script.tcl; source scripts/analyze_script.tcl; quit'"
 
   # Command for custom frequency synthesis
   custom_freq_synthesis_command:
     - cd $work_path;
     - *dc_unix
+    - "-output_log_file log/custom_freq.log"
     - *dc_args
     - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
 

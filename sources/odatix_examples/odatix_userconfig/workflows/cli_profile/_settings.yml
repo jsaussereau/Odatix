@@ -1,0 +1,19 @@
+# Design sources (that will be copied into each work directory)
+sources:
+  path: examples/workflow_cli_profile
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: "Progress:\\s*([0-9]+)"
+
+# Generated design settings
+# This workflow intentionally does not replace source files; it demonstrates
+# command placeholder substitution from the workflow config file itself.
+use_parameters: No
+
+# Design workflow settings
+tasks:
+  - name: main
+    commands:
+      - python3 run_profile.py --profile "${workflow_cli_profile}" --tag "config-placeholder-demo"

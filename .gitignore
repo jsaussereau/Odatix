@@ -4,6 +4,12 @@
 pipx/Asterism*
 pipx/build
 
+# Python virtual environment
+odatix_venv/
+
+# Odatix sessions
+.odatix_sessions/
+
 # Work
 work/*
 work*
@@ -26,8 +32,15 @@ default.svf
 filenames*.log
 LIB_*_autoread
 
+# Genus
+genus.log*
+genus.cmd*
+
 # Results
 results/*
+
+#odatix error (for developers)
+odatix_error.log
 
 # Build
 sources/build

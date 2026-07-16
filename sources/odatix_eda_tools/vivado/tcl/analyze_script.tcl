@@ -29,45 +29,86 @@ if {[catch {
     # Read source files
     ######################################
 
-    set rtl_path [file normalize $rtl_path]
 
-    set verilog_error 0
-    set sverilog_error 0
+    if {[file exists "$rtl_path/filelist.f"]} {
 
-    # read verilog source files
-    set verilog_filenames [get_files_recursive $rtl_path {*.v *.sv}]
-    puts "$signature <cyan>Verilog/SystemVerilog files:<end>"
-    foreach file $verilog_filenames {
-        puts "  - $file"
-    }
-    if {[catch {read_verilog $verilog_filenames} errmsg]} {
-        if {$verilog_filenames == ""} {
-            puts "$signature <cyan>note: no verilog file in source directory<end>"
-        } else {
-            puts "$signature <bold><red>error: failed reading verilog source files<end>"
-            puts "$signature tool says -> $errmsg"
+        puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
+
+        set fp [open "$rtl_path/filelist.f" r]
+
+        while {[gets $fp line] >= 0} {
+            set line [string trim $line]
+            if {$line eq ""} {
+                continue
+            }
+            if {[string match "*.v" $line]} {
+                read_verilog $line
+            } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {
+                read_verilog $line
+            } elseif {[string match "*.vhd" $line]} {
+                read_vhdl $line
+            }
         }
-        set verilog_error 1
+        close $fp
+
+    } else {
+
+        set rtl_path [file normalize $rtl_path]
+
+        set verilog_error 0
+        set sverilog_error 0
+
+        # read verilog source files
+        set verilog_filenames [get_files_recursive $rtl_path {*.v *.sv}]
+        puts "$signature <cyan>Verilog/SystemVerilog files:<end>"
+        foreach file $verilog_filenames {
+            puts "  - $file"
+        }
+        if {[catch {read_verilog $verilog_filenames} errmsg]} {
+            if {$verilog_filenames == ""} {
+                puts "$signature <cyan>note: no verilog file in source directory<end>"
+            } else {
+                puts "$signature <bold><red>error: failed reading verilog source files<end>"
+                puts "$signature tool says -> $errmsg"
+            }
+            set verilog_error 1
+        }
+
+        # read vhdl source files
+        set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
+        puts "$signature <cyan>VHDL files:<end>"
+        foreach file $vhdl_filenames {
+            puts "  - $file"
+        }
+        if {[catch {read_vhdl $vhdl_filenames} errmsg]} {
+            if {$vhdl_filenames == ""} {
+                puts "$signature <cyan>note: no vhdl file in source directory<end>"
+            } else {
+                puts "$signature <bold><red>error: failed reading vhdl source files<end>"
+                puts "$signature tool says -> $errmsg"
+            }
+            if {$verilog_error == 1} {
+                puts "$signature <red>error: failed reading both verilog and vhdl source files, exiting"
+                exit -1
+            }
+        }
     }
 
-    # read vhdl source files
-    set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
-    puts "$signature <cyan>VHDL files:<end>"
-    foreach file $vhdl_filenames {
-        puts "  - $file"
+
+    ## test avec -tclargs du vivado
+    set odatix_mode ""
+
+    if {[llength $argv] > 0} {
+        set odatix_mode [lindex $argv 0]
     }
-    if {[catch {read_vhdl $vhdl_filenames} errmsg]} {
-        if {$vhdl_filenames == ""} {
-            puts "$signature <cyan>note: no vhdl file in source directory<end>"
-        } else {
-            puts "$signature <bold><red>error: failed reading vhdl source files<end>"
-            puts "$signature tool says -> $errmsg"
-        }
-        if {$verilog_error == 1} {
-            puts "$signature <red>error: failed reading both verilog and vhdl source files, exiting"
-            exit -1
-        }
+
+    puts "DEBUG mode = $odatix_mode"
+
+    if {$odatix_mode == "analysis"} {
+        report_progress 100 $synth_statusfile
     }
+
+
 
 } ]} {
     puts "$signature <bold><red>error: unhandled tcl error, exiting<end>"

@@ -48,28 +48,28 @@ class Variables:
     self.lib_name = lib_name
 
 def replace_variables(command, variables):
-  if variables is not None:
-    try:
-      command_out = command
-      replacements = {
-        "$odatix_path": variables.odatix_path,
-        "$eda_tools_path": variables.odatix_eda_tools_path,
-        "$work_path": variables.work_path,
-        "$tool_install_path": variables.tool_install_path,
-        "$script_path": variables.script_path,
-        "$log_path": variables.log_path,
-        "$clock_signal": variables.clock_signal,
-        "$top_level_module": variables.top_level_module,
-        "$lib_name": variables.lib_name
-      }
-      for key, value in replacements.items():
-        if value is not None:
-          command_out = command_out.replace(key, value)
-
-    except Exception as e:
-      printc.error(f'Failed replacing variable "{key}" by {value}', script_name=script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
-      print(str(e))
-      return command
+  if variables is None:
+    return command
+  try:
+    command_out = command
+    replacements = {
+      "$odatix_path": variables.odatix_path,
+      "$eda_tools_path": variables.odatix_eda_tools_path,
+      "$work_path": variables.work_path,
+      "$tool_install_path": variables.tool_install_path,
+      "$script_path": variables.script_path,
+      "$log_path": variables.log_path,
+      "$clock_signal": variables.clock_signal,
+      "$top_level_module": variables.top_level_module,
+      "$lib_name": variables.lib_name
+    }
+    for key, value in replacements.items():
+      if value is not None:
+        command_out = command_out.replace(key, value)
+  except Exception as e:
+    printc.error(f'Failed replacing variable "{key}" by {value}', script_name=script_name)
+    printc.cyan("error details: ", end="", script_name=script_name)
+    print(str(e))
+    return command
 
   return command_out

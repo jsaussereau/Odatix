@@ -89,6 +89,7 @@ class OdatixSettings:
     DEFAULT_SIMULATION_WORK_PATH = "simulations"
     DEFAULT_FMAX_SYNTHESIS_WORK_PATH = "fmax_synthesis"
     DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH = "custom_freq_synthesis"
+    DEFAULT_ANALYSIS_WORK_PATH = "analysis"
     DEFAULT_WORKFLOW_WORK_PATH = "workflows"
     DEFAULT_RESULT_PATH = "results"
     DEFAULT_USERCONFIG_PATH = "odatix_userconfig"
@@ -102,6 +103,7 @@ class OdatixSettings:
     DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
     DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
     DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml")
+    DEFAULT_ANALYSIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "analysis_settings.yml")
     DEFAULT_WORKFLOW_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "workflow_settings.yml")
 
     odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
@@ -187,6 +189,7 @@ class OdatixSettings:
             "simulation_settings_file": settings.get('simulation_settings_file', ""),
             "fmax_synthesis_settings_file": settings.get('fmax_synthesis_settings_file', ""),
             "custom_freq_synthesis_settings_file": settings.get('custom_freq_synthesis_settings_file', ""),
+            "analysis_settings_file": settings.get('analysis_settings_file', ""),
 
             # Work directories
             "work_path": settings.get('work_path', ""),
@@ -223,6 +226,7 @@ class OdatixSettings:
         self.simulation_work_path, _ = get_from_dict("simulation_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_WORK_PATH, silent=silent, script_name=script_name)
         self.fmax_synthesis_work_path, _ = get_from_dict("fmax_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH, silent=silent, script_name=script_name)
         self.custom_freq_synthesis_work_path, _ = get_from_dict("custom_freq_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH, silent=silent, script_name=script_name)
+        self.analysis_work_path, _ = get_from_dict( "analysis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ANALYSIS_WORK_PATH, silent=silent, script_name=script_name)
         self.workflow_work_path, _ = get_from_dict("workflow_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_WORK_PATH, silent=silent, script_name=script_name)
         self.result_path, _ = get_from_dict("result_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_RESULT_PATH, silent=silent, script_name=script_name)
         self.arch_path, _ = get_from_dict("arch_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ARCH_PATH, silent=silent, script_name=script_name)
@@ -235,6 +239,7 @@ class OdatixSettings:
         self.simulation_settings_file, _ = get_from_dict("simulation_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE, silent=silent, script_name=script_name)
         self.fmax_synthesis_settings_file, _ = get_from_dict("fmax_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.custom_freq_synthesis_settings_file, _ = get_from_dict("custom_freq_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
+        self.analysis_settings_file, _ = get_from_dict("analysis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.workflow_settings_file, _ = get_from_dict("workflow_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE , silent=silent, script_name=script_name)
 
         # Depreciation warnings
@@ -381,6 +386,7 @@ class OdatixSettings:
             "simulation_settings_file": self.simulation_settings_file,
             "fmax_synthesis_settings_file": self.fmax_synthesis_settings_file,
             "custom_freq_synthesis_settings_file": self.custom_freq_synthesis_settings_file,
+            "analysis_settings_file": self.analysis_settings_file,
 
             # Work directories
             "work_path": self.work_path,
@@ -480,7 +486,9 @@ f"""##############################################
         custom_freq_synthesis_settings_file = settings.get('custom_freq_synthesis_settings_file')
         if custom_freq_synthesis_settings_file is not None and custom_freq_synthesis_settings_file != "":
             data['custom_freq_synthesis_settings_file'] = custom_freq_synthesis_settings_file
-
+        analysis_settings_file = settings.get('analysis_settings_file')
+        if analysis_settings_file is not None and analysis_settings_file != "":
+            data['analysis_settings_file'] = analysis_settings_file
         if clean_settings_file is not None and clean_settings_file != "":
             data.yaml_set_comment_before_after_key('clean_settings_file', before="\nSettings files")
         elif simulation_settings_file is not None and simulation_settings_file != "":
@@ -489,6 +497,8 @@ f"""##############################################
             data.yaml_set_comment_before_after_key('fmax_synthesis_settings_file', before="\nSettings files")
         elif custom_freq_synthesis_settings_file is not None and custom_freq_synthesis_settings_file != "":
             data.yaml_set_comment_before_after_key('custom_freq_synthesis_settings_file', before="\nSettings files")
+        elif analysis_settings_file is not None and analysis_settings_file != "" :
+            data.yaml_set_comment_before_after_key('analysis_settings_file', before="\nSettings files")
 
         # Work directories
         work_path = settings.get('work_path')

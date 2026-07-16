@@ -23,6 +23,7 @@ import os
 import threading
 import io
 import contextlib
+from urllib.parse import quote
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional, Sequence#, Literal
@@ -36,8 +37,10 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
+import odatix.components.run_workflow as run_workflow
+from odatix.lib.parallel_job_handler import daemon_control
 
-page_path = "/jobs_config"
+page_path = "/run_jobs"
 
 dash.register_page(
     __name__,
@@ -71,24 +74,51 @@ _prepare_cancel_event = threading.Event()
 _prepare_log_buffer = _ThreadSafeBuffer()
 _prepare_status = {"status": "idle", "error": None}
 _prepare_parallel_jobs = None
-_prepare_api_port = None
+_prepare_monitor_href = None
 _prepare_check_data = None
 _prepare_runtime_settings = None
 _prepare_exec_thread = None
 _prepare_synth_type = None
+_prepare_enqueued = False
+_prepare_enqueue_lock = threading.Lock()
 
 def _reset_prepare_state():
-    global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_api_port
-    global _prepare_check_data, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type
+    global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_monitor_href
+    global _prepare_check_data, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
     _prepare_cancel_event = threading.Event()
     _prepare_log_buffer = _ThreadSafeBuffer()
     _prepare_status = {"status": "checking", "error": None}
     _prepare_parallel_jobs = None
-    _prepare_api_port = None
+    _prepare_monitor_href = None
     _prepare_check_data = None
     _prepare_runtime_settings = None
     _prepare_exec_thread = None
     _prepare_synth_type = None
+    _prepare_enqueued = False
+
+
+def _normalize_session_selector(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "" or text == "__new_session__":
+        return None
+    return text
+
+
+def _session_option(daemon: dict) -> dict:
+    host = str(daemon.get("host", hard_settings.daemon_default_host))
+    port = int(daemon.get("port", hard_settings.daemon_default_port))
+    session_id = str(daemon.get("session_id", "")).strip()
+    session_name = str(daemon.get("session_name", "")).strip()
+
+    value = session_id or session_name or f"{host}:{port}"
+    label = session_id or session_name or f"{host}:{port}"
+    return {
+        "label": label,
+        "value": value,
+        "title": f"{host}:{port}",
+    }
 
 def _run_check_custom_freq_settings(
     run_config_settings_filename,
@@ -174,46 +204,97 @@ def _run_check_fmax_settings(
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
 
+def _run_check_workflow_settings(
+    run_config_settings_filename,
+    workflow_path,
+    work_path,
+    overwrite_enabled,
+    noask,
+    exit_when_done_enabled,
+    log_size_val,
+    nb_jobs_val,
+):
+    global _prepare_status, _prepare_check_data
+    try:
+        with contextlib.redirect_stdout(_prepare_log_buffer):
+            _prepare_check_data = run_workflow.check_settings(
+                run_config_settings_filename,
+                workflow_path,
+                work_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                debug=False,
+                keep=False,
+            )
+        _prepare_status = {"status": "checked", "error": None}
+    except SystemExit:
+        # check_settings() calls sys.exit(-1) on invalid workflow settings
+        # instead of raising: turn that into a normal error status.
+        _prepare_status = {"status": "error", "error": "Invalid workflow settings. See log above for details."}
+    except Exception as exc:
+        _prepare_status = {"status": "error", "error": str(exc)}
+
 def _run_prepare_synthesis():
     global _prepare_status, _prepare_parallel_jobs
     try:
         if not _prepare_check_data:
             raise RuntimeError("Missing preparation settings")
-        (
-            architecture_instances,
-            prepare_job,
-            job_list,
-            tool_settings_file,
-            arch_handler,
-            exit_when_done,
-            log_size_limit,
-            nb_jobs,
-        ) = _prepare_check_data
         with contextlib.redirect_stdout(_prepare_log_buffer):
-            if _prepare_synth_type == "fmax_synthesis":
-                _prepare_parallel_jobs = run_fmax_synthesis.prepare_synthesis(
-                    architecture_instances=architecture_instances,
+            if _prepare_synth_type == "workflow":
+                (
+                    workflow_instances,
+                    prepare_job,
+                    job_list,
+                    exit_when_done,
+                    log_size_limit,
+                    nb_jobs,
+                ) = _prepare_check_data
+                _prepare_parallel_jobs = run_workflow.prepare_workflows(
+                    workflow_instances=workflow_instances,
                     prepare_job=prepare_job,
                     job_list=job_list,
-                    tool_settings_file=tool_settings_file,
-                    arch_handler=arch_handler,
                     exit_when_done=exit_when_done,
                     log_size_limit=log_size_limit,
                     nb_jobs=nb_jobs,
-                    cancel_event=_prepare_cancel_event,
                 )
             else:
-                _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
-                    architecture_instances=architecture_instances,
-                    prepare_job=prepare_job,
-                    job_list=job_list,
-                    tool_settings_file=tool_settings_file,
-                    arch_handler=arch_handler,
-                    exit_when_done=exit_when_done,
-                    log_size_limit=log_size_limit,
-                    nb_jobs=nb_jobs,
-                    cancel_event=_prepare_cancel_event,
-                )
+                (
+                    architecture_instances,
+                    prepare_job,
+                    job_list,
+                    tool_settings_file,
+                    arch_handler,
+                    exit_when_done,
+                    log_size_limit,
+                    nb_jobs,
+                ) = _prepare_check_data
+                if _prepare_synth_type == "fmax_synthesis":
+                    _prepare_parallel_jobs = run_fmax_synthesis.prepare_synthesis(
+                        architecture_instances=architecture_instances,
+                        prepare_job=prepare_job,
+                        job_list=job_list,
+                        tool_settings_file=tool_settings_file,
+                        arch_handler=arch_handler,
+                        exit_when_done=exit_when_done,
+                        log_size_limit=log_size_limit,
+                        nb_jobs=nb_jobs,
+                        cancel_event=_prepare_cancel_event,
+                    )
+                else:
+                    _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
+                        architecture_instances=architecture_instances,
+                        prepare_job=prepare_job,
+                        job_list=job_list,
+                        tool_settings_file=tool_settings_file,
+                        arch_handler=arch_handler,
+                        exit_when_done=exit_when_done,
+                        log_size_limit=log_size_limit,
+                        nb_jobs=nb_jobs,
+                        cancel_event=_prepare_cancel_event,
+                    )
         _prepare_status = {"status": "prepared", "error": None}
     except run_range_synthesis.SynthesisCancelled:
         _prepare_status = {"status": "canceled", "error": None}
@@ -230,13 +311,13 @@ def _checklist_enabled(value) -> bool:
     return bool(value)
 
 def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
-    synth_type = get_key_from_url(search, "type")
-    if synth_type == "custom_freq_synthesis":
+    run_mode = get_key_from_url(search, "type")
+    if run_mode == "custom_freq_synthesis":
         return odatix_settings.get(
             "custom_freq_synthesis_settings_file",
             OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
         )
-    if synth_type == "fmax_synthesis":
+    if run_mode == "fmax_synthesis":
         return odatix_settings.get(
             "fmax_synthesis_settings_file",
             OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
@@ -245,6 +326,50 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
         "fmax_synthesis_settings_file",
         OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
     )
+
+def _run_context(search, odatix_settings) -> dict:
+    """
+    Resolve everything that differs between job types (architectures vs
+    workflows) from the ?type=... url parameter.
+
+    Returns a dict with:
+        mode           : "workflow" or "arch"
+        base_path      : architectures / workflows directory
+        settings_path  : the selection settings file to read/write
+        selection_key  : the yaml key holding the selection ("workflows" / "architectures")
+        instances      : list of instance names to display
+        settings_link  : lambda name -> settings editor url
+        config_link    : lambda name -> config editor url
+        settings_text  : label of the settings button
+        title          : plural heading of the instance section
+    """
+    settings = odatix_settings or {}
+    run_mode = get_key_from_url(search, "type")
+    if run_mode == "workflow":
+        base_path = settings.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
+        return {
+            "mode": "workflow",
+            "base_path": base_path,
+            "settings_path": settings.get("workflow_settings_file", OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE),
+            "selection_key": "workflows",
+            "instances": workspace.get_workflows(base_path),
+            "settings_link": lambda name: f"/workflow_editor?workflow={name}",
+            "config_link": lambda name: f"/config_editor?workflow={name}",
+            "settings_text": "Workflow Settings",
+            "title": "Workflows",
+        }
+    base_path = settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    return {
+        "mode": "arch",
+        "base_path": base_path,
+        "settings_path": _get_synth_settings_path(search, settings),
+        "selection_key": "architectures",
+        "instances": workspace.get_architectures(base_path),
+        "settings_link": lambda name: f"/arch_editor?arch={name}",
+        "config_link": lambda name: f"/config_editor?arch={name}",
+        "settings_text": "Architecture Settings",
+        "title": "Architectures",
+    }
 
 def _arch_name_from_entry(entry: str) -> str:
     first_part = str(entry).split(" + ")[0].strip()
@@ -268,6 +393,68 @@ def _group_arch_selections(architectures_setting) -> dict:
             continue
         grouped.setdefault(arch_name, []).append(str(entry))
     return grouped
+
+def _workflow_virtual_variant_combos(base_path, workflow_name):
+    """
+    Resolve the virtual parameter domains of a workflow (command-placeholder
+    variables defined under "generate_configurations_settings.variables" in
+    its _settings.yml, see run_workflow.py), by reusing the exact generation
+    logic run_workflow.check_settings() uses at run time.
+
+    Returns:
+        combos        : list of [workflow_name, "domain/value", ...], one per
+                         generated variant (empty if the workflow has none).
+        domain_values : dict domain name -> sorted list of distinct values
+                        seen across combos (for display only).
+        error         : error message if the variable settings are invalid,
+                         else None.
+    """
+    settings = workspace.load_workflow_settings(base_path, workflow_name)
+    virtual_domain_names = run_workflow.get_workflow_virtual_domain_names(settings)
+    if not virtual_domain_names:
+        return [], {}, None
+
+    settings_file = workspace.get_workflow_settings_path(base_path, workflow_name)
+    variants = run_workflow.build_workflow_virtual_param_domain_variants(settings, settings_file, debug=False)
+    if variants is None:
+        return [], {}, "Invalid workflow variable settings. Check the workflow settings file."
+
+    combos = [[workflow_name] + variant["requested_param_domains"] for variant in variants]
+    domain_values = {}
+    for combo in combos:
+        for token in combo[1:]:
+            domain, _, value = token.partition("/")
+            domain_values.setdefault(domain, set()).add(value)
+    domain_values = {domain: sorted(values) for domain, values in domain_values.items()}
+    return combos, domain_values, None
+
+def _select_all_buttons(button_type: str, id_keys: dict) -> html.Div:
+    """Build a 'Select all' / 'Clear' button pair for a checklist.
+
+    button_type is the pattern-matching id "type"; id_keys holds the other
+    wildcard keys identifying the target checklist (e.g. arch/domain).
+    """
+    return html.Div(
+        children=[
+            html.Button("Select all", id={"type": button_type, "action": "show", **id_keys}, n_clicks=0, className="xp-mini-button"),
+            html.Button("Clear", id={"type": button_type, "action": "hide", **id_keys}, n_clicks=0, className="xp-mini-button"),
+        ],
+        className="xp-filter-buttons",
+    )
+
+def _preview_title(n_combos: int, default_enabled: bool, n_selected: int = 0) -> str:
+    """Format the preview tile heading, accounting for the default config.
+
+    n_combos is the total number of non-default combinations and n_selected how
+    many of them are currently checked, shown as "n_selected/n_combos". The
+    default config is counted separately: "+1 default" when it is enabled
+    alongside other combos, or "1 default" when it is the only selected entry.
+    """
+    if n_combos <= 0:
+        return "Preview (1 default)" if default_enabled else "Preview (0 combinations)"
+    word = "combination" if n_combos == 1 else "combinations"
+    suffix = " +1 default" if default_enabled else ""
+    return f"Preview ({n_selected}/{n_combos} {word}{suffix})"
 
 def _extract_domain_values(arch_name: str, selections) -> dict:
     """Return mapping of domain -> set(values) found in preview selection strings."""
@@ -298,6 +485,7 @@ def job_settings_form_field(
     tooltip: str="",
     placeholder: str="",
     tooltip_options: str="secondary",
+    style: Optional[dict]=None,
     # type: Optional[Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]] = None,
     type = None,
 ):
@@ -307,11 +495,12 @@ def job_settings_form_field(
             ui.tooltip_icon(tooltip, tooltip_options),
             dcc.Input(id=id, value=value, type=type, placeholder=placeholder, style={"width": "100%"}),
         ],
-        style={"marginBottom": "12px"}
+        style={"marginBottom": "12px", **(style or {})},
     )
 
-def job_settings_form(settings):
-    defval = lambda k, v=None: settings.get(k, v)
+def job_settings_form(settings, run_mode="default"):
+    frequencies = settings.get("frequencies", {})
+    range = frequencies.get("range", {})
 
     return html.Div(
         children=[
@@ -321,7 +510,7 @@ def job_settings_form(settings):
                 html.Div([
                     dcc.Checklist(
                         options=[{"label": "Overwrite existing result", "value": True}],
-                        value=[True] if True else [],
+                        value=[True] if settings.get("overwrite", False) else [],
                         id="overwrite",
                         className="checklist-switch",
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
@@ -331,7 +520,7 @@ def job_settings_form(settings):
                 html.Div([
                     dcc.Checklist(
                         options=[{"label": "Force single threading", "value": True}],
-                        value=[True] if True else [],
+                        value=[True] if settings.get("force_single_thread", True) else [],
                         id="force_single_thread",
                         className="checklist-switch",
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
@@ -342,25 +531,33 @@ def job_settings_form(settings):
                     label="Maximum number of parallel jobs",
                     id="nb_jobs",
                     type="number",
-                    value=str(defval("nb_jobs", 8)),
+                    value=str(settings.get("nb_jobs", 8)),
                     tooltip="Maximum number of jobs to run in parallel. (overridden by -j / --jobs)",
                 ),
             ], className="tile config"),
             html.Div([
-                html.H3("Monitor Settings (Used when jobs are run from terminal)"),
+                html.H3("Monitor Settings"),
+                job_settings_form_field(
+                    label="Size of the log history per job in the monitor",
+                    id="log_size_limit",
+                    type="number",
+                    value=str(settings.get("log_size_limit", 300)),
+                    tooltip="Number of log lines to keep per job. (overridden by --logsize)",
+                ),
+                html.H3("CLI Settings"),
                 html.Div([
                     dcc.Checklist(
-                        options=[{"label": "Prompt 'Continue? (Y/n)' after settings checks", "value": True}],
+                        options=[{"label": "Ask for confirmation after checking settings", "value": True}],
                         value=[True] if True else [],
                         id="ask_continue",
                         className="checklist-switch",
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
                     ),
-                    ui.tooltip_icon("Ask for confirmation after checking settings. (overridden by -y / --noask)."),
+                    ui.tooltip_icon("Prompt 'Continue? (Y/n)' after settings checks. (overridden by -y / --noask)."),
                 ], style={"marginBottom": "12px"}),
                 html.Div([
                     dcc.Checklist(
-                        options=[{"label": "Exit monitor when all jobs are done", "value": True}],
+                        options=[{"label": "Exit terminal monitor when all jobs are done", "value": True}],
                         value=[True] if True else [],
                         id="exit_when_done",
                         className="checklist-switch",
@@ -368,15 +565,84 @@ def job_settings_form(settings):
                     ),
                     ui.tooltip_icon("Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)."),
                 ], style={"marginBottom": "12px"}),
-                job_settings_form_field(
-                    label="Size of the log history per job in the monitor",
-                    id="log_size_limit",
-                    type="number",
-                    value=str(defval("log_size_limit", 300)),
-                    tooltip="Number of log lines to keep per job. (overridden by --logsize)",
-                ),
             ], className="tile config"),
-        ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
+            html.Div([
+                html.H3("Custom Frequency Synthesis Settings"),
+                dcc.Checklist(
+                    options=[{"label": "Override frequencies", "value": True}],
+                    value=[True] if frequencies.get("override", False) else [],
+                    id="override-arch-frequencies",
+                    className="checklist-switch",
+                    style={"marginBottom": "15px", "display": "inline-block"},
+                ),
+                ui.tooltip_icon("Override architecture-specific frequencies."),
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=[
+                                html.Label("List", style={"marginTop": "2px", "marginBottom": "-2px"}),
+                                dcc.Checklist(
+                                    options=[{"label": "", "value": True}],
+                                    value=[True] if frequencies.get("use_custom_freq_list", False) else [],
+                                    id="use-custom-freq-list",
+                                    className="checklist-switch",
+                                    style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
+                                ),
+                            ],
+                            style={"display": "flex", "flexDirection": "column", "gap": "10px"},
+                        ),
+                        job_settings_form_field(
+                            label="Target frequencies (MHz)",
+                            id="target_frequencies",
+                            type="text",
+                            value=", ".join(str(f) for f in frequencies.get("list", [])),
+                            tooltip="Comma-separated target frequencies for the synthesis.",
+                            style={"width": "100%"},
+                        ),
+                    ],
+                    style={"display": "flex", "flexDirection": "row", "gap": "25px"},
+                ),
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=[
+                                html.Label("Range", style={"marginTop": "2px", "marginBottom": "-2px"}),
+                                dcc.Checklist(
+                                    options=[{"label": "", "value": True}],
+                                    value=[True] if frequencies.get("use_custom_freq_range", False) else [],
+                                    id="use-custom-freq-range",
+                                    className="checklist-switch",
+                                    style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
+                                ),
+                            ],
+                            style={"display": "flex", "flexDirection": "column", "gap": "10px"}
+                        ),
+                        job_settings_form_field(
+                            label="From (MHz)",
+                            id="from_frequency",
+                            type="number",
+                            value=str(range.get("from", "")),
+                            tooltip="Lower frequency for the synthesis.",
+                        ),
+                        job_settings_form_field(
+                            label="To (MHz)",
+                            id="to_frequency",
+                            type="number",
+                            value=str(range.get("to", "")),
+                            tooltip="Upper frequency for the synthesis.",
+                        ),
+                        job_settings_form_field(
+                            label="Step (MHz)",
+                            id="step_frequency",
+                            type="number",
+                            value=str(range.get("step", "")),
+                            tooltip="Frequency step for the synthesis.",
+                        ),
+                    ],
+                    style={"display": "flex", "flexDirection": "row", "gap": "25px"},
+                )
+            ], className="tile config", style={"display": "none" if run_mode != "custom_freq_synthesis" else "block"}),
+        ], className="tiles-container config flex-tiles-container", style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
 ######################################
@@ -384,22 +650,53 @@ def job_settings_form(settings):
 ######################################
 
 @dash.callback(
+    Output({"page": page_path, "action": "session-dropdown"}, "options"),
+    Output({"page": page_path, "action": "session-dropdown"}, "value"),
+    Input(f"url_{page_path}", "search"),
+    Input("run-log-interval", "n_intervals"),
+    State({"page": page_path, "action": "session-dropdown"}, "value"),
+)
+def update_session_dropdown(_search, _n, current_value):
+    options = [{"label": "New session...", "value": "__new_session__", "title": "Run jobs in a new session"}]
+    try:
+        daemons = daemon_control.list_daemons()
+    except Exception:
+        daemons = []
+
+    options.extend(_session_option(daemon) for daemon in daemons)
+
+    values = {option.get("value") for option in options}
+    selected = str(current_value).strip() if current_value is not None else "__new_session__"
+    if selected not in values:
+        selected = "__new_session__"
+
+    return options, selected
+
+@dash.callback(
     Output("job-settings-form-container", "children"),
     Output("job-settings-initial-settings", "data"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
+    State("odatix-settings", "data"),
 )
-def init_form(search, page):
+def init_form(search, page, odatix_settings):
     if page != page_path:
         return dash.no_update, dash.no_update
 
-    settings = {}
+    run_mode = get_key_from_url(search, "type")
+    settings_path = _get_synth_settings_path(search, odatix_settings or {})
+    
+    settings = workspace.load_arch_selection_settings(settings_path)
+    if run_mode == "custom_freq_synthesis":
+        settings = workspace.get_frequencies_form_values(settings)
     if settings is None:
         settings = {}
-    return job_settings_form(settings), settings
+    return job_settings_form(settings, run_mode), settings
 
 @dash.callback(
     Output("job-section", "children"),
+    Output("job-section-heading", "children"),
+    Output("jobs-config-main-title", "children"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
@@ -412,16 +709,17 @@ def update_param_domains(
 
     if triggered_id == "url":
         if page != page_path:
-            return dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    architectures = workspace.get_architectures(arch_path)
+    context = _run_context(search, odatix_settings)
+    arch_path = context["base_path"]
+    architectures = context["instances"]
 
-    settings_path = _get_synth_settings_path(search, odatix_settings or {})
+    settings_path = context["settings_path"]
     selection_settings = workspace.load_arch_selection_settings(settings_path)
-    selection_map = _group_arch_selections(selection_settings.get("architectures", []))
+    selection_map = _group_arch_selections(selection_settings.get(context["selection_key"], []))
     job_sections = []
-    for arch_name in architectures:     
+    for arch_name in architectures:
         domains_configs = {}
         domains = [hard_settings.main_parameter_domain] + workspace.get_param_domains(arch_path, arch_name)
         domain_tiles = []
@@ -451,6 +749,7 @@ def update_param_domains(
                     html.Div(
                         children=[
                             html.H3(domain if domain != hard_settings.main_parameter_domain else "Main Parameter Domain", style={"marginBottom": "0px"}),
+                            _select_all_buttons("domain-config-select-all", {"arch": arch_name, "domain": domain}),
                             html.Div(
                                 children=checklist,
                                 style={"overflowX": "scroll", "marginBottom": "-10px"},
@@ -463,7 +762,68 @@ def update_param_domains(
             )
             domain_tiles.append(domain_tile)
 
-        # Default configuration tile
+        # Virtual parameter domains (workflow command-placeholder variables)
+        virtual_combos = []
+        if context["mode"] == "workflow":
+            virtual_combos, virtual_domain_values, virtual_error = _workflow_virtual_variant_combos(arch_path, arch_name)
+            if virtual_error:
+                domain_tiles.append(
+                    html.Div(
+                        html.Div(virtual_error, className="error-message"),
+                        className="tile config",
+                    )
+                )
+            elif virtual_domain_values:
+                domain_tiles.append(
+                    html.Div(
+                        children=[
+                            html.H3("Workflow Variables", style={"marginBottom": "0px"}),
+                            html.Div(
+                                [
+                                    html.Div(
+                                        [
+                                            html.Span(f"{domain}: ", style={"fontWeight": "bold"}),
+                                            html.Span(", ".join(values)),
+                                        ],
+                                        style={"marginTop": "4px"},
+                                    )
+                                    for domain, values in virtual_domain_values.items()
+                                ],
+                                style={"marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
+                            ),
+                        ],
+                        className="tile config",
+                    )
+                )
+
+        # Compute the preview data up-front so the "Default Configuration" tile
+        # and the preview stay consistent about whether the default config
+        # (the bare "<arch_name>" entry) is selected. n_combos counts the
+        # non-default combinations only; the default config is counted apart.
+        n_combos = workspace.count_combinations(domains_configs) + len(virtual_combos)
+        too_many = n_combos > MAX_PREVIEW_COMBINATIONS
+        formatted_combinations = []
+        filtered_selected = []
+        if not too_many:
+            all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name) + virtual_combos
+            if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
+                all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
+            formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
+            available_values = [opt.get("value") for opt in formatted_combinations]
+            selected_values = selection_map.get(arch_name, [])
+            filtered_selected = [val for val in selected_values if val in available_values]
+            # Select all combinations for disabled architectures
+            if arch_name not in selection_map:
+                filtered_selected = [" + ".join(comb) for comb in all_combinations]
+            default_selected = arch_name in filtered_selected
+            n_selected = len([v for v in filtered_selected if v != arch_name])
+        else:
+            default_selected = (arch_name not in selection_map) or (arch_name in selection_map.get(arch_name, []))
+            n_selected = 0
+
+        # Default configuration tile. Its checkbox is kept in sync with the
+        # default "<arch_name>" entry of the preview checklist (both directions),
+        # see sync_default_to_preview / sync_preview_to_default.
         domain_tiles.append(
              html.Div(
                 children=[
@@ -475,7 +835,7 @@ def update_param_domains(
                                     dcc.Checklist(
                                         options=[{"label": f"{arch_name} (default)", "value": arch_name}],
                                         id={"type": "default-config-checklist", "arch": arch_name, "domain": "default"},
-                                        value=["default"],
+                                        value=[arch_name] if default_selected else [],
                                         style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
                                     ),
                                 ],
@@ -488,14 +848,13 @@ def update_param_domains(
             )
         )
 
-        n_combos = workspace.count_combinations(domains_configs)
-        if n_combos > MAX_PREVIEW_COMBINATIONS:
+        if too_many:
             domain_tiles.append(
                 html.Div(
                     children=[
                         html.Div(
                             children=[
-                                html.H3(f"Preview ({n_combos} combinations)", id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
+                                html.H3(_preview_title(n_combos, default_selected, n_selected), id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
                                 f"Too many combinations to display (> {MAX_PREVIEW_COMBINATIONS})."
                             ],
                         )
@@ -504,21 +863,12 @@ def update_param_domains(
                 )
             )
         else:
-            all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name)
-            if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
-                all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
-            formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
-            available_values = [opt.get("value") for opt in formatted_combinations]
-            selected_values = selection_map.get(arch_name, [])
-            filtered_selected = [val for val in selected_values if val in available_values]
-            # Select all combinations for disabled architectures
-            if arch_name not in selection_map:
-                filtered_selected = [" + ".join(comb) for comb in all_combinations]
             # Preview tile
             domain_tiles.append(
                 html.Div(
                     children=[
-                        html.H3(f"Preview ({n_combos} combinations)", id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
+                        html.H3(_preview_title(n_combos, default_selected, n_selected), id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
+                        _select_all_buttons("preview-config-select-all", {"arch": arch_name}),
                         html.Div(
                             children=[
                                 dcc.Checklist(
@@ -538,25 +888,25 @@ def update_param_domains(
             children=[
                 ui.icon_button(
                     icon=icon("gear", className="icon"),
-                    text="Architecture Settings",
+                    text=context["settings_text"],
                     color="default",
-                    link=f"/arch_editor?arch={arch_name}",
+                    link=context["settings_link"](arch_name),
                     multiline=True,
                     width="135px",
                 ),
                 ui.icon_button(
                     icon=icon("edit", className="icon blue"),
                     text="Edit Configs",
-                    tooltip="Open the Configuration Editor for this architecture",
+                    tooltip=f"Open the Configuration Editor for this {context['mode']}",
                     tooltip_options="bottom delay",
                     color="default",
-                    link=f"/config_editor?arch={arch_name}",
+                    link=context["config_link"](arch_name),
                     multiline=False,
                     width="135px",
                 ),
             ],
             className="inline-flex-buttons",
-        )        
+        )
         job_section = html.Div(
             children=[
                 html.Div(
@@ -571,7 +921,6 @@ def update_param_domains(
                     ], 
                     id=f"param-domain-title-div-{arch_name}",
                     className="card-matrix config",
-                    style={"marginLeft": "-13px"},
                 ),
                 html.Div(
                     children=domain_tiles,
@@ -581,7 +930,7 @@ def update_param_domains(
                 ),
                 dcc.Store(
                     id={"type": "arch-metadata", "arch": arch_name},
-                    data={"arch_name": arch_name},
+                    data={"arch_name": arch_name, "n_combos": n_combos},
                 ),
                 dcc.Store(
                     id={"type": "domain-selections", "arch": arch_name},
@@ -591,7 +940,8 @@ def update_param_domains(
             id = {"type": "job-section", "arch": arch_name},
         )
         job_sections.append(job_section)
-    return job_sections
+    main_title = f"Select {context['mode'] if context['mode'] == 'workflow' else 'architecture'} configurations to run"
+    return job_sections, context["title"], main_title
 
 
 @dash.callback(
@@ -633,8 +983,35 @@ def update_domain_selections(selected_per_domain, domain_ids):
     return domains_configs
 
 @dash.callback(
+    Output({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.MATCH}, "value"),
+    Input({"type": "domain-config-select-all", "arch": dash.MATCH, "domain": dash.MATCH, "action": dash.ALL}, "n_clicks"),
+    State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.MATCH}, "options"),
+    prevent_initial_call=True,
+)
+def domain_select_all(n_clicks, options):
+    triggered = ctx.triggered_id
+    if not isinstance(triggered, dict) or not any(n_clicks or []):
+        raise dash.exceptions.PreventUpdate
+    if triggered.get("action") == "show":
+        return [option["value"] for option in options or []]
+    return []
+
+@dash.callback(
+    Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value", allow_duplicate=True),
+    Input({"type": "preview-config-select-all", "arch": dash.MATCH, "action": dash.ALL}, "n_clicks"),
+    State({"type": "preview-config-checklist", "arch": dash.MATCH}, "options"),
+    prevent_initial_call=True,
+)
+def preview_select_all(n_clicks, options):
+    triggered = ctx.triggered_id
+    if not isinstance(triggered, dict) or not any(n_clicks or []):
+        raise dash.exceptions.PreventUpdate
+    if triggered.get("action") == "show":
+        return [option["value"] for option in options or []]
+    return []
+
+@dash.callback(
     Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
-    Output({"type": "preview-config-title", "arch": dash.MATCH}, "children"),
     Input({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
@@ -688,12 +1065,13 @@ def sync_preview_values(
             removed_values = prev_vals - curr_vals
             break
 
-    # If no clear change is found, do nothing
+    # If no clear change is found, do nothing. The title is intentionally left
+    # untouched: it reflects the total number of available combinations
+    # (fixed at render time in update_param_domains), not how many are
+    # currently checked -- recomputing it from len(current_preview_values)
+    # here would show the checked count instead once any items are unchecked.
     if not changed_domain:
-        n_combos = 0
-        if current_preview_values:
-            n_combos = len(current_preview_values)
-        return current_preview_values or [], f"Preview ({n_combos} combinations)"
+        return current_preview_values or []
 
     # Start from the current preview value (including manual changes)
     preview_set = set(current_preview_values or [])
@@ -739,8 +1117,56 @@ def sync_preview_values(
         preview_set.remove(arch_name)
     result.extend(sorted(preview_set))
 
-    n_combos = len(result)
-    return result, f"Preview ({n_combos} combinations)"
+    return result
+
+
+@dash.callback(
+    Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value", allow_duplicate=True),
+    Input({"type": "default-config-checklist", "arch": dash.MATCH, "domain": "default"}, "value"),
+    State({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def sync_default_to_preview(default_value, preview_value, arch_metadata):
+    """Mirror the 'Default Configuration' checkbox onto the default preview entry."""
+    arch_name = (arch_metadata or {}).get("arch_name", "")
+    default_on = arch_name in (default_value or [])
+    preview_list = list(preview_value or [])
+    has_default = arch_name in preview_list
+    if default_on and not has_default:
+        return [arch_name] + preview_list
+    if not default_on and has_default:
+        return [val for val in preview_list if val != arch_name]
+    raise dash.exceptions.PreventUpdate
+
+
+@dash.callback(
+    Output({"type": "default-config-checklist", "arch": dash.MATCH, "domain": "default"}, "value"),
+    Input({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def sync_preview_to_default(preview_value, arch_metadata):
+    """Mirror the default preview entry back onto the 'Default Configuration' checkbox."""
+    arch_name = (arch_metadata or {}).get("arch_name", "")
+    return [arch_name] if arch_name in (preview_value or []) else []
+
+
+@dash.callback(
+    Output({"type": "preview-config-title", "arch": dash.MATCH}, "children"),
+    Input({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def update_preview_title(preview_value, arch_metadata):
+    """Recompute the preview heading, reflecting whether the default config is selected."""
+    metadata = arch_metadata or {}
+    arch_name = metadata.get("arch_name", "")
+    n_combos = metadata.get("n_combos", 0)
+    selected = preview_value or []
+    default_enabled = arch_name in selected
+    n_selected = len([v for v in selected if v != arch_name])
+    return _preview_title(n_combos, default_enabled, n_selected)
 
 
 @dash.callback(
@@ -750,6 +1176,13 @@ def sync_preview_values(
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
+    Input("override-arch-frequencies", "value"),
+    Input("use-custom-freq-list", "value"),
+    Input("target_frequencies", "value"),
+    Input("use-custom-freq-range", "value"),
+    Input("from_frequency", "value"),
+    Input("to_frequency", "value"),
+    Input("step_frequency", "value"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
     State("jobs-config-saved-selection", "data"),
@@ -762,6 +1195,13 @@ def save_architecture_selections(
     save_n_clicks,
     switch_values,
     preview_values,
+    override_arch_frequencies,
+    use_custom_freq_list,
+    target_frequencies,
+    use_custom_freq_range,
+    from_frequency,
+    to_frequency,
+    step_frequency,
     switch_ids,
     preview_ids,
     saved_selection,
@@ -797,19 +1237,39 @@ def save_architecture_selections(
     # Remove duplicates but keep order
     architectures = list(dict.fromkeys(architectures))
 
+    context = _run_context(search, odatix_settings)
+    run_mode = get_key_from_url(search, "type")
+    selection_key = context["selection_key"]
+    current_settings = {
+        selection_key: architectures,
+    }
+    if run_mode == "custom_freq_synthesis":
+        current_settings["frequencies"] = workspace.create_custom_frequencies_settings_dict(
+            _checklist_enabled(override_arch_frequencies),
+            target_frequencies,
+            from_frequency,
+            to_frequency,
+            step_frequency,
+        )
+
+    if isinstance(saved_selection, dict):
+        saved_settings = saved_selection
+    else:
+        saved_settings = {selection_key: saved_selection or []}
+
     if triggered_id == {"page": page_path, "action": "save-all"}:
         try:
-            settings_path = _get_synth_settings_path(search, odatix_settings or {})
+            settings_path = context["settings_path"]
             base_settings = workspace.load_arch_selection_settings(settings_path)
             payload = {
                 **base_settings,
-                "architectures": architectures,
+                **current_settings,
             }
-            workspace.save_architecture_selection(settings_path, payload)
+            workspace.save_architecture_selection(settings_path, payload, run_mode=run_mode, use_custom_freq_list=use_custom_freq_list, use_custom_freq_range=use_custom_freq_range)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
-                architectures,
+                current_settings,
             )
         except Exception:
             return (
@@ -818,12 +1278,21 @@ def save_architecture_selections(
                 dash.no_update,
             )
 
-    if (saved_selection or []) != architectures:
+    if saved_settings.get(selection_key, []) != current_settings.get(selection_key, []):
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
             dash.no_update,
         )
+
+    if run_mode == "custom_freq_synthesis":
+        saved_frequencies = saved_settings.get("frequencies", {})
+        if saved_frequencies != current_settings.get("frequencies", {}):
+            return (
+                "color-button warning icon-button tooltip bottom small tooltip",
+                "Unsaved changes!",
+                dash.no_update,
+            )
 
     return (
         "color-button disabled icon-button tooltip delay bottom small",
@@ -864,6 +1333,7 @@ def close_run_popup(n):
     State("ask_continue", "value"),
     State("exit_when_done", "value"),
     State("log_size_limit", "value"),
+    State({"page": page_path, "action": "session-dropdown"}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
@@ -877,6 +1347,7 @@ def run_jobs(
     ask_continue,
     exit_when_done,
     log_size_limit,
+    selected_session,
     search,
     page,
     odatix_settings,
@@ -896,10 +1367,11 @@ def run_jobs(
         }
 
     settings = odatix_settings or {}
-    synth_type = get_key_from_url(search, "type")
+    run_mode = get_key_from_url(search, "type")
     tool = get_key_from_url(search, "tool") or "vivado"
 
-    arch_path = settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    # arch_path for architecture modes, workflow_path for workflow mode
+    base_path = _run_context(search, odatix_settings)["base_path"]
     target_path = settings.get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
     work_path_root = settings.get("work_path", OdatixSettings.DEFAULT_WORK_PATH)
 
@@ -922,8 +1394,12 @@ def run_jobs(
 
     _reset_prepare_state()
     global _prepare_synth_type
-    _prepare_synth_type = synth_type
-    if synth_type == "custom_freq_synthesis":
+    global _prepare_runtime_settings
+    _prepare_synth_type = run_mode
+    _prepare_runtime_settings = {
+        "session": _normalize_session_selector(selected_session),
+    }
+    if run_mode == "custom_freq_synthesis":
         run_config_settings_filename = settings.get(
             "custom_freq_synthesis_settings_file",
             OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
@@ -937,7 +1413,7 @@ def run_jobs(
             target=_run_check_custom_freq_settings,
             args=(
                 run_config_settings_filename,
-                arch_path,
+                base_path,
                 tool,
                 work_path,
                 target_path,
@@ -951,7 +1427,7 @@ def run_jobs(
             daemon=True,
         )
         _prepare_thread.start()
-    elif synth_type == "fmax_synthesis":
+    elif run_mode == "fmax_synthesis":
         run_config_settings_filename = settings.get(
             "fmax_synthesis_settings_file",
             OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
@@ -967,7 +1443,7 @@ def run_jobs(
             target=_run_check_fmax_settings,
             args=(
                 run_config_settings_filename,
-                arch_path,
+                base_path,
                 tool,
                 work_path,
                 target_path,
@@ -982,6 +1458,41 @@ def run_jobs(
             daemon=True,
         )
         _prepare_thread.start()
+    elif run_mode == "workflow":
+        run_config_settings_filename = settings.get(
+            "workflow_settings_file",
+            OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE,
+        )
+        work_path = os.path.join(
+            work_path_root,
+            settings.get("workflow_work_path", OdatixSettings.DEFAULT_WORKFLOW_WORK_PATH),
+        )
+
+        _prepare_thread = threading.Thread(
+            target=_run_check_workflow_settings,
+            args=(
+                run_config_settings_filename,
+                base_path,
+                work_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+            ),
+            daemon=True,
+        )
+        _prepare_thread.start()
+
+    else:
+        global _prepare_status
+        message = (
+            "Running this type of job from the GUI is not available yet.\n"
+            "Your selection is saved: launch it from a terminal."
+        )
+        _prepare_log_buffer.write(message)
+        _prepare_status = {"status": "error", "error": message}
+        return {"status": "error", "type": run_mode, "tool": tool, "error": message}
     # else:
     #     run_config_settings_filename = settings.get(
     #         "fmax_synthesis_settings_file",
@@ -1017,7 +1528,7 @@ def run_jobs(
 
     return {
         "status": "checking",
-        "type": synth_type,
+        "type": run_mode,
         "tool": tool,
     }
 
@@ -1043,21 +1554,51 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened):
         run_status = {**run_status, **_prepare_status}
         current_status = run_status.get("status")
 
-    if current_status in ("checking", "checked", "preparing", "prepared", "error"):
+    if current_status in ("checking", "checked", "preparing", "prepared", "launched", "error"):
         log_output = _prepare_log_buffer.getvalue()
         button_class = "color-button success icon-button" if current_status == "checked" else "color-button disabled icon-button"
         redirect_href = dash.no_update
         if current_status == "prepared" and _prepare_parallel_jobs is not None:
-            global _prepare_api_port
-            if _prepare_api_port is None:
-                _, port = _prepare_parallel_jobs.start_api_background(
-                    host="127.0.0.1",
-                    port=8000,
-                    start_headless_on_startup=True,
-                    quiet=True,
-                )
-                _prepare_api_port = port
-            redirect_href = f"/monitor?port={_prepare_api_port}"
+            global _prepare_monitor_href, _prepare_enqueued
+            should_enqueue = False
+            with _prepare_enqueue_lock:
+                if not _prepare_enqueued and _prepare_monitor_href is None:
+                    _prepare_enqueued = True
+                    should_enqueue = True
+
+            if should_enqueue:
+                try:
+                    session_selector = None
+                    if isinstance(_prepare_runtime_settings, dict):
+                        session_selector = _normalize_session_selector(_prepare_runtime_settings.get("session"))
+
+                    state, _response = daemon_control.enqueue_parallel_jobs(
+                        _prepare_parallel_jobs,
+                        session=session_selector,
+                    )
+
+                    session_id = str(state.get("session_id", "")).strip()
+                    session_name = str(state.get("session_name", "")).strip()
+                    if session_id:
+                        _prepare_monitor_href = f"/monitor?session={quote(session_id, safe='')}"
+                    elif session_name:
+                        _prepare_monitor_href = f"/monitor?session={quote(session_name, safe='')}"
+                    else:
+                        host = str(state.get("host", hard_settings.daemon_default_host))
+                        port = int(state.get("port", hard_settings.daemon_default_port))
+                        _prepare_monitor_href = f"/monitor?host={quote(host, safe='')}&port={port}"
+                    run_status = {**run_status, "status": "launched"}
+                except Exception as exc:
+                    with _prepare_enqueue_lock:
+                        _prepare_enqueued = False
+                    run_status = {"status": "error", "error": str(exc)}
+                    if log_output:
+                        log_output = log_output + "\n\n"
+                    log_output = log_output + f"Failed to enqueue jobs in daemon session: {exc}"
+                    return run_status, ansi_to_html_spans(log_output), "color-button disabled icon-button", dash.no_update
+
+            if _prepare_monitor_href is not None:
+                redirect_href = _prepare_monitor_href
         return run_status, ansi_to_html_spans(log_output) if log_output else "", button_class, redirect_href
 
     raise dash.exceptions.PreventUpdate
@@ -1105,15 +1646,36 @@ def confirm_prepare_jobs(n_clicks, run_status):
 
     return {**run_status, "status": "preparing"}, "Preparing jobs...", "color-button disabled icon-button"
 
+# Point the "Choose Targets" button to the current EDA tool
+@dash.callback(
+    Output({"page": page_path, "action": "choose-targets", "is_link": True}, "href"),
+    Input(f"url_{page_path}", "search"),
+)
+def update_choose_targets_link(search):
+    tool = get_key_from_url(search, "tool") or "vivado"
+    return f"/select_targets?tool={quote(tool)}"
+
+
 ######################################
 # Layout
 ######################################
 
 title_buttons = html.Div(
     children=[
+        dcc.Dropdown(
+            id={"page": page_path, "action": "session-dropdown"},
+            options=[
+                {"label": "New session...", "value": "__new_session__"},
+            ],
+            placeholder="Select a session",
+            value="__new_session__",
+            clearable=False,
+            style={"width": "155px", "marginRight": "10px"},
+        ),
         ui.icon_button(
-            id={"page": page_path, "action": "reset-defaults"},
+            id={"page": page_path, "action": "choose-targets"},
             icon=icon("gear", className="icon"),
+            link="/select_targets",  # href updated from the url by update_choose_targets_link
             text="Choose Targets",
             multiline=True,
             tooltip="Go to the Targets page to select targets",
@@ -1141,14 +1703,14 @@ title_buttons = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
-        ui.title_tile("Select architecture configurations to run", buttons=title_buttons, style={"marginLeft": "-13px", "marginTop": "10px", "marginBottom": "10px"}),
+        ui.title_tile("Select architecture configurations to run", id="jobs-config-main-title", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "10px"}),
         html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
-        html.H2("Synthesis Settings", style={"textAlign": "center", "marginBottom": "30px"}),
+        html.H2("Job Settings", style={"textAlign": "center", "marginBottom": "30px"}),
         html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),
         dcc.Store(id="job-settings-initial-settings", data=None),
         # html.H2("Targets", style={"textAlign": "center"}),
         # html.Div(id="target-section", style={"marginBottom": "10px"}),
-        html.H2("Architectures", style={"textAlign": "center"}),
+        html.H2("Architectures", id="job-section-heading", style={"textAlign": "center"}),
         html.Div(id="job-section", style={"marginBottom": "10px"}),
         dcc.Store(id="jobs-config-saved-selection", data=None),
         dcc.Store(id="jobs-config-run-status", data=None),

@@ -24,7 +24,7 @@ from dash_svg import Svg
 from dash import html, dcc
 from dash.development.base_component import Component
 
-from odatix.gui.icons import icon
+from odatix.gui.icons import icon, pictogram
 
 def icon_button(icon, color, text="", id=None, link=None, multiline=False, width="115px", style={}, tooltip:str="", tooltip_options:str="bottom"):  
     """
@@ -39,28 +39,31 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
     """ 
     if text:
         style = {**style, "min-width": width}
+    inner_children = [
+        icon if isinstance(icon, Svg) else html.Img(
+            src=f"/assets/icons/{icon}",
+            alt=text if text else icon.capitalize(),
+            style={"width": "22px", "height": "22px"},
+        ),
+    ]
+    if text:
+        inner_children.append(
+            html.Span(text, style={"fontWeight": "600", "fontSize": "1em", "marginLeft": "6px", "lineHeight": "1.15", "whiteSpace": "nowrap"})
+        )
     content = html.Button(
         html.Div(
-            children=[
-                icon if isinstance(icon, Svg) else html.Img(
-                    src=f"/assets/icons/{icon}",
-                    alt=text if text else icon.capitalize(),
-                    style={
-                        "width": "25px",
-                        "height": "25px",
-                        "marginLeft": "-10px",
-                    }
-                ),
-                html.Span(
-                    text,
-                    style={"fontWeight": "600", "fontSize": "1em", "marginLeft": "5px"} if text else {}
-                ),
-            ],
-            style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start", "marginTop": "-9px" if multiline else "-4px", "width": "100%"},
+            children=inner_children,
+            style={
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "flex-start" if text else "center",
+                "width": "100%",
+                "gap": "0px",
+            },
         ),
         id=id if id else "",
         n_clicks=0,
-        className=f"color-button {color} icon-button {f' tooltip {tooltip_options}' if tooltip else ''}",
+        className=f"color-button {color} icon-button{'' if text else ' icon-only'}{f' tooltip {tooltip_options}' if tooltip else ''}",
         style=style,
         **{'data-tooltip': tooltip},
     )
@@ -232,16 +235,45 @@ def tooltip_icon(tooltip: str="", tooltip_options: str="secondary") -> Component
         **{"data-tooltip": tooltip},
     )
 
+def card_pictogram(name: str, size: str = "52px") -> Component:
+    """Card visual: a clean line-art pictogram (preferred) rendered from the icon set."""
+    return html.Div(pictogram(name, size=size), className="card-pictogram-wrap")
+
+
+def page_header(title: str, subtitle: str = "") -> Component:
+    """Centered page header (title + optional subtitle) in the modern Odatix style."""
+    children = [html.H1(title, className="page-header-title")]
+    if subtitle:
+        children.append(html.P(subtitle, className="page-header-subtitle"))
+    return html.Div(children, className="page-header")
+
+
+def card_grid(children, id: Optional[Union[str, dict]] = None) -> Component:
+    """Responsive auto-fit grid of cards."""
+    kwargs = {"className": "card-grid"}
+    if id is not None:
+        kwargs["id"] = id
+    return html.Div(children, **kwargs)
+
+
 def create_card_button(page: dict) -> Component:
+    """
+    Build a menu card. Prefer an inline line-art pictogram (page["icon"]);
+    fall back to a PNG/SVG image (page["image"]) for backward compatibility.
+    """
+    if page.get("icon"):
+        visual = card_pictogram(page["icon"])
+    else:
+        visual = html.Img(
+            src=page["image"],
+            className="card-img",
+            style={"maxHeight": "72px", "maxWidth": "60%"},
+        )
     options = {
         "className": "card home hover",
         "style": {"textDecoration": "none"},
         "children": [
-            html.Img(
-                src=page["image"],
-                className="card-img",
-                style={"maxHeight": "125px", "maxWidth": "70%"}
-            ),
+            visual,
             html.Div(
                 page["name"],
                 className="card-title",

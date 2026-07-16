@@ -1,0 +1,3 @@
+# This parameter domain is used for command placeholder substitution.
+# Placeholders are injected in task commands through ${road_length}.
+use_parameters: No

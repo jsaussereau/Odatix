@@ -82,7 +82,13 @@ def get_sim_settings(settings_filename):
     sys.exit(-1)
 
   with open(settings_filename, 'r') as f:
-    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    try:
+      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    except Exception as e:
+      printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
+      printc.cyan("error details: ", end="", script_name=script_name)
+      print(str(e))
+      sys.exit(-1)
     try:
       overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
       ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
@@ -116,7 +122,13 @@ def get_workflow_settings(settings_filename):
     sys.exit(-1)
 
   with open(settings_filename, 'r') as f:
-    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    try:
+      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    except Exception as e:
+      printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
+      printc.cyan("error details: ", end="", script_name=script_name)
+      print(str(e))
+      sys.exit(-1)
     try:
       overwrite = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
       ask_continue = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)

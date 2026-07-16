@@ -28,6 +28,7 @@ import csv
 import argparse
 
 import odatix.lib.printc as printc
+import odatix.lib.results_schema as results_schema
 from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.settings as settings
@@ -496,11 +497,11 @@ def calculate_operation(op_str, results, error_if_missing=True, error_prefix="")
 # Export Results
 ######################################
 
-def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, data, metrics_data, metrics_file, use_benchmark, benchmark_file):
+def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file):
   """
   Process the configuration for a specific architecture and extract relevant metrics.
 
-  This function validates the synthesis status for a given configuration and 
+  This function validates the synthesis status for a given configuration and
   architecture, and extracts metrics if the synthesis has completed successfully.
 
   Args:
@@ -510,26 +511,23 @@ def process_configuration(input, target, architecture, configuration, frequency,
       configuration (str): Configuration of the architecture (e.g., specific design options).
       frequency (str | None): Frequency variant for custom frequency synthesis; None for fmax synthesis.
       type (str): Type of results to process (e.g. "fmax_synthesis" or "custom_freq_synthesis").
+      result_key (str): Result type key written to the record meta (e.g. "fmax_synthesis").
       units (dict): Dictionary to store metric units for the synthesis results.
-      data (dict): Dictionary to store extracted metrics for the current configuration.
       metrics_data (dict): Settings specific to the EDA tool being used.
       metrics_file (str): Path to the YAML file containing tool settings.
       use_benchmark (bool): Whether to use benchmark values for metric extraction.
       benchmark_file (str): Path to the benchmark YAML file.
 
   Returns:
-      tuple:
-          - data (dict): Updated dictionary containing extracted metrics.
-          - metrics (dict): Extracted metrics for the current configuration.
+      dict | None: The extracted result record, or None if the synthesis
+      directory is incomplete or corrupted.
 
   Notes:
-      - This function ensures the synthesis status is checked before attempting 
+      - This function ensures the synthesis status is checked before attempting
         to extract metrics.
-      - For `custom_freq_synthesis`, metrics are organized per frequency.
-      - Updates the global `units` dictionary with units for the extracted metrics.
-
-  Raises:
-      None: Errors are logged using `printc.error`, and the function returns None if an error occurs.
+      - Parameter domains extracted alongside the metrics are flattened into
+        the record meta.
+      - Updates the `units` dictionary with units for the extracted metrics.
   """
   if type == "custom_freq_synthesis":
     arch = architecture + "[" + configuration + "] @ " + frequency
@@ -543,31 +541,35 @@ def process_configuration(input, target, architecture, configuration, frequency,
   cur_path = os.path.join(input, arch_path)
   status_log = os.path.join(cur_path, "log", status_filename)
 
-  metrics = {}
-  cur_units = {}
-
   # Check if synthesis completed
   if not os.path.isfile(status_log):
     corrupted_directory(arch_path)
-    return None, None
+    return None
 
   with open(status_log, "r") as f:
     if status_done not in f.read():
       corrupted_directory(arch_path)
-      return None, None
+      return None
 
   # Get values
-  if type == "custom_freq_synthesis":
-    metrics[result_key], cur_units[result_key] = extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
-    data[result_key][target][architecture][configuration][frequency] = metrics[result_key]
-  else:
-    metrics[result_key], cur_units[result_key] = extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
-    data[result_key][target][architecture][configuration] = metrics[result_key]
-  # print(f"metrics[result_key] = {metrics[result_key]}")
+  metrics, cur_units = extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
+
+  # Build the result record
+  meta = {
+    results_schema.META_TYPE: str(result_key),
+    results_schema.META_TARGET: str(target),
+    results_schema.META_ARCHITECTURE: str(architecture),
+    results_schema.META_CONFIGURATION: str(configuration),
+  }
+  if frequency is not None:
+    frequency_value = results_schema.parse_frequency_label(frequency)
+    meta[results_schema.META_FREQUENCY] = frequency_value if frequency_value is not None else str(frequency)
+  param_domains = metrics.pop(results_schema.PARAM_DOMAINS_KEY, None)
+  results_schema.flatten_param_domains(param_domains, meta)
 
   # Update units
-  units.update(cur_units[result_key])
-  return data, metrics
+  units.update(cur_units)
+  return results_schema.make_record(meta, metrics)
 
 
 def export_results(input, output, tools, format, use_benchmark, benchmark_file, result_types, custom_metrics_file=None):
@@ -641,10 +643,8 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
   for tool in tools:
     _reset_banned_lists()
 
-    data = {}
+    records = []
     units = {}
-    cur_units = {}
-    metrics = {}
 
     # Get tool setting file
     tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, tool_settings_filename)
@@ -685,7 +685,6 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
     for result_type in result_types:
       result_key = result_types[result_type]["key"]
       work_path = result_types[result_type]["path"]
-      data[result_key] = {}
       printc.cyan("Export " + tool + " " + result_key + " results", script_name)
 
       input = os.path.join(input_path, work_path, tool)
@@ -696,32 +695,24 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
         continue
 
       for target in dirs:
-        data[result_key][target] = {}
         for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
-          data[result_key][target][architecture] = {}
           for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
             if result_type == "custom_freq_synthesis":
-              data[result_key][target][architecture][configuration] = {}
               for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
-                process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, data, metrics_data, metrics_file, use_benchmark, benchmark_file)
-              if data == None:
-                continue
+                record = process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file)
+                if record is not None:
+                  records.append(record)
             else:
-              process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, data, metrics_data, metrics_file, use_benchmark, benchmark_file)
-            
-            if data == None:
-              continue
+              record = process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file)
+              if record is not None:
+                records.append(record)
 
     # Export to the desired format
-    os.makedirs(output, exist_ok=True)
     output_file = os.path.join(output, "results_" + tool + ".yml")
     try:
-      with open(output_file, "w") as file:
-        yaml.dump(
-          {"units": units, "fmax_synthesis": data["fmax_synthesis"], "custom_freq_synthesis": data["custom_freq_synthesis"]}, file, default_style=None, default_flow_style=False, sort_keys=False
-        )
-        printc.say('Results written to "' + output_file + '"', script_name=script_name)
-        printc.note("Run 'odatix-explorer' to explore the results", script_name=script_name)
+      results_schema.dump_results_file(output_file, units, records)
+      printc.say('Results written to "' + output_file + '"', script_name=script_name)
+      printc.note("Run 'odatix-explorer' to explore the results", script_name=script_name)
     except Exception as e:
       printc.error('Could not write "' + output_file + '"', script_name=script_name)
       printc.cyan("error details: ", script_name=script_name, end="")
@@ -765,30 +756,21 @@ def _load_metrics_for_tool(tool, custom_metrics_file=None):
 
 
 def _load_existing_results(output_file):
-  payload = {
-    "units": {},
-    "fmax_synthesis": {},
-    "custom_freq_synthesis": {},
-  }
-
+  """
+  Load an existing results file (any supported format version) as
+  (units, records). Older formats are auto-converted to v2 records, so the
+  next write upgrades the file in place.
+  """
   if not os.path.isfile(output_file):
-    return payload
+    return {}, []
 
-  with open(output_file, "r") as f:
-    try:
-      loaded = yaml.safe_load(f)
-    except yaml.YAMLError:
-      return payload
+  try:
+    results_file = results_schema.load_results_file(output_file)
+  except Exception:
+    printc.warning('Could not parse existing results file "' + output_file + '", starting over', script_name=script_name)
+    return {}, []
 
-  if not isinstance(loaded, dict):
-    return payload
-
-  for key in payload:
-    value = loaded.get(key)
-    if isinstance(value, dict):
-      payload[key] = value
-
-  return payload
+  return results_file.units, results_file.records
 
 
 def configure_synthesis_job_exports(
@@ -907,20 +889,9 @@ def export_single_job_result(job, export_config=None):
 
   output_dir = os.path.realpath(output_dir)
   output_file = os.path.join(output_dir, "results_" + tool + ".yml")
-  payload = _load_existing_results(output_file)
+  units, records = _load_existing_results(output_file)
 
-  units = payload["units"]
-  data = {
-    "fmax_synthesis": payload["fmax_synthesis"],
-    "custom_freq_synthesis": payload["custom_freq_synthesis"],
-  }
-
-  data[result_type].setdefault(target, {})
-  data[result_type][target].setdefault(architecture, {})
-  if result_type == "custom_freq_synthesis":
-    data[result_type][target][architecture].setdefault(configuration, {})
-
-  updated_data, _ = process_configuration(
+  record = process_configuration(
     input=input_tool_path,
     target=target,
     architecture=architecture,
@@ -929,34 +900,23 @@ def export_single_job_result(job, export_config=None):
     type=result_type,
     result_key=result_type,
     units=units,
-    data=data,
     metrics_data=metrics_data,
     metrics_file=metrics_file,
     use_benchmark=use_benchmark,
     benchmark_file=benchmark_file,
   )
 
-  if updated_data is None:
+  if record is None:
     printc.warning(
       "Could not export results for " + target + "/" + architecture + "/" + configuration,
       script_name=script_name,
     )
     return False
 
-  os.makedirs(output_dir, exist_ok=True)
+  records = results_schema.upsert_records(records, [record])
+
   try:
-    with open(output_file, "w") as file:
-      yaml.dump(
-        {
-          "units": units,
-          "fmax_synthesis": data.get("fmax_synthesis", {}),
-          "custom_freq_synthesis": data.get("custom_freq_synthesis", {}),
-        },
-        file,
-        default_style=None,
-        default_flow_style=False,
-        sort_keys=False,
-      )
+    results_schema.dump_results_file(output_file, units, records)
   except Exception as e:
     printc.error('Could not write "' + output_file + '"', script_name=script_name)
     printc.cyan("error details: ", script_name=script_name, end="")

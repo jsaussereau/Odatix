@@ -64,10 +64,13 @@ set timing_rep         $report_path/timing.rep
 set power_rep          $report_path/power.rep
 set freq_rep           $report_path/frequency.rep
 set ref_rep            $report_path/reference.rep
+set design_analysis    $report_path/checkout.rep
+set unresolved_report  $report_path/unresolved.rep
 
 set logfile            $log_path/frequency_search.log
 set statusfile         $log_path/status.log
 set synth_statusfile   $log_path/synth_status.log
+set analysis_statusfile $log_path/analysis_status.log
 
 set target_frequency   100
 set fmax_lower_bound   70
@@ -80,6 +83,7 @@ set continue_on_error  0
 set single_thread      1
 
 set lib_name           WORK
+
 
 
 

@@ -1,0 +1,34 @@
+
+##############################################
+# Odatix settings for workflow
+##############################################
+---
+
+# overwrite existing results
+overwrite:        No   # overridden by -o / --overwrite
+
+# prompt 'Continue? (Y/n)' after settings checks
+ask_continue:     Yes  # overridden by -y / --noask
+
+# exit monitor when all jobs are done
+exit_when_done:   No   # overridden by -E / --exit
+
+# size of the log history per job in the monitor
+log_size_limit:   300  # overridden by --logsize
+
+# maximum number of parallel jobs
+nb_jobs:          8    # overridden by -j / --jobs
+
+workflows:
+
+#--------------------------------------------#
+# Add your own designs!
+#--------------------------------------------#
+
+  #- Your_Design/Your_1st_Configuration
+  #- Your_Design/Your_2nd_Configuration
+  #- Your_Design/Your_3rd_Configuration
+
+  # or 
+  
+  # - Your_Design/*
