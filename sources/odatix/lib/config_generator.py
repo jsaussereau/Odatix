@@ -235,13 +235,35 @@ class ConfigGenerator:
     if self.debug:
       printc.note(f"dimension_vars after set operations: {dimension_vars}", script_name)
 
-    var_names = list(dimension_vars.keys())
-    combos = list(itertools.product(*(dimension_vars[k] for k in var_names)))
+    # Group dimension variables: variables sharing the same non-empty "group"
+    # are zipped together (their values matched position by position) instead of
+    # being cross-combined, so a "couple" of variables stays paired. Ungrouped
+    # variables each form their own singleton group and are cross-combined as
+    # before. The cross product is then taken over the groups.
+    grouped_var_names = self._group_dimension_vars(dimension_vars)
+    group_row_lists = []
+    for members in grouped_var_names:
+      member_values = [dimension_vars[member] for member in members]
+      if len(members) > 1:
+        lengths = [len(values) for values in member_values]
+        if len(set(lengths)) > 1:
+          printc.warning(
+            f'Paired variables {members} have different value counts {lengths}; '
+            f'pairing is truncated to the shortest ({min(lengths)}), in "' + self.yaml_file + '".',
+            script_name,
+          )
+      # zip(*member_values) yields one tuple per paired position (length 1 for
+      # a singleton group), turned into a {variable: value} row.
+      rows = [dict(zip(members, combo)) for combo in zip(*member_values)]
+      group_row_lists.append(rows)
+
     final_configs = {}
     computed_values = {}  # per-variable sets of values computed by function/format/conversion
 
-    for combo in combos:
-      value_map = dict(zip(var_names, combo))
+    for group_combo in itertools.product(*group_row_lists):
+      value_map = {}
+      for row in group_combo:
+        value_map.update(row)
       for variable, config in self.variables.items():
         value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
         if value_type == "function":
@@ -290,6 +312,39 @@ class ConfigGenerator:
     all_vars_values.update(all_dim_var_values)
     all_vars_values.update(all_source_dim_var_values)
     return final_configs, all_vars_values
+
+  def _variable_group(self, variable):
+    """Return the non-empty "group" label of a variable, or None if ungrouped."""
+    config = self.variables.get(variable, {})
+    group = config.get("group", None) if isinstance(config, dict) else None
+    if group is None or str(group).strip() == "":
+      return None
+    return str(group).strip()
+
+  def _group_dimension_vars(self, dimension_vars):
+    """
+    Group dimension variable names for the combination step.
+
+    Variables sharing the same non-empty "group" are returned together (to be
+    zipped); every other variable forms its own singleton group. Order follows
+    the first appearance of each variable / group.
+
+    Returns:
+        list of lists of variable names.
+    """
+    ordered_groups = []
+    group_lists = {}
+    for variable in dimension_vars:
+      group = self._variable_group(variable)
+      if group is None:
+        ordered_groups.append([variable])
+      elif group in group_lists:
+        group_lists[group].append(variable)
+      else:
+        new_group = [variable]
+        group_lists[group] = new_group
+        ordered_groups.append(new_group)
+    return ordered_groups
 
   def format_value_map(self, value_map):
     """

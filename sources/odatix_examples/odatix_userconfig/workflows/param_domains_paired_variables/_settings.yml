@@ -1,0 +1,55 @@
+# Design sources (that will be coppied into each work directory)
+sources:
+  path: examples/workflow_param_domains_cli
+  blacklist:
+    - "*.log"
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: "Progress: ([0-9]+)"
+
+# Generated design settings
+use_parameters: No
+
+# Design workflow settings
+tasks:
+  - name: main
+    commands:
+      - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing} --road_length ${road_length}
+
+# This example showcases paired ("grouped") variables: max_speed and
+# road_length share the same "group" label, so their values are zipped
+# together (35kmh <-> 1km, 90kmh <-> 10km) instead of being cross-combined,
+# modeling two coherent road profiles (urban / highway) rather than every
+# possible (speed, length) combination. num_vehicles and signal_timing are
+# ungrouped and still cross-combine normally with the paired road profiles.
+#
+# Total variants: 2 road profiles x 2 num_vehicles x 2 signal_timing = 8
+# (versus 2 x 2 x 2 x 2 = 16 without pairing).
+generate_configurations_settings:
+  variables:
+    max_speed:
+      type: list
+      unit: kmh
+      group: road_profile
+      settings:
+        list: [35, 90]
+
+    road_length:
+      type: list
+      unit: km
+      group: road_profile
+      settings:
+        list: [1, 10]
+
+    num_vehicles:
+      type: list
+      settings:
+        list: [100, 300]
+
+    signal_timing:
+      type: list
+      unit: s
+      settings:
+        list: [15, 45]

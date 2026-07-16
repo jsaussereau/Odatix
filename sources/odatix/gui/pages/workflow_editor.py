@@ -32,6 +32,10 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+import odatix.gui.variable_editor as ve
+
+# Variable-editor id namespace for this page.
+VE_PREFIX = "wf-"
 
 page_path = "/workflow_editor"
 
@@ -111,6 +115,7 @@ def normalize_workflow_settings(settings):
             # Only keep canonical keys
             v_type = vcfg.get("type")
             v_format = vcfg.get("format") if "format" in vcfg else None
+            v_group = vcfg.get("group") if "group" in vcfg else None
             vsettings = vcfg.get("settings", {}) if isinstance(vcfg.get("settings", {}), dict) else {}
 
             # Normalize list elements to strings when present
@@ -121,6 +126,8 @@ def normalize_workflow_settings(settings):
             new_vcfg = {"type": v_type, "settings": vsettings}
             if v_format:
                 new_vcfg["format"] = v_format
+            if v_group:
+                new_vcfg["group"] = v_group
 
             vars_copy[vname] = new_vcfg
 
@@ -207,42 +214,16 @@ def wf_build_tasks_list(names, dependencies_vals, commands_vals, path_vals, plat
     return tasks
 
 def wf_build_variables_dict(
-    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals
+    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals
 ):
     """
     Build a "generate_configurations_settings.variables" dict from the variable card field values.
     """
-    variables = {}
-    for idx, title in enumerate(titles):
-        type = types[idx]
-        settings = {}
-        format = format_vals[idx] if format_vals[idx] else None
-        if type == "range":
-            settings["from"] = int(from_vals[idx]) if from_vals[idx] else 0
-            settings["to"] = int(to_vals[idx]) if to_vals[idx] else 0
-            settings["step"] = int(step_vals[idx]) if step_vals[idx] else 1
-        elif type == "power_of_two":
-            settings["from_2^"] = int(from_2_pow_vals[idx]) if from_2_pow_vals[idx] else 0
-            settings["to_2^"] = int(to_2_pow_vals[idx]) if to_2_pow_vals[idx] else 0
-        elif type == "list":
-            settings["list"] = [x.strip() for x in list_vals[idx].split(",") if x.strip()] if list_vals[idx] else []
-        elif type == "multiples":
-            settings["base"] = int(base_vals[idx]) if base_vals[idx] else 1
-            settings["from"] = int(from_vals[idx]) if from_vals[idx] else 0
-            settings["to"] = int(to_vals[idx]) if to_vals[idx] else 0
-        elif type == "function":
-            settings["op"] = op_vals[idx] if op_vals[idx] else ""
-        elif type == "conversion":
-            settings["from"] = from_type_vals[idx] if from_type_vals[idx] else 0
-            settings["to"] = to_type_vals[idx] if to_type_vals[idx] else 0
-            settings["source"] = source_vals[idx] if source_vals[idx] else ""
-        elif type == "format":
-            settings["source"] = source_vals[idx] if source_vals[idx] else ""
-        elif type in {"union", "disjunctive_union", "intersection", "difference"}:
-            settings["sources"] = [x.strip() for x in sources_vals[idx].split(",") if x.strip()] if sources_vals[idx] else []
-        variable = workspace.create_config_gen_variable_dict(name=title, type=type, settings=settings, format=format)
-        variables.update(variable)
-    return variables
+    return ve.build_variables_dict(
+        titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals,
+        from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
+        format_vals, group_vals,
+    )
 
 
 ######################################
@@ -427,162 +408,6 @@ def workflow_form(settings):
         className="tiles-container config",
         style={"marginTop": "-10px", "marginBottom": "20px"},
     )
-
-def wf_variable_field(
-    var: str,
-    type: str = "text",
-    name: str = "",
-    label: Optional[str] = None,
-    options: Optional[list] = None,
-    value: str = "",
-    placeholder: str = "",
-    default_style: dict = Style.hidden,
-):
-    if label is None:
-        label = name
-    return html.Div(
-        children=[
-            html.Div(
-                children=[
-                    html.Label(label, style={"fontWeight": "bold", "fontSize": "1em"}),
-                    dcc.Input(
-                        value=value,
-                        type=type,
-                        placeholder=placeholder,
-                        id={"type": f"wf-variable-field-{name}", "name": var},
-                        className="value-input",
-                        style={
-                            "width": "calc(100% - 10px)",
-                            "marginLeft": "5px",
-                            "marginRight": "5px",
-                            "marginBottom": "5px",
-                            "fontSize": "0.9em",
-                            "height": "10px",
-                            "zIndex": "900",
-                            "padding": "15px 10px",
-                        },
-                    ) if options is None else dcc.Dropdown(
-                        id={"type": f"wf-variable-field-{name}", "name": var},
-                        options=options,
-                        value=value,
-                        clearable=False,
-                        style={
-                            "fontSize": "0.95em",
-                            "zIndex": "900",
-                            "width": "100%",
-                        },
-                    ),
-                ],
-                style={"marginTop": "5px", "width": "100%"},
-            ),
-        ],
-        id={"type": f"wf-variable-field-{name}-div", "name": var},
-        style=default_style
-    )
-
-def wf_variable_card(
-    name, type_value="list",
-    base_value="", from_value="", to_value="",
-    from_2_pow_value="", to_2_pow_value="", step_value="1",
-    from_type_value="dec", to_type_value="hex",
-    op_value="", list_value="", source_value="", sources_value="", format_value="",
-):
-    return html.Div([
-        html.Div([
-            dcc.Input(
-                value=name,
-                type="text",
-                id={"type": "wf-variable-title", "name": name},
-                className="title-input",
-                style={
-                    "width": "100%",
-                    "marginLeft": "5px",
-                    "marginRight": "5px",
-                    "marginTop": "-5px",
-                    "marginBottom": "2px",
-                    "fontWeight": "bold",
-                    "fontSize": "1.1em",
-                    "height": "10px",
-                    "textAlign": "center",
-                },
-            ),
-            dcc.Dropdown(
-                id={"type": "wf-variable-type", "name": name},
-                options=[
-                    {"label": "Boolean", "value": "bool"},
-                    {"label": "List", "value": "list"},
-                    {"label": "Range", "value": "range"},
-                    {"label": "Power of 2", "value": "power_of_two"},
-                    {"label": "Multiples", "value": "multiples"},
-                    {"label": "Function", "value": "function"},
-                    {"label": "Conversion", "value": "conversion"},
-                    {"label": "Format", "value": "format"},
-                    {"label": "Union", "value": "union"},
-                    {"label": "Disjunctive Union", "value": "disjunctive_union"},
-                    {"label": "Intersection", "value": "intersection"},
-                    {"label": "Difference", "value": "difference"},
-                ],
-                value=type_value,
-                clearable=False,
-                style={"width": "100%"},
-            ),
-            html.Div(
-                children=[
-                    wf_variable_field(var=name, name="from", label="From", type="number", value=from_value),
-                    wf_variable_field(var=name, name="to", label="To", type="number", value=to_value),
-                    wf_variable_field(var=name, name="from_2_pow", label="From 2^", type="number", value=from_2_pow_value),
-                    wf_variable_field(var=name, name="to_2_pow", label="To 2^", type="number", value=to_2_pow_value),
-                    wf_variable_field(var=name, name="from_type", label="From type", type="text", options=[{"label": "Bin", "value": "bin"}, {"label": "Dec", "value": "dec"}, {"label": "Hex", "value": "hex"}], value=from_type_value),
-                    wf_variable_field(var=name, name="to_type", label="To type", type="text", options=[{"label": "Bin", "value": "bin"}, {"label": "Dec", "value": "dec"}, {"label": "Hex", "value": "hex"}], value=to_type_value),
-                    wf_variable_field(var=name, name="base", label="Base", type="number", value=base_value),
-                    wf_variable_field(var=name, name="step", label="Step", type="number", value=step_value),
-                    wf_variable_field(var=name, name="op", label="Op", type="text", value=op_value),
-                    wf_variable_field(var=name, name="list", label="List", type="text", placeholder="Comma-separated values", default_style=Style.visible, value=list_value),
-                    wf_variable_field(var=name, name="source", label="Source", type="text", value=source_value),
-                    wf_variable_field(var=name, name="sources", label="Sources", type="text", placeholder="Comma-separated values", value=sources_value),
-                    html.Div(
-                        children=[
-                            wf_variable_field(var=name, name="format", label="Format", type="text", value=format_value),
-                        ],
-                        id={"type": "wf-more-variable-field-div", "name": name},
-                        className="expandable-area",
-                        style=Style.hidden
-                    )
-                ],
-                id="variable-fields-container",
-            ),
-        ]),
-        html.Div([
-            html.Div([
-                ui.icon_button(
-                    icon=icon("more", className="icon normal rotate", id={"type": "wf-more-fields-icon", "name": name}),
-                    color="default",
-                    id={"type": "wf-more-fields", "name": name},
-                    tooltip="Show/Hide extra fields",
-                    tooltip_options="bottom small",
-                )
-            ], id={"type": "wf-more-fields-div", "name": name}, style={"display": "flex", "alignItems": "center"}),
-            html.Div([
-                ui.duplicate_button(id={"type": "wf-duplicate-var", "name": name}),
-                ui.delete_button(id={"type": "wf-delete-var", "name": name}),
-            ], style={"display": "flex", "flexDirection": "hotizontal", "alignItems": "center", "gap": "5px"}),
-        ], style={
-            "marginTop": "8px",
-            "display": "flex",
-            "flexDirection": "row",
-            "width": "100%",
-            "justifyContent": "space-between",
-        }),
-        dcc.Store(id={"type": "wf-variable-metadata", "name": name}, data={"name": name, "type": type_value, "base_value": base_value, "from_value": from_value, "to_value": to_value, "from_2_pow_value": from_2_pow_value, "to_2_pow_value": to_2_pow_value, "from_type_value": from_type_value, "to_type_value": to_type_value, "step_value": step_value, "op_value": op_value, "list_value": list_value, "source_value": source_value, "sources_value": sources_value, "format_value": format_value}),
-    ],
-    className="card configs",
-    id={"type": "wf-variable-card", "name": name},
-    style={
-        "padding": "10px",
-        "margin": "5px",
-        "display": "inline-block",
-        "verticalAlign": "top"
-    })
 
 def wf_task_card(name="main", dependencies_value="", commands_value="", path_value="", platforms_value=""):
     is_main = str(name).strip() == "main"
@@ -769,30 +594,7 @@ def wf_cards_from_tasks(tasks):
     return cards
 
 def wf_cards_from_variables(variables):
-    cards = []
-    if isinstance(variables, dict):
-        for var_name, var_keys in variables.items():
-            if not isinstance(var_keys, dict):
-                continue
-            type_value = var_keys.get("type", "list")
-            var_settings = var_keys.get("settings", {})
-            cards.append(wf_variable_card(
-                name=var_name,
-                type_value=type_value,
-                base_value=str(var_settings.get("base", "")),
-                from_value=str(var_settings.get("from", "")),
-                to_value=str(var_settings.get("to", "")),
-                from_2_pow_value=str(var_settings.get("from_2^", "")),
-                to_2_pow_value=str(var_settings.get("to_2^", "")),
-                step_value=str(var_settings.get("step", "")),
-                from_type_value=str(var_settings.get("from", "")),
-                to_type_value=str(var_settings.get("to", "")),
-                op_value=str(var_settings.get("op", "")),
-                list_value=", ".join(map(str, var_settings.get("list", []))),
-                source_value=str(var_settings.get("source", "")),
-                sources_value=", ".join(map(str, var_settings.get("sources", []))),
-                format_value=str(var_keys.get("format", "")),
-            ))
+    cards = ve.variable_cards_from_dict(VE_PREFIX, variables)
     cards.append(wf_add_card(prefix="wf-variable", text="Add new variable"))
     return cards
 
@@ -960,6 +762,7 @@ def init_form(search, page, odatix_settings):
     Input({"type": "wf-variable-field-source", "name": dash.ALL}, "value"),
     Input({"type": "wf-variable-field-sources", "name": dash.ALL}, "value"),
     Input({"type": "wf-variable-field-format", "name": dash.ALL}, "value"),
+    Input({"type": "wf-variable-field-group", "name": dash.ALL}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("workflow-initial-settings", "data"),
@@ -999,6 +802,7 @@ def save_and_status(
     variable_source_vals,
     variable_sources_vals,
     variable_format_vals,
+    variable_group_vals,
     search,
     page,
     initial_settings,
@@ -1026,7 +830,7 @@ def save_and_status(
         variable_titles, variable_types, variable_base_vals, variable_from_vals, variable_to_vals,
         variable_from_2_pow_vals, variable_to_2_pow_vals, variable_from_type_vals, variable_to_type_vals,
         variable_step_vals, variable_op_vals, variable_list_vals, variable_source_vals, variable_sources_vals,
-        variable_format_vals,
+        variable_format_vals, variable_group_vals,
     )
     generate_configurations_settings = dict(reference_settings.get("generate_configurations_settings", {}))
     generate_configurations_settings["variables"] = variables
@@ -1157,33 +961,12 @@ def update_workflow_title(search):
         Output({"type": "wf-variable-field-source-div", "name": dash.ALL}, "style"),
         Output({"type": "wf-variable-field-sources-div", "name": dash.ALL}, "style"),
         Output({"type": "wf-variable-field-format-div", "name": dash.ALL}, "style"),
+        Output({"type": "wf-variable-field-group-div", "name": dash.ALL}, "style"),
     ],
     Input({"type": "wf-variable-type", "name": dash.ALL}, "value"),
 )
 def update_wf_variable_fields_visibility(types):
-    # Required fields for each type
-    mapping = {
-        "bool":              {"format"},
-        "list":              {"list", "format"},
-        "range":             {"from", "to", "step", "format"},
-        "power_of_two":      {"from_2_pow", "to_2_pow", "format"},
-        "multiples":         {"base", "from", "to", "format"},
-        "function":          {"op", "format"},
-        "conversion":        {"from_type", "to_type", "source", "format"},
-        "format":            {"source", "format"},
-        "union":             {"sources", "format"},
-        "disjunctive_union": {"sources", "format"},
-        "intersection":      {"sources", "format"},
-        "difference":        {"sources", "format"},
-    }
-    all_fields = ["from", "to", "from_2_pow", "to_2_pow", "from_type", "to_type", "base", "step", "op", "list", "source", "sources", "format"]
-
-    styles_by_field = {field: [] for field in all_fields}
-    for t in types:
-        visible = mapping.get(t, set())
-        for field in all_fields:
-            styles_by_field[field].append(Style.visible if field in visible else Style.hidden)
-
+    styles_by_field = ve.field_styles_for_types(types)
     return (
         styles_by_field["from"],
         styles_by_field["to"],
@@ -1198,6 +981,7 @@ def update_wf_variable_fields_visibility(types):
         styles_by_field["source"],
         styles_by_field["sources"],
         styles_by_field["format"],
+        styles_by_field["group"],
     )
 
 @dash.callback(
@@ -1212,24 +996,8 @@ def toggle_wf_more_fields(n_clicks, expandable_area_styles, icon_classes, metada
     trigger_id = ctx.triggered_id
     if not isinstance(trigger_id, dict) or "name" not in trigger_id:
         return [dash.no_update] * len(n_clicks), [dash.no_update] * len(n_clicks)
-
-    index = None
-    for i, clicks in enumerate(n_clicks):
-        current_name = metadata[i].get("name") if metadata and i < len(metadata) else {}
-        if trigger_id.get("name") == current_name:
-            index = i
-            break
-
-    new_expandable_area_styles = list(expandable_area_styles)
-    new_icon_classes = list(icon_classes)
-    if index is not None:
-        if n_clicks[index] % 2 == 0:
-            new_expandable_area_styles[index] = Style.hidden
-            new_icon_classes[index] = "icon normal rotate"
-        else:
-            new_expandable_area_styles[index] = Style.visible
-            new_icon_classes[index] = "icon normal rotate rotated"
-    return new_expandable_area_styles, new_icon_classes
+    names = [m.get("name") if isinstance(m, dict) else None for m in (metadata or [])]
+    return ve.toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, names, trigger_id.get("name"))
 
 @dash.callback(
     Output({"type": "wf-more-task-field-div", "name": dash.ALL}, "style"),
@@ -1280,11 +1048,12 @@ def toggle_wf_task_more_fields(n_clicks, expandable_area_styles, icon_classes, t
     State({"type": "wf-variable-field-list", "name": dash.ALL}, "value"),
     State({"type": "wf-variable-field-source", "name": dash.ALL}, "value"),
     State({"type": "wf-variable-field-sources", "name": dash.ALL}, "value"),
+    State({"type": "wf-variable-field-group", "name": dash.ALL}, "value"),
     prevent_initial_call=True,
 )
 def update_wf_variable_cards(
     new_click, duplicate_clicks, delete_clicks, cards,
-    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
+    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, group_vals,
 ):
     trigger_id = ctx.triggered_id
 
@@ -1302,7 +1071,7 @@ def update_wf_variable_cards(
         while f"var{var_idx}" in existing_names:
             var_idx += 1
         new_name = f"var{var_idx}"
-        cards.append(wf_variable_card(new_name))
+        cards.append(ve.variable_card(VE_PREFIX, new_name))
 
     if isinstance(trigger_id, dict):
         trig_type = trigger_id.get("type")
@@ -1333,7 +1102,8 @@ def update_wf_variable_cards(
                 copy_idx += 1
             new_name = f"{trig_name}_copy{copy_idx}"
 
-            cards.append(wf_variable_card(
+            cards.append(ve.variable_card(
+                        VE_PREFIX,
                         name=new_name,
                         type_value=types[idx],
                         base_value=base_vals[idx],
@@ -1348,6 +1118,7 @@ def update_wf_variable_cards(
                         list_value=list_vals[idx],
                         source_value=sources_vals[idx],
                         sources_value=sources_vals[idx],
+                        group_value=group_vals[idx],
                     ))
 
     cards.append(wf_add_card())
