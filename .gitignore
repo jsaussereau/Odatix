@@ -10,9 +10,9 @@ odatix_venv/
 # Odatix sessions
 .odatix_sessions/
 
+
 # Work
 work/*
-work*
 
 # Vivado
 **/.Xil
@@ -33,14 +33,12 @@ filenames*.log
 LIB_*_autoread
 
 # Genus
-genus.log*
-genus.cmd*
+genus.log
+genus.cmd
 
 # Results
 results/*
-
-#odatix error (for developers)
-odatix_error.log
+results_
 
 # Build
 sources/build
@@ -53,9 +51,22 @@ venv*
 
 # Others
 **/.stamp.*
-examples
-odatix_userconfig
-odatix.yml
+.vscode
+.metals
+.odatix
+.scala-build
+.venv
+.sav
+offline_install
+
+# Chisel
+**/target
+*chisel/rtl
+
+/examples
+/odatix_userconfig
+/odatix.yml
+/odatix_error.log
 
 # Docs
 docs/build
