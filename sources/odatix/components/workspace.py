@@ -698,7 +698,7 @@ def create_config_gen_dict(name: str, template: str, variables: dict) -> dict:
         }
     }
 
-def create_config_gen_variable_dict(name: str, type: str, settings: dict, format: Optional[str]=None) -> dict:
+def create_config_gen_variable_dict(name: str, type: str, settings: dict, format: Optional[str]=None, group: Optional[str]=None) -> dict:
     """
     Create a configuration generation variable dictionary.
 
@@ -706,6 +706,10 @@ def create_config_gen_variable_dict(name: str, type: str, settings: dict, format
         name (str): Name of the variable.
         type (str): Type of the variable (e.g., 'range', 'list', 'function').
         settings (dict): Settings specific to the variable type.
+        format (str): Optional format string for the variable's values.
+        group (str): Optional pairing group. Variables sharing the same group are
+            zipped together (values matched position by position) instead of being
+            cross-combined.
 
     Returns:
         dict: Configuration generation variable dictionary.
@@ -718,6 +722,8 @@ def create_config_gen_variable_dict(name: str, type: str, settings: dict, format
     }
     if format:
         var_dict[name]['format'] = format
+    if group:
+        var_dict[name]['group'] = group
     return var_dict
 
 

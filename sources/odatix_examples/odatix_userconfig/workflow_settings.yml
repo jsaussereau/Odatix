@@ -29,7 +29,11 @@ workflows:
   
   # Multiple virtual parameter domains (variables) replaced in command placeholders
   - param_domains_cli_variables + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
-  
+
+  # Paired ("grouped") variables: max_speed and road_length are zipped together
+  # (2 road profiles) instead of cross-combined, then crossed with the other variables
+  - param_domains_paired_variables + max_speed/* + road_length/* + num_vehicles/* + signal_timing/*
+
   # Multiple parameter domains replaced in command placeholders
   - param_domains_cli + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
 
