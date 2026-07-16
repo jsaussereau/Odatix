@@ -357,6 +357,18 @@ def _figure_title(spec, units):
   return schema.axis_title(spec.y, units)
 
 
+def _apply_axis_scale(axis, log_on, zero_on):
+  """Apply a log or start-at-zero scale to a numeric axis dict (log wins).
+
+  A log axis cannot include zero, so "start at zero" is ignored when log is on.
+  """
+  if log_on:
+    axis["type"] = "log"
+  elif zero_on:
+    axis["rangemode"] = "tozero"
+  return axis
+
+
 def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
   template = plot_themes.get_template(plot_theme)
   auto = template is None
@@ -385,8 +397,11 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
 
   if spec.kind == "radar":
     polar_grid = dict(gridcolor=chrome.get("grid_color")) if auto else {}
+    radialaxis = dict(**polar_grid)
+    if spec.has("log_y"):
+      radialaxis["type"] = "log"
     layout["polar"] = dict(
-      radialaxis=dict(**polar_grid),
+      radialaxis=radialaxis,
       angularaxis=dict(**polar_grid),
     )
     if auto:
@@ -397,9 +412,9 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
       axis_defaults["backgroundcolor"] = TRANSPARENT
     zero = spec.has("zero_axis")
     layout["scene"] = dict(
-      xaxis=dict(title=schema.axis_title(spec.x, units), rangemode="tozero" if zero else "normal", **axis_defaults),
-      yaxis=dict(title=schema.axis_title(spec.y, units), rangemode="tozero" if zero else "normal", **axis_defaults),
-      zaxis=dict(title=schema.axis_title(spec.z, units), rangemode="tozero" if zero else "normal", **axis_defaults),
+      xaxis=_apply_axis_scale(dict(title=schema.axis_title(spec.x, units), **axis_defaults), spec.has("log_x"), zero),
+      yaxis=_apply_axis_scale(dict(title=schema.axis_title(spec.y, units), **axis_defaults), spec.has("log_y"), zero),
+      zaxis=_apply_axis_scale(dict(title=schema.axis_title(spec.z, units), **axis_defaults), spec.has("log_z"), zero),
       camera=dict(eye=dict(x=1.6, y=1.6, z=0.6)),
     )
     layout["legend"] = dict(itemsizing="constant")
@@ -409,11 +424,11 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
     if categories:
       xaxis["categoryorder"] = "array"
       xaxis["categoryarray"] = [_x_label(category, spec) for category in categories]
-    elif spec.has("zero_x") or (spec.kind != "scatter" and spec.has("zero_y")):
-      xaxis["rangemode"] = "tozero"
-    yaxis = dict(title=schema.axis_title(spec.y, units), **grid)
-    if spec.has("zero_y"):
-      yaxis["rangemode"] = "tozero"
+    else:
+      # Numeric x axis only: log scale / start-at-zero (ignored for categorical x).
+      zero_x = spec.has("zero_x") or (spec.kind != "scatter" and spec.has("zero_y"))
+      _apply_axis_scale(xaxis, spec.has("log_x"), zero_x)
+    yaxis = _apply_axis_scale(dict(title=schema.axis_title(spec.y, units), **grid), spec.has("log_y"), spec.has("zero_y"))
     layout["xaxis"] = xaxis
     layout["yaxis"] = yaxis
 

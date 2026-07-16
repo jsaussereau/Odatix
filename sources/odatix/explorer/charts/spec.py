@@ -49,12 +49,12 @@ KIND_LABELS = {
 # and radar accepts any dimension or metric, "x"/"y"/"z" of scatter kinds are
 # metrics).
 CAPABILITIES = {
-  "lines": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "lines", "connect_gaps", "zero_y")),
-  "columns": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "zero_y")),
-  "scatter": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "scatter_lines", "labels", "zero_x", "zero_y")),
-  "scatter3d": dict(axes=("x", "y", "z"), toggles=("legend", "legend_groups", "title", "scatter_lines", "labels", "zero_axis")),
-  "radar": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "close_line", "connect_gaps")),
-  "overview": dict(axes=(), toggles=("legend", "legend_groups", "title", "lines", "connect_gaps", "close_line", "zero_y")),
+  "lines": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "lines", "connect_gaps", "zero_y", "log_x", "log_y")),
+  "columns": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "zero_y", "log_y")),
+  "scatter": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "scatter_lines", "labels", "zero_x", "zero_y", "log_x", "log_y")),
+  "scatter3d": dict(axes=("x", "y", "z"), toggles=("legend", "legend_groups", "title", "scatter_lines", "labels", "zero_axis", "log_x", "log_y", "log_z")),
+  "radar": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "close_line", "connect_gaps", "log_y")),
+  "overview": dict(axes=(), toggles=("legend", "legend_groups", "title", "lines", "connect_gaps", "close_line", "zero_y", "log_x", "log_y")),
 }
 
 TOGGLE_LABELS = {
@@ -69,6 +69,9 @@ TOGGLE_LABELS = {
   "zero_x": "X axis starts at zero",
   "zero_y": "Y axis starts at zero",
   "zero_axis": "Axes start at zero",
+  "log_x": "Log scale X axis",
+  "log_y": "Log scale Y axis",
+  "log_z": "Log scale Z axis",
 }
 
 DEFAULT_TOGGLES = ["legend", "legend_groups", "title", "lines", "connect_gaps", "close_line", "labels", "zero_x", "zero_y", "zero_axis"]
