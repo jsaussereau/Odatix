@@ -293,9 +293,19 @@ def _radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_hea
   )
 
 
+def _scatter_axis_series(sub_df, column):
+  """Values for a scatter axis: numeric when the column holds any numeric value,
+  otherwise the categorical (string) values, so a meta dimension can be plotted
+  on an axis instead of only metrics."""
+  numeric = pd.to_numeric(sub_df[column], errors="coerce")
+  if numeric.notna().any():
+    return numeric
+  return _dimension_series(sub_df, column)
+
+
 def _scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, common):
   axes = [spec.x, spec.y] + ([spec.z] if spec.kind == "scatter3d" else [])
-  points = sub_df[axes].apply(pd.to_numeric, errors="coerce")
+  points = pd.DataFrame({axis: _scatter_axis_series(sub_df, axis) for axis in axes})
   keep = points.notna().all(axis=1)
   points = points[keep]
 

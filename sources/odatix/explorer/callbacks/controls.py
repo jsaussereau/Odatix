@@ -83,16 +83,22 @@ def register_callbacks():
     resolve_defaults(spec, dimensions, metrics)
 
     if kind in ("scatter", "scatter3d"):
-      x_options = _options(metrics)
+      # Scatter axes accept metrics or any dimension (meta), metrics first.
+      axis_options = _options(metrics) + _dimension_options([dim for dim in dimensions if dim not in metrics], include_none=False)
+      x_options = axis_options
+      y_options = axis_options
+      z_options = axis_options
     else:
       x_options = _dimension_options(dimensions, include_none=False) + _options([metric for metric in metrics if metric not in dimensions])
+      y_options = _options(metrics)
+      z_options = _options(metrics)
 
     dim_options = _dimension_options(dimensions)
 
     return (
       x_options, spec.x,
-      _options(metrics), spec.y,
-      _options(metrics), spec.z,
+      y_options, spec.y,
+      z_options, spec.z,
       dim_options, spec.color_by,
       dim_options, spec.symbol_by,
       dim_options, spec.legend_group_by,

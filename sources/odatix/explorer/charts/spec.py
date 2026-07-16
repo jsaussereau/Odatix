@@ -118,18 +118,21 @@ def resolve_defaults(spec, dimensions, metrics):
     return fallback
 
   if spec.kind in ("scatter", "scatter3d"):
-    if spec.x not in metrics:
-      spec.x = metrics[0] if metrics else None
+    # Scatter axes accept metrics or any dimension (meta), metrics preferred.
+    axis_choices = list(metrics) + [dim for dim in dimensions if dim not in metrics]
+    if spec.x not in axis_choices:
+      spec.x = axis_choices[0] if axis_choices else None
     if spec.label_by is None:
       spec.label_by = pick([schema.COL_CONFIGURATION], multi[0] if multi else None)
+    if spec.y not in axis_choices:
+      spec.y = next((choice for choice in axis_choices if choice != spec.x), axis_choices[0] if axis_choices else None)
+    if spec.kind == "scatter3d" and spec.z not in axis_choices:
+      spec.z = next((choice for choice in axis_choices if choice not in (spec.x, spec.y)), spec.y)
   else:
     if spec.x is None or (spec.x not in dimensions and spec.x not in metrics):
       spec.x = pick([schema.COL_CONFIGURATION], multi[0] if multi else (next(iter(dimensions), None)))
-
-  if spec.y not in metrics:
-    spec.y = next((metric for metric in metrics if metric != spec.x), metrics[0] if metrics else None)
-  if spec.kind == "scatter3d" and spec.z not in metrics:
-    spec.z = next((metric for metric in metrics if metric not in (spec.x, spec.y)), spec.y)
+    if spec.y not in metrics:
+      spec.y = next((metric for metric in metrics if metric != spec.x), metrics[0] if metrics else None)
 
   if spec.color_by is None or (spec.color_by != NONE_VALUE and spec.color_by not in dimensions):
     spec.color_by = pick([schema.COL_ARCHITECTURE, schema.COL_WORKFLOW, schema.COL_SOURCE], pick(multi))
