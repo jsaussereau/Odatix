@@ -41,7 +41,7 @@ _PERSIST = dict(persistence=True, persistence_type="session")
 def _dropdown(id, options=None, value=None, clearable=False, persist=True, **kwargs):
   extra = dict(_PERSIST) if persist else {}
   extra.update(kwargs)
-  return dcc.Dropdown(id=id, options=options or [], value=value, clearable=clearable, className="xp-dropdown", **extra)
+  return dcc.Dropdown(id=id, options=options or [], value=value, clearable=clearable, className="xp-dropdown", style={"width": "100%"}, **extra)
 
 
 def build_sidebar(kind):

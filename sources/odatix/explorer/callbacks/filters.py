@@ -50,11 +50,14 @@ def register_callbacks():
     Input("xp-symbol-by", "value"),
     Input("xp-palette", "value"),
     Input("xp-toggles", "value"),
-    State("xp-filter-state", "data"),
+    Input("xp-filter-state", "data"),
   )
   def rebuild_filter_panel(_version, sources, color_by, symbol_by, palette, toggles, filter_state):
-    df = query.select_dataframe(STORE, sources=sources)
-    dimensions, _ = query.discover(df, STORE, sources)
+    # Cross-filter each dimension by the others so that disabling a value (e.g.
+    # an architecture or a workflow) prunes the dependent values (its
+    # configurations) from the panel. Driven by xp-filter-state, updated by
+    # remember_filter_state, so a rebuild settles after one pass.
+    dimensions = query.cascaded_dimensions(STORE, sources, filter_state)
     full_df = STORE.dataframe()
     global_dimensions, _ = query.discover(full_df, STORE) if not full_df.empty else ({}, [])
     return ui_filters.build_filter_panel(

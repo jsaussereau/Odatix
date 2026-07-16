@@ -91,3 +91,37 @@ def discover(df, store, sources=None):
       metrics.append(metric)
 
   return dimensions, metrics
+
+
+def cascaded_dimensions(store, sources, filter_state):
+  """
+  Discover per-dimension available values with cross-filtering.
+
+  Each dimension's values are taken from the data filtered by the *other*
+  dimensions' current selections (read from filter_state, where a value defaults
+  to selected when not remembered). Disabling a value in one dimension therefore
+  prunes the dependent values of the other dimensions (e.g. deselecting an
+  architecture removes its configurations), while a dimension never prunes its
+  own list, so any value can always be re-enabled.
+
+  Returns:
+      dict: {dimension: [values]} for the panel, in discovery order.
+  """
+  base_df = select_dataframe(store, sources=sources)
+  base_dimensions, _ = discover(base_df, store, sources)
+  state = filter_state or {}
+
+  allowed = {}
+  for dimension, values in base_dimensions.items():
+    remembered = state.get(dimension, {})
+    allowed[dimension] = [value for value in values if remembered.get(value, True)]
+
+  dimensions = {}
+  for dimension in base_dimensions:
+    other_filters = {other: allowed[other] for other in base_dimensions if other != dimension}
+    sub_df = select_dataframe(store, sources=sources, filters=other_filters)
+    values = dimension_values(sub_df, dimension)
+    if values:
+      dimensions[dimension] = values
+
+  return dimensions
