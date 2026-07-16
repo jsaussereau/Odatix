@@ -1,6 +1,8 @@
 import os
 import re
 
+import odatix.lib.hard_settings as hard_settings
+
 ## define colors
 RED     = "\033[91m"
 GREEN   = "\033[92m"
@@ -249,6 +251,27 @@ def get_dc_unresolved_info(log_file):
     return len(unresolved_instances), unresolved_instances
 
 
+def is_analysis_complete(log_dir):
+    """
+    Return True if the analysis of this job reached its completion marker.
+
+    A finished analysis writes "Done: 100%" (hard_settings.valid_status) to the
+    synthesis status file at the very end of its flow. If that marker is missing
+    (e.g. the monitor was quit before the job finished, or the process was
+    killed), the analysis is considered incomplete and must not be reported as
+    passed.
+    """
+    status_file = os.path.join(log_dir, hard_settings.synth_status_filename)
+    if not os.path.isfile(status_file):
+        return False
+    try:
+        with open(status_file, "r", errors="ignore") as f:
+            content = f.read()
+    except OSError:
+        return False
+    return hard_settings.valid_status in content
+
+
 def generate_analysis_summary(root_dir, output_file, tool):
     results = []
 
@@ -284,6 +307,12 @@ def generate_analysis_summary(root_dir, output_file, tool):
         if errors:
             status = "FAILED"
             error_message = get_most_relevant_error(errors)
+        elif not is_analysis_complete(root):
+            # No error was logged, but the analysis never reached its completion
+            # marker (interrupted / quit before the end): do not report it as
+            # passed, its warnings/pass verdict cannot be trusted.
+            status = "INCOMPLETE"
+            error_message = ""
         elif total_warn_count > 0:
             status = "WARNING"
             error_message = ""
@@ -307,16 +336,18 @@ def generate_analysis_summary(root_dir, output_file, tool):
         print(f"{YELLOW}⚠ No analysis logs found in the specified directory.{RESET}")
         return {
             "tool": tool, "total": 0, "passed": 0, "PASSED": 0,
-            "warnings": 0, "WARNINGS": 0, "failed": 0, "FAILED": 0, "results": []
+            "warnings": 0, "WARNINGS": 0, "incomplete": 0, "INCOMPLETE": 0,
+            "failed": 0, "FAILED": 0, "results": []
         }
 
-    status_order = {"FAILED": 0, "WARNING": 1, "PASSED": 2}
+    status_order = {"FAILED": 0, "INCOMPLETE": 1, "WARNING": 2, "PASSED": 3}
     results.sort(key=lambda x: (status_order[x["status"]], x["architecture"]))
 
     total = len(results)
     passed = sum(1 for r in results if r["status"] == "PASSED")
     failed = sum(1 for r in results if r["status"] == "FAILED")
     warnings_cnt = sum(1 for r in results if r["status"] == "WARNING")
+    incomplete = sum(1 for r in results if r["status"] == "INCOMPLETE")
     total_warnings_sum = sum(r["warning_count"] for r in results)
 
     # Generate Output File Report
@@ -324,7 +355,7 @@ def generate_analysis_summary(root_dir, output_file, tool):
         f.write("=========================================\n")
         f.write("         ANALYSIS SUMMARY\n")
         f.write("=========================================\n\n")
-        f.write(f"Total: {total} | PASSED: {passed} | TOTAL WARNINGS: {total_warnings_sum} | FAILED: {failed}\n\n")
+        f.write(f"Total: {total} | PASSED: {passed} | TOTAL WARNINGS: {total_warnings_sum} | INCOMPLETE: {incomplete} | FAILED: {failed}\n\n")
 
         for result in results:
             if result["status"] == "PASSED":
@@ -339,6 +370,8 @@ def generate_analysis_summary(root_dir, output_file, tool):
                         f.write(f"    -> {remaining} more critical warning(s).... please check the log file\n")
                 if result["standard_warning_count"] > 0:
                     f.write(f"    -> Info: {result['standard_warning_count']} standard warning(s) masked. Check log file for layout metrics.\n")
+            elif result["status"] == "INCOMPLETE":
+                f.write(f"{result['architecture']}: / INCOMPLETE (analysis did not finish)\n")
             else:
                 f.write(f"{result['architecture']}: ✗ FAILED\n")
                 f.write(f"    -> {result['error']}\n")
@@ -352,7 +385,7 @@ def generate_analysis_summary(root_dir, output_file, tool):
     tool_name = TOOL_NAMES.get(current_tool, str(current_tool).upper())
 
     print(f"{CYAN}TOOL:{RESET} {BOLD}{BLUE}{tool_name}{RESET}\n")
-    print(f"{BOLD}Total: {GREEN}✓ PASSED: {passed}{RESET} | {YELLOW}⚠ WARNING: {warnings_cnt}{RESET} | {RED}✗ FAILED: {failed}{RESET}\n")
+    print(f"{BOLD}Total: {GREEN}✓ PASSED: {passed}{RESET} | {YELLOW}⚠ WARNING: {warnings_cnt}{RESET} | {MAGENTA}/ INCOMPLETE: {incomplete}{RESET} | {RED}✗ FAILED: {failed}{RESET}\n")
 
     for result in results:
         arch = result['architecture']
@@ -360,7 +393,12 @@ def generate_analysis_summary(root_dir, output_file, tool):
 
         if result["status"] == "PASSED":
             print(f"{GREEN}✓  {BOLD}{arch}{RESET}")
-            
+
+        elif result["status"] == "INCOMPLETE":
+            print(f"{MAGENTA}/  {BOLD}{arch}{RESET}")
+            print(f"   ├─ {MAGENTA}Analysis did not finish (interrupted before completion){RESET}")
+            print(f"   └─ Log: For more info please check {MAGENTA}{log_path}{RESET}")
+
         elif result["status"] == "WARNING":
             print(f"{YELLOW}⚠  {BOLD}{arch}{RESET} {YELLOW}({result.get('warning_count', 0)} warnings){RESET}")
             bbs = result.get("blackbox_warnings", [])
@@ -390,6 +428,8 @@ def generate_analysis_summary(root_dir, output_file, tool):
         "PASSED": passed,
         "warnings": warnings_cnt,
         "WARNINGS": warnings_cnt,
+        "incomplete": incomplete,
+        "INCOMPLETE": incomplete,
         "failed": failed,
         "FAILED": failed,
         "results": results
