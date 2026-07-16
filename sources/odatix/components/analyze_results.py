@@ -51,7 +51,8 @@ def get_analysis_errors(log_file):
 
             # Process lookahead windows for Genus undeclared variables
             if genus_lookahead_lines_left > 0:
-                if match := re.search(r"Symbol '([^']+)'", line_str):
+                match = re.search(r"Symbol '([^']+)'", line_str)
+                if match:
                     errors.append(f"Undeclared variable: {match.group(1)}")
                     genus_lookahead_lines_left = 0
                     genus_error_pending = False
@@ -69,7 +70,8 @@ def get_analysis_errors(log_file):
 
             # DC: VER-956
             elif "VER-956" in line_str:
-                if match := re.search(r"The symbol '([^']+)' is not defined", line_str):
+                match = re.search(r"The symbol '([^']+)' is not defined", line_str)
+                if match:
                     errors.append(f"Undeclared variable: {match.group(1)}")
                 else:
                     errors.append(line_str) # Save full line context
@@ -96,14 +98,16 @@ def get_analysis_errors(log_file):
 
             # Vivado: undeclared signal
             elif "is not declared" in line_str:
-                if match := re.search(r"'([^']+)' is not declared", line_str):
+                match = re.search(r"'([^']+)' is not declared", line_str)
+                if match:
                     errors.append(f"Undeclared signal: {match.group(1)}")
                 else:
                     errors.append("Undeclared signal")
 
             # Vivado: module not found
             elif "module '" in line_str and "not found" in line_str:
-                if match := re.search(r"module '([^']+)' not found", line_str):
+                match = re.search(r"module '([^']+)' not found", line_str)
+                if match:
                     errors.append(f"Module not found: {match.group(1)}")
                 else:
                     errors.append("Module not found")
@@ -132,7 +136,8 @@ def get_analysis_errors(log_file):
 
 def get_most_relevant_error(errors):
     for priority in ERROR_PRIORITY:
-        if match := next((err for err in errors if priority in err), None):
+        match = next((err for err in errors if priority in err), None)
+        if match:
             return match
     return errors[0] if errors else ""
 
@@ -151,7 +156,8 @@ def get_genus_unresolved_info(unresolved_file):
             if line_str.startswith("hinst:"):
                 unresolved_instances.append(line_str.replace("hinst:", ""))
 
-            if match := re.search(r"Total number of unresolved references.*:\s*(\d+)", line_str):
+            match = re.search(r"Total number of unresolved references.*:\s*(\d+)", line_str)
+            if match:
                 unresolved_count = int(match.group(1))
 
     return unresolved_count, unresolved_instances
@@ -167,18 +173,22 @@ def get_dc_unresolved_info(log_file):
         for line in f:
             line_str = line.strip()
             
-            if match := re.search(r"Unable to resolve reference '([^']+)' in '([^']+)'", line_str):
-                instance = match.group(1)
+            unable_match = re.search(r"Unable to resolve reference '([^']+)' in '([^']+)'", line_str)
+            cannot_find_match = re.search(r"Cannot find the design '([^']+)'", line_str)
+            has_unresolved_match = re.search(r"Design '([^']+)' has.*unresolved references", line_str)
+
+            if unable_match:
+                instance = unable_match.group(1)
                 if instance not in unresolved_instances:
                     unresolved_instances.append(instance)
-            
-            elif match := re.search(r"Cannot find the design '([^']+)'", line_str):
-                instance = match.group(1)
+
+            elif cannot_find_match:
+                instance = cannot_find_match.group(1)
                 if instance not in unresolved_instances:
                     unresolved_instances.append(f"{instance} (Missing Module)")
-                    
-            elif match := re.search(r"Design '([^']+)' has.*unresolved references", line_str):
-                instance = match.group(1)
+
+            elif has_unresolved_match:
+                instance = has_unresolved_match.group(1)
                 msg = f"Hierarchy Link Issue ({instance})"
                 if msg not in unresolved_instances:
                     unresolved_instances.append(msg)
