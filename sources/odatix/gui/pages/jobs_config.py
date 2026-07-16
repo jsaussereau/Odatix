@@ -428,6 +428,20 @@ def _workflow_virtual_variant_combos(base_path, workflow_name):
     domain_values = {domain: sorted(values) for domain, values in domain_values.items()}
     return combos, domain_values, None
 
+def _select_all_buttons(button_type: str, id_keys: dict) -> html.Div:
+    """Build a 'Select all' / 'Clear' button pair for a checklist.
+
+    button_type is the pattern-matching id "type"; id_keys holds the other
+    wildcard keys identifying the target checklist (e.g. arch/domain).
+    """
+    return html.Div(
+        children=[
+            html.Button("Select all", id={"type": button_type, "action": "show", **id_keys}, n_clicks=0, className="xp-mini-button"),
+            html.Button("Clear", id={"type": button_type, "action": "hide", **id_keys}, n_clicks=0, className="xp-mini-button"),
+        ],
+        className="xp-filter-buttons",
+    )
+
 def _extract_domain_values(arch_name: str, selections) -> dict:
     """Return mapping of domain -> set(values) found in preview selection strings."""
     values_by_domain = {}
@@ -721,6 +735,7 @@ def update_param_domains(
                     html.Div(
                         children=[
                             html.H3(domain if domain != hard_settings.main_parameter_domain else "Main Parameter Domain", style={"marginBottom": "0px"}),
+                            _select_all_buttons("domain-config-select-all", {"arch": arch_name, "domain": domain}),
                             html.Div(
                                 children=checklist,
                                 style={"overflowX": "scroll", "marginBottom": "-10px"},
@@ -823,6 +838,7 @@ def update_param_domains(
                 html.Div(
                     children=[
                         html.H3(f"Preview ({n_combos} combinations)", id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
+                        _select_all_buttons("preview-config-select-all", {"arch": arch_name}),
                         html.Div(
                             children=[
                                 dcc.Checklist(
@@ -935,6 +951,34 @@ def update_domain_selections(selected_per_domain, domain_ids):
         if values:
             domains_configs[domain] = values
     return domains_configs
+
+@dash.callback(
+    Output({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.MATCH}, "value"),
+    Input({"type": "domain-config-select-all", "arch": dash.MATCH, "domain": dash.MATCH, "action": dash.ALL}, "n_clicks"),
+    State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.MATCH}, "options"),
+    prevent_initial_call=True,
+)
+def domain_select_all(n_clicks, options):
+    triggered = ctx.triggered_id
+    if not isinstance(triggered, dict) or not any(n_clicks or []):
+        raise dash.exceptions.PreventUpdate
+    if triggered.get("action") == "show":
+        return [option["value"] for option in options or []]
+    return []
+
+@dash.callback(
+    Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value", allow_duplicate=True),
+    Input({"type": "preview-config-select-all", "arch": dash.MATCH, "action": dash.ALL}, "n_clicks"),
+    State({"type": "preview-config-checklist", "arch": dash.MATCH}, "options"),
+    prevent_initial_call=True,
+)
+def preview_select_all(n_clicks, options):
+    triggered = ctx.triggered_id
+    if not isinstance(triggered, dict) or not any(n_clicks or []):
+        raise dash.exceptions.PreventUpdate
+    if triggered.get("action") == "show":
+        return [option["value"] for option in options or []]
+    return []
 
 @dash.callback(
     Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
