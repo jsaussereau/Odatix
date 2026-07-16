@@ -442,6 +442,20 @@ def _select_all_buttons(button_type: str, id_keys: dict) -> html.Div:
         className="xp-filter-buttons",
     )
 
+def _preview_title(n_combos: int, default_enabled: bool, n_selected: int = 0) -> str:
+    """Format the preview tile heading, accounting for the default config.
+
+    n_combos is the total number of non-default combinations and n_selected how
+    many of them are currently checked, shown as "n_selected/n_combos". The
+    default config is counted separately: "+1 default" when it is enabled
+    alongside other combos, or "1 default" when it is the only selected entry.
+    """
+    if n_combos <= 0:
+        return "Preview (1 default)" if default_enabled else "Preview (0 combinations)"
+    word = "combination" if n_combos == 1 else "combinations"
+    suffix = " +1 default" if default_enabled else ""
+    return f"Preview ({n_selected}/{n_combos} {word}{suffix})"
+
 def _extract_domain_values(arch_name: str, selections) -> dict:
     """Return mapping of domain -> set(values) found in preview selection strings."""
     values_by_domain = {}
@@ -782,7 +796,34 @@ def update_param_domains(
                     )
                 )
 
-        # Default configuration tile
+        # Compute the preview data up-front so the "Default Configuration" tile
+        # and the preview stay consistent about whether the default config
+        # (the bare "<arch_name>" entry) is selected. n_combos counts the
+        # non-default combinations only; the default config is counted apart.
+        n_combos = workspace.count_combinations(domains_configs) + len(virtual_combos)
+        too_many = n_combos > MAX_PREVIEW_COMBINATIONS
+        formatted_combinations = []
+        filtered_selected = []
+        if not too_many:
+            all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name) + virtual_combos
+            if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
+                all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
+            formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
+            available_values = [opt.get("value") for opt in formatted_combinations]
+            selected_values = selection_map.get(arch_name, [])
+            filtered_selected = [val for val in selected_values if val in available_values]
+            # Select all combinations for disabled architectures
+            if arch_name not in selection_map:
+                filtered_selected = [" + ".join(comb) for comb in all_combinations]
+            default_selected = arch_name in filtered_selected
+            n_selected = len([v for v in filtered_selected if v != arch_name])
+        else:
+            default_selected = (arch_name not in selection_map) or (arch_name in selection_map.get(arch_name, []))
+            n_selected = 0
+
+        # Default configuration tile. Its checkbox is kept in sync with the
+        # default "<arch_name>" entry of the preview checklist (both directions),
+        # see sync_default_to_preview / sync_preview_to_default.
         domain_tiles.append(
              html.Div(
                 children=[
@@ -794,7 +835,7 @@ def update_param_domains(
                                     dcc.Checklist(
                                         options=[{"label": f"{arch_name} (default)", "value": arch_name}],
                                         id={"type": "default-config-checklist", "arch": arch_name, "domain": "default"},
-                                        value=["default"],
+                                        value=[arch_name] if default_selected else [],
                                         style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
                                     ),
                                 ],
@@ -807,14 +848,13 @@ def update_param_domains(
             )
         )
 
-        n_combos = workspace.count_combinations(domains_configs) + len(virtual_combos)
-        if n_combos > MAX_PREVIEW_COMBINATIONS:
+        if too_many:
             domain_tiles.append(
                 html.Div(
                     children=[
                         html.Div(
                             children=[
-                                html.H3(f"Preview ({n_combos} combinations)", id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
+                                html.H3(_preview_title(n_combos, default_selected, n_selected), id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
                                 f"Too many combinations to display (> {MAX_PREVIEW_COMBINATIONS})."
                             ],
                         )
@@ -823,21 +863,11 @@ def update_param_domains(
                 )
             )
         else:
-            all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name) + virtual_combos
-            if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
-                all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
-            formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
-            available_values = [opt.get("value") for opt in formatted_combinations]
-            selected_values = selection_map.get(arch_name, [])
-            filtered_selected = [val for val in selected_values if val in available_values]
-            # Select all combinations for disabled architectures
-            if arch_name not in selection_map:
-                filtered_selected = [" + ".join(comb) for comb in all_combinations]
             # Preview tile
             domain_tiles.append(
                 html.Div(
                     children=[
-                        html.H3(f"Preview ({n_combos} combinations)", id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
+                        html.H3(_preview_title(n_combos, default_selected, n_selected), id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
                         _select_all_buttons("preview-config-select-all", {"arch": arch_name}),
                         html.Div(
                             children=[
@@ -900,7 +930,7 @@ def update_param_domains(
                 ),
                 dcc.Store(
                     id={"type": "arch-metadata", "arch": arch_name},
-                    data={"arch_name": arch_name},
+                    data={"arch_name": arch_name, "n_combos": n_combos},
                 ),
                 dcc.Store(
                     id={"type": "domain-selections", "arch": arch_name},
@@ -982,7 +1012,6 @@ def preview_select_all(n_clicks, options):
 
 @dash.callback(
     Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
-    Output({"type": "preview-config-title", "arch": dash.MATCH}, "children"),
     Input({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
@@ -1042,7 +1071,7 @@ def sync_preview_values(
     # currently checked -- recomputing it from len(current_preview_values)
     # here would show the checked count instead once any items are unchecked.
     if not changed_domain:
-        return current_preview_values or [], dash.no_update
+        return current_preview_values or []
 
     # Start from the current preview value (including manual changes)
     preview_set = set(current_preview_values or [])
@@ -1088,9 +1117,56 @@ def sync_preview_values(
         preview_set.remove(arch_name)
     result.extend(sorted(preview_set))
 
-    # Same reasoning as above: the title shows the total available combination
-    # count, not how many ended up checked -- leave it untouched.
-    return result, dash.no_update
+    return result
+
+
+@dash.callback(
+    Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value", allow_duplicate=True),
+    Input({"type": "default-config-checklist", "arch": dash.MATCH, "domain": "default"}, "value"),
+    State({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def sync_default_to_preview(default_value, preview_value, arch_metadata):
+    """Mirror the 'Default Configuration' checkbox onto the default preview entry."""
+    arch_name = (arch_metadata or {}).get("arch_name", "")
+    default_on = arch_name in (default_value or [])
+    preview_list = list(preview_value or [])
+    has_default = arch_name in preview_list
+    if default_on and not has_default:
+        return [arch_name] + preview_list
+    if not default_on and has_default:
+        return [val for val in preview_list if val != arch_name]
+    raise dash.exceptions.PreventUpdate
+
+
+@dash.callback(
+    Output({"type": "default-config-checklist", "arch": dash.MATCH, "domain": "default"}, "value"),
+    Input({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def sync_preview_to_default(preview_value, arch_metadata):
+    """Mirror the default preview entry back onto the 'Default Configuration' checkbox."""
+    arch_name = (arch_metadata or {}).get("arch_name", "")
+    return [arch_name] if arch_name in (preview_value or []) else []
+
+
+@dash.callback(
+    Output({"type": "preview-config-title", "arch": dash.MATCH}, "children"),
+    Input({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def update_preview_title(preview_value, arch_metadata):
+    """Recompute the preview heading, reflecting whether the default config is selected."""
+    metadata = arch_metadata or {}
+    arch_name = metadata.get("arch_name", "")
+    n_combos = metadata.get("n_combos", 0)
+    selected = preview_value or []
+    default_enabled = arch_name in selected
+    n_selected = len([v for v in selected if v != arch_name])
+    return _preview_title(n_combos, default_enabled, n_selected)
 
 
 @dash.callback(
