@@ -1,0 +1,54 @@
+##################################################
+# Settings for Verilator (RTL Analysis)
+##################################################
+
+process_group: True
+
+# Default metrics file for this tool
+default_metrics_file: $eda_tools_path/genus/metrics.yml
+unix:
+
+  constants:
+    - &verilator_unix verilator
+
+  # Check if Verilator is installed
+  tool_test_command:
+    - *verilator_unix
+    - --version
+
+  # RTL Analysis
+  analysis_command:
+    - cd $work_path;
+    - make -f $eda_tools_path/verilator/makefile.mk analyze
+
+# Log formatting
+format:
+
+  logs:
+    error:         ['<error>', 'Error:']
+    warning:       ['<warning>', 'Warning:']
+    info:          ['<note>', 'Information:']
+    trace:         ['<trace>', 'Command:']
+
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    black:         ['<black>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    blue:          ['<blue>']
+    magenta:       ['<magenta>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+    white:         ['<lgrey>']
+    light_red:     ['<lred>']
+    light_green:   ['<lgreen>']
+    light_yellow:  ['<lyellow>']
+    light_blue:    ['<lblue>']
+    light_magenta: ['<lmagenta>']
+    light_cyan:    ['<lcyan>']
+    light_white:   ['<white>']
+
+  replace:
+    - "(.* completed successfully)": "<green>$1<end>"

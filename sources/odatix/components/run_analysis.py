@@ -64,7 +64,7 @@ script_name = os.path.basename(__file__)
 
 
 def add_arguments(parser):
-  parser.add_argument("-t", "--tool", nargs="+", default="vivado", help="eda tool in use (default: vivado)")
+  parser.add_argument("-t", "--tool", nargs="+", default=["vivado"], help="eda tool in use (default: vivado)")
   parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
   parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
   parser.add_argument("-i", "--input", help="input settings file")
@@ -479,14 +479,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
       tool=tool
     )
 
-  print(
-    "[run_analysis.py] Analysis summary generated: "
-    f"{GREEN}{summary['passed']} PASSED{RESET}, "
-    f"{YELLOW}{summary['warnings']} WARNING{RESET}, "
-    f"{RED}{summary['failed']} FAILED{RESET}"
-  )
   return summary
-
 
 def get_colored_table_symbol(status, column_width=12):
   """
@@ -570,9 +563,9 @@ def main(args, settings=None):
       continue
 
     print()
-    printc.bold("=" * 80, printc.colors.CYAN)
+    printc.bold("=" * 96, printc.colors.CYAN)
     printc.bold(f"Running analysis with {current_tool}", printc.colors.GREEN)
-    printc.bold("=" * 80, printc.colors.CYAN)
+    printc.bold("=" * 96, printc.colors.CYAN)
 
     summary = run_analysis(
                 run_config_settings_filename,
@@ -595,6 +588,9 @@ def main(args, settings=None):
   comparison = {}
 
   for tool_name, summary in all_summaries.items():
+    if not summary or "results" not in summary:
+      continue
+      
     for result in summary["results"]:
       arch = result["architecture"]
       arch = arch.replace("/log", "")
@@ -607,23 +603,24 @@ def main(args, settings=None):
         comparison[arch] = {}
       comparison[arch][tool_name] = result["status"]
 
-  # Global Cross-Validation Summary Layout
+  # Global Cross-Validation Summary Layout (Expanded width to 96 for 4 columns)
   print()
-  printc.bold("=" * 80, printc.colors.CYAN)
-  printc.bold("SUMMARY".center(80), printc.colors.YELLOW)
-  printc.bold("=" * 80, printc.colors.CYAN)
+  printc.bold("=" * 96, printc.colors.CYAN)
+  printc.bold("SUMMARY".center(96), printc.colors.YELLOW)
+  printc.bold("=" * 96, printc.colors.CYAN)
 
-  # Column headers match standard fixed widths
-  print(f"{BOLD}{CYAN}{'Architecture':<44} {'DC':^12} {'Genus':^12} {'Vivado':^12}{RESET}")
-  print(f"{CYAN}{'-' * 83}{RESET}")
+  # Column headers match standard fixed widths + added Verilator column
+  print(f"{BOLD}{CYAN}{'Architecture':<44} {'DC':^12} {'Genus':^12} {'Vivado':^12} {'Verilator':^12}{RESET}")
+  print(f"{CYAN}{'-' * 96}{RESET}")
 
   for arch in sorted(comparison):
       dc_cell = get_colored_table_symbol(comparison[arch].get("design_compiler", ""))
       genus_cell = get_colored_table_symbol(comparison[arch].get("genus", ""))
       vivado_cell = get_colored_table_symbol(comparison[arch].get("vivado", ""))
+      verilator_cell = get_colored_table_symbol(comparison[arch].get("verilator", ""))
 
-      # Print line with native space alignments cleanly respected
-      print(f"{arch:<44} {dc_cell} {genus_cell} {vivado_cell}")
+      # Print line with native space alignments cleanly respected across 4 columns
+      print(f"{arch:<44} {dc_cell} {genus_cell} {vivado_cell} {verilator_cell}")
   print()
 
 

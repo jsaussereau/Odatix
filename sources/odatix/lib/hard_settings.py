@@ -79,6 +79,6 @@ daemon_log_prefix = "daemon."
 daemon_log_suffix = ".log"
 daemon_log_enabled_default = False
 
-default_supported_tools = ["vivado", "design_compiler", "openlane", "genus"]
+default_supported_tools = ["vivado", "design_compiler", "openlane", "genus", "verilator"]
 
 invalid_filename_characters = ['<', '>', ':', '"', '/', '\\', '|', '?', '*', ' ']

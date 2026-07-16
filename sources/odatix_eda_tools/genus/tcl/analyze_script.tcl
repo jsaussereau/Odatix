@@ -10,26 +10,17 @@ if {[catch {
 
     source scripts/settings.tcl
     report_progress 5 $synth_statusfile
-    #report_progress 5 $analysis_statusfile
 
     #-----------------------------------------------------------------------------
     # Load technology setup
     #-----------------------------------------------------------------------------
-    #source scripts/genus_setup.tcl
 
 
     #################################################################################
     # GENUS SETUP 
     #################################################################################
 
-    #set LIB_SEARCH_PATHS []
-
-    #lappend LIB_SEARCH_PATHS .
-    #lappend LIB_SEARCH_PATHS /asic/pdk/ams/AMS_410_CDS/liberty/c35_1.8V
-
-    #set_db init_lib_search_path $LIB_SEARCH_PATHS
-
-    #read_libs c35_CORELIB_WC.lib
+    suppress_messages {LBR-9 VLOGPT-6 HPT-76 CDFG-818 VHDL-639 VLOGPT-37 VHDLPT-800 VHDLPT-801}
 
     ## Here it's the absolut path, we have to change for scripts/genus_setup.tcl
     if { [catch { source scripts/genus_setup.tcl } errmsg] } { 
@@ -49,6 +40,9 @@ if {[catch {
     # NOTE: The files in the filelist.f must have the absolute path
     #-----------------------------------------------------------------------------
 
+
+
+    #suppress_messages LBR-9    
 
 
     if {[file exists "$rtl_path/filelist.f"]} {
@@ -96,9 +90,7 @@ if {[catch {
                 exit -1
             }  
 
-            #read_hdl -language v2001 $verilog_filenames
             report_progress 8 $synth_statusfile
-            #report_progress 20 $analysis_statusfile
         }
 
         #-----------------------------------------------------------------------------
@@ -122,10 +114,7 @@ if {[catch {
                 exit -1
             }
 
-
-            #read_hdl -language sv $sverilog_filenames
             report_progress 8 $synth_statusfile
-            #report_progress 20 $analysis_statusfile
         }
 
         
@@ -183,31 +172,7 @@ if {[catch {
 
     check_design -unresolved > $unresolved_report
     check_design -unresolved
-    #report_progress 50 $analysis_statusfile
 
-#    puts ""
-#    puts "============================================================"
-#    puts " TIMING CHECK"
-#    puts "============================================================"
-
-    #check_timing_intent
-    #report_progress 60 $analysis_statusfile
-
-#    puts ""
-#    puts "============================================================"
-#    puts " TIMING LINT"
-#    puts "============================================================"
-
-    #report_timing -lint
-    #report_progress 70 $analysis_statusfile
-
-#    puts ""
-#    puts "============================================================"
-#    puts " CLOCKS"
-#    puts "============================================================"
-
-    #report_clocks
-    #report_progress 85 $analysis_statusfile
 
     report_progress 20 $synth_statusfile
 
@@ -221,17 +186,9 @@ if {[catch {
     puts "Current design: [get_db current_design .name]"
 
 
-    #report_progress 100 $analysis_statusfile
 
     if {[info exists odatix_mode] && $odatix_mode == "analysis"} {
 
-    #    set fp [open "report/analysis.yml" w]
-
-    #    puts $fp "check_design: PASS"
-    #    puts $fp "unresolved_references: 0"
-    #    puts $fp "timing_intent: PASS"
-
-    #    close $fp
 
         # Define arch_name variable for printing 
         set arch_name "Unknown"
@@ -256,6 +213,8 @@ if {[catch {
             }
         }
 
+        report_messages -all
+
 
 
 
@@ -266,7 +225,6 @@ if {[catch {
         puts "----------------------------------------"
 
         puts "Architecture : $arch_name"
-        #puts "Configuration: $variant"
 
         puts "<green> Read Designs         <bold>PASSED<end>"
         if {$unresolved_count == 0} {
@@ -277,7 +235,6 @@ if {[catch {
 
             puts "<yellow> Unresolved Designs     $unresolved_count<end>"
         }
-
 
         puts ""
         puts "<cyan>Press 'q' to view the analysis summary.<end>"
