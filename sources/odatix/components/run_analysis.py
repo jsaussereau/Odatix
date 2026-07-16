@@ -91,54 +91,20 @@ def parse_arguments():
 
 
 ######################################
-# Run Analysis
+# Tool context
 ######################################
 
 
-def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False):
-  _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
+def load_tool_context(tool, target_path):
+  """
+  Validate an eda tool (target file, tool directory) and load its tool and
+  target settings.
 
-  work_path = os.path.join(work_path, tool)
-
-  supported_tools = hard_settings.default_supported_tools
-  if tool not in supported_tools:
-    printc.error(
-      f" Analysis flow is not yet implemented for tool '{tool}'"
-    )
-    printc.note(
-      "Supported tools are: " + ", ".join(supported_tools)
-    )
-    sys.exit(1)
-
-  if architectures is None:
-    printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)
-    printc.note('You must define your architectures in "' + run_config_settings_filename + '" before using this command.', script_name)
-    printc.note("Check out examples Odatix's documentation for more information.", script_name)
-    sys.exit(-1)
-
-  if overwrite:
-    overwrite = True
-  else:
-    overwrite = _overwrite
-
-  if exit_when_done:
-    exit_when_done = True
-  else:
-    exit_when_done = _exit_when_done
-
-  if log_size_limit is not None:
-    log_size_limit = int(log_size_limit)
-  else:
-    log_size_limit = _log_size_limit
-
-  if nb_jobs is not None:
-    nb_jobs = int(nb_jobs)
-  else:
-    nb_jobs = _nb_jobs
-
-  if noask:
-    ask_continue = False
-
+  Returns:
+      dict: eda_target_filename, tool_settings_file, process_group,
+      run_command, tool_test_command, targets, constraint_file,
+      install_path, force_single_thread.
+  """
   eda_target_filename = os.path.realpath(os.path.join(target_path, "target_" + tool + ".yml"))
 
   # Check if the target file exists
@@ -166,9 +132,6 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   # Get tool settings
   tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
   process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file,  synth_type='analysis')
-  #print("\033[91m========== DEBUG ==========\033[0m")
-  #print("\033[93mrun_command =\033[0m", run_command)
-  #print("\033[91m===========================\033[0m")
 
   with open(eda_target_filename, "r") as f:
     try:
@@ -204,7 +167,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
 
   # Concat all strings if it is a list
   if isinstance(tool_test_command, list):
-    tool_test_command = " ".join(map(str, tool_test_command)) 
+    tool_test_command = " ".join(map(str, tool_test_command))
 
   # Define user accessible variables
   variables = Variables(
@@ -216,11 +179,95 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   # Replace variables in command
   tool_test_command = replace_variables(tool_test_command, variables)
 
-  # Try launching eda tool
-  if check_eda_tool:
-    check_tool(
-      tool, command=tool_test_command, supported_tools=hard_settings.default_supported_tools, tool_install_path=install_path, debug=debug
-    )
+  return {
+    "eda_target_filename": eda_target_filename,
+    "tool_settings_file": tool_settings_file,
+    "process_group": process_group,
+    "run_command": run_command,
+    "tool_test_command": tool_test_command,
+    "targets": targets,
+    "constraint_file": constraint_file,
+    "install_path": install_path,
+    "force_single_thread": force_single_thread,
+  }
+
+
+######################################
+# Prepare Analysis (one eda tool)
+######################################
+
+
+def prepare_analysis(
+  run_config_settings_filename,
+  arch_path,
+  tool,
+  work_path,
+  overwrite,
+  noask,
+  exit_when_done,
+  log_size_limit,
+  nb_jobs,
+  tool_context,
+  job_list,
+  timestamp,
+  display_suffix="",
+  debug=False,
+  keep=False,
+):
+  """
+  Check settings and prepare the analysis jobs of a single eda tool,
+  appending them to the shared job_list (so that several tools can run
+  in one single monitor session, like multi-target synthesis).
+
+  The checklist summary is NOT printed here: the caller merges the
+  arch_handler lists of every tool into one single global checklist.
+
+  Returns:
+      dict: resolved runtime settings for this tool (work_path,
+      tool_settings_file, process_group, arch_handler, ask_continue,
+      exit_when_done, log_size_limit, nb_jobs, valid_arch_count).
+  """
+  _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
+
+  work_path = os.path.join(work_path, tool)
+
+  if architectures is None:
+    printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)
+    printc.note('You must define your architectures in "' + run_config_settings_filename + '" before using this command.', script_name)
+    printc.note("Check out examples Odatix's documentation for more information.", script_name)
+    sys.exit(-1)
+
+  if overwrite:
+    overwrite = True
+  else:
+    overwrite = _overwrite
+
+  if exit_when_done:
+    exit_when_done = True
+  else:
+    exit_when_done = _exit_when_done
+
+  if log_size_limit is not None:
+    log_size_limit = int(log_size_limit)
+  else:
+    log_size_limit = _log_size_limit
+
+  if nb_jobs is not None:
+    nb_jobs = int(nb_jobs)
+  else:
+    nb_jobs = _nb_jobs
+
+  if noask:
+    ask_continue = False
+
+  eda_target_filename = tool_context["eda_target_filename"]
+  tool_settings_file = tool_context["tool_settings_file"]
+  process_group = tool_context["process_group"]
+  run_command = tool_context["run_command"]
+  targets = tool_context["targets"]
+  constraint_file = tool_context["constraint_file"]
+  install_path = tool_context["install_path"]
+  force_single_thread = tool_context["force_single_thread"]
 
   ParallelJob.set_patterns(hard_settings.synth_status_pattern, hard_settings.fmax_status_pattern)
 
@@ -248,24 +295,9 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
     force_single_thread=force_single_thread
   )
 
-  timestamp = get_timestamp_string()
   architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path, keep=keep, timestamp=timestamp)
 
-  # Print checklist summary
-  arch_handler.print_summary()
-
-  # ask to quit or continue
   valid_arch_count = arch_handler.get_valid_arch_count()
-  if valid_arch_count > 0:
-    if ask_continue:
-      printc.bold("\nTotal: " + str(valid_arch_count))
-      ask_to_continue()
-  else:
-    sys.exit(-1)
-
-  print()
-
-  job_list = []
 
   def prepare_job(arch_instance):
     if True:
@@ -444,7 +476,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
         generate_command=arch_instance.generate_command,
         target=arch_instance.target,
         arch=arch_instance.arch_name,
-        display_name=arch_instance.arch_display_name,
+        display_name=arch_instance.arch_display_name + display_suffix,
         status_file=fmax_status_file,
         progress_file=synth_status_file,
         tmp_dir=arch_instance.tmp_dir,
@@ -458,28 +490,145 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   for arch_instance in architecture_instances:
     prepare_job(arch_instance)
 
+  return {
+    "work_path": work_path,
+    "tool_settings_file": tool_settings_file,
+    "process_group": arch_handler.process_group,
+    "arch_handler": arch_handler,
+    "ask_continue": ask_continue,
+    "exit_when_done": exit_when_done,
+    "log_size_limit": log_size_limit,
+    "nb_jobs": nb_jobs,
+    "valid_arch_count": valid_arch_count,
+  }
+
+
+######################################
+# Run Analysis
+######################################
+
+
+def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False):
+  """
+  Run RTL analysis for all selected architectures with one or several eda
+  tools. The jobs of every tool run together in a single monitor session
+  (like multi-target synthesis); one summary is generated per tool afterwards.
+
+  Args:
+      tool (str or list): eda tool(s) to run the analysis with.
+
+  Returns:
+      dict: {tool: analysis summary}
+  """
+  tools = list(dict.fromkeys(tool)) if isinstance(tool, (list, tuple)) else [tool]
+
+  supported_tools = hard_settings.default_supported_tools
+  for current_tool in tools:
+    if current_tool not in supported_tools:
+      printc.error(f"Analysis flow is not yet implemented for tool '{current_tool}'")
+      printc.note("Supported tools are: " + ", ".join(supported_tools))
+      sys.exit(1)
+
+  # Check every eda tool first (target file, tool directory, test launch)
+  tool_contexts = {}
+  for current_tool in tools:
+    tool_contexts[current_tool] = load_tool_context(current_tool, target_path)
+  if check_eda_tool:
+    for current_tool in tools:
+      tool_context = tool_contexts[current_tool]
+      check_tool(
+        current_tool,
+        command=tool_context["tool_test_command"],
+        supported_tools=supported_tools,
+        tool_install_path=tool_context["install_path"],
+        debug=debug,
+      )
+
+  # Same timestamp for the whole batch
+  timestamp = get_timestamp_string()
+
+  # The eda tool is displayed like a target: "arch (tool)" in the checklist
+  # and in the shared monitor
+  multi_tool = len(tools) > 1
+
+  job_list = []
+  prepared_tools = []
+  for current_tool in tools:
+    context = prepare_analysis(
+      run_config_settings_filename=run_config_settings_filename,
+      arch_path=arch_path,
+      tool=current_tool,
+      work_path=work_path,
+      overwrite=overwrite,
+      noask=noask,
+      exit_when_done=exit_when_done,
+      log_size_limit=log_size_limit,
+      nb_jobs=nb_jobs,
+      tool_context=tool_contexts[current_tool],
+      job_list=job_list,
+      timestamp=timestamp,
+      display_suffix=f" ({current_tool})" if multi_tool else "",
+      debug=debug,
+      keep=keep,
+    )
+    prepared_tools.append((current_tool, context))
+
+  # Print one single global checklist for all tools, with the eda tool shown
+  # like a target (same categories as ArchitectureHandler.print_summary)
+  merged_lists = {
+    "cached_archs": [],
+    "overwrite_archs": [],
+    "incomplete_archs": [],
+    "daemon_archs": [],
+    "new_archs": [],
+    "error_archs": [],
+  }
+  for current_tool, context in prepared_tools:
+    suffix = f" ({current_tool})" if multi_tool else ""
+    arch_handler = context["arch_handler"]
+    for key in merged_lists:
+      merged_lists[key] += [entry + suffix for entry in getattr(arch_handler, key)]
+
+  ArchitectureHandler.print_arch_list(merged_lists["cached_archs"], "Existing results (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
+  ArchitectureHandler.print_arch_list(merged_lists["overwrite_archs"], "Existing results (will be overwritten)", printc.colors.YELLOW)
+  ArchitectureHandler.print_arch_list(merged_lists["incomplete_archs"], "Incomplete results (will be overwritten)", printc.colors.YELLOW)
+  ArchitectureHandler.print_arch_list(merged_lists["daemon_archs"], "Already managed in a session (skipped)", printc.colors.CYAN)
+  ArchitectureHandler.print_arch_list(merged_lists["new_archs"], "New architectures", printc.colors.ENDC)
+  ArchitectureHandler.print_arch_list(merged_lists["error_archs"], "Invalid settings, (skipped, see errors above)", printc.colors.RED)
+
+  # Single confirmation for all tools
+  total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
+  if total_valid == 0:
+    sys.exit(-1)
+  if any(context["ask_continue"] for _, context in prepared_tools):
+    printc.bold("\nTotal: " + str(total_valid))
+    ask_to_continue()
+
+  print()
+
+  # Single monitor session with the jobs of every tool
+  first_context = prepared_tools[0][1]
   parallel_jobs = ParallelJobHandler(
     job_list,
-    nb_jobs,
-    arch_handler.process_group,
-    auto_exit=exit_when_done,
-    format_yaml= tool_settings_file,
-    log_size_limit=log_size_limit,
+    first_context["nb_jobs"],
+    first_context["process_group"],
+    auto_exit=first_context["exit_when_done"],
+    format_yaml=first_context["tool_settings_file"],
+    log_size_limit=first_context["log_size_limit"],
   )
-  job_exit_success = parallel_jobs.run()
+  parallel_jobs.run()
 
-
-
-  # Generate global report
-  analysis_file = os.path.join(work_path, "analysis.yml")
-
-  summary = generate_analysis_summary(
-      root_dir=work_path,
+  # Generate one global report per tool
+  all_summaries = {}
+  for current_tool, context in prepared_tools:
+    analysis_file = os.path.join(context["work_path"], "analysis.yml")
+    all_summaries[current_tool] = generate_analysis_summary(
+      root_dir=context["work_path"],
       output_file=analysis_file,
-      tool=tool
+      tool=current_tool,
     )
 
-  return summary
+  return all_summaries
 
 def get_colored_table_symbol(status, column_width=12):
   """
@@ -495,6 +644,9 @@ def get_colored_table_symbol(status, column_width=12):
   elif status == "FAILED":
     raw_symbol = "✗"
     color = RED
+  elif status == "INCOMPLETE":
+    raw_symbol = "/"
+    color = MAGENTA
   else:
     raw_symbol = "-"
     color = BLUE
@@ -545,46 +697,32 @@ def main(args, settings=None):
   keep = args.keep
 
   supported_tools = hard_settings.default_supported_tools
-  all_summaries = {}
-  count = 0
-
+  tools = [current_tool for current_tool in tool if current_tool in supported_tools]
   for current_tool in tool:
-    exit_when_done = True
-
-    # ask for continue only for the first time
-    if count == 1:
-      noask = True
-    else:
-      noask = False
-      count = 1
-
     if current_tool not in supported_tools:
       printc.warning(f"Tool '{current_tool}' is not supported. Skipping.")
-      continue
+  if len(tools) == 0:
+    printc.error("None of the selected tools is supported.", script_name)
+    printc.note("Supported tools are: " + ", ".join(supported_tools), script_name)
+    sys.exit(-1)
 
-    print()
-    printc.bold("=" * 96, printc.colors.CYAN)
-    printc.bold(f"Running analysis with {current_tool}", printc.colors.GREEN)
-    printc.bold("=" * 96, printc.colors.CYAN)
+  # All tools run in a single monitor session
+  all_summaries = run_analysis(
+    run_config_settings_filename,
+    arch_path,
+    tools,
+    work_path,
+    target_path,
+    overwrite,
+    noask,
+    exit_when_done,
+    log_size_limit,
+    nb_jobs,
+    check_eda_tool,
+    debug,
+    keep,
+  )
 
-    summary = run_analysis(
-                run_config_settings_filename,
-                arch_path,
-                current_tool,
-                work_path,
-                target_path,
-                overwrite,
-                noask,
-                exit_when_done,
-                log_size_limit,
-                nb_jobs,
-                check_eda_tool,
-                debug,
-                keep
-            )
-
-    all_summaries[current_tool] = summary
-  
   comparison = {}
 
   for tool_name, summary in all_summaries.items():
