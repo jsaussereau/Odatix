@@ -329,7 +329,7 @@ class ArchitectureHandler:
 
         return "replace", daemon_entries[0]
 
-    def get_architectures(self, architectures, targets, constraint_filename="", install_path="", run_mode="default", keep=False, timestamp=""):
+    def get_architectures(self, architectures, targets, constraint_filename="", install_path="", run_mode="default", keep=False, timestamp="", allow_missing_target_file=False):
 
         self.reset_lists()
         self.architecture_instances = []
@@ -343,20 +343,34 @@ class ArchitectureHandler:
             odatix_path=OdatixSettings.odatix_path,
             odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
         )
-            
-        with open(self.eda_target_filename, 'r') as f:
-            try:
-                settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-            except Exception as e:
-                printc.error("Settings file \"" + self.eda_target_filename + "\" is not a valid YAML file", script_name)
-                printc.cyan("error details: ", end="", script_name=script_name)
-                print(str(e))
-                sys.exit(-1)
-            
+
+        # A missing / None target file is only tolerated when explicitly allowed
+        # (RTL analysis, odatix analyze, does not use target definition files).
+        # Every other flow (synthesis) still requires a valid target file.
+        has_target_file = self.eda_target_filename is not None and os.path.isfile(self.eda_target_filename)
+        if not has_target_file and not allow_missing_target_file:
+            printc.error("Settings file \"" + str(self.eda_target_filename) + "\" does not exist or is not a valid file", script_name)
+            sys.exit(-1)
+
+        if not has_target_file:
+            settings_data = {}
+            script_copy_enable = False
+            script_copy_source = "/dev/null"
+            target_settings = {}
+        else:
+            with open(self.eda_target_filename, 'r') as f:
+                try:
+                    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+                except Exception as e:
+                    printc.error("Settings file \"" + self.eda_target_filename + "\" is not a valid YAML file", script_name)
+                    printc.cyan("error details: ", end="", script_name=script_name)
+                    print(str(e))
+                    sys.exit(-1)
+
             try:
                 script_copy_enable = read_from_list('script_copy_enable', settings_data, self.eda_target_filename, type=bool, optional=True, script_name=script_name)
                 if script_copy_enable:
-                    script_copy_source = read_from_list('script_copy_source', settings_data, self.eda_target_filename, optional=True, script_name=script_name)        
+                    script_copy_source = read_from_list('script_copy_source', settings_data, self.eda_target_filename, optional=True, script_name=script_name)
                     script_copy_source = replace_variables(script_copy_source, variables) # Replace variables in command
 
                     if not os.path.isfile(script_copy_source):
@@ -373,6 +387,9 @@ class ArchitectureHandler:
             except (KeyNotInListError, BadValueInListError):
                 target_settings = {}
 
+        # Expand every (target, architecture) pair into an architecture instance.
+        # For RTL analysis the target list is a single generic entry.
+        if True:
             full_architectures = architectures
             for target in targets:
                 # Overwrite existing script copy settings if there are target specific settings

@@ -80,5 +80,7 @@ daemon_log_suffix = ".log"
 daemon_log_enabled_default = False
 
 default_supported_tools = ["vivado", "design_compiler", "openlane", "genus", "verilator"]
+default_analysis_target = "analysis"
+default_analysis_constraint_file = "analysis_constraints.txt"
 
 invalid_filename_characters = ['<', '>', ':', '"', '/', '\\', '|', '?', '*', ' ']
