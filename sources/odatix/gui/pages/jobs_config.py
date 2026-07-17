@@ -23,6 +23,7 @@ import os
 import threading
 import io
 import contextlib
+import itertools
 from urllib.parse import quote
 import dash
 from dash import html, dcc, Input, Output, State, ctx
@@ -376,6 +377,11 @@ def _run_prepare_synthesis():
         _prepare_status = {"status": "canceled", "error": None}
     except run_analysis.AnalysisCancelled:
         _prepare_status = {"status": "canceled", "error": None}
+    except SystemExit:
+        # abort_if_empty_job_list() calls sys.exit(-1) when every selected job
+        # failed while being built (e.g. a missing design_path): turn that into
+        # a normal error status instead of silently launching an empty session.
+        _prepare_status = {"status": "error", "error": "None of the selected jobs could be prepared. See log above for details."}
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
 
@@ -554,6 +560,52 @@ def _extract_domain_values(arch_name: str, selections) -> dict:
                 continue
             values_by_domain.setdefault(domain, set()).add(value)
     return values_by_domain
+
+def _expand_wildcard_selection(entry: str, domains_configs: dict, arch_name: str) -> list:
+    """
+    Expand a saved selection entry that uses a domain-value wildcard (e.g.
+    "Arch + addr/* + data/5", or the bare main-domain form "Arch/*"), mirroring
+    the wildcard syntax ArchitectureHandler.configuration_wildcard() understands
+    at run time, into every concrete "arch + domain/value + ..." combo string it
+    represents (the exact format produced by workspace.generate_config_combinations).
+
+    Returns [entry] unchanged if it uses no wildcard ("*") value.
+    """
+    parts = [p.strip() for p in str(entry).split(" + ") if p.strip()]
+    if not parts:
+        return []
+
+    constraints = {}
+    order = []
+    for part in parts:
+        if "/" not in part:
+            continue
+        domain, value = part.split("/", 1)
+        if domain == arch_name:
+            domain = hard_settings.main_parameter_domain
+        constraints[domain] = value
+        order.append(domain)
+
+    if "*" not in constraints.values():
+        return [entry]
+
+    value_lists = [
+        domains_configs.get(domain, []) if constraints[domain] == "*" else [constraints[domain]]
+        for domain in order
+    ]
+
+    expanded = []
+    for combo_values in itertools.product(*value_lists):
+        replaced_parts = [
+            f"{arch_name if domain == hard_settings.main_parameter_domain else domain}/{value}"
+            for domain, value in zip(order, combo_values)
+        ]
+        if order and order[0] != hard_settings.main_parameter_domain:
+            combo = [arch_name] + replaced_parts
+        else:
+            combo = replaced_parts
+        expanded.append(" + ".join(combo))
+    return expanded
 
 ######################################
 # UI Components
@@ -845,7 +897,13 @@ def update_param_domains(
             domains_configs[domain] = configurations
             if arch_enabled:
                 domain_selected = selected_domain_values.get(domain, set())
-                checklist_values = [cfg for cfg in configurations if cfg in domain_selected]
+                if "*" in domain_selected:
+                    # Wildcard ("domain/*" or the bare "arch_name/*" main-domain
+                    # form): select every configuration in this domain, like
+                    # ArchitectureHandler.configuration_wildcard() does at run time.
+                    checklist_values = list(configurations)
+                else:
+                    checklist_values = [cfg for cfg in configurations if cfg in domain_selected]
             else:
                 checklist_values = configurations
             checklist = dcc.Checklist(
@@ -921,7 +979,15 @@ def update_param_domains(
             formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
             available_values = [opt.get("value") for opt in formatted_combinations]
             selected_values = selection_map.get(arch_name, [])
-            filtered_selected = [val for val in selected_values if val in available_values]
+            # Expand domain-value wildcards ("domain/*", or the bare "arch/*"
+            # main-domain form) into every concrete combo they represent before
+            # matching against the available combinations: a raw wildcard entry
+            # never matches literally, which used to silently drop it from the
+            # preview (and from what gets saved back on the next Save).
+            expanded_selected = []
+            for entry in selected_values:
+                expanded_selected.extend(_expand_wildcard_selection(entry, domains_configs, arch_name))
+            filtered_selected = [val for val in expanded_selected if val in available_values]
             # Select all combinations for disabled architectures
             if arch_name not in selection_map:
                 filtered_selected = [" + ".join(comb) for comb in all_combinations]
