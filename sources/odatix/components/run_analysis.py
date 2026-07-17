@@ -41,7 +41,7 @@ from odatix.lib.check_tool import check_tool
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
-from odatix.components.run_common import confirm_valid_jobs
+from odatix.components.run_common import confirm_valid_jobs, abort_if_empty_job_list
 from odatix.components.analyze_results import generate_analysis_summary
 
 
@@ -636,6 +636,11 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
     for arch_instance in context["architecture_instances"]:
       context["prepare_job"](arch_instance)
 
+  # An architecture can pass the initial checklist but still fail while its job
+  # is being built (e.g. a missing design_path): do not launch the monitor with
+  # zero jobs if every one of them failed.
+  abort_if_empty_job_list(job_list, script_name=script_name)
+
   # Single monitor session with the jobs of every tool
   first_context = prepared_tools[0][1]
   parallel_jobs = ParallelJobHandler(
@@ -832,6 +837,11 @@ def prepare_synthesis(
   for arch_instance in architecture_instances:
     _check_cancel(cancel_event)
     prepare_job(arch_instance)
+
+  # An architecture can pass the initial checklist but still fail while its job
+  # is being built (e.g. a missing design_path): do not launch the monitor/daemon
+  # session with zero jobs if every one of them failed.
+  abort_if_empty_job_list(job_list, script_name=script_name)
 
   parallel_jobs = ParallelJobHandler(
     job_list,

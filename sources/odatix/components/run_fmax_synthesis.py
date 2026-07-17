@@ -279,6 +279,7 @@ def prepare_synthesis(
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
         check_cancel=lambda: _check_cancel(cancel_event),
+        script_name=script_name,
     )
 
 def start_parallel_jobs(

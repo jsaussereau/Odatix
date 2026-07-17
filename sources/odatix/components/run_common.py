@@ -54,6 +54,21 @@ def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, scri
         raise SystemExit(-1)
 
 
+def abort_if_empty_job_list(job_list, script_name=None):
+    """
+    Some architectures/simulations pass the initial checklist (confirm_valid_jobs)
+    but still fail while their job is actually being built (e.g. a missing
+    design_path): they are skipped rather than appended to job_list. If every
+    job failed this way, job_list ends up empty here; without this check, the
+    monitor/daemon session would still launch with zero jobs to run.
+    """
+    if not job_list:
+        from odatix.lib import printc
+
+        printc.error("None of the selected jobs could be prepared. See errors above for details.", script_name)
+        raise SystemExit(-1)
+
+
 def replace_and_write_param_domains(
     tmp_dir,
     arch_name,

@@ -28,6 +28,7 @@ from odatix.components.replace_params import replace_params
 from odatix.components.run_common import (
     normalize_run_settings,
     confirm_valid_jobs,
+    abort_if_empty_job_list,
     replace_and_write_param_domains,
     start_parallel_jobs as start_parallel_jobs_common,
 )
@@ -297,6 +298,11 @@ def prepare_simulations(
 ):
     for sim_instance in simulation_instances:
         prepare_job(sim_instance)
+
+    # A simulation can pass the initial checklist but still fail while its job
+    # is being built (e.g. a missing design_path): do not launch the
+    # monitor/daemon session with zero jobs if every one of them failed.
+    abort_if_empty_job_list(job_list, script_name=script_name)
 
     parallel_jobs = ParallelJobHandler(
         job_list=job_list,
