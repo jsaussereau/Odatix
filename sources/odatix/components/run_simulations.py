@@ -190,6 +190,9 @@ def check_settings(
          
             # copy design 
             if sim_instance.architecture.design_path is not None:
+                if not os.path.isdir(sim_instance.architecture.design_path):
+                    printc.error('The design directory "' + sim_instance.architecture.design_path + '" does not exist', script_name)
+                    return
                 try:
                     copytree(
                         src=sim_instance.architecture.design_path,

@@ -338,6 +338,9 @@ def prepare_analysis(
 
       # Copy design
       if arch_instance.design_path is not None:
+        if not os.path.isdir(arch_instance.design_path):
+          printc.error('The design directory "' + arch_instance.design_path + '" does not exist', script_name)
+          return
         copytree(
           src=arch_instance.design_path,
           dst=arch_instance.tmp_dir,
