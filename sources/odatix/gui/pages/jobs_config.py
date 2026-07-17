@@ -1873,12 +1873,21 @@ def confirm_prepare_jobs(n_clicks, run_status):
 # Point the "Choose Targets" button to the current EDA tool
 @dash.callback(
     Output({"page": page_path, "action": "choose-targets", "is_link": True}, "href"),
+    Output({"page": page_path, "action": "choose-targets"}, "className"),
     Input(f"url_{page_path}", "search"),
 )
 def update_choose_targets_link(search):
     tool = get_key_from_url(search, "tool") or "vivado"
-    return f"/select_targets?tool={quote(tool)}"
-
+    run_mode = get_key_from_url(search, "type")
+    if run_mode == "analyze":
+        return (
+            f"/select_targets?tool={quote(tool)}",
+            "hidden"
+        )
+    return (
+        f"/select_targets?tool={quote(tool)}",
+        "color-button default icon-button tooltip bottom small tooltip"
+    )
 
 ######################################
 # Layout
