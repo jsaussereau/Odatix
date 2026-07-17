@@ -160,7 +160,7 @@ def parse_csv(file, key, error_if_missing=True, error_prefix=""):
     return None
   with open(file, mode="r") as csv_file:
     try:
-      reader = csv.DictReader(csv_file)
+      reader = csv.DictReader(csv_file, skipinitialspace=True)
       for row in reader:
         if key in row:
           return row[key]
