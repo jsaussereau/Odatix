@@ -392,6 +392,50 @@ def _checklist_enabled(value) -> bool:
         return True in value or len(value) > 0
     return bool(value)
 
+def _to_int(value, default):
+    try:
+        if value in (None, ""):
+            return default
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+# The "Job Settings" fields, with the defaults used both to initialize the
+# widgets (job_settings_form) and to build the saved baseline, so a fresh load
+# never falsely reports "unsaved changes".
+_JOB_SETTINGS_DEFAULTS = {
+    "overwrite": False,
+    "force_single_thread": True,
+    "nb_jobs": 8,
+    "log_size_limit": 300,
+    "ask_continue": True,
+    "exit_when_done": False,
+}
+
+def _job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done) -> dict:
+    """Job Settings as edited in the widgets (used for the 'current' selection)."""
+    return {
+        "overwrite": _checklist_enabled(overwrite),
+        "force_single_thread": _checklist_enabled(force_single_thread),
+        "nb_jobs": _to_int(nb_jobs, _JOB_SETTINGS_DEFAULTS["nb_jobs"]),
+        "log_size_limit": _to_int(log_size_limit, _JOB_SETTINGS_DEFAULTS["log_size_limit"]),
+        "ask_continue": _checklist_enabled(ask_continue),
+        "exit_when_done": _checklist_enabled(exit_when_done),
+    }
+
+def _job_settings_baseline(settings: dict) -> dict:
+    """Job Settings as loaded from the settings file (used for the saved
+    baseline). Must mirror how job_settings_form() initializes the widgets."""
+    settings = settings or {}
+    return {
+        "overwrite": bool(settings.get("overwrite", _JOB_SETTINGS_DEFAULTS["overwrite"])),
+        "force_single_thread": bool(settings.get("force_single_thread", _JOB_SETTINGS_DEFAULTS["force_single_thread"])),
+        "nb_jobs": _to_int(settings.get("nb_jobs", _JOB_SETTINGS_DEFAULTS["nb_jobs"]), _JOB_SETTINGS_DEFAULTS["nb_jobs"]),
+        "log_size_limit": _to_int(settings.get("log_size_limit", _JOB_SETTINGS_DEFAULTS["log_size_limit"]), _JOB_SETTINGS_DEFAULTS["log_size_limit"]),
+        "ask_continue": bool(settings.get("ask_continue", _JOB_SETTINGS_DEFAULTS["ask_continue"])),
+        "exit_when_done": bool(settings.get("exit_when_done", _JOB_SETTINGS_DEFAULTS["exit_when_done"])),
+    }
+
 def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
     run_mode = get_key_from_url(search, "type")
     if run_mode == "custom_freq_synthesis":
@@ -561,6 +605,17 @@ def _extract_domain_values(arch_name: str, selections) -> dict:
             values_by_domain.setdefault(domain, set()).add(value)
     return values_by_domain
 
+def _analysis_tools_selection(search: str, settings_path: str) -> list:
+    """Tools the analysis 'Tools' checklist is initialized to: the "tools" list
+    saved in the analysis settings file plus the tool selected on the "Choose
+    EDA Tool" page (?tool=...). Shared by init_form (widget init) and the saved
+    baseline so a refresh does not falsely report "unsaved changes"."""
+    selected_tools = list(workspace.load_analysis_tools(settings_path))
+    url_tool = get_key_from_url(search, "tool")
+    if url_tool and url_tool not in selected_tools:
+        selected_tools.append(url_tool)
+    return selected_tools
+
 def _expand_wildcard_selection(entry: str, domains_configs: dict, arch_name: str) -> list:
     """
     Expand a saved selection entry that uses a domain-value wildcard (e.g.
@@ -685,7 +740,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                 html.Div([
                     dcc.Checklist(
                         options=[{"label": "Ask for confirmation after checking settings", "value": True}],
-                        value=[True] if True else [],
+                        value=[True] if settings.get("ask_continue", _JOB_SETTINGS_DEFAULTS["ask_continue"]) else [],
                         id="ask_continue",
                         className="checklist-switch",
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
@@ -695,7 +750,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                 html.Div([
                     dcc.Checklist(
                         options=[{"label": "Exit terminal monitor when all jobs are done", "value": True}],
-                        value=[True] if True else [],
+                        value=[True] if settings.get("exit_when_done", _JOB_SETTINGS_DEFAULTS["exit_when_done"]) else [],
                         id="exit_when_done",
                         className="checklist-switch",
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
@@ -838,20 +893,16 @@ def init_form(search, page, odatix_settings):
     settings_path = _get_synth_settings_path(search, odatix_settings or {})
     
     settings = workspace.load_arch_selection_settings(settings_path)
-    if run_mode == "custom_freq_synthesis":
-        settings = workspace.get_frequencies_form_values(settings)
     if settings is None:
         settings = {}
+    if run_mode == "custom_freq_synthesis":
+        # Normalize the frequencies for the form, but keep the other job
+        # settings (overwrite, nb_jobs, ...) so their widgets reflect the file.
+        settings = {**settings, **workspace.get_frequencies_form_values(settings)}
 
     selected_tools = None
     if run_mode == "analyze":
-        # Pre-check the "tools" list saved in the analysis settings file, plus
-        # the tool selected on the "Choose EDA Tool" page (?tool=...).
-        saved_tools = workspace.load_analysis_tools(settings_path)
-        selected_tools = list(saved_tools)
-        url_tool = get_key_from_url(search, "tool")
-        if url_tool and url_tool not in selected_tools:
-            selected_tools.append(url_tool)
+        selected_tools = _analysis_tools_selection(search, settings_path)
 
     return job_settings_form(settings, run_mode, selected_tools=selected_tools), settings
 
@@ -859,6 +910,7 @@ def init_form(search, page, odatix_settings):
     Output("job-section", "children"),
     Output("job-section-heading", "children"),
     Output("jobs-config-main-title", "children"),
+    Output("jobs-config-saved-selection", "data", allow_duplicate=True),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
@@ -871,15 +923,20 @@ def update_param_domains(
 
     if triggered_id == "url":
         if page != page_path:
-            return dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     context = _run_context(search, odatix_settings)
     arch_path = context["base_path"]
     architectures = context["instances"]
+    run_mode = get_key_from_url(search, "type")
 
     settings_path = context["settings_path"]
     selection_settings = workspace.load_arch_selection_settings(settings_path)
     selection_map = _group_arch_selections(selection_settings.get(context["selection_key"], []))
+    # Baseline of the "saved" selection, computed exactly like the widgets are
+    # initialized below, so a fresh page load does not falsely report "unsaved
+    # changes" (the store starts empty and is only written on Save otherwise).
+    baseline_selection = []
     job_sections = []
     for arch_name in architectures:
         domains_configs = {}
@@ -996,6 +1053,12 @@ def update_param_domains(
         else:
             default_selected = (arch_name not in selection_map) or (arch_name in selection_map.get(arch_name, []))
             n_selected = 0
+
+        # Enabled architectures contribute their (rendered) preview selection to
+        # the saved baseline, exactly like save_architecture_selections() builds
+        # its "current" selection from the switch + preview widgets.
+        if arch_enabled:
+            baseline_selection.extend(filtered_selected)
 
         # Default configuration tile. Its checkbox is kept in sync with the
         # default "<arch_name>" entry of the preview checklist (both directions),
@@ -1117,7 +1180,28 @@ def update_param_domains(
         )
         job_sections.append(job_section)
     main_title = f"Select {context['mode'] if context['mode'] == 'workflow' else 'architecture'} configurations to run"
-    return job_sections, context["title"], main_title
+
+    # Build the "saved" baseline in the exact same shape as the "current"
+    # selection computed by save_architecture_selections(), so a fresh load
+    # compares equal (no false "unsaved changes").
+    saved_baseline = {
+        context["selection_key"]: list(dict.fromkeys(baseline_selection)),
+        **_job_settings_baseline(selection_settings),
+    }
+    if run_mode == "analyze":
+        saved_baseline["tools"] = [t for t in _analysis_tools_selection(search, settings_path) if t]
+    if run_mode == "custom_freq_synthesis":
+        form_freq = workspace.get_frequencies_form_values(selection_settings).get("frequencies", {})
+        form_range = form_freq.get("range", {})
+        saved_baseline["frequencies"] = workspace.create_custom_frequencies_settings_dict(
+            form_freq.get("override", False),
+            form_freq.get("list", []),
+            form_range.get("from"),
+            form_range.get("to"),
+            form_range.get("step"),
+        )
+
+    return job_sections, context["title"], main_title, saved_baseline
 
 
 @dash.callback(
@@ -1360,6 +1444,12 @@ def update_preview_title(preview_value, arch_metadata):
     Input("to_frequency", "value"),
     Input("step_frequency", "value"),
     Input("analysis-tools", "value"),
+    Input("overwrite", "value"),
+    Input("force_single_thread", "value"),
+    Input("nb_jobs", "value"),
+    Input("log_size_limit", "value"),
+    Input("ask_continue", "value"),
+    Input("exit_when_done", "value"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
     State("jobs-config-saved-selection", "data"),
@@ -1380,6 +1470,12 @@ def save_architecture_selections(
     to_frequency,
     step_frequency,
     analysis_tools,
+    overwrite,
+    force_single_thread,
+    nb_jobs,
+    log_size_limit,
+    ask_continue,
+    exit_when_done,
     switch_ids,
     preview_ids,
     saved_selection,
@@ -1420,6 +1516,7 @@ def save_architecture_selections(
     selection_key = context["selection_key"]
     current_settings = {
         selection_key: architectures,
+        **_job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done),
     }
     if run_mode == "custom_freq_synthesis":
         current_settings["frequencies"] = workspace.create_custom_frequencies_settings_dict(
@@ -1458,12 +1555,30 @@ def save_architecture_selections(
                 dash.no_update,
             )
 
+    # The baseline is only set once update_param_domains() has finished loading
+    # the page (it can be slower than init_form, which renders the form widgets
+    # and triggers this callback first). Until then, do not judge/flash
+    # "Unsaved changes!": leave the button untouched (it starts disabled).
+    if saved_selection is None:
+        return dash.no_update, dash.no_update, dash.no_update
+
     if saved_settings.get(selection_key, []) != current_settings.get(selection_key, []):
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
             dash.no_update,
         )
+
+    # Job Settings fields (only compare once a real baseline dict exists, i.e.
+    # after the page has finished loading, to avoid a transient false positive).
+    if isinstance(saved_selection, dict):
+        for key in _JOB_SETTINGS_DEFAULTS:
+            if saved_settings.get(key) != current_settings.get(key):
+                return (
+                    "color-button warning icon-button tooltip bottom small tooltip",
+                    "Unsaved changes!",
+                    dash.no_update,
+                )
 
     if run_mode == "custom_freq_synthesis":
         saved_frequencies = saved_settings.get("frequencies", {})
@@ -1879,16 +1994,16 @@ def confirm_prepare_jobs(n_clicks, run_status):
 def update_choose_targets_link(search):
     tool = get_key_from_url(search, "tool") or "vivado"
     run_mode = get_key_from_url(search, "type")
-    if run_mode == "analyze":
+    if run_mode == "fmax_synthesis" or run_mode == "custom_freq_synthesis":
+        return (
+            f"/select_targets?tool={quote(tool)}",
+            "color-button default icon-button tooltip bottom small tooltip"
+        )
+    else:
         return (
             f"/select_targets?tool={quote(tool)}",
             "hidden"
         )
-    return (
-        f"/select_targets?tool={quote(tool)}",
-        "color-button default icon-button tooltip bottom small tooltip"
-    )
-
 ######################################
 # Layout
 ######################################

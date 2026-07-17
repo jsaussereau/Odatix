@@ -1149,11 +1149,10 @@ f"""##############################################
     data.yaml_set_comment_before_after_key(key='nb_jobs', before="\n maximum number of parallel jobs")
     data.yaml_add_eol_comment(key='nb_jobs', comment="overridden by -j / --jobs")
 
-    # force_single_thread (not relevant for workflows)
-    if run_mode != "workflow":
-        force_single_thread_val = "Yes" if settings.get('force_single_thread', False) else "No"
-        data['force_single_thread'] = force_single_thread_val
-        data.yaml_set_comment_before_after_key(key='force_single_thread', before="\n force single thread execution (to avoid cpu overload when running many jobs in parallel)")
+    # force_single_thread
+    force_single_thread_val = "Yes" if settings.get('force_single_thread', False) else "No"
+    data['force_single_thread'] = force_single_thread_val
+    data.yaml_set_comment_before_after_key(key='force_single_thread', before="\n force single thread execution (to avoid cpu overload when running many jobs in parallel)")
 
     if run_mode == "custom_freq_synthesis":
         # frequencies
