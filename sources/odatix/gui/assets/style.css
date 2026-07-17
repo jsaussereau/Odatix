@@ -1625,3 +1625,8 @@ h3 {
 .dash-input {
     box-sizing: border-box;
 }
+
+input[type="checkbox"] {
+	accent-color: var(--theme-primary-color);
+	flex: 0 0 auto;
+}
