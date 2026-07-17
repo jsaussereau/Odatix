@@ -38,6 +38,7 @@ from odatix.lib.settings import OdatixSettings
 import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
 import odatix.components.run_workflow as run_workflow
+import odatix.components.run_analysis as run_analysis
 from odatix.lib.parallel_job_handler import daemon_control
 
 page_path = "/run_jobs"
@@ -51,6 +52,25 @@ dash.register_page(
 )
 
 MAX_PREVIEW_COMBINATIONS = 10000
+
+# Display labels for the eda tools that can run RTL analysis (analyze flow).
+# The values must match hard_settings.default_supported_tools (used both by the
+# CLI and by run_analysis.check_settings).
+ANALYSIS_TOOL_LABELS = {
+    "vivado": "Vivado",
+    "design_compiler": "Design Compiler",
+    "genus": "Genus",
+    "openlane": "OpenLane",
+    "verilator": "Verilator",
+}
+
+def _analysis_tool_options():
+    """Checklist options for the analysis 'Tools' tile, ordered like
+    hard_settings.default_supported_tools."""
+    return [
+        {"label": ANALYSIS_TOOL_LABELS.get(tool, tool), "value": tool}
+        for tool in hard_settings.default_supported_tools
+    ]
 
 class _ThreadSafeBuffer(io.StringIO):
     def __init__(self):
@@ -204,6 +224,48 @@ def _run_check_fmax_settings(
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
 
+def _run_check_analysis_settings(
+    run_config_settings_filename,
+    arch_path,
+    tool,
+    work_path,
+    target_path,
+    overwrite_enabled,
+    noask,
+    exit_when_done_enabled,
+    log_size_val,
+    nb_jobs_val,
+    check_eda_tool,
+):
+    global _prepare_status, _prepare_check_data
+    try:
+        with contextlib.redirect_stdout(_prepare_log_buffer):
+            _prepare_check_data = run_analysis.check_settings(
+                run_config_settings_filename,
+                arch_path,
+                tool,
+                work_path,
+                target_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                check_eda_tool,
+                debug=False,
+                keep=False,
+                cancel_event=_prepare_cancel_event,
+            )
+        _prepare_status = {"status": "checked", "error": None}
+    except run_analysis.AnalysisCancelled:
+        _prepare_status = {"status": "canceled", "error": None}
+    except SystemExit:
+        # check_settings() calls sys.exit(-1) when there is no valid architecture
+        # to analyze: turn that into a normal error status.
+        _prepare_status = {"status": "error", "error": "No valid architecture to analyze. See log above for details."}
+    except Exception as exc:
+        _prepare_status = {"status": "error", "error": str(exc)}
+
 def _run_check_workflow_settings(
     run_config_settings_filename,
     workflow_path,
@@ -283,6 +345,18 @@ def _run_prepare_synthesis():
                         nb_jobs=nb_jobs,
                         cancel_event=_prepare_cancel_event,
                     )
+                elif _prepare_synth_type == "analyze":
+                    _prepare_parallel_jobs = run_analysis.prepare_synthesis(
+                        architecture_instances=architecture_instances,
+                        prepare_job=prepare_job,
+                        job_list=job_list,
+                        tool_settings_file=tool_settings_file,
+                        arch_handler=arch_handler,
+                        exit_when_done=exit_when_done,
+                        log_size_limit=log_size_limit,
+                        nb_jobs=nb_jobs,
+                        cancel_event=_prepare_cancel_event,
+                    )
                 else:
                     _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
                         architecture_instances=architecture_instances,
@@ -299,6 +373,8 @@ def _run_prepare_synthesis():
     except run_range_synthesis.SynthesisCancelled:
         _prepare_status = {"status": "canceled", "error": None}
     except run_fmax_synthesis.SynthesisCancelled:
+        _prepare_status = {"status": "canceled", "error": None}
+    except run_analysis.AnalysisCancelled:
         _prepare_status = {"status": "canceled", "error": None}
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
@@ -321,6 +397,11 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
         return odatix_settings.get(
             "fmax_synthesis_settings_file",
             OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+        )
+    if run_mode == "analyze":
+        return odatix_settings.get(
+            "analysis_settings_file",
+            OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE,
         )
     return odatix_settings.get(
         "fmax_synthesis_settings_file",
@@ -498,9 +579,13 @@ def job_settings_form_field(
         style={"marginBottom": "12px", **(style or {})},
     )
 
-def job_settings_form(settings, run_mode="default"):
+def job_settings_form(settings, run_mode="default", selected_tools=None):
     frequencies = settings.get("frequencies", {})
     range = frequencies.get("range", {})
+
+    if selected_tools is None:
+        selected_tools = settings.get("tools", [])
+    selected_tools = [tool for tool in selected_tools if tool in ANALYSIS_TOOL_LABELS]
 
     return html.Div(
         children=[
@@ -567,7 +652,21 @@ def job_settings_form(settings, run_mode="default"):
                 ], style={"marginBottom": "12px"}),
             ], className="tile config"),
             html.Div([
-                html.H3("Custom Frequency Synthesis Settings"),
+                html.H3("Tools"),
+                html.Div([
+                    html.Label("EDA tools to run the analysis with", style={"marginBottom": "8px", "display": "inline-block"}),
+                    ui.tooltip_icon("Select every eda tool the RTL analysis should run with (saved as the 'tools' list of the analysis settings file, overridden by -t / --tool). The jobs of all selected tools run together in a single monitor session."),
+                    dcc.Checklist(
+                        options=_analysis_tool_options(),
+                        value=selected_tools,
+                        id="analysis-tools",
+                        className="checklist-switch list",
+                        style={"marginTop": "5px"},
+                    ),
+                ]),
+            ], className="tile config", style={"display": "block" if run_mode == "analyze" else "none"}),
+            html.Div([
+                html.H3("Synthesis Constraints"),
                 dcc.Checklist(
                     options=[{"label": "Override frequencies", "value": True}],
                     value=[True] if frequencies.get("override", False) else [],
@@ -691,7 +790,18 @@ def init_form(search, page, odatix_settings):
         settings = workspace.get_frequencies_form_values(settings)
     if settings is None:
         settings = {}
-    return job_settings_form(settings, run_mode), settings
+
+    selected_tools = None
+    if run_mode == "analyze":
+        # Pre-check the "tools" list saved in the analysis settings file, plus
+        # the tool selected on the "Choose EDA Tool" page (?tool=...).
+        saved_tools = workspace.load_analysis_tools(settings_path)
+        selected_tools = list(saved_tools)
+        url_tool = get_key_from_url(search, "tool")
+        if url_tool and url_tool not in selected_tools:
+            selected_tools.append(url_tool)
+
+    return job_settings_form(settings, run_mode, selected_tools=selected_tools), settings
 
 @dash.callback(
     Output("job-section", "children"),
@@ -1183,6 +1293,7 @@ def update_preview_title(preview_value, arch_metadata):
     Input("from_frequency", "value"),
     Input("to_frequency", "value"),
     Input("step_frequency", "value"),
+    Input("analysis-tools", "value"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
     State("jobs-config-saved-selection", "data"),
@@ -1202,6 +1313,7 @@ def save_architecture_selections(
     from_frequency,
     to_frequency,
     step_frequency,
+    analysis_tools,
     switch_ids,
     preview_ids,
     saved_selection,
@@ -1251,6 +1363,8 @@ def save_architecture_selections(
             to_frequency,
             step_frequency,
         )
+    if run_mode == "analyze":
+        current_settings["tools"] = [tool for tool in (analysis_tools or []) if tool]
 
     if isinstance(saved_selection, dict):
         saved_settings = saved_selection
@@ -1288,6 +1402,14 @@ def save_architecture_selections(
     if run_mode == "custom_freq_synthesis":
         saved_frequencies = saved_settings.get("frequencies", {})
         if saved_frequencies != current_settings.get("frequencies", {}):
+            return (
+                "color-button warning icon-button tooltip bottom small tooltip",
+                "Unsaved changes!",
+                dash.no_update,
+            )
+
+    if run_mode == "analyze":
+        if saved_settings.get("tools", []) != current_settings.get("tools", []):
             return (
                 "color-button warning icon-button tooltip bottom small tooltip",
                 "Unsaved changes!",
@@ -1333,6 +1455,7 @@ def close_run_popup(n):
     State("ask_continue", "value"),
     State("exit_when_done", "value"),
     State("log_size_limit", "value"),
+    State("analysis-tools", "value"),
     State({"page": page_path, "action": "session-dropdown"}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
@@ -1347,6 +1470,7 @@ def run_jobs(
     ask_continue,
     exit_when_done,
     log_size_limit,
+    analysis_tools,
     selected_session,
     search,
     page,
@@ -1479,6 +1603,40 @@ def run_jobs(
                 exit_when_done_enabled,
                 log_size_val,
                 nb_jobs_val,
+            ),
+            daemon=True,
+        )
+        _prepare_thread.start()
+    elif run_mode == "analyze":
+        run_config_settings_filename = settings.get(
+            "analysis_settings_file",
+            OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE,
+        )
+        work_path = os.path.join(
+            work_path_root,
+            settings.get("analysis_work_path", OdatixSettings.DEFAULT_ANALYSIS_WORK_PATH),
+        )
+
+        # Tools selected in the "Tools" tile; fall back to the ?tool=... url tool.
+        # Equivalent to 'odatix analyze --tool <analysis_tool_list>'.
+        analysis_tool_list = [t for t in (analysis_tools or []) if t]
+        if not analysis_tool_list:
+            analysis_tool_list = [tool]
+
+        _prepare_thread = threading.Thread(
+            target=_run_check_analysis_settings,
+            args=(
+                run_config_settings_filename,
+                base_path,
+                analysis_tool_list,
+                work_path,
+                target_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                check_eda_tool,
             ),
             daemon=True,
         )

@@ -1047,6 +1047,22 @@ def load_arch_selection_settings(path: str) -> dict:
     with open(path, "r") as f:
         return yaml.safe_load(f) or {}
 
+def load_analysis_tools(path: str) -> list:
+    """
+    Load the list of eda tools to run the RTL analysis with (the "tools" key of
+    the analysis settings file). Returns an empty list if the file or the key is
+    missing.
+    """
+    data = load_yaml_file(path, default={})
+    if not isinstance(data, dict):
+        return []
+    tools = data.get("tools", [])
+    if isinstance(tools, str):
+        tools = [tools]
+    if not isinstance(tools, (list, tuple)):
+        return []
+    return [str(tool) for tool in tools if tool]
+
 def get_frequencies_form_values(settings: dict) -> dict:
     frequencies = _normalize_frequencies_settings(settings.get("frequencies", {}))
     return {
@@ -1084,6 +1100,8 @@ def save_architecture_selection(path, settings, run_mode="default", use_custom_f
         run_mode_display = "custom frequency synthesis"
     elif run_mode == "workflow":
         run_mode_display = "workflows"
+    elif run_mode == "analyze":
+        run_mode_display = "RTL analysis"
     else:
         run_mode_display = run_mode
 
@@ -1171,6 +1189,14 @@ f"""##############################################
 
         data['frequencies'] = frequencies_data
         data.yaml_set_comment_before_after_key(key='frequencies', before="\n synthesis frequencies (in MHz)")
+
+    # eda tools to run the analysis with (analysis only)
+    if run_mode == "analyze":
+        tools_list = settings.get('tools', []) or []
+        tools_seq = CommentedSeq([str(tool) for tool in tools_list if tool])
+        data['tools'] = tools_seq
+        data.yaml_set_comment_before_after_key(key='tools', before="\n eda tools to run the analysis with")
+        data.yaml_add_eol_comment(key='tools', comment="overridden by -t / --tool")
 
     # targeted instances (architectures or workflows)
     if run_mode == "workflow":
