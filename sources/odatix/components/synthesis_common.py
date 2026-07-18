@@ -8,7 +8,7 @@ import yaml
 import shutil
 
 from odatix.components.replace_params import replace_params
-from odatix.components.run_common import normalize_run_settings, abort_if_empty_job_list
+from odatix.components.run_common import normalize_run_settings, abort_if_empty_job_list, run_prepare_loop
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
@@ -369,10 +369,12 @@ def prepare_synthesis_jobs(
     check_cancel=None,
     script_name=None,
 ):
-    for arch_instance in architecture_instances:
-        if check_cancel is not None:
-            check_cancel()
-        prepare_job(arch_instance, job_list)
+    run_prepare_loop(
+        instances=architecture_instances,
+        build_job=lambda arch_instance: prepare_job(arch_instance, job_list),
+        job_list=job_list,
+        check_cancel=check_cancel,
+    )
 
     # An architecture can pass the initial checklist but still fail while its
     # job is being built (e.g. a missing design_path): do not launch the

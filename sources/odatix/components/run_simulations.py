@@ -30,6 +30,7 @@ from odatix.components.run_common import (
     confirm_valid_jobs,
     abort_if_empty_job_list,
     replace_and_write_param_domains,
+    run_prepare_loop,
     start_parallel_jobs as start_parallel_jobs_common,
 )
 import odatix.lib.printc as printc
@@ -296,8 +297,11 @@ def prepare_simulations(
     log_size_limit,
     nb_jobs,
 ):
-    for sim_instance in simulation_instances:
-        prepare_job(sim_instance)
+    run_prepare_loop(
+        instances=simulation_instances,
+        build_job=prepare_job,
+        job_list=job_list,
+    )
 
     # A simulation can pass the initial checklist but still fail while its job
     # is being built (e.g. a missing design_path): do not launch the

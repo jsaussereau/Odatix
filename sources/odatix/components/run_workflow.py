@@ -31,6 +31,7 @@ from odatix.components.run_common import (
     confirm_valid_jobs,
     abort_if_empty_job_list,
     replace_and_write_param_domains,
+    run_prepare_loop,
     start_parallel_jobs as start_parallel_jobs_common,
 )
 import odatix.components.export_workflow_results as exp_workflow_res
@@ -1052,8 +1053,11 @@ def prepare_workflows(
     nb_jobs,
     resume=False,
 ):
-    for workflow_instance in workflow_instances:
-        prepare_job(workflow_instance, resume=resume)
+    run_prepare_loop(
+        instances=workflow_instances,
+        build_job=lambda workflow_instance: prepare_job(workflow_instance, resume=resume),
+        job_list=job_list,
+    )
 
     # A workflow can pass the initial checklist but still fail while its job is
     # being built: do not launch the monitor/daemon session with zero jobs if

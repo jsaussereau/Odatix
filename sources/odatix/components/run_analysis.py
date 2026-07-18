@@ -41,7 +41,7 @@ from odatix.lib.check_tool import check_tool
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
-from odatix.components.run_common import confirm_valid_jobs, abort_if_empty_job_list
+from odatix.components.run_common import confirm_valid_jobs, abort_if_empty_job_list, run_prepare_loop
 from odatix.components.analyze_results import generate_analysis_summary
 
 
@@ -632,9 +632,15 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
 
   # Build the jobs of every tool (creates the temporary work directories) only
   # now that the run is confirmed.
+  build_pairs = []
   for _current_tool, context in prepared_tools:
     for arch_instance in context["architecture_instances"]:
-      context["prepare_job"](arch_instance)
+      build_pairs.append((context["prepare_job"], arch_instance))
+  run_prepare_loop(
+    instances=build_pairs,
+    build_job=lambda pair: pair[0](pair[1]),
+    job_list=job_list,
+  )
 
   # An architecture can pass the initial checklist but still fail while its job
   # is being built (e.g. a missing design_path): do not launch the monitor with
@@ -834,9 +840,12 @@ def prepare_synthesis(
   without running it. Mirrors run_range_synthesis.prepare_synthesis so the GUI
   can enqueue analysis jobs into a daemon session.
   """
-  for arch_instance in architecture_instances:
-    _check_cancel(cancel_event)
-    prepare_job(arch_instance)
+  run_prepare_loop(
+    instances=architecture_instances,
+    build_job=prepare_job,
+    job_list=job_list,
+    check_cancel=lambda: _check_cancel(cancel_event),
+  )
 
   # An architecture can pass the initial checklist but still fail while its job
   # is being built (e.g. a missing design_path): do not launch the monitor/daemon

@@ -36,6 +36,7 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+import odatix.components.run_common as run_common
 import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
 import odatix.components.run_workflow as run_workflow
@@ -116,6 +117,52 @@ def _reset_prepare_state():
     _prepare_exec_thread = None
     _prepare_synth_type = None
     _prepare_enqueued = False
+    run_common.reset_prepare_progress()
+
+
+def _prepare_progress_bar():
+    """
+    HTML progress bar of the job-preparation phase (copies into the work
+    directory, parameter replacements), rendered in the run popup while the
+    preparation thread runs. The green section is the jobs prepared
+    successfully, the red section the jobs whose preparation failed, with
+    ok/failed counts (state published by run_common.PrepareProgress).
+    """
+    progress = run_common.get_prepare_progress()
+    if not progress or progress.get("total", 0) <= 0:
+        return ""
+    total = progress["total"]
+    done = progress.get("done", 0)
+    ok = progress.get("ok", 0)
+    failed = progress.get("failed", 0)
+    ok_pct = 100.0 * ok / total
+    failed_pct = 100.0 * failed / total
+
+    counts = [html.Span(f"{done}/{total} jobs prepared")]
+    counts.append(html.Span(f"  ✔ {ok}", style={"color": "#2fbf71", "fontWeight": "600"}))
+    if failed > 0:
+        counts.append(html.Span(f"  ✘ {failed}", style={"color": "#fa5252", "fontWeight": "600"}))
+
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Div(style={"width": f"{ok_pct}%", "background": "#2fbf71", "transition": "width 0.3s"}),
+                    html.Div(style={"width": f"{failed_pct}%", "background": "#fa5252", "transition": "width 0.3s"}),
+                ],
+                style={
+                    "display": "flex",
+                    "height": "10px",
+                    "width": "100%",
+                    "background": "var(--theme-disabled-background-color, #80808040)",
+                    "borderRadius": "5px",
+                    "overflow": "hidden",
+                },
+            ),
+            html.Div(counts, style={"marginTop": "5px", "textAlign": "center", "fontSize": "0.9em"}),
+        ],
+        style={"margin": "10px 0"},
+    )
 
 
 def _normalize_session_selector(value: Optional[str]) -> Optional[str]:
@@ -1874,6 +1921,7 @@ def run_jobs(
 @dash.callback(
     Output("jobs-config-run-status", "data", allow_duplicate=True),
     Output("run-popup-pre", "children"),
+    Output("run-popup-progress", "children"),
     Output("run-confirm-btn", "className"),
     Output("run-redirect", "href", allow_duplicate=True),
     Input("run-log-interval", "n_intervals"),
@@ -1887,7 +1935,7 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened):
 
     current_status = run_status.get("status")
     if current_status == "canceled":
-        return run_status, "", "color-button disabled icon-button", dash.no_update
+        return run_status, "", "", "color-button disabled icon-button", dash.no_update
 
     if _prepare_status.get("status") and _prepare_status.get("status") != current_status:
         run_status = {**run_status, **_prepare_status}
@@ -1897,6 +1945,9 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened):
         log_output = _prepare_log_buffer.getvalue()
         button_class = "color-button success icon-button" if current_status == "checked" else "color-button disabled icon-button"
         redirect_href = dash.no_update
+        # Progress of the job-preparation phase (only meaningful once the run
+        # is confirmed; the state is reset at the start of every run).
+        progress_bar = _prepare_progress_bar() if current_status in ("preparing", "prepared", "launched", "error") else ""
         if current_status == "prepared" and _prepare_parallel_jobs is not None:
             global _prepare_monitor_href, _prepare_enqueued
             should_enqueue = False
@@ -1934,11 +1985,11 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened):
                     if log_output:
                         log_output = log_output + "\n\n"
                     log_output = log_output + f"Failed to enqueue jobs in daemon session: {exc}"
-                    return run_status, ansi_to_html_spans(log_output), "color-button disabled icon-button", dash.no_update
+                    return run_status, ansi_to_html_spans(log_output), progress_bar, "color-button disabled icon-button", dash.no_update
 
             if _prepare_monitor_href is not None:
                 redirect_href = _prepare_monitor_href
-        return run_status, ansi_to_html_spans(log_output) if log_output else "", button_class, redirect_href
+        return run_status, ansi_to_html_spans(log_output) if log_output else "", progress_bar, button_class, redirect_href
 
     raise dash.exceptions.PreventUpdate
 
@@ -2071,6 +2122,7 @@ layout = html.Div(
             children=[
                 html.Div([
                     html.H2("Checking settings...", id="run-popup-title", style={"textAlign": "center"}),
+                    html.Div(id="run-popup-progress"),
                     html.Pre(id="run-popup-pre", className="run-popup-pre"),
                     html.Div([
                         html.Button("Cancel", id="run-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
