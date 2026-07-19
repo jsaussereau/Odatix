@@ -46,6 +46,63 @@
     height: 100%;
 }
 
+/* ---------- Sidebar tabs ---------- */
+
+/* Tabs toggle a class on the sidebar content (client-side), so every control
+   stays in the DOM (the figure callback needs a fixed set of inputs). The tab
+   bar is sticky so tabs stay reachable when scrolled to the bottom. */
+.xp-tabs {
+    position: sticky;
+    top: 0;
+    transform: translateY(-15px);
+    z-index: 5;
+    display: flex;
+    gap: 4px;
+    margin: -12px -10px 10px -12px;
+    padding: 10px 10px 8px 12px;
+    background: var(--theme-background, var(--theme-background-color));
+    border-bottom: 1px solid var(--theme-border-color);
+}
+
+.xp-tab-label {
+    flex: 1 1 0;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    padding: 6px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--theme-text-color);
+    opacity: 0.65;
+    background: transparent;
+    border-radius: var(--theme-small-border-radius, 8px);
+    border: 1px solid transparent;
+}
+
+.xp-tab-label:hover {
+    opacity: 0.9;
+    background: var(--theme-element-background-color);
+}
+
+.xp-tab-label.xp-tab-active {
+    opacity: 1;
+    background: var(--theme-element-background-color);
+    border-color: var(--theme-border-color);
+    color: var(--theme-primary-color);
+}
+
+/* Panel visibility, keyed off the active-tab class on the sidebar content. */
+.xp-tab-panel {
+    display: none;
+}
+
+.xp-tab-active-data .xp-tab-panel-data,
+.xp-tab-active-filters .xp-tab-panel-filters,
+.xp-tab-active-export .xp-tab-panel-export {
+    display: block;
+}
+
 /* ---------- Sidebar sections ---------- */
 
 .xp-section {
