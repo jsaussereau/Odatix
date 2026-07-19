@@ -234,6 +234,17 @@ def workflow_title(workflow_name):
     title_buttons = html.Div(
         children=[
             ui.icon_button(
+                id=f"button-open-metric-editor",
+                icon=icon("metrics", className="icon blue"),
+                text="Edit Metrics",
+                tooltip="Open the Exported Metrics Editor for this workflow",
+                tooltip_options="bottom delay",
+                color="default",
+                link=f"/metric_editor?workflow={workflow_name}",
+                multiline=False,
+                width="135px",
+            ),
+            ui.icon_button(
                 id=f"button-open-config-editor",
                 icon=icon("edit", className="icon blue"),
                 text="Edit Configs",

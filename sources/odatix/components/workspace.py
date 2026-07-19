@@ -240,6 +240,82 @@ def save_workflow_settings(workflow_path, workflow_name, settings, domain=hard_s
     update_workflow_settings(workflow_path, workflow_name, settings, domain)
 
 ######################################
+# Workflow Metrics
+######################################
+#
+# The metrics definition file ("_metrics.yml") lives in the workflow definition
+# directory and describes how workflow results are extracted from each run at
+# export time (see odatix.components.export_workflow_results). It can hold the
+# metric definitions directly at top level, or under a "metrics" key with an
+# optional sibling "metadata" mapping (extra meta dimensions).
+
+WORKFLOW_METRICS_FILENAME = "_metrics.yml"
+
+def get_workflow_metrics_path(workflow_path, workflow_name) -> str:
+    """
+    Get the metrics definition file path of a specific workflow.
+    """
+    return os.path.join(get_workflow_path(workflow_path, workflow_name), WORKFLOW_METRICS_FILENAME)
+
+def load_workflow_metrics(workflow_path, workflow_name) -> tuple:
+    """
+    Load the metrics definition of a workflow.
+
+    Returns:
+        tuple: (metrics, metadata), each a name -> definition dict. Both are
+        empty when the file is missing or unparsable.
+    """
+    path = get_workflow_metrics_path(workflow_path, workflow_name)
+    data = load_yaml_file(path, default={})
+    if not isinstance(data, dict):
+        return {}, {}
+
+    if "metrics" in data:
+        metrics = data.get("metrics") or {}
+        metadata = data.get("metadata") or {}
+    else:
+        metrics = data
+        metadata = {}
+
+    if not isinstance(metrics, dict):
+        metrics = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return metrics, metadata
+
+def save_workflow_metrics(workflow_path, workflow_name, metrics, metadata=None) -> None:
+    """
+    Save the metrics definition of a workflow, preserving comments and any other
+    key of the file. Metrics are always written under the "metrics" key (with an
+    optional sibling "metadata" mapping) so both dimensions round-trip cleanly.
+    """
+    path = get_workflow_metrics_path(workflow_path, workflow_name)
+    yaml_obj = YAML()
+
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = yaml_obj.load(f)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    # If the file used the legacy top-level layout (metrics defined directly at
+    # the root), migrate it to the explicit "metrics" key on write.
+    if "metrics" not in data:
+        for key in list(data.keys()):
+            if key != "metadata":
+                del data[key]
+
+    data["metrics"] = metrics if isinstance(metrics, dict) else {}
+    if metadata:
+        data["metadata"] = metadata
+    else:
+        data.pop("metadata", None)
+
+    save_yaml_file(path, data, yaml_obj=yaml_obj)
+
+######################################
 # Architecture Settings
 ######################################
  
