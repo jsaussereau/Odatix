@@ -23,10 +23,10 @@
 Shared helpers for the result-export components (synthesis and workflow).
 
 Both odatix.components.export_results and odatix.components.export_workflow_results
-extract metric values out of a run directory (regex/csv/yaml/json files), turn
-strings into numbers, evaluate "operation" metrics, and merge into an existing
-results file. Those low-level building blocks live here so the logic is defined
-once.
+extract metric values out of a run directory (regex/csv/yaml/json/xml files),
+turn strings into numbers, evaluate "operation" metrics, and merge into an
+existing results file. Those low-level building blocks live here so the logic is
+defined once.
 """
 
 import os
@@ -34,6 +34,7 @@ import re
 import csv
 import json
 import yaml
+import xml.etree.ElementTree as ET
 
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
@@ -180,6 +181,85 @@ def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
     if value is None and error_if_missing:
         printc.error(error_prefix + 'Could not find key "' + key + '" in json "' + file + '"', script_name=script_name)
     return value
+
+
+def _split_xml_key(key):
+    """
+    Split an XML key into an (element path, attribute) pair. The optional
+    attribute is given with a trailing "@name" (e.g. "results/timing@value").
+    An empty path means the document root; a None attribute means the element
+    text.
+    """
+    if key is None:
+        return None, None
+    if "@" in key:
+        path, _, attribute = key.rpartition("@")
+        return (path or None), (attribute or None)
+    return key, None
+
+
+def _xml_element_value(element, attribute):
+    """Return an element's attribute value, or its (stripped) text."""
+    if element is None:
+        return None
+    if attribute:
+        return element.get(attribute)
+    text = element.text
+    return text.strip() if isinstance(text, str) else text
+
+
+def parse_xml(file, key=None, error_if_missing=True, error_prefix=""):
+    """
+    Return a value from an XML file. `key` is an ElementTree path (a subset of
+    XPath) locating an element relative to the root, with an optional trailing
+    "@attribute" to read an attribute instead of the element text. When `key`
+    is None/empty the root element is used.
+    """
+    if not os.path.isfile(file):
+        if error_if_missing:
+            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+        return None
+
+    try:
+        root = ET.parse(file).getroot()
+    except ET.ParseError as e:
+        printc.error(f'{error_prefix}Could not parse xml file "{file}": {str(e)}', script_name=script_name)
+        return None
+
+    path, attribute = _split_xml_key(key)
+    element = root if not path else root.find(path)
+    if element is None:
+        if error_if_missing:
+            printc.error(error_prefix + 'Could not find element "' + str(key) + '" in xml "' + file + '"', script_name=script_name)
+        return None
+
+    value = _xml_element_value(element, attribute)
+    if value is None and error_if_missing:
+        printc.error(error_prefix + 'No value for element "' + str(key) + '" in xml "' + file + '"', script_name=script_name)
+    return value
+
+
+def parse_xml_all(file, key, error_if_missing=True, error_prefix=""):
+    """Like parse_xml, but return the list of every matching element's value."""
+    if not os.path.isfile(file):
+        if error_if_missing:
+            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
+        return None
+
+    try:
+        root = ET.parse(file).getroot()
+    except ET.ParseError as e:
+        printc.error(f'{error_prefix}Could not parse xml file "{file}": {str(e)}', script_name=script_name)
+        return None
+
+    path, attribute = _split_xml_key(key)
+    elements = [root] if not path else root.findall(path)
+    values = [_xml_element_value(element, attribute) for element in elements]
+    values = [value for value in values if value is not None]
+
+    if not values and error_if_missing:
+        printc.error(error_prefix + 'Could not find element "' + str(key) + '" in xml "' + file + '"', script_name=script_name)
+    return values
 
 
 ######################################

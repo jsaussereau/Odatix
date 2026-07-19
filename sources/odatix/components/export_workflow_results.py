@@ -34,6 +34,8 @@ from odatix.components.export_common import (
     parse_csv_all,
     parse_yaml,
     parse_json,
+    parse_xml,
+    parse_xml_all,
     convert_to_numeric,
     calculate_operation,
     load_existing_results_file,
@@ -181,6 +183,16 @@ def _extract_direct_value(run_dir, name, content, error_prefix=""):
             return None
         return parse_json(os.path.join(run_dir, file), key, error_if_missing, error_prefix)
 
+    if metric_type == "xml":
+        file = settings.get("file")
+        key = settings.get("key", None)
+        if file is None:
+            return None
+        path = os.path.join(run_dir, file)
+        if multiple:
+            return parse_xml_all(path, key, error_if_missing, error_prefix)
+        return parse_xml(path, key, error_if_missing, error_prefix)
+
     return None
 
 
@@ -216,7 +228,7 @@ def _extract_run_records(run_dir, metrics_def, metadata_def=None, error_prefix="
         if metric_type == "operation":
             op_fields.append((name, content, field_role))
             return
-        if metric_type not in ("regex", "csv", "yaml", "json"):
+        if metric_type not in ("regex", "csv", "yaml", "json", "xml"):
             printc.warning('Unsupported workflow metric type "' + str(metric_type) + '" for metric "' + name + '"', script_name)
             direct[name] = None
             is_list[name] = False

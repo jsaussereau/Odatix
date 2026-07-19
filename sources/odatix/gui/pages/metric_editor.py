@@ -83,6 +83,7 @@ METRIC_TYPE_OPTIONS = [
     {"label": "CSV", "value": "csv"},
     {"label": "YAML", "value": "yaml"},
     {"label": "JSON", "value": "json"},
+    {"label": "XML", "value": "xml"},
     {"label": "Operation", "value": "operation"},
 ]
 
@@ -94,6 +95,7 @@ FIELD_VISIBILITY = {
     "csv":       {"file", "key"},
     "yaml":      {"file", "key"},
     "json":      {"file", "key"},
+    "xml":       {"file", "key"},
     "operation": {"op"},
 }
 
@@ -134,7 +136,7 @@ def build_metric_definition(
         except (TypeError, ValueError):
             group_id = group_id_value if group_id_value else 0
         settings["group_id"] = group_id
-    elif metric_type in ("csv", "yaml", "json"):
+    elif metric_type in ("csv", "yaml", "json", "xml"):
         settings["file"] = file_value or ""
         if key_value:
             settings["key"] = key_value
@@ -319,7 +321,7 @@ def metric_card(
                     metric_field(prefix, name, "group_id", "Group ID", value=group_id_value, type="number",
                                  tooltip="Index of the regex capture group to use as the value."),
                     metric_field(prefix, name, "key", "Key", value=key_value,
-                                 tooltip="Column (CSV) or key (YAML/JSON) to read the value from. Leave empty for the whole file."),
+                                 tooltip="Column (CSV), key (YAML/JSON) or element path (XML, e.g. 'timing/slack' or 'cell@area') to read the value from. Leave empty for the whole file."),
                     metric_field(prefix, name, "op", "Operation", value=op_value,
                                  tooltip="Expression evaluated from other metric values (e.g. area / frequency)."),
                     html.Div(

@@ -102,6 +102,15 @@ _icons = {
         Polyline(points="6 9 12 15 18 9"),
     ], width, height, className, id),
 
+    # Bar chart on axes: exported metrics
+    "metrics": lambda color, width, height, className, offset, id: _line_icon([
+        # Line(x1="3", y1="3", x2="3", y2="21"),
+        Line(x1="3", y1="21", x2="21", y2="21"),
+        Rect(x="5", y="13", width="3", height="7", rx="0.5"),
+        Rect(x="10", y="9", width="3", height="11", rx="0.5"),
+        Rect(x="15", y="5", width="3", height="15", rx="0.5"),
+    ], width, height, className, id),
+
     # Broom
     "clean": lambda color, width, height, className, offset, id: _line_icon([
         Rect(x="10.7", y="2.2", width="2.6", height="7.3", rx="0.9"),

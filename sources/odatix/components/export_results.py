@@ -36,6 +36,7 @@ from odatix.components.export_common import (
     parse_csv,
     parse_yaml,
     parse_json,
+    parse_xml,
     convert_to_numeric,
     calculate_operation,
     load_existing_results_file,
@@ -256,6 +257,14 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
       value = parse_json(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+    elif type == "xml":
+      try:
+        file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
+      except (KeyNotInListError, BadValueInListError):
+        banned_metrics.append(metric)
+        continue
+      key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
+      value = parse_xml(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
     elif type == "benchmark":
       if not use_benchmark:
         banned_metrics.append(metric)
