@@ -39,6 +39,7 @@ import odatix.lib.term_mode as term_mode
 from odatix.lib.utils import internal_error
 
 from odatix.explorer.integration import register_explorer
+from odatix.explorer.ui.shell import explorer_state_stores
 from odatix.explorer.core.store import STORE
 
 script_name = os.path.basename(__file__)
@@ -152,6 +153,7 @@ class ExplorerStandaloneApp:
         self.top_bar(),
         dcc.Location(id="url-global"),
         dcc.Store(id="odatix-settings", data={"result_path": self.result_path}),
+        *explorer_state_stores(),
         html.Div([dash.page_container], id="content", className="content", style={"height": "100%"}),
       ],
       id="theme",

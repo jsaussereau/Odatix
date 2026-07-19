@@ -30,7 +30,7 @@ from dash import Input, Output, State
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.schema as schema
-from odatix.explorer.charts.spec import FigureSpec, NONE_VALUE, resolve_defaults
+from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, resolve_defaults
 
 
 def _options(names):
@@ -42,7 +42,50 @@ def _dimension_options(dimensions, include_none=True):
   return [{"label": "None" if name == NONE_VALUE else name, "value": name} for name in names]
 
 
+def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group_by, dissociate):
+  """Store only controls supported by the current chart kind.
+
+  The sidebar keeps all dropdowns mounted so figure callbacks have stable
+  inputs. A hidden axis therefore reports ``None`` on a chart kind that does
+  not use it (for example, ``z`` on a 2D scatter). That transient value must
+  not overwrite the saved value used when returning to a compatible chart.
+  """
+  state = dict(state or {})
+  axes = CAPABILITIES.get(kind, {}).get("axes", ())
+  for axis, value in (("x", x), ("y", y), ("z", z)):
+    if axis in axes:
+      state[axis] = value
+  state.update(
+    color_by=color_by,
+    symbol_by=symbol_by,
+    legend_group_by=legend_group_by,
+    dissociate=dissociate,
+  )
+  return state
+
+
+_TAB_KEYS = ("data", "filters", "export")
+
+
 def register_callbacks():
+  # Sidebar tabs, entirely client-side so every control stays mounted (the figure
+  # callbacks need a stable set of inputs). A click stores the active tab; the
+  # active tab then toggles a class on the sidebar content, which CSS uses to show
+  # the matching panel and highlight the active button.
+  dash.clientside_callback(
+    dash.ClientsideFunction(namespace="xp_tabs", function_name="select"),
+    Output("xp-active-tab", "data"),
+    [Input("xp-tab-btn-" + key, "n_clicks") for key in _TAB_KEYS],
+    prevent_initial_call=True,
+  )
+
+  dash.clientside_callback(
+    dash.ClientsideFunction(namespace="xp_tabs", function_name="apply"),
+    Output("xp-sidebar-content", "className"),
+    [Output("xp-tab-btn-" + key, "className") for key in _TAB_KEYS],
+    Input("xp-active-tab", "data"),
+  )
+
   @dash.callback(
     Output("xp-axis-x", "options"),
     Output("xp-axis-x", "value"),
@@ -67,9 +110,23 @@ def register_callbacks():
     State("xp-symbol-by", "value"),
     State("xp-legend-group-by", "value"),
     State("xp-dissociate-by", "value"),
+    State("xp-control-state", "data"),
     State("xp-chart-kind", "data"),
   )
-  def update_control_options(_version, sources, x, y, z, color_by, symbol_by, legend_group_by, dissociate, kind):
+  def update_control_options(_version, sources, x, y, z, color_by, symbol_by, legend_group_by, dissociate, stored, kind):
+    # Values chosen on any chart page are remembered in xp-control-state (session
+    # storage) so they survive switching chart kinds. On a fresh page the live
+    # component values are empty (Dash persistence drops them while options are
+    # still unpopulated), so the store is the source of truth when present.
+    stored = stored or {}
+    x = stored.get("x", x)
+    y = stored.get("y", y)
+    z = stored.get("z", z)
+    color_by = stored.get("color_by", color_by)
+    symbol_by = stored.get("symbol_by", symbol_by)
+    legend_group_by = stored.get("legend_group_by", legend_group_by)
+    dissociate = stored.get("dissociate", dissociate)
+
     df = query.select_dataframe(STORE, sources=sources)
     dimensions, metrics = query.discover(df, STORE, sources)
 
@@ -103,4 +160,30 @@ def register_callbacks():
       dim_options, spec.symbol_by,
       dim_options, spec.legend_group_by,
       dim_options, spec.dissociate if spec.dissociate else NONE_VALUE,
+    )
+
+  @dash.callback(
+    Output("xp-control-state", "data"),
+    Input("xp-axis-x", "value"),
+    Input("xp-axis-y", "value"),
+    Input("xp-axis-z", "value"),
+    Input("xp-color-by", "value"),
+    Input("xp-symbol-by", "value"),
+    Input("xp-legend-group-by", "value"),
+    Input("xp-dissociate-by", "value"),
+    State("xp-control-state", "data"),
+    State("xp-chart-kind", "data"),
+    prevent_initial_call=True,
+  )
+  def remember_control_state(x, y, z, color_by, symbol_by, legend_group_by, dissociate, state, kind):
+    """Remember the data-dependent control values across chart pages and reloads."""
+    if x is None:
+      # Transient state right after a page swap: the axis dropdowns are not
+      # clearable, so a genuine user edit never produces x=None — only the
+      # fresh page's default does, before update_control_options restores it.
+      # Ignore it so it can't race ahead and clobber the remembered values.
+      raise dash.exceptions.PreventUpdate
+    return _merge_control_state(
+      state, kind, x, y, z,
+      color_by, symbol_by, legend_group_by, dissociate,
     )

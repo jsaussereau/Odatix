@@ -33,6 +33,23 @@ import odatix.explorer.ui.sidebar as sidebar
 POLL_INTERVAL_MS = 2000
 
 
+def explorer_state_stores():
+  """
+  Session stores that must survive navigation between chart pages (lines,
+  columns, scatter, ...). They live in the host root layout, outside
+  dash.page_container, so switching chart kind — which swaps the page but not
+  the root layout — does not remount and reset them. Per-page stores would be
+  clobbered by their own rebuild callbacks on every navigation.
+
+  Every host embedding the explorer (Odatix GUI and the standalone shell) must
+  include these in its root layout.
+  """
+  return [
+    dcc.Store(id="xp-filter-state", data={}, storage_type="session"),
+    dcc.Store(id="xp-control-state", data={}, storage_type="session"),
+  ]
+
+
 def explorer_shell(kind):
   if kind == "overview":
     graph_area = html.Div(id="xp-overview-area", className="xp-overview-area")
@@ -49,7 +66,6 @@ def explorer_shell(kind):
     [
       dcc.Store(id="xp-chart-kind", data=kind),
       dcc.Store(id="xp-data-version", data=-1),
-      dcc.Store(id="xp-filter-state", data={}, storage_type="session"),
       dcc.Interval(id="xp-poll", interval=POLL_INTERVAL_MS),
       dcc.Download(id="xp-download"),
       html.Div(sidebar.build_sidebar(kind), id="xp-sidebar", className="xp-sidebar"),
