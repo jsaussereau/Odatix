@@ -44,6 +44,31 @@ def _dropdown(id, options=None, value=None, clearable=False, persist=True, **kwa
   return dcc.Dropdown(id=id, options=options or [], value=value, clearable=clearable, className="xp-dropdown", style={"width": "100%"}, **extra)
 
 
+# Sidebar tabs. Every control lives on every page in a fixed DOM (the single
+# figure callback needs a fixed set of inputs), so tabs must never remove their
+# panels from the DOM. Tab switching is done client-side by toggling a class on
+# the sidebar content (see callbacks/controls.py), which drives panel visibility
+# through CSS. The tab bar is sticky so tabs stay reachable when scrolled down.
+_TABS = (("data", "Plot"), ("filters", "Filters"), ("export", "Export"))
+DEFAULT_TAB = "data"
+
+
+def _tab_bar():
+  buttons = [
+    html.Button(
+      label,
+      id="xp-tab-btn-" + key,
+      n_clicks=0,
+      className="xp-tab-label" + (" xp-tab-active" if key == DEFAULT_TAB else ""),
+    )
+    for key, label in _TABS
+  ]
+  return [
+    dcc.Store(id="xp-active-tab", data=DEFAULT_TAB, storage_type="session"),
+    html.Div(buttons, className="xp-tabs"),
+  ]
+
+
 def build_sidebar(kind):
   capabilities = CAPABILITIES[kind]
   axes = capabilities["axes"]
@@ -54,7 +79,7 @@ def build_sidebar(kind):
   toggle_options = [{"label": TOGGLE_LABELS.get(toggle, toggle), "value": toggle} for toggle in toggles]
   toggle_defaults = [toggle for toggle in toggles if toggle in DEFAULT_TOGGLES or toggle == "stable_index"]
 
-  return html.Div(
+  data_panel = html.Div(
     [
       # --- Data ---
       components.section("Data", [
@@ -103,9 +128,6 @@ def build_sidebar(kind):
         ), tooltip="Look of the figures, independent from the app theme"),
       ]),
 
-      # --- Filters ---
-      components.section("Filters", [html.Div(id="xp-filter-panel")]),
-
       # --- Display ---
       components.section("Display", [
         dcc.Checklist(
@@ -115,8 +137,21 @@ def build_sidebar(kind):
           className="xp-toggle-checklist",
           **_PERSIST,
         ),
-      ], open=False),
+      ], open=True),
+    ],
+    className="xp-tab-panel xp-tab-panel-data",
+  )
 
+  filters_panel = html.Div(
+    [
+      # --- Filters ---
+      html.Div(id="xp-filter-panel"),
+    ],
+    className="xp-tab-panel xp-tab-panel-filters",
+  )
+
+  export_panel = html.Div(
+    [
       # --- Export ---
       components.section("Export", [
         components.control_row("Image format", _dropdown(
@@ -130,7 +165,13 @@ def build_sidebar(kind):
           value="transparent",
         )),
         html.Button("Download CSV", id="xp-download-csv", n_clicks=0, className="xp-button", title="Export the currently displayed data as CSV"),
-      ], open=False),
+      ]),
     ],
-    className="xp-sidebar-content",
+    className="xp-tab-panel xp-tab-panel-export",
+  )
+
+  return html.Div(
+    _tab_bar() + [data_panel, filters_panel, export_panel],
+    id="xp-sidebar-content",
+    className="xp-sidebar-content xp-tab-active-" + DEFAULT_TAB,
   )
