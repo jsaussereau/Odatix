@@ -20,16 +20,24 @@
 #
 
 import os
-import re
-import csv
 import sys
 import yaml
-import json
 import argparse
 
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
 from odatix.lib.settings import OdatixSettings
+from odatix.components.export_common import (
+    parse_regex,
+    parse_regex_all,
+    parse_csv,
+    parse_csv_all,
+    parse_yaml,
+    parse_json,
+    convert_to_numeric,
+    calculate_operation,
+    load_existing_results_file,
+)
 
 script_name = os.path.basename(__file__)
 
@@ -54,154 +62,6 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Export workflow results")
     add_arguments(parser)
     return parser.parse_args()
-
-
-def parse_regex(file, pattern, group_id, error_if_missing=True, error_prefix=""):
-    if not os.path.isfile(file):
-        if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-        return None
-
-    with open(file, "r") as f:
-        try:
-            content = f.read()
-            match = re.search(pattern, content)
-            if match:
-                return match.group(group_id)
-        except Exception as e:
-            printc.error(error_prefix + 'Could not get value from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name)
-            return None
-
-    if error_if_missing:
-        printc.error(error_prefix + 'No match for regex "' + pattern + '" in file "' + file + '"', script_name=script_name)
-    return None
-
-
-def parse_regex_all(file, pattern, group_id, error_if_missing=True, error_prefix=""):
-    """Like parse_regex, but return the list of every match (one per record row)."""
-    if not os.path.isfile(file):
-        if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-        return None
-
-    with open(file, "r") as f:
-        try:
-            content = f.read()
-            values = [match.group(group_id) for match in re.finditer(pattern, content)]
-        except Exception as e:
-            printc.error(error_prefix + 'Could not get values from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name)
-            return None
-
-    if not values and error_if_missing:
-        printc.error(error_prefix + 'No match for regex "' + pattern + '" in file "' + file + '"', script_name=script_name)
-    return values
-
-
-def parse_csv(file, key, error_if_missing=True, error_prefix=""):
-    if not os.path.isfile(file):
-        if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-        return None
-
-    with open(file, mode="r") as csv_file:
-        try:
-            reader = csv.DictReader(csv_file, skipinitialspace=True)
-            for row in reader:
-                if key in row:
-                    return row[key]
-            if error_if_missing:
-                printc.error(error_prefix + 'Could not find key "' + key + '" in csv "' + file + '"', script_name=script_name)
-        except csv.Error as e:
-            printc.error(error_prefix + 'An error occurred while reading csv file "' + file + '": ' + str(e), script_name=script_name)
-            return None
-
-    return None
-
-
-def parse_csv_all(file, key, error_if_missing=True, error_prefix=""):
-    """Like parse_csv, but return the list of every row's value for `key`."""
-    if not os.path.isfile(file):
-        if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-        return None
-
-    values = []
-    with open(file, mode="r") as csv_file:
-        try:
-            reader = csv.DictReader(csv_file, skipinitialspace=True)
-            for row in reader:
-                if key in row:
-                    values.append(row[key])
-        except csv.Error as e:
-            printc.error(error_prefix + 'An error occurred while reading csv file "' + file + '": ' + str(e), script_name=script_name)
-            return None
-
-    if not values and error_if_missing:
-        printc.error(error_prefix + 'Could not find key "' + key + '" in csv "' + file + '"', script_name=script_name)
-    return values
-
-
-def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
-    if not os.path.isfile(file):
-        if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-        return None
-
-    with open(file, "r") as yaml_file:
-        try:
-            data = yaml.safe_load(yaml_file)
-            if key is None:
-                return data
-            if data is None:
-                return None
-            if isinstance(data, dict):
-                return data.get(key, None)
-            return None
-        except yaml.YAMLError as e:
-            printc.error(f'{error_prefix}Could not parse yaml file "{file}": {str(e)}', script_name=script_name)
-            return None
-
-
-def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
-    if not os.path.isfile(file):
-        if error_if_missing:
-            printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-        return None
-
-    with open(file, "r") as json_file:
-        try:
-            data = json.load(json_file)
-            if key is None:
-                return data
-            if data is None:
-                return None
-            if isinstance(data, dict):
-                return data.get(key, None)
-            return None
-        except json.JSONDecodeError as e:
-            printc.error(f'{error_prefix}Could not parse json file "{file}": {str(e)}', script_name=script_name)
-            return None
-
-
-def convert_to_numeric(data):
-    if isinstance(data, (int, float)):
-        return data
-    try:
-        if "." in str(data):
-            return float(data)
-        return int(data)
-    except Exception:
-        return data
-
-
-def calculate_operation(op_str, results, error_if_missing=True, error_prefix=""):
-    try:
-        local_vars = {k: v for k, v in results.items() if v is not None}
-        return eval(op_str, {}, local_vars)
-    except (NameError, SyntaxError, TypeError, ZeroDivisionError) as e:
-        if error_if_missing:
-            printc.error(error_prefix + 'Failed to evaluate operation "' + op_str + '": ' + str(e), script_name)
-        return None
 
 
 def _load_metrics(metrics_file):
@@ -455,24 +315,9 @@ def _discover_runs(work_root):
     return runs
 
 
-def _load_existing_workflow_output(output_file):
-    """
-    Load an existing results file (any supported format version) as
-    (units, records). Older formats are auto-converted to v2 records, so the
-    next write upgrades the file in place.
-    """
-    if not os.path.isfile(output_file):
-        return {}, []
-
-    try:
-        results_file = results_schema.load_results_file(output_file)
-    except Exception:
-        printc.warning('Could not parse existing results file "' + output_file + '", starting over', script_name=script_name)
-        return {}, []
-
-    return results_file.units, results_file.records
-
-
+# Backward-compatible alias: the shared loader (odatix.components.export_common)
+# handles every supported format version.
+_load_existing_workflow_output = load_existing_results_file
 
 
 def configure_workflow_job_exports(

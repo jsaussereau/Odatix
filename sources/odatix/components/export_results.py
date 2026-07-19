@@ -22,9 +22,6 @@
 import os
 import sys
 import yaml
-import json
-import re
-import csv
 import argparse
 
 import odatix.lib.printc as printc
@@ -34,6 +31,15 @@ from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadV
 import odatix.lib.settings as settings
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.variables import replace_variables, Variables
+from odatix.components.export_common import (
+    parse_regex,
+    parse_csv,
+    parse_yaml,
+    parse_json,
+    convert_to_numeric,
+    calculate_operation,
+    load_existing_results_file,
+)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -102,144 +108,6 @@ def parse_arguments():
   parser = argparse.ArgumentParser(description="Process FPGA or ASIC results")
   add_arguments(parser)
   return parser.parse_args()
-
-
-######################################
-# Parsing functions
-######################################
-
-
-def parse_regex(file, pattern, group_id, error_if_missing=True, error_prefix=""):
-  """
-  Parse a file with a regex to extract a specific value.
-
-  Args:
-      file (str): Path to the file.
-      pattern (str): Regular expression to search for.
-      group_id (int): Regex group ID to extract.
-      error_prefix (str): Prefix for error messages.
-
-  Returns:
-      str | None: The matched value, or None if not found or on error.
-  """
-  if not os.path.isfile(file):
-    if error_if_missing:
-      printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-    return None
-  with open(file, "r") as f:
-    try:
-      content = f.read()
-      match = re.search(pattern, content)
-      if match:
-        return match.group(group_id)
-    except Exception as e:
-      printc.error(
-        error_prefix + 'Could not get value from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name
-      )
-      return None
-
-  printc.error(error_prefix + 'No match for regex "' + pattern + '" in file "' + file + '"', script_name=script_name)
-  return None
-
-
-def parse_csv(file, key, error_if_missing=True, error_prefix=""):
-  """
-  Parse a CSV file to extract a value associated with a specific key.
-
-  Args:
-      file (str): Path to the CSV file.
-      key (str): Key to search for in the file.
-      error_prefix (str): Prefix for error messages.
-
-  Returns:
-      str | None: The value corresponding to the key, or None if not found.
-  """
-  if not os.path.isfile(file):
-    if error_if_missing:
-      printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-    return None
-  with open(file, mode="r") as csv_file:
-    try:
-      reader = csv.DictReader(csv_file, skipinitialspace=True)
-      for row in reader:
-        if key in row:
-          return row[key]
-        else:
-          printc.error(error_prefix + 'Could not find key "' + key + '" in csv "' + file + '"', script_name=script_name)
-    except csv.Error as e:
-      printc.error(error_prefix + 'An error occurred while reading csv file "' + file + '": ' + str(e), script_name=script_name)
-      return None
-
-  return None
-
-def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
-  """
-  Parse a YAML file to extract a value associated with a key.
-
-  Args:
-      file (str): Path to the YAML file.
-      key (str): Key to search for in the YAML data.
-      error_prefix (str): Prefix for error messages.
-
-  Returns:
-      Any | None: Extracted value, or None if not found or on error.
-  """
-  if not os.path.isfile(file):
-    if error_if_missing:
-      printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-    return None
-
-  with open(file, "r") as yaml_file:
-    try:
-      data = yaml.safe_load(yaml_file)
-      if key:
-        value = data.get(key, None)
-        if value is None:
-          printc.error(error_prefix + 'Could not find key "' + key + '" in yaml "' + file + '"', script_name=script_name)
-        return value
-      return data
-    except yaml.YAMLError as e:
-      printc.error(f'{error_prefix}Could not parse yaml file "{file}": {str(e)}')
-      return None
-
-  if not os.path.isfile(file):
-    printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-    return None
-
-
-def parse_json(file, key=None, error_if_missing=True, error_prefix=""):
-  """
-  Parse a JSON file to extract a value associated with a key.
-
-  Args:
-      file (str): Path to the JSON file.
-      key (str): Key to search for in the JSON data.
-      error_prefix (str): Prefix for error messages.
-
-  Returns:
-      Any | None: Extracted value, or None if not found or on error.
-  """
-  if not os.path.isfile(file):
-    if error_if_missing:
-      printc.error(error_prefix + 'File "' + file + '" does not exist', script_name)
-    return None
-
-  with open(file, "r") as json_file:
-    try:
-      data = json.load(json_file)
-      if key:
-        if isinstance(data, dict):
-          value = data.get(key, None)
-          if value is None and error_if_missing:
-            printc.error(error_prefix + 'Could not find key "' + key + '" in json "' + file + '"', script_name=script_name)
-          return value
-        if error_if_missing:
-          printc.error(error_prefix + 'JSON file "' + file + '" does not contain a dictionary at top level', script_name=script_name)
-        return None
-      return data
-    except json.JSONDecodeError as e:
-      printc.error(f'{error_prefix}Could not parse json file "{file}": {str(e)}', script_name=script_name)
-      return None
 
 
 ######################################
@@ -451,46 +319,6 @@ def corrupted_directory(directory):
   printc.warning(
     directory + " => Synthesis has not finished or directory has been corrupted", script_name
   )
-
-
-def convert_to_numeric(data):
-  """
-  Convert a string representation of a number to a numeric type (int or float).
-
-  Args:
-      data (str): The string to convert.
-
-  Returns:
-      int | float | str: The numeric representation of the input if conversion is successful;
-      otherwise, the original string.
-  """
-  try:
-    if "." in data:
-      return float(data)
-    return int(data)
-  except ValueError:
-    return data
-
-
-def calculate_operation(op_str, results, error_if_missing=True, error_prefix=""):
-  """
-  Evaluate a mathematical operation on the extracted results.
-
-  Args:
-      op_str (str): The mathematical operation as a string (e.g., "a + b / c").
-      results (dict): Dictionary of metric values available for the operation.
-      error_prefix (str): Prefix for error messages to provide context.
-
-  Returns:
-      float | int | None: The result of the evaluated operation, or None if an error occurs.
-  """
-  try:
-    local_vars = {k: v for k, v in results.items() if v is not None}
-    return eval(op_str, {}, local_vars)
-  except (NameError, SyntaxError, TypeError, ZeroDivisionError) as e:
-    if error_if_missing:
-      printc.error(error_prefix + 'Failed to evaluate operation "' + op_str + '": ' + str(e) , script_name)
-    return None
 
 
 ######################################
@@ -755,22 +583,9 @@ def _load_metrics_for_tool(tool, custom_metrics_file=None):
   return metrics_data, metrics_file
 
 
-def _load_existing_results(output_file):
-  """
-  Load an existing results file (any supported format version) as
-  (units, records). Older formats are auto-converted to v2 records, so the
-  next write upgrades the file in place.
-  """
-  if not os.path.isfile(output_file):
-    return {}, []
-
-  try:
-    results_file = results_schema.load_results_file(output_file)
-  except Exception:
-    printc.warning('Could not parse existing results file "' + output_file + '", starting over', script_name=script_name)
-    return {}, []
-
-  return results_file.units, results_file.records
+# Backward-compatible alias: the shared loader (odatix.components.export_common)
+# handles every supported format version.
+_load_existing_results = load_existing_results_file
 
 
 def configure_synthesis_job_exports(
