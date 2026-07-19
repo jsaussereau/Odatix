@@ -60,18 +60,24 @@ def register_callbacks():
     Input("xp-data-version", "data"),
     State("xp-source-select", "value"),
     State("xp-source-select", "options"),
+    State("xp-ui-state", "data"),
   )
-  def update_sources(_version, selected, previous_options):
+  def update_sources(_version, selected, previous_options, ui_state):
     """
-    Refresh the source list, keeping the user's selection. The first source is
-    selected by default; a source appearing while nothing is selected (e.g. a
-    first job finishing) is selected automatically.
+    Refresh the source list, keeping the user's selection. On a fresh page the
+    live value is empty, so the selection remembered in xp-ui-state (kept in
+    sync by remember_ui_state, written by saved-view restores) wins. The first
+    source is selected by default; a source appearing while nothing is selected
+    (e.g. a first job finishing) is selected automatically.
     """
     names = STORE.source_names()
     errors = {source.name: source.error for source in STORE.sources()}
     options = [{"label": name + (" ⚠" if errors.get(name) else ""), "value": name} for name in names]
 
+    remembered = (ui_state or {}).get("sources") or []
     kept = [name for name in selected if name in names] if selected else []
+    if not kept:
+      kept = [name for name in remembered if name in names]
     value = kept if kept else names[:1]
 
     return options, value

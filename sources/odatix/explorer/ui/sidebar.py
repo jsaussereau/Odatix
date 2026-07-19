@@ -90,7 +90,10 @@ def build_sidebar(kind):
           ],
           className="xp-status-row",
         ),
-        dcc.Checklist(id="xp-source-select", options=[], value=None, className="xp-filter-checklist", **_PERSIST),
+        # Remembered via xp-ui-state (not Dash persistence) so that saved-view
+        # restores can overwrite it — likewise for palette, plot theme, toggles,
+        # overview and export options below.
+        dcc.Checklist(id="xp-source-select", options=[], value=None, className="xp-filter-checklist"),
       ]),
 
       # --- Axes ---
@@ -99,6 +102,7 @@ def build_sidebar(kind):
           "xp-overview-chart-type",
           options=[{"label": label, "value": value} for value, label in (("lines", "Lines"), ("columns", "Columns"), ("radar", "Radar"))],
           value="lines",
+          persist=False,
         ), hidden=not is_overview),
         components.control_row("X axis" if not is_scatter else "X metric", _dropdown("xp-axis-x"), hidden="x" not in axes and not is_overview),
         components.control_row("Y metric", _dropdown("xp-axis-y"), hidden="y" not in axes),
@@ -107,6 +111,7 @@ def build_sidebar(kind):
           "xp-overview-layout",
           options=[{"label": name, "value": name} for name in OVERVIEW_LAYOUTS],
           value="default",
+          persist=False,
         ), hidden=not is_overview),
       ]),
 
@@ -120,11 +125,13 @@ def build_sidebar(kind):
           "xp-palette",
           options=[{"label": name, "value": name} for name in palettes.PALETTES],
           value=palettes.DEFAULT_PALETTE,
+          persist=False,
         )),
         components.control_row("Plot theme", _dropdown(
           "xp-plot-theme",
           options=[{"label": name, "value": name} for name in plot_themes.plot_theme_names()],
           value=plot_themes.DEFAULT_PLOT_THEME,
+          persist=False,
         ), tooltip="Look of the figures, independent from the app theme"),
       ]),
 
@@ -135,7 +142,6 @@ def build_sidebar(kind):
           options=toggle_options,
           value=toggle_defaults,
           className="xp-toggle-checklist",
-          **_PERSIST,
         ),
       ], open=True),
     ],
@@ -158,13 +164,35 @@ def build_sidebar(kind):
           "xp-dl-format",
           options=[{"label": fmt.upper(), "value": fmt} for fmt in ("svg", "png", "jpeg", "webp")],
           value="svg",
+          persist=False,
         )),
         components.control_row("Image background", _dropdown(
           "xp-dl-background",
           options=[{"label": "Transparent", "value": "transparent"}, {"label": "White", "value": "white"}, {"label": "Theme", "value": "theme"}],
           value="transparent",
+          persist=False,
         )),
         html.Button("Download CSV", id="xp-download-csv", n_clicks=0, className="xp-button", title="Export the currently displayed data as CSV"),
+      ]),
+
+      # --- Saved views ---
+      components.section("Saved views", [
+        components.control_row("Name", dcc.Input(
+          id="xp-view-name",
+          type="text",
+          value="",
+          debounce=True,
+          className="xp-text-input",
+        ), tooltip="Name of the view to save (a default is proposed)"),
+        html.Button("Save current view", id="xp-view-save", n_clicks=0, className="xp-button",
+                    title="Save the whole display state (sources, axes, style, filters, ...) as a shareable file"),
+        components.control_row("Restore a view", _dropdown(
+          "xp-view-select",
+          persist=False,
+          placeholder="Select a saved view...",
+          clearable=True,
+        ), tooltip="Selecting a view restores the exact display state it was saved with"),
+        html.Div(id="xp-view-status", className="xp-view-status"),
       ]),
     ],
     className="xp-tab-panel xp-tab-panel-export",

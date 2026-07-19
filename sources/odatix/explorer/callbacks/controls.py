@@ -103,6 +103,7 @@ def register_callbacks():
     Output("xp-dissociate-by", "value"),
     Input("xp-data-version", "data"),
     Input("xp-source-select", "value"),
+    Input("xp-restore-trigger", "data"),
     State("xp-axis-x", "value"),
     State("xp-axis-y", "value"),
     State("xp-axis-z", "value"),
@@ -113,7 +114,7 @@ def register_callbacks():
     State("xp-control-state", "data"),
     State("xp-chart-kind", "data"),
   )
-  def update_control_options(_version, sources, x, y, z, color_by, symbol_by, legend_group_by, dissociate, stored, kind):
+  def update_control_options(_version, sources, _restore, x, y, z, color_by, symbol_by, legend_group_by, dissociate, stored, kind):
     # Values chosen on any chart page are remembered in xp-control-state (session
     # storage) so they survive switching chart kinds. On a fresh page the live
     # component values are empty (Dash persistence drops them while options are
@@ -161,6 +162,55 @@ def register_callbacks():
       dim_options, spec.legend_group_by,
       dim_options, spec.dissociate if spec.dissociate else NONE_VALUE,
     )
+
+  # The controls below (unlike the axis/style dropdowns, which go through
+  # xp-control-state) used to rely on Dash persistence to survive navigation.
+  # They now go through the xp-ui-state session store instead, because Dash
+  # persistence only records user edits: a saved-view restore (callback write)
+  # would be reverted on the next page switch. apply_ui_state re-applies the
+  # remembered values at page mount; remember_ui_state keeps the store in sync.
+  @dash.callback(
+    Output("xp-palette", "value"),
+    Output("xp-plot-theme", "value"),
+    Output("xp-toggles", "value"),
+    Output("xp-overview-chart-type", "value"),
+    Output("xp-overview-layout", "value"),
+    Output("xp-dl-format", "value"),
+    Output("xp-dl-background", "value"),
+    Input("xp-data-version", "data"),
+    State("xp-ui-state", "data"),
+  )
+  def apply_ui_state(_version, state):
+    state = state or {}
+    keys = ("palette", "plot_theme", "toggles", "overview_chart_type", "overview_layout", "dl_format", "dl_background")
+    return tuple(state[key] if state.get(key) is not None else dash.no_update for key in keys)
+
+  @dash.callback(
+    Output("xp-ui-state", "data"),
+    Input("xp-source-select", "value"),
+    Input("xp-palette", "value"),
+    Input("xp-plot-theme", "value"),
+    Input("xp-toggles", "value"),
+    Input("xp-overview-chart-type", "value"),
+    Input("xp-overview-layout", "value"),
+    Input("xp-dl-format", "value"),
+    Input("xp-dl-background", "value"),
+    State("xp-ui-state", "data"),
+    prevent_initial_call=True,
+  )
+  def remember_ui_state(sources, palette, plot_theme, toggles, overview_chart_type, overview_layout, dl_format, dl_background, state):
+    state = dict(state or {})
+    state.update(
+      sources=sources,
+      palette=palette,
+      plot_theme=plot_theme,
+      toggles=toggles,
+      overview_chart_type=overview_chart_type,
+      overview_layout=overview_layout,
+      dl_format=dl_format,
+      dl_background=dl_background,
+    )
+    return state
 
   @dash.callback(
     Output("xp-control-state", "data"),

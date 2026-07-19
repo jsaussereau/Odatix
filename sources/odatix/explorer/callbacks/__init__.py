@@ -37,10 +37,12 @@ def register_callbacks():
   import odatix.explorer.callbacks.controls as controls
   import odatix.explorer.callbacks.filters as filters
   import odatix.explorer.callbacks.figure as figure
+  import odatix.explorer.callbacks.views as views
 
   data.register_callbacks()
   controls.register_callbacks()
   filters.register_callbacks()
   figure.register_callbacks()
+  views.register_callbacks()
 
   _registered = True

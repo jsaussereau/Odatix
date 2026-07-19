@@ -47,6 +47,14 @@ def explorer_state_stores():
   return [
     dcc.Store(id="xp-filter-state", data={}, storage_type="session"),
     dcc.Store(id="xp-control-state", data={}, storage_type="session"),
+    # Sources, palette, toggles, export options... — everything not covered by
+    # the two stores above. Unlike Dash persistence (which only records user
+    # edits), this store can be written by the saved-view restore callbacks.
+    dcc.Store(id="xp-ui-state", data={}, storage_type="session"),
+    # Bumped by a saved-view restore to force update_control_options to re-derive
+    # the axis/style dropdowns from the freshly written xp-control-state, even
+    # when the restored view keeps the same sources (so no other input changes).
+    dcc.Store(id="xp-restore-trigger", data=0, storage_type="session"),
   ]
 
 
@@ -68,6 +76,12 @@ def explorer_shell(kind):
       dcc.Store(id="xp-data-version", data=-1),
       dcc.Interval(id="xp-poll", interval=POLL_INTERVAL_MS),
       dcc.Download(id="xp-download"),
+      # Navigation target of the saved-view restore (view of another chart kind).
+      # refresh=True forces a full reload: the target page then rehydrates the
+      # session stores (xp-control-state, ...) from sessionStorage and mounts
+      # already restored — a plain SPA route swap can mount the new page before
+      # the freshly written stores propagate, showing stale controls.
+      dcc.Location(id="xp-url", refresh=True),
       html.Div(sidebar.build_sidebar(kind), id="xp-sidebar", className="xp-sidebar"),
       html.Div(
         [

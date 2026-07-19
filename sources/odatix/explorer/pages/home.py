@@ -24,11 +24,14 @@ Explorer landing page: chart view cards and live data source status.
 """
 
 import dash
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, State, ALL
 from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line
 
 from odatix.components import home_shared
 from odatix.explorer.core.store import STORE
+import odatix.explorer.core.views as views
+import odatix.explorer.charts.palettes as palettes
+import odatix.explorer.callbacks.views as views_callbacks
 
 _STROKE = "var(--theme-primary-color, #228BE6)"
 _FILL = "var(--theme-text-color, #24292e)"
@@ -95,13 +98,79 @@ def _card_visual(card):
   return _pictogram(card.get("kind"))
 
 
+def _view_thumbnail(view):
+  """Tiny data sketch saved inside the view file, or the kind pictogram."""
+  thumb = view.get("thumb")
+  palette = view.get("palette")
+  if not isinstance(thumb, dict):
+    return _pictogram(view.get("kind"))
+
+  children = []
+  if thumb.get("t") == "bars":
+    bars = thumb.get("b") or []
+    if bars:
+      slot = views.THUMB_WIDTH / len(bars)
+      width = max(2, round(slot * 0.7))
+      for index, (color, top) in enumerate(bars):
+        children.append(Rect(
+          x=str(round(index * slot + (slot - width) / 2)), y=str(top),
+          width=str(width), height=str(max(1, views.THUMB_HEIGHT - top)),
+          rx="1", fill=palettes.get_color(color, palette),
+        ))
+  else:
+    for serie in thumb.get("s") or []:
+      color = palettes.get_color(serie.get("c", 0), palette)
+      points = serie.get("p") or []
+      if thumb.get("t") == "dots":
+        children += [Circle(cx=str(x), cy=str(y), r="2.5", fill=color) for x, y in points]
+      else:
+        children.append(Polyline(
+          points=" ".join(str(x) + "," + str(y) for x, y in points),
+          stroke=color, strokeWidth="2.5", fill="none",
+          strokeLinejoin="round", strokeLinecap="round",
+        ))
+
+  if not children:
+    return _pictogram(view.get("kind"))
+  viewbox = "-3 -3 " + str(views.THUMB_WIDTH + 6) + " " + str(views.THUMB_HEIGHT + 6)
+  return Svg(children, viewBox=viewbox, className="xp-view-thumb", preserveAspectRatio="none")
+
+
+def _view_card(view):
+  name = view.get("name", "?")
+  created = str(view.get("created", ""))[:10]
+  meta = " · ".join(part for part in [views.kind_label(view.get("kind")), ", ".join(view.get("sources") or []), created] if part)
+  return html.Button(
+    [
+      html.Div(_view_thumbnail(view), className="xp-view-thumb-box"),
+      html.Div(
+        [
+          html.Div(name, className="xp-view-card-name"),
+          html.Div(meta, className="xp-view-card-meta", title=meta),
+        ],
+        className="xp-view-card-text",
+      ),
+    ],
+    id={"type": "xp-view-open", "name": name},
+    n_clicks=0,
+    type="button",
+    className="xp-view-card",
+    title="Restore this view",
+  )
+
+
 def layout(**kwargs):
   return html.Div(
     [
       dcc.Interval(id="xp-home-poll", interval=3000),
+      # refresh=True: full reload so the target chart page rehydrates the session
+      # stores written by open_view_from_home and mounts already restored (see
+      # the same note in ui/shell.py for xp-url).
+      dcc.Location(id="xp-home-url", refresh=True),
       home_shared.home_header("Odatix Explorer", "Visualize, compare and explore your results."),
       home_shared.home_card_grid(_CARDS, _card_visual),
       html.Div(id="xp-home-sources", className="xp-home-sources"),
+      html.Div(id="xp-home-views", className="xp-home-views"),
     ],
     className="xp-home",
   )
@@ -145,3 +214,50 @@ def update_home_sources(_intervals, settings):
       )
     )
   return cards
+
+
+@dash.callback(
+  Output("xp-home-views", "children"),
+  Input("xp-home-poll", "n_intervals"),
+  Input("odatix-settings", "data"),
+)
+def update_home_views(_intervals, settings):
+  if isinstance(settings, dict) and settings.get("result_path"):
+    STORE.configure(settings.get("result_path"))
+
+  saved = views.list_views(STORE.result_path)
+  if not saved:
+    return None
+  return [
+    html.H2("Saved views", className="xp-home-section-title", style={"marginTop": "3em"}),
+    html.Div([_view_card(view) for view in saved], className="card-matrix configs"),
+  ]
+
+
+@dash.callback(
+  Output("xp-control-state", "data", allow_duplicate=True),
+  Output("xp-filter-state", "data", allow_duplicate=True),
+  Output("xp-ui-state", "data", allow_duplicate=True),
+  Output("xp-home-url", "pathname"),
+  Input({"type": "xp-view-open", "name": ALL}, "n_clicks"),
+  State("xp-ui-state", "data"),
+  prevent_initial_call=True,
+)
+def open_view_from_home(clicks, ui_state):
+  """Restore a saved view from its home card, then navigate to its chart page.
+
+  Only the session stores are written here: the chart page re-applies them at
+  mount (update_control_options, update_sources, apply_ui_state, ...), which
+  is the exact mechanism that restores state on any page swap.
+  """
+  triggered = dash.callback_context.triggered_id
+  if not isinstance(triggered, dict) or not any(clicks or []):
+    raise dash.exceptions.PreventUpdate
+  try:
+    payload, ui_patch, _warnings = views_callbacks.restore_payload(triggered.get("name"))
+  except ValueError:
+    raise dash.exceptions.PreventUpdate
+
+  ui_state = dict(ui_state or {})
+  ui_state.update(ui_patch)
+  return payload["controls"], payload["filter_state"], ui_state, "/explorer/" + payload["kind"]
