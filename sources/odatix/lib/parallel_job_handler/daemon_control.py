@@ -95,7 +95,6 @@ def _normalize_session_name(session_name, default_name=DEFAULT_HOST):
 
 def _generate_default_session_name(host=DEFAULT_HOST):
     host = str(host or DEFAULT_HOST).strip() or DEFAULT_HOST
-    pid = int(os.getpid())
 
     # Try to determine a controlling TTY (stdin/out/err), fallback to env or 'no_tty'.
     tty_slug = None
@@ -129,7 +128,7 @@ def _generate_default_session_name(host=DEFAULT_HOST):
             pass
 
     host_slug = _session_slug(host) or DEFAULT_HOST
-    return "{}.{}.{}".format(pid, tty_slug, host_slug)
+    return "{}.{}".format(tty_slug, host_slug)
 
 
 def _session_slug(session_name):
