@@ -129,6 +129,7 @@ def build_sidebar(kind):
           options=[{"label": "Transparent", "value": "transparent"}, {"label": "White", "value": "white"}, {"label": "Theme", "value": "theme"}],
           value="transparent",
         )),
+        html.Button("Download LaTeX (TikZ)", id="xp-download-tex", n_clicks=0, className="xp-button", title="Export the current Plotly figure as TikZ/LaTeX"),
         html.Button("Download CSV", id="xp-download-csv", n_clicks=0, className="xp-button", title="Export the currently displayed data as CSV"),
       ], open=False),
     ],

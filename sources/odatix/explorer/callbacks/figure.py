@@ -28,6 +28,7 @@ from dataclasses import replace
 
 import dash
 from dash import dcc, html, Input, Output, State, ALL
+import plotly.graph_objects as go
 
 import odatix.gui.content_lib as content_lib
 
@@ -178,16 +179,45 @@ def register_callbacks():
 
   @dash.callback(
     Output("xp-download", "data"),
+    Input("xp-download-tex", "n_clicks"),
     Input("xp-download-csv", "n_clicks"),
     State("xp-source-select", "value"),
     State({"type": "xp-filter", "dim": ALL}, "value"),
     State({"type": "xp-filter", "dim": ALL}, "id"),
     State("xp-chart-kind", "data"),
+    State("xp-graph", "figure"),
     prevent_initial_call=True,
   )
-  def download_csv(n_clicks, sources, filter_values, filter_ids, kind):
-    if not n_clicks:
+  def download_data(tex_clicks, csv_clicks, sources, filter_values, filter_ids, kind, figure_data):
+    ctx = getattr(dash, "ctx", None)
+    if ctx is not None:
+      trigger = ctx.triggered_id
+    else:
+      callback_ctx = dash.callback_context
+      trigger = callback_ctx.triggered[0]["prop_id"].split(".")[0] if callback_ctx.triggered else None
+
+    if trigger not in ("xp-download-csv", "xp-download-tex"):
       raise dash.exceptions.PreventUpdate
+
+    if trigger == "xp-download-tex":
+      if kind in (None, "overview"):
+        raise dash.exceptions.PreventUpdate
+      if not figure_data:
+        raise dash.exceptions.PreventUpdate
+
+      try:
+        import tikzplotly
+      except Exception as e:
+        raise RuntimeError("tikzplotly is required for LaTeX export. Install it in the active environment.") from e
+
+      fig = go.Figure(figure_data)
+      tikz_code = tikzplotly.get_tikz_code(fig)
+      filename = "Odatix-" + "-".join((sources or ["results"])[:3] + [str(kind)]) + ".tex"
+      return dict(content=tikz_code, filename=filename, type="text/plain")
+
+    if not csv_clicks:
+      raise dash.exceptions.PreventUpdate
+
     filters = build_filters_dict(filter_values, filter_ids)
     df = query.select_dataframe(STORE, sources=sources, filters=filters)
     filename = "Odatix-" + "-".join((sources or ["results"])[:3] + [str(kind)]) + ".csv"
