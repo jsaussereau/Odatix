@@ -203,6 +203,43 @@
     flex: 0 0 auto;
 }
 
+/* ---------- Saved views (sidebar) ---------- */
+
+.xp-text-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--theme-text-color);
+    background: var(--theme-background-color);
+    border: 1px solid var(--theme-border-color);
+    border-radius: var(--theme-small-border-radius, 10px);
+}
+
+.xp-text-input:focus {
+    outline: none;
+    border-color: var(--theme-primary-color);
+}
+
+.xp-view-status {
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.xp-view-status:empty {
+    display: none;
+}
+
+.xp-view-ok {
+    opacity: 0.8;
+}
+
+.xp-view-warning {
+    color: var(--theme-caution-color, #d9534f);
+}
+
 /* ---------- Filters ---------- */
 
 .xp-filter-buttons {
@@ -372,6 +409,91 @@
     font-size: 13px;
     opacity: 0.7;
     line-height: 1.4;
+}
+
+/* ---------- Saved views (home page) ---------- */
+
+.xp-home-section-title {
+    max-width: 1100px;
+    margin: 0 auto 14px auto;
+    font-size: 20px;
+    text-align: center;
+}
+
+.xp-home-views {
+    margin-bottom: 32px;
+}
+
+.xp-view-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.xp-view-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: var(--card-text-color, var(--theme-text-color));
+    background-color: var(--card-background, var(--theme-element-background-color));
+    border: var(--card-border, none);
+    border-radius: var(--theme-small-border-radius, 12px);
+    box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.xp-view-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.15);
+}
+
+.xp-view-thumb-box {
+    flex: 0 0 84px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--theme-background-color);
+    overflow: hidden;
+}
+
+.xp-view-thumb {
+    width: 100%;
+    height: 100%;
+}
+
+.xp-view-thumb-box .xp-card-pictogram {
+    width: 34px;
+    height: 34px;
+    margin: 0;
+}
+
+.xp-view-card-text {
+    min-width: 0;
+}
+
+.xp-view-card-name {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.xp-view-card-meta {
+    font-size: 12px;
+    opacity: 0.65;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .xp-home-sources {
