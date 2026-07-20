@@ -36,7 +36,7 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
-from odatix.lib.utils import is_auto_nb_jobs, AUTO_NB_JOBS_KEYWORD
+from odatix.lib.utils import is_auto_nb_jobs, resolve_nb_jobs, AUTO_NB_JOBS_KEYWORD
 import odatix.components.run_common as run_common
 import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
@@ -787,7 +787,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             label="Maximum number of parallel jobs",
                             id="nb_jobs",
                             type="number",
-                            value="" if auto_nb_jobs else str(settings.get("nb_jobs", 8)),
+                            value=str(resolve_nb_jobs(AUTO_NB_JOBS_KEYWORD)) if auto_nb_jobs else str(settings.get("nb_jobs", 8)),
                             disabled=auto_nb_jobs,
                             tooltip="Maximum number of jobs to run in parallel. (overridden by -j / --jobs)",
                             style={"flex": "1"},
@@ -1040,7 +1040,7 @@ def toggle_auto_nb_jobs(auto_nb_jobs, nb_jobs):
     """Disable (and blank) the nb_jobs input while the Auto switch is on; restore
     a sensible value when it is turned back off."""
     if _checklist_enabled(auto_nb_jobs):
-        return True, ""
+        return True, str(resolve_nb_jobs(AUTO_NB_JOBS_KEYWORD))
     restored = nb_jobs if nb_jobs not in (None, "") else _JOB_SETTINGS_DEFAULTS["nb_jobs"]
     return False, str(restored)
 
