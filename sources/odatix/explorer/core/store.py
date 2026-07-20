@@ -68,6 +68,7 @@ class ResultStore:
     self._df = pd.DataFrame()
     self._dimension_columns = {}  # display name -> list of dimension columns
     self._metric_columns = {}     # display name -> list of metric columns
+    self._chartable_sources = set()  # display names with >=1 chartable record
     self._version = 0
     self._last_scan = 0.0
     self.last_load_time = None
@@ -92,6 +93,7 @@ class ResultStore:
       self._df = pd.DataFrame()
       self._dimension_columns = {}
       self._metric_columns = {}
+      self._chartable_sources = set()
       self._last_scan = 0.0
       self.poll(force=True)
       return True
@@ -212,6 +214,7 @@ class ResultStore:
     rows = []
     dimension_columns = {}
     metric_columns = {}
+    chartable_sources = set()
 
     for name in self._files:
       results_file = self._files[name]
@@ -219,8 +222,15 @@ class ResultStore:
       source_metrics = []
       for record in results_file.records:
         meta = record.get("meta", {})
+        # Non-chartable records (e.g. RTL analysis, which has its own dashboard
+        # at /explorer/analysis) are excluded from the tidy DataFrame so they do
+        # not appear in the generic charts. They remain available as raw records
+        # (see records()) for their dedicated page.
+        if schema.is_non_chart_type(meta.get(results_schema.META_TYPE, "")):
+          continue
         metrics = record.get("metrics", {})
         row = {schema.COL_SOURCE: name}
+        chartable_sources.add(name)
 
         for key, value in meta.items():
           key = str(key)
@@ -262,6 +272,7 @@ class ResultStore:
     self._df = df
     self._dimension_columns = dimension_columns
     self._metric_columns = metric_columns
+    self._chartable_sources = chartable_sources
 
   def _ordered_columns(self, columns, dimension_columns, metric_columns):
     """Stable column order: reserved dimensions, free dimensions, metrics, info."""
@@ -284,12 +295,36 @@ class ResultStore:
       return [self._sources[name] for name in sorted(self._sources)]
 
   def source_names(self):
+    """
+    Names of the chartable sources (those with at least one record shown in the
+    generic charts). Analysis-only files are excluded here so they do not appear
+    in the chart source selector; use sources() for the full file list.
+    """
     with self._lock:
-      return sorted(self._sources)
+      return sorted(name for name in self._sources if name in self._chartable_sources)
 
   def dataframe(self):
     """The full tidy DataFrame (all sources). Never mutated in place."""
     return self._df
+
+  def records(self, sources=None):
+    """
+    Raw v2 records (meta + metrics) of the given sources (all sources if None),
+    each augmented with its source name under the "source" key. Used by pages
+    that need the full record — including informational ("_"-prefixed) meta such
+    as the analysis error/warning lists — rather than the tidy DataFrame.
+    """
+    with self._lock:
+      names = sorted(self._files) if sources is None else [name for name in sources if name in self._files]
+      out = []
+      for name in names:
+        for record in self._files[name].records:
+          out.append({
+            "source": name,
+            "meta": dict(record.get("meta", {})),
+            "metrics": dict(record.get("metrics", {})),
+          })
+      return out
 
   def dimension_columns(self, sources=None):
     """Dimension columns of the given sources (all sources if None), in display order."""

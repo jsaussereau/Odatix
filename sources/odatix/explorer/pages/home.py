@@ -25,7 +25,7 @@ Explorer landing page: chart view cards and live data source status.
 
 import dash
 from dash import dcc, html, Input, Output, State, ALL
-from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line
+from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line, Path
 
 from odatix.components import home_shared
 from odatix.explorer.core.store import STORE
@@ -42,6 +42,15 @@ def _svg(children):
 
 
 def _pictogram(kind):
+  if kind == "analysis":
+    # Checklist with status ticks / cross: pass, warning, fail rows.
+    return _svg([
+        Path(d="M13 8 h14 l8 8 v24 a2 2 0 0 1-2 2 H13 a2 2 0 0 1-2-2 V10 a2 2 0 0 1 2-2 z", stroke=_FILL, strokeWidth="2", strokeOpacity="0.5", strokeLinejoin="round"),
+        Line(x1="16", y1="18", x2="24", y2="18", stroke=_FILL, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
+        Line(x1="16", y1="23", x2="28", y2="23", stroke=_FILL, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
+        Circle(cx="24", cy="30", r="5", stroke=_STROKE, strokeWidth="2.5"),
+        Line(x1="27.8", y1="33.8", x2="32", y2="38", stroke=_STROKE, strokeWidth="2.5", strokeLinecap="round"),
+    ])
   if kind == "lines":
     return _svg([
       Polyline(points="4,38 16,24 28,30 44,10", stroke=_STROKE, strokeWidth="2.5", fill="none"),
@@ -91,6 +100,7 @@ _CARDS = [
   {"name": "Scatter 3D", "link": "/explorer/scatter3d", "kind": "scatter3d", "description": "Three metrics in one 3D view"},
   {"name": "Radar", "link": "/explorer/radar", "kind": "radar", "description": "Polar view of a metric"},
   {"name": "Overview", "link": "/explorer/overview", "kind": "overview", "description": "Every metric at a glance"},
+  {"name": "RTL Analysis", "link": "/explorer/analysis", "kind": "analysis", "description": "RTL analysis warnings and errors dashboard"},
 ]
 
 

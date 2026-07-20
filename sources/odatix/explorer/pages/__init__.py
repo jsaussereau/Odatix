@@ -25,6 +25,7 @@ into the current Dash app. A dash.Dash(use_pages=True) app must exist first.
 """
 
 import odatix.explorer.pages.home
+import odatix.explorer.pages.analysis
 import odatix.explorer.pages.lines
 import odatix.explorer.pages.columns
 import odatix.explorer.pages.scatter

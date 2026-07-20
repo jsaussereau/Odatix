@@ -62,6 +62,18 @@ TYPE_DISPLAY_NAMES = {
   results_schema.TYPE_WORKFLOW: "Workflow",
 }
 
+# Result types that are NOT chartable and must be excluded from the generic
+# explorer (charts + source list). RTL analysis results ("analysis" records,
+# see odatix.components.export_analysis) have their own dashboard at
+# /explorer/analysis, so they are kept out of the tidy DataFrame and the source
+# selector by default.
+NON_CHART_TYPES = {"analysis"}
+
+
+def is_non_chart_type(type_value):
+  """True if a result type meta value must be excluded from the generic charts."""
+  return str(type_value).strip().lower() in NON_CHART_TYPES
+
 # Frequency value used for fmax synthesis rows (no fixed frequency)
 FMAX_FREQUENCY_VALUE = "fmax"
 

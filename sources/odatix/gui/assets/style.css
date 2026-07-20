@@ -735,14 +735,10 @@ textarea {
 
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, 240px);
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
     gap: 16px;
-    justify-content: center;
-    width: 100%;
-    max-width: 1040px;
-    margin: 0 auto;
-    box-sizing: border-box;
-    padding: 0 24px;
+    max-width: 1100px;
+    margin: 0 auto 32px auto;
 }
 
 .page-header {
