@@ -155,6 +155,16 @@ class ResultStore:
 
       return changed
 
+  def mark_loaded(self):
+    """
+    Record the current time as the last load time even when nothing changed on
+    disk. Used for a manual reload (the "Reload" button), so the displayed
+    timestamp reflects the user's explicit refresh; a background poll that finds
+    no change leaves the timestamp untouched.
+    """
+    with self._lock:
+      self.last_load_time = time.time()
+
   def _scan_files(self):
     """List result files in the configured directory as {name: (path, mtime, size)}."""
     found = {}

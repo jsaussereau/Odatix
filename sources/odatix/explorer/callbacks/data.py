@@ -49,6 +49,11 @@ def register_callbacks():
     triggered = dash.callback_context.triggered_id
     STORE.poll(force=triggered in ("xp-refresh", "odatix-settings"))
 
+    # A manual reload refreshes the displayed timestamp even when the data did
+    # not change on disk; a background poll only touches it when data changed.
+    if triggered == "xp-refresh":
+      STORE.mark_loaded()
+
     status = components.status_text(STORE)
     if current_version == STORE.version:
       return dash.no_update, status
