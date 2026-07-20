@@ -29,6 +29,7 @@ filters) are populated by callbacks.
 """
 
 from dash import dcc, html
+from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line
 
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
@@ -36,6 +37,75 @@ from odatix.explorer.charts.spec import CAPABILITIES, TOGGLE_LABELS, DEFAULT_TOG
 import odatix.explorer.ui.components as components
 
 _PERSIST = dict(persistence=True, persistence_type="session")
+
+# Quick navigation between the chart pages, shown at the top of the "Plot" tab.
+# Order mirrors the home-page cards. Uses dcc.Link (SPA navigation), so the
+# shared session stores (sources, filters, style) survive the page swap.
+_VIEW_TABS = (
+  ("lines", "/explorer/lines", "Lines"),
+  ("columns", "/explorer/columns", "Columns"),
+  ("scatter", "/explorer/scatter", "Scatter"),
+  ("scatter3d", "/explorer/scatter3d", "Scatter 3D"),
+  ("radar", "/explorer/radar", "Radar"),
+  ("table", "/explorer/table", "Table"),
+  ("overview", "/explorer/overview", "Overview"),
+)
+
+
+def _mini_icon(kind):
+  """Small 24x24 glyph (currentColor) for the view-switcher pills."""
+  svg = lambda children: Svg(children, viewBox="0 0 24 24", width="15", height="15", fill="none", className="xp-view-switch-glyph")
+  if kind == "lines":
+    return svg([Polyline(points="2,18 8,11 13,14 22,4", stroke="currentColor", strokeWidth="2", fill="none", strokeLinejoin="round", strokeLinecap="round")])
+  if kind == "columns":
+    return svg([
+      Rect(x="3", y="12", width="4", height="9", rx="1", fill="currentColor"),
+      Rect(x="10", y="6", width="4", height="15", rx="1", fill="currentColor", opacity="0.75"),
+      Rect(x="17", y="9", width="4", height="12", rx="1", fill="currentColor", opacity="0.5"),
+    ])
+  if kind == "scatter":
+    return svg([
+      Circle(cx="5", cy="17", r="2", fill="currentColor"),
+      Circle(cx="11", cy="10", r="2", fill="currentColor", opacity="0.8"),
+      Circle(cx="18", cy="6", r="2", fill="currentColor", opacity="0.6"),
+    ])
+  if kind == "scatter3d":
+    return svg([
+      Line(x1="12", y1="21", x2="12", y2="10", stroke="currentColor", strokeWidth="1.2", opacity="0.5"),
+      Line(x1="12", y1="21", x2="3", y2="16", stroke="currentColor", strokeWidth="1.2", opacity="0.5"),
+      Line(x1="12", y1="21", x2="21", y2="16", stroke="currentColor", strokeWidth="1.2", opacity="0.5"),
+      Circle(cx="8", cy="9", r="1.8", fill="currentColor"),
+      Circle(cx="17", cy="7", r="1.8", fill="currentColor", opacity="0.7"),
+    ])
+  if kind == "radar":
+    return svg([Polygon(points="12,3 21,10 17,21 7,21 3,10", stroke="currentColor", strokeWidth="2", fill="currentColor", fillOpacity="0.15", strokeLinejoin="round")])
+  if kind == "table":
+    return svg([
+      Rect(x="3", y="4", width="18", height="16", rx="2", stroke="currentColor", strokeWidth="1.6", fill="none"),
+      Line(x1="3", y1="9", x2="21", y2="9", stroke="currentColor", strokeWidth="1.6"),
+      Line(x1="12", y1="9", x2="12", y2="20", stroke="currentColor", strokeWidth="1.2", opacity="0.6"),
+    ])
+  # overview
+  return svg([
+    Rect(x="3", y="3", width="8", height="8", rx="1.5", stroke="currentColor", strokeWidth="1.8", fill="none"),
+    Rect(x="13", y="3", width="8", height="8", rx="1.5", stroke="currentColor", strokeWidth="1.8", fill="none", opacity="0.7"),
+    Rect(x="3", y="13", width="8", height="8", rx="1.5", stroke="currentColor", strokeWidth="1.8", fill="none", opacity="0.7"),
+    Rect(x="13", y="13", width="8", height="8", rx="1.5", stroke="currentColor", strokeWidth="1.8", fill="none", opacity="0.45"),
+  ])
+
+
+def _view_switcher(current):
+  """Segmented control at the top of the Plot tab to jump between chart pages."""
+  items = [
+    dcc.Link(
+      [html.Span(_mini_icon(kind), className="xp-view-switch-icon"), html.Span(label, className="xp-view-switch-text")],
+      href=path,
+      className="xp-view-switch-item" + (" xp-view-switch-active" if kind == current else ""),
+      title=label,
+    )
+    for kind, path, label in _VIEW_TABS
+  ]
+  return html.Div(items, className="xp-view-switch")
 
 
 def _dropdown(id, options=None, value=None, clearable=False, persist=True, **kwargs):
@@ -109,6 +179,7 @@ def build_sidebar(kind):
         components.control_row("X axis" if not is_scatter else "X metric", _dropdown("xp-axis-x"), hidden="x" not in axes and not is_overview),
         components.control_row("Y metric", _dropdown("xp-axis-y"), hidden="y" not in axes),
         components.control_row("Z metric", _dropdown("xp-axis-z"), hidden="z" not in axes),
+        components.control_row("Dissociate", _dropdown("xp-dissociate-by"), tooltip="Split one dimension into separate traces"),
         components.control_row("Layout", _dropdown(
           "xp-overview-layout",
           options=[{"label": name, "value": name} for name in OVERVIEW_LAYOUTS],
@@ -124,7 +195,6 @@ def build_sidebar(kind):
         components.control_row("Color by", _dropdown("xp-color-by")),
         components.control_row("Pattern by" if kind == "columns" else "Symbol by", _dropdown("xp-symbol-by")),
         components.control_row("Group legend by", _dropdown("xp-legend-group-by")),
-        components.control_row("Dissociate", _dropdown("xp-dissociate-by"), tooltip="Split one dimension into separate traces"),
         components.control_row("Palette", _dropdown(
           "xp-palette",
           options=[{"label": name, "value": name} for name in palettes.PALETTES],
@@ -159,6 +229,7 @@ def build_sidebar(kind):
     # page where they are absent (the app suppresses callback exceptions). So we
     # keep them in the DOM, hidden.
     data_children = [
+      _view_switcher(kind),
       _data_section(),
       components.section("Columns", [
         components.control_row("Show columns", _dropdown(
@@ -176,7 +247,7 @@ def build_sidebar(kind):
       html.Div([axes_section, style_section, display_section], style={"display": "none"}),
     ]
   else:
-    data_children = [_data_section(), axes_section, style_section, display_section]
+    data_children = [_view_switcher(kind), _data_section(), axes_section, style_section, display_section]
 
   data_panel = html.Div(data_children, className="xp-tab-panel xp-tab-panel-data")
 

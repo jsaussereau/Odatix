@@ -213,6 +213,20 @@ def register_callbacks():
     return state
 
   @dash.callback(
+    Output("xp-color-by", "value", allow_duplicate=True),
+    Input("xp-dissociate-by", "value"),
+    State("xp-color-by", "value"),
+    prevent_initial_call=True,
+  )
+  def sync_color_with_dissociate(dissociate, color_by):
+    """Dissociating a dimension pulls it out of the x labels into its own traces;
+    coloring by that same dimension is almost always what the user wants, so keep
+    "Color by" in sync when a real dimension is chosen for "Dissociate"."""
+    if dissociate in (None, NONE_VALUE) or dissociate == color_by:
+      raise dash.exceptions.PreventUpdate
+    return dissociate
+
+  @dash.callback(
     Output("xp-control-state", "data"),
     Input("xp-axis-x", "value"),
     Input("xp-axis-y", "value"),
