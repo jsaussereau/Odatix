@@ -231,7 +231,7 @@ def tooltip_icon(tooltip: str="", tooltip_options: str="secondary") -> Component
             ),
         ],
         className="tooltip " + tooltip_options,
-        style={"display": "inline-block", "transform": "translate(15px, 2px)", "verticalAlign": "middle"},
+        style={"display": "inline-block", "transform": "translate(5px, 2px)", "verticalAlign": "middle"},
         **{"data-tooltip": tooltip},
     )
 
