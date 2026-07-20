@@ -73,7 +73,7 @@ run_jobs_cards = [
 ]
 
 home_layout = [
-    ui.page_header("Run Jobs", "Choose what you want to run."),
+    ui.page_header("Run Jobs", "Choose what you want to run.", back_link="/"),
     html.Div(
         ui.card_grid([ui.create_card_button(card) for card in run_jobs_cards]),
         id=f"{__name__}-content",

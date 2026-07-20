@@ -191,19 +191,20 @@ def subtitle_div(text:str="", id:str="main-title", buttons:html.Div=html.Div()):
 def back_button(link: Optional[str]="/", id: Optional[str]="back-button"):
     if link is None and id is None:
         return html.Div()
+    id_kwargs = {"id": id} if id is not None else {}
     if link:
         button = dcc.Link(
             icon("back", className="icon back-button", width="30px", height="30px"),
             href=link,
-            id=id,
             style={"textDecoration": "none"},
+            **id_kwargs,
         )
     else:
         button = html.Button(
             icon("back", className="icon back-button", width="30px", height="30px"),
-            id=id,
             n_clicks=0,
             style={"background": "none", "border": "none", "padding": "0px", "margin": "0px"},
+            **id_kwargs,
         )
     return html.Div(
         button,
@@ -240,12 +241,31 @@ def card_pictogram(name: str, size: str = "52px") -> Component:
     return html.Div(pictogram(name, size=size), className="card-pictogram-wrap")
 
 
-def page_header(title: str, subtitle: str = "") -> Component:
+def page_header(title: str, subtitle: str = "", back_link: Optional[str] = None) -> Component:
     """Centered page header (title + optional subtitle) in the modern Odatix style."""
-    children = [html.H1(title, className="page-header-title")]
+    children = []
+    if back_link:
+        children.append(
+            dcc.Link(
+                icon("back", className="icon back-button", width="30px", height="30px"),
+                href=back_link,
+                className="page-header-back",
+                style={
+                    "position": "absolute",
+                    "left": "0",
+                    "top": "0",
+                    "display": "flex",
+                    "alignItems": "center",
+                    "height": "100%",
+                    "textDecoration": "none",
+                },
+            )
+        )
+    children.append(html.H1(title, className="page-header-title"))
     if subtitle:
         children.append(html.P(subtitle, className="page-header-subtitle"))
-    return html.Div(children, className="page-header")
+    style = {"position": "relative"} if back_link else None
+    return html.Div(children, className="page-header", style=style)
 
 
 def card_grid(children, id: Optional[Union[str, dict]] = None) -> Component:

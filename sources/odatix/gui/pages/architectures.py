@@ -312,7 +312,7 @@ layout = html.Div(
         dcc.Location(id="url", refresh='callback-nav'),
         html.Div(
             children=[
-                ui.page_header("Architectures", "Configure your RTL architectures and their configurations."),
+                ui.page_header("Architectures", "Configure your RTL architectures and their configurations.", back_link="/"),
                 html.Div(id="arch-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
                 # html.H2("Simulations", style={"textAlign": "center", "marginTop": "40px"}),
                 html.Div(id="sim-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),

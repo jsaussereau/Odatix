@@ -286,7 +286,7 @@ layout = html.Div(
         dcc.Location(id="url", refresh="callback-nav"),
         html.Div(
             children=[
-                ui.page_header("Workflows", "Configure your workflows and their configurations."),
+                ui.page_header("Workflows", "Configure your workflows and their configurations.", back_link="/"),
                 html.Div(id="workflow-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],
             style={

@@ -365,7 +365,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(
-            ui.title_tile(text="Workspace Settings", buttons=title_buttons, tooltip="Leave blank to use default values"), 
+            ui.title_tile(text="Workspace Settings", buttons=title_buttons, tooltip="Leave blank to use default values", back_button_link="/"), 
             id={"page": page_path, "type": "workspace-title-div"}, 
             style={"marginTop": "20px", "marginBottom": "10px"}
         ),
