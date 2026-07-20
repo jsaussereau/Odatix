@@ -151,8 +151,12 @@ def build_data_table(df, selected, dimensions, metrics, units):
     data=data_df.to_dict("records"),
     sort_action="native",
     filter_action="native",
-    page_action="native",
-    page_size=50,
+    # No pagination: render every row and let the table scroll through the whole
+    # selection. virtualization keeps that cheap for large data by only mounting
+    # the rows currently in view, and fixed_rows keeps the header pinned while
+    # scrolling.
+    page_action="none",
+    virtualization=True,
     fixed_rows={"headers": True},
     style_table={"height": "100%", "overflowX": "auto", "overflowY": "auto"},
     style_header={
@@ -173,6 +177,10 @@ def build_data_table(df, selected, dimensions, metrics, units):
       "padding": "4px 10px",
       "fontFamily": "var(--theme-font-family)",
       "fontSize": "var(--theme-small-font-size)",
+      # Fixed widths: virtualization remounts rows as you scroll, and without a
+      # pinned width each batch would re-measure and make columns jitter.
+      "minWidth": "120px",
+      "width": "160px",
       "maxWidth": "320px",
       "overflow": "hidden",
       "textOverflow": "ellipsis",
