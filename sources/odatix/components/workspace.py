@@ -1247,7 +1247,7 @@ f"""##############################################
     # nb_jobs
     nb_jobs_val = settings.get('nb_jobs', 8)
     data['nb_jobs'] = nb_jobs_val
-    data.yaml_set_comment_before_after_key(key='nb_jobs', before="\n maximum number of parallel jobs")
+    data.yaml_set_comment_before_after_key(key='nb_jobs', before="\n maximum number of parallel jobs ('auto' = number of CPUs minus one)")
     data.yaml_add_eol_comment(key='nb_jobs', comment="overridden by -j / --jobs")
 
     # force_single_thread

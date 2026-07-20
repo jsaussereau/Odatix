@@ -54,6 +54,31 @@ import odatix.components.motd
 
 YAML_BOOL = ('true', 'false', 'yes', 'no', 'on', 'off')
 
+# Keyword used (in CLI arguments, YAML settings and the GUI) to request that the
+# number of parallel jobs be computed automatically from the available CPUs.
+AUTO_NB_JOBS_KEYWORD = "auto"
+
+def is_auto_nb_jobs(value):
+    """Return True if `value` requests the automatic number of parallel jobs."""
+    return isinstance(value, str) and value.strip().lower() == AUTO_NB_JOBS_KEYWORD
+
+def resolve_nb_jobs(nb_jobs):
+    """
+    Resolve a raw nb_jobs value (int, numeric string, or the "auto" keyword) into
+    a concrete positive integer.
+
+    When `nb_jobs` is "auto", the number of parallel jobs is computed as the
+    number of available CPUs minus one (at least 1), leaving a core free for the
+    rest of the system.
+    """
+    if is_auto_nb_jobs(nb_jobs):
+        try:
+            cpu_count = os.cpu_count() or 1
+        except (NotImplementedError, ValueError):
+            cpu_count = 1
+        return max(1, cpu_count - 1)
+    return int(nb_jobs)
+
 def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kwargs):
     """
     Custom copytree to copy directories with support for dirs_exist_ok, whitelist, and blacklist.

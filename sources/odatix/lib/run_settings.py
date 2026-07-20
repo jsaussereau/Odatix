@@ -30,6 +30,22 @@ script_name = os.path.basename(__file__)
 DEFAULT_EXIT_WHEN_DONE = False
 DEFAULT_LOG_SIZE_LIMIT = 200
 
+def read_nb_jobs(settings_data, settings_filename):
+  """
+  Read the "nb_jobs" key, accepting either an integer or the "auto" keyword
+  (compute the number of parallel jobs from the available CPUs).
+  """
+  value = read_from_list("nb_jobs", settings_data, settings_filename, script_name=script_name)
+  if is_auto_nb_jobs(value):
+    return value
+  if isinstance(value, bool) or not isinstance(value, int):
+    printc.error(
+      "Value \"" + str(value) + "\" for key \"nb_jobs\" in \"" + settings_filename
+      + "\" must be an integer or \"auto\".", script_name
+    )
+    raise BadValueInListError
+  return value
+
 def get_synth_settings(settings_filename):
   # failsafe
   if settings_filename is None:
@@ -52,7 +68,7 @@ def get_synth_settings(settings_filename):
     try:
       overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
       ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, type=int, script_name=script_name)
+      nb_jobs         = read_nb_jobs(settings_data, settings_filename)
       architectures   = read_from_list("architectures", settings_data, settings_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
       sys.exit(-1) # if a key is missing
@@ -92,7 +108,7 @@ def get_sim_settings(settings_filename):
     try:
       overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
       ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      nb_jobs         = read_from_list("nb_jobs", settings_data, settings_filename, type=int, script_name=script_name)
+      nb_jobs         = read_nb_jobs(settings_data, settings_filename)
       simulations     = read_from_list("simulations", settings_data, settings_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
       sys.exit(-1) # if a key is missing
@@ -132,7 +148,7 @@ def get_workflow_settings(settings_filename):
     try:
       overwrite = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
       ask_continue = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      nb_jobs = read_from_list("nb_jobs", settings_data, settings_filename, type=int, script_name=script_name)
+      nb_jobs = read_nb_jobs(settings_data, settings_filename)
       workflows = read_from_list("workflows", settings_data, settings_filename, script_name=script_name)
     except (KeyNotInListError, BadValueInListError):
       sys.exit(-1)  # if a key is missing

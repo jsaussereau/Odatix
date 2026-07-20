@@ -60,7 +60,7 @@ def add_arguments(parser):
     parser.add_argument('-s', '--simpath', help='simulation directory')
     parser.add_argument('-w', '--work', help='simulation work directory')
     parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
     parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
     parser.add_argument("--logsize", help="size of the log history per job in the monitor")
     parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")

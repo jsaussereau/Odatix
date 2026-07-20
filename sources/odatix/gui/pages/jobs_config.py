@@ -36,6 +36,7 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+from odatix.lib.utils import is_auto_nb_jobs, AUTO_NB_JOBS_KEYWORD
 import odatix.components.run_common as run_common
 import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
@@ -459,12 +460,19 @@ _JOB_SETTINGS_DEFAULTS = {
     "exit_when_done": False,
 }
 
-def _job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done) -> dict:
+def _nb_jobs_setting(nb_jobs, auto_enabled):
+    """Return the persisted nb_jobs value: the "auto" keyword when the Auto
+    switch is on, otherwise the integer entered in the widget."""
+    if auto_enabled:
+        return AUTO_NB_JOBS_KEYWORD
+    return _to_int(nb_jobs, _JOB_SETTINGS_DEFAULTS["nb_jobs"])
+
+def _job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done, auto_nb_jobs=None) -> dict:
     """Job Settings as edited in the widgets (used for the 'current' selection)."""
     return {
         "overwrite": _checklist_enabled(overwrite),
         "force_single_thread": _checklist_enabled(force_single_thread),
-        "nb_jobs": _to_int(nb_jobs, _JOB_SETTINGS_DEFAULTS["nb_jobs"]),
+        "nb_jobs": _nb_jobs_setting(nb_jobs, _checklist_enabled(auto_nb_jobs)),
         "log_size_limit": _to_int(log_size_limit, _JOB_SETTINGS_DEFAULTS["log_size_limit"]),
         "ask_continue": _checklist_enabled(ask_continue),
         "exit_when_done": _checklist_enabled(exit_when_done),
@@ -474,10 +482,11 @@ def _job_settings_baseline(settings: dict) -> dict:
     """Job Settings as loaded from the settings file (used for the saved
     baseline). Must mirror how job_settings_form() initializes the widgets."""
     settings = settings or {}
+    nb_jobs_raw = settings.get("nb_jobs", _JOB_SETTINGS_DEFAULTS["nb_jobs"])
     return {
         "overwrite": bool(settings.get("overwrite", _JOB_SETTINGS_DEFAULTS["overwrite"])),
         "force_single_thread": bool(settings.get("force_single_thread", _JOB_SETTINGS_DEFAULTS["force_single_thread"])),
-        "nb_jobs": _to_int(settings.get("nb_jobs", _JOB_SETTINGS_DEFAULTS["nb_jobs"]), _JOB_SETTINGS_DEFAULTS["nb_jobs"]),
+        "nb_jobs": AUTO_NB_JOBS_KEYWORD if is_auto_nb_jobs(nb_jobs_raw) else _to_int(nb_jobs_raw, _JOB_SETTINGS_DEFAULTS["nb_jobs"]),
         "log_size_limit": _to_int(settings.get("log_size_limit", _JOB_SETTINGS_DEFAULTS["log_size_limit"]), _JOB_SETTINGS_DEFAULTS["log_size_limit"]),
         "ask_continue": bool(settings.get("ask_continue", _JOB_SETTINGS_DEFAULTS["ask_continue"])),
         "exit_when_done": bool(settings.get("exit_when_done", _JOB_SETTINGS_DEFAULTS["exit_when_done"])),
@@ -721,6 +730,7 @@ def job_settings_form_field(
     placeholder: str="",
     tooltip_options: str="secondary",
     style: Optional[dict]=None,
+    disabled: bool=False,
     # type: Optional[Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]] = None,
     type = None,
 ):
@@ -728,7 +738,7 @@ def job_settings_form_field(
         children=[
             html.Label(label),
             ui.tooltip_icon(tooltip, tooltip_options),
-            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, style={"width": "100%"}),
+            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, disabled=disabled, style={"width": "100%"}),
         ],
         style={"marginBottom": "12px", **(style or {})},
     )
@@ -739,6 +749,8 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
     fmax_bounds = settings.get("fmax_synthesis", {})
     if not isinstance(fmax_bounds, dict):
         fmax_bounds = {}
+
+    auto_nb_jobs = is_auto_nb_jobs(settings.get("nb_jobs"))
 
     if selected_tools is None:
         selected_tools = settings.get("tools", [])
@@ -769,12 +781,39 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                     ),
                     ui.tooltip_icon("If enabled, each job will run using a single thread."),
                 ], style={"marginBottom": "12px"}),
-                job_settings_form_field(
-                    label="Maximum number of parallel jobs",
-                    id="nb_jobs",
-                    type="number",
-                    value=str(settings.get("nb_jobs", 8)),
-                    tooltip="Maximum number of jobs to run in parallel. (overridden by -j / --jobs)",
+                html.Div(
+                    children=[
+                        job_settings_form_field(
+                            label="Maximum number of parallel jobs",
+                            id="nb_jobs",
+                            type="number",
+                            value="" if auto_nb_jobs else str(settings.get("nb_jobs", 8)),
+                            disabled=auto_nb_jobs,
+                            tooltip="Maximum number of jobs to run in parallel. (overridden by -j / --jobs)",
+                            style={"flex": "1"},
+                        ),
+                        html.Div(
+                            children=[
+                                html.Div([
+                                    html.Label("Auto", style={"marginTop": "2px", "marginBottom": "-2px"}),
+                                    ui.tooltip_icon("Automatically use the number of available CPUs minus one."),
+                                ]),
+                                dcc.Checklist(
+                                    options=[{"label": "", "value": True}],
+                                    value=[True] if auto_nb_jobs else [],
+                                    id="auto-nb-jobs",
+                                    className="checklist-switch",
+                                    style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
+                                ),
+                            ],
+                            style={"display": "flex", "flexDirection": "column", "gap": "10px"}
+                        ),
+                    ],
+                    style={
+                        "display": "flex",
+                        "flexDirection": "row",
+                        "gap": "var(--tile-gap, 25px)",
+                    },
                 ),
             ], className="tile config"),
             html.Div([
@@ -862,7 +901,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                     style={
                         "display": "flex" if run_mode == "custom_freq_synthesis" else "none",
                         "flexDirection": "row",
-                        "gap": "25px",
+                        "gap": "var(--tile-gap, 25px)",
                     },
                 ),
                 html.Div(
@@ -905,7 +944,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                     style={
                         "display": "flex" if run_mode == "custom_freq_synthesis" else "none",
                         "flexDirection": "row",
-                        "gap": "25px",
+                        "gap": "var(--tile-gap, 25px)",
                     },
                 ),
                 html.Div(
@@ -928,7 +967,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                     style={
                         "display": "flex" if run_mode == "fmax_synthesis" else "none",
                         "flexDirection": "row",
-                        "gap": "25px",
+                        "gap": "var(--tile-gap, 25px)",
                     },
                 )
             ], className="tile config", style={"display": "block" if run_mode in ("custom_freq_synthesis", "fmax_synthesis") else "none"}),
@@ -989,6 +1028,21 @@ def init_form(search, page, odatix_settings):
         selected_tools = _analysis_tools_selection(search, settings_path)
 
     return job_settings_form(settings, run_mode, selected_tools=selected_tools), settings
+
+@dash.callback(
+    Output("nb_jobs", "disabled"),
+    Output("nb_jobs", "value"),
+    Input("auto-nb-jobs", "value"),
+    State("nb_jobs", "value"),
+    prevent_initial_call=True,
+)
+def toggle_auto_nb_jobs(auto_nb_jobs, nb_jobs):
+    """Disable (and blank) the nb_jobs input while the Auto switch is on; restore
+    a sensible value when it is turned back off."""
+    if _checklist_enabled(auto_nb_jobs):
+        return True, ""
+    restored = nb_jobs if nb_jobs not in (None, "") else _JOB_SETTINGS_DEFAULTS["nb_jobs"]
+    return False, str(restored)
 
 @dash.callback(
     Output("job-section", "children"),
@@ -1544,6 +1598,7 @@ def update_preview_title(preview_value, arch_metadata):
     Input("overwrite", "value"),
     Input("force_single_thread", "value"),
     Input("nb_jobs", "value"),
+    Input("auto-nb-jobs", "value"),
     Input("log_size_limit", "value"),
     Input("ask_continue", "value"),
     Input("exit_when_done", "value"),
@@ -1572,6 +1627,7 @@ def save_architecture_selections(
     overwrite,
     force_single_thread,
     nb_jobs,
+    auto_nb_jobs,
     log_size_limit,
     ask_continue,
     exit_when_done,
@@ -1615,7 +1671,7 @@ def save_architecture_selections(
     selection_key = context["selection_key"]
     current_settings = {
         selection_key: architectures,
-        **_job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done),
+        **_job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done, auto_nb_jobs=auto_nb_jobs),
     }
     if run_mode == "custom_freq_synthesis":
         current_settings["frequencies"] = workspace.create_custom_frequencies_settings_dict(
@@ -1748,6 +1804,7 @@ def close_run_popup(n):
     State("overwrite", "value"),
     State("force_single_thread", "value"),
     State("nb_jobs", "value"),
+    State("auto-nb-jobs", "value"),
     State("ask_continue", "value"),
     State("exit_when_done", "value"),
     State("log_size_limit", "value"),
@@ -1763,6 +1820,7 @@ def run_jobs(
     overwrite,
     force_single_thread,
     nb_jobs,
+    auto_nb_jobs,
     ask_continue,
     exit_when_done,
     log_size_limit,
@@ -1799,10 +1857,13 @@ def run_jobs(
     ask_continue_enabled = _checklist_enabled(ask_continue)
     exit_when_done_enabled = _checklist_enabled(exit_when_done)
 
-    try:
-        nb_jobs_val = int(nb_jobs) if nb_jobs not in (None, "") else None
-    except Exception:
-        nb_jobs_val = None
+    if _checklist_enabled(auto_nb_jobs):
+        nb_jobs_val = AUTO_NB_JOBS_KEYWORD
+    else:
+        try:
+            nb_jobs_val = int(nb_jobs) if nb_jobs not in (None, "") else None
+        except Exception:
+            nb_jobs_val = None
 
     try:
         log_size_val = int(log_size_limit) if log_size_limit not in (None, "") else None

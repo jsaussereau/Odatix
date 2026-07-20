@@ -28,6 +28,7 @@ import yaml
 
 from odatix.components.replace_params import replace_params
 import odatix.lib.hard_settings as hard_settings
+from odatix.lib.utils import resolve_nb_jobs
 from odatix.lib.parallel_job_handler import ParallelJobHandler
 from odatix.lib.parallel_job_handler.daemon_control import enqueue_parallel_jobs, attach_monitor
 
@@ -270,7 +271,7 @@ def normalize_run_settings(overwrite, noask, exit_when_done, log_size_limit, nb_
     overwrite = True if overwrite else _overwrite
     exit_when_done = True if exit_when_done else _exit_when_done
     log_size_limit = int(log_size_limit) if log_size_limit is not None else _log_size_limit
-    nb_jobs = int(nb_jobs) if nb_jobs is not None else _nb_jobs
+    nb_jobs = resolve_nb_jobs(nb_jobs if nb_jobs is not None else _nb_jobs)
 
     if noask:
         ask_continue = False

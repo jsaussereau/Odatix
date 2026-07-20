@@ -34,7 +34,7 @@ from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
 from odatix.lib.read_tool_settings import read_tool_settings
-from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError, get_timestamp_string
+from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError, get_timestamp_string, resolve_nb_jobs
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import check_tool
@@ -80,7 +80,7 @@ def add_arguments(parser):
   parser.add_argument("-a", "--archpath", help="architecture directory")
   parser.add_argument("-w", "--work", help="work directory")
   parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-  parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+  parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
   parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
   parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
   parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
@@ -268,10 +268,7 @@ def prepare_analysis(
   else:
     log_size_limit = _log_size_limit
 
-  if nb_jobs is not None:
-    nb_jobs = int(nb_jobs)
-  else:
-    nb_jobs = _nb_jobs
+  nb_jobs = resolve_nb_jobs(nb_jobs if nb_jobs is not None else _nb_jobs)
 
   if noask:
     ask_continue = False

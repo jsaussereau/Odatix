@@ -570,7 +570,7 @@ def add_arguments(parser):
     parser.add_argument('-p', '--workflowpath', help='workflow directory')
     parser.add_argument('-w', '--work', help='workflow work directory')
     parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
     parser.add_argument("-k", "--keep", action="store_true", help="store workflow batch with a timestamp in the configuration name")
     parser.add_argument("-r", "--resume", action="store_true", help="resume from existing work directories (do not delete/recreate them)")
     parser.add_argument("--logsize", help="size of the log history per job in the monitor")
