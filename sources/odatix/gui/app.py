@@ -124,7 +124,8 @@ class OdatixApp:
         self.app.run(
             # host='0.0.0.0',
             host='127.0.0.1',
-            debug=True
+            debug=True,
+            threaded=True,
         )
 
 

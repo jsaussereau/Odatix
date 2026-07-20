@@ -365,8 +365,16 @@ def monitor_task(
     State(f"url_{page_path}", "search"),
     State("session-dropdown", "value"),
     State("monitor-daemon", "data"),
+    State("session-dropdown-open", "data"),
 )
-def _update_session_dropdown(_n, search, current_value, daemon_state):
+def _update_session_dropdown(_n, search, current_value, daemon_state, dropdown_open):
+    # Rescanning daemons is expensive (scans /proc and HTTP-pings each candidate).
+    # Only do it while the user has the dropdown open, except keep trying at startup
+    # until an initial session is selected so default monitoring still works.
+    has_selection = _normalize_optional_str(current_value) is not None
+    if not dropdown_open and has_selection:
+        raise PreventUpdate
+
     try:
         daemons = daemon_control.list_daemons()
     except Exception:
@@ -962,6 +970,7 @@ layout = html.Div(
         dcc.Store(id="monitor-selected-job", data=0),
         dcc.Store(id="monitor-logs", data=None),
         dcc.Store(id="monitor-job-ids", data=[]),
+        dcc.Store(id="session-dropdown-open", data=False),
     ],
     className="page-content",
     style={
