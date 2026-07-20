@@ -40,6 +40,7 @@ metrics.
 import os
 
 import odatix.lib.printc as printc
+import odatix.lib.hard_settings as hard_settings
 import odatix.lib.results_schema as results_schema
 from odatix.components.export_common import load_existing_results_file
 
@@ -138,3 +139,105 @@ def export_analysis_results(summary, output_dir, tool):
   printc.say('Analysis results written to "' + output_file + '"', script_name=script_name)
   printc.note("Run 'odatix-explorer' and open the Analysis dashboard to explore them", script_name=script_name)
   return output_file
+
+
+######################################
+# Per-job export (au fil de l'eau)
+######################################
+
+def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_dir):
+  """
+  Attach a per-job export descriptor to every analysis job, so the job handler
+  exports its result as soon as the job finishes (au fil de l'eau — see
+  export_single_analysis_job and the "analysis" branch of
+  ParallelJobHandler._run_post_success_export), instead of exporting everything
+  at the end of the session.
+
+  ``analysis_work_root`` is the analysis work directory that holds the per-tool
+  sub-directories (``<tool>/<target>/<architecture>/<configuration>``). The eda
+  tool and the architecture name are derived from each job's temporary
+  directory, so a single call tags every tool's jobs in a shared job list.
+
+  Returns:
+      int: the number of jobs configured.
+  """
+  if analysis_work_root is None or output_dir is None:
+    return 0
+
+  analysis_work_root = os.path.realpath(str(analysis_work_root))
+  output_dir = os.path.realpath(str(output_dir))
+
+  configured = 0
+  for job in list(getattr(parallel_jobs, "job_list", []) or []):
+    tmp_dir = os.path.realpath(str(getattr(job, "tmp_dir", "")))
+    if not tmp_dir:
+      continue
+
+    try:
+      rel_path = os.path.relpath(tmp_dir, analysis_work_root)
+    except Exception:
+      continue
+    if rel_path.startswith(".."):
+      continue
+
+    parts = [part for part in rel_path.split(os.sep) if part not in ("", ".")]
+    if len(parts) < 4:  # tool / target / architecture / configuration
+      continue
+
+    tool = parts[0]
+    architecture = parts[2] + "/" + parts[3]
+
+    job.post_run_export = {
+      "kind": "analysis",
+      "tool": str(tool),
+      "output_dir": output_dir,
+      "tmp_dir": tmp_dir,
+      "architecture": architecture,
+    }
+    configured += 1
+
+  return configured
+
+
+def export_single_analysis_job(job, export_config=None):
+  """
+  Export the result of a single finished analysis job into
+  "results_analysis_<tool>.yml" (incremental upsert). Called by the job handler
+  right after the job succeeds. Returns True on success.
+  """
+  from odatix.components.analyze_results import analyze_log_dir
+
+  config = export_config if isinstance(export_config, dict) else getattr(job, "post_run_export", None)
+  if not isinstance(config, dict):
+    printc.error("Missing per-job analysis export configuration", script_name=script_name)
+    return False
+
+  tool = str(config.get("tool", ""))
+  output_dir = str(config.get("output_dir", ""))
+  tmp_dir = str(config.get("tmp_dir", ""))
+  architecture = str(config.get("architecture", ""))
+
+  if tool == "" or output_dir == "" or tmp_dir == "":
+    printc.error("Per-job analysis export configuration is incomplete", script_name=script_name)
+    return False
+
+  log_dir = os.path.join(tmp_dir, hard_settings.work_log_path)
+  result = analyze_log_dir(log_dir, tool, architecture)
+  if result is None:
+    printc.warning('No analysis log found in "' + log_dir + '"', script_name=script_name)
+    return False
+
+  output_file = os.path.join(output_dir, analysis_results_filename(tool))
+  units, records = load_existing_results_file(output_file)
+  records = results_schema.upsert_records(records, [_record_from_result(result, tool)])
+
+  try:
+    results_schema.dump_results_file(output_file, units, records)
+  except Exception as e:
+    printc.error('Could not write analysis results "' + output_file + '"', script_name=script_name)
+    printc.cyan("error details: ", script_name=script_name, end="")
+    print(str(e))
+    return False
+
+  printc.say('Analysis result updated in "' + output_file + '"', script_name=script_name)
+  return True

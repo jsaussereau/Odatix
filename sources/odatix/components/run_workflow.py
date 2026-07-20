@@ -625,14 +625,10 @@ def run_workflows(
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
         resume=resume,
-    )
-
-    exp_workflow_res.configure_workflow_job_exports(
-        parallel_jobs=parallel_jobs,
-        work_root=work_path,
-        workflow_path=workflow_path,
-        output_dir=output_dir,
-        output_filename=output_filename,
+        export_output_dir=output_dir,
+        export_work_root=work_path,
+        export_workflow_path=workflow_path,
+        export_output_filename=output_filename,
     )
 
     start_parallel_jobs(parallel_jobs, detach=detach, session=daemon_session)
@@ -1052,6 +1048,10 @@ def prepare_workflows(
     log_size_limit,
     nb_jobs,
     resume=False,
+    export_output_dir=None,
+    export_work_root=None,
+    export_workflow_path=None,
+    export_output_filename=exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
 ):
     run_prepare_loop(
         instances=workflow_instances,
@@ -1071,6 +1071,19 @@ def prepare_workflows(
         auto_exit=exit_when_done,
         log_size_limit=log_size_limit,
     )
+
+    # Per-job result export (au fil de l'eau): tag every job so the handler
+    # exports its result as soon as it finishes, for both the CLI and the
+    # GUI/daemon (which both call this prepare function).
+    if export_output_dir and export_work_root and export_workflow_path:
+        exp_workflow_res.configure_workflow_job_exports(
+            parallel_jobs=parallel_jobs,
+            work_root=export_work_root,
+            workflow_path=export_workflow_path,
+            output_dir=export_output_dir,
+            output_filename=export_output_filename,
+        )
+
     return parallel_jobs
 
 

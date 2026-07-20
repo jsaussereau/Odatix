@@ -353,6 +353,12 @@ def _run_prepare_synthesis():
     try:
         if not _prepare_check_data:
             raise RuntimeError("Missing preparation settings")
+        # Per-job export context captured at run time (see the run callback);
+        # it lets prepare_* tag every job so the daemon exports results as jobs
+        # finish (au fil de l'eau).
+        export_ctx = {}
+        if isinstance(_prepare_runtime_settings, dict):
+            export_ctx = _prepare_runtime_settings.get("export") or {}
         with contextlib.redirect_stdout(_prepare_log_buffer):
             if _prepare_synth_type == "workflow":
                 (
@@ -370,6 +376,9 @@ def _run_prepare_synthesis():
                     exit_when_done=exit_when_done,
                     log_size_limit=log_size_limit,
                     nb_jobs=nb_jobs,
+                    export_output_dir=export_ctx.get("output_dir"),
+                    export_work_root=export_ctx.get("work_root"),
+                    export_workflow_path=export_ctx.get("workflow_path"),
                 )
             else:
                 (
@@ -393,6 +402,11 @@ def _run_prepare_synthesis():
                         log_size_limit=log_size_limit,
                         nb_jobs=nb_jobs,
                         cancel_event=_prepare_cancel_event,
+                        export_output_dir=export_ctx.get("output_dir"),
+                        export_tool=export_ctx.get("tool"),
+                        export_work_path=export_ctx.get("work_path"),
+                        use_benchmark=export_ctx.get("use_benchmark", False),
+                        benchmark_file=export_ctx.get("benchmark_file"),
                     )
                 elif _prepare_synth_type == "analyze":
                     _prepare_parallel_jobs = run_analysis.prepare_synthesis(
@@ -405,6 +419,8 @@ def _run_prepare_synthesis():
                         log_size_limit=log_size_limit,
                         nb_jobs=nb_jobs,
                         cancel_event=_prepare_cancel_event,
+                        export_output_dir=export_ctx.get("output_dir"),
+                        analysis_work_root=export_ctx.get("analysis_work_root"),
                     )
                 else:
                     _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
@@ -417,6 +433,11 @@ def _run_prepare_synthesis():
                         log_size_limit=log_size_limit,
                         nb_jobs=nb_jobs,
                         cancel_event=_prepare_cancel_event,
+                        export_output_dir=export_ctx.get("output_dir"),
+                        export_tool=export_ctx.get("tool"),
+                        export_work_path=export_ctx.get("work_path"),
+                        use_benchmark=export_ctx.get("use_benchmark", False),
+                        benchmark_file=export_ctx.get("benchmark_file"),
                     )
         _prepare_status = {"status": "prepared", "error": None}
     except run_range_synthesis.SynthesisCancelled:
@@ -1852,6 +1873,10 @@ def run_jobs(
     base_path = _run_context(search, odatix_settings)["base_path"]
     target_path = settings.get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
     work_path_root = settings.get("work_path", OdatixSettings.DEFAULT_WORK_PATH)
+    # Per-job export destination + options (au fil de l'eau, see prepare_* funcs).
+    result_path = settings.get("result_path", OdatixSettings.DEFAULT_RESULT_PATH)
+    export_use_benchmark = bool(settings.get("use_benchmark", False))
+    export_benchmark_file = settings.get("benchmark_file") or None
 
     overwrite_enabled = _checklist_enabled(overwrite)
     ask_continue_enabled = _checklist_enabled(ask_continue)
@@ -1890,6 +1915,16 @@ def run_jobs(
             settings.get("custom_freq_synthesis_work_path", OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH),
         )
 
+        _prepare_runtime_settings["export"] = {
+            "kind": "synthesis",
+            "result_type": "custom_freq_synthesis",
+            "work_path": work_path,
+            "tool": tool,
+            "output_dir": result_path,
+            "use_benchmark": export_use_benchmark,
+            "benchmark_file": export_benchmark_file,
+        }
+
         _prepare_thread = threading.Thread(
             target=_run_check_custom_freq_settings,
             args=(
@@ -1917,6 +1952,16 @@ def run_jobs(
             work_path_root,
             settings.get("fmax_synthesis_work_path", OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH),
         )
+
+        _prepare_runtime_settings["export"] = {
+            "kind": "synthesis",
+            "result_type": "fmax_synthesis",
+            "work_path": work_path,
+            "tool": tool,
+            "output_dir": result_path,
+            "use_benchmark": export_use_benchmark,
+            "benchmark_file": export_benchmark_file,
+        }
 
         continue_on_error = True
 
@@ -1949,6 +1994,13 @@ def run_jobs(
             settings.get("workflow_work_path", OdatixSettings.DEFAULT_WORKFLOW_WORK_PATH),
         )
 
+        _prepare_runtime_settings["export"] = {
+            "kind": "workflow",
+            "work_root": work_path,
+            "workflow_path": base_path,
+            "output_dir": result_path,
+        }
+
         _prepare_thread = threading.Thread(
             target=_run_check_workflow_settings,
             args=(
@@ -1973,6 +2025,12 @@ def run_jobs(
             work_path_root,
             settings.get("analysis_work_path", OdatixSettings.DEFAULT_ANALYSIS_WORK_PATH),
         )
+
+        _prepare_runtime_settings["export"] = {
+            "kind": "analysis",
+            "analysis_work_root": work_path,
+            "output_dir": result_path,
+        }
 
         # Tools selected in the "Tools" tile; fall back to the ?tool=... url tool.
         # Equivalent to 'odatix analyze --tool <analysis_tool_list>'.

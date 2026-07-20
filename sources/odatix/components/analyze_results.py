@@ -272,6 +272,74 @@ def is_analysis_complete(log_dir):
     return hard_settings.valid_status in content
 
 
+def analyze_log_dir(log_dir, tool, architecture):
+    """
+    Analyze a single job's log directory and return its result dict, or None if
+    no analysis log is found there.
+
+    ``log_dir`` is the directory that holds the analysis log (typically the job's
+    "log" sub-directory). ``architecture`` is the display name for that job
+    (usually "<architecture>/<configuration>"). Shared by the whole-directory
+    summary (generate_analysis_summary) and the per-job export
+    (odatix.components.export_analysis.export_single_analysis_job).
+    """
+    if not os.path.isdir(log_dir):
+        return None
+
+    log_file_name = next((f for f in os.listdir(log_dir) if f in ["analysis.log", "verilator.log"]), None)
+    if not log_file_name:
+        return None
+
+    log_file = os.path.join(log_dir, log_file_name)
+
+    base_dir = log_dir
+    if os.path.basename(base_dir) == "log":
+        base_dir = os.path.dirname(base_dir)
+
+    unresolved_file = os.path.join(base_dir, "report", "unresolved.rep")
+
+    errors, critical_log_warnings, standard_warning_count = get_analysis_errors_and_warnings(log_file)
+
+    if tool == "design_compiler":
+        unresolved_count, unresolved_instances = get_dc_unresolved_info(log_file)
+    elif tool == "genus":
+        unresolved_count, unresolved_instances = get_genus_unresolved_info(unresolved_file)
+    else:
+        unresolved_count, unresolved_instances = 0, []
+
+    blackbox_warnings = unresolved_instances + [w for w in critical_log_warnings if w not in unresolved_instances]
+    total_warn_count = len(blackbox_warnings) + standard_warning_count
+
+    if errors:
+        status = "FAILED"
+        error_message = get_most_relevant_error(errors)
+    elif not is_analysis_complete(log_dir):
+        # No error was logged, but the analysis never reached its completion
+        # marker (interrupted / quit before the end): do not report it as
+        # passed, its warnings/pass verdict cannot be trusted.
+        status = "INCOMPLETE"
+        error_message = ""
+    elif total_warn_count > 0:
+        status = "WARNING"
+        error_message = ""
+    else:
+        status = "PASSED"
+        error_message = ""
+
+    return {
+        "architecture": architecture,
+        "tool": tool,
+        "log_file": log_file,
+        "status": status,
+        "error": error_message,
+        "errors": errors,
+        "blackbox_warnings": blackbox_warnings,
+        "standard_warning_count": standard_warning_count,
+        "error_count": len(errors),
+        "warning_count": total_warn_count,
+    }
+
+
 def generate_analysis_summary(root_dir, output_file, tool):
     results = []
 
@@ -279,59 +347,14 @@ def generate_analysis_summary(root_dir, output_file, tool):
         log_file_name = next((f for f in files if f in ["analysis.log", "verilator.log"]), None)
         if not log_file_name:
             continue
-        
-        log_file = os.path.join(root, log_file_name)
-        
+
         rel_path = os.path.relpath(root, root_dir)
         match_arch = re.search(r"([^/]+/[^/]+)(?:/log)?$", rel_path)
         architecture = match_arch.group(1) if match_arch else rel_path
 
-        base_dir = root
-        if os.path.basename(base_dir) == "log":
-            base_dir = os.path.dirname(base_dir)
-            
-        unresolved_file = os.path.join(base_dir, "report", "unresolved.rep")
-
-        errors, critical_log_warnings, standard_warning_count = get_analysis_errors_and_warnings(log_file)
-
-        if tool == "design_compiler":
-            unresolved_count, unresolved_instances = get_dc_unresolved_info(log_file)
-        elif tool == "genus":
-            unresolved_count, unresolved_instances = get_genus_unresolved_info(unresolved_file)
-        else:
-            unresolved_count, unresolved_instances = 0, []
-
-        blackbox_warnings = unresolved_instances + [w for w in critical_log_warnings if w not in unresolved_instances]
-        total_warn_count = len(blackbox_warnings) + standard_warning_count
-
-        if errors:
-            status = "FAILED"
-            error_message = get_most_relevant_error(errors)
-        elif not is_analysis_complete(root):
-            # No error was logged, but the analysis never reached its completion
-            # marker (interrupted / quit before the end): do not report it as
-            # passed, its warnings/pass verdict cannot be trusted.
-            status = "INCOMPLETE"
-            error_message = ""
-        elif total_warn_count > 0:
-            status = "WARNING"
-            error_message = ""
-        else:
-            status = "PASSED"
-            error_message = ""
-
-        results.append({
-            "architecture": architecture,
-            "tool": tool,
-            "log_file": log_file,
-            "status": status,
-            "error": error_message,
-            "errors": errors,
-            "blackbox_warnings": blackbox_warnings,
-            "standard_warning_count": standard_warning_count,
-            "error_count": len(errors),
-            "warning_count": total_warn_count
-        })
+        result = analyze_log_dir(root, tool, architecture)
+        if result is not None:
+            results.append(result)
 
     if not results:
         print(f"{YELLOW}⚠ No analysis logs found in the specified directory.{RESET}")

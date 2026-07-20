@@ -43,7 +43,7 @@ from odatix.lib.variables import replace_variables, Variables
 
 from odatix.components.run_common import confirm_valid_jobs, abort_if_empty_job_list, run_prepare_loop
 from odatix.components.analyze_results import generate_analysis_summary
-from odatix.components.export_analysis import export_analysis_results
+from odatix.components.export_analysis import configure_analysis_job_exports
 
 
 class AnalysisCancelled(Exception):
@@ -658,23 +658,29 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
     format_yaml=first_context["tool_settings_file"],
     log_size_limit=first_context["log_size_limit"],
   )
+
+  # Export each job's result to the Explorer results file as soon as it finishes
+  # (per-job, au fil de l'eau), instead of a single export at the end. The tool
+  # of each job is derived from its work directory, so one call tags every tool.
+  if result_path:
+    configure_analysis_job_exports(
+      parallel_jobs=parallel_jobs,
+      analysis_work_root=work_path,
+      output_dir=result_path,
+    )
+
   parallel_jobs.run()
 
-  # Generate one global report per tool
+  # Generate one global report per tool (terminal summary + text report). The
+  # per-job export above already wrote the Explorer results file during the run.
   all_summaries = {}
   for current_tool, context in prepared_tools:
     analysis_file = os.path.join(context["work_path"], "analysis.yml")
-    summary = generate_analysis_summary(
+    all_summaries[current_tool] = generate_analysis_summary(
       root_dir=context["work_path"],
       output_file=analysis_file,
       tool=current_tool,
     )
-    all_summaries[current_tool] = summary
-
-    # Also compile the detailed results into a v2 results file for Odatix
-    # Explorer (in addition to the terminal summary and the text report).
-    if result_path:
-      export_analysis_results(summary, result_path, current_tool)
 
   return all_summaries
 
@@ -841,11 +847,17 @@ def prepare_synthesis(
   log_size_limit,
   nb_jobs,
   cancel_event=None,
+  export_output_dir=None,
+  analysis_work_root=None,
 ):
   """
   Build the analysis jobs and return a ParallelJobHandler ready to run/enqueue,
   without running it. Mirrors run_range_synthesis.prepare_synthesis so the GUI
   can enqueue analysis jobs into a daemon session.
+
+  When ``export_output_dir`` and ``analysis_work_root`` are given, each job is
+  tagged for per-job result export (au fil de l'eau), so the daemon writes the
+  Explorer results file as jobs finish (see configure_analysis_job_exports).
   """
   run_prepare_loop(
     instances=architecture_instances,
@@ -867,6 +879,14 @@ def prepare_synthesis(
     format_yaml=tool_settings_file,
     log_size_limit=log_size_limit,
   )
+
+  if export_output_dir and analysis_work_root:
+    configure_analysis_job_exports(
+      parallel_jobs=parallel_jobs,
+      analysis_work_root=analysis_work_root,
+      output_dir=export_output_dir,
+    )
+
   return parallel_jobs
 
 

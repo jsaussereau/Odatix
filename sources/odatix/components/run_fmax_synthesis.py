@@ -138,14 +138,9 @@ def run_synthesis(
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
         cancel_event=cancel_event,
-    )
-
-    exp_res.configure_synthesis_job_exports(
-        parallel_jobs=parallel_jobs,
-        result_type="fmax_synthesis",
-        work_path=work_path,
-        tool=tool,
-        output_dir=export_output_dir,
+        export_output_dir=export_output_dir,
+        export_tool=tool,
+        export_work_path=work_path,
         use_benchmark=use_benchmark,
         benchmark_file=benchmark_file,
         custom_metrics_file=custom_metrics_file,
@@ -310,8 +305,14 @@ def prepare_synthesis(
     log_size_limit,
     nb_jobs,
     cancel_event=None,
+    export_output_dir=None,
+    export_tool=None,
+    export_work_path=None,
+    use_benchmark=False,
+    benchmark_file=None,
+    custom_metrics_file=None,
 ):
-    return prepare_synthesis_jobs(
+    parallel_jobs = prepare_synthesis_jobs(
         architecture_instances=architecture_instances,
         prepare_job=prepare_job,
         job_list=job_list,
@@ -323,6 +324,23 @@ def prepare_synthesis(
         check_cancel=lambda: _check_cancel(cancel_event),
         script_name=script_name,
     )
+
+    # Per-job result export (au fil de l'eau): tag every job so the handler
+    # exports its result as soon as it finishes, for both the CLI and the
+    # GUI/daemon (which both call this prepare function).
+    if export_output_dir and export_tool and export_work_path:
+        exp_res.configure_synthesis_job_exports(
+            parallel_jobs=parallel_jobs,
+            result_type="fmax_synthesis",
+            work_path=export_work_path,
+            tool=export_tool,
+            output_dir=export_output_dir,
+            use_benchmark=use_benchmark,
+            benchmark_file=benchmark_file,
+            custom_metrics_file=custom_metrics_file,
+        )
+
+    return parallel_jobs
 
 def start_parallel_jobs(
     parallel_jobs, 
