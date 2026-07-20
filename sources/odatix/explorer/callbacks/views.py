@@ -117,6 +117,7 @@ def register_callbacks():
     Input("xp-view-save", "n_clicks"),
     State("xp-view-name", "value"),
     State("xp-view-name", "placeholder"),
+    State("xp-view-description", "value"),
     State("xp-chart-kind", "data"),
     State("xp-source-select", "value"),
     State("xp-axis-x", "value"),
@@ -138,7 +139,7 @@ def register_callbacks():
     State({"type": "xp-filter", "dim": ALL}, "id"),
     prevent_initial_call=True,
   )
-  def save_current_view(n_clicks, name, suggested, kind, sources, x, y, z, color_by, symbol_by,
+  def save_current_view(n_clicks, name, suggested, description, kind, sources, x, y, z, color_by, symbol_by,
                         legend_group_by, dissociate, palette, plot_theme, toggles,
                         overview_chart_type, overview_layout, dl_format, dl_background,
                         filter_state, filter_values, filter_ids):
@@ -158,6 +159,7 @@ def register_callbacks():
       thumb_kind = overview_chart_type if kind == "overview" else kind
       view = {
         "name": name,
+        "description": (description or "").strip(),
         "kind": kind,
         "sources": sources or [],
         "controls": {

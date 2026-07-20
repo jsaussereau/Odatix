@@ -42,6 +42,7 @@ import re
 import pandas as pd
 
 import odatix.explorer.core.query as query
+import odatix.explorer.core.schema as schema
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
 from odatix.explorer.charts.spec import (
@@ -67,6 +68,8 @@ THUMB_HEIGHT = 44
 THUMB_MAX_SERIES = 4
 THUMB_MAX_POINTS = 16
 THUMB_MAX_BARS = 12
+THUMB_TABLE_MAX_COLS = 5
+THUMB_TABLE_MAX_ROWS = 4
 
 
 ######################################
@@ -293,6 +296,20 @@ def filters_to_hidden(filter_state, dimensions):
 ######################################
 
 
+def make_table_thumbnail(df):
+  """
+  Sketch of a data table for the home-page card: a grid of a few rows and
+  columns with a highlighted header, sized from the actual selection. Returns
+  None on empty data (the card then falls back to the table pictogram).
+  """
+  if df is None or df.empty:
+    return None
+  columns = [column for column in df.columns if not schema.is_info_column(column)]
+  cols = max(1, min(THUMB_TABLE_MAX_COLS, len(columns)))
+  rows = max(1, min(THUMB_TABLE_MAX_ROWS, len(df)))
+  return {"t": "table", "c": cols, "r": rows}
+
+
 def make_thumbnail(df, kind, x, y, color_by, dimensions):
   """
   Build a tiny data sketch of the current figure for the home page cards:
@@ -301,6 +318,9 @@ def make_thumbnail(df, kind, x, y, color_by, dimensions):
   data does not lend itself to a sketch (the card then falls back to the
   chart-kind pictogram).
   """
+  if kind == "table":
+    return make_table_thumbnail(df)
+
   if df is None or df.empty or not y or y not in df.columns:
     return None
 

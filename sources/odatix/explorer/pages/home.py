@@ -25,7 +25,7 @@ Explorer landing page: chart view cards and live data source status.
 
 import dash
 from dash import dcc, html, Input, Output, State, ALL
-from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line, Path
+from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line, Path, Ellipse, Path
 
 from odatix.components import home_shared
 from odatix.explorer.core.store import STORE
@@ -79,6 +79,14 @@ def _pictogram(kind):
       Circle(cx="32", cy="14", r="3", fill=_STROKE, opacity="0.7"),
       Circle(cx="34", cy="26", r="3", fill=_STROKE, opacity="0.5"),
     ])
+  if kind == "table":
+    return _svg([
+      Rect(x="6", y="8", width="36", height="32", rx="2.5", stroke=_FILL, strokeWidth="2", strokeOpacity="0.5", fill="none"),
+      Line(x1="6", y1="18", x2="42", y2="18", stroke=_STROKE, strokeWidth="2.5"),
+      Line(x1="18", y1="8", x2="18", y2="40", stroke=_FILL, strokeWidth="1.5", strokeOpacity="0.4"),
+      Line(x1="30", y1="8", x2="30", y2="40", stroke=_FILL, strokeWidth="1.5", strokeOpacity="0.4"),
+      Line(x1="6", y1="29", x2="42", y2="29", stroke=_FILL, strokeWidth="1.5", strokeOpacity="0.4"),
+    ])
   if kind == "radar":
     return _svg([
       Polygon(points="24,4 43,18 36,42 12,42 5,18", stroke=_FILL, strokeWidth="1.5", fill="none", opacity="0.4"),
@@ -100,12 +108,85 @@ _CARDS = [
   {"name": "Scatter 3D", "link": "/explorer/scatter3d", "kind": "scatter3d", "description": "Three metrics in one 3D view"},
   {"name": "Radar", "link": "/explorer/radar", "kind": "radar", "description": "Polar view of a metric"},
   {"name": "Overview", "link": "/explorer/overview", "kind": "overview", "description": "Every metric at a glance"},
+  {"name": "Table", "link": "/explorer/table", "kind": "table", "description": "Sortable, filterable data table"},
   {"name": "RTL Analysis", "link": "/explorer/analysis", "kind": "analysis", "description": "RTL analysis warnings and errors dashboard"},
 ]
 
 
 def _card_visual(card):
   return _pictogram(card.get("kind"))
+
+
+_HEADER_TEXT = "var(--theme-contrast-text-color, #ffffff)"
+# Deterministic pill widths (fraction of a cell) so the sketch looks like real,
+# varied data instead of a uniform grid.
+_PILL_FRACTIONS = [0.72, 0.5, 0.62, 0.84, 0.46, 0.68, 0.56, 0.78]
+
+
+def _table_thumbnail(cols, rows):
+  """A neat little data-table sketch (rounded card, header, zebra rows, cells)."""
+  cols = min(cols, 6)
+  rows = min(rows, 5)
+
+  width, height = 100.0, 72.0
+  margin = 7.0
+  radius = 6.0
+  header_h = 14.0
+  inner_w = width - 2 * margin
+  inner_h = height - 2 * margin
+  data_top = margin + header_h
+  data_h = inner_h - header_h
+  row_h = data_h / rows
+  col_w = inner_w / cols
+
+  def pill(x, y, w, h, fill, opacity="1"):
+    return Rect(x=str(round(x, 1)), y=str(round(y, 1)), width=str(round(w, 1)), height=str(round(h, 1)),
+                rx=str(round(h / 2, 1)), fill=fill, opacity=opacity)
+
+  children = [
+    # Card background
+    Rect(x=str(margin), y=str(margin), width=str(inner_w), height=str(inner_h), rx=str(radius),
+         fill="var(--theme-element-background-color)", stroke=_FILL, strokeWidth="1", strokeOpacity="0.18"),
+  ]
+
+  # Zebra striping on odd data rows
+  for row in range(rows):
+    if row % 2 == 1:
+      children.append(Rect(x=str(margin + 0.5), y=str(round(data_top + row * row_h, 1)),
+                           width=str(inner_w - 1), height=str(round(row_h, 1)), fill=_FILL, opacity="0.05"))
+
+  # Header band with only the top corners rounded
+  x0, y0, x1 = margin, margin, margin + inner_w
+  header = ("M{} {} L{} {} Q{} {} {} {} L{} {} L{} {} L{} {} Q{} {} {} {} Z").format(
+    round(x0 + radius, 1), y0, round(x1 - radius, 1), y0, x1, y0, x1, round(y0 + radius, 1),
+    x1, round(y0 + header_h, 1), x0, round(y0 + header_h, 1), x0, round(y0 + radius, 1), x0, y0, round(x0 + radius, 1), y0)
+  children.append(Path(d=header, fill=_STROKE, opacity="0.35"))
+
+  # Column separators (data area only)
+  for col in range(1, cols):
+    x = round(margin + col * col_w, 1)
+    children.append(Line(x1=str(x), y1=str(round(data_top, 1)), x2=str(x), y2=str(round(margin + inner_h, 1)),
+                         stroke=_FILL, strokeWidth="1", opacity="0.12"))
+  # Row separators
+  for row in range(1, rows):
+    y = round(data_top + row * row_h, 1)
+    children.append(Line(x1=str(margin), y1=str(y), x2=str(margin + inner_w), y2=str(y),
+                         stroke=_FILL, strokeWidth="1", opacity="0.12"))
+
+  # Header label pills + data cell pills
+  header_ph = 4.0
+  for col in range(cols):
+    cell_x = margin + col * col_w
+    pad = col_w * 0.16
+    max_w = col_w - 2 * pad
+    children.append(pill(cell_x + pad, margin + (header_h - header_ph) / 2, max_w * 0.6, header_ph, _HEADER_TEXT, "0.9"))
+    for row in range(rows):
+      frac = 0.82 if col == 0 else _PILL_FRACTIONS[(row * cols + col) % len(_PILL_FRACTIONS)]
+      cell_ph = min(4.2, row_h * 0.36)
+      cell_y = data_top + row * row_h + (row_h - cell_ph) / 2
+      children.append(pill(cell_x + pad, cell_y, max_w * frac, cell_ph, _FILL, "0.55" if col == 0 else "0.32"))
+
+  return Svg(children, viewBox="0 0 100 72", className="xp-view-thumb", preserveAspectRatio="xMidYMid meet")
 
 
 def _view_thumbnail(view):
@@ -116,6 +197,9 @@ def _view_thumbnail(view):
     return _pictogram(view.get("kind"))
 
   children = []
+  if thumb.get("t") == "table":
+    return _table_thumbnail(max(1, int(thumb.get("c", 3))), max(1, int(thumb.get("r", 3))))
+
   if thumb.get("t") == "bars":
     bars = thumb.get("b") or []
     if bars:
@@ -136,8 +220,9 @@ def _view_thumbnail(view):
       else:
         children.append(Polyline(
           points=" ".join(str(x) + "," + str(y) for x, y in points),
-          stroke=color, strokeWidth="2.5", fill="none",
+          stroke=color, strokeWidth="1.5", fill="none",
           strokeLinejoin="round", strokeLinecap="round",
+          vectorEffect="non-scaling-stroke",
         ))
 
   if not children:
@@ -150,14 +235,16 @@ def _view_card(view):
   name = view.get("name", "?")
   created = str(view.get("created", ""))[:10]
   meta = " · ".join(part for part in [views.kind_label(view.get("kind")), ", ".join(view.get("sources") or []), created] if part)
+  description = str(view.get("description") or "").strip()
+  text_children = [html.Div(name, className="xp-view-card-name")]
+  if description:
+    text_children.append(html.Div(description, className="xp-view-card-desc", title=description))
+  text_children.append(html.Div(meta, className="xp-view-card-meta", title=meta))
   return html.Button(
     [
       html.Div(_view_thumbnail(view), className="xp-view-thumb-box"),
       html.Div(
-        [
-          html.Div(name, className="xp-view-card-name"),
-          html.Div(meta, className="xp-view-card-meta", title=meta),
-        ],
+        text_children,
         className="xp-view-card-text",
       ),
     ],
@@ -166,6 +253,70 @@ def _view_card(view):
     type="button",
     className="xp-view-card",
     title="Restore this view",
+  )
+
+
+def _section_header(title, count=None):
+  """A left-aligned section header with an optional count pill."""
+  children = [html.H2(title, className="xp-section-heading")]
+  if count is not None:
+    children.append(html.Span(str(count), className="xp-section-count"))
+  return html.Div(children, className="xp-section-head")
+
+
+def _source_icon():
+  """Small database-cylinder glyph for a result-file source card."""
+  return Svg(
+    [
+      Ellipse(cx="12", cy="5.5", rx="7.5", ry="2.6"),
+      Path(d="M4.5 5.5 V18 c0 1.45 3.36 2.6 7.5 2.6 s7.5 -1.15 7.5 -2.6 V5.5"),
+      Path(d="M4.5 11.75 c0 1.45 3.36 2.6 7.5 2.6 s7.5 -1.15 7.5 -2.6"),
+    ],
+    viewBox="0 0 24 24",
+    width="20",
+    height="20",
+    fill="none",
+    stroke="currentColor",
+    className="xp-source-icon",
+    # stroke-width/linecap/linejoin are not Svg props: set via style so they
+    # cascade to the child shapes (same pattern as gui.icons._line_icon).
+    style={"strokeWidth": "1.6", "strokeLinecap": "round", "strokeLinejoin": "round"},
+  )
+
+
+def _source_card(source):
+  """One result-file source: icon + name + record count / schema (or error)."""
+  if source.error:
+    detail = "⚠ " + str(source.error)
+  else:
+    detail = str(source.record_count) + " records · " + source.schema
+  return html.Div(
+    [
+      html.Div(_source_icon(), className="xp-source-icon-box"),
+      html.Div(
+        [
+          html.Div(source.name, className="xp-source-name", title=source.name),
+          html.Div(detail, className="xp-source-detail", title=detail),
+        ],
+        className="xp-source-text",
+      ),
+    ],
+    className="xp-source-card" + (" xp-source-error" if source.error else ""),
+  )
+
+
+def _empty_sources():
+  """Friendly empty state when no result file was found yet."""
+  return html.Div(
+    [
+      html.Div("No result file found yet", className="xp-source-empty-title"),
+      html.Div(
+        'Looked for "results_*.yml" in "' + str(STORE.result_path) + '". '
+        "Run a synthesis, a workflow or an analysis — sources appear here as soon as results are written.",
+        className="xp-source-empty-subtitle",
+      ),
+    ],
+    className="xp-source-empty",
   )
 
 
@@ -179,8 +330,8 @@ def layout(**kwargs):
       dcc.Location(id="xp-home-url", refresh=True),
       home_shared.home_header("Odatix Explorer", "Visualize, compare and explore your results."),
       home_shared.home_card_grid(_CARDS, _card_visual),
-      html.Div(id="xp-home-sources", className="xp-home-sources"),
-      html.Div(id="xp-home-views", className="xp-home-views"),
+      html.Div(id="xp-home-sources", className="xp-home-section"),
+      html.Div(id="xp-home-views", className="xp-home-section"),
     ],
     className="xp-home",
   )
@@ -201,29 +352,12 @@ def update_home_sources(_intervals, settings):
 
   sources = STORE.sources()
   if not sources:
-    return html.Div(
-      [
-        html.Div("No result file found", className="xp-source-name"),
-        html.Div('Looked for "results_*.yml" files in "' + str(STORE.result_path) + '". Run a synthesis or a workflow first — results appear here as soon as they are written.', className="xp-source-detail"),
-      ],
-      className="xp-source-card",
-    )
+    return [_section_header("Data sources"), _empty_sources()]
 
-  cards = []
-  for source in sources:
-    details = str(source.record_count) + " records · " + source.schema
-    if source.error:
-      details = "⚠ " + str(source.error)
-    cards.append(
-      html.Div(
-        [
-          html.Div(source.name, className="xp-source-name"),
-          html.Div(details, className="xp-source-detail"),
-        ],
-        className="xp-source-card" + (" xp-source-error" if source.error else ""),
-      )
-    )
-  return cards
+  return [
+    _section_header("Data sources", len(sources)),
+    html.Div([_source_card(source) for source in sources], className="xp-source-grid"),
+  ]
 
 
 @dash.callback(
@@ -239,8 +373,8 @@ def update_home_views(_intervals, settings):
   if not saved:
     return None
   return [
-    html.H2("Saved views", className="xp-home-section-title", style={"marginTop": "3em"}),
-    html.Div([_view_card(view) for view in saved], className="card-matrix configs"),
+    _section_header("Saved views", len(saved)),
+    html.Div([_view_card(view) for view in saved], className="xp-view-cards"),
   ]
 
 

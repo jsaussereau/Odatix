@@ -61,6 +61,8 @@ def explorer_state_stores():
 def explorer_shell(kind):
   if kind == "overview":
     graph_area = html.Div(id="xp-overview-area", className="xp-overview-area")
+  elif kind == "table":
+    graph_area = html.Div(id="xp-table-area", className="xp-table-area")
   else:
     graph_area = dcc.Graph(
       id="xp-graph",

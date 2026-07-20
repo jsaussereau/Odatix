@@ -27,7 +27,9 @@ chart pages, the overview grid, and the CSV export of the displayed data.
 from dataclasses import replace
 
 import dash
-from dash import dcc, html, Input, Output, State, ALL
+from dash import dcc, html, dash_table, Input, Output, State, ALL
+
+import pandas as pd
 
 import odatix.gui.content_lib as content_lib
 
@@ -93,6 +95,97 @@ def _apply_export_background(fig, dl_background):
   elif dl_background == "transparent":
     fig.update_layout(paper_bgcolor=builder.TRANSPARENT)
   return fig
+
+
+def _ordered_table_columns(dimensions, metrics):
+  """Column order for the table view: reserved dimensions first, then the other
+  dimensions, then the metrics (mirrors the natural reading order of a result)."""
+  dims = list(dimensions)
+  ordered = [column for column in schema.RESERVED_DIMENSION_ORDER if column in dims]
+  ordered += [column for column in dims if column not in ordered]
+  ordered += [metric for metric in metrics if metric not in ordered]
+  return ordered
+
+
+def _table_header(column, metric_set, units):
+  """Display header of a table column: metric display name plus unit when known."""
+  if column in metric_set:
+    name = schema.metric_display_name(column)
+    unit = str((units or {}).get(column, "") or "")
+    return name + " (" + unit + ")" if unit else name
+  return column
+
+
+def build_data_table(df, selected, dimensions, metrics, units):
+  """A sortable/filterable DataTable of the current selection.
+
+  ``selected`` is the user-picked column subset (empty/None = every column).
+  Metrics are coerced to numbers so the table sorts and filters them
+  numerically; everything else stays textual.
+  """
+  available = _ordered_table_columns(dimensions, metrics)
+  if selected:
+    columns_ids = [column for column in selected if column in available]
+  else:
+    columns_ids = available
+  if df is None or df.empty or not columns_ids:
+    return html.Div("No data for the current selection.", className="xp-table-empty")
+
+  metric_set = set(metrics)
+  data_df = df[columns_ids].copy()
+  for column in columns_ids:
+    if column in metric_set:
+      data_df[column] = pd.to_numeric(data_df[column], errors="coerce")
+  data_df = data_df.where(pd.notnull(data_df), None)
+
+  columns = []
+  for column in columns_ids:
+    spec = {"name": _table_header(column, metric_set, units), "id": column}
+    if column in metric_set:
+      spec["type"] = "numeric"
+    columns.append(spec)
+
+  table = dash_table.DataTable(
+    id="xp-datatable",
+    columns=columns,
+    data=data_df.to_dict("records"),
+    sort_action="native",
+    filter_action="native",
+    page_action="native",
+    page_size=50,
+    fixed_rows={"headers": True},
+    style_table={"height": "100%", "overflowX": "auto", "overflowY": "auto"},
+    style_header={
+      "backgroundColor": "var(--theme-contrast-background-color)",
+      "color": "var(--theme-contrast-text-color)",
+      "fontWeight": "600",
+      "border": "1px solid var(--theme-border-color)",
+    },
+    style_filter={
+      "backgroundColor": "var(--theme-element-background-color)",
+      "color": "var(--theme-text-color)",
+    },
+    style_cell={
+      "backgroundColor": "var(--theme-background-color)",
+      "color": "var(--theme-text-color)",
+      "border": "1px solid var(--theme-border-color)",
+      "textAlign": "left",
+      "padding": "4px 10px",
+      "fontFamily": "var(--theme-font-family)",
+      "fontSize": "var(--theme-small-font-size)",
+      "maxWidth": "320px",
+      "overflow": "hidden",
+      "textOverflow": "ellipsis",
+    },
+    style_data_conditional=[
+      {"if": {"row_index": "odd"}, "backgroundColor": "var(--theme-element-background-color)"},
+    ],
+    css=[
+      {"selector": ".dash-filter input", "rule": "color: var(--theme-text-color) !important; text-align: left !important;"},
+      {"selector": ".dash-spreadsheet-menu", "rule": "color: var(--theme-text-color);"},
+    ],
+  )
+  return html.Div(table, className="xp-datatable")
 
 
 def _graph_config(sources, kind, metric, dl_format):
@@ -173,6 +266,49 @@ def register_callbacks():
         )
       children.append(html.Div(grid, className="xp-overview-grid"))
       return children
+    except Exception as e:
+      return content_lib.generate_error_div(e)
+
+  @dash.callback(
+    Output("xp-table-columns", "options"),
+    Output("xp-table-columns", "value"),
+    Input("xp-data-version", "data"),
+    Input("xp-source-select", "value"),
+    State("xp-table-columns", "value"),
+  )
+  def update_table_columns(_version, sources, current):
+    """Populate the column picker from the current selection, keeping any still-valid
+    user choice (the dropdown persists it across visits) and dropping vanished columns."""
+    df = query.select_dataframe(STORE, sources=sources)
+    dimensions, metrics = query.discover(df, STORE, sources)
+    available = _ordered_table_columns(dimensions, metrics)
+    metric_set = set(metrics)
+    units = STORE.units(sources)
+    options = [{"label": _table_header(column, metric_set, units), "value": column} for column in available]
+    kept = [column for column in (current or []) if column in available]
+    # Pre-fill every column when nothing is selected yet (first visit, or the
+    # very first callback firing before the data is loaded left an empty value),
+    # so the user just removes the unwanted ones. A non-empty user choice is kept
+    # (and persisted by the dropdown).
+    value = kept if kept else available
+    return options, value
+
+  @dash.callback(
+    Output("xp-table-area", "children"),
+    Input("xp-table-columns", "value"),
+    Input("xp-data-version", "data"),
+    Input("xp-source-select", "value"),
+    Input({"type": "xp-filter", "dim": ALL}, "value"),
+    State({"type": "xp-filter", "dim": ALL}, "id"),
+    Input("theme-dropdown", "value"),
+    State("xp-chart-kind", "data"),
+  )
+  def update_table(columns, _version, sources, filter_values, filter_ids, _app_theme, kind):
+    if kind != "table":
+      raise dash.exceptions.PreventUpdate
+    try:
+      df, dimensions, metrics, _global_dimensions = _selection(sources, filter_values, filter_ids)
+      return build_data_table(df, columns, dimensions, metrics, STORE.units(sources))
     except Exception as e:
       return content_lib.generate_error_div(e)
 

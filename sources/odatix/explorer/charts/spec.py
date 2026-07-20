@@ -42,6 +42,7 @@ KIND_LABELS = {
   "scatter3d": "Scatter 3D",
   "radar": "Radar",
   "overview": "Overview",
+  "table": "Table",
 }
 
 # Which controls make sense for each chart kind. Drives the sidebar control
@@ -55,6 +56,9 @@ CAPABILITIES = {
   "scatter3d": dict(axes=("x", "y", "z"), toggles=("legend", "legend_groups", "title", "scatter_lines", "labels", "zero_axis", "log_x", "log_y", "log_z")),
   "radar": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "close_line", "connect_gaps", "log_y")),
   "overview": dict(axes=(), toggles=("legend", "legend_groups", "title", "lines", "connect_gaps", "close_line", "zero_y", "log_x", "log_y")),
+  # The table view has no axes or chart toggles: columns are chosen in its own
+  # "Columns" sidebar section, and sorting/filtering happen in the table itself.
+  "table": dict(axes=(), toggles=()),
 }
 
 TOGGLE_LABELS = {

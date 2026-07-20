@@ -19,17 +19,12 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Importing this package registers every explorer page (dash.register_page)
-into the current Dash app. A dash.Dash(use_pages=True) app must exist first.
-"""
+import dash
 
-import odatix.explorer.pages.home
-import odatix.explorer.pages.analysis
-import odatix.explorer.pages.lines
-import odatix.explorer.pages.columns
-import odatix.explorer.pages.scatter
-import odatix.explorer.pages.scatter3d
-import odatix.explorer.pages.radar
-import odatix.explorer.pages.overview
-import odatix.explorer.pages.table
+from odatix.explorer.ui.shell import explorer_shell
+
+def layout(**kwargs):
+  return explorer_shell("table")
+
+
+dash.register_page(__name__, path="/explorer/table", name="Table", title="Odatix Explorer - Table", order=27, layout=layout)

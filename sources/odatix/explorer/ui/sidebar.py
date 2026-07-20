@@ -49,7 +49,7 @@ def _dropdown(id, options=None, value=None, clearable=False, persist=True, **kwa
 # panels from the DOM. Tab switching is done client-side by toggling a class on
 # the sidebar content (see callbacks/controls.py), which drives panel visibility
 # through CSS. The tab bar is sticky so tabs stay reachable when scrolled down.
-_TABS = (("data", "Plot"), ("filters", "Filters"), ("export", "Export"))
+_TABS = (("data", "Plot"), ("filters", "Filters"), ("export", "Save"))
 DEFAULT_TAB = "data"
 
 
@@ -69,33 +69,35 @@ def _tab_bar():
   ]
 
 
+def _data_section():
+  """Shared "Data" section: live status, reload button and source selector."""
+  return components.section("Data", [
+    html.Div(
+      [
+        html.Div(id="xp-status", className="xp-status"),
+        html.Button("⟳", id="xp-refresh", n_clicks=0, className="xp-mini-button xp-refresh", title="Reload result files now"),
+      ],
+      className="xp-status-row",
+    ),
+    # Remembered via xp-ui-state (not Dash persistence) so that saved-view
+    # restores can overwrite it — likewise for palette, plot theme, toggles,
+    # overview and export options below.
+    dcc.Checklist(id="xp-source-select", options=[], value=None, className="xp-filter-checklist"),
+  ])
+
+
 def build_sidebar(kind):
   capabilities = CAPABILITIES[kind]
   axes = capabilities["axes"]
   is_scatter = kind in ("scatter", "scatter3d")
   is_overview = kind == "overview"
+  is_table = kind == "table"
 
   toggles = [toggle for toggle in capabilities["toggles"]] + ["stable_index"]
   toggle_options = [{"label": TOGGLE_LABELS.get(toggle, toggle), "value": toggle} for toggle in toggles]
   toggle_defaults = [toggle for toggle in toggles if toggle in DEFAULT_TOGGLES or toggle == "stable_index"]
 
-  data_panel = html.Div(
-    [
-      # --- Data ---
-      components.section("Data", [
-        html.Div(
-          [
-            html.Div(id="xp-status", className="xp-status"),
-            html.Button("⟳", id="xp-refresh", n_clicks=0, className="xp-mini-button xp-refresh", title="Reload result files now"),
-          ],
-          className="xp-status-row",
-        ),
-        # Remembered via xp-ui-state (not Dash persistence) so that saved-view
-        # restores can overwrite it — likewise for palette, plot theme, toggles,
-        # overview and export options below.
-        dcc.Checklist(id="xp-source-select", options=[], value=None, className="xp-filter-checklist"),
-      ]),
-
+  axes_section = (
       # --- Axes ---
       components.section("Axes", [
         components.control_row("Chart type", _dropdown(
@@ -113,8 +115,10 @@ def build_sidebar(kind):
           value="default",
           persist=False,
         ), hidden=not is_overview),
-      ]),
+      ])
+  )
 
+  style_section = (
       # --- Style ---
       components.section("Style", [
         components.control_row("Color by", _dropdown("xp-color-by")),
@@ -133,8 +137,10 @@ def build_sidebar(kind):
           value=plot_themes.DEFAULT_PLOT_THEME,
           persist=False,
         ), tooltip="Look of the figures, independent from the app theme"),
-      ]),
+      ])
+  )
 
+  display_section = (
       # --- Display ---
       components.section("Display", [
         dcc.Checklist(
@@ -143,10 +149,36 @@ def build_sidebar(kind):
           value=toggle_defaults,
           className="xp-toggle-checklist",
         ),
-      ], open=True),
-    ],
-    className="xp-tab-panel xp-tab-panel-data",
+      ], open=True)
   )
+
+  if is_table:
+    # The table has its own "Columns" section. The chart controls (axes, style,
+    # toggles) are irrelevant here, but must stay mounted: the shared filter,
+    # figure and control callbacks list them as inputs and would not fire on a
+    # page where they are absent (the app suppresses callback exceptions). So we
+    # keep them in the DOM, hidden.
+    data_children = [
+      _data_section(),
+      components.section("Columns", [
+        components.control_row("Show columns", _dropdown(
+          "xp-table-columns",
+          multi=True,
+          clearable=True,
+          placeholder="All columns",
+        ), tooltip="Pick which columns to display (empty = all), in the order shown."),
+        html.Div(
+          "Click a header to sort. Type in a header's filter box to filter that column "
+          "(e.g. \"> 100\" on a numeric column). Use the Filters tab to filter by dimension.",
+          className="xp-hint",
+        ),
+      ]),
+      html.Div([axes_section, style_section, display_section], style={"display": "none"}),
+    ]
+  else:
+    data_children = [_data_section(), axes_section, style_section, display_section]
+
+  data_panel = html.Div(data_children, className="xp-tab-panel xp-tab-panel-data")
 
   filters_panel = html.Div(
     [
@@ -165,13 +197,13 @@ def build_sidebar(kind):
           options=[{"label": fmt.upper(), "value": fmt} for fmt in ("svg", "png", "jpeg", "webp")],
           value="svg",
           persist=False,
-        )),
+        ), hidden=is_table),
         components.control_row("Image background", _dropdown(
           "xp-dl-background",
           options=[{"label": "Transparent", "value": "transparent"}, {"label": "White", "value": "white"}, {"label": "Theme", "value": "theme"}],
           value="transparent",
           persist=False,
-        )),
+        ), hidden=is_table),
         html.Button("Download CSV", id="xp-download-csv", n_clicks=0, className="xp-button", title="Export the currently displayed data as CSV"),
       ]),
 
@@ -184,6 +216,12 @@ def build_sidebar(kind):
           debounce=True,
           className="xp-text-input",
         ), tooltip="Name of the view to save (a default is proposed)"),
+        components.control_row("Description", dcc.Textarea(
+          id="xp-view-description",
+          value="",
+          placeholder="Optional description...",
+          className="xp-text-input xp-textarea",
+        ), tooltip="Optional description shown on the home-page view card"),
         html.Button("Save current view", id="xp-view-save", n_clicks=0, className="xp-button",
                     title="Save the whole display state (sources, axes, style, filters, ...) as a shareable file"),
         components.control_row("Restore a view", _dropdown(
