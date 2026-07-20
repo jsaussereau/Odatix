@@ -112,29 +112,92 @@
     box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
     margin-bottom: 10px;
     padding: 4px 10px;
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.xp-section[open] {
+    box-shadow: var(--card-box-shadow-hover, 0 4px 14px rgba(0, 0, 0, 0.12));
 }
 
 .xp-section-summary {
     cursor: pointer;
     font-weight: 600;
-    padding: 6px 2px;
-    list-style-position: outside;
+    padding: 6px 3px;
     user-select: none;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 8px;
+    border-radius: var(--theme-small-border-radius, 8px);
+    transition: background-color 0.2s ease;
 }
 
+.xp-section-summary:hover {
+    background-color: color-mix(in srgb, var(--theme-primary-color) 10%, transparent);
+}
+
+/* Remove the native disclosure triangle in every engine */
+.xp-section-summary {
+    list-style: none;
+}
+.xp-section-summary::-webkit-details-marker {
+    display: none;
+}
 .xp-section-summary::marker {
-    color: var(--theme-primary-color);
+    content: "";
+}
+
+/* Custom animated chevron drawn with two borders */
+.xp-section-summary::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 5px;
+    height: 5px;
+    margin-left: 2px;
+    border-right: 2px solid var(--theme-primary-color);
+    border-bottom: 2px solid var(--theme-primary-color);
+    border-radius: 1px;
+    transform: rotate(-45deg);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.xp-section[open] > .xp-section-summary::before {
+    transform: rotate(45deg);
+}
+
+.xp-section-summary:hover::before {
+    border-color: var(--theme-primary-color);
+    filter: brightness(1.15);
 }
 
 .xp-section-title {
-    margin-left: 2px;
+    margin-left: 0;
+    flex: 1 1 auto;
+}
+
+.xp-section-right {
+    margin-left: auto;
+    font-weight: 400;
 }
 
 .xp-section > *:not(summary) {
     margin: 4px 0 8px 0;
+}
+
+/* Animate the content reveal when a section opens */
+.xp-section[open] > *:not(summary) {
+    animation: xp-section-reveal 0.28s ease;
+}
+
+@keyframes xp-section-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ---------- Controls ---------- */

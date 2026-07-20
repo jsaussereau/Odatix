@@ -749,6 +749,7 @@ textarea {
     text-align: center;
     margin: 28px auto 24px;
     padding: 0 16px;
+    max-width: calc(var(--tile-width) * 2 + 2*var(--tile-gap));
 }
 .page-header-title {
     margin: 0 0 6px;
