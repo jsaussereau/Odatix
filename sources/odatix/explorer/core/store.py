@@ -295,9 +295,13 @@ class ResultStore:
     """Dimension columns of the given sources (all sources if None), in display order."""
     with self._lock:
       selected = self._selected(sources, self._dimension_columns)
-      ordered = [column for column in schema.RESERVED_DIMENSION_ORDER if any(column in columns for columns in selected)]
+      reserved = [column for column in schema.RESERVED_DIMENSION_ORDER if any(column in columns for columns in selected)]
+      # Show parameter domains (the non-reserved dimensions) before Configuration
+      split = reserved.index(schema.COL_CONFIGURATION) if schema.COL_CONFIGURATION in reserved else len(reserved)
+      ordered = reserved[:split]
       for columns in selected:
-        ordered += [column for column in columns if column not in ordered]
+        ordered += [column for column in columns if column not in reserved and column not in ordered]
+      ordered += reserved[split:]
       return ordered
 
   def metric_columns(self, sources=None):
