@@ -125,8 +125,15 @@ _icons = {
         Path(d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"),
     ], width, height, className, id),
 
-    # Arrow left
+    # Arrow left (solid). Filled glyph on the 24x24 grid, painted with
+    # `currentColor` rather than the shared stroke.
     "back": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M 11,3.7484375 A 1.25,1.25 0 0 0 10.115625,4.115625 l -7,7 a 1.250125,1.250125 0 0 0 0,1.76875 l 7,7 a 1.25,1.25 0 0 0 1.76875,0 1.25,1.25 0 0 0 0,-1.76875 L 7.0234375,13.254688 h 4.3062505 c 0.0018,4.92e-4 0.0043,0.0011 0.0062,0.0016 h 8.646875 c 0.691331,6.9e-4 1.252253,-0.560231 1.251562,-1.251562 6.9e-4,-0.691332 -0.560232,-1.252253 -1.251562,-1.251563 h -4.254688 c -0.0024,-6.01e-4 -0.0055,-0.0012 -0.0078,-0.0016 H 7.0171875 L 11.884375,5.884375 a 1.25,1.25 0 0 0 0,-1.76875 A 1.25,1.25 0 0 0 11,3.7484375 Z",
+             fill="currentColor", stroke="none"),
+    ], width, height, className, id),
+
+    # Arrow left (lite)
+    "back_light": lambda color, width, height, className, offset, id: _line_icon([
         Line(x1="19", y1="12", x2="5", y2="12"),
         Polyline(points="12 19 5 12 12 5"),
     ], width, height, className, id),
@@ -165,6 +172,52 @@ _icons = {
         Line(x1="18", y1="6", x2="6", y2="18"),
         Line(x1="6", y1="6", x2="18", y2="18"),
     ], width, height, className, id),
+
+    # --- Solid variants (used only by the monitor task controls) ---
+    # These are filled glyphs (painted with `currentColor`, so the ".icon <color>"
+    # classes still drive their color) with per-icon viewBox and nudge styling
+    # carried over from the previous design. The line-art "play"/"pause"/"cross"
+    # above are kept unchanged for every other use.
+    "play_solid": lambda color, width, height, className, offset, id: Svg(
+        children=[
+            Path(d='M464.7,221.5L86.1,7.3C52.5-11.7,25,7.5,25,50v412c0,42.5,27.5,61.7,61.1,42.7l378.6-214.1  C498.2,271.5,498.2,240.5,464.7,221.5z'),
+        ],
+        fill="currentColor",
+        version='1.1',
+        viewBox='0 0 512 512',
+        width=width,
+        height=height,
+        className=className,
+        id=id,
+        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "transform": "scale(0.7) translateX(1px)"},
+    ),
+    "pause_solid": lambda color, width, height, className, offset, id: Svg(
+        children=[
+            Path(d='M2 6C2 4.11438 2 3.17157 2.58579 2.58579C3.17157 2 4.11438 2 6 2C7.88562 2 8.82843 2 9.41421 2.58579C10 3.17157 10 4.11438 10 6V18C10 19.8856 10 20.8284 9.41421 21.4142C8.82843 22 7.88562 22 6 22C4.11438 22 3.17157 22 2.58579 21.4142C2 20.8284 2 19.8856 2 18V6Z'),
+            Path(d='M14 6C14 4.11438 14 3.17157 14.5858 2.58579C15.1716 2 16.1144 2 18 2C19.8856 2 20.8284 2 21.4142 2.58579C22 3.17157 22 4.11438 22 6V18C22 19.8856 22 20.8284 21.4142 21.4142C20.8284 22 19.8856 22 18 22C16.1144 22 15.1716 22 14.5858 21.4142C14 20.8284 14 19.8856 14 18V6Z'),
+        ],
+        fill="currentColor",
+        version='1.1',
+        viewBox='0 0 24 24',
+        width=width,
+        height=height,
+        className=className,
+        id=id,
+        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "transform": "scale(0.7)"},
+    ),
+    "cross_solid": lambda color, width, height, className, offset, id: Svg(
+        children=[
+            Path(d='M491.613,75.643l-64.235-64.235c-15.202-15.202-39.854-15.202-55.056,0L251.507,132.222L130.686,11.407    c-15.202-15.202-39.853-15.202-55.055,0L11.401,75.643c-15.202,15.202-15.202,39.854,0,55.056l120.821,120.815L11.401,372.328    c-15.202,15.202-15.202,39.854,0,55.056l64.235,64.229c15.202,15.202,39.854,15.202,55.056,0l120.815-120.814l120.822,120.814    c15.202,15.202,39.854,15.202,55.056,0l64.235-64.229c15.202-15.202,15.202-39.854,0-55.056L370.793,251.514l120.82-120.815    C506.815,115.49,506.815,90.845,491.613,75.643z'),
+        ],
+        fill="currentColor",
+        version='1.1',
+        viewBox='0 0 503.021 503.021',
+        width=width,
+        height=height,
+        className=className,
+        id=id,
+        style={"width": width, "height": height, "minWidth": width, "minHeight": height, "transform": "scale(0.7)"},
+    ),
 }
 
 def icon(name: str, color: str = "#fff", width: str = "24px", height: str = "24px", className: str = "", offset: bool = False, id: Union[str, dict]="") -> Svg:

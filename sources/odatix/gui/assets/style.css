@@ -1238,6 +1238,24 @@ h3 {
     box-shadow: var(--caution-button-box-shadow-hover);
 }
 
+/* Monitor kill buttons: filled (red background, white icon), inverting on
+   hover. Scoped to the monitor task controls and the stop-all button so the
+   caution/red buttons on other pages keep their default outlined style. */
+.monitor-task-button-container .color-button.caution,
+#monitor-stop-all.color-button.caution {
+    background: var(--theme-caution-color);
+    border: 1px solid var(--theme-caution-color);
+    color: #fff;
+    --button-icon-color: #fff;
+}
+.monitor-task-button-container .color-button.caution:hover,
+#monitor-stop-all.color-button.caution:hover {
+    background: var(--theme-element-background-color);
+    border: 1px solid var(--theme-caution-color);
+    color: var(--theme-caution-color);
+    --button-icon-color: var(--theme-caution-color);
+}
+
 .color-button.warning {
     background: var(--warning-button-background);
     border: var(--warning-button-border);
@@ -1330,6 +1348,10 @@ h3 {
    `color` (not `fill`); a bare `.icon` shows no fill. */
 .icon {
     fill: none;
+}
+/* Solid (filled) icons: paint with currentColor instead of stroking. */
+.icon.solid {
+    fill: currentColor;
 }
 .icon.black {
     color: #24292e;

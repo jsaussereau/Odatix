@@ -311,7 +311,7 @@ def monitor_task(
                                 children=[
                                     ui.icon_button(
                                         id={"type": "task-start", "task_id": task_id},
-                                        icon=icon("play", className="icon", offset=True),
+                                        icon=icon("play_solid", className="icon solid", offset=True),
                                         color="success",
                                         multiline=True,
                                         tooltip="Start task",
@@ -324,7 +324,7 @@ def monitor_task(
                                 children=[
                                     ui.icon_button(
                                         id={"type": "task-pause", "task_id": task_id},
-                                        icon=icon("pause", className="icon"),
+                                        icon=icon("pause_solid", className="icon solid"),
                                         color="primary",
                                         multiline=True,
                                         tooltip="Pause task",
@@ -337,7 +337,7 @@ def monitor_task(
                                 children=[
                                     ui.icon_button(
                                         id={"type": "task-stop", "task_id": task_id},
-                                        icon=icon("cross", className="icon"),
+                                        icon=icon("cross_solid", className="icon solid"),
                                         color="caution",
                                         multiline=True,
                                         tooltip="Kill task",
@@ -888,7 +888,7 @@ title_buttons = html.Div(
         ),
         ui.icon_button(
             id="monitor-stop-all",
-            icon=icon("cross", className="icon"),
+            icon=icon("cross_solid", className="icon solid"),
             color="caution",
             multiline=True,
             tooltip="Kill all tasks and exit session",
