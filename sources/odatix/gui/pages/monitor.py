@@ -29,7 +29,6 @@ from dash import no_update
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url, ansi_to_html_spans
 import odatix.gui.ui_components as ui
-import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import daemon_control
 
@@ -50,6 +49,25 @@ dash.register_page(
 
 DEFAULT_HOST = hard_settings.daemon_default_host
 DEFAULT_PORT = hard_settings.daemon_default_port
+
+# Status buckets, shared by filtering, KPI counting and sorting.
+RUNNING_STATUSES = ("running", "starting", "exporting")
+QUEUED_STATUSES = ("queued", "paused")
+DONE_STATUSES = ("success",)
+FAILED_STATUSES = ("failed", "killed", "canceled")
+
+# Sort priority when sorting by status (most "active" first).
+_STATUS_SORT_PRIORITY = {
+    "running": 0,
+    "starting": 1,
+    "exporting": 2,
+    "paused": 3,
+    "queued": 4,
+    "success": 5,
+    "failed": 6,
+    "killed": 7,
+    "canceled": 8,
+}
 
 
 def _normalize_optional_str(value: Optional[str]) -> Optional[str]:
@@ -221,9 +239,9 @@ def _session_option(daemon):
     session_name = str(daemon.get("session_name", "")).strip()
 
     value = session_id or session_name or f"{host}:{port}"
+    hover_text = f"{host}:{port}"
     if session_id:
         label = f"{session_id}"
-        hover_text = f"{host}:{port}"
     else:
         label = f"{host}:{port}"
     return {
@@ -251,6 +269,65 @@ def _api_post(base_url: str, path: str, params: Optional[dict] = None):
 
 
 ######################################
+# Small helpers
+######################################
+
+def _job_progress(job) -> int:
+    progress_val = job.get("progress", 0) if isinstance(job, dict) else 0
+    try:
+        progress = int(round(float(progress_val)))
+    except Exception:
+        progress = 0
+    return max(0, min(100, progress))
+
+
+def _elapsed_seconds(job) -> int:
+    elapsed = str(job.get("elapsed_time") or "") if isinstance(job, dict) else ""
+    parts = elapsed.split(":")
+    if len(parts) != 3:
+        return 0
+    try:
+        return max(0, int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2]))
+    except Exception:
+        return 0
+
+
+def _job_matches_filter(status_norm: str, filter_value: str) -> bool:
+    if filter_value in (None, "", "all"):
+        return True
+    if filter_value == "running":
+        return status_norm in RUNNING_STATUSES
+    if filter_value == "queued":
+        return status_norm in QUEUED_STATUSES
+    if filter_value == "done":
+        return status_norm in DONE_STATUSES
+    if filter_value == "failed":
+        return status_norm in FAILED_STATUSES
+    return True
+
+
+def _sort_key(job, sort_value: str):
+    status_norm = str(job.get("status") or "").lower().strip()
+    name = str(job.get("display_name") or "").lower()
+    job_id = job.get("id", 0)
+    try:
+        job_id = int(job_id)
+    except Exception:
+        job_id = 0
+
+    if sort_value == "name":
+        return (name, job_id)
+    if sort_value == "status":
+        return (_STATUS_SORT_PRIORITY.get(status_norm, 99), name, job_id)
+    if sort_value == "progress":
+        return (-_job_progress(job), job_id)
+    if sort_value == "runtime":
+        return (-_elapsed_seconds(job), job_id)
+    # default: by id
+    return (job_id,)
+
+
+######################################
 # UI Components
 ######################################
 
@@ -273,6 +350,10 @@ def monitor_task(
                 className="monitor-task " + status,
                 id={"type": "task-row", "task_id": task_id},
                 children=[
+                    html.Div(
+                        className="monitor-task-dot",
+                        id={"type": "task-dot", "task_id": task_id},
+                    ),
                     html.Div(
                         f"{name}",
                         className="monitor-task-name",
@@ -351,6 +432,36 @@ def monitor_task(
                 ]
             ),
         ]
+    )
+
+
+def _stat(value_id: str, label: str, kind: str):
+    return html.Div(
+        className=f"monitor-stat {kind}",
+        children=[
+            html.Span("0", id=value_id, className="monitor-stat-value"),
+            html.Span(label, className="monitor-stat-label"),
+        ],
+    )
+
+
+def _mode_button(id, label, tooltip):
+    return html.Button(
+        label,
+        id=id,
+        n_clicks=0,
+        className="monitor-mode-button tooltip top small",
+        **{"data-tooltip": tooltip},
+    )
+
+
+def _panel_tool_button(id, glyph, tooltip):
+    return html.Button(
+        glyph,
+        id=id,
+        n_clicks=0,
+        className="monitor-tool-button tooltip top small",
+        **{"data-tooltip": tooltip},
     )
 
 
@@ -480,7 +591,7 @@ def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_stat
     Input("monitor-snapshot", "data"),
     State("monitor-job-ids", "data"),
     State("monitor-selected-job", "data"),
-)   
+)
 def _sync_job_list(snapshot, previous_job_ids, selected_job):
     if not isinstance(snapshot, dict):
         raise PreventUpdate
@@ -489,10 +600,14 @@ def _sync_job_list(snapshot, previous_job_ids, selected_job):
     if not isinstance(jobs, list):
         raise PreventUpdate
 
-    job_ids = []
-    for job in jobs:
-        if isinstance(job, dict):
-            job_ids.append(job.get("id"))
+    # Keep a stable ascending-by-id order. Dash aligns pattern-matching ALL
+    # outputs by sorted id, so the DOM order, `monitor-job-ids`, and the
+    # per-task update callbacks must all agree on this ordering. Visual
+    # sorting is applied on top of this via CSS `order` (see _apply_filter_sort).
+    jobs = [job for job in jobs if isinstance(job, dict)]
+    jobs.sort(key=lambda job: (int(job.get("id", 0)) if str(job.get("id", "")).lstrip("-").isdigit() else 0))
+
+    job_ids = [job.get("id") for job in jobs]
 
     # Only rebuild the task components if the job list changed.
     if isinstance(previous_job_ids, list) and job_ids == previous_job_ids:
@@ -500,23 +615,14 @@ def _sync_job_list(snapshot, previous_job_ids, selected_job):
 
     children = []
     for job in jobs:
-        if not isinstance(job, dict):
-            continue
-
         name = job.get("display_name") or f"job{job.get('id', '')}"
         status = str(job.get("status") or "unknown")
-
-        progress_val = job.get("progress", 0)
-        try:
-            progress = int(round(float(progress_val)))
-        except Exception:
-            progress = 0
-        progress = max(0, min(100, progress))
+        progress = _job_progress(job)
         runtime = str(job.get("elapsed_time") or "--:--:--")
         task_id = job.get("id", 0)
         children.append(
             monitor_task(
-                name=name, 
+                name=name,
                 status=status,
                 runtime=runtime,
                 progress=progress,
@@ -526,6 +632,84 @@ def _sync_job_list(snapshot, previous_job_ids, selected_job):
         )
 
     return children, job_ids
+
+
+@dash.callback(
+    Output({"type": "task-container", "task_id": ALL}, "style"),
+    Input("monitor-snapshot", "data"),
+    Input("monitor-filter", "value"),
+    Input("monitor-sort", "value"),
+    State("monitor-job-ids", "data"),
+)
+def _apply_filter_sort(snapshot, filter_value, sort_value, job_ids):
+    """Filter (hide non-matching) and sort (CSS `order`) task rows without a DOM rebuild."""
+    if not isinstance(job_ids, list) or not job_ids:
+        raise PreventUpdate
+
+    jobs = snapshot.get("jobs") if isinstance(snapshot, dict) else None
+    by_id = {}
+    if isinstance(jobs, list):
+        for job in jobs:
+            if isinstance(job, dict) and "id" in job:
+                by_id[job["id"]] = job
+
+    # Compute visual order ranks from the chosen sort criterion.
+    visible_ids = [jid for jid in job_ids if _job_matches_filter(
+        str(by_id.get(jid, {}).get("status") or "").lower().strip(), filter_value)]
+    ranked = sorted(visible_ids, key=lambda jid: _sort_key(by_id.get(jid, {"id": jid}), sort_value))
+    order_by_id = {jid: rank for rank, jid in enumerate(ranked)}
+
+    styles = []
+    for jid in job_ids:
+        status_norm = str(by_id.get(jid, {}).get("status") or "").lower().strip()
+        if not _job_matches_filter(status_norm, filter_value):
+            styles.append({"display": "none"})
+        else:
+            styles.append({"order": order_by_id.get(jid, 0)})
+    return styles
+
+
+@dash.callback(
+    Output("kpi-total", "children"),
+    Output("kpi-running", "children"),
+    Output("kpi-queued", "children"),
+    Output("kpi-done", "children"),
+    Output("kpi-failed", "children"),
+    Output("monitor-overall-bar", "style"),
+    Output("monitor-overall-text", "children"),
+    Input("monitor-snapshot", "data"),
+)
+def _update_kpis(snapshot):
+    jobs = snapshot.get("jobs") if isinstance(snapshot, dict) else None
+    if not isinstance(jobs, list):
+        jobs = []
+    jobs = [job for job in jobs if isinstance(job, dict)]
+
+    total = len(jobs)
+    running = queued = done = failed = 0
+    progress_sum = 0
+    for job in jobs:
+        status_norm = str(job.get("status") or "").lower().strip()
+        if status_norm in RUNNING_STATUSES:
+            running += 1
+        elif status_norm in QUEUED_STATUSES:
+            queued += 1
+        elif status_norm in DONE_STATUSES:
+            done += 1
+        elif status_norm in FAILED_STATUSES:
+            failed += 1
+        progress_sum += _job_progress(job)
+
+    overall = int(round(progress_sum / total)) if total > 0 else 0
+    return (
+        str(total),
+        str(running),
+        str(queued),
+        str(done),
+        str(failed),
+        {"width": f"{overall}%"},
+        f"{overall}%",
+    )
 
 
 @dash.callback(
@@ -634,13 +818,7 @@ def _update_tasks(snapshot, job_ids):
         status = str(job.get("status") or "unknown")
         status_norm = status.lower().strip()
 
-        progress_val = job.get("progress", 0)
-        try:
-            progress = int(round(float(progress_val)))
-        except Exception:
-            progress = 0
-        progress = max(0, min(100, progress))
-
+        progress = _job_progress(job)
         runtime = str(job.get("elapsed_time") or "--:--:--")
 
         display_name_text.append(display_name)
@@ -671,6 +849,41 @@ def _update_tasks(snapshot, job_ids):
         start_style,
         pause_style,
         stop_style,
+    )
+
+
+@dash.callback(
+    Output("monitor-log-title", "children"),
+    Output("monitor-log-title", "className"),
+    Input("monitor-selected-job", "data"),
+    Input("monitor-snapshot", "data"),
+)
+def _update_log_header(selected_job, snapshot):
+    try:
+        selected_i = int(selected_job) if selected_job is not None else None
+    except Exception:
+        selected_i = None
+
+    if selected_i is None:
+        return "No task selected", "monitor-log-title"
+
+    job = None
+    jobs = snapshot.get("jobs") if isinstance(snapshot, dict) else None
+    if isinstance(jobs, list):
+        for candidate in jobs:
+            if isinstance(candidate, dict) and candidate.get("id") == selected_i:
+                job = candidate
+                break
+
+    if job is None:
+        return f"job{selected_i}", "monitor-log-title"
+
+    name = str(job.get("display_name") or f"job{selected_i}")
+    status = str(job.get("status") or "").lower().strip()
+    return (
+        [html.Span(name, className="monitor-log-title-name"),
+         html.Span(status, className=f"monitor-log-title-status {status}")],
+        "monitor-log-title",
     )
 
 
@@ -743,24 +956,71 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, se
         # Keep current logs, but surface error to switch UI to error container.
         return current_logs if current_logs is not None else {}, _format_monitor_error(e, daemon_state)
 
+
+######################################
+# Layout modes (split / stacked / tasks-only / log-only) + divider
+######################################
+
+# Arrangement modes, always reachable from the always-visible header toolbar.
+# "list"/"log" reuse the panel-collapse CSS classes to show a single panel;
+# because the controls live in the header (not inside the panels), a hidden
+# panel can always be brought back.
+_MODE_BY_BUTTON = {
+    "monitor-mode-split": "split",
+    "monitor-mode-stacked": "stacked",
+    "monitor-mode-tasks": "list",
+    "monitor-mode-log": "log",
+}
+_VALID_MODES = ("split", "stacked", "list", "log")
+
+
 @dash.callback(
-    Output("monitor-log-container", "className"),
-    Output("monitor-container", "className"),
-    Input("config-layout-dropdown", "value"),
+    Output("monitor-layout", "data"),
+    Input("monitor-mode-split", "n_clicks"),
+    Input("monitor-mode-stacked", "n_clicks"),
+    Input("monitor-mode-tasks", "n_clicks"),
+    Input("monitor-mode-log", "n_clicks"),
+    prevent_initial_call=True,
 )
-def _update_log_layout(layout_value):
-    log_classes = "tile title monitor-log-container"
-    container_classes = "tile title monitor-container"
-    if layout_value == "split":
-        log_classes += " split"
-        container_classes += " split"
-    elif layout_value == "log_view":
-        log_classes += " log_view"
-        container_classes += " log_view"
+def _set_layout_mode(*_clicks):
+    mode = _MODE_BY_BUTTON.get(ctx.triggered_id)
+    if mode is None:
+        raise PreventUpdate
+    return mode
+
+
+@dash.callback(
+    Output("monitor-split", "className"),
+    Output("monitor-mode-split", "className"),
+    Output("monitor-mode-stacked", "className"),
+    Output("monitor-mode-tasks", "className"),
+    Output("monitor-mode-log", "className"),
+    Input("monitor-layout", "data"),
+)
+def _compose_split_class(layout):
+    layout = layout if layout in _VALID_MODES else "split"
+
+    classes = ["monitor-split"]
+    if layout == "stacked":
+        classes.append("stacked")
+    elif layout == "list":
+        classes.append("log-collapsed")   # tasks only
+    elif layout == "log":
+        classes.append("list-collapsed")  # log only
     else:
-        log_classes += " normal"
-        container_classes += " normal"
-    return log_classes, container_classes
+        classes.append("split")
+
+    def _btn(mode):
+        return "monitor-mode-button tooltip top small" + (" active" if layout == mode else "")
+
+    return (
+        " ".join(classes),
+        _btn("split"),
+        _btn("stacked"),
+        _btn("list"),
+        _btn("log"),
+    )
+
 
 @dash.callback(
     Output("monitor-log", "children"),
@@ -780,13 +1040,13 @@ def _render_logs(logs_state, error_message, search):
 
     text = "\n".join(lines)
     status = ""
-    main_class_name = "visible"
+    main_class_name = "monitor-dashboard visible"
     error_class_name = "hidden"
 
-    if error_message: 
+    if error_message:
         text = ""
         status = str(error_message)
-        main_class_name = "hidden"
+        main_class_name = "monitor-dashboard hidden"
         error_class_name = "visible"
     return ansi_to_html_spans(text), status, main_class_name, error_class_name
 
@@ -797,12 +1057,15 @@ def _render_logs(logs_state, error_message, search):
     Input({"type": "task-pause", "task_id": ALL}, "n_clicks"),
     Input({"type": "task-stop", "task_id": ALL}, "n_clicks"),
     Input("monitor-stop-all", "n_clicks"),
+    Input("monitor-open-path", "n_clicks"),
+    State("monitor-selected-job", "data"),
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
     State("session-dropdown", "value"),
     prevent_initial_call=True,
 )
-def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, daemon_state, search, selected_session):
+def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, open_clicks,
+                 selected_job, daemon_state, search, selected_session):
     if not ctx.triggered:
         raise PreventUpdate
 
@@ -833,6 +1096,17 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, da
             return {"ok": True, "action": "shutdown"}
         except Exception as e:
             return {"ok": False, "action": "shutdown", "error": _format_monitor_error(e, daemon_state)}
+
+    if triggered == "monitor-open-path":
+        try:
+            job_id = int(selected_job)
+        except Exception:
+            raise PreventUpdate
+        try:
+            _api_post(base_url, f"/jobs/{job_id}/open")
+            return {"ok": True, "action": "open", "job_id": job_id}
+        except Exception as e:
+            return {"ok": False, "action": "open", "error": _format_monitor_error(e, daemon_state)}
 
     if not isinstance(triggered, dict):
         raise PreventUpdate
@@ -872,46 +1146,186 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, da
 # Layout
 ######################################
 
-title_buttons = html.Div(
+# --- Integrated header: toolbar (nav + session + modes + kill) + stats ------
+monitor_toolbar = html.Div(
+    className="monitor-toolbar",
     children=[
-        dcc.Dropdown(
-            id="session-dropdown", 
-            options=[
+        html.Div(
+            className="monitor-toolbar-left",
+            children=[
+                dcc.Link(
+                    icon("back", className="icon back-button", width="26px", height="26px"),
+                    href="/",
+                    className="monitor-back",
+                    title="Back to home",
+                    style={"textDecoration": "none"},
+                ),
+                html.H2("Monitor", className="monitor-title"),
+                dcc.Dropdown(
+                    id="session-dropdown",
+                    options=[],
+                    placeholder="Select a session",
+                    value=None,
+                    clearable=False,
+                    className="monitor-session-dropdown",
+                ),
             ],
-            placeholder="Select a session",
-            value=None,
-            clearable=False,
-            style={"width": "200px", "marginRight": "10px"},
         ),
-        dcc.Dropdown(
-            id="config-layout-dropdown", 
-            options=[
-                {"label": "Normal Layout", "value": "normal"},
-                {"label": "Split Layout", "value": "split"},
-                {"label": "Log View Layout", "value": "log_view"},
+        html.Div(
+            className="monitor-toolbar-right",
+            children=[
+                html.Div(
+                    className="monitor-mode-group",
+                    children=[
+                        _mode_button("monitor-mode-split", "Split", "Task list and log side by side"),
+                        _mode_button("monitor-mode-stacked", "Stacked", "Task list above, log below"),
+                        _mode_button("monitor-mode-tasks", "Tasks", "Task list only"),
+                        _mode_button("monitor-mode-log", "Log", "Log only"),
+                    ],
+                ),
+                ui.icon_button(
+                    id="monitor-stop-all",
+                    icon=icon("cross_solid", className="icon solid"),
+                    color="caution",
+                    multiline=True,
+                    tooltip="Kill all tasks and exit session",
+                ),
             ],
-            value="normal",
-            clearable=False,
-            style={"width": "155px", "marginRight": "10px"},
-        ),
-        ui.icon_button(
-            id="monitor-stop-all",
-            icon=icon("cross_solid", className="icon solid"),
-            color="caution",
-            multiline=True,
-            tooltip="Kill all tasks and exit session",
         ),
     ],
-    className="inline-flex-buttons",
-)         
+)
+
+monitor_header = html.Div(
+    id="monitor-header",
+    className="monitor-header",
+    children=[
+        monitor_toolbar,
+        html.Div(
+            className="monitor-header-row",
+            children=[
+                html.Div(
+                    className="monitor-stats",
+                    children=[
+                        _stat("kpi-total", "Total", "total"),
+                        _stat("kpi-running", "Running", "running"),
+                        _stat("kpi-queued", "Queued", "queued"),
+                        _stat("kpi-done", "Done", "done"),
+                        _stat("kpi-failed", "Failed", "failed"),
+                    ],
+                ),
+                html.Div(
+                    className="monitor-overall",
+                    children=[
+                        html.Span("Overall", className="monitor-overall-label"),
+                        html.Div(
+                            className="monitor-overall-track",
+                            children=[
+                                html.Div(id="monitor-overall-bar", className="monitor-overall-bar", style={"width": "0%"}),
+                            ],
+                        ),
+                        html.Span("0%", id="monitor-overall-text", className="monitor-overall-value"),
+                    ],
+                ),
+            ],
+        ),
+    ],
+)
+
+# --- Task list panel --------------------------------------------------------
+list_panel = html.Div(
+    className="monitor-panel monitor-list-panel",
+    children=[
+        html.Div(
+            className="monitor-panel-header",
+            children=[
+                html.Div(
+                    className="monitor-panel-title-group",
+                    children=[
+                        html.Span("Tasks", className="monitor-panel-title"),
+                        dcc.RadioItems(
+                            id="monitor-filter",
+                            className="monitor-filter",
+                            value="all",
+                            options=[
+                                {"label": "All", "value": "all"},
+                                {"label": "Running", "value": "running"},
+                                {"label": "Queued", "value": "queued"},
+                                {"label": "Done", "value": "done"},
+                                {"label": "Failed", "value": "failed"},
+                            ],
+                            inline=True,
+                        ),
+                    ],
+                ),
+                html.Div(
+                    className="monitor-panel-tools",
+                    children=[
+                        dcc.Dropdown(
+                            id="monitor-sort",
+                            className="monitor-sort",
+                            value="id",
+                            clearable=False,
+                            options=[
+                                {"label": "Sort: Default", "value": "id"},
+                                {"label": "Sort: Name", "value": "name"},
+                                {"label": "Sort: Status", "value": "status"},
+                                {"label": "Sort: Progress", "value": "progress"},
+                                {"label": "Sort: Runtime", "value": "runtime"},
+                            ],
+                            style={"width": "160px"},
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        html.Div(
+            className="monitor-list-scroll",
+            children=[
+                html.Div(children=[], id="monitor-container", className="monitor-container"),
+            ],
+        ),
+    ],
+)
+
+# --- Log panel --------------------------------------------------------------
+log_panel = html.Div(
+    className="monitor-panel monitor-log-panel",
+    id="monitor-log-container",
+    children=[
+        html.Div(
+            className="monitor-panel-header",
+            children=[
+                html.Div("No task selected", id="monitor-log-title", className="monitor-log-title"),
+                html.Div(
+                    className="monitor-panel-tools",
+                    children=[
+                        _panel_tool_button("monitor-open-path", "⧉", "Open task directory"),
+                    ],
+                ),
+            ],
+        ),
+        html.Div(
+            className="monitor-log-scroll",
+            children=[
+                html.Pre(id="monitor-log", className="monitor-log"),
+            ],
+        ),
+    ],
+)
+
+split_view = html.Div(
+    id="monitor-split",
+    className="monitor-split split",
+    children=[
+        list_panel,
+        html.Div(id="monitor-divider", className="monitor-divider"),
+        log_panel,
+    ],
+)
 
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
-        html.Div(
-            ui.title_tile(text="Monitor", buttons=title_buttons, tooltip="Pilot ParallelJobHandler via REST API", back_button_link="/"),
-            style={"marginTop": "20px", "marginBottom": "10px"},
-        ),
         html.Div(
             children=[
                 html.Div(
@@ -921,7 +1335,6 @@ layout = html.Div(
                             id="monitor-status",
                             className="tile title error-message ",
                         ),
-
                     ],
                     className="tiles-container config",
                 ),
@@ -930,37 +1343,12 @@ layout = html.Div(
             className="hidden",
         ),
         html.Div(
-            children=[
-                html.Div(
-                    children=[
-                        html.Div(),
-                        html.Div(
-                            children=[],
-                            id="monitor-container",
-                            className="tile title",
-                        ),
-
-                    ],
-                    className="tiles-container config",
-                ),
-                html.Div(
-                    children=[
-                        html.Div(),
-                        html.Div(),
-                        html.Div(
-                            children=[
-                                html.H3("Log output"),
-                                html.Pre(id="monitor-log", className="monitor-log"),
-                            ],
-                            className="tile title monitor-log-container",
-                            id="monitor-log-container",
-                        ),
-                    ],
-                    className="tiles-container config",
-                ),
-            ],
             id="monitor-main-container",
-            className="hidden",
+            className="monitor-dashboard hidden",
+            children=[
+                monitor_header,
+                split_view,
+            ],
         ),
         dcc.Interval(id="monitor-refresh", interval=500, n_intervals=0),
         dcc.Store(id="monitor-snapshot", data=None),
@@ -971,11 +1359,11 @@ layout = html.Div(
         dcc.Store(id="monitor-logs", data=None),
         dcc.Store(id="monitor-job-ids", data=[]),
         dcc.Store(id="session-dropdown-open", data=False),
+        dcc.Store(id="monitor-layout", data="split"),
     ],
-    className="page-content",
+    className="page-content monitor-page",
     style={
-        "display": "flex",  
+        "display": "flex",
         "flexDirection": "column",
-        "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )

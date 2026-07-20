@@ -58,6 +58,7 @@ nav_groups = [
         ("Scatter", "/explorer/scatter"),
         ("Scatter 3D", "/explorer/scatter3d"),
         ("Radar", "/explorer/radar"),
+        ("Table", "/explorer/table"),
         ("Overview", "/explorer/overview"),
         ("RTL Analysis", "/explorer/analysis"),
     ]),
