@@ -736,6 +736,9 @@ def job_settings_form_field(
 def job_settings_form(settings, run_mode="default", selected_tools=None):
     frequencies = settings.get("frequencies", {})
     range = frequencies.get("range", {})
+    fmax_bounds = settings.get("fmax_synthesis", {})
+    if not isinstance(fmax_bounds, dict):
+        fmax_bounds = {}
 
     if selected_tools is None:
         selected_tools = settings.get("tools", [])
@@ -823,7 +826,10 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                 html.H3("Synthesis Constraints"),
                 dcc.Checklist(
                     options=[{"label": "Override frequencies", "value": True}],
-                    value=[True] if frequencies.get("override", False) else [],
+                    value=[True] if (
+                        fmax_bounds.get("override", False) if run_mode == "fmax_synthesis"
+                        else frequencies.get("override", False)
+                    ) else [],
                     id="override-arch-frequencies",
                     className="checklist-switch",
                     style={"marginBottom": "15px", "display": "inline-block"},
@@ -853,7 +859,11 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             style={"width": "100%"},
                         ),
                     ],
-                    style={"display": "flex", "flexDirection": "row", "gap": "25px"},
+                    style={
+                        "display": "flex" if run_mode == "custom_freq_synthesis" else "none",
+                        "flexDirection": "row",
+                        "gap": "25px",
+                    },
                 ),
                 html.Div(
                     children=[
@@ -892,9 +902,36 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             tooltip="Frequency step for the synthesis.",
                         ),
                     ],
-                    style={"display": "flex", "flexDirection": "row", "gap": "25px"},
+                    style={
+                        "display": "flex" if run_mode == "custom_freq_synthesis" else "none",
+                        "flexDirection": "row",
+                        "gap": "25px",
+                    },
+                ),
+                html.Div(
+                    children=[
+                        job_settings_form_field(
+                            label="Lower Bound (MHz)",
+                            id="lower_bound",
+                            type="number",
+                            value=str(fmax_bounds.get("lower_bound", "")),
+                            tooltip="Lower bound of the binary search for the maximum frequency.",
+                        ),
+                        job_settings_form_field(
+                            label="Upper Bound (MHz)",
+                            id="upper_bound",
+                            type="number",
+                            value=str(fmax_bounds.get("upper_bound", "")),
+                            tooltip="Upper bound of the binary search for the maximum frequency.",
+                        ),
+                    ],
+                    style={
+                        "display": "flex" if run_mode == "fmax_synthesis" else "none",
+                        "flexDirection": "row",
+                        "gap": "25px",
+                    },
                 )
-            ], className="tile config", style={"display": "none" if run_mode != "custom_freq_synthesis" else "block"}),
+            ], className="tile config", style={"display": "block" if run_mode in ("custom_freq_synthesis", "fmax_synthesis") else "none"}),
         ], className="tiles-container config flex-tiles-container", style={"marginTop": "-10px", "marginBottom": "20px"},
     )
 
@@ -1246,6 +1283,17 @@ def update_param_domains(
             form_range.get("from"),
             form_range.get("to"),
             form_range.get("step"),
+            use_custom_freq_list=form_freq.get("use_custom_freq_list", False),
+            use_custom_freq_range=form_freq.get("use_custom_freq_range", False),
+        )
+    if run_mode == "fmax_synthesis":
+        fmax_bounds = selection_settings.get("fmax_synthesis", {})
+        if not isinstance(fmax_bounds, dict):
+            fmax_bounds = {}
+        saved_baseline["fmax_synthesis"] = workspace.create_fmax_bounds_settings_dict(
+            fmax_bounds.get("lower_bound"),
+            fmax_bounds.get("upper_bound"),
+            override_enabled=fmax_bounds.get("override", False),
         )
 
     return job_sections, context["title"], main_title, saved_baseline
@@ -1490,6 +1538,8 @@ def update_preview_title(preview_value, arch_metadata):
     Input("from_frequency", "value"),
     Input("to_frequency", "value"),
     Input("step_frequency", "value"),
+    Input("lower_bound", "value"),
+    Input("upper_bound", "value"),
     Input("analysis-tools", "value"),
     Input("overwrite", "value"),
     Input("force_single_thread", "value"),
@@ -1516,6 +1566,8 @@ def save_architecture_selections(
     from_frequency,
     to_frequency,
     step_frequency,
+    lower_bound,
+    upper_bound,
     analysis_tools,
     overwrite,
     force_single_thread,
@@ -1572,6 +1624,14 @@ def save_architecture_selections(
             from_frequency,
             to_frequency,
             step_frequency,
+            use_custom_freq_list=_checklist_enabled(use_custom_freq_list),
+            use_custom_freq_range=_checklist_enabled(use_custom_freq_range),
+        )
+    if run_mode == "fmax_synthesis":
+        current_settings["fmax_synthesis"] = workspace.create_fmax_bounds_settings_dict(
+            lower_bound,
+            upper_bound,
+            override_enabled=_checklist_enabled(override_arch_frequencies),
         )
     if run_mode == "analyze":
         current_settings["tools"] = [tool for tool in (analysis_tools or []) if tool]
@@ -1630,6 +1690,14 @@ def save_architecture_selections(
     if run_mode == "custom_freq_synthesis":
         saved_frequencies = saved_settings.get("frequencies", {})
         if saved_frequencies != current_settings.get("frequencies", {}):
+            return (
+                "color-button warning icon-button tooltip bottom small tooltip",
+                "Unsaved changes!",
+                dash.no_update,
+            )
+
+    if run_mode == "fmax_synthesis":
+        if saved_settings.get("fmax_synthesis", {}) != current_settings.get("fmax_synthesis", {}):
             return (
                 "color-button warning icon-button tooltip bottom small tooltip",
                 "Unsaved changes!",

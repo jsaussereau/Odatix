@@ -1151,6 +1151,8 @@ def create_custom_frequencies_settings_dict(
     from_frequency,
     to_frequency,
     step_frequency,
+    use_custom_freq_list=None,
+    use_custom_freq_range=None,
 ) -> dict:
     frequencies = copy.deepcopy(DEFAULT_ARCH_SELECTION_SETTINGS["frequencies"])
     frequencies["override"] = bool(override_enabled)
@@ -1163,7 +1165,30 @@ def create_custom_frequencies_settings_dict(
         "step": _parse_int(step_frequency),
     }
 
-    return _normalize_frequencies_settings(frequencies)
+    normalized = _normalize_frequencies_settings(frequencies)
+
+    # The "List" / "Range" switches are only reflected in the parsed list/range
+    # values on save (via disabled_list/disabled_range), so their toggle state
+    # is passed through explicitly here to make it visible for change detection.
+    if use_custom_freq_list is not None:
+        normalized["use_custom_freq_list"] = bool(use_custom_freq_list)
+    if use_custom_freq_range is not None:
+        normalized["use_custom_freq_range"] = bool(use_custom_freq_range)
+
+    return normalized
+
+def create_fmax_bounds_settings_dict(lower_bound, upper_bound, override_enabled=None) -> dict:
+    """
+    Build the fmax synthesis bounds settings dict from the GUI form values.
+    Empty fields are stored as "" (meaning "use the default / architecture-specific bound").
+    """
+    lower = _parse_int(lower_bound)
+    upper = _parse_int(upper_bound)
+    return {
+        "override": bool(override_enabled),
+        "lower_bound": lower if lower is not None else "",
+        "upper_bound": upper if upper is not None else "",
+    }
 
 def save_architecture_selection(path, settings, run_mode="default", use_custom_freq_list=False, use_custom_freq_range=False) -> None:
     """
@@ -1264,6 +1289,26 @@ f"""##############################################
 
         data['frequencies'] = frequencies_data
         data.yaml_set_comment_before_after_key(key='frequencies', before="\n synthesis frequencies (in MHz)")
+
+    if run_mode == "fmax_synthesis":
+        # fmax binary search bounds
+        settings_fmax = settings.get('fmax_synthesis', {})
+        if not isinstance(settings_fmax, dict):
+            settings_fmax = {}
+        fmax_data = CommentedMap()
+
+        fmax_data['override'] = "Yes" if _parse_bool(settings_fmax.get('override'), False) else "No"
+        fmax_data.yaml_add_eol_comment(key='override', comment="if false, those values are only used when no architecture-specific bounds are defined")
+
+        lower_bound = _parse_int(settings_fmax.get('lower_bound'))
+        upper_bound = _parse_int(settings_fmax.get('upper_bound'))
+        fmax_data['lower_bound'] = lower_bound if lower_bound is not None else ""
+        fmax_data['upper_bound'] = upper_bound if upper_bound is not None else ""
+        fmax_data.yaml_add_eol_comment(key='lower_bound', comment="overridden by --from (empty: use default / architecture-specific bound)")
+        fmax_data.yaml_add_eol_comment(key='upper_bound', comment="overridden by --to (empty: use default / architecture-specific bound)")
+
+        data['fmax_synthesis'] = fmax_data
+        data.yaml_set_comment_before_after_key(key='fmax_synthesis', before="\n fmax binary search bounds (in MHz)")
 
     # eda tools to run the analysis with (analysis only)
     if run_mode == "analyze":

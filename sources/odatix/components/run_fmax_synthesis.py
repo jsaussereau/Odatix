@@ -22,6 +22,7 @@
 import os
 import sys
 import argparse
+from odatix.components import workspace as workspace_utils
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
 from odatix.components.run_common import confirm_valid_jobs, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
@@ -152,6 +153,38 @@ def run_synthesis(
 
     start_parallel_jobs(parallel_jobs, detach=detach, session=daemon_session)
 
+def _load_settings_fmax_bounds(run_config_settings_filename):
+    """
+    Read the fmax binary search bounds from the run settings file. The bounds
+    are only returned when "override" is enabled, mirroring the "Override
+    frequencies" toggle of custom frequency synthesis: when disabled, the
+    settings-file bounds are not applied and architecture-specific / default
+    bounds are used instead.
+    Returns (lower_bound, upper_bound), each None when unset or not overriding.
+    """
+    settings_payload = workspace_utils.load_yaml_file(run_config_settings_filename, default={})
+    fmax_settings = settings_payload.get("fmax_synthesis", {})
+    if not isinstance(fmax_settings, dict):
+        return None, None
+
+    override_value = fmax_settings.get("override", False)
+    if isinstance(override_value, str):
+        override_enabled = override_value.strip().lower() in ("yes", "true", "1")
+    else:
+        override_enabled = bool(override_value)
+    if not override_enabled:
+        return None, None
+
+    def _to_int(value):
+        if value in (None, ""):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    return _to_int(fmax_settings.get("lower_bound")), _to_int(fmax_settings.get("upper_bound"))
+
 def check_settings(
     run_config_settings_filename,
     arch_path,
@@ -172,6 +205,15 @@ def check_settings(
     cancel_event=None,
 ):
     _check_cancel(cancel_event)
+
+    # Priority: CLI (--from / --to) overrides the settings file bounds, which in
+    # turn override the default / architecture-specific bounds.
+    settings_lower_bound, settings_upper_bound = _load_settings_fmax_bounds(run_config_settings_filename)
+    if forced_fmax_lower_bound is None:
+        forced_fmax_lower_bound = settings_lower_bound
+    if forced_fmax_upper_bound is None:
+        forced_fmax_upper_bound = settings_upper_bound
+
     context = load_synthesis_context(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
