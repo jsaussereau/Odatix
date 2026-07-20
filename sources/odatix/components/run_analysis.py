@@ -43,6 +43,7 @@ from odatix.lib.variables import replace_variables, Variables
 
 from odatix.components.run_common import confirm_valid_jobs, abort_if_empty_job_list, run_prepare_loop
 from odatix.components.analyze_results import generate_analysis_summary
+from odatix.components.export_analysis import export_analysis_results
 
 
 class AnalysisCancelled(Exception):
@@ -529,7 +530,7 @@ def prepare_analysis(
 ######################################
 
 
-def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False):
+def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False, result_path=None):
   """
   Run RTL analysis for all selected architectures with one or several eda
   tools. The jobs of every tool run together in a single monitor session
@@ -537,6 +538,9 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
 
   Args:
       tool (str or list): eda tool(s) to run the analysis with.
+      result_path (str, optional): workspace result directory. When given, the
+          detailed analysis results are also compiled into a v2 results file
+          ("results_analysis_<tool>.yml") for Odatix Explorer.
 
   Returns:
       dict: {tool: analysis summary}
@@ -660,11 +664,17 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   all_summaries = {}
   for current_tool, context in prepared_tools:
     analysis_file = os.path.join(context["work_path"], "analysis.yml")
-    all_summaries[current_tool] = generate_analysis_summary(
+    summary = generate_analysis_summary(
       root_dir=context["work_path"],
       output_file=analysis_file,
       tool=current_tool,
     )
+    all_summaries[current_tool] = summary
+
+    # Also compile the detailed results into a v2 results file for Odatix
+    # Explorer (in addition to the terminal summary and the text report).
+    if result_path:
+      export_analysis_results(summary, result_path, current_tool)
 
   return all_summaries
 
@@ -956,6 +966,7 @@ def main(args, settings=None):
     check_eda_tool,
     debug,
     keep,
+    result_path=settings.result_path,
   )
 
   comparison = {}

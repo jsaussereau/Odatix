@@ -326,6 +326,7 @@ def generate_analysis_summary(root_dir, output_file, tool):
             "log_file": log_file,
             "status": status,
             "error": error_message,
+            "errors": errors,
             "blackbox_warnings": blackbox_warnings,
             "standard_warning_count": standard_warning_count,
             "error_count": len(errors),

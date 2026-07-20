@@ -556,6 +556,52 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       print(str(e))
 
 
+def export_analysis(input_work_path, output, analysis_work_path, tools="all"):
+  """
+  Compile the RTL analysis results (odatix analyze) into v2 results files for
+  Odatix Explorer, from the analysis work directory.
+
+  For every eda tool that has an analysis work directory
+  (``<input_work_path>/<analysis_work_path>/<tool>``), the per-architecture
+  status/errors/warnings are recomputed and written to
+  "results_analysis_<tool>.yml" in ``output`` (see
+  odatix.components.export_analysis), exactly like a fresh ``odatix analyze``
+  would.
+
+  Args:
+      input_work_path (str): the workspace work directory.
+      output (str): the workspace result directory.
+      analysis_work_path (str): the analysis work sub-directory name.
+      tools (list | str): eda tools to export, or "all" to auto-discover them.
+  """
+  # Imported here (not at module top) to avoid a heavy import for the common
+  # synthesis export path.
+  from odatix.components.analyze_results import generate_analysis_summary
+  from odatix.components.export_analysis import export_analysis_results
+
+  analysis_root = os.path.join(input_work_path, analysis_work_path)
+  if not os.path.isdir(analysis_root):
+    return
+
+  discovered = sorted(
+    item for item in os.listdir(analysis_root) if os.path.isdir(os.path.join(analysis_root, item))
+  )
+  if isinstance(tools, list):
+    selected = [tool for tool in discovered if tool in tools]
+  else:
+    selected = discovered
+
+  for tool in selected:
+    tool_dir = os.path.join(analysis_root, tool)
+    printc.cyan("Export " + tool + " analysis results", script_name)
+    summary = generate_analysis_summary(
+      root_dir=tool_dir,
+      output_file=os.path.join(tool_dir, "analysis.yml"),
+      tool=tool,
+    )
+    export_analysis_results(summary, output, tool)
+
+
 def _load_metrics_for_tool(tool, custom_metrics_file=None):
   tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, tool_settings_filename)
   tool_settings = validate_tool_settings(tool_settings_file)
@@ -831,6 +877,18 @@ def main(args, settings=None):
     benchmark_file=benchmark_file,
     result_types=result_types,
     custom_metrics_file=metrics_file,
+  )
+
+  # Also compile the RTL analysis results (odatix analyze), if any.
+  if settings.valid:
+    analysis_work_path = settings.analysis_work_path
+  else:
+    analysis_work_path = OdatixSettings.DEFAULT_ANALYSIS_WORK_PATH
+  export_analysis(
+    input_work_path=input,
+    output=output,
+    analysis_work_path=analysis_work_path,
+    tools=tools,
   )
 
 
