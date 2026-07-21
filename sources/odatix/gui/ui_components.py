@@ -26,7 +26,7 @@ from dash.development.base_component import Component
 
 from odatix.gui.icons import icon, pictogram
 
-def icon_button(icon, color, text="", id=None, link=None, multiline=False, width="115px", style={}, tooltip:str="", tooltip_options:str="bottom"):  
+def icon_button(icon, color, text="", id=None, link=None, multiline=False, bold=True, width="115px", style={}, tooltip:str="", tooltip_options:str="bottom"):  
     """
     Create a button with an icon and optional text.
     Args:
@@ -36,6 +36,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
         id (str, optional): The id of the button. Defaults to None.
         link (str | dict, optional): If provided, the button will be a link to this URL. Defaults to None.
         multiline (bool, optional): If True, adjust vertical alignment for multiline text. Defaults to False.
+        bold (bool, optional): If True, make the text bold. Defaults to False.
     """ 
     if text:
         style = {**style, "min-width": width}
@@ -48,7 +49,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, width
     ]
     if text:
         inner_children.append(
-            html.Span(text, style={"fontWeight": "600", "fontSize": "1em", "marginLeft": "6px", "lineHeight": "1.15", "whiteSpace": "nowrap"})
+            html.Span(text, style={"fontWeight": "600" if bold else "normal", "fontSize": "1em", "marginLeft": "6px", "lineHeight": "1.15", "whiteSpace": "nowrap"})
         )
     content = html.Button(
         html.Div(

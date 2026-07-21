@@ -82,6 +82,7 @@ def normal_card(name):
                                 color="default",
                                 link=f"/workflow_editor?workflow={name}",
                                 width="auto",
+                                bold=False,
                             ),
                             ui.icon_button(
                                 id=f"button-open-workflow-{name}",
@@ -90,6 +91,7 @@ def normal_card(name):
                                 color="default",
                                 link=f"/config_editor?workflow={name}",
                                 width="auto",
+                                bold=False,
                             ),
                         ],
                         style={"display": "flex", "gap": "4px"},

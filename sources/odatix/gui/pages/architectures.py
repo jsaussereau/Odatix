@@ -61,6 +61,7 @@ def normal_card(name, card_type: str = "arch"):
                         color="default",
                         link=f"/{card_type}_editor?{card_type}={name}",
                         width="auto",
+                        bold=False,
                     ),
                     ui.icon_button(
                         id=f"button-open-{card_type}-{name}",
@@ -69,6 +70,7 @@ def normal_card(name, card_type: str = "arch"):
                         color="default",
                         link=f"/config_editor?{card_type}={name}",
                         width="auto",
+                        bold=False,
                     ),
                 ], style={"display": "flex", "gap": "4px"}),
                 html.Div([
