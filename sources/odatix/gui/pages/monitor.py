@@ -23,6 +23,7 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx, ALL
 from typing import Optional#, Literal
 import requests
+import socket
 from dash.exceptions import PreventUpdate
 from dash import no_update
 
@@ -207,6 +208,29 @@ def _resolve_daemon_target(
         "session_id": str(state.get("session_id", "")),
         "base_url": f"http://{host}:{port}",
     }
+
+
+def _local_addresses():
+    """Return the set of IP addresses that refer to the local machine."""
+    addresses = {"127.0.0.1", "::1", "localhost", "0.0.0.0"}
+    try:
+        hostname = socket.gethostname()
+        addresses.add(hostname)
+        for info in socket.getaddrinfo(hostname, None):
+            addresses.add(info[4][0])
+    except Exception:
+        pass
+    return addresses
+
+
+def _is_local_host(host) -> bool:
+    """Whether `host` points at the local machine (so its directories are openable)."""
+    if host is None:
+        return False
+    host = str(host).strip().lower()
+    if host == "":
+        return False
+    return host in _local_addresses()
 
 
 def _format_monitor_error(error, daemon_state: Optional[dict] = None):
@@ -451,16 +475,6 @@ def _mode_button(id, label, tooltip):
         id=id,
         n_clicks=0,
         className="monitor-mode-button tooltip top small",
-        **{"data-tooltip": tooltip},
-    )
-
-
-def _panel_tool_button(id, glyph, tooltip):
-    return html.Button(
-        glyph,
-        id=id,
-        n_clicks=0,
-        className="monitor-tool-button tooltip top small",
         **{"data-tooltip": tooltip},
     )
 
@@ -1212,6 +1226,26 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
 
 
 
+@dash.callback(
+    Output("monitor-open-path", "disabled"),
+    Output("monitor-open-path", "data-tooltip"),
+    Input("monitor-refresh", "n_intervals"),
+    Input("session-dropdown", "value"),
+    State(f"url_{page_path}", "search"),
+    State("monitor-daemon", "data"),
+)
+def _toggle_open_path(_n, selected_session, search, daemon_state):
+    try:
+        resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
+        host = resolved_daemon.get("host")
+    except Exception:
+        host = None
+
+    if _is_local_host(host):
+        return False, "Open task directory"
+    return True, "Directory not available: the daemon is running on a remote host"
+
+
 ######################################
 # Layout
 ######################################
@@ -1394,7 +1428,14 @@ log_panel = html.Div(
                 html.Div(
                     className="monitor-panel-tools",
                     children=[
-                        _panel_tool_button("monitor-open-path", "⧉", "Open task directory"),
+                        ui.icon_button(
+                            icon=icon("folder_open", className="icon"),
+                            color="secondary",
+                            id="monitor-open-path",
+                            width="40px",
+                            tooltip="Open task directory",
+                            tooltip_options="bottom",
+                        ),
                     ],
                 ),
             ],

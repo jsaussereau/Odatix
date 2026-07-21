@@ -1,0 +1,568 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* ====================================================================== */
+/*  Run / Jobs configuration page (/run_jobs)                             */
+/*  Same visual language as the monitor dashboard and Odatix Explorer:    */
+/*  flat panels on the page background, 1px hairline borders, soft        */
+/*  shadows, pill badges and chips.                                       */
+/* ====================================================================== */
+
+.page-content.jobs-page {
+    box-sizing: border-box;
+    max-width: 1500px;
+    width: 100%;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-5) var(--space-6) var(--space-5);
+}
+
+/* --- Shared surface ---------------------------------------------------- */
+.jobs-panel {
+    background: var(--theme-element-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.16);
+    border-radius: var(--theme-normal-border-radius);
+    box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+/* --- Sticky page header ------------------------------------------------ */
+.jobs-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-5);
+    background: var(--theme-element-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.16);
+    border-radius: var(--theme-normal-border-radius);
+    box-shadow: var(--theme-shadow-color) 0px 4px 14px -6px;
+}
+.jobs-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    row-gap: var(--space-3);
+}
+.jobs-header-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.jobs-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.2;
+}
+.jobs-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+.jobs-session {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.jobs-session-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.55;
+}
+
+/* --- Summary strip ----------------------------------------------------- */
+.jobs-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    border-top: 1px solid rgba(128, 128, 128, 0.14);
+    padding-top: var(--space-3);
+}
+.jobs-summary:empty {
+    display: none;
+}
+.jobs-stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 12px;
+    border-radius: 999px;
+	background: var(--theme-tertiary-color);
+    font-size: 13px;
+}
+.jobs-stat-value {
+    font-weight: 700;
+    font-size: 15px;
+}
+.jobs-stat-label {
+    opacity: 0.65;
+}
+.jobs-stat.accent .jobs-stat-value {
+    color: var(--theme-primary-color);
+}
+.jobs-stat.muted .jobs-stat-value {
+    opacity: 0.5;
+}
+.jobs-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--theme-primary-color);
+    border: 1px solid var(--theme-primary-color);
+}
+.jobs-tag.neutral {
+    color: var(--theme-text-color);
+	background: var(--theme-tertiary-color);}
+.jobs-summary-spacer {
+    flex: 1;
+}
+
+/* --- Section headers --------------------------------------------------- */
+.jobs-section {
+    margin-bottom: var(--space-6);
+}
+.jobs-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+.jobs-section-head h2 {
+    font-size: 15px !important;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    opacity: 0.6;
+    margin: 0;
+}
+.jobs-section-tools {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+.jobs-link-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--theme-text-color);
+    opacity: 0.6;
+}
+.jobs-link-button:hover {
+    opacity: 1;
+}
+
+/* --- Job settings grid ------------------------------------------------- */
+/* Default "stretch" alignment on purpose: panels sharing a row are all as tall
+   as the tallest one. */
+.jobs-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-4);
+}
+.jobs-settings-panel {
+    padding: var(--space-4);
+}
+.jobs-settings-panel > .jobs-panel-caption {
+    margin-bottom: var(--space-3);
+}
+.jobs-panel-caption {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.55;
+}
+.jobs-settings-panel .jobs-panel-caption:not(:first-child) {
+    margin-top: var(--space-4);
+}
+.jobs-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.jobs-field-label {
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+.jobs-field input {
+    width: 100%;
+    box-sizing: border-box;
+}
+.jobs-field-row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-4);
+}
+.jobs-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 26px;
+}
+.jobs-switch-row .checklist-switch {
+    display: inline-block;
+}
+.jobs-switch-row .checklist-switch label {
+    margin: 0;
+}
+.jobs-switch-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+.jobs-switch-stack:last-child {
+    margin-bottom: 0;
+}
+/* Compact labelled switch used next to an input (Auto, List, Range...) */
+.jobs-inline-switch {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: none;
+}
+/* A switch with no label text is an empty inline box: give it the size of the
+   track drawn by its ::before so it stays a real click target. */
+.jobs-inline-switch .checklist-switch label,
+.jobs-arch-headline .checklist-switch label {
+    display: block;
+    width: 40px;
+    height: 22px;
+    padding-left: 0;
+    margin: 0;
+}
+.jobs-inline-switch .checklist-switch label::before,
+.jobs-arch-headline .checklist-switch label::before {
+    top: 0;
+}
+.jobs-inline-switch .checklist-switch label::after,
+.jobs-arch-headline .checklist-switch label::after {
+    top: 4px;
+}
+.jobs-inline-switch .checklist-switch {
+    height: 26px;
+    display: flex;
+    align-items: center;
+}
+.jobs-inline-switch .jobs-field-label {
+    font-size: 13px;
+}
+
+/* Small buttons (Select all / Clear) share the look of the chips they act on. */
+.jobs-page .xp-mini-button {
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    background: transparent;
+    color: var(--theme-text-color);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: normal;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.jobs-page .xp-mini-button:hover {
+    border-color: var(--theme-primary-color);
+}
+.jobs-page .xp-mini-button:active {
+    background: rgba(128, 128, 128, 0.12);
+}
+
+/* --- Architectures toolbar --------------------------------------------- */
+.jobs-search {
+    min-width: 190px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: var(--input-border);
+    background: var(--input-background);
+    color: var(--input-text-color);
+    font-family: inherit;
+    font-size: 13px;
+}
+.jobs-search:focus {
+    outline: none;
+    border-color: var(--theme-primary-color);
+}
+
+/* --- Architecture card ------------------------------------------------- */
+.jobs-arch-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.jobs-arch-card {
+    background: var(--theme-element-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.16);
+    border-radius: var(--theme-normal-border-radius);
+    box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    overflow: hidden;
+}
+.jobs-arch-card.enabled {
+    border-color: rgba(34, 139, 230, 0.45);
+    box-shadow: var(--theme-shadow-color) 0px 4px 14px -6px;
+}
+.jobs-arch-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+}
+.jobs-arch-headline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+.jobs-arch-name {
+    font-size: 16px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.jobs-arch-card.enabled .jobs-arch-name {
+    font-weight: 700;
+}
+.jobs-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 10px;
+    border-radius: 999px;
+	background: var(--theme-tertiary-color);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+.jobs-arch-card.enabled .jobs-badge {
+	background: var(--theme-badge-background-color);
+    color: var(--theme-badge-text-color);
+    opacity: 1;
+}
+.jobs-arch-buttons {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* --- Architecture body (domains + preview) ----------------------------- */
+.jobs-arch-body {
+    border-top: 1px solid rgba(128, 128, 128, 0.14);
+    background: var(--theme-tertiary-color-light);
+}
+.jobs-arch-body.hide {
+    border-top-color: transparent;
+}
+.jobs-arch-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4) var(--space-4);
+    align-items: start;
+}
+.jobs-domains {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+@media (max-width: 1000px) {
+    .jobs-arch-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* --- Panel header (domains, preview) ----------------------------------- */
+.jobs-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.14);
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+}
+.jobs-panel-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 14px;
+    font-weight: 700;
+    min-width: 0;
+}
+.jobs-panel-tools {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.jobs-panel-tools .xp-filter-buttons {
+    margin: 0;
+}
+.jobs-panel-body {
+    padding: var(--space-3);
+    max-height: 320px;
+    overflow: auto;
+}
+.jobs-panel-body.tall {
+    max-height: 420px;
+}
+.jobs-panel-note {
+    font-size: 13px;
+    opacity: 0.7;
+}
+
+/* --- Chip checklist (parameter domain values) -------------------------- */
+.jobs-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+/* dcc.Checklist writes an inline "display: block" on every label, hence the
+   !important here and in .jobs-check-list. */
+.jobs-chips label {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1.5;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.jobs-chips input {
+    display: none;
+}
+.jobs-chips label:hover {
+    border-color: var(--theme-primary-color);
+}
+.jobs-chips label:has(input:checked) {
+    background: var(--theme-primary-color);
+    color: var(--theme-contrast-text-color);
+    border-color: transparent;
+}
+
+/* --- Row checklist (preview, default config) --------------------------- */
+.jobs-check-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.jobs-check-list label {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 8px;
+    border-radius: var(--theme-small-border-radius);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    transition: background 0.12s ease;
+}
+.jobs-check-list label:hover {
+    background: rgba(128, 128, 128, 0.1);
+}
+.jobs-check-list input[type="checkbox"] {
+    accent-color: var(--theme-primary-color);
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    flex: none;
+    cursor: pointer;
+}
+.jobs-check-list label:has(input:checked) {
+    font-weight: 600;
+}
+
+/* --- Workflow variables ------------------------------------------------ */
+.jobs-var-line {
+    font-size: 13px;
+    padding: 2px 0;
+}
+.jobs-var-name {
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+/* --- Empty state ------------------------------------------------------- */
+.jobs-empty {
+    padding: var(--space-6);
+    text-align: center;
+    font-size: 14px;
+    opacity: 0.7;
+}
+
+/* --- Run popup --------------------------------------------------------- */
+.jobs-popup-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+.jobs-progress-counts {
+    margin-top: 6px;
+    text-align: center;
+    font-size: 13px;
+}
+.jobs-progress-track {
+    display: flex;
+    height: 10px;
+    width: 100%;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--theme-disabled-background-color, rgba(128, 128, 128, 0.25));
+}

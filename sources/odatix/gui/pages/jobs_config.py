@@ -67,6 +67,15 @@ ANALYSIS_TOOL_LABELS = {
     "verilator": "Verilator",
 }
 
+# Display labels of the job types the page can be opened with (?type=...),
+# shown as a tag in the summary strip of the header.
+RUN_MODE_LABELS = {
+    "fmax_synthesis": "Fmax synthesis",
+    "custom_freq_synthesis": "Custom frequency synthesis",
+    "analyze": "RTL analysis",
+    "workflow": "Workflow",
+}
+
 def _analysis_tool_options():
     """Checklist options for the analysis 'Tools' tile, ordered like
     hard_settings.default_supported_tools."""
@@ -140,27 +149,20 @@ def _prepare_progress_bar():
     failed_pct = 100.0 * failed / total
 
     counts = [html.Span(f"{done}/{total} jobs prepared")]
-    counts.append(html.Span(f"  ✔ {ok}", style={"color": "#2fbf71", "fontWeight": "600"}))
+    counts.append(html.Span(f"  ✔ {ok}", style={"color": "var(--theme-success-color)", "fontWeight": "600"}))
     if failed > 0:
-        counts.append(html.Span(f"  ✘ {failed}", style={"color": "#fa5252", "fontWeight": "600"}))
+        counts.append(html.Span(f"  ✘ {failed}", style={"color": "var(--theme-caution-color)", "fontWeight": "600"}))
 
     return html.Div(
         children=[
             html.Div(
                 children=[
-                    html.Div(style={"width": f"{ok_pct}%", "background": "#2fbf71", "transition": "width 0.3s"}),
-                    html.Div(style={"width": f"{failed_pct}%", "background": "#fa5252", "transition": "width 0.3s"}),
+                    html.Div(style={"width": f"{ok_pct}%", "background": "var(--theme-success-color)", "transition": "width 0.3s"}),
+                    html.Div(style={"width": f"{failed_pct}%", "background": "var(--theme-caution-color)", "transition": "width 0.3s"}),
                 ],
-                style={
-                    "display": "flex",
-                    "height": "10px",
-                    "width": "100%",
-                    "background": "var(--theme-disabled-background-color, #80808040)",
-                    "borderRadius": "5px",
-                    "overflow": "hidden",
-                },
+                className="jobs-progress-track",
             ),
-            html.Div(counts, style={"marginTop": "5px", "textAlign": "center", "fontSize": "0.9em"}),
+            html.Div(counts, className="jobs-progress-counts"),
         ],
         style={"margin": "10px 0"},
     )
@@ -530,6 +532,15 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
             "analysis_settings_file",
             OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE,
         )
+    if run_mode == "workflow":
+        # Without this, the Job Settings form of a workflow run would be filled
+        # from the fmax synthesis settings file while the selection is saved to
+        # the workflow one: the page would always claim "unsaved changes" and
+        # Save would overwrite the workflow settings with the fmax values.
+        return odatix_settings.get(
+            "workflow_settings_file",
+            OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE,
+        )
     return odatix_settings.get(
         "fmax_synthesis_settings_file",
         OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
@@ -650,8 +661,9 @@ def _select_all_buttons(button_type: str, id_keys: dict) -> html.Div:
         className="xp-filter-buttons",
     )
 
-def _preview_title(n_combos: int, default_enabled: bool, n_selected: int = 0) -> str:
-    """Format the preview tile heading, accounting for the default config.
+def _preview_title(n_combos: int, default_enabled: bool, n_selected: int = 0) -> list:
+    """Content of the preview panel heading: the "Preview" label plus a badge
+    counting the selected combinations, accounting for the default config.
 
     n_combos is the total number of non-default combinations and n_selected how
     many of them are currently checked, shown as "n_selected/n_combos". The
@@ -659,10 +671,24 @@ def _preview_title(n_combos: int, default_enabled: bool, n_selected: int = 0) ->
     alongside other combos, or "1 default" when it is the only selected entry.
     """
     if n_combos <= 0:
-        return "Preview (1 default)" if default_enabled else "Preview (0 combinations)"
-    word = "combination" if n_combos == 1 else "combinations"
-    suffix = " +1 default" if default_enabled else ""
-    return f"Preview ({n_selected}/{n_combos} {word}{suffix})"
+        detail = "1 default" if default_enabled else "0 combinations"
+    else:
+        word = "combination" if n_combos == 1 else "combinations"
+        suffix = " +1 default" if default_enabled else ""
+        detail = f"{n_selected}/{n_combos} {word}{suffix}"
+    return [html.Span("Preview"), html.Span(detail, className="jobs-badge")]
+
+
+def _arch_badge_text(n_combos: int, n_selected: int, default_enabled: bool, arch_enabled: bool=True) -> str:
+    """Badge shown next to an architecture name: how many of its configurations
+    are currently selected (the default config counts as one). A disabled
+    architecture runs nothing, so only its total is shown."""
+    total = n_combos + 1
+    word = "config" if total == 1 else "configs"
+    if not arch_enabled:
+        return f"{total} {word}"
+    selected = n_selected + (1 if default_enabled else 0)
+    return f"{selected}/{total} {word}"
 
 def _extract_domain_values(arch_name: str, selections) -> dict:
     """Return mapping of domain -> set(values) found in preview selection strings."""
@@ -743,6 +769,82 @@ def _expand_wildcard_selection(entry: str, domains_configs: dict, arch_name: str
 # UI Components
 ######################################
 
+def panel(title, tools=None, body=None, className: str="", title_id=None, body_className: str="") -> html.Div:
+    """Flat panel with a hairline header, the surface used all over the page
+    (same visual language as the monitor panels)."""
+    title_kwargs = {"id": title_id} if title_id is not None else {}
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Div(title, className="jobs-panel-title", **title_kwargs),
+                    html.Div(tools if tools is not None else [], className="jobs-panel-tools"),
+                ],
+                className="jobs-panel-header",
+            ),
+            html.Div(body, className=f"jobs-panel-body {body_className}".strip()),
+        ],
+        className=f"jobs-panel {className}".strip(),
+    )
+
+
+def section(title: str, children, id: Optional[str]=None, heading_id: Optional[str]=None, tools=None) -> html.Div:
+    """Page section: an uppercase heading with optional tools, then its content."""
+    heading_kwargs = {"id": heading_id} if heading_id is not None else {}
+    section_kwargs = {"id": id} if id is not None else {}
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.H2(title, **heading_kwargs),
+                    html.Div(tools if tools is not None else [], className="jobs-section-tools"),
+                ],
+                className="jobs-section-head",
+                style={"justifyContent": "flex-start"},
+            ),
+            children,
+        ],
+        className="jobs-section",
+        **section_kwargs,
+    )
+
+
+def switch_row(label: str, id, checked: bool, tooltip: str="") -> html.Div:
+    """A labelled toggle switch, the standard way to flip a boolean setting."""
+    return html.Div(
+        children=[
+            dcc.Checklist(
+                options=[{"label": label, "value": True}],
+                value=[True] if checked else [],
+                id=id,
+                className="checklist-switch",
+            ),
+            ui.tooltip_icon(tooltip) if tooltip else html.Div(style={"display": "none"}),
+        ],
+        className="jobs-switch-row",
+    )
+
+
+def inline_switch(label: str, id, checked: bool, tooltip: str="") -> html.Div:
+    """Compact switch stacked under its own label, used next to an input field
+    (Auto number of jobs, frequency List / Range)."""
+    return html.Div(
+        children=[
+            html.Div(
+                children=[html.Span(label), ui.tooltip_icon(tooltip) if tooltip else html.Div(style={"display": "none"})],
+                className="jobs-field-label",
+            ),
+            dcc.Checklist(
+                options=[{"label": "", "value": True}],
+                value=[True] if checked else [],
+                id=id,
+                className="checklist-switch",
+            ),
+        ],
+        className="jobs-inline-switch",
+    )
+
+
 def job_settings_form_field(
     label: str,
     id: str,
@@ -757,11 +859,17 @@ def job_settings_form_field(
 ):
     return html.Div(
         children=[
-            html.Label(label),
-            ui.tooltip_icon(tooltip, tooltip_options),
-            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, disabled=disabled, style={"width": "100%"}),
+            html.Div(
+                children=[
+                    html.Label(label),
+                    ui.tooltip_icon(tooltip, tooltip_options) if tooltip else html.Div(style={"display": "none"}),
+                ],
+                className="jobs-field-label",
+            ),
+            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, disabled=disabled),
         ],
-        style={"marginBottom": "12px", **(style or {})},
+        className="jobs-field",
+        style=style or {},
     )
 
 def job_settings_form(settings, run_mode="default", selected_tools=None):
@@ -779,29 +887,25 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
 
     return html.Div(
         children=[
-            html.Div(style={"display": "none"}),
             html.Div([
-                html.H3("Job Execution Settings"),
-                html.Div([
-                    dcc.Checklist(
-                        options=[{"label": "Overwrite existing result", "value": True}],
-                        value=[True] if settings.get("overwrite", False) else [],
-                        id="overwrite",
-                        className="checklist-switch",
-                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
-                    ),
-                    ui.tooltip_icon("If enabled, previous results will be overwritten. (overridden by -o / --overwrite)."),
-                ], style={"marginBottom": "12px"}),
-                html.Div([
-                    dcc.Checklist(
-                        options=[{"label": "Force single threading", "value": True}],
-                        value=[True] if settings.get("force_single_thread", True) else [],
-                        id="force_single_thread",
-                        className="checklist-switch",
-                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
-                    ),
-                    ui.tooltip_icon("If enabled, each job will run using a single thread."),
-                ], style={"marginBottom": "12px"}),
+                html.Div("Execution", className="jobs-panel-caption"),
+                html.Div(
+                    children=[
+                        switch_row(
+                            "Overwrite existing result",
+                            id="overwrite",
+                            checked=settings.get("overwrite", False),
+                            tooltip="If enabled, previous results will be overwritten. (overridden by -o / --overwrite).",
+                        ),
+                        switch_row(
+                            "Force single threading",
+                            id="force_single_thread",
+                            checked=settings.get("force_single_thread", True),
+                            tooltip="If enabled, each job will run using a single thread.",
+                        ),
+                    ],
+                    className="jobs-switch-stack",
+                ),
                 html.Div(
                     children=[
                         job_settings_form_field(
@@ -813,102 +917,86 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             tooltip="Maximum number of jobs to run in parallel. (overridden by -j / --jobs)",
                             style={"flex": "1"},
                         ),
-                        html.Div(
-                            children=[
-                                html.Div([
-                                    html.Label("Auto", style={"marginTop": "2px", "marginBottom": "-2px"}),
-                                    ui.tooltip_icon("Automatically use the number of available CPUs minus one."),
-                                ]),
-                                dcc.Checklist(
-                                    options=[{"label": "", "value": True}],
-                                    value=[True] if auto_nb_jobs else [],
-                                    id="auto-nb-jobs",
-                                    className="checklist-switch",
-                                    style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
-                                ),
-                            ],
-                            style={"display": "flex", "flexDirection": "column", "gap": "10px"}
+                        inline_switch(
+                            "Auto",
+                            id="auto-nb-jobs",
+                            checked=auto_nb_jobs,
+                            tooltip="Automatically use the number of available CPUs minus one.",
                         ),
                     ],
-                    style={
-                        "display": "flex",
-                        "flexDirection": "row",
-                        "gap": "var(--tile-gap, 25px)",
-                    },
+                    className="jobs-field-row",
                 ),
-            ], className="tile config"),
+            ], className="jobs-panel jobs-settings-panel"),
             html.Div([
-                html.H3("Monitor Settings"),
+                html.Div("Monitor", className="jobs-panel-caption"),
                 job_settings_form_field(
-                    label="Size of the log history per job in the monitor",
+                    label="Size of the log history per job",
                     id="log_size_limit",
                     type="number",
                     value=str(settings.get("log_size_limit", 300)),
                     tooltip="Number of log lines to keep per job. (overridden by --logsize)",
                 ),
-                html.H3("CLI Settings"),
-                html.Div([
-                    dcc.Checklist(
-                        options=[{"label": "Ask for confirmation after checking settings", "value": True}],
-                        value=[True] if settings.get("ask_continue", _JOB_SETTINGS_DEFAULTS["ask_continue"]) else [],
-                        id="ask_continue",
-                        className="checklist-switch",
-                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
-                    ),
-                    ui.tooltip_icon("Prompt 'Continue? (Y/n)' after settings checks. (overridden by -y / --noask)."),
-                ], style={"marginBottom": "12px"}),
-                html.Div([
-                    dcc.Checklist(
-                        options=[{"label": "Exit terminal monitor when all jobs are done", "value": True}],
-                        value=[True] if settings.get("exit_when_done", _JOB_SETTINGS_DEFAULTS["exit_when_done"]) else [],
-                        id="exit_when_done",
-                        className="checklist-switch",
-                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
-                    ),
-                    ui.tooltip_icon("Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit)."),
-                ], style={"marginBottom": "12px"}),
-            ], className="tile config"),
-            html.Div([
-                html.H3("Tools"),
-                html.Div([
-                    html.Label("EDA tools to run the analysis with", style={"marginBottom": "8px", "display": "inline-block"}),
-                    ui.tooltip_icon("Select every eda tool the RTL analysis should run with (saved as the 'tools' list of the analysis settings file, overridden by -t / --tool). The jobs of all selected tools run together in a single monitor session."),
-                    dcc.Checklist(
-                        options=_analysis_tool_options(),
-                        value=selected_tools,
-                        id="analysis-tools",
-                        className="checklist-switch list",
-                        style={"marginTop": "5px"},
-                    ),
-                ]),
-            ], className="tile config", style={"display": "block" if run_mode == "analyze" else "none"}),
-            html.Div([
-                html.H3("Synthesis Constraints"),
-                dcc.Checklist(
-                    options=[{"label": "Override frequencies", "value": True}],
-                    value=[True] if (
-                        fmax_bounds.get("override", False) if run_mode == "fmax_synthesis"
-                        else frequencies.get("override", False)
-                    ) else [],
-                    id="override-arch-frequencies",
-                    className="checklist-switch",
-                    style={"marginBottom": "15px", "display": "inline-block"},
+                html.Div("Command line", className="jobs-panel-caption"),
+                html.Div(
+                    children=[
+                        switch_row(
+                            "Ask for confirmation after checking settings",
+                            id="ask_continue",
+                            checked=settings.get("ask_continue", _JOB_SETTINGS_DEFAULTS["ask_continue"]),
+                            tooltip="Prompt 'Continue? (Y/n)' after settings checks. (overridden by -y / --noask).",
+                        ),
+                        switch_row(
+                            "Exit terminal monitor when all jobs are done",
+                            id="exit_when_done",
+                            checked=settings.get("exit_when_done", _JOB_SETTINGS_DEFAULTS["exit_when_done"]),
+                            tooltip="Exit the monitor automatically when all jobs are finished. (overridden by -E / --exit).",
+                        ),
+                    ],
+                    className="jobs-switch-stack",
+                    style={"marginTop": "var(--space-2)"},
                 ),
-                ui.tooltip_icon("Override architecture-specific frequencies."),
+            ], className="jobs-panel jobs-settings-panel"),
+            html.Div([
                 html.Div(
                     children=[
                         html.Div(
                             children=[
-                                html.Label("List", style={"marginTop": "2px", "marginBottom": "-2px"}),
-                                dcc.Checklist(
-                                    options=[{"label": "", "value": True}],
-                                    value=[True] if frequencies.get("use_custom_freq_list", False) else [],
-                                    id="use-custom-freq-list",
-                                    className="checklist-switch",
-                                    style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
-                                ),
+                                html.Span("EDA tools", style={"display": "inline-block"}),
                             ],
-                            style={"display": "flex", "flexDirection": "column", "gap": "10px"},
+                            className="jobs-panel-caption",
+                            style={"display": "inline-block"},
+                        ),
+                        ui.tooltip_icon("Select every eda tool the RTL analysis should run with (saved as the 'tools' list of the analysis settings file, overridden by -t / --tool). The jobs of all selected tools run together in a single monitor session.", tooltip_options="secondary bottom"),
+                    ],
+                ),
+                dcc.Checklist(
+                    options=_analysis_tool_options(),
+                    value=selected_tools,
+                    id="analysis-tools",
+                    className="checklist-switch list",
+                ),
+            ], className="jobs-panel jobs-settings-panel", style={"display": "block" if run_mode == "analyze" else "none"}),
+            html.Div([
+                html.Div("Synthesis constraints", className="jobs-panel-caption"),
+                html.Div(
+                    switch_row(
+                        "Override frequencies",
+                        id="override-arch-frequencies",
+                        checked=(
+                            fmax_bounds.get("override", False) if run_mode == "fmax_synthesis"
+                            else frequencies.get("override", False)
+                        ),
+                        tooltip="Override architecture-specific frequencies.",
+                    ),
+                    className="jobs-switch-stack",
+                ),
+                html.Div(
+                    children=[
+                        inline_switch(
+                            "List",
+                            id="use-custom-freq-list",
+                            checked=frequencies.get("use_custom_freq_list", False),
+                            tooltip="Synthesize at each frequency of the list below.",
                         ),
                         job_settings_form_field(
                             label="Target frequencies (MHz)",
@@ -916,29 +1004,19 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             type="text",
                             value=", ".join(str(f) for f in frequencies.get("list", [])),
                             tooltip="Comma-separated target frequencies for the synthesis.",
-                            style={"width": "100%"},
+                            style={"flex": "1"},
                         ),
                     ],
-                    style={
-                        "display": "flex" if run_mode == "custom_freq_synthesis" else "none",
-                        "flexDirection": "row",
-                        "gap": "var(--tile-gap, 25px)",
-                    },
+                    className="jobs-field-row",
+                    style={"display": "flex" if run_mode == "custom_freq_synthesis" else "none", "marginBottom": "var(--space-3)"},
                 ),
                 html.Div(
                     children=[
-                        html.Div(
-                            children=[
-                                html.Label("Range", style={"marginTop": "2px", "marginBottom": "-2px"}),
-                                dcc.Checklist(
-                                    options=[{"label": "", "value": True}],
-                                    value=[True] if frequencies.get("use_custom_freq_range", False) else [],
-                                    id="use-custom-freq-range",
-                                    className="checklist-switch",
-                                    style={"marginBottom": "-12px", "marginTop": "5px", "display": "inline-block"},
-                                ),
-                            ],
-                            style={"display": "flex", "flexDirection": "column", "gap": "10px"}
+                        inline_switch(
+                            "Range",
+                            id="use-custom-freq-range",
+                            checked=frequencies.get("use_custom_freq_range", False),
+                            tooltip="Synthesize at every frequency of the range below.",
                         ),
                         job_settings_form_field(
                             label="From (MHz)",
@@ -962,11 +1040,8 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             tooltip="Frequency step for the synthesis.",
                         ),
                     ],
-                    style={
-                        "display": "flex" if run_mode == "custom_freq_synthesis" else "none",
-                        "flexDirection": "row",
-                        "gap": "var(--tile-gap, 25px)",
-                    },
+                    className="jobs-field-row",
+                    style={"display": "flex" if run_mode == "custom_freq_synthesis" else "none"},
                 ),
                 html.Div(
                     children=[
@@ -976,6 +1051,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             type="number",
                             value=str(fmax_bounds.get("lower_bound", "")),
                             tooltip="Lower bound of the binary search for the maximum frequency.",
+                            style={"flex": "1"},
                         ),
                         job_settings_form_field(
                             label="Upper Bound (MHz)",
@@ -983,16 +1059,14 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             type="number",
                             value=str(fmax_bounds.get("upper_bound", "")),
                             tooltip="Upper bound of the binary search for the maximum frequency.",
+                            style={"flex": "1"},
                         ),
                     ],
-                    style={
-                        "display": "flex" if run_mode == "fmax_synthesis" else "none",
-                        "flexDirection": "row",
-                        "gap": "var(--tile-gap, 25px)",
-                    },
+                    className="jobs-field-row",
+                    style={"display": "flex" if run_mode == "fmax_synthesis" else "none"},
                 )
-            ], className="tile config", style={"display": "block" if run_mode in ("custom_freq_synthesis", "fmax_synthesis") else "none"}),
-        ], className="tiles-container config flex-tiles-container", style={"marginTop": "-10px", "marginBottom": "20px"},
+            ], className="jobs-panel jobs-settings-panel", style={"display": "block" if run_mode in ("custom_freq_synthesis", "fmax_synthesis") else "none"}),
+        ], className="jobs-settings-grid",
     )
 
 ######################################
@@ -1126,25 +1200,18 @@ def update_param_domains(
                 options=[{"label": cfg, "value": cfg} for cfg in configurations],
                 id={"type": "domain-config-checklist", "arch": arch_name, "domain": domain},
                 value=checklist_values,
-                style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
+                className="jobs-chips",
             )
-            domain_tile = html.Div(
-                children=[
-                    html.Div(
-                        children=[
-                            html.H3(domain if domain != hard_settings.main_parameter_domain else "Main Parameter Domain", style={"marginBottom": "0px"}),
-                            _select_all_buttons("domain-config-select-all", {"arch": arch_name, "domain": domain}),
-                            html.Div(
-                                children=checklist,
-                                style={"overflowX": "scroll", "marginBottom": "-10px"},
-                            )
-                        ],
-                        className="config-domain-content",
-                    )
-                ],
-                className="tile config",
+            domain_tiles.append(
+                panel(
+                    title=[
+                        html.Span(domain if domain != hard_settings.main_parameter_domain else "Main parameter domain"),
+                        html.Span(f"{len(configurations)}", className="jobs-badge"),
+                    ],
+                    tools=_select_all_buttons("domain-config-select-all", {"arch": arch_name, "domain": domain}),
+                    body=checklist,
+                )
             )
-            domain_tiles.append(domain_tile)
 
         # Virtual parameter domains (workflow command-placeholder variables)
         virtual_combos = []
@@ -1152,31 +1219,25 @@ def update_param_domains(
             virtual_combos, virtual_domain_values, virtual_error = _workflow_virtual_variant_combos(arch_path, arch_name)
             if virtual_error:
                 domain_tiles.append(
-                    html.Div(
-                        html.Div(virtual_error, className="error-message"),
-                        className="tile config",
+                    panel(
+                        title="Workflow variables",
+                        body=html.Div(virtual_error, className="error-message"),
                     )
                 )
             elif virtual_domain_values:
                 domain_tiles.append(
-                    html.Div(
-                        children=[
-                            html.H3("Workflow Variables", style={"marginBottom": "0px"}),
+                    panel(
+                        title="Workflow variables",
+                        body=[
                             html.Div(
                                 [
-                                    html.Div(
-                                        [
-                                            html.Span(f"{domain}: ", style={"fontWeight": "bold"}),
-                                            html.Span(", ".join(values)),
-                                        ],
-                                        style={"marginTop": "4px"},
-                                    )
-                                    for domain, values in virtual_domain_values.items()
+                                    html.Span(f"{domain}:", className="jobs-var-name"),
+                                    html.Span(", ".join(values)),
                                 ],
-                                style={"marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
-                            ),
+                                className="jobs-var-line",
+                            )
+                            for domain, values in virtual_domain_values.items()
                         ],
-                        className="tile config",
                     )
                 )
 
@@ -1223,70 +1284,47 @@ def update_param_domains(
         # default "<arch_name>" entry of the preview checklist (both directions),
         # see sync_default_to_preview / sync_preview_to_default.
         domain_tiles.append(
-             html.Div(
-                children=[
-                    html.Div(
-                        children=[
-                            html.H3("Default Configuration", style={"marginBottom": "0px"}),
-                            html.Div(
-                                children=[
-                                    dcc.Checklist(
-                                        options=[{"label": f"{arch_name} (default)", "value": arch_name}],
-                                        id={"type": "default-config-checklist", "arch": arch_name, "domain": "default"},
-                                        value=[arch_name] if default_selected else [],
-                                        style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
-                                    ),
-                                ],
-                                style={"overflowX": "scroll", "marginBottom": "-10px"},
-                            )
-                        ],
-                    )
-                ],
-                className="tile config",
+            panel(
+                title="Default configuration",
+                body=dcc.Checklist(
+                    options=[{"label": f"{arch_name} (default)", "value": arch_name}],
+                    id={"type": "default-config-checklist", "arch": arch_name, "domain": "default"},
+                    value=[arch_name] if default_selected else [],
+                    className="jobs-check-list",
+                ),
             )
         )
 
         if too_many:
-            domain_tiles.append(
-                html.Div(
-                    children=[
-                        html.Div(
-                            children=[
-                                html.H3(_preview_title(n_combos, default_selected, n_selected), id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
-                                f"Too many combinations to display (> {MAX_PREVIEW_COMBINATIONS})."
-                            ],
-                        )
-                    ],
-                    className="tile config",
-                )
+            preview_tile = panel(
+                title=_preview_title(n_combos, default_selected, n_selected),
+                title_id={"type": "preview-config-title", "arch": arch_name},
+                body=html.Div(
+                    f"Too many combinations to display (> {MAX_PREVIEW_COMBINATIONS}).",
+                    className="jobs-panel-note",
+                ),
             )
         else:
-            # Preview tile
-            domain_tiles.append(
-                html.Div(
-                    children=[
-                        html.H3(_preview_title(n_combos, default_selected, n_selected), id={"type": "preview-config-title", "arch": arch_name}, style={"marginBottom": "0px"}),
-                        _select_all_buttons("preview-config-select-all", {"arch": arch_name}),
-                        html.Div(
-                            children=[
-                                dcc.Checklist(
-                                    options=formatted_combinations,
-                                    id={"type": "preview-config-checklist", "arch": arch_name},
-                                    value=filtered_selected,
-                                    style={"width": "max-content", "marginTop": "10px", "marginLeft": "5px", "marginBottom": "10px"},
-                                )
-                            ],
-                            style={"overflowX": "scroll", "marginBottom": "-10px"},
-                        )
-                    ],
-                    className="tile config",
-                )
+            preview_tile = panel(
+                title=_preview_title(n_combos, default_selected, n_selected),
+                title_id={"type": "preview-config-title", "arch": arch_name},
+                tools=_select_all_buttons("preview-config-select-all", {"arch": arch_name}),
+                body=dcc.Checklist(
+                    options=formatted_combinations,
+                    id={"type": "preview-config-checklist", "arch": arch_name},
+                    value=filtered_selected,
+                    className="jobs-check-list",
+                ),
+                body_className="tall",
             )
+
         arch_buttons = html.Div(
             children=[
                 ui.icon_button(
                     icon=icon("gear", className="icon"),
                     text=context["settings_text"],
+                    tooltip=f"Open the settings of this {context['mode']}",
+                    tooltip_options="bottom delay",
                     color="default",
                     link=context["settings_link"](arch_name),
                     multiline=True,
@@ -1303,28 +1341,43 @@ def update_param_domains(
                     width="135px",
                 ),
             ],
-            className="inline-flex-buttons",
+            className="jobs-arch-buttons",
         )
         job_section = html.Div(
             children=[
                 html.Div(
                     children=[
-                        ui.title_tile(
-                            arch_name,
-                            buttons=arch_buttons,
-                            id={"type": "arch-title", "arch": arch_name},
-                            switch=arch_enabled,
-                            style={"scale": "1.01"}
+                        html.Div(
+                            children=[
+                                dcc.Checklist(
+                                    options=[{"label": "", "value": True}],
+                                    value=[True] if arch_enabled else [],
+                                    id={"type": "arch-title", "arch": arch_name, "is_switch": True},
+                                    className="checklist-switch",
+                                ),
+                                html.Span(arch_name, id={"type": "arch-title", "arch": arch_name}, className="jobs-arch-name"),
+                                html.Span(
+                                    _arch_badge_text(n_combos, n_selected, default_selected, arch_enabled),
+                                    id={"type": "arch-count", "arch": arch_name},
+                                    className="jobs-badge",
+                                ),
+                            ],
+                            className="jobs-arch-headline",
                         ),
-                    ], 
-                    id=f"param-domain-title-div-{arch_name}",
-                    className="card-matrix config",
+                        arch_buttons,
+                    ],
+                    className="jobs-arch-header",
                 ),
                 html.Div(
-                    children=domain_tiles,
+                    children=html.Div(
+                        children=[
+                            html.Div(domain_tiles, className="jobs-domains"),
+                            preview_tile,
+                        ],
+                        className="jobs-arch-grid",
+                    ),
                     id={"type": "param-domains-container", "arch": arch_name},
-                    className="tiles-container config animated-section" + ("" if arch_enabled else " hide no-margin"),
-                    style={"marginBottom": "17px"},
+                    className="jobs-arch-body animated-section" + ("" if arch_enabled else " hide"),
                 ),
                 dcc.Store(
                     id={"type": "arch-metadata", "arch": arch_name},
@@ -1335,9 +1388,18 @@ def update_param_domains(
                     data=domains_configs,
                 ),
             ],
-            id = {"type": "job-section", "arch": arch_name},
+            id={"type": "job-section", "arch": arch_name},
+            className="jobs-arch-card" + (" enabled" if arch_enabled else ""),
         )
         job_sections.append(job_section)
+
+    if not job_sections:
+        job_sections = [
+            html.Div(
+                f"No {context['title'].lower()} found in {context['base_path']}.",
+                className="jobs-panel jobs-empty",
+            )
+        ]
     main_title = f"Select {context['mode'] if context['mode'] == 'workflow' else 'architecture'} configurations to run"
 
     # Build the "saved" baseline in the exact same shape as the "current"
@@ -1375,27 +1437,181 @@ def update_param_domains(
 
 
 @dash.callback(
-    Output({"type": "param-domains-container", "arch": dash.ALL}, "className"),                    
+    Output({"type": "param-domains-container", "arch": dash.MATCH}, "className"),
+    Output({"type": "job-section", "arch": dash.MATCH}, "className"),
+    Input({"type": "arch-title", "arch": dash.MATCH, "is_switch": True}, "value"),
+)
+def toggle_param_domains(switch_value):
+    """Collapse/expand the configurations of an architecture with its switch,
+    and highlight the card while it is selected to run."""
+    enabled = bool(switch_value)
+    return (
+        "jobs-arch-body animated-section" + ("" if enabled else " hide"),
+        "jobs-arch-card" + (" enabled" if enabled else ""),
+    )
+
+
+@dash.callback(
+    Output({"type": "arch-count", "arch": dash.ALL}, "children"),
+    Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
+    State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
+    State({"type": "arch-count", "arch": dash.ALL}, "id"),
     State({"type": "arch-metadata", "arch": dash.ALL}, "data"),
 )
-def toggle_param_domains(selected_archs, arch_metadatas):
-    triggered_id = ctx.triggered_id
-    if not isinstance(triggered_id, dict):
-        return [dash.no_update] * len(selected_archs)
-    triggered_arch = triggered_id.get("arch", "")
-    updated_classes = []
-    for toggled, metadata in zip(selected_archs, arch_metadatas):
-        arch_name = metadata.get("arch_name", "")
-        if triggered_arch == arch_name:
-            if toggled:
-                updated_classes.append("tiles-container config animated-section")
-            else:
-                updated_classes.append("tiles-container config animated-section hide no-margin")
-        else:
-            updated_classes.append(dash.no_update)
-    return updated_classes
-    
+def update_arch_count(preview_values, switch_values, preview_ids, switch_ids, count_ids, metadatas):
+    """Keep the "selected/total configs" badge of every architecture in sync with
+    its preview checklist and its switch.
+
+    Written with ALL rather than MATCH because architectures with too many
+    combinations have no preview checklist at all: a MATCH group would then be
+    incomplete and Dash would report a nonexistent object.
+    """
+    previews = {
+        pid.get("arch"): value
+        for value, pid in zip(preview_values or [], preview_ids or [])
+        if isinstance(pid, dict)
+    }
+    enabled = {
+        sid.get("arch"): bool(value)
+        for value, sid in zip(switch_values or [], switch_ids or [])
+        if isinstance(sid, dict)
+    }
+    metadata_by_arch = {
+        (data or {}).get("arch_name"): (data or {})
+        for data in (metadatas or [])
+    }
+
+    children = []
+    for cid in count_ids or []:
+        arch_name = cid.get("arch") if isinstance(cid, dict) else None
+        if arch_name not in previews:
+            # No preview checklist (too many combinations): nothing to recount.
+            children.append(dash.no_update)
+            continue
+        selected = previews.get(arch_name) or []
+        default_enabled = arch_name in selected
+        n_selected = len([v for v in selected if v != arch_name])
+        n_combos = metadata_by_arch.get(arch_name, {}).get("n_combos", 0)
+        children.append(_arch_badge_text(n_combos, n_selected, default_enabled, enabled.get(arch_name, False)))
+    return children
+
+
+@dash.callback(
+    Output("jobs-summary", "children"),
+    Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
+    Input("nb_jobs", "value"),
+    Input("auto-nb-jobs", "value"),
+    Input(f"url_{page_path}", "search"),
+    State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
+    State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
+)
+def update_jobs_summary(switch_values, preview_values, nb_jobs, auto_nb_jobs, search, preview_ids, switch_ids):
+    """Live recap of what the Run button is about to launch: job type, eda tool,
+    how many instances are enabled and how many configurations they add up to."""
+    enabled = set()
+    for value, sid in zip(switch_values or [], switch_ids or []):
+        arch = sid.get("arch") if isinstance(sid, dict) else None
+        if arch and value:
+            enabled.add(arch)
+
+    n_configs = 0
+    for value, pid in zip(preview_values or [], preview_ids or []):
+        arch = pid.get("arch") if isinstance(pid, dict) else None
+        if arch in enabled:
+            n_configs += len(value or [])
+
+    run_mode = get_key_from_url(search, "type")
+    tool = get_key_from_url(search, "tool")
+
+    if _checklist_enabled(auto_nb_jobs):
+        parallel = str(resolve_nb_jobs(AUTO_NB_JOBS_KEYWORD)) + " (auto)"
+    else:
+        parallel = str(_to_int(nb_jobs, _JOB_SETTINGS_DEFAULTS["nb_jobs"]))
+
+    if run_mode == "workflow":
+        instances_label = "workflow" if len(enabled) == 1 else "workflows"
+    else:
+        instances_label = "architecture" if len(enabled) == 1 else "architectures"
+    configs_label = "configuration selected" if n_configs == 1 else "configurations selected"
+
+    def stat(value, label, className=""):
+        return html.Div(
+            children=[
+                html.Span(str(value), className="jobs-stat-value"),
+                html.Span(label, className="jobs-stat-label"),
+            ],
+            className=f"jobs-stat {className}".strip(),
+        )
+
+    children = [
+        html.Span(RUN_MODE_LABELS.get(run_mode, "Jobs"), className="jobs-tag"),
+    ]
+    if tool and run_mode != "workflow":
+        children.append(html.Span(ANALYSIS_TOOL_LABELS.get(tool, tool), className="jobs-tag neutral"))
+    children.append(html.Div(className="jobs-summary-spacer"))
+    children.append(stat(len(enabled), instances_label, "" if enabled else "muted"))
+    children.append(stat(n_configs, configs_label, "accent" if n_configs else "muted"))
+    children.append(stat(parallel, "in parallel"))
+    return children
+
+
+@dash.callback(
+    Output({"type": "job-section", "arch": dash.ALL}, "style"),
+    Input("jobs-arch-search", "value"),
+    Input("jobs-arch-filter", "value"),
+    Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    State({"type": "job-section", "arch": dash.ALL}, "id"),
+)
+def filter_arch_cards(search_text, filter_value, switch_values, section_ids):
+    """Filter the instance cards by name and, optionally, hide the ones that are
+    not selected to run."""
+    needle = (search_text or "").strip().lower()
+    only_enabled = "enabled" in (filter_value or [])
+    styles = []
+    for enabled, sid in zip(switch_values or [], section_ids or []):
+        arch = sid.get("arch", "") if isinstance(sid, dict) else ""
+        visible = (not needle or needle in str(arch).lower()) and (not only_enabled or bool(enabled))
+        styles.append({} if visible else {"display": "none"})
+    # The switch list and the card list always have the same length; if a card
+    # has no switch yet (page still rendering), leave it visible.
+    styles.extend([{}] * (len(section_ids or []) - len(styles)))
+    return styles
+
+
+@dash.callback(
+    Output({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    Input("jobs-select-all", "n_clicks"),
+    Input("jobs-select-none", "n_clicks"),
+    State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    prevent_initial_call=True,
+)
+def select_all_archs(select_all_clicks, select_none_clicks, switch_values):
+    """Enable / disable every instance at once."""
+    if ctx.triggered_id == "jobs-select-all":
+        return [[True]] * len(switch_values or [])
+    if ctx.triggered_id == "jobs-select-none":
+        return [[]] * len(switch_values or [])
+    raise dash.exceptions.PreventUpdate
+
+
+@dash.callback(
+    Output("jobs-settings-body", "className"),
+    Output("jobs-settings-toggle", "children"),
+    Input("jobs-settings-toggle", "n_clicks"),
+    prevent_initial_call=True,
+)
+def toggle_job_settings(n_clicks):
+    """Fold the Job Settings section away once it is set up."""
+    collapsed = bool(n_clicks) and n_clicks % 2 == 1
+    return (
+        "animated-section" + (" hide" if collapsed else ""),
+        "Show" if collapsed else "Hide",
+    )
+
+
 
 @dash.callback(
     Output({"type": "domain-selections", "arch": dash.MATCH}, "data"),
@@ -2248,15 +2464,22 @@ def update_choose_targets_link(search):
 
 title_buttons = html.Div(
     children=[
-        dcc.Dropdown(
-            id={"page": page_path, "action": "session-dropdown"},
-            options=[
-                {"label": "New session...", "value": "__new_session__"},
+        html.Div(
+            children=[
+                html.Span("Session", className="jobs-session-label"),
+                dcc.Dropdown(
+                    id={"page": page_path, "action": "session-dropdown"},
+                    options=[
+                        {"label": "New session...", "value": "__new_session__"},
+                    ],
+                    placeholder="Select a session",
+                    value="__new_session__",
+                    clearable=False,
+                    style={"width": "155px"},
+                ),
             ],
-            placeholder="Select a session",
-            value="__new_session__",
-            clearable=False,
-            style={"width": "155px", "marginRight": "10px"},
+            className="jobs-session",
+            style={"margin-bottom": "-5px"}
         ),
         ui.icon_button(
             id={"page": page_path, "action": "choose-targets"},
@@ -2282,22 +2505,71 @@ title_buttons = html.Div(
             color="success",
         ),
     ],
-    className="inline-flex-buttons",
+    className="jobs-header-actions",
+)
+
+page_header = html.Div(
+    children=[
+        html.Div(
+            children=[
+                html.Div(
+                    children=[
+                        html.H1("Select architecture configurations to run", id="jobs-config-main-title", className="jobs-title"),
+                    ],
+                    className="jobs-header-titles",
+                ),
+                title_buttons,
+            ],
+            className="jobs-header-row",
+        ),
+        html.Div(id="jobs-summary", className="jobs-summary"),
+    ],
+    className="jobs-header",
+)
+
+arch_section_tools = html.Div(
+    children=[
+        dcc.Input(
+            id="jobs-arch-search",
+            type="search",
+            placeholder="Filter by name...",
+            debounce=False,
+            className="jobs-search small-button",
+        ),
+        dcc.Checklist(
+            options=[{"label": "Selected only", "value": "enabled"}],
+            value=[],
+            id="jobs-arch-filter",
+            className="jobs-chips small-button",
+        ),
+        html.Button("Select all", id="jobs-select-all", n_clicks=0, className="jobs-page xp-mini-button"),
+        html.Button("Clear", id="jobs-select-none", n_clicks=0, className="jobs-page xp-mini-button"),
+    ],
+    className="jobs-section-tools",
 )
 
 
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
-        ui.title_tile("Select architecture configurations to run", id="jobs-config-main-title", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "10px"}),
-        html.Div(id={"page": page_path, "type": "title-div"}, style={"marginTop": "20px"}),
-        html.H2("Job Settings", style={"textAlign": "center", "marginBottom": "30px"}),
-        html.Div(id="job-settings-form-container", style={"marginBottom": "10px"}),
+        page_header,
+        html.Div(id={"page": page_path, "type": "title-div"}),
+        section(
+            "Job Settings",
+            html.Div(
+                html.Div(id="job-settings-form-container"),
+                id="jobs-settings-body",
+                className="animated-section",
+            ),
+            tools=html.Button("Hide", id="jobs-settings-toggle", n_clicks=0, className="jobs-page xp-mini-button"),
+        ),
         dcc.Store(id="job-settings-initial-settings", data=None),
-        # html.H2("Targets", style={"textAlign": "center"}),
-        # html.Div(id="target-section", style={"marginBottom": "10px"}),
-        html.H2("Architectures", id="job-section-heading", style={"textAlign": "center"}),
-        html.Div(id="job-section", style={"marginBottom": "10px"}),
+        section(
+            "Architectures",
+            html.Div(id="job-section", className="jobs-arch-list"),
+            heading_id="job-section-heading",
+            tools=arch_section_tools,
+        ),
         dcc.Store(id="jobs-config-saved-selection", data=None),
         dcc.Store(id="jobs-config-run-status", data=None),
         dcc.Store(id="run-popup-opened", data=False),
@@ -2312,22 +2584,28 @@ layout = html.Div(
                     html.Div(id="run-popup-progress"),
                     html.Pre(id="run-popup-pre", className="run-popup-pre"),
                     html.Div([
-                        html.Button("Cancel", id="run-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
+                        ui.icon_button(
+                            icon=icon("cross", className="icon"),
+                            color="default",
+                            text="Cancel",
+                            width="100px",
+                            id="run-cancel-btn",
+                        ),
                         ui.icon_button(
                             icon=icon("play", className="icon"),
-                            color="disabled", 
-                            text="Start", 
-                            width="90px",
+                            color="disabled",
+                            text="Start",
+                            width="100px",
                             id="run-confirm-btn",
                         ),
-                    ], style={"marginTop": "18px", "display": "flex", "justifyContent": "center"}),
+                    ], className="jobs-popup-actions"),
                 ], className="popup-odatix large")
             ]
         ),
     ],
-    className="page-content",
+    className="page-content jobs-page",
     style={
-        "display": "flex",  
+        "display": "flex",
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },

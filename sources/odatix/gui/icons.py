@@ -119,6 +119,12 @@ _icons = {
         Path(d="M7.6 12.9 c-0.07 3.5 -1.2 5.6 -2.2 8 1.25 0.45 2.5 0.75 3.7 0.93 L10.3 17.5 l0.09 4.4 c3 0.23 6 -0.25 9 -1.08 -1.7 -2.4 -2.1 -5.1 -2.2 -7.9 Z"),
     ], width, height, className, id),
 
+    # Open folder
+    "folder_open": lambda color, width, height, className, offset, id: _line_icon([
+        Path(d="M3 7 a2 2 0 0 1 2-2 h4 l2 2 h6 a2 2 0 0 1 2 2 v1 H5.5 a2 2 0 0 0-1.9 1.4 L3 15.5 Z"),
+        Path(d="M3 15.5 L4.6 10.4 A2 2 0 0 1 6.5 9 H21 a1 1 0 0 1 0.95 1.3 l-1.6 5.1 A2 2 0 0 1 18.4 17 H5 a2 2 0 0 1-2-1.5 Z"),
+    ], width, height, className, id),
+
     # Cog / settings
     "gear": lambda color, width, height, className, offset, id: _line_icon([
         Circle(cx="12", cy="12", r="3"),

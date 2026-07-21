@@ -433,6 +433,12 @@ button:hover {
     --button-icon-color: var(--default-button-icon-color-hover);
 }
 
+.small-button {
+    box-sizing: "border-box";
+    height: 30px;
+    font-size: '0.8em';
+}
+
 input {
     font-family: var(--theme-font-family), Arial;
     font-size: var(--input-font-size);
@@ -1120,12 +1126,15 @@ h3 {
 }
 
 .tooltip .icon {
+    opacity: 1;
     cursor: help;
     color: var(--tooltip-icon-color);
     filter: var(--tooltip-icon-filter);
 }
 
 .tooltip::after {
+    text-transform: none;
+    letter-spacing: normal;
     font-size: var(--tooltip-font-size);
     font-weight: normal;
     line-height: var(--tooltip-line-height);
@@ -1830,11 +1839,13 @@ input[type="checkbox"] {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-2) var(--space-4);
     border-bottom: 1px solid rgba(128, 128, 128, 0.14);
     flex-wrap: wrap;
     row-gap: var(--space-2);
     border-radius: var(--theme-normal-border-radius) var(--theme-normal-border-radius) 0 0;
+    box-sizing: border-box;
+    min-height: 60px;
 }
 .monitor-panel-title-group {
     display: flex;
@@ -1851,24 +1862,10 @@ input[type="checkbox"] {
     align-items: center;
     gap: var(--space-2);
 }
-.monitor-tool-button {
-    background: transparent;
-    border: 1px solid rgba(128, 128, 128, 0.28);
-    border-radius: var(--theme-small-border-radius);
-    width: 30px;
-    height: 28px;
-    cursor: pointer;
-    color: var(--theme-text-color);
-    font-size: 15px;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s ease, border-color 0.15s ease;
-}
-.monitor-tool-button:hover {
-    background: rgba(128, 128, 128, 0.12);
-    border-color: var(--theme-primary-color);
+/* Open task directory button: greyed out when the daemon is remote. */
+#monitor-open-path:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
 }
 
 /* --- Task list --------------------------------------------------------- */
@@ -2231,7 +2228,7 @@ input[type="checkbox"] {
 }
 .monitor-mode-button {
     background: transparent;
-    border: none;
+    border: 1px solid #fff0;
     border-left: 1px solid rgba(128, 128, 128, 0.2);
     border-radius: 0;
     padding: 6px 13px;
@@ -2248,7 +2245,9 @@ input[type="checkbox"] {
 .monitor-mode-button:last-child { 
     border-radius: 0 var(--theme-small-border-radius) var(--theme-small-border-radius) 0;
 }
-.monitor-mode-button:hover { background: rgba(128, 128, 128, 0.12); }
+.monitor-mode-button:hover { 
+    border-color: var(--theme-primary-color); 
+}
 .monitor-mode-button.active { background: var(--theme-primary-color); color: #fff; }
 
 /* --- Panels fill the remaining height and scroll internally ------------ */
@@ -2344,8 +2343,8 @@ input[type="checkbox"] {
 .monitor-parallel-btn {
     width: 24px;
     height: 24px;
-    border: none;
     border-radius: var(--theme-small-border-radius);
+    border: solid 1px #fff0;
     background: rgba(128, 128, 128, 0.14);
     color: var(--theme-text-color);
     font-size: 16px;
@@ -2358,8 +2357,7 @@ input[type="checkbox"] {
     transition: background 0.15s ease, color 0.15s ease;
 }
 .monitor-parallel-btn:hover {
-    background: var(--theme-primary-color);
-    color: #fff;
+    border-color: var(--theme-primary-color);
 }
 .monitor-parallel-value {
     min-width: 22px;

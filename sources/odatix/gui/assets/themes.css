@@ -82,6 +82,8 @@
     --theme-normal-border-radius: 20px;
     --theme-small-border-radius: 15px;
     --theme-overlay-background-color: #1d254f3d;
+    --theme-badge-background-color: #228be61a;
+    --theme-badge-text-color: var(--theme-primary-color);
 
     /* spacing scale */
     --space-1: 4px;
