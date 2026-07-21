@@ -61,6 +61,34 @@ def split_by_domain(flat_list, lengths):
 def get_uuid():
     return str(uuid.uuid4())
 
+def config_title_error(title, other_titles, initial_title):
+    """
+    Reason why a configuration cannot be saved under `title`, or None if it is valid.
+    `other_titles` is the list of the names already in use (the config's own current
+    name included, hence the `initial_title` exception).
+    """
+    if not title:
+        return "Configuration name cannot be empty"
+    for c in hard_settings.invalid_filename_characters:
+        if c in title:
+            c = "' ' (space)" if c == " " else f"'{c}'"
+            return f"Unauthorized character in configuration name: {c}"
+    if title in other_titles and title != initial_title:
+        return "A configuration with this name already exists in the domain."
+    return None
+
+def params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings):
+    """Whether the configuration parameters form differs from the saved settings."""
+    if domain_settings is None:
+        domain_settings = {}
+    use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
+    return (
+        use_parameters != domain_settings.get("use_parameters", True)
+        or param_target_file != domain_settings.get("param_target_file", "")
+        or start_delimiter != domain_settings.get("start_delimiter", "")
+        or stop_delimiter != domain_settings.get("stop_delimiter", "")
+    )
+
 def generate_config_link(mode: str, instance_name: str = "", domain_name: str = "") -> str:
     key = "workflow" if mode == "workflow" else "arch"
     if domain_name:
@@ -214,7 +242,7 @@ def instance_title(mode:str="arch", instance_name:str=""):
                         width="135px",
                     ),
                     dcc.Dropdown(
-                        id="config-layout-dropdown", 
+                        id="config-layout-dropdown",
                         options=[
                             {"label": "Compact Layout", "value": "compact"},
                             {"label": "Normal Layout", "value": "normal"},
@@ -223,6 +251,11 @@ def instance_title(mode:str="arch", instance_name:str=""):
                         value="normal",
                         clearable=False,
                         style={"width": "155px"},
+                    ),
+                    ui.save_button(
+                        id={"page": page_path, "action": "save-all"},
+                        tooltip="Save all changes",
+                        disabled=True,
                     ),
                 ],
                 className="inline-flex-buttons",
@@ -1036,26 +1069,10 @@ def update_save_status(param_domains_section, title_values, content_values, init
     save_classes = []
     tooltip_texts = []
     for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
-        # Check for empty title
-        if not title:
+        error = config_title_error(title, initial_titles, initial_title)
+        if error:
             save_classes.append("color-button error-status icon-button tooltip delay bottom small")
-            tooltip_texts.append("Configuration name cannot be empty")
-            continue
-        # Check for invalid characters in title
-        invalid_char_found = False
-        for c in hard_settings.invalid_filename_characters:
-            if c in title:
-                c = "' ' (space)" if c == " " else f"'{c}'"
-                save_classes.append("color-button error-status icon-button tooltip delay bottom small")
-                tooltip_texts.append(f"Unauthorized character in configuration name: {c}")
-                invalid_char_found = True
-                break
-        if invalid_char_found:
-            continue
-        # Check if a config with the same name already exists in the domain
-        if title in initial_titles and title != initial_title:
-            save_classes.append("color-button error-status icon-button tooltip delay bottom small")
-            tooltip_texts.append("A configuration with this name already exists in the domain.")
+            tooltip_texts.append(error)
             continue
         # Check for changes
         if title != initial_title or content != initial_content:
@@ -1080,20 +1097,141 @@ def update_params_save_button(params_enables, target_files, start_delims, stop_d
     enabled_class = "color-button warning icon-button"
 
     for use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings in zip(params_enables, target_files, start_delims, stop_delims, settings_list):
-        if domain_settings is None:
-            domain_settings = {}
-        use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
-        if use_parameters != domain_settings.get("use_parameters", True):
-            save_classes.append(enabled_class)
-        elif param_target_file != domain_settings.get("param_target_file", ""):
-            save_classes.append(enabled_class)
-        elif start_delimiter != domain_settings.get("start_delimiter", ""):
-            save_classes.append(enabled_class)
-        elif stop_delimiter != domain_settings.get("stop_delimiter", ""):
-            save_classes.append(enabled_class)
-        else:
-            save_classes.append(disabled_class)
+        dirty = params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings)
+        save_classes.append(enabled_class if dirty else disabled_class)
     return save_classes
+
+@dash.callback(
+    Output({"page": page_path, "action": "save-all"}, "className"),
+    Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
+    Input({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
+    Input({"type": "save-params-btn", "domain_uuid": dash.ALL}, "className"),
+)
+def update_save_all_button(config_save_classes, params_save_classes):
+    """
+    Mirror the state of the individual save buttons on the page-wide save button.
+    The "warning" class is also what the unsaved-changes guard looks for to warn
+    before leaving the page.
+    """
+    disabled_class = "color-button disabled icon-button tooltip bottom auto caution"
+    enabled_class = "color-button warning icon-button tooltip bottom auto caution"
+
+    dirty = any(
+        isinstance(cls, str) and "warning" in cls
+        for cls in list(config_save_classes) + list(params_save_classes)
+    )
+    if dirty:
+        return enabled_class, "Save all changes"
+    return disabled_class, "Nothing to save"
+
+@dash.callback(
+    Output({"type": "initial-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Output({"type": "initial-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Output({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Output({"type": "config-params-store", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+    State({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State("url", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def save_all(
+    n_clicks, title_values, contents, config_metadata,
+    params_enables, target_files, start_delims, stop_delims, params_stores, domain_metadata,
+    search, odatix_settings
+):
+    """
+    Save every modified configuration and every modified parameters form at once.
+    Configurations whose name is invalid or already taken are left untouched, so
+    their own save button keeps showing the error.
+    """
+    nb_configs = len(config_metadata)
+    nb_domains = len(domain_metadata)
+    no_config_update = [dash.no_update] * nb_configs
+    no_domain_update = [dash.no_update] * nb_domains
+
+    if not n_clicks:
+        return no_config_update, no_config_update, no_config_update, no_domain_update
+
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    if not instance_name:
+        return no_config_update, no_config_update, no_config_update, no_domain_update
+
+    domain_names = {data.get("domain_uuid", ""): data.get("domain_name", "") for data in domain_metadata}
+
+    new_titles = list(no_config_update)
+    new_contents = list(no_config_update)
+    new_metadata = list(no_config_update)
+
+    # Configurations
+    for i, metadata in enumerate(config_metadata):
+        domain_uuid = metadata.get("domain_uuid", "")
+        domain_name = domain_names.get(domain_uuid, domain_uuid)
+        old_name = metadata.get("config_name", "")
+        old_content = metadata.get("config_content", "")
+        old_title = old_name[:-4] if old_name.endswith(".txt") else old_name
+        new_title = title_values[i] if i < len(title_values) else ""
+        new_content = contents[i] if i < len(contents) else ""
+
+        if new_title == old_title and new_content == old_content:
+            continue
+
+        # Names already taken in this domain, this config's own name excluded
+        domain_titles = [
+            (data.get("config_name", "")[:-4] if data.get("config_name", "").endswith(".txt") else data.get("config_name", ""))
+            for j, data in enumerate(config_metadata)
+            if j != i and data.get("domain_uuid", "") == domain_uuid
+        ]
+        if config_title_error(new_title, domain_titles, old_title):
+            continue
+
+        new_name = new_title if new_title.endswith(".txt") else new_title + ".txt"
+        if new_name != old_name:
+            path = workspace.get_arch_domain_path(base_path, instance_name, domain_name)
+            if verbose:
+                print(f"Renaming config from '{old_name}' to '{new_name}'")
+            os.rename(os.path.join(path, old_name), os.path.join(path, new_name))
+        if verbose:
+            print(f"Saving config '{new_name}' in domain '{domain_name}'")
+        workspace.save_config_file(base_path, instance_name, domain_name, new_name, new_content)
+
+        new_titles[i] = new_title
+        new_contents[i] = new_content
+        new_metadata[i] = {**metadata, "config_name": new_name, "config_content": new_content}
+
+    # Configuration parameters
+    new_params = list(no_domain_update)
+    for i, metadata in enumerate(domain_metadata):
+        use_parameters = params_enables[i] if i < len(params_enables) else False
+        param_target_file = target_files[i] if i < len(target_files) else ""
+        start_delimiter = start_delims[i] if i < len(start_delims) else ""
+        stop_delimiter = stop_delims[i] if i < len(stop_delims) else ""
+        settings = params_stores[i] if i < len(params_stores) and params_stores[i] is not None else {}
+
+        if not params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, settings):
+            continue
+
+        settings = {
+            **settings,
+            "use_parameters": True if use_parameters else False, # Convert from [True]/[] to True/False
+            "param_target_file": param_target_file,
+            "start_delimiter": start_delimiter,
+            "stop_delimiter": stop_delimiter,
+        }
+        workspace.update_instance_domain_settings(
+            base_path, instance_name, metadata.get("domain_name", ""), settings, kind=mode
+        )
+        new_params[i] = settings
+
+    return new_titles, new_contents, new_metadata, new_params
 
 @dash.callback(
     Output({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
