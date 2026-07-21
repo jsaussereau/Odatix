@@ -131,6 +131,26 @@ def _generate_default_session_name(host=DEFAULT_HOST):
     return "{}.{}".format(tty_slug, host_slug)
 
 
+def _unique_default_session_name(host=DEFAULT_HOST, active_daemons=None):
+    """
+    Default session name for a new session, made unique against the sessions
+    already running.
+
+    The default name is derived from the controlling tty, which distinguishes
+    concurrent CLI runs. Callers without a tty (the GUI server, a service, a
+    cron job) all get the same "no_tty" name, so without this every session they
+    launch would reuse the same state file and replace the previous one.
+    """
+    base_name = _generate_default_session_name(host=host)
+    taken = {_session_name_from_state(state) for state in (active_daemons or [])}
+    if base_name not in taken:
+        return base_name
+    suffix = 2
+    while "{}.{}".format(base_name, suffix) in taken:
+        suffix += 1
+    return "{}.{}".format(base_name, suffix)
+
+
 def _session_slug(session_name):
     session_name = str(session_name or "").strip()
     if session_name == "":
@@ -469,7 +489,7 @@ def ensure_daemon_running(
     else:
         # By default, launching jobs creates a fresh daemon session.
         # Existing sessions are reused only when an explicit selector is given.
-        session_name = _generate_default_session_name(host=host)
+        session_name = _unique_default_session_name(host=host, active_daemons=active_daemons)
         paths = get_daemon_paths(workspace_root, session_name=session_name)
 
     _delete_state_file(paths["state_file"])

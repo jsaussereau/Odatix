@@ -274,6 +274,14 @@ def _session_option(daemon):
         "title": hover_text,
     }
 
+def _options_signature(options):
+    """Comparable form of a dropdown options list, order and keys independent."""
+    return sorted(
+        (str(option.get("value", "")), str(option.get("label", "")), str(option.get("title", "")))
+        for option in (options or [])
+        if isinstance(option, dict)
+    )
+
 def _api_get(base_url: str, path: str):
     r = requests.get(str(base_url).rstrip("/") + path, timeout=0.4)
     r.raise_for_status()
@@ -487,17 +495,29 @@ def _mode_button(id, label, tooltip):
     Output("session-dropdown", "options"),
     Output("session-dropdown", "value"),
     Input("monitor-refresh", "n_intervals"),
+    Input("monitor-last-action", "data"),
     State(f"url_{page_path}", "search"),
     State("session-dropdown", "value"),
     State("monitor-daemon", "data"),
     State("session-dropdown-open", "data"),
+    State("session-dropdown", "options"),
 )
-def _update_session_dropdown(_n, search, current_value, daemon_state, dropdown_open):
+def _update_session_dropdown(_n, last_action, search, current_value, daemon_state, dropdown_open, current_options):
+    # A session that was just shut down must disappear from the list, whether or
+    # not the dropdown is open. One-shot: the store keeps its value afterwards,
+    # so gate on the trigger, not on the value.
+    session_stopped = (
+        ctx.triggered_id == "monitor-last-action"
+        and isinstance(last_action, dict)
+        and last_action.get("action") == "shutdown"
+        and last_action.get("ok")
+    )
+
     # Rescanning daemons is expensive (scans /proc and HTTP-pings each candidate).
     # Only do it while the user has the dropdown open, except keep trying at startup
     # until an initial session is selected so default monitoring still works.
     has_selection = _normalize_optional_str(current_value) is not None
-    if not dropdown_open and has_selection:
+    if not dropdown_open and has_selection and not session_stopped:
         raise PreventUpdate
 
     try:
@@ -526,8 +546,11 @@ def _update_session_dropdown(_n, search, current_value, daemon_state, dropdown_o
     if selected is None and len(options) > 0:
         selected = options[0].get("value")
 
-    # prevent update if the selected value is already the same as the current value
-    if selected == current_value:
+    # Prevent update if neither the selection nor the available sessions changed:
+    # rewriting the props while the user has the menu open would close it under
+    # the pointer. Compare on a normalized signature, since the options coming
+    # back from the browser are not necessarily identical dicts.
+    if selected == current_value and _options_signature(options) == _options_signature(current_options):
         raise PreventUpdate
     return options, selected
 
@@ -1176,8 +1199,13 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
     triggered = ctx.triggered_id
     if triggered == "monitor-stop-all":
         try:
-            _api_post(base_url, "/shutdown")
-            return {"ok": True, "action": "shutdown"}
+            # stop_daemon waits for the process to be gone and removes its state
+            # files, so the session list can be refreshed right after.
+            daemon_control.stop_daemon(
+                host=resolved_daemon.get("host"),
+                port=resolved_daemon.get("port"),
+            )
+            return {"ok": True, "action": "shutdown", "session": resolved_daemon.get("session", "")}
         except Exception as e:
             return {"ok": False, "action": "shutdown", "error": _format_monitor_error(e, daemon_state)}
 
@@ -1486,7 +1514,7 @@ layout = html.Div(
                 split_view,
             ],
         ),
-        dcc.Interval(id="monitor-refresh", interval=500, n_intervals=0),
+        dcc.Interval(id="monitor-refresh", interval=1000, n_intervals=0),
         dcc.Store(id="monitor-snapshot", data=None),
         dcc.Store(id="monitor-error", data=""),
         dcc.Store(id="monitor-last-action", data=None),
