@@ -46,6 +46,14 @@ def home_card(card: Mapping[str, Any], visual: Component) -> Component:
 
   href = card.get("link")
   if href:
+    if href.startswith("http://") or href.startswith("https://"):
+      return html.A(
+        content,
+        href=href,
+        target="_blank",
+        rel="noopener noreferrer",
+        className="xp-card-link",
+      )
     return dcc.Link(content, href=href, className="xp-card-link")
 
   card_id = card.get("id")
