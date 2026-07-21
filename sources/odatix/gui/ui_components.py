@@ -236,6 +236,280 @@ def tooltip_icon(tooltip: str="", tooltip_options: str="secondary") -> Component
         **{"data-tooltip": tooltip},
     )
 
+######################################
+# Design system (odx-*)
+#
+# Shared page furniture in the style of the monitor dashboard, Odatix Explorer
+# and the /run_jobs page. The matching css lives in assets/odatix-ui.css.
+######################################
+
+def page_bar(
+    title,
+    actions=None,
+    extra=None,
+    back_link: Optional[str]=None,
+    back_id: Optional[Union[str, dict]]=None,
+    title_id: Optional[Union[str, dict]]=None,
+    id: Optional[Union[str, dict]]=None,
+) -> Component:
+    """
+    Sticky page bar: back arrow, title (plain text or any component, e.g. an
+    editable name input), action buttons on the right and an optional second
+    row (stat strip, toolbar).
+    """
+    left = []
+    if back_link is not None or back_id is not None:
+        link_kwargs = {"id": back_id} if back_id is not None else {}
+        left.append(
+            dcc.Link(
+                icon("back", className="icon back-button", width="28px", height="28px"),
+                href=back_link if back_link is not None else "/",
+                className="odx-back",
+                **link_kwargs,
+            )
+        )
+    if isinstance(title, str):
+        title_kwargs = {"id": title_id} if title_id is not None else {}
+        left.append(html.H1(title, className="odx-title", **title_kwargs))
+    else:
+        left.append(title)
+
+    children = [
+        html.Div(
+            children=[
+                html.Div(left, className="odx-header-titles"),
+                html.Div(actions if actions is not None else [], className="odx-header-actions"),
+            ],
+            className="odx-header-row",
+        )
+    ]
+    if extra is not None:
+        children.append(extra)
+
+    kwargs = {"id": id} if id is not None else {}
+    return html.Div(children, className="odx-header", **kwargs)
+
+
+def title_input(value: str="", id: Union[str, dict]="page-title", placeholder: str="") -> Component:
+    """Editable page title, used as the `title` of page_bar()."""
+    return dcc.Input(
+        value=value,
+        id=id,
+        type="text",
+        placeholder=placeholder,
+        className="odx-title-input",
+    )
+
+
+def stat(value, label: str, className: str="") -> Component:
+    """Pill of the stat strip: a big value and its label."""
+    return html.Div(
+        children=[
+            html.Span(str(value), className="odx-stat-value"),
+            html.Span(label, className="odx-stat-label"),
+        ],
+        className=f"odx-stat {className}".strip(),
+    )
+
+
+def tag(text: str, className: str="") -> Component:
+    return html.Span(text, className=f"odx-tag {className}".strip())
+
+
+def badge(text, className: str="", id: Optional[Union[str, dict]]=None) -> Component:
+    kwargs = {"id": id} if id is not None else {}
+    return html.Span(text, className=f"odx-badge {className}".strip(), **kwargs)
+
+
+def section(title: str, children, id: Optional[Union[str, dict]]=None, heading_id: Optional[Union[str, dict]]=None, tools=None, tooltip: str="") -> Component:
+    """Page section: an uppercase heading with optional tools, then its content."""
+    heading_kwargs = {"id": heading_id} if heading_id is not None else {}
+    section_kwargs = {"id": id} if id is not None else {}
+    heading = [html.Span(title)]
+    if tooltip:
+        heading.append(tooltip_icon(tooltip))
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.H2(heading, **heading_kwargs),
+                    html.Div(tools if tools is not None else [], className="odx-section-tools"),
+                ],
+                className="odx-section-head",
+            ),
+            children,
+        ],
+        className="odx-section",
+        **section_kwargs,
+    )
+
+
+def panel(title=None, tools=None, body=None, className: str="", title_id: Optional[Union[str, dict]]=None, body_className: str="", id: Optional[Union[str, dict]]=None) -> Component:
+    """
+    Flat panel with an optional hairline header, the surface used all over the
+    app. Without a title the body is padded by the panel itself.
+    """
+    kwargs = {"id": id} if id is not None else {}
+    if title is None:
+        return html.Div(body, className=f"odx-panel padded {className}".strip(), **kwargs)
+
+    title_kwargs = {"id": title_id} if title_id is not None else {}
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Div(title, className="odx-panel-title", **title_kwargs),
+                    html.Div(tools if tools is not None else [], className="odx-panel-tools"),
+                ],
+                className="odx-panel-header",
+            ),
+            html.Div(body, className=f"odx-panel-body {body_className}".strip()),
+        ],
+        className=f"odx-panel {className}".strip(),
+        **kwargs,
+    )
+
+
+def caption(text, tooltip: str="") -> Component:
+    """Small uppercase caption introducing a group of fields inside a panel."""
+    children = [html.Span(text)]
+    if tooltip:
+        children.append(tooltip_icon(tooltip))
+    return html.Div(children, className="odx-panel-caption")
+
+
+def grid(children, className: str="", id: Optional[Union[str, dict]]=None) -> Component:
+    """Responsive auto-fit grid of panels."""
+    kwargs = {"id": id} if id is not None else {}
+    return html.Div(children, className=f"odx-grid {className}".strip(), **kwargs)
+
+
+def form_field(
+    label: str,
+    id: Union[str, dict],
+    value: str="",
+    tooltip: str="",
+    placeholder: str="",
+    tooltip_options: str="secondary",
+    style: Optional[dict]=None,
+    disabled: bool=False,
+    className: str="",
+    type=None,
+) -> Component:
+    """Labelled text/number input."""
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Label(label),
+                    tooltip_icon(tooltip, tooltip_options) if tooltip else html.Div(style={"display": "none"}),
+                ],
+                className="odx-field-label",
+            ),
+            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, disabled=disabled),
+        ],
+        className=f"odx-field {className}".strip(),
+        style=style or {},
+    )
+
+
+def form_area(
+    label: str,
+    id: Union[str, dict],
+    value: str="",
+    tooltip: str="",
+    placeholder: str="",
+    tooltip_options: str="secondary",
+    style: Optional[dict]=None,
+    className: str="",
+    textarea_className: str="auto-resize-textarea",
+) -> Component:
+    """Labelled multi-line (monospace) input."""
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Label(label),
+                    tooltip_icon(tooltip, tooltip_options) if tooltip else html.Div(style={"display": "none"}),
+                ],
+                className="odx-field-label",
+            ),
+            dcc.Textarea(id=id, value=value, placeholder=placeholder, className=textarea_className),
+        ],
+        className=f"odx-field {className}".strip(),
+        style=style or {},
+    )
+
+
+def form_dropdown(label: str, id: Union[str, dict], options, value=None, tooltip: str="", placeholder: str="", clearable: bool=True, className: str="") -> Component:
+    """Labelled dropdown."""
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Label(label),
+                    tooltip_icon(tooltip) if tooltip else html.Div(style={"display": "none"}),
+                ],
+                className="odx-field-label",
+            ),
+            dcc.Dropdown(id=id, options=options, value=value, placeholder=placeholder, clearable=clearable),
+        ],
+        className=f"odx-field {className}".strip(),
+    )
+
+
+def switch_row(label: str, id: Union[str, dict], checked: bool=False, tooltip: str="") -> Component:
+    """A labelled toggle switch, the standard way to flip a boolean setting."""
+    return html.Div(
+        children=[
+            dcc.Checklist(
+                options=[{"label": label, "value": True}],
+                value=[True] if checked else [],
+                id=id,
+                className="checklist-switch",
+            ),
+            tooltip_icon(tooltip) if tooltip else html.Div(style={"display": "none"}),
+        ],
+        className="odx-switch-row",
+    )
+
+
+def inline_switch(label: str, id: Union[str, dict], checked: bool=False, tooltip: str="") -> Component:
+    """Compact switch stacked under its own label, used next to an input."""
+    return html.Div(
+        children=[
+            html.Div(
+                children=[html.Span(label), tooltip_icon(tooltip) if tooltip else html.Div(style={"display": "none"})],
+                className="odx-field-label",
+            ),
+            dcc.Checklist(
+                options=[{"label": "", "value": True}],
+                value=[True] if checked else [],
+                id=id,
+                className="checklist-switch",
+            ),
+        ],
+        className="odx-inline-switch",
+    )
+
+
+def add_card(id: Union[str, dict], text: str="Add", className: str="") -> Component:
+    """Dashed "add an item" placeholder, sized like the cards it sits next to."""
+    return html.Div(
+        children=[
+            html.Div("+", className="odx-add-card-plus"),
+            html.Div(text, className="odx-add-card-text"),
+        ],
+        id=id,
+        n_clicks=0,
+        className=f"odx-add-card {className}".strip(),
+    )
+
+
+def empty_state(text: str, className: str="") -> Component:
+    return html.Div(text, className=f"odx-panel odx-empty {className}".strip())
+
+
 def card_pictogram(name: str, size: str = "52px") -> Component:
     """Card visual: a clean line-art pictogram (preferred) rendered from the icon set."""
     return html.Div(pictogram(name, size=size), className="card-pictogram-wrap")
