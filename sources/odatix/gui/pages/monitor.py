@@ -635,13 +635,29 @@ def _sync_job_list(snapshot, previous_job_ids, selected_job):
 
 
 @dash.callback(
+    Output("monitor-sort-reverse", "data"),
+    Output("monitor-sort-dir", "className"),
+    Input("monitor-sort-dir", "n_clicks"),
+    State("monitor-sort-reverse", "data"),
+)
+def _toggle_sort_direction(n_clicks, reverse):
+    """Toggle the ascending/descending sort direction on each button click."""
+    reverse = bool(reverse)
+    if n_clicks:
+        reverse = not reverse
+    base = "color-button secondary icon-button icon-only tooltip bottom"
+    return reverse, f"{base} active" if reverse else base
+
+
+@dash.callback(
     Output({"type": "task-container", "task_id": ALL}, "style"),
     Input("monitor-snapshot", "data"),
     Input("monitor-filter", "value"),
     Input("monitor-sort", "value"),
+    Input("monitor-sort-reverse", "data"),
     State("monitor-job-ids", "data"),
 )
-def _apply_filter_sort(snapshot, filter_value, sort_value, job_ids):
+def _apply_filter_sort(snapshot, filter_value, sort_value, sort_reverse, job_ids):
     """Filter (hide non-matching) and sort (CSS `order`) task rows without a DOM rebuild."""
     if not isinstance(job_ids, list) or not job_ids:
         raise PreventUpdate
@@ -657,6 +673,8 @@ def _apply_filter_sort(snapshot, filter_value, sort_value, job_ids):
     visible_ids = [jid for jid in job_ids if _job_matches_filter(
         str(by_id.get(jid, {}).get("status") or "").lower().strip(), filter_value)]
     ranked = sorted(visible_ids, key=lambda jid: _sort_key(by_id.get(jid, {"id": jid}), sort_value))
+    if sort_reverse:
+        ranked.reverse()
     order_by_id = {jid: rank for rank, jid in enumerate(ranked)}
 
     styles = []
@@ -1343,6 +1361,14 @@ list_panel = html.Div(
                             ],
                             style={"width": "160px"},
                         ),
+                        ui.icon_button(
+                            icon=icon("sort_dir", className="icon"),
+                            color="secondary",
+                            id="monitor-sort-dir",
+                            width="40px",
+                            tooltip="Reverse sort order",
+                            tooltip_options="bottom",
+                        ),
                     ],
                 ),
             ],
@@ -1427,6 +1453,7 @@ layout = html.Div(
         dcc.Store(id="monitor-selected-job", data=0),
         dcc.Store(id="monitor-logs", data=None),
         dcc.Store(id="monitor-job-ids", data=[]),
+        dcc.Store(id="monitor-sort-reverse", data=False),
         dcc.Store(id="session-dropdown-open", data=False),
         dcc.Store(id="monitor-layout", data="split"),
     ],

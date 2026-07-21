@@ -143,6 +143,14 @@ _icons = {
         Polyline(points="20 6 9 17 4 12"),
     ], width, height, className, id),
 
+    # Up/down arrows: sort direction toggle
+    "sort_dir": lambda color, width, height, className, offset, id: _line_icon([
+        Polyline(points="7 15 7 4"),
+        Polyline(points="4 7 7 4 10 7"),
+        Polyline(points="17 9 17 20"),
+        Polyline(points="20 17 17 20 14 17"),
+    ], width, height, className, id),
+
     # Info circle
     "tooltip": lambda color, width, height, className, offset, id: _line_icon([
         Circle(cx="12", cy="12", r="10"),

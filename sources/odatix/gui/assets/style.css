@@ -1313,6 +1313,19 @@ h3 {
     box-shadow: var(--secondary-button-box-shadow-hover);
 }
 
+/* Reverse-sort toggle: flip the arrows icon and highlight when active */
+#monitor-sort-dir.active {
+    background: var(--theme-primary-color);
+    --button-icon-color: #fff;
+    color: #fff;
+}
+#monitor-sort-dir.active .icon {
+    transform: rotate(180deg);
+}
+#monitor-sort-dir .icon {
+    transition: transform 0.15s ease;
+}
+
 .color-button.disabled {
     cursor: default;
     background: var(--disabled-button-background);
@@ -1601,7 +1614,8 @@ h3 {
     overflow: scroll;
     padding: 12px;
     height: calc(100% - 75px);
-    width: fit-content;
+    min-width: fit-content;
+    width: 100%;
     border-radius: 0 0 var(--theme-small-border-radius) var(--theme-small-border-radius);
 }
 
@@ -1805,7 +1819,8 @@ input[type="checkbox"] {
     border: 1px solid rgba(128, 128, 128, 0.16);
     border-radius: var(--theme-normal-border-radius);
     box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
-    overflow: hidden;
+    /* Not clipped here: tooltips on header buttons must be able to overflow the panel. */
+    overflow: visible;
 }
 #monitor-log-container.monitor-panel {
     height: auto;
@@ -1819,6 +1834,7 @@ input[type="checkbox"] {
     border-bottom: 1px solid rgba(128, 128, 128, 0.14);
     flex-wrap: wrap;
     row-gap: var(--space-2);
+    border-radius: var(--theme-normal-border-radius) var(--theme-normal-border-radius) 0 0;
 }
 .monitor-panel-title-group {
     display: flex;
@@ -1861,6 +1877,7 @@ input[type="checkbox"] {
     min-height: 0;
     overflow-y: auto;
     padding: var(--space-3);
+    border-radius: 0 0 var(--theme-normal-border-radius) var(--theme-normal-border-radius);
 }
 .monitor-list-scroll .monitor-container {
     display: flex;
@@ -1995,6 +2012,7 @@ input[type="checkbox"] {
     flex: 1;
     min-height: 0;
     overflow: auto;
+    border-radius: 0 0 var(--theme-normal-border-radius) var(--theme-normal-border-radius);
 }
 .monitor-log-panel .monitor-log {
     margin: 0;
