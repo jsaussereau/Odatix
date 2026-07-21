@@ -228,6 +228,26 @@ def create_parallel_job_app(
 
         return _ok("jobs enqueued", added=added, total_jobs=len(handler.job_list))
 
+    @app.post("/config")
+    async def set_config(
+        nb_jobs: Optional[int] = None,
+        process_group: Optional[bool] = None,
+        auto_exit: Optional[bool] = None,
+        log_size_limit: Optional[int] = None,
+    ):
+        """Update runtime scheduling options on the fly (e.g. max parallel jobs).
+
+        Parameters are passed as query args; any omitted value is left unchanged.
+        Changing nb_jobs immediately fills or frees running slots.
+        """
+        handler.configure_runtime(
+            nb_jobs=nb_jobs,
+            process_group=process_group,
+            auto_exit=auto_exit,
+            log_size_limit=log_size_limit,
+        )
+        return _ok("config updated", nb_jobs=int(handler.nb_jobs))
+
     @app.post("/shutdown")
     async def shutdown():
         if start_headless_on_startup:

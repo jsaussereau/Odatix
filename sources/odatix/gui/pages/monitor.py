@@ -713,6 +713,58 @@ def _update_kpis(snapshot):
 
 
 @dash.callback(
+    Output("monitor-nbjobs-value", "children"),
+    Input("monitor-snapshot", "data"),
+)
+def _update_nbjobs_display(snapshot):
+    handler = snapshot.get("handler") if isinstance(snapshot, dict) else None
+    if not isinstance(handler, dict):
+        raise PreventUpdate
+    nb = handler.get("nb_jobs")
+    if nb is None:
+        raise PreventUpdate
+    try:
+        return str(max(1, int(nb)))
+    except Exception:
+        raise PreventUpdate
+
+
+@dash.callback(
+    Output("monitor-nbjobs-value", "children", allow_duplicate=True),
+    Input("monitor-nbjobs-inc", "n_clicks"),
+    Input("monitor-nbjobs-dec", "n_clicks"),
+    State("monitor-nbjobs-value", "children"),
+    State("monitor-daemon", "data"),
+    State(f"url_{page_path}", "search"),
+    State("session-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def _change_nb_jobs(_inc, _dec, current_value, daemon_state, search, selected_session):
+    # Step off the currently displayed value so rapid clicks accumulate even
+    # before the next snapshot poll reconciles the daemon's authoritative value.
+    triggered = ctx.triggered_id
+    if triggered not in ("monitor-nbjobs-inc", "monitor-nbjobs-dec"):
+        raise PreventUpdate
+
+    try:
+        current = int(str(current_value).strip())
+    except Exception:
+        raise PreventUpdate  # not synced yet; ignore until we know the real value
+
+    new_value = max(1, current + (1 if triggered == "monitor-nbjobs-inc" else -1))
+    if new_value == current:
+        raise PreventUpdate
+
+    try:
+        resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
+        _api_post(resolved_daemon.get("base_url"), "/config", params={"nb_jobs": new_value})
+    except Exception:
+        # Keep the optimistic value; the next poll reconciles if the post failed.
+        pass
+    return str(new_value)
+
+
+@dash.callback(
     Output("monitor-selected-job", "data"),
     Input({"type": "task-container", "task_id": ALL}, "n_clicks"),
     State("monitor-selected-job", "data"),
@@ -1174,6 +1226,23 @@ monitor_toolbar = html.Div(
         html.Div(
             className="monitor-toolbar-right",
             children=[
+                html.Div(
+                    className="monitor-parallel",
+                    children=[
+                        html.Span("Parallel", className="monitor-parallel-label"),
+                        html.Button(
+                            "−", id="monitor-nbjobs-dec", n_clicks=0,
+                            className="monitor-parallel-btn tooltip bottom small",
+                            **{"data-tooltip": "Fewer jobs in parallel"},
+                        ),
+                        html.Span("–", id="monitor-nbjobs-value", className="monitor-parallel-value"),
+                        html.Button(
+                            "+", id="monitor-nbjobs-inc", n_clicks=0,
+                            className="monitor-parallel-btn tooltip bottom small",
+                            **{"data-tooltip": "More jobs in parallel"},
+                        ),
+                    ],
+                ),
                 html.Div(
                     className="monitor-mode-group",
                     children=[

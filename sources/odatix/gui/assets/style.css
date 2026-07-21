@@ -1601,6 +1601,8 @@ h3 {
     overflow: scroll;
     padding: 12px;
     height: calc(100% - 75px);
+    width: fit-content;
+    border-radius: 0 0 var(--theme-small-border-radius) var(--theme-small-border-radius);
 }
 
 .monitor-log-container.normal {
@@ -2293,4 +2295,51 @@ input[type="checkbox"] {
     /* Compact stat pills */
     .monitor-stat { padding: 0 var(--space-3); min-width: 52px; }
     .monitor-stat-value { font-size: 18px; }
+}
+
+
+/* --- Parallel-jobs stepper (header toolbar) ---------------------------- */
+.monitor-parallel {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: none;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+    border-radius: var(--theme-small-border-radius);
+    padding: 3px 8px;
+}
+.monitor-parallel-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.monitor-parallel-btn {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: var(--theme-small-border-radius);
+    background: rgba(128, 128, 128, 0.14);
+    color: var(--theme-text-color);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.monitor-parallel-btn:hover {
+    background: var(--theme-primary-color);
+    color: #fff;
+}
+.monitor-parallel-value {
+    min-width: 22px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
 }
