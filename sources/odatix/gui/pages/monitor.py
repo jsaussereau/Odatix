@@ -536,6 +536,16 @@ def _update_session_dropdown(_n, last_action, search, current_value, daemon_stat
     if selected is None:
         selected = _pick_session_value(daemons, query_session)
 
+        if selected is None and query_session is not None:
+            # The URL asks for a specific session that is not listed yet: a
+            # session that was just created takes a moment to show up. Falling
+            # back to another session here would silently monitor the wrong one,
+            # and the selection would then freeze the rescan. Stay unselected so
+            # the next tick looks again.
+            if _options_signature(options) == _options_signature(current_options):
+                raise PreventUpdate
+            return options, None
+
     if selected is None and isinstance(daemon_state, dict):
         state_session = _normalize_optional_str(daemon_state.get("session_id"))
         if state_session is None:
@@ -1001,23 +1011,47 @@ def _update_log_header(selected_job, snapshot):
     prevent_initial_call=True,
 )
 def _init_selected_job(snapshot, selected_job):
-    # Pick a default only once; afterwards Dash selection is independent.
+    # Pick a default only while nothing is selected: on page load, and after a
+    # session switch cleared the selection. Afterwards selection is user-driven.
     if selected_job is not None:
         raise PreventUpdate
     if not isinstance(snapshot, dict):
         raise PreventUpdate
 
     handler = snapshot.get("handler")
-    if not isinstance(handler, dict):
-        raise PreventUpdate
+    idx = handler.get("selected_job_index") if isinstance(handler, dict) else None
 
-    idx = handler.get("selected_job_index")
     if idx is None:
-        raise PreventUpdate
+        # No job selected daemon-side: fall back to the first job of the session
+        # so the log pane shows something right away.
+        jobs = snapshot.get("jobs")
+        jobs = [job for job in jobs if isinstance(job, dict)] if isinstance(jobs, list) else []
+        if not jobs:
+            raise PreventUpdate
+        idx = min(
+            (job.get("id") for job in jobs if str(job.get("id", "")).lstrip("-").isdigit()),
+            key=int,
+            default=None,
+        )
+        if idx is None:
+            raise PreventUpdate
     try:
         return int(idx)
     except Exception:
         raise PreventUpdate
+
+
+@dash.callback(
+    Output("monitor-selected-job", "data", allow_duplicate=True),
+    Output("monitor-logs", "data", allow_duplicate=True),
+    Input("session-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def _reset_selection_on_session_change(_selected_session):
+    # Job ids are session-local: keeping the previous selection would leave the
+    # log pane frozen on a job of the session we just left. Clearing it lets
+    # _init_selected_job pick a job of the new session on the next snapshot.
+    return None, None
 
 
 @dash.callback(

@@ -1625,6 +1625,7 @@ h3 {
     height: calc(100% - 75px);
     min-width: fit-content;
     width: 100%;
+    border: none;
     border-radius: 0 0 var(--theme-small-border-radius) var(--theme-small-border-radius);
 }
 
