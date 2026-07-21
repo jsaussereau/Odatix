@@ -146,6 +146,18 @@ def build_variables_dict(
     return variables
 
 
+def field_value_changed(current, reference):
+    """
+    Compare a live field value with the value stored in the variable metadata.
+    Empty inputs are reported as None by Dash (number inputs in particular),
+    while the metadata holds an empty string, so both are normalized first.
+    """
+    def normalize(value):
+        return "" if value is None else str(value).strip()
+
+    return normalize(current) != normalize(reference)
+
+
 def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, names, trigger_name):
     """
     Toggle the "more fields" expandable area of the card whose name matches
@@ -335,25 +347,45 @@ def variable_card(
 
 def variable_card_from_config(prefix: str, var_name, var_keys):
     """Build a variable card from a single ``variables`` dict entry."""
+    def field(source, key, default=""):
+        """Field value as a string, treating a missing and a None value alike."""
+        value = source.get(key) if isinstance(source, dict) else None
+        return default if value is None else str(value)
+
     var_settings = var_keys.get("settings", {}) if isinstance(var_keys, dict) else {}
+    variable_type = field(var_keys, "type", "list")
+
+    # "from" and "to" hold numeric bounds for range-like types, but conversion type
+    # names for the "conversion" type: only fill the fields the type actually uses,
+    # otherwise the unused component rejects the value and reports back a dirty state.
+    if variable_type == "conversion":
+        from_value = to_value = ""
+        from_type_value = field(var_settings, "from", "dec")
+        to_type_value = field(var_settings, "to", "hex")
+    else:
+        from_value = field(var_settings, "from")
+        to_value = field(var_settings, "to")
+        from_type_value = "dec"
+        to_type_value = "hex"
+
     return variable_card(
         prefix,
         name=var_name,
-        type_value=var_keys.get("type", "list") if isinstance(var_keys, dict) else "list",
-        base_value=str(var_settings.get("base", "")),
-        from_value=str(var_settings.get("from", "")),
-        to_value=str(var_settings.get("to", "")),
-        from_2_pow_value=str(var_settings.get("from_2^", "")),
-        to_2_pow_value=str(var_settings.get("to_2^", "")),
-        step_value=str(var_settings.get("step", "")),
-        from_type_value=str(var_settings.get("from", "")),
-        to_type_value=str(var_settings.get("to", "")),
-        op_value=str(var_settings.get("op", "")),
-        list_value=", ".join(map(str, var_settings.get("list", []))),
-        source_value=str(var_settings.get("source", "")),
-        sources_value=", ".join(map(str, var_settings.get("sources", []))),
-        format_value=str(var_keys.get("format", "")) if isinstance(var_keys, dict) else "",
-        group_value=str(var_keys.get("group", "")) if isinstance(var_keys, dict) else "",
+        type_value=variable_type,
+        base_value=field(var_settings, "base"),
+        from_value=from_value,
+        to_value=to_value,
+        from_2_pow_value=field(var_settings, "from_2^"),
+        to_2_pow_value=field(var_settings, "to_2^"),
+        step_value=field(var_settings, "step"),
+        from_type_value=from_type_value,
+        to_type_value=to_type_value,
+        op_value=field(var_settings, "op"),
+        list_value=", ".join(map(str, var_settings.get("list", []) or [])),
+        source_value=field(var_settings, "source"),
+        sources_value=", ".join(map(str, var_settings.get("sources", []) or [])),
+        format_value=field(var_keys, "format"),
+        group_value=field(var_keys, "group"),
     )
 
 

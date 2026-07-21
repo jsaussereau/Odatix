@@ -325,6 +325,7 @@ def update_form_and_variable_cards(
             generator_template = gen_settings.get("template", "")
             if isinstance(generator_template, list):
                 generator_template = "\n".join(generator_template)
+                gen_settings = dict(gen_settings, template=generator_template)
         else:
             # Default template
             generator_name = "config_${var1}${var2}"
@@ -333,7 +334,15 @@ def update_form_and_variable_cards(
                 "var1": {"type": "range", "settings": {"from": 1, "to": 3, "step": 1}},
                 "var2": {"type": "list", "settings": {"list": ["A", "B", "C", "D"]}},
             }
-        
+            # The defaults are what the form shows, so they are the reference the
+            # save button compares against: nothing is modified yet.
+            gen_settings = {
+                "name": generator_name,
+                "template": generator_template,
+                "variables": variables,
+            }
+
+
         # Create cards from existing variables, plus the Add card
         cards = ve.variable_cards_from_dict(VE_PREFIX, variables)
         cards.append(add_card())
@@ -634,42 +643,33 @@ def update_save_button(
     old_name = settings.get("name", "") if settings else ""
     old_template = settings.get("template", "") if settings else ""
 
-    if name != old_name or template != old_template:
+    if ve.field_value_changed(name, old_name) or ve.field_value_changed(template, old_template):
+        print(f"Name or template changed, enabling save button : {name} != {old_name} or {template} != {old_template}")
         return button_enabled, dash.no_update
-    
-    for i, _ in enumerate(title_values):
-        if str(title_values[i]) != str(metadata[i].get("name")):
-            return button_enabled, dash.no_update
-        if str(type_values[i]) != str(metadata[i].get("type")):
-            return button_enabled, dash.no_update
-        if str(base_vals[i]) != str(metadata[i].get("base_value")):
-            return button_enabled, dash.no_update
-        if str(from_vals[i]) != str(metadata[i].get("from_value")):
-            return button_enabled, dash.no_update
-        if str(to_vals[i]) != str(metadata[i].get("to_value")):
-            return button_enabled, dash.no_update
-        if str(from_2_pow_vals[i]) != str(metadata[i].get("from_2_pow_value")):
-            return button_enabled, dash.no_update
-        if str(to_2_pow_vals[i]) != str(metadata[i].get("to_2_pow_value")):
-            return button_enabled, dash.no_update
-        if str(from_type_vals[i]) != str(metadata[i].get("from_type_value")):
-            return button_enabled, dash.no_update
-        if str(to_type_vals[i]) != str(metadata[i].get("to_type_value")):
-            return button_enabled, dash.no_update
-        if str(step_vals[i]) != str(metadata[i].get("step_value")):
-            return button_enabled, dash.no_update
-        if str(op_vals[i]) != str(metadata[i].get("op_value")):
-            return button_enabled, dash.no_update
-        if str(list_vals[i]) != str(metadata[i].get("list_value")):
-            return button_enabled, dash.no_update
-        if str(source_vals[i]) != str(metadata[i].get("source_value")):
-            return button_enabled, dash.no_update
-        if str(sources_vals[i]) != str(metadata[i].get("sources_value")):
-            return button_enabled, dash.no_update
-        if str(format_vals[i]) != str(metadata[i].get("format_value")):
-            return button_enabled, dash.no_update
-        if str(group_vals[i]) != str(metadata[i].get("group_value")):
-            return button_enabled, dash.no_update
+
+    fields = [
+        ("name", title_values),
+        ("type", type_values),
+        ("base_value", base_vals),
+        ("from_value", from_vals),
+        ("to_value", to_vals),
+        ("from_2_pow_value", from_2_pow_vals),
+        ("to_2_pow_value", to_2_pow_vals),
+        ("from_type_value", from_type_vals),
+        ("to_type_value", to_type_vals),
+        ("step_value", step_vals),
+        ("op_value", op_vals),
+        ("list_value", list_vals),
+        ("source_value", source_vals),
+        ("sources_value", sources_vals),
+        ("format_value", format_vals),
+        ("group_value", group_vals),
+    ]
+    for key, values in fields:
+        for i, value in enumerate(values):
+            if ve.field_value_changed(value, metadata[i].get(key)):
+                print(f"Field '{key}' changed for variable {metadata[i].get('name')}, enabling save button.")
+                return button_enabled, dash.no_update
 
     return button_disabled, dash.no_update
 
