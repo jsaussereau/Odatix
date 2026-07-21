@@ -45,150 +45,121 @@ dash.register_page(
 # UI Components
 ######################################
 
-def workspace_form_field(
-    label: str,
-    id: str,
-    value: str="",
-    tooltip: str="",
-    placeholder: str="",
-    tooltip_options: str="secondary",
-    # type: Optional[Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]] = None,
-    type = None,
-):
-    return html.Div(
-        children=[
-            html.Label(label),
-            ui.tooltip_icon(tooltip, tooltip_options),
-            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, style={"width": "100%"}),
-        ],
-        style={"marginBottom": "12px"}
-    )
-
 def workspace_form(settings):
     defval = lambda k, v=None: settings.get(k, v)
     use_benchmark = defval("use_benchmark", "")
-    expand_design_path_filters = True if defval("design_path_whitelist", []) or defval("design_path_blacklist", []) else False
 
-    return html.Div(
+    return ui.grid(
         children=[
-            html.Div(style={"display": "none"}),
-            html.Div([
-                html.H3("Main Paths"),
-                workspace_form_field(
+            ui.panel(body=[
+                ui.caption("Main paths"),
+                ui.form_field(
                     label="Architecture directory",
                     id="arch_path",
                     value=defval("arch_path", ""),
                     placeholder=OdatixSettings.DEFAULT_ARCH_PATH,
                     tooltip="The path to the architecture directory where all architectures definitions are stored.",
                 ),
-                workspace_form_field(
+                ui.form_field(
                     label="Simulation directory",
                     id="sim_path",
                     value=defval("sim_path", ""),
                     placeholder=OdatixSettings.DEFAULT_SIM_PATH,
                     tooltip="The path to the architecture directory where all simulations definitions are stored.",
                 ),
-                workspace_form_field(
+                ui.form_field(
                     label="Target Definition directory",
                     id="target_path",
                     value=defval("target_path", ""),
                     placeholder=OdatixSettings.DEFAULT_TARGET_PATH,
                     tooltip="The path where target definitions for all tools are stored.",
                 ),
-            ], className="tile config"),
-            html.Div([
-                html.H3("Settings Files"),
-                workspace_form_field(
+            ]),
+            ui.panel(body=[
+                ui.caption("Settings files"),
+                ui.form_field(
                     label="Clean settings",
                     id="clean_settings_file",
                     value=defval("clean_settings_file", ""),
                     placeholder=OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE,
                     tooltip="The path to the clean rules file used by 'odatix clean' command.",
                 ),
-                workspace_form_field(
+                ui.form_field(
                     label="Simulation settings",
                     id="simulation_settings_file",
                     value=defval("simulation_settings_file", ""),
                     placeholder=OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
                     tooltip="The path to the settings file used by 'odatix sim' command.",
                 ),
-                workspace_form_field(
+                ui.form_field(
                     label="Fmax synthesis settings",
                     id="fmax_synthesis_settings_file",
                     value=defval("fmax_synthesis_settings_file", ""),
                     placeholder=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
                     tooltip="The path to the settings file used by 'odatix fmax' command.",
                 ),
-                workspace_form_field(
+                ui.form_field(
                     label="Custom synthesis settings",
                     id="custom_freq_synthesis_settings_file",
                     value=defval("custom_freq_synthesis_settings_file", ""),
                     placeholder=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
                     tooltip="The path to the settings file used by 'odatix freq' command.",
                 ),
-            ], className="tile config"),
-            html.Div([
-                html.H3("Work Directory"),
-                workspace_form_field(
+            ]),
+            ui.panel(body=[
+                ui.caption("Work directory"),
+                ui.form_field(
                     label="Main work path",
                     id="work_path",
                     value=defval("work_path", ""),
                     placeholder=OdatixSettings.DEFAULT_WORK_PATH,
                     tooltip="The path where all temporary files will be stored during synthesis and simulation.",
                 ),
-                workspace_form_field(
+                ui.form_field(
                     label="Simulation work path",
                     id="simulation_work_path",
                     value=defval("simulation_work_path", ""),
                     placeholder=OdatixSettings.DEFAULT_SIMULATION_WORK_PATH,
                     tooltip="The path where temporary files will be stored during simulations, relative to the main work path.",
                 ),
-                workspace_form_field(
+                ui.form_field(
                     label="Fmax synthesis work path",
                     id="fmax_synthesis_work_path",
                     value=defval("fmax_synthesis_work_path", ""),
                     placeholder=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH,
                     tooltip="The path where temporary files will be stored during Fmax synthesis, relative to the main work path.",
                 ),
-                workspace_form_field(
+                ui.form_field(
                     label="Custom synthesis work path",
                     id="custom_freq_synthesis_work_path",
                     value=defval("custom_freq_synthesis_work_path", ""),
                     placeholder=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH,
                     tooltip="The path where temporary files will be stored during custom frequency synthesis, relative to the main work path.",
                 ),
-            ], className="tile config"),
-            html.Div([
-                html.H3("Results"),
-                workspace_form_field(
+            ]),
+            ui.panel(body=[
+                ui.caption("Results"),
+                ui.form_field(
                     label="Result path",
                     id="result_path",
                     value=defval("result_path", ""),
                     placeholder=OdatixSettings.DEFAULT_RESULT_PATH,
                     tooltip="The path where all results files will be stored after synthesis and simulation.",
                 ),
-                html.Div(
-                    children=[
-                        html.Label("Use benchmark results"),
-                        ui.tooltip_icon(
-                            "Include benchmark results in synthesis results.",
-                            "secondary"
-                        ),
-                        dcc.Dropdown(
-                            id="use_benchmark",
-                            placeholder= f"{'Yes' if OdatixSettings.DEFAULT_USE_BENCHMARK else 'No'}",
-                            options=[
-                                {"label": "Yes", "value": True},
-                                {"label": "No", "value": False},
-                            ],
-                            value=use_benchmark,
-                        ),
+                ui.form_dropdown(
+                    label="Use benchmark results",
+                    id="use_benchmark",
+                    placeholder=f"{'Yes' if OdatixSettings.DEFAULT_USE_BENCHMARK else 'No'}",
+                    options=[
+                        {"label": "Yes", "value": True},
+                        {"label": "No", "value": False},
                     ],
-                    style={"marginBottom": "12px"}
+                    value=use_benchmark,
+                    tooltip="Include benchmark results in synthesis results.",
                 ),
                 html.Div(
                     children=[
-                        workspace_form_field(
+                        ui.form_field(
                             label="Benchmark file",
                             id="benchmark_file",
                             value=defval("benchmark_file", ""),
@@ -200,9 +171,8 @@ def workspace_form(settings):
                     className="animated-section" + (" hide" if not use_benchmark else ""),
                     style={"overflow": "visible"},
                 ),
-            ], className="tile config"),
-            
-        ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
+            ]),
+        ],
     )
 
 
@@ -229,6 +199,7 @@ def init_form(search, page):
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("odatix-settings", "data", allow_duplicate=True),
+    Output("workspace-saved-settings", "data"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("arch_path", "value"),
     Input("sim_path", "value"),
@@ -245,6 +216,8 @@ def init_form(search, page):
     Input("use_benchmark", "value"),
     Input("benchmark_file", "value"),
     State(f"url_{page_path}", "pathname"),
+    State("workspace-initial-settings", "data"),
+    State("workspace-saved-settings", "data"),
     prevent_initial_call=True,
 )
 def save_and_status(
@@ -253,12 +226,12 @@ def save_and_status(
     custom_freq_synthesis_settings_file, work_path, simulation_work_path,
     fmax_synthesis_work_path, custom_freq_synthesis_work_path, result_path,
     use_benchmark, benchmark_file,
-    page
+    page, initial_settings, saved_settings
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
-    
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
     current_settings_subset = {
         "arch_path": arch_path,
         "sim_path": sim_path,
@@ -283,16 +256,21 @@ def save_and_status(
         try:
             OdatixSettings.save_dict_to_file(current_settings)
             current_settings = OdatixSettings().to_dict()
-            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", current_settings
+            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", current_settings, current_settings_subset
         except Exception as e:
-            return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update,
+            return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update
 
     else:
-        settings = OdatixSettings.get_settings_template_dict()
-        if current_settings_subset != settings:
-            return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update
+        # Compare against what the settings file actually holds (the store
+        # written by init_form, or the last save), not against the settings
+        # template: every blank field means "use the default", which the
+        # template spells out, so the page used to always look dirty.
+        reference = saved_settings if saved_settings is not None else (initial_settings or {})
+        saved_subset = {key: reference.get(key, "") for key in current_settings_subset}
+        if current_settings_subset != saved_subset:
+            return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update, dash.no_update
 
-    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update
+    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, dash.no_update
 
 
 @dash.callback(
@@ -358,25 +336,32 @@ title_buttons = html.Div(
             disabled=True,
         ),
     ],
-    className="inline-flex-buttons",
+    className="odx-header-actions",
 )
 
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(
-            ui.title_tile(text="Workspace Settings", buttons=title_buttons, tooltip="Leave blank to use default values", back_button_link="/"), 
-            id={"page": page_path, "type": "workspace-title-div"}, 
-            style={"marginTop": "20px", "marginBottom": "10px"}
+            ui.page_bar(
+                "Workspace Settings",
+                actions=title_buttons,
+                back_link="/",
+                extra=html.Div(
+                    "Every path is relative to the workspace. Leave a field blank to use its default value.",
+                    className="odx-summary odx-status",
+                ),
+            ),
+            id={"page": page_path, "type": "workspace-title-div"},
         ),
         html.Div(id="workspace-form-container"),
         dcc.Store(id="save-state", data=""),
         dcc.Store(id="workspace-initial-settings", data=None),
-        dcc.Store(id="workspace-saved-settings", data=None), 
+        dcc.Store(id="workspace-saved-settings", data=None),
     ],
-    className="page-content",
+    className="page-content odx-page",
     style={
-        "display": "flex",  
+        "display": "flex",
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
