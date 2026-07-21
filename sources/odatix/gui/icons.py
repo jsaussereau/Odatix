@@ -145,10 +145,10 @@ _icons = {
 
     # Up/down arrows: sort direction toggle
     "sort_dir": lambda color, width, height, className, offset, id: _line_icon([
-        Polyline(points="7 15 7 4"),
-        Polyline(points="4 7 7 4 10 7"),
-        Polyline(points="17 9 17 20"),
-        Polyline(points="20 17 17 20 14 17"),
+        Polyline(points="7 15 7 4", transform="translate(1.7207913,1.3054279)"),
+        Polyline(points="4 7 7 4 10 7", transform="translate(1.7207913,1.3054279)"),
+        Polyline(points="20 17 17 20 14 17", transform="translate(-2.0647398,-1.4594799)"),
+        Path(d="m 14.928267,10.491569 v 6.615384"),
     ], width, height, className, id),
 
     # Info circle

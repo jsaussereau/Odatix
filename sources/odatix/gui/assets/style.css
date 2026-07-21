@@ -2233,14 +2233,21 @@ input[type="checkbox"] {
     background: transparent;
     border: none;
     border-left: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 0;
     padding: 6px 13px;
     cursor: pointer;
     color: var(--theme-text-color);
     font-size: 13px;
     font-weight: 600;
     transition: background 0.15s ease, color 0.15s ease;
+    margin: 0;
 }
-.monitor-mode-button:first-child { border-left: none; }
+.monitor-mode-button:first-child { 
+    border-radius: var(--theme-small-border-radius) 0 0 var(--theme-small-border-radius);
+}
+.monitor-mode-button:last-child { 
+    border-radius: 0 var(--theme-small-border-radius) var(--theme-small-border-radius) 0;
+}
 .monitor-mode-button:hover { background: rgba(128, 128, 128, 0.12); }
 .monitor-mode-button.active { background: var(--theme-primary-color); color: #fff; }
 
