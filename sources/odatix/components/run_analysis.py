@@ -33,6 +33,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
+from odatix.lib.run_report import JobPlan
 from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError, get_timestamp_string, resolve_nb_jobs
 from odatix.lib.get_from_dict import get_from_dict
@@ -598,28 +599,10 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
     )
     prepared_tools.append((current_tool, context))
 
-  # Print one single global checklist for all tools, with the eda tool shown
-  # like a target (same categories as ArchitectureHandler.print_summary)
-  merged_lists = {
-    "cached_archs": [],
-    "overwrite_archs": [],
-    "incomplete_archs": [],
-    "daemon_archs": [],
-    "new_archs": [],
-    "error_archs": [],
-  }
-  for current_tool, context in prepared_tools:
-    suffix = f" ({current_tool})" if multi_tool else ""
-    arch_handler = context["arch_handler"]
-    for key in merged_lists:
-      merged_lists[key] += [entry + suffix for entry in getattr(arch_handler, key)]
-
-  ArchitectureHandler.print_arch_list(merged_lists["cached_archs"], "Existing results (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
-  ArchitectureHandler.print_arch_list(merged_lists["overwrite_archs"], "Existing results (will be overwritten)", printc.colors.YELLOW)
-  ArchitectureHandler.print_arch_list(merged_lists["incomplete_archs"], "Incomplete results (will be overwritten)", printc.colors.YELLOW)
-  ArchitectureHandler.print_arch_list(merged_lists["daemon_archs"], "Already managed in a session (skipped)", printc.colors.CYAN)
-  ArchitectureHandler.print_arch_list(merged_lists["new_archs"], "New architectures", printc.colors.ENDC)
-  ArchitectureHandler.print_arch_list(merged_lists["error_archs"], "Invalid settings, (skipped, see errors above)", printc.colors.RED)
+  # One single global checklist for all tools, with the eda tool shown like a
+  # target: merge every tool plan into one, suffixing the job names.
+  plan = merged_analysis_plan(prepared_tools, multi_tool)
+  plan.print_summary(noun="architectures")
 
   # Single confirmation for all tools
   total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
@@ -688,6 +671,18 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
 ######################################
 # GUI interface (single tool)
 ######################################
+
+
+def merged_analysis_plan(prepared_tools, multi_tool):
+  """
+  The check outcome of every eda tool as a single plan. The tool is appended to
+  the job names, the way a target would be, so one checklist covers the run.
+  """
+  plan = JobPlan()
+  for current_tool, context in prepared_tools:
+    suffix = f" ({current_tool})" if multi_tool else ""
+    plan.merge(context["arch_handler"].plan, suffix=suffix)
+  return plan
 
 
 def check_settings(
@@ -780,28 +775,10 @@ def check_settings(
     prepared_tools.append((current_tool, context))
     _check_cancel(cancel_event)
 
-  # Print one single global checklist for all tools, with the eda tool shown
-  # like a target (same categories as ArchitectureHandler.print_summary)
-  merged_lists = {
-    "cached_archs": [],
-    "overwrite_archs": [],
-    "incomplete_archs": [],
-    "daemon_archs": [],
-    "new_archs": [],
-    "error_archs": [],
-  }
-  for current_tool, context in prepared_tools:
-    suffix = f" ({current_tool})" if multi_tool else ""
-    arch_handler = context["arch_handler"]
-    for key in merged_lists:
-      merged_lists[key] += [entry + suffix for entry in getattr(arch_handler, key)]
-
-  ArchitectureHandler.print_arch_list(merged_lists["cached_archs"], "Existing results (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
-  ArchitectureHandler.print_arch_list(merged_lists["overwrite_archs"], "Existing results (will be overwritten)", printc.colors.YELLOW)
-  ArchitectureHandler.print_arch_list(merged_lists["incomplete_archs"], "Incomplete results (will be overwritten)", printc.colors.YELLOW)
-  ArchitectureHandler.print_arch_list(merged_lists["daemon_archs"], "Already managed in a session (skipped)", printc.colors.CYAN)
-  ArchitectureHandler.print_arch_list(merged_lists["new_archs"], "New architectures", printc.colors.ENDC)
-  ArchitectureHandler.print_arch_list(merged_lists["error_archs"], "Invalid settings, (skipped, see errors above)", printc.colors.RED)
+  # One single global checklist for all tools, with the eda tool shown like a
+  # target: merge every tool plan into one, suffixing the job names.
+  plan = merged_analysis_plan(prepared_tools, multi_tool)
+  plan.print_summary(noun="architectures")
 
   _check_cancel(cancel_event)
 
@@ -834,6 +811,7 @@ def check_settings(
     first_context["exit_when_done"],
     first_context["log_size_limit"],
     first_context["nb_jobs"],
+    plan,
   )
 
 

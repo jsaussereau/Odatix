@@ -109,7 +109,7 @@ def run_synthesis(
     detach=False,
     daemon_session=None,
 ):
-    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs = check_settings(
+    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs, _plan = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
         tool=tool,
@@ -293,7 +293,8 @@ def check_settings(
         context["exit_when_done"],
         context["log_size_limit"],
         context["nb_jobs"],
-    )
+        arch_handler.plan,
+ )
 
 def prepare_synthesis(
     architecture_instances,

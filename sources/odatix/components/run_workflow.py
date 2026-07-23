@@ -41,6 +41,7 @@ from odatix.lib.config_generator import ConfigGenerator
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
+from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.param_domain import ParamDomain
 from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, get_timestamp_string, KeyNotInListError, BadValueInListError
 from odatix.lib.run_settings import get_workflow_settings
@@ -605,7 +606,7 @@ def run_workflows(
     detach=False,
     daemon_session=None,
 ):
-    workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs = check_settings(
+    workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs, _plan = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         workflow_path=workflow_path,
         work_path=work_path,
@@ -680,8 +681,7 @@ def check_settings(
 
     timestamp = get_timestamp_string()
 
-    valid_workflows = []
-    invalid_workflows = []
+    plan = JobPlan()
     workflow_instances = []
 
     first_progress_regex = None
@@ -706,7 +706,7 @@ def check_settings(
 
         if not os.path.isfile(workflow_settings_file):
             printc.error("Workflow settings file \"" + workflow_settings_file + "\" does not exist", script_name)
-            invalid_workflows.append(workflow_display_name)
+            plan.add(workflow_display_name, Category.ERROR)
             continue
 
         with open(workflow_settings_file, "r") as f:
@@ -716,7 +716,7 @@ def check_settings(
                 printc.error("Workflow settings file \"" + workflow_settings_file + "\" is not a valid YAML file", script_name)
                 printc.cyan("error details: ", end="", script_name=script_name)
                 print(str(e))
-                invalid_workflows.append(workflow_display_name)
+                plan.add(workflow_display_name, Category.ERROR)
                 continue
 
         try:
@@ -725,7 +725,7 @@ def check_settings(
             source_path = os.path.realpath(str(_expand_env_tokens(source_path)))
             if not os.path.isdir(source_path):
                 printc.error("The sources.path \"" + source_path + "\" does not exist", script_name)
-                invalid_workflows.append(workflow_display_name)
+                plan.add(workflow_display_name, Category.ERROR)
                 continue
 
             source_whitelist = read_from_list("whitelist", sources, workflow_settings_file, parent="sources", optional=True, raise_if_missing=False, print_error=False)
@@ -749,7 +749,7 @@ def check_settings(
 
             tasks = read_from_list("tasks", workflow_settings, workflow_settings_file, type=list, script_name=script_name)
         except (KeyNotInListError, BadValueInListError):
-            invalid_workflows.append(workflow_display_name)
+            plan.add(workflow_display_name, Category.ERROR)
             continue
 
         progress_file = hard_settings.sim_progress_filename
@@ -778,7 +778,7 @@ def check_settings(
         param_file = os.path.join(workflow_path, workflow_param_dir, workflow_config + ".txt")
         if use_parameters and not no_main_configuration and not os.path.isfile(param_file):
             printc.error("Workflow parameter file \"" + param_file + "\" does not exist", script_name)
-            invalid_workflows.append(workflow_display_name)
+            plan.add(workflow_display_name, Category.ERROR)
             continue
         if no_main_configuration or not use_parameters:
             param_file = None
@@ -803,7 +803,7 @@ def check_settings(
                 top_level_file=workflow_settings_file,
             )
             if param_domains is None:
-                invalid_workflows.append(workflow_display_name)
+                plan.add(workflow_display_name, Category.ERROR)
                 continue
 
         virtual_param_domain_variants = [{"requested_param_domains": [], "substitutions": {}}]
@@ -814,7 +814,7 @@ def check_settings(
                 debug=debug,
             )
             if generated_virtual_variants is None:
-                invalid_workflows.append(workflow_display_name)
+                plan.add(workflow_display_name, Category.ERROR)
                 continue
 
             if len(requested_virtual_param_domains) > 0:
@@ -844,7 +844,7 @@ def check_settings(
                     param_domain_value = re.sub('.*/', '', requested_virtual_param_domains[0])
                     printc.tip("Add a parameter-domain config file \"" + param_domain_value + ".txt\" in \"" + os.path.join(workflow_param_dir, param_domain) + "\" ", script_name)
                     printc.magenta("or add a variable \"" + param_domain + "\" generating the value \"" + param_domain_value + "\" to the workflow settings file \"" + workflow_settings_file + "\".")
-                    invalid_workflows.append(workflow_display_name)
+                    plan.add(workflow_display_name, Category.ERROR)
                     continue
 
                 virtual_param_domain_variants = filtered_virtual_variants
@@ -901,26 +901,16 @@ def check_settings(
                     extra_command_substitutions=virtual_variant.get("substitutions", {}),
                 )
             )
-            valid_workflows.append(workflow_display_name_variant)
+            plan.add(workflow_display_name_variant, Category.NEW, tasks=len(tasks))
 
     if first_progress_regex is None:
         first_progress_regex = hard_settings.sim_status_pattern.pattern
 
     ParallelJob.set_patterns(re.compile(first_progress_regex))
 
-    if len(valid_workflows) > 0:
-        print()
-        printc.bold("Valid workflows:")
-        for wf in valid_workflows:
-            print("  - " + wf)
-    if len(invalid_workflows) > 0:
-        print()
-        printc.bold("Invalid workflows (skipped):")
-        for wf in invalid_workflows:
-            printc.red("  - " + wf)
-        printc.endc()
+    plan.print_summary(noun="workflows")
 
-    confirm_valid_jobs(len(valid_workflows), ask_continue, ask_to_continue, script_name=script_name)
+    confirm_valid_jobs(plan.run_count(), ask_continue, ask_to_continue, script_name=script_name)
 
     print()
 
@@ -1037,7 +1027,7 @@ def check_settings(
 
         job_list.append(running_workflow)
 
-    return workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs
+    return workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs, plan
 
 
 def prepare_workflows(
