@@ -97,6 +97,12 @@ _ANSI_BG_COLORS = {
     107: "var(--terminal-bright-white)",
 }
 
+def strip_ansi(text: str) -> str:
+    """Terminal output without its ANSI escape sequences."""
+    if text is None:
+        return ""
+    return _ANSI_PATTERN.sub("", text)
+
 def ansi_to_html_spans(text: str):
     """
     Convert ANSI-colored terminal output into a list of colored spans.

@@ -20,6 +20,7 @@
 #
 
 import os
+import re
 import threading
 import io
 import contextlib
@@ -35,6 +36,9 @@ from odatix.gui.utils import get_key_from_url, ansi_to_html_spans
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.printc as printc
+import odatix.lib.run_report as run_report
+from odatix.lib.run_report import JobPlan, MessageLog
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.utils import is_auto_nb_jobs, resolve_nb_jobs, AUTO_NB_JOBS_KEYWORD
 import odatix.components.run_common as run_common
@@ -108,6 +112,7 @@ _prepare_status = {"status": "idle", "error": None}
 _prepare_parallel_jobs = None
 _prepare_monitor_href = None
 _prepare_check_data = None
+_prepare_messages = MessageLog()
 _prepare_runtime_settings = None
 _prepare_exec_thread = None
 _prepare_synth_type = None
@@ -116,13 +121,14 @@ _prepare_enqueue_lock = threading.Lock()
 
 def _reset_prepare_state():
     global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_monitor_href
-    global _prepare_check_data, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
+    global _prepare_check_data, _prepare_messages, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
     _prepare_cancel_event = threading.Event()
     _prepare_log_buffer = _ThreadSafeBuffer()
     _prepare_status = {"status": "checking", "error": None}
     _prepare_parallel_jobs = None
     _prepare_monitor_href = None
     _prepare_check_data = None
+    _prepare_messages = MessageLog()
     _prepare_runtime_settings = None
     _prepare_exec_thread = None
     _prepare_synth_type = None
@@ -168,6 +174,408 @@ def _prepare_progress_bar():
     )
 
 
+######################################
+# Run popup: structured run plan
+######################################
+
+# Per section, beyond this many items the list is truncated: the popup must stay
+# usable when a run expands to thousands of configurations.
+MAX_SECTION_ITEMS = 200
+
+
+def _prepare_plan():
+    """
+    The JobPlan built by the check phase, or None while it has not run yet.
+    Every check_settings() returns it as the last element of its result.
+    """
+    data = _prepare_check_data
+    if not data:
+        return None
+    plan = data[-1]
+    return plan if isinstance(plan, JobPlan) else None
+
+
+def _plan_noun():
+    return "workflows" if _prepare_synth_type == "workflow" else "architectures"
+
+
+def _summary_row(glyph, style, title, count, subtitle, items=None, content=None, body_class="", opened=False):
+    """
+    One collapsible line: a glyph, a title, how many, and the detail folded
+    inside. Same shape for diagnostics and for job categories, so the popup
+    reads as a single list. `items` is a list of strings rendered as a bullet
+    list (diagnostics); `content` is pre-built body children (grouped jobs).
+    """
+    if content is not None:
+        body = content
+    else:
+        items = items or []
+        hidden = max(0, len(items) - MAX_SECTION_ITEMS)
+        body = [html.Ul(
+            [html.Li(item, className="jobs-plan-item", title=item) for item in items[:MAX_SECTION_ITEMS]],
+            className="jobs-plan-items",
+        )]
+        if hidden:
+            body.append(html.Div(f"+ {hidden} more not listed", className="xpa-detail-note"))
+
+    return html.Details(
+        children=[
+            html.Summary(
+                children=[
+                    html.Span(glyph, className="xpa-row-badge xpa-" + style),
+                    html.Span(title, className="xpa-row-name"),
+                    html.Span(subtitle, className="jobs-plan-subtitle") if subtitle else None,
+                    html.Span(str(count), className="jobs-plan-count xpa-" + style),
+                ],
+                className="xpa-row-summary jobs-plan-summary",
+            ),
+            html.Div(body, className=("xpa-row-body jobs-plan-body " + body_class).strip()),
+        ],
+        open=opened,
+        className="xpa-row xpa-row-" + style,
+    )
+
+
+def _plan_total_card(count, label):
+    """A total-style stat card (big number, no glyph) — dashboard style borrowed
+    from the analysis page, for the "to run" / "won't run" headline counts."""
+    return html.Div(
+        [
+            html.Div(str(count), className="xpa-stat-count"),
+            html.Div(label, className="xpa-stat-label"),
+        ],
+        className="xpa-stat-card xpa-total",
+    )
+
+
+def _plan_category_card(category, count, total):
+    """One stat card per job category present in the plan, styled and labeled
+    the same way as its per-card status badge (glyph, label, severity color)."""
+    info = run_report.meta(category)
+    percent = (100 * count / total) if total else 0
+    return html.Div(
+        [
+            html.Div(info["glyph"], className="xpa-stat-glyph"),
+            html.Div(
+                [
+                    html.Div(str(count), className="xpa-stat-count"),
+                    html.Div(info["label"], className="xpa-stat-label"),
+                ],
+                className="xpa-stat-text",
+            ),
+            html.Div(f"{percent:.0f}%", className="xpa-stat-percent"),
+        ],
+        className="xpa-stat-card xpa-" + info["style"],
+    )
+
+
+def _plan_header(plan):
+    """Dashboard-style summary: how many jobs will run, how many won't, and the
+    breakdown by category — same stat-card look as the Explorer analysis page."""
+    counts = plan.counts()
+    total = len(plan)
+    to_run = plan.run_count()
+    skipped = total - to_run
+
+    cards = [_plan_total_card(to_run, _plan_noun().capitalize() + " to run")]
+    if skipped:
+        cards.append(_plan_total_card(skipped, "Won't run"))
+    cards.extend(
+        _plan_category_card(category, counts[category], total)
+        for category in run_report.SEVERITY_ORDER if counts[category]
+    )
+
+    return html.Div(children=cards, className="jobs-plan-stats xpa-stats")
+
+
+# Diagnostic rows of the popup: which levels they cover, how they look, and
+# whether they start expanded. Errors are what blocks a run, so they show up
+# open; tips and notes are grouped in one muted row to keep the list short.
+DIAGNOSTIC_ROWS = [
+    (("error",), "Errors", "✗", "failed", True),
+    (("warning",), "Warnings", "⚠", "warning", False),
+    (("tip", "note"), "Notes & tips", "i", "incomplete", False),
+]
+
+
+def _message_rows(message_log):
+    """One collapsible row per diagnostic group."""
+    rows = []
+    for levels, title, glyph, style, opened in DIAGNOSTIC_ROWS:
+        messages = [message for level in levels for message in message_log.of_level(level)]
+        if not messages:
+            continue
+        # Count every occurrence, but list each distinct message once (with ×N).
+        total = sum(message["count"] for message in messages)
+        items = [
+            message["message"] + (f"  (×{message['count']})" if message["count"] > 1 else "")
+            for message in messages
+        ]
+        rows.append(_summary_row(
+            glyph=glyph,
+            style=style,
+            title=title,
+            count=total,
+            subtitle=f"{len(messages)} distinct" if len(messages) != total else None,
+            items=items,
+            body_class="messages",
+            opened=opened,
+        ))
+    return rows
+
+
+# A job name reads "Base (target) @ freq (bound)", the base itself being
+# "architecture/config". Pull the parenthesized and @-prefixed parts out so jobs
+# can be grouped by their characteristics instead of repeating them per row.
+_JOB_NAME_PART = re.compile(r"\s*\(([^()]*)\)|\s*(@[^()]*?)(?=\s*\(|\s*$)")
+
+# Beyond this many architecture groups in a category, the rest is summarized.
+MAX_PLAN_GROUPS = 60
+
+
+def _parse_job(name):
+    """Split a job display name into architecture, config, target and frequency."""
+    base = _JOB_NAME_PART.sub("", name).strip()
+    target = freq = None
+    for paren, at in _JOB_NAME_PART.findall(name):
+        text = (paren or at).strip()
+        if not text:
+            continue
+        # "@ 30 MHz" or a "(250 - 500 MHz)" bound are frequencies; anything else
+        # in parentheses is the eda target.
+        if text.startswith("@") or text.endswith("MHz"):
+            freq = text
+        else:
+            target = text
+    arch, sep, config = base.partition("/")
+    if not sep:
+        # No base configuration ("arch/config"): a "[domain:value, ...]" suffix is
+        # the parameter-domain configuration, not part of the architecture name
+        # (e.g. "Example_Rom_Chisel [addr:06bits, data:14bits]").
+        bracket = base.find(" [")
+        if bracket != -1:
+            arch, config = base[:bracket].strip(), base[bracket:].strip()
+    return {"arch": arch or base, "config": config, "target": target, "freq": freq}
+
+
+def _badge(text, kind):
+    return html.Span(text, className="jobs-plan-badge " + kind)
+
+
+def _status_badge(category):
+    """Pill on an architecture card telling why it sits in its bucket: the glyph
+    and label of its category (New, Overwritten, Existing, ...), colored by style."""
+    info = run_report.meta(category)
+    return html.Span(
+        children=[
+            html.Span(info["glyph"], className="jobs-plan-status-glyph"),
+            html.Span(info["label"]),
+        ],
+        className="jobs-plan-status xpa-" + info["style"],
+        title=info["description"],
+    )
+
+
+def _shared(jobs, key):
+    """The value of `key` if every job shares it, else None."""
+    values = {job[key] for job in jobs}
+    return next(iter(values)) if len(values) == 1 and None not in values else None
+
+
+def _group_span_class(config_count):
+    """
+    How many grid columns a card should claim, as a CSS class. A card with many
+    configs is allowed to grow wider so its config list flows into several inner
+    columns instead of stacking into one tall, narrow strip — this keeps a mix of
+    small and large groups evenly spread across the width. Cards without a config
+    list (config_count <= 1) always stay a single column.
+    """
+    if config_count >= 40:
+        return "span-3"
+    if config_count >= 12:
+        return "span-2"
+    return ""
+
+
+def _job_group(arch, jobs, style, category=None):
+    """
+    A fancy card for one architecture: its name, a status badge telling why it is
+    in its bucket, the characteristics common to all of its jobs as badges, a
+    count, and the configs that differ underneath.
+    """
+    shared_target = _shared(jobs, "target")
+    shared_freq = _shared(jobs, "freq")
+
+    head_badges = []
+    if shared_target:
+        head_badges.append(_badge(shared_target, "target"))
+    if shared_freq:
+        head_badges.append(_badge(shared_freq, "freq"))
+
+    # Title line: the full name and the name-derived characteristics (target,
+    # frequency), then the config count on the right. The status badge — why the
+    # card is in its bucket — goes on its own line below, so the two kinds of
+    # badge never read as one row.
+    title = html.Div(
+        children=[
+            html.Span(arch, className="jobs-plan-group-name", title=arch),
+            *head_badges,
+        ],
+        className="jobs-plan-group-title",
+    )
+    head_children = [title]
+    meta_badges = []
+    if category is not None:
+        meta_badges.append(_status_badge(category))
+    meta_badges.append(
+        html.Span(f"{len(jobs)} config" + ("s" if len(jobs) != 1 else ""), className="jobs-plan-group-count-badge")
+    )
+    head_children.append(html.Span(meta_badges, className="jobs-plan-group-badges"))
+    head = html.Div(head_children, className="jobs-plan-group-head")
+
+    # Only list configs when there is more than the architecture itself to show.
+    only_arch = len(jobs) == 1 and not jobs[0]["config"]
+    if only_arch and not (jobs[0]["target"] and not shared_target):
+        return html.Div(head, className="jobs-plan-group")
+
+    rows = []
+    for job in jobs:
+        badges = []
+        if job["target"] and not shared_target:
+            badges.append(_badge(job["target"], "target"))
+        if job["freq"] and not shared_freq:
+            badges.append(_badge(job["freq"], "freq"))
+        rows.append(html.Li(
+            children=[html.Span(job["config"] or "default", className="jobs-plan-config"), *badges],
+            className="jobs-plan-config-row",
+        ))
+
+    span = _group_span_class(len(rows))
+    return html.Div(
+        children=[head, html.Ul(rows, className="jobs-plan-configs")],
+        className=("jobs-plan-group " + span).strip(),
+    )
+
+
+def _bucket_entries(plan, want_run):
+    """(name, category) of every job whose category will/won't run, most severe
+    category first, matching the severity order used everywhere else."""
+    entries = []
+    for category in run_report.SEVERITY_ORDER:
+        if run_report.runs(category) != want_run:
+            continue
+        for name in plan.names(category, colored=False):
+            entries.append((name, category))
+    return entries
+
+
+def _bucket_content(entries):
+    """Group a bucket's jobs into architecture cards, one card per (architecture,
+    category) so every card carries a single, truthful status badge. Cards of the
+    same architecture stay adjacent, ordered by category severity."""
+    groups = {}
+    arch_order = []
+    for name, category in entries:
+        job = _parse_job(name)
+        key = (job["arch"], category)
+        if key not in groups:
+            groups[key] = []
+            if job["arch"] not in arch_order:
+                arch_order.append(job["arch"])
+        groups[key].append(job)
+
+    ordered_keys = sorted(
+        groups,
+        key=lambda key: (arch_order.index(key[0]), run_report.meta(key[1])["severity"]),
+    )
+    content = [
+        _job_group(arch, groups[(arch, category)], run_report.meta(category)["style"], category=category)
+        for arch, category in ordered_keys[:MAX_PLAN_GROUPS]
+    ]
+    hidden = len(ordered_keys) - len(content)
+    if hidden > 0:
+        content.append(html.Div(f"+ {hidden} more not listed", className="xpa-detail-note"))
+    return content
+
+
+# The two run-plan buckets. Jobs are no longer split into one row per status;
+# they fall into just these two, and the reason each job is here (its category:
+# new, cached, invalid, ...) is shown as a status badge on its card.
+# (want_run, title, glyph, style, opened)
+PLAN_BUCKETS = [
+    (True, "Will run", "▸", "passed", True),
+    (False, "Won't run", "⊘", "incomplete", False),
+]
+
+
+def _job_rows(plan):
+    """The two bucket rows — jobs that will run and jobs that are skipped — each
+    with its architecture cards grouped and status-badged by category."""
+    counts = plan.counts()
+    rows = []
+    for want_run, title, glyph, style, opened in PLAN_BUCKETS:
+        entries = _bucket_entries(plan, want_run)
+        if not entries:
+            continue
+        labels = [
+            run_report.meta(category)["label"]
+            for category in run_report.SEVERITY_ORDER
+            if run_report.runs(category) == want_run and counts[category]
+        ]
+        rows.append(_summary_row(
+            glyph=glyph,
+            style=style,
+            title=title,
+            count=len(entries),
+            subtitle=", ".join(labels),
+            content=_bucket_content(entries),
+            body_class="groups",
+            opened=opened,
+        ))
+    return rows
+
+
+def _section(title, rows):
+    if not rows:
+        return None
+    return html.Div(
+        children=[html.Div(title, className="jobs-plan-section-title"), html.Div(rows, className="jobs-plan-rows")],
+        className="jobs-plan-section",
+    )
+
+
+def _run_popup_body(status):
+    """
+    Content of the run popup, entirely built from the structured report the run
+    scripts produce: a headline, the diagnostics, and the jobs, each foldable.
+    """
+    plan = _prepare_plan()
+    children = []
+
+    if plan:
+        children.append(_plan_header(plan))
+
+    children.append(_section("Diagnostics", _message_rows(_prepare_messages)))
+    if plan:
+        children.append(_section(_plan_noun().capitalize(), _job_rows(plan)))
+    elif status in ("checking", "preparing"):
+        children.append(html.Div("Checking settings…", className="jobs-plan-placeholder"))
+    elif not _prepare_messages:
+        children.append(html.Div("No job found for this selection.", className="jobs-plan-placeholder"))
+
+    return html.Div([child for child in children if child is not None], className="jobs-plan")
+
+
+def _run_popup_render_key(status):
+    """
+    Cheap signature of what the popup body displays. The popup is refreshed on a
+    timer: re-rendering identical content would fold the sections back under the
+    user while they are reading them.
+    """
+    plan = _prepare_plan()
+    return "|".join([str(status), str(len(plan) if plan else 0), str(len(_prepare_messages))])
+
+
 def _normalize_session_selector(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None
@@ -209,7 +617,7 @@ def _run_check_custom_freq_settings(
     if custom_freq_list is None:
         custom_freq_list = []
     try:
-        with contextlib.redirect_stdout(_prepare_log_buffer):
+        with printc.collect(_prepare_messages.add), contextlib.redirect_stdout(_prepare_log_buffer):
             _prepare_check_data = run_range_synthesis.check_settings(
                 run_config_settings_filename,
                 arch_path,
@@ -249,7 +657,7 @@ def _run_check_fmax_settings(
 ):
     global _prepare_status, _prepare_check_data
     try:
-        with contextlib.redirect_stdout(_prepare_log_buffer):
+        with printc.collect(_prepare_messages.add), contextlib.redirect_stdout(_prepare_log_buffer):
             _prepare_check_data = run_fmax_synthesis.check_settings(
                 run_config_settings_filename,
                 arch_path,
@@ -290,7 +698,7 @@ def _run_check_analysis_settings(
 ):
     global _prepare_status, _prepare_check_data
     try:
-        with contextlib.redirect_stdout(_prepare_log_buffer):
+        with printc.collect(_prepare_messages.add), contextlib.redirect_stdout(_prepare_log_buffer):
             _prepare_check_data = run_analysis.check_settings(
                 run_config_settings_filename,
                 arch_path,
@@ -329,7 +737,7 @@ def _run_check_workflow_settings(
 ):
     global _prepare_status, _prepare_check_data
     try:
-        with contextlib.redirect_stdout(_prepare_log_buffer):
+        with printc.collect(_prepare_messages.add), contextlib.redirect_stdout(_prepare_log_buffer):
             _prepare_check_data = run_workflow.check_settings(
                 run_config_settings_filename,
                 workflow_path,
@@ -361,7 +769,7 @@ def _run_prepare_synthesis():
         export_ctx = {}
         if isinstance(_prepare_runtime_settings, dict):
             export_ctx = _prepare_runtime_settings.get("export") or {}
-        with contextlib.redirect_stdout(_prepare_log_buffer):
+        with printc.collect(_prepare_messages.add), contextlib.redirect_stdout(_prepare_log_buffer):
             if _prepare_synth_type == "workflow":
                 (
                     workflow_instances,
@@ -370,6 +778,7 @@ def _run_prepare_synthesis():
                     exit_when_done,
                     log_size_limit,
                     nb_jobs,
+                    _plan,
                 ) = _prepare_check_data
                 _prepare_parallel_jobs = run_workflow.prepare_workflows(
                     workflow_instances=workflow_instances,
@@ -392,6 +801,7 @@ def _run_prepare_synthesis():
                     exit_when_done,
                     log_size_limit,
                     nb_jobs,
+                    _plan,
                 ) = _prepare_check_data
                 if _prepare_synth_type == "fmax_synthesis":
                     _prepare_parallel_jobs = run_fmax_synthesis.prepare_synthesis(
@@ -1904,14 +2314,15 @@ def save_architecture_selections(
     Output("run-popup", "className"),
     Output("run-popup-opened", "data"),
     Output("run-popup-title", "children"),
+    Output("run-popup-render-key", "data", allow_duplicate=True),
     Input({"page": page_path, "action": "run-jobs"}, "n_clicks"),
     prevent_initial_call=True
 )
 def show_run_popup(n_click):
     if not ctx.triggered_id or not isinstance(ctx.triggered_id, dict) or not n_click:
-        return dash.no_update, dash.no_update, dash.no_update
-    
-    return "overlay-odatix visible", True, "Checking settings..."
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+    return "overlay-odatix visible", True, "Checking settings...", ""
 
 # Popup close
 @dash.callback(
@@ -2211,29 +2622,30 @@ def run_jobs(
 
 @dash.callback(
     Output("jobs-config-run-status", "data", allow_duplicate=True),
-    Output("run-popup-pre", "children"),
+    Output("run-popup-body", "children"),
+    Output("run-popup-render-key", "data"),
     Output("run-popup-progress", "children"),
     Output("run-confirm-btn", "className"),
     Output("run-redirect", "href", allow_duplicate=True),
     Input("run-log-interval", "n_intervals"),
     State("jobs-config-run-status", "data"),
     State("run-popup-opened", "data"),
+    State("run-popup-render-key", "data"),
     prevent_initial_call=True,
 )
-def poll_prepare_log(n_intervals, run_status, run_popup_opened):
+def poll_prepare_log(n_intervals, run_status, run_popup_opened, render_key):
     if not run_status or not run_popup_opened:
         raise dash.exceptions.PreventUpdate
 
     current_status = run_status.get("status")
     if current_status == "canceled":
-        return run_status, "", "", "color-button disabled icon-button", dash.no_update
+        return run_status, "", "", "", "color-button disabled icon-button", dash.no_update
 
     if _prepare_status.get("status") and _prepare_status.get("status") != current_status:
         run_status = {**run_status, **_prepare_status}
         current_status = run_status.get("status")
 
     if current_status in ("checking", "checked", "preparing", "prepared", "launched", "error"):
-        log_output = _prepare_log_buffer.getvalue()
         button_class = "color-button success icon-button" if current_status == "checked" else "color-button disabled icon-button"
         redirect_href = dash.no_update
         # Progress of the job-preparation phase (only meaningful once the run
@@ -2273,20 +2685,36 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened):
                     with _prepare_enqueue_lock:
                         _prepare_enqueued = False
                     run_status = {"status": "error", "error": str(exc)}
-                    if log_output:
-                        log_output = log_output + "\n\n"
-                    log_output = log_output + f"Failed to enqueue jobs in daemon session: {exc}"
-                    return run_status, ansi_to_html_spans(log_output), progress_bar, "color-button disabled icon-button", dash.no_update
+                    _prepare_messages.add("error", f"Failed to enqueue jobs in daemon session: {exc}")
+                    return (
+                        run_status,
+                        _run_popup_body("error"),
+                        _run_popup_render_key("error"),
+                        progress_bar,
+                        "color-button disabled icon-button",
+                        dash.no_update,
+                    )
 
             if _prepare_monitor_href is not None:
                 redirect_href = _prepare_monitor_href
-        return run_status, ansi_to_html_spans(log_output) if log_output else "", progress_bar, button_class, redirect_href
+
+        # The body is rebuilt only when its content changed: it is re-rendered on
+        # a timer, and replacing identical children would collapse the expanded
+        # sections under the user.
+        new_key = _run_popup_render_key(current_status)
+        if new_key == render_key:
+            body, new_key_output = dash.no_update, dash.no_update
+        else:
+            body = _run_popup_body(current_status)
+            new_key_output = new_key
+        return run_status, body, new_key_output, progress_bar, button_class, redirect_href
 
     raise dash.exceptions.PreventUpdate
 
 @dash.callback(
     Output("jobs-config-run-status", "data", allow_duplicate=True),
-    Output("run-popup-pre", "children", allow_duplicate=True),
+    Output("run-popup-body", "children", allow_duplicate=True),
+    Output("run-popup-render-key", "data", allow_duplicate=True),
     Output("run-confirm-btn", "className", allow_duplicate=True),
     Input("run-cancel-btn", "n_clicks"),
     prevent_initial_call=True,
@@ -2295,7 +2723,8 @@ def cancel_prepare_synthesis(n_clicks):
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
     _prepare_cancel_event.set()
-    return {"status": "canceled"}, "", "color-button disabled icon-button"
+    return {"status": "canceled"}, "", "", "color-button disabled icon-button"
+
 
 @dash.callback(
     Output("jobs-config-run-status", "data", allow_duplicate=True),
@@ -2461,6 +2890,7 @@ layout = html.Div(
         dcc.Store(id="jobs-config-saved-selection", data=None),
         dcc.Store(id="jobs-config-run-status", data=None),
         dcc.Store(id="run-popup-opened", data=False),
+        dcc.Store(id="run-popup-render-key", data=""),
         dcc.Location(id="run-redirect", refresh=True),
         dcc.Interval(id="run-log-interval", interval=500, n_intervals=0),
         html.Div(
@@ -2470,7 +2900,7 @@ layout = html.Div(
                 html.Div([
                     html.H2("Checking settings...", id="run-popup-title", style={"textAlign": "center"}),
                     html.Div(id="run-popup-progress"),
-                    html.Pre(id="run-popup-pre", className="run-popup-pre"),
+                    html.Div(id="run-popup-body", className="jobs-plan-scroll"),
                     html.Div([
                         ui.icon_button(
                             icon=icon("cross", className="icon"),
