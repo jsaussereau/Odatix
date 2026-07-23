@@ -25,7 +25,7 @@ import argparse
 
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
 from odatix.components import workspace as workspace_utils
-from odatix.components.run_common import confirm_valid_jobs, start_parallel_jobs as start_parallel_jobs_common
+from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
@@ -185,6 +185,7 @@ def check_settings(
     debug=False,
     keep=False,
     cancel_event=None,
+    tool_check_sink=None,
 ):
     _check_cancel(cancel_event)
 
@@ -265,6 +266,10 @@ def check_settings(
     _check_cancel(cancel_event)
 
     arch_handler.print_summary()
+
+    # The eda tool check was started in the background by load_synthesis_context:
+    # its outcome is only needed now, right before the confirmation.
+    settle_tool_checks([context["tool_check"]], tool_check_sink)
     confirm_valid_jobs(arch_handler.get_valid_arch_count(), context["ask_continue"], ask_to_continue, script_name=script_name)
 
     print()

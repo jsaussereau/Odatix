@@ -38,11 +38,11 @@ from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError, get_timestamp_string, resolve_nb_jobs
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
-from odatix.lib.check_tool import check_tool
+from odatix.lib.check_tool import start_tool_check
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
-from odatix.components.run_common import confirm_valid_jobs, abort_if_empty_job_list, run_prepare_loop
+from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, abort_if_empty_job_list, run_prepare_loop
 from odatix.components.analyze_results import generate_analysis_summary
 from odatix.components.export_analysis import configure_analysis_job_exports
 
@@ -559,16 +559,19 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   tool_contexts = {}
   for current_tool in tools:
     tool_contexts[current_tool] = load_tool_context(current_tool, target_path)
+  # Every tool check runs in the background while the settings are processed;
+  # they are waited for just before the checklist and the confirmation.
+  tool_checks = []
   if check_eda_tool:
     for current_tool in tools:
       tool_context = tool_contexts[current_tool]
-      check_tool(
+      tool_checks.append(start_tool_check(
         current_tool,
         command=tool_context["tool_test_command"],
         supported_tools=supported_tools,
         tool_install_path=tool_context["install_path"],
         debug=debug,
-      )
+      ))
 
   # Same timestamp for the whole batch
   timestamp = get_timestamp_string()
@@ -603,6 +606,9 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   # target: merge every tool plan into one, suffixing the job names.
   plan = merged_analysis_plan(prepared_tools, multi_tool)
   plan.print_summary(noun="architectures")
+
+  for tool_check in tool_checks:
+    tool_check.wait()
 
   # Single confirmation for all tools
   total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
@@ -700,6 +706,7 @@ def check_settings(
   debug=False,
   keep=False,
   cancel_event=None,
+  tool_check_sink=None,
 ):
   """
   Validate the analysis settings of one or several eda tools and prepare (but
@@ -734,16 +741,19 @@ def check_settings(
   tool_contexts = {}
   for current_tool in tools:
     tool_contexts[current_tool] = load_tool_context(current_tool, target_path)
+  # Every tool check runs in the background while the settings are processed;
+  # they are waited for just before the checklist and the confirmation.
+  tool_checks = []
   if check_eda_tool:
     for current_tool in tools:
       tool_context = tool_contexts[current_tool]
-      check_tool(
+      tool_checks.append(start_tool_check(
         current_tool,
         command=tool_context["tool_test_command"],
         supported_tools=supported_tools,
         tool_install_path=tool_context["install_path"],
         debug=debug,
-      )
+      ))
       _check_cancel(cancel_event)
 
   _check_cancel(cancel_event)
@@ -779,6 +789,8 @@ def check_settings(
   # target: merge every tool plan into one, suffixing the job names.
   plan = merged_analysis_plan(prepared_tools, multi_tool)
   plan.print_summary(noun="architectures")
+
+  settle_tool_checks(tool_checks, tool_check_sink)
 
   _check_cancel(cancel_event)
 

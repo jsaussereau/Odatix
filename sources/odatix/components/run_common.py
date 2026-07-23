@@ -290,6 +290,24 @@ def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, scri
         raise SystemExit(-1)
 
 
+def settle_tool_checks(tool_checks, tool_check_sink=None):
+    """
+    Close the background eda tool checks started while the settings were read.
+
+    Without a sink (terminal flows), every check is waited for: a failed one
+    reports itself and exits. With a sink (the GUI), the still-running handles
+    are handed over instead, so the caller can show the run plan right away and
+    report the outcome its own way.
+    """
+    for tool_check in tool_checks:
+        if tool_check is None:
+            continue
+        if tool_check_sink is not None:
+            tool_check_sink(tool_check)
+        else:
+            tool_check.wait()
+
+
 def abort_if_empty_job_list(job_list, script_name=None):
     """
     Some architectures/simulations pass the initial checklist (confirm_valid_jobs)

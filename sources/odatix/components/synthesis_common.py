@@ -16,7 +16,7 @@ from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import read_from_list, copytree, create_dir, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
-from odatix.lib.check_tool import check_tool
+from odatix.lib.check_tool import start_tool_check
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
@@ -154,10 +154,14 @@ def load_synthesis_context(
     )
     tool_test_command = replace_variables(tool_test_command, variables)
 
+    # The tool check runs in the background: the caller keeps building its
+    # architecture list while the tool starts up, and waits for the outcome
+    # right before asking the user to continue (see context["tool_check"]).
+    tool_check = None
     if check_eda_tool:
         if check_cancel is not None:
             check_cancel()
-        check_tool(
+        tool_check = start_tool_check(
             tool,
             command=tool_test_command,
             supported_tools=hard_settings.default_supported_tools,
@@ -183,6 +187,7 @@ def load_synthesis_context(
         "nb_jobs": nb_jobs,
         "overwrite": overwrite,
         "ask_continue": ask_continue,
+        "tool_check": tool_check,
     }
 
 
