@@ -118,10 +118,16 @@ _prepare_exec_thread = None
 _prepare_synth_type = None
 _prepare_enqueued = False
 _prepare_enqueue_lock = threading.Lock()
+# Eda tool checks started by the check phase and handed over instead of being
+# waited for, so the run plan shows up without waiting for the tool to launch
+# (see _tool_check_state and the "EDA tool" stat card of the run popup).
+_prepare_tool_checks = []
+_prepare_tool_check_reported = False
 
 def _reset_prepare_state():
     global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_monitor_href
     global _prepare_check_data, _prepare_messages, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
+    global _prepare_tool_checks, _prepare_tool_check_reported
     _prepare_cancel_event = threading.Event()
     _prepare_log_buffer = _ThreadSafeBuffer()
     _prepare_status = {"status": "checking", "error": None}
@@ -133,7 +139,95 @@ def _reset_prepare_state():
     _prepare_exec_thread = None
     _prepare_synth_type = None
     _prepare_enqueued = False
+    _prepare_tool_checks = []
+    _prepare_tool_check_reported = False
     run_common.reset_prepare_progress()
+
+
+######################################
+# Eda tool check (background)
+######################################
+
+
+def _collect_tool_check(tool_check):
+    """
+    Sink handed to check_settings(): the eda tool check keeps running in the
+    background instead of blocking the check phase, so the run plan is
+    displayed as soon as it is known. Its outcome gates the Start button.
+    """
+    _prepare_tool_checks.append(tool_check)
+
+
+def _tool_check_state():
+    """
+    State of the background eda tool checks, or None when there is none:
+        status: "running" | "passed" | "failed"
+        done/total: how many checks have finished
+        tools: the tools still being checked, or the ones that failed
+    Never blocks: a check is only read once it is done.
+    """
+    checks = list(_prepare_tool_checks)
+    if not checks:
+        return None
+
+    pending = [check for check in checks if check.running()]
+    if pending:
+        return {
+            "status": "running",
+            "done": len(checks) - len(pending),
+            "total": len(checks),
+            "tools": [check.tool for check in pending],
+        }
+
+    failed = [check for check in checks if not check.result()[0]]
+    return {
+        "status": "failed" if failed else "passed",
+        "done": len(checks),
+        "total": len(checks),
+        "tools": [check.tool for check in failed],
+    }
+
+
+def _report_tool_check_failures(state):
+    """Add the failed checks to the diagnostics, once per run."""
+    global _prepare_tool_check_reported
+    if _prepare_tool_check_reported or not state or state["status"] == "running":
+        return
+    _prepare_tool_check_reported = True
+    for check in _prepare_tool_checks:
+        if not check.result()[0]:
+            _prepare_messages.add("error", check.failure_message())
+
+
+def _tool_check_card(state):
+    """The eda tool check as a stat card, next to the job counts: a live
+    "checking" state while the tool starts up, then passed/failed."""
+    if state["status"] == "running":
+        glyph, style = "⧗", "incomplete"
+        count = f"{state['done']}/{state['total']}" if state["total"] > 1 else "…"
+        label = "Checking " + ", ".join(state["tools"])
+    elif state["status"] == "failed":
+        glyph, style = "✗", "failed"
+        count = str(len(state["tools"]))
+        label = "EDA tool not found: " + ", ".join(state["tools"])
+    else:
+        glyph, style = "✓", "passed"
+        count = str(state["total"])
+        label = "EDA tool ready" if state["total"] == 1 else "EDA tools ready"
+
+    return html.Div(
+        [
+            html.Div(glyph, className="xpa-stat-glyph"),
+            html.Div(
+                [
+                    html.Div(count, className="xpa-stat-count"),
+                    html.Div(label, className="xpa-stat-label"),
+                ],
+                className="xpa-stat-text",
+            ),
+        ],
+        className="xpa-stat-card xpa-" + style,
+    )
 
 
 def _prepare_progress_bar():
@@ -284,6 +378,10 @@ def _plan_header(plan):
         _plan_category_card(category, counts[category], total)
         for category in run_report.SEVERITY_ORDER if counts[category]
     )
+
+    tool_check = _tool_check_state()
+    if tool_check is not None:
+        cards.append(_tool_check_card(tool_check))
 
     return html.Div(children=cards, className="jobs-plan-stats xpa-stats")
 
@@ -554,6 +652,12 @@ def _run_popup_body(status):
 
     if plan:
         children.append(_plan_header(plan))
+    else:
+        # The eda tool check outlives the check phase: show its card even when
+        # there is no plan to display yet.
+        tool_check = _tool_check_state()
+        if tool_check is not None:
+            children.append(html.Div([_tool_check_card(tool_check)], className="jobs-plan-stats xpa-stats"))
 
     children.append(_section("Diagnostics", _message_rows(_prepare_messages)))
     if plan:
@@ -573,7 +677,14 @@ def _run_popup_render_key(status):
     user while they are reading them.
     """
     plan = _prepare_plan()
-    return "|".join([str(status), str(len(plan) if plan else 0), str(len(_prepare_messages))])
+    tool_check = _tool_check_state() or {}
+    return "|".join([
+        str(status),
+        str(len(plan) if plan else 0),
+        str(len(_prepare_messages)),
+        str(tool_check.get("status")),
+        str(tool_check.get("done")),
+    ])
 
 
 def _normalize_session_selector(value: Optional[str]) -> Optional[str]:
@@ -634,6 +745,7 @@ def _run_check_custom_freq_settings(
                 debug=False,
                 keep=False,
                 cancel_event=_prepare_cancel_event,
+                tool_check_sink=_collect_tool_check,
             )
         _prepare_status = {"status": "checked", "error": None}
     except run_range_synthesis.SynthesisCancelled:
@@ -676,6 +788,7 @@ def _run_check_fmax_settings(
                 debug=False,
                 keep=False,
                 cancel_event=_prepare_cancel_event,
+                tool_check_sink=_collect_tool_check,
             )
         _prepare_status = {"status": "checked", "error": None}
     except run_fmax_synthesis.SynthesisCancelled:
@@ -714,6 +827,7 @@ def _run_check_analysis_settings(
                 debug=False,
                 keep=False,
                 cancel_event=_prepare_cancel_event,
+                tool_check_sink=_collect_tool_check,
             )
         _prepare_status = {"status": "checked", "error": None}
     except run_analysis.AnalysisCancelled:
@@ -1384,7 +1498,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
     Output({"page": page_path, "action": "session-dropdown"}, "options"),
     Output({"page": page_path, "action": "session-dropdown"}, "value"),
     Input(f"url_{page_path}", "search"),
-    Input("run-log-interval", "n_intervals"),
+    Input("session-list-interval", "n_intervals"),
     State({"page": page_path, "action": "session-dropdown"}, "value"),
 )
 def update_session_dropdown(_search, _n, current_value):
@@ -2646,7 +2760,16 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened, render_key):
         current_status = run_status.get("status")
 
     if current_status in ("checking", "checked", "preparing", "prepared", "launched", "error"):
-        button_class = "color-button success icon-button" if current_status == "checked" else "color-button disabled icon-button"
+        # The settings are checked and the plan is displayed, but the eda tool
+        # check runs in the background: Start only lights up once it passed.
+        tool_check = _tool_check_state()
+        _report_tool_check_failures(tool_check)
+        tool_ready = tool_check is None or tool_check["status"] == "passed"
+        button_class = (
+            "color-button success icon-button"
+            if current_status == "checked" and tool_ready
+            else "color-button disabled icon-button"
+        )
         redirect_href = dash.no_update
         # Progress of the job-preparation phase (only meaningful once the run
         # is confirmed; the state is reset at the start of every run).
@@ -2739,6 +2862,12 @@ def confirm_prepare_jobs(n_clicks, run_status):
         raise dash.exceptions.PreventUpdate
 
     if not run_status or run_status.get("status") != "checked":
+        raise dash.exceptions.PreventUpdate
+
+    # The Start button is only enabled once the background eda tool check
+    # passed; guard the callback too, in case it is triggered anyway.
+    tool_check = _tool_check_state()
+    if tool_check is not None and tool_check["status"] != "passed":
         raise dash.exceptions.PreventUpdate
 
     global _prepare_exec_thread
@@ -2892,7 +3021,11 @@ layout = html.Div(
         dcc.Store(id="run-popup-opened", data=False),
         dcc.Store(id="run-popup-render-key", data=""),
         dcc.Location(id="run-redirect", refresh=True),
+        # The run popup is polled fast; listing the daemon sessions is a much
+        # slower, network-bound refresh and must not share that timer, or a slow
+        # discovery delays the popup updates.
         dcc.Interval(id="run-log-interval", interval=500, n_intervals=0),
+        dcc.Interval(id="session-list-interval", interval=3000, n_intervals=0),
         html.Div(
             id="run-popup",
             className="overlay-odatix",
