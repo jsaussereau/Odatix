@@ -1,0 +1,82 @@
+##############################################
+# Settings for Fusion Compiler
+##############################################
+
+process_group: True
+
+# Default metrics file for this tool
+default_metrics_file: $eda_tools_path/fusion_compiler/metrics.yml
+
+unix:
+
+  # Optional constants (anchors) for reuse
+  constants:
+    - &fc_unix fc_shell
+    - &fc_args -x
+
+  # Command to check if the tool is installed
+  tool_test_command:
+    - *fc_unix
+    - *fc_args
+    - "exit"
+
+  # Command for RTL analysis
+  analysis_command:
+    - cd $work_path;
+    - *fc_unix
+    - "-output_log_file log/analysis.log"
+    - *fc_args
+    - "'set odatix_mode analysis; source scripts/init_script.tcl; source scripts/analyze_script.tcl; quit'"
+
+  # Command for fmax synthesis
+  fmax_synthesis_command:
+    - cd $work_path;
+    - *fc_unix
+    - "-output_log_file log/fmax.log"
+    - *fc_args
+    - "'set synthesis_mode physical; source scripts/init_script.tcl; source scripts/find_fmax.tcl; quit'"
+
+  # Command for custom frequency synthesis
+  custom_freq_synthesis_command:
+    - cd $work_path;
+    - *fc_unix
+    - "-output_log_file log/custom_freq.log"
+    - *fc_args
+    - "'set synthesis_mode logical; source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
+
+# Log formatting
+format:
+
+  # Format the whole log line
+  logs:
+    error:         ['<error>', 'Error:']
+    warning:       ['<warning>', 'Warning:']
+    info:          ['<note>', 'Information:']
+    trace:         ['<trace>', 'Command:']
+
+  # Format tags (replaced by the corresponding format escape code)
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    black:         ['<black>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    blue:          ['<blue>']
+    magenta:       ['<magenta>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+    white:         ['<lgrey>']
+    light_red:     ['<lred>']
+    light_green:   ['<lgreen>']
+    light_yellow:  ['<lyellow>']
+    light_blue:    ['<lblue>']
+    light_magenta: ['<lmagenta>']
+    light_cyan:    ['<lcyan>']
+    light_white:   ['<white>']
+
+  # Replace sequences (regular expressions)
+  replace:
+    - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
+    - "(Slack \\(MET\\))": "<green>$1<end>"
+    - "(.* completed successfully)": "<green>$1<end>"
