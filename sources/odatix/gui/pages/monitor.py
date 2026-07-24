@@ -241,6 +241,12 @@ def _format_monitor_error(error, daemon_state: Optional[dict] = None):
         return str(error) + " (add ?session=<session_name_or_prefix> to the monitor URL)"
 
     if isinstance(error, daemon_control.DaemonControlError):
+        # The selected session is gone (e.g. just stopped) and no other session
+        # is available: guide the user instead of showing the raw selector error.
+        if "No session matches" in str(error):
+            return (
+                "This session is no longer running. "
+            )
         return str(error)
 
     if isinstance(error, requests.RequestException):
@@ -533,6 +539,11 @@ def _update_session_dropdown(_n, last_action, search, current_value, daemon_stat
         selected = None
 
     query_session = _monitor_query(search).get("session")
+    # After a shutdown, the URL still points at the (now dead) session. Do not
+    # keep preferring it: fall back to any other available session below, so the
+    # monitor lands on a live session instead of "No session matches".
+    if session_stopped:
+        query_session = None
     if selected is None:
         selected = _pick_session_value(daemons, query_session)
 
