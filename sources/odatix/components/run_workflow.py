@@ -49,7 +49,8 @@ from odatix.lib.wosit import createTaskGraph
 
 script_name = os.path.basename(__file__)
 WORKFLOW_META_FILENAME = "workflow_meta.yml"
-WORKFLOW_COMMAND_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+# Both ${name} (group 1) and bare $name (group 2) command placeholders.
+WORKFLOW_COMMAND_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
 WORKFLOW_VIRTUAL_DOMAIN_SAFE_VALUE_PATTERN = re.compile(r"[^A-Za-z0-9_.-]")
 
 
@@ -369,7 +370,7 @@ def _replace_workflow_command_vars(value, substitutions):
         return value
 
     def _replace_var(match):
-        var_name = match.group(1)
+        var_name = match.group(1) if match.group(1) is not None else match.group(2)
         return substitutions.get(var_name, match.group(0))
 
     return WORKFLOW_COMMAND_VAR_PATTERN.sub(_replace_var, value)
