@@ -36,7 +36,8 @@
  */
 
 (function () {
-  var VAR_PATTERN = /\$\{([^}]*)\}/g;
+  // Both ${name} (group 1) and bare $name (group 2, a shell-style identifier).
+  var VAR_PATTERN = /\$\{([^}]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
 
   // Style properties the mirror must share with the textarea so the text wraps
   // at exactly the same place and the colors land under the real characters.
@@ -108,8 +109,9 @@
     VAR_PATTERN.lastIndex = 0;
     while ((match = VAR_PATTERN.exec(text)) !== null) {
       html += escapeHtml(text.slice(lastIndex, match.index));
-      var cls = classFor(match[1], variables, domains);
-      var name = match[1].trim();
+      var rawName = match[1] !== undefined ? match[1] : match[2];
+      var cls = classFor(rawName, variables, domains);
+      var name = rawName.trim();
       var tip = (name ? name + ": " : "") + KINDS[cls];
       html +=
         '<span class="wf-hl-token ' + cls + '" data-wf-hl-tip="' + escapeHtml(tip) + '">'
