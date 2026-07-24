@@ -25,6 +25,7 @@ import threading
 import io
 import contextlib
 import itertools
+import tempfile
 from urllib.parse import quote
 import dash
 from dash import html, dcc, Input, Output, State, ctx
@@ -123,11 +124,21 @@ _prepare_enqueue_lock = threading.Lock()
 # (see _tool_check_state and the "EDA tool" stat card of the run popup).
 _prepare_tool_checks = []
 _prepare_tool_check_reported = False
+# Temporary settings file written from the current (unsaved) page state so a run
+# uses it without saving; removed at the start of the next run.
+_prepare_temp_settings_file = None
 
 def _reset_prepare_state():
     global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_monitor_href
     global _prepare_check_data, _prepare_messages, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
-    global _prepare_tool_checks, _prepare_tool_check_reported
+    global _prepare_tool_checks, _prepare_tool_check_reported, _prepare_temp_settings_file
+    # Remove the previous run's temporary settings file, if any.
+    if _prepare_temp_settings_file:
+        try:
+            os.remove(_prepare_temp_settings_file)
+        except OSError:
+            pass
+        _prepare_temp_settings_file = None
     _prepare_cancel_event = threading.Event()
     _prepare_log_buffer = _ThreadSafeBuffer()
     _prepare_status = {"status": "checking", "error": None}
@@ -1024,6 +1035,100 @@ def _job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limi
         "ask_continue": _checklist_enabled(ask_continue),
         "exit_when_done": _checklist_enabled(exit_when_done),
     }
+
+def _collect_run_settings(
+    run_mode,
+    selection_key,
+    switch_values,
+    switch_ids,
+    preview_values,
+    preview_ids,
+    overwrite,
+    force_single_thread,
+    nb_jobs,
+    auto_nb_jobs,
+    log_size_limit,
+    ask_continue,
+    exit_when_done,
+    override_arch_frequencies,
+    use_custom_freq_list,
+    target_frequencies,
+    use_custom_freq_range,
+    from_frequency,
+    to_frequency,
+    step_frequency,
+    lower_bound,
+    upper_bound,
+    analysis_tools,
+) -> dict:
+    """
+    Build the settings dict that reflects the current, possibly unsaved, state of
+    the page: the enabled architectures/configurations, the job settings, and the
+    mode-specific frequency/tool fields. Shared by the "Save" callback and the
+    "Run" callback (which writes it to a temporary file to run without saving).
+    """
+    preview_by_arch = {}
+    for val, pid in zip(preview_values or [], preview_ids or []):
+        arch = pid.get("arch") if isinstance(pid, dict) else None
+        if arch:
+            preview_by_arch[arch] = list(val or [])
+
+    architectures = []
+    for val, sid in zip(switch_values or [], switch_ids or []):
+        arch = sid.get("arch") if isinstance(sid, dict) else None
+        if arch and bool(val):
+            for item in preview_by_arch.get(arch, []):
+                if item is not None:
+                    architectures.append(str(item))
+    # Remove duplicates but keep order
+    architectures = list(dict.fromkeys(architectures))
+
+    current_settings = {
+        selection_key: architectures,
+        **_job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done, auto_nb_jobs=auto_nb_jobs),
+    }
+    if run_mode == "custom_freq_synthesis":
+        current_settings["frequencies"] = workspace.create_custom_frequencies_settings_dict(
+            _checklist_enabled(override_arch_frequencies),
+            target_frequencies,
+            from_frequency,
+            to_frequency,
+            step_frequency,
+            use_custom_freq_list=_checklist_enabled(use_custom_freq_list),
+            use_custom_freq_range=_checklist_enabled(use_custom_freq_range),
+        )
+    if run_mode == "fmax_synthesis":
+        current_settings["fmax_synthesis"] = workspace.create_fmax_bounds_settings_dict(
+            lower_bound,
+            upper_bound,
+            override_enabled=_checklist_enabled(override_arch_frequencies),
+        )
+    if run_mode == "analyze":
+        current_settings["tools"] = [tool for tool in (analysis_tools or []) if tool]
+
+    return current_settings
+
+
+def _write_temp_run_settings(settings_path, current_settings, run_mode, use_custom_freq_list, use_custom_freq_range):
+    """
+    Write the current (unsaved) page settings to a temporary settings file so a
+    run can use them without touching the real settings file, and return its
+    path. The real file's other keys are preserved (loaded and overlaid).
+    """
+    base_settings = workspace.load_arch_selection_settings(settings_path) if settings_path else {}
+    payload = {**(base_settings or {}), **current_settings}
+
+    fd, temp_path = tempfile.mkstemp(prefix="odatix_run_", suffix=".yml")
+    os.close(fd)
+    workspace.save_architecture_selection(
+        temp_path,
+        payload,
+        run_mode=run_mode,
+        use_custom_freq_list=use_custom_freq_list,
+        use_custom_freq_range=use_custom_freq_range,
+    )
+    return temp_path
+
 
 def _job_settings_baseline(settings: dict) -> dict:
     """Job Settings as loaded from the settings file (used for the saved
@@ -2291,55 +2396,34 @@ def save_architecture_selections(
     if triggered_id == f"url_{page_path}" and page != page_path:
         return dash.no_update, dash.no_update, dash.no_update
 
-    preview_by_arch = {}
-    for val, pid in zip(preview_values or [], preview_ids or []):
-        arch = pid.get("arch") if isinstance(pid, dict) else None
-        if arch:
-            preview_by_arch[arch] = list(val or [])
-
-    enabled_archs = []
-    for val, sid in zip(switch_values or [], switch_ids or []):
-        arch = sid.get("arch") if isinstance(sid, dict) else None
-        is_enabled = bool(val)
-        if arch and is_enabled:
-            enabled_archs.append(arch)
-
-    architectures = []
-    for arch in enabled_archs:
-        selections = preview_by_arch.get(arch, [])
-        for item in selections:
-            if item is None:
-                continue
-            architectures.append(str(item))
-
-    # Remove duplicates but keep order
-    architectures = list(dict.fromkeys(architectures))
-
     context = _run_context(search, odatix_settings)
     run_mode = get_key_from_url(search, "type")
     selection_key = context["selection_key"]
-    current_settings = {
-        selection_key: architectures,
-        **_job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done, auto_nb_jobs=auto_nb_jobs),
-    }
-    if run_mode == "custom_freq_synthesis":
-        current_settings["frequencies"] = workspace.create_custom_frequencies_settings_dict(
-            _checklist_enabled(override_arch_frequencies),
-            target_frequencies,
-            from_frequency,
-            to_frequency,
-            step_frequency,
-            use_custom_freq_list=_checklist_enabled(use_custom_freq_list),
-            use_custom_freq_range=_checklist_enabled(use_custom_freq_range),
-        )
-    if run_mode == "fmax_synthesis":
-        current_settings["fmax_synthesis"] = workspace.create_fmax_bounds_settings_dict(
-            lower_bound,
-            upper_bound,
-            override_enabled=_checklist_enabled(override_arch_frequencies),
-        )
-    if run_mode == "analyze":
-        current_settings["tools"] = [tool for tool in (analysis_tools or []) if tool]
+    current_settings = _collect_run_settings(
+        run_mode,
+        selection_key,
+        switch_values,
+        switch_ids,
+        preview_values,
+        preview_ids,
+        overwrite,
+        force_single_thread,
+        nb_jobs,
+        auto_nb_jobs,
+        log_size_limit,
+        ask_continue,
+        exit_when_done,
+        override_arch_frequencies,
+        use_custom_freq_list,
+        target_frequencies,
+        use_custom_freq_range,
+        from_frequency,
+        to_frequency,
+        step_frequency,
+        lower_bound,
+        upper_bound,
+        analysis_tools,
+    )
 
     if isinstance(saved_selection, dict):
         saved_settings = saved_selection
@@ -2459,6 +2543,21 @@ def close_run_popup(n):
     State("exit_when_done", "value"),
     State("log_size_limit", "value"),
     State("analysis-tools", "value"),
+    # Live architecture/configuration selection and frequency fields, so the run
+    # uses the current (possibly unsaved) page state (written to a temp file).
+    State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
+    State({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
+    State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
+    State("override-arch-frequencies", "value"),
+    State("use-custom-freq-list", "value"),
+    State("target_frequencies", "value"),
+    State("use-custom-freq-range", "value"),
+    State("from_frequency", "value"),
+    State("to_frequency", "value"),
+    State("step_frequency", "value"),
+    State("lower_bound", "value"),
+    State("upper_bound", "value"),
     State({"page": page_path, "action": "session-dropdown"}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
@@ -2475,6 +2574,19 @@ def run_jobs(
     exit_when_done,
     log_size_limit,
     analysis_tools,
+    switch_values,
+    switch_ids,
+    preview_values,
+    preview_ids,
+    override_arch_frequencies,
+    use_custom_freq_list,
+    target_frequencies,
+    use_custom_freq_range,
+    from_frequency,
+    to_frequency,
+    step_frequency,
+    lower_bound,
+    upper_bound,
     selected_session,
     search,
     page,
@@ -2499,7 +2611,8 @@ def run_jobs(
     tool = get_key_from_url(search, "tool") or "vivado"
 
     # arch_path for architecture modes, workflow_path for workflow mode
-    base_path = _run_context(search, odatix_settings)["base_path"]
+    run_context = _run_context(search, odatix_settings)
+    base_path = run_context["base_path"]
     target_path = settings.get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
     work_path_root = settings.get("work_path", OdatixSettings.DEFAULT_WORK_PATH)
     # Per-job export destination + options (au fil de l'eau, see prepare_* funcs).
@@ -2534,8 +2647,51 @@ def run_jobs(
     _prepare_runtime_settings = {
         "session": _normalize_session_selector(selected_session),
     }
+
+    # Run with the current (possibly unsaved) page state: collect it and write it
+    # to a temporary settings file, used as the run settings file below, without
+    # touching the real one. Falls back to the real file if that fails.
+    global _prepare_temp_settings_file
+    temp_settings_file = None
+    try:
+        current_settings = _collect_run_settings(
+            run_mode,
+            run_context["selection_key"],
+            switch_values,
+            switch_ids,
+            preview_values,
+            preview_ids,
+            overwrite,
+            force_single_thread,
+            nb_jobs,
+            auto_nb_jobs,
+            log_size_limit,
+            ask_continue,
+            exit_when_done,
+            override_arch_frequencies,
+            use_custom_freq_list,
+            target_frequencies,
+            use_custom_freq_range,
+            from_frequency,
+            to_frequency,
+            step_frequency,
+            lower_bound,
+            upper_bound,
+            analysis_tools,
+        )
+        temp_settings_file = _write_temp_run_settings(
+            run_context["settings_path"],
+            current_settings,
+            run_mode,
+            _checklist_enabled(use_custom_freq_list),
+            _checklist_enabled(use_custom_freq_range),
+        )
+    except Exception:
+        temp_settings_file = None
+    _prepare_temp_settings_file = temp_settings_file
+
     if run_mode == "custom_freq_synthesis":
-        run_config_settings_filename = settings.get(
+        run_config_settings_filename = temp_settings_file or settings.get(
             "custom_freq_synthesis_settings_file",
             OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
         )
@@ -2573,7 +2729,7 @@ def run_jobs(
         )
         _prepare_thread.start()
     elif run_mode == "fmax_synthesis":
-        run_config_settings_filename = settings.get(
+        run_config_settings_filename = temp_settings_file or settings.get(
             "fmax_synthesis_settings_file",
             OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
         )
@@ -2614,7 +2770,7 @@ def run_jobs(
         )
         _prepare_thread.start()
     elif run_mode == "workflow":
-        run_config_settings_filename = settings.get(
+        run_config_settings_filename = temp_settings_file or settings.get(
             "workflow_settings_file",
             OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE,
         )
@@ -2646,7 +2802,7 @@ def run_jobs(
         )
         _prepare_thread.start()
     elif run_mode == "analyze":
-        run_config_settings_filename = settings.get(
+        run_config_settings_filename = temp_settings_file or settings.get(
             "analysis_settings_file",
             OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE,
         )
@@ -2885,6 +3041,41 @@ def confirm_prepare_jobs(n_clicks, run_status):
 
     return {**run_status, "status": "preparing"}, "Preparing jobs...", "color-button disabled icon-button"
 
+
+# Launching a run from the popup navigates to the monitor on purpose (with the
+# current, possibly unsaved, config): tell the unsaved-changes guard to skip its
+# "leave without saving?" prompt for that navigation.
+dash.clientside_callback(
+    """
+    function(n_clicks) {
+        if (n_clicks) {
+            window.__odatixSkipUnsavedGuard = true;
+        }
+        return "";
+    }
+    """,
+    Output("unsaved-guard-bypass", "data"),
+    Input("run-confirm-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+# Restore the guard if the run does not end up navigating away (error/canceled),
+# so unsaved changes are protected again.
+dash.clientside_callback(
+    """
+    function(run_status) {
+        var status = run_status && run_status.status;
+        if (status === "error" || status === "canceled") {
+            window.__odatixSkipUnsavedGuard = false;
+        }
+        return "";
+    }
+    """,
+    Output("unsaved-guard-bypass", "data", allow_duplicate=True),
+    Input("jobs-config-run-status", "data"),
+    prevent_initial_call=True,
+)
+
 # Point the "Choose Targets" button to the current EDA tool
 @dash.callback(
     Output({"page": page_path, "action": "choose-targets", "is_link": True}, "href"),
@@ -3020,6 +3211,7 @@ layout = html.Div(
         dcc.Store(id="jobs-config-run-status", data=None),
         dcc.Store(id="run-popup-opened", data=False),
         dcc.Store(id="run-popup-render-key", data=""),
+        dcc.Store(id="unsaved-guard-bypass", data=""),
         dcc.Location(id="run-redirect", refresh=True),
         # The run popup is polled fast; listing the daemon sessions is a much
         # slower, network-bound refresh and must not share that timer, or a slow
