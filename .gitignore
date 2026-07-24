@@ -13,6 +13,7 @@ odatix_venv/
 
 # Work
 work/*
+log/
 
 # Vivado
 **/.Xil
