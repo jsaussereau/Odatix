@@ -26,10 +26,9 @@ import uuid
 import random
 
 import odatix.gui.ui_components as ui
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_instance_mode, get_instance_context
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
 import odatix.components.replace_params as replace_params
 import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
@@ -62,11 +61,40 @@ def split_by_domain(flat_list, lengths):
 def get_uuid():
     return str(uuid.uuid4())
 
-def generate_config_link(arch_name: str = "", domain_name: str = "") -> str:
+def config_title_error(title, other_titles, initial_title):
+    """
+    Reason why a configuration cannot be saved under `title`, or None if it is valid.
+    `other_titles` is the list of the names already in use (the config's own current
+    name included, hence the `initial_title` exception).
+    """
+    if not title:
+        return "Configuration name cannot be empty"
+    for c in hard_settings.invalid_filename_characters:
+        if c in title:
+            c = "' ' (space)" if c == " " else f"'{c}'"
+            return f"Unauthorized character in configuration name: {c}"
+    if title in other_titles and title != initial_title:
+        return "A configuration with this name already exists in the domain."
+    return None
+
+def params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings):
+    """Whether the configuration parameters form differs from the saved settings."""
+    if domain_settings is None:
+        domain_settings = {}
+    use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
+    return (
+        use_parameters != domain_settings.get("use_parameters", True)
+        or param_target_file != domain_settings.get("param_target_file", "")
+        or start_delimiter != domain_settings.get("start_delimiter", "")
+        or stop_delimiter != domain_settings.get("stop_delimiter", "")
+    )
+
+def generate_config_link(mode: str, instance_name: str = "", domain_name: str = "") -> str:
+    key = "workflow" if mode == "workflow" else "arch"
     if domain_name:
-        return f"/config_generator?arch={arch_name}&domain={domain_name}"
+        return f"/config_generator?{key}={instance_name}&domain={domain_name}"
     else:
-        return f"/config_generator?arch={arch_name}"
+        return f"/config_generator?{key}={instance_name}"
 
 ######################################
 # UI Components
@@ -189,23 +217,32 @@ def add_card(text: str = "Add design configuration", domain_uuid: str = hard_set
         },
     )
 
-def architecture_title(arch_name:str=""):
+def instance_title(mode:str="arch", instance_name:str=""):
+    if mode == "workflow":
+        back_link = "/workflows"
+        settings_link = f"/workflow_editor?workflow={instance_name}"
+        settings_text = "Workflow Settings"
+    else:
+        back_link = "/architectures"
+        settings_link = f"/arch_editor?arch={instance_name}"
+        settings_text = "Architecture Settings"
+
     title_content = html.Div(
         children=[
-            html.H3(arch_name, id=f"main_title", style={"marginBottom": "0px"}),
+            html.H3(instance_name, id=f"main_title", style={"marginBottom": "0px"}),
             html.Div(
                 children=[
                     ui.icon_button(
                         id=f"button-open-config-editor",
                         icon=icon("gear", className="icon"),
-                        text="Architecture Settings",
+                        text=settings_text,
                         color="default",
-                        link=f"/arch_editor?arch={arch_name}",
+                        link=settings_link,
                         multiline=True,
                         width="135px",
                     ),
                     dcc.Dropdown(
-                        id="config-layout-dropdown", 
+                        id="config-layout-dropdown",
                         options=[
                             {"label": "Compact Layout", "value": "compact"},
                             {"label": "Normal Layout", "value": "normal"},
@@ -214,6 +251,11 @@ def architecture_title(arch_name:str=""):
                         value="normal",
                         clearable=False,
                         style={"width": "155px"},
+                    ),
+                    ui.save_button(
+                        id={"page": page_path, "action": "save-all"},
+                        tooltip="Save all changes",
+                        disabled=True,
                     ),
                 ],
                 className="inline-flex-buttons",
@@ -227,7 +269,7 @@ def architecture_title(arch_name:str=""):
             "justifyContent": "space-between",
         }
     )
-    back_btn = ui.back_button(link="/architectures")
+    back_btn = ui.back_button(link=back_link)
     return html.Div([
         html.Div(style={"display": "none"}),
         html.Div(style={"display": "none"}),
@@ -241,10 +283,10 @@ def architecture_title(arch_name:str=""):
             style={"position": "relative"},
         )],
         className="card-matrix config",
-        style={"marginLeft": "-13px", "marginBottom": "0px"},
+        style={"marginBottom": "0px"},
     )
 
-def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, domain_uuid:str=hard_settings.main_parameter_domain, arch_name:str=""):
+def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, domain_uuid:str=hard_settings.main_parameter_domain, mode:str="arch", instance_name:str=""):
     if domain_uuid == hard_settings.main_parameter_domain:
         text = "Main parameter domain"
         buttons = html.Div(
@@ -254,7 +296,7 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
                     icon=icon("generate", className="icon"),
                     text="Config Generator",
                     color="default",
-                    link=generate_config_link(arch_name=arch_name),
+                    link=generate_config_link(mode=mode, instance_name=instance_name),
                     multiline=True,
                     tooltip="Generate multiple design configurations",
                 ),
@@ -285,7 +327,7 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
                     icon=icon("generate", className="icon"),
                     text="Config Generator",
                     color="default",
-                    link=generate_config_link(arch_name=arch_name, domain_name=domain_name),
+                    link=generate_config_link(mode=mode, instance_name=instance_name, domain_name=domain_name),
                     multiline=True,
                     tooltip="Generate multiple design configurations",
                 ),
@@ -360,7 +402,7 @@ def add_parameter_domain_button(text:str="Main parameter domain"):
         },
     )
 
-def config_parameters_form(domain_uuid, settings):
+def config_parameters_form(domain_uuid, settings, mode="arch"):
     defval = lambda k, v=None: settings.get(k, v)
 
     save_button = html.Div(
@@ -392,17 +434,17 @@ def config_parameters_form(domain_uuid, settings):
                     html.Div([
                         html.Label("Param Target File"),
                         ui.tooltip_icon("The file used as the target for parameter replacement. This is typically the top-level design file or a design configuration file."),
-                        dcc.Input(id={"type": "param_target_file", "domain_uuid": domain_uuid}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default", style={"width": "95%"}),
+                        dcc.Input(id={"type": "param_target_file", "domain_uuid": domain_uuid}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default" if mode == "arch" else "", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Start Delimiter"),
                         ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file."),
-                        dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "95%"}),
+                        dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Stop Delimiter"),
                         ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file."),
-                        dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "95%"}),
+                        dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                 ],
                 id={"type": "params-config-fields", "domain_uuid": domain_uuid}, className="animated-section" if use_parameters else "animated-section hide",
@@ -411,26 +453,35 @@ def config_parameters_form(domain_uuid, settings):
         ]
     )
 
-def preview_pane(domain_uuid:str, settings: dict, domain_settings: dict, replacement_text: str):
+def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str):
     use_parameters = domain_settings.get("use_parameters", True)
     if not use_parameters:
         return preview_div(html.Div("Parameter replacement disabled.", style={"color": "#888"}))
     param_target_file = domain_settings.get("param_target_file", "")
-    generate_rtl = settings.get("generate_rtl", False)
-    generate_rtl = True if generate_rtl else False # Convert from [True]/[] to True/False
-    if generate_rtl:
-        base_path = settings.get("design_path", "")
+
+    if mode == "workflow":
+        sources = settings.get("sources", {})
+        base_path = sources.get("path", "") if isinstance(sources, dict) else ""
         if not base_path:
-            return preview_div(html.Div("No design path specified in architecture settings. Unable to preview.", className="error"))
+            return preview_div(html.Div("No source path specified in workflow settings. Unable to preview.", className="error"))
         if param_target_file == "":
-            param_target_file = settings.get("top_level_file", "")
+            param_target_file = settings.get("param_target_file", "")
     else:
-        rtl_path = settings.get("rtl_path", "")
-        if not rtl_path:
-            return preview_div(html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error"))
-        base_path = rtl_path
-        if param_target_file == "":
-            param_target_file = os.path.join(settings.get("top_level_file", ""))
+        generate_rtl = settings.get("generate_rtl", False)
+        generate_rtl = True if generate_rtl else False # Convert from [True]/[] to True/False
+        if generate_rtl:
+            base_path = settings.get("design_path", "")
+            if not base_path:
+                return preview_div(html.Div("No design path specified in architecture settings. Unable to preview.", className="error"))
+            if param_target_file == "":
+                param_target_file = settings.get("top_level_file", "")
+        else:
+            rtl_path = settings.get("rtl_path", "")
+            if not rtl_path:
+                return preview_div(html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error"))
+            base_path = rtl_path
+            if param_target_file == "":
+                param_target_file = os.path.join(settings.get("top_level_file", ""))
     param_target_file = os.path.join(base_path, param_target_file)
     if os.path.isfile(param_target_file):
         base_text = replace_params.read_file(param_target_file)
@@ -502,21 +553,22 @@ def preview_pane(domain_uuid:str, settings: dict, domain_settings: dict, replace
             id={"type": "preview-pre", "domain_uuid": domain_uuid},
             className="preview-pane",
             style={
-                "width": "95%",
-                "max-width": "600px",
-                "height": "235px",
-                "min-height": "235px",
+                "width": "100%",
+                "height": "270px",
+                "min-height": "270px",
                 "fontFamily": "monospace",
                 "fontWeight": "normal",
                 "padding": "5px",
                 "overflow": "auto",
                 "whiteSpace": "pre-wrap",
                 "resize": "vertical",
+                "box-sizing": "border-box",
             }
         )
     else:
         if base_path == "" or param_target_file == "":
-            text = f"Invalid architecture settings. Unable to preview."
+            label = "workflow" if mode == "workflow" else "architecture"
+            text = f"Invalid {label} settings. Unable to preview."
         elif settings == {}:
             text = f"No settings found."
         else:
@@ -532,7 +584,7 @@ def preview_div(content):
         ], 
     )
 
-def domain_section(domain: str, arch_name: str = "", settings: dict = {}, domain_uuid=None):
+def domain_section(domain: str, mode: str = "arch", instance_name: str = "", settings: dict = {}, domain_uuid=None):
     # Generate a unique UUID for non-main domains
     if not domain_uuid:
         domain_uuid = get_uuid() if domain != hard_settings.main_parameter_domain else domain
@@ -549,25 +601,23 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}, domain
             html.Div(
                 children=[
                     *title_hidden_divs,
-                    parameter_domain_title(domain_name=domain, domain_uuid=domain_uuid, arch_name=arch_name)
+                    parameter_domain_title(domain_name=domain, domain_uuid=domain_uuid, mode=mode, instance_name=instance_name)
                 ], 
                 id=f"param-domain-title-div-{domain_uuid}",
                 className="card-matrix config",
-                style={"marginLeft": "-13px"},
             ),
             html.Div(
                 children=[
                     *content_hidden_divs,
                     html.Div(
                         children=[
-                            config_parameters_form(domain_uuid, settings),
+                            config_parameters_form(domain_uuid, settings, mode),
                         ],
                         id={"type": "config-parameters", "domain_uuid": domain_uuid}, 
                         className="tile config"),
                     html.Div(id={"type": "preview-pane", "domain_uuid": domain_uuid}, className="tile config"),
                 ], 
                 className="card-matrix config",
-                style={"marginLeft": "-13px"},
             ),
             html.Div([
                 html.Div(
@@ -594,16 +644,16 @@ def domain_section(domain: str, arch_name: str = "", settings: dict = {}, domain
     preview_initial_call=True
 )
 def update_main_domain_title(_, search):
-    arch_name = get_key_from_url(search, "arch")
-    if not arch_name:
-        return "No architecture selected.", dash.no_update
-    return parameter_domain_title(domain_uuid=hard_settings.main_parameter_domain, arch_name=arch_name)
+    mode, instance_name = get_instance_mode(search)
+    if not instance_name:
+        return "No architecture or workflow selected."
+    return parameter_domain_title(domain_uuid=hard_settings.main_parameter_domain, mode=mode, instance_name=instance_name)
 
 @dash.callback(
     Output("param-domains-section", "children"),
     Output("param-domains-section-initialized", "data"),
     Output("param-domains-section-update", "data"),
-    Input({"page": page_path, "type": "architecture-title-div"}, "children"), # Trigger when title is loaded
+    Input({"page": page_path, "type": "instance-title-div"}, "children"), # Trigger when title is loaded
     State("url", "search"),
     State("url", "pathname"),
     Input({"action": "add-domain", "type": dash.ALL}, "n_clicks"),
@@ -624,15 +674,13 @@ def update_param_domains(
         if page != page_path:
             return dash.no_update, dash.no_update, dash.no_update
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_key_from_url(search, "arch")
-    if not arch_name:
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    if not instance_name:
         return html.Div(
             children=[
-                html.Div("No architecture selected.", className="error")
+                html.Div("No architecture or workflow selected.", className="error")
             ],
             className="card-matrix config",
-            style={"marginLeft": "-13px"},
         ), dash.no_update, dash.no_update
 
     add_domain_div = html.Div(
@@ -640,28 +688,27 @@ def update_param_domains(
             add_parameter_domain_button("Add new parameter domain")
         ],
         className="card-matrix config",
-        style={"marginLeft": "-13px"},
     )
 
-    if not workspace.architecture_exists(arch_path, arch_name):
+    if not workspace.instance_exists(base_path, instance_name):
         domain_sections = []
-        domain_sections.append(domain_section(hard_settings.main_parameter_domain, arch_name, settings={}))
+        domain_sections.append(domain_section(hard_settings.main_parameter_domain, mode, instance_name, settings={}))
         domain_sections.append(add_domain_div)
         return domain_sections, dash.no_update, dash.no_update
 
-    domains = workspace.get_param_domains(arch_path, arch_name)
+    domains = workspace.get_param_domains(base_path, instance_name)
 
     # Generate domain sections
-    if triggered_id == {"page": page_path, "type": "architecture-title-div"}:
+    if triggered_id == {"page": page_path, "type": "instance-title-div"}:
         domain_sections = []
-        settings = workspace.load_architecture_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
-        domain_sections.append(domain_section(hard_settings.main_parameter_domain, settings=settings))
+        settings = workspace.load_instance_domain_settings(base_path, instance_name, hard_settings.main_parameter_domain, kind=mode)
+        domain_sections.append(domain_section(hard_settings.main_parameter_domain, mode, instance_name, settings=settings))
         for domain in domains:
-            settings = workspace.load_architecture_settings(arch_path, arch_name, domain)
-            domain_sections.append(domain_section(domain, arch_name, settings=settings))
+            settings = workspace.load_instance_domain_settings(base_path, instance_name, domain, kind=mode)
+            domain_sections.append(domain_section(domain, mode, instance_name, settings=settings))
         domain_sections.append(add_domain_div)
         return domain_sections, True, dash.no_update
-    
+
     elif isinstance(triggered_id, dict):
         trigger_action = triggered_id.get("action", "")
         # Add a new domain
@@ -672,11 +719,11 @@ def update_param_domains(
             while new_domain in domains:
                 suffix += 1
                 new_domain = f"{base_name}{suffix}"
-            workspace.create_parameter_domain(arch_path, arch_name, new_domain)
-            
+            workspace.create_parameter_domain(base_path, instance_name, new_domain)
+
             # Insert new domain section before the add domain button
             domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
-            domain_sections.append(domain_section(new_domain, arch_name, settings={}))
+            domain_sections.append(domain_section(new_domain, mode, instance_name, settings={}))
             domain_sections.append(add_domain_div)
             return domain_sections, dash.no_update, dash.no_update
 
@@ -706,14 +753,14 @@ def update_param_domains(
                     suffix += 1
                     new_domain = f"{base_name}{suffix}"
                 workspace.duplicate_parameter_domain(
-                    arch_path, arch_name, arch_name, domain_to_duplicate, new_domain
+                    base_path, instance_name, instance_name, domain_to_duplicate, new_domain
                 )
 
                 # Insert new domain section before the add domain button
                 domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
-                new_domain_settings = workspace.load_architecture_settings(arch_path, arch_name, new_domain)
+                new_domain_settings = workspace.load_instance_domain_settings(base_path, instance_name, new_domain, kind=mode)
                 domain_uuid = get_uuid()
-                domain_sections.append(domain_section(new_domain, arch_name, settings=new_domain_settings, domain_uuid=domain_uuid))
+                domain_sections.append(domain_section(new_domain, mode, instance_name, settings=new_domain_settings, domain_uuid=domain_uuid))
                 domain_sections.append(add_domain_div)
                 return domain_sections, dash.no_update, domain_uuid
 
@@ -733,9 +780,9 @@ def update_param_domains(
                     break
             if domain_to_delete_idx and delete_domain_click[domain_to_delete_idx] == 0:
                 return dash.no_update, dash.no_update, dash.no_update
-            
+
             if domain_to_delete and domain_to_delete != hard_settings.main_parameter_domain:
-                workspace.delete_parameter_domain(arch_path, arch_name, domain_to_delete)
+                workspace.delete_parameter_domain(base_path, instance_name, domain_to_delete)
                 if isinstance(domain_sections, list):
                     for i, section in enumerate(domain_sections):
                         domain = section.get("props", {}).get("id", {}).get("domain_uuid", "")
@@ -768,10 +815,9 @@ def update_config_cards(
     config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, update_domain_uuid,
     config_cards_row, title_values, contents, config_metadata, domain_metadata, odatix_settings
 ):
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_key_from_url(search, "arch")
-    if not arch_name:
-        return [html.Div("No architecture selected.", className="error")]
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    if not instance_name:
+        return [html.Div("No architecture or workflow selected.", className="error")]
 
     triggered_id = ctx.triggered_id
     if not isinstance(triggered_id, dict):
@@ -824,7 +870,7 @@ def update_config_cards(
                 for idx in range(1, 1001):
                     new_filename = f"new_config{idx}.txt"
                     if new_filename not in trig_domain_configs:
-                        workspace.save_config_file(arch_path, arch_name, trig_domain_name, new_filename, "")
+                        workspace.save_config_file(base_path, instance_name, trig_domain_name, new_filename, "")
                         config_uuid = get_uuid()
                         config_cards_row[trig_domain_idx].insert(-1, 
                             config_card(
@@ -856,7 +902,7 @@ def update_config_cards(
                             if verbose:
                                 print(f"File '{config_new_title}' already exists.")
                         else:
-                            path = workspace.get_arch_domain_path(arch_path, arch_name, trig_domain_name)
+                            path = workspace.get_arch_domain_path(base_path, instance_name, trig_domain_name)
                             old_path = os.path.join(path, config_old_title)
                             new_path = os.path.join(path, config_new_title)
                             if verbose:
@@ -865,7 +911,7 @@ def update_config_cards(
                             config_old_title = config_new_title
                     if verbose:
                         print(f"Saving config '{config_old_title}' in domain '{trig_domain_name}'")
-                    workspace.save_config_file(arch_path, arch_name, trig_domain_name, config_new_title, trig_config_content)
+                    workspace.save_config_file(base_path, instance_name, trig_domain_name, config_new_title, trig_config_content)
                     config_metadata[trig_config_idx]['config_content'] = trig_config_content
                     config_cards_row[trig_domain_idx][trig_config_idx] = config_card(
                         domain_uuid=trig_domain_uuid,
@@ -878,7 +924,7 @@ def update_config_cards(
                 
                 # Delete config
                 if trig_type == "delete-config":
-                    workspace.delete_config_file(arch_path, arch_name, trig_domain_name, trig_config_name)
+                    workspace.delete_config_file(base_path, instance_name, trig_domain_name, trig_config_name)
                     config_cards_row[trig_domain_idx].pop(trig_config_idx)
 
                 # Duplicate config
@@ -889,7 +935,7 @@ def update_config_cards(
                     while new_filename in trig_domain_configs:
                         suffix += 1
                         new_filename = f"{base}_copy{suffix}.txt"
-                    workspace.save_config_file(arch_path, arch_name, trig_domain_name, new_filename, trig_config_content)
+                    workspace.save_config_file(base_path, instance_name, trig_domain_name, new_filename, trig_config_content)
                     config_uuid = get_uuid()
                     config_cards_row[trig_domain_idx].insert(-1, 
                         config_card(
@@ -906,11 +952,11 @@ def update_config_cards(
     if triggered_id == "param-domains-section-initialized":
         config_cards_row = []
         for idx, (domain_uuid, domain_name) in enumerate(domains.items()):
-            files = workspace.get_config_files(arch_path, arch_name, domain_name)
+            files = workspace.get_config_files(base_path, instance_name, domain_name)
             config_cards = []
             config_metadata = []
             for config_name in files:
-                config_content = workspace.load_config_file(arch_path, arch_name, domain_name, config_name)
+                config_content = workspace.load_config_file(base_path, instance_name, domain_name, config_name)
                 config_uuid = get_uuid()
                 # Create config card
                 config_cards.append(
@@ -933,10 +979,10 @@ def update_config_cards(
         for i, domain_uuid in enumerate(domains.keys()):
             if domain_uuid == update_domain_uuid:
                 domain_name = domains[domain_uuid]
-                files = workspace.get_config_files(arch_path, arch_name, domain_name)
+                files = workspace.get_config_files(base_path, instance_name, domain_name)
                 config_cards = []
                 for config_name in files:
-                    config_content = workspace.load_config_file(arch_path, arch_name, domain_name, config_name)
+                    config_content = workspace.load_config_file(base_path, instance_name, domain_name, config_name)
                     config_uuid = get_uuid()
                     # Create config card
                     config_cards.append(
@@ -976,12 +1022,12 @@ def update_preview_all(
     config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, 
     config_metadata, domain_metadata, odatix_settings
 ):
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_key_from_url(search, "arch")
-    if not workspace.architecture_exists(arch_path, arch_name):
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    if not instance_name or not workspace.instance_exists(base_path, instance_name):
+        label = "Workflow" if mode == "workflow" else "Architecture"
         return [
             html.Div([
-                html.Div("Architecture is not created yet."),
+                html.Div(f"{label} is not created yet."),
                 html.Div("Edit settings, then save or add a new config to create it."),
             ], className="error warning")
         ] * len(config_cards_rows)
@@ -1007,7 +1053,7 @@ def update_preview_all(
         domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
         domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
         replacement_text = config_contents_list[0] if config_contents_list else ""
-        results.append(preview_pane(domain_uuid, settings, domain_settings, replacement_text))
+        results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text))
     return results
 
 @dash.callback(
@@ -1023,26 +1069,10 @@ def update_save_status(param_domains_section, title_values, content_values, init
     save_classes = []
     tooltip_texts = []
     for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
-        # Check for empty title
-        if not title:
+        error = config_title_error(title, initial_titles, initial_title)
+        if error:
             save_classes.append("color-button error-status icon-button tooltip delay bottom small")
-            tooltip_texts.append("Configuration name cannot be empty")
-            continue
-        # Check for invalid characters in title
-        invalid_char_found = False
-        for c in hard_settings.invalid_filename_characters:
-            if c in title:
-                c = "' ' (space)" if c == " " else f"'{c}'"
-                save_classes.append("color-button error-status icon-button tooltip delay bottom small")
-                tooltip_texts.append(f"Unauthorized character in configuration name: {c}")
-                invalid_char_found = True
-                break
-        if invalid_char_found:
-            continue
-        # Check if a config with the same name already exists in the domain
-        if title in initial_titles and title != initial_title:
-            save_classes.append("color-button error-status icon-button tooltip delay bottom small")
-            tooltip_texts.append("A configuration with this name already exists in the domain.")
+            tooltip_texts.append(error)
             continue
         # Check for changes
         if title != initial_title or content != initial_content:
@@ -1067,20 +1097,141 @@ def update_params_save_button(params_enables, target_files, start_delims, stop_d
     enabled_class = "color-button warning icon-button"
 
     for use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings in zip(params_enables, target_files, start_delims, stop_delims, settings_list):
-        if domain_settings is None:
-            domain_settings = {}
-        use_parameters = True if use_parameters else False # Convert from [True]/[] to True/False
-        if use_parameters != domain_settings.get("use_parameters", True):
-            save_classes.append(enabled_class)
-        elif param_target_file != domain_settings.get("param_target_file", ""):
-            save_classes.append(enabled_class)
-        elif start_delimiter != domain_settings.get("start_delimiter", ""):
-            save_classes.append(enabled_class)
-        elif stop_delimiter != domain_settings.get("stop_delimiter", ""):
-            save_classes.append(enabled_class)
-        else:
-            save_classes.append(disabled_class)
+        dirty = params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings)
+        save_classes.append(enabled_class if dirty else disabled_class)
     return save_classes
+
+@dash.callback(
+    Output({"page": page_path, "action": "save-all"}, "className"),
+    Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
+    Input({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
+    Input({"type": "save-params-btn", "domain_uuid": dash.ALL}, "className"),
+)
+def update_save_all_button(config_save_classes, params_save_classes):
+    """
+    Mirror the state of the individual save buttons on the page-wide save button.
+    The "warning" class is also what the unsaved-changes guard looks for to warn
+    before leaving the page.
+    """
+    disabled_class = "color-button disabled icon-button tooltip bottom auto caution"
+    enabled_class = "color-button warning icon-button tooltip bottom auto caution"
+
+    dirty = any(
+        isinstance(cls, str) and "warning" in cls
+        for cls in list(config_save_classes) + list(params_save_classes)
+    )
+    if dirty:
+        return enabled_class, "Save all changes"
+    return disabled_class, "Nothing to save"
+
+@dash.callback(
+    Output({"type": "initial-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Output({"type": "initial-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Output({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Output({"type": "config-params-store", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
+    Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+    State({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State("url", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def save_all(
+    n_clicks, title_values, contents, config_metadata,
+    params_enables, target_files, start_delims, stop_delims, params_stores, domain_metadata,
+    search, odatix_settings
+):
+    """
+    Save every modified configuration and every modified parameters form at once.
+    Configurations whose name is invalid or already taken are left untouched, so
+    their own save button keeps showing the error.
+    """
+    nb_configs = len(config_metadata)
+    nb_domains = len(domain_metadata)
+    no_config_update = [dash.no_update] * nb_configs
+    no_domain_update = [dash.no_update] * nb_domains
+
+    if not n_clicks:
+        return no_config_update, no_config_update, no_config_update, no_domain_update
+
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    if not instance_name:
+        return no_config_update, no_config_update, no_config_update, no_domain_update
+
+    domain_names = {data.get("domain_uuid", ""): data.get("domain_name", "") for data in domain_metadata}
+
+    new_titles = list(no_config_update)
+    new_contents = list(no_config_update)
+    new_metadata = list(no_config_update)
+
+    # Configurations
+    for i, metadata in enumerate(config_metadata):
+        domain_uuid = metadata.get("domain_uuid", "")
+        domain_name = domain_names.get(domain_uuid, domain_uuid)
+        old_name = metadata.get("config_name", "")
+        old_content = metadata.get("config_content", "")
+        old_title = old_name[:-4] if old_name.endswith(".txt") else old_name
+        new_title = title_values[i] if i < len(title_values) else ""
+        new_content = contents[i] if i < len(contents) else ""
+
+        if new_title == old_title and new_content == old_content:
+            continue
+
+        # Names already taken in this domain, this config's own name excluded
+        domain_titles = [
+            (data.get("config_name", "")[:-4] if data.get("config_name", "").endswith(".txt") else data.get("config_name", ""))
+            for j, data in enumerate(config_metadata)
+            if j != i and data.get("domain_uuid", "") == domain_uuid
+        ]
+        if config_title_error(new_title, domain_titles, old_title):
+            continue
+
+        new_name = new_title if new_title.endswith(".txt") else new_title + ".txt"
+        if new_name != old_name:
+            path = workspace.get_arch_domain_path(base_path, instance_name, domain_name)
+            if verbose:
+                print(f"Renaming config from '{old_name}' to '{new_name}'")
+            os.rename(os.path.join(path, old_name), os.path.join(path, new_name))
+        if verbose:
+            print(f"Saving config '{new_name}' in domain '{domain_name}'")
+        workspace.save_config_file(base_path, instance_name, domain_name, new_name, new_content)
+
+        new_titles[i] = new_title
+        new_contents[i] = new_content
+        new_metadata[i] = {**metadata, "config_name": new_name, "config_content": new_content}
+
+    # Configuration parameters
+    new_params = list(no_domain_update)
+    for i, metadata in enumerate(domain_metadata):
+        use_parameters = params_enables[i] if i < len(params_enables) else False
+        param_target_file = target_files[i] if i < len(target_files) else ""
+        start_delimiter = start_delims[i] if i < len(start_delims) else ""
+        stop_delimiter = stop_delims[i] if i < len(stop_delims) else ""
+        settings = params_stores[i] if i < len(params_stores) and params_stores[i] is not None else {}
+
+        if not params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, settings):
+            continue
+
+        settings = {
+            **settings,
+            "use_parameters": True if use_parameters else False, # Convert from [True]/[] to True/False
+            "param_target_file": param_target_file,
+            "start_delimiter": start_delimiter,
+            "stop_delimiter": stop_delimiter,
+        }
+        workspace.update_instance_domain_settings(
+            base_path, instance_name, metadata.get("domain_name", ""), settings, kind=mode
+        )
+        new_params[i] = settings
+
+    return new_titles, new_contents, new_metadata, new_params
 
 @dash.callback(
     Output({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
@@ -1119,8 +1270,7 @@ def save_config_parameters(
     use_parameters, param_target_files, start_delimiters, stop_delimiters, domain_metadata, config_params_stores,
     search, odatix_settings
 ):
-    arch_name = get_key_from_url(search, "arch")
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):        
@@ -1152,7 +1302,7 @@ def save_config_parameters(
             settings["start_delimiter"] = start_delimiter
             settings["stop_delimiter"] = stop_delimiter
 
-            workspace.update_domain_settings(arch_path, arch_name, trig_domain_name, settings)
+            workspace.update_instance_domain_settings(base_path, instance_name, trig_domain_name, settings, kind=mode)
             return [settings if i == idx else dash.no_update for i in range(len(domain_metadata))]
     return [dash.no_update for _ in range(len(domain_metadata))]
 
@@ -1174,14 +1324,14 @@ def toggle_params_fields(enabled_values):
     return classes, styles
 
 @dash.callback(
-    Output({"page": page_path, "type": "architecture-title-div"}, "children"),
+    Output({"page": page_path, "type": "instance-title-div"}, "children"),
     Input("url", "search"),
 )
-def update_architecture_title(search):
-    arch_name = get_key_from_url(search, "arch")
-    if not arch_name:
-        arch_name = "New_Architecture"
-    return architecture_title(arch_name)
+def update_instance_title(search):
+    mode, instance_name = get_instance_mode(search)
+    if not instance_name:
+        instance_name = "New_Workflow" if mode == "workflow" else "New_Architecture"
+    return instance_title(mode, instance_name)
 
 @dash.callback(
     Output({"type": "save-domain-title", "domain_uuid": dash.ALL}, "className"),
@@ -1208,9 +1358,8 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
     triggered_type = triggered_id.get("type", "")
     triggered_domain_uuid = triggered_id.get("domain_uuid", "")
     
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_key_from_url(search, "arch")
-    if not arch_name:
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    if not instance_name:
         raise dash.exceptions.PreventUpdate
 
     domain_metadata = domain_metadata[1:] # Remove main domain entry
@@ -1222,14 +1371,14 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
         # Save button clicked for this domain
         if triggered_type == "save-domain-title" and domain_uuid == triggered_domain_uuid:
             if new_domain_name != domain_name and new_domain_name != "":
-                workspace.rename_parameter_domain(arch_path, arch_name, domain_name, new_domain_name)
+                workspace.rename_parameter_domain(base_path, instance_name, domain_name, new_domain_name)
 
                 domain_name = new_domain_name
                 save_classes.append(disabled_class)
                 tooltips.append("Nothing to save")
                 metadata["domain_name"] = new_domain_name
                 new_metadata.append(metadata)
-                new_link = generate_config_link(arch_name, new_domain_name)
+                new_link = generate_config_link(mode, instance_name, new_domain_name)
                 new_hrefs.append(new_link)
             else:
                 new_metadata.append(dash.no_update)
@@ -1255,9 +1404,10 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                 if new_domain_name == "" or " " in new_domain_name:
                     save_classes.append(error_class)
                     tooltips.append("Parameter domain name cannot be empty")
-                elif workspace.parameter_domain_exists(arch_path, arch_name, new_domain_name):
+                elif workspace.parameter_domain_exists(base_path, instance_name, new_domain_name):
                     save_classes.append(error_class)
-                    tooltips.append(f"Parameter domain '{new_domain_name}' already exists for this architecture")
+                    label = "workflow" if mode == "workflow" else "architecture"
+                    tooltips.append(f"Parameter domain '{new_domain_name}' already exists for this {label}")
                 else:
                     save_classes.append(enabled_class)
                     tooltips.append("Save new parameter domain name")
@@ -1274,14 +1424,14 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
 layout = html.Div(
     children=[
         dcc.Location(id="url"),
-        html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
+        html.Div(id={"page": page_path, "type": "instance-title-div"}, style={"marginTop": "20px"}),
         html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
         dcc.Store(id="param-domains-section-initialized", data=False),
         dcc.Store(id="param-domains-section-update", data=""),
     ],
     className="page-content",
     style={
-        "padding": "0 16%",
+        "padding": "0",
         "display": "flex",  
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",

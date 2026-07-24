@@ -20,27 +20,11 @@
 #
 
 import dash
-from dash import html, dcc, callback, Input, Output
 
-import odatix.explorer.legend as legend
-import odatix.explorer.navigation as navigation
+from odatix.explorer.ui.shell import explorer_shell
 
-dash.register_page(
-  __name__,
-  path='/scatter3d',
-  title='Odatix - Scatter 3D',
-  name='Scatter 3D',
-  order=5,
-)
+def layout(**kwargs):
+  return explorer_shell("scatter3d")
 
-layout = html.Div(
-  [
-    html.Div(
-      id="graph-scatter3d",
-      style={"width": "100%", "height": "100%"},
-      className="graph-container"
-    )
-  ],
-  id = f"{__name__}-content",
-  style={"width": "100%", "height": f"calc(100vh - {navigation.top_bar_height})"},
-)
+
+dash.register_page(__name__, path="/explorer/scatter3d", name="Scatter 3D", title="Odatix Explorer - Scatter 3D", order=24, layout=layout)

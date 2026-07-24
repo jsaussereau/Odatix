@@ -1,0 +1,26 @@
+##############################################
+# Metrics for this workflow
+##############################################
+
+metrics:
+  platform:
+    type: regex
+    settings:
+      file: platform_info.txt
+      pattern: "platform: (.*)"
+      group_id: 1
+
+  word:
+    type: regex
+    settings:
+      file: output.txt
+      pattern: "text: (.*)"
+      group_id: 1
+
+  letters:
+    type: regex
+    settings:
+      file: output.txt
+      pattern: "letters: ([0-9]+)"
+      group_id: 1
+    format: "%.0f"

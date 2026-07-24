@@ -28,11 +28,69 @@ import odatix.gui.themes as themes
 import odatix.components.motd as motd
 
 from odatix.gui.css_helper import Style
+from odatix.gui.icons import icon
 
 top_bar_height = "50px"
 side_bar_width = "0px"
 
-topbar_pages = ["Architectures", "Workspace"]
+# Topbar entries, either:
+#   (label, href)                 -> plain link button, no dropdown (e.g. Monitor)
+#   (label, href, [(name, href)]) -> group: hovering opens the dropdown, clicking
+#                                     the label itself navigates to href (e.g. Run,
+#                                     Explorer). href may be "" for a group with no
+#                                     page of its own (e.g. Configure): its label is
+#                                     then just a hover target, not a link.
+nav_groups = [
+    ("Configure", "", [
+        ("Workflows", "/workflows"),
+        ("RTL Architectures", "/architectures"),
+    ]),
+    ("Run", "/choose_job_type", [
+        ("Workflows", "/run_jobs?type=workflow"),
+        ("RTL Analysis", "/run_jobs?type=analyze"),
+        ("Fmax Synthesis", "/choose_eda_tool?type=fmax_synthesis"),
+        ("Custom Synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
+    ]),
+    ("Monitor", "/monitor"),
+    ("Explorer", "/explorer", [
+        ("Lines", "/explorer/lines"),
+        ("Columns", "/explorer/columns"),
+        ("Scatter", "/explorer/scatter"),
+        ("Scatter 3D", "/explorer/scatter3d"),
+        ("Radar", "/explorer/radar"),
+        ("Table", "/explorer/table"),
+        ("Overview", "/explorer/overview"),
+        ("RTL Analysis", "/explorer/analysis"),
+    ]),
+    ("Settings", "/workspace", [
+        ("Workspace", "/workspace"),
+    ]),
+]
+
+
+def _nav_entry(entry):
+    if len(entry) == 2:
+        label, href = entry
+        return dcc.Link(label, href=href, className="nav-link-button")
+
+    label, href, items = entry
+    header_content = [label, icon("more", width="13px", height="13px", className="nav-chevron")]
+    if href:
+        header = dcc.Link(header_content, href=href, className="nav-group-label")
+    else:
+        # No page of its own: keep it a non-navigable hover/focus target.
+        header = html.Span(header_content, className="nav-group-label", tabIndex="0")
+
+    return html.Div(
+        [
+            header,
+            html.Div(
+                [dcc.Link(name, href=item_href, className="nav-dropdown-link") for name, item_href in items],
+                className="nav-dropdown",
+            ),
+        ],
+        className="nav-group",
+    )
 
 def top_bar(gui):
     version = motd.read_version()
@@ -60,29 +118,40 @@ def top_bar(gui):
             html.Div([
                 html.Div(
                     [
-                        html.Div(
-                            dcc.Link(f"{page['name']}", href=page["relative_path"], className="nav-link"),
-                        ) for page in dash.page_registry.values() if page["name"] in topbar_pages
+                        html.Span(className="nav-burger-line"),
+                        html.Span(className="nav-burger-line"),
+                        html.Span(className="nav-burger-line"),
                     ],
-                    className="nav-links",
+                    id="nav-burger",
+                    className="nav-burger",
+                    n_clicks=0,
                 ),
-                html.Div(
-                    children=[
-                        dcc.Dropdown(
-                            id="theme-dropdown",
-                            options=[{"label": f"{theme}", "value": f"{theme}"} for theme in themes.list],
-                            value=gui.start_theme,
-                            className="theme-dropdown",
-                            clearable=False,
-                            style={"width": "150px", "marginRight": "20px", "marginTop": "3px"},
-                        )
-                    ],
-                    className="tooltip delay bottom auto",
-                    **{"data-tooltip": "Select Theme"},
+                html.Div([
+                    html.Div(
+                        [_nav_entry(entry) for entry in nav_groups],
+                        className="nav-groups",
+                    ),
+                    html.Div(
+                        children=[
+                            dcc.Dropdown(
+                                id="theme-dropdown",
+                                options=[{"label": f"{theme}", "value": f"{theme}"} for theme in themes.list],
+                                value=gui.start_theme,
+                                className="theme-dropdown",
+                                clearable=False,
+                                style={"width": "150px"},
+                            )
+                        ],
+                        className="nav-theme tooltip delay bottom auto",
+                        **{"data-tooltip": "Select Theme"},
+                    ),
+                ],
+                id="nav-menu",
+                className="nav-menu",
                 ),
             ],
             id="nav-right",
-            style={"display": "flex", "position": "absolute", "right": "0", "alignItems": "center", "justifyContent": "right", "zIndex": "1000"},)
+            className="nav-right",)
         ],
         style={"height": f"{top_bar_height}"},
         className="navbar",
@@ -119,6 +188,22 @@ def side_bar(gui):
 
 
 def setup_callbacks(gui):
+    # Toggle the mobile burger menu on click, close it on navigation
+    gui.app.clientside_callback(
+        """
+        function(n_clicks, pathname, cls) {
+            const ctx = window.dash_clientside.callback_context;
+            const trigger = (ctx.triggered && ctx.triggered.length) ? ctx.triggered[0].prop_id : "";
+            const open = trigger.startsWith("nav-burger") && !(cls || "").includes("open");
+            return [open ? "nav-menu open" : "nav-menu", open ? "nav-burger open" : "nav-burger"];
+        }
+        """,
+        [Output("nav-menu", "className"), Output("nav-burger", "className")],
+        [Input("nav-burger", "n_clicks"), Input("url-global", "pathname")],
+        [State("nav-menu", "className")],
+        prevent_initial_call=True,
+    )
+
     @gui.app.callback(
         Output("theme", "className"),
         Input("theme-dropdown", "value"),

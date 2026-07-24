@@ -249,6 +249,13 @@ class DaemonMonitorHandler(ParallelJobHandler):
         self._remote_retired = int(handler_data.get("retired", 0))
         self._remote_total_jobs = int(handler_data.get("job_count", len(remote_jobs)))
 
+        # Keep the local nb_jobs mirror in sync with the daemon so the curses UI
+        # displays the daemon's actual parallelism cap.
+        try:
+            self.nb_jobs = max(1, int(handler_data.get("nb_jobs", self.nb_jobs)))
+        except Exception:
+            pass
+
         remote_format_yaml = handler_data.get("format_yaml")
         if remote_format_yaml != self._remote_format_yaml:
             self._remote_format_yaml = remote_format_yaml
@@ -588,6 +595,16 @@ class DaemonMonitorHandler(ParallelJobHandler):
             open_path_in_explorer(job.tmp_dir)
         except NotImplementedError:
             pass
+        except Exception as e:
+            self._append_error(e)
+
+    def set_nb_jobs(self, nb_jobs):
+        # Forward the parallelism change to the daemon instead of applying it
+        # locally; the new value is reflected back on the next snapshot poll.
+        new_value = max(1, int(nb_jobs))
+        try:
+            _api_post(self._base_url, "/config?nb_jobs={}".format(new_value), timeout=1.0)
+            self.nb_jobs = new_value  # optimistic; reconciled by _sync_snapshot
         except Exception as e:
             self._append_error(e)
 

@@ -178,9 +178,11 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
 
 
 def update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width):
+    nb_jobs = int(getattr(handler, "nb_jobs", 1))
+    left_text = "v{}   parallel jobs: {}".format(handler.version, nb_jobs)
     try:
         header_win.hline(0, 0, " ", width, curses.color_pair(NORMAL) | curses.A_REVERSE)
-        header_win.addstr(0, 1, "v" + str(handler.version), curses.color_pair(NORMAL) | curses.A_REVERSE)
+        header_win.addstr(0, 1, left_text, curses.color_pair(NORMAL) | curses.A_REVERSE)
     except curses.error:
         pass
     if total_jobs_count == 1:
@@ -403,6 +405,7 @@ def update_help_popup(popup_win, popup_width, popup_height):
         ("Down       ", "Scroll log down"),
         ("Home/End"   , "Scroll to top/bottom"),
         ("+/-"        , "Change progress window size"),
+        (">/<      ./,", "More / fewer parallel jobs"),
         ("Space"      , "Pause selected job"),
         ("k"          , "Kill selected job"),
         ("s"          , "Start/resume selected job"),
@@ -826,6 +829,12 @@ def curses_main(handler, stdscr):
                     progress_height = new_progress_height
                     sync_progress_indices()
                     resize = True
+
+            elif key == ord(">") or key == ord("."):
+                handler.set_nb_jobs(int(getattr(handler, "nb_jobs", 1)) + 1)
+
+            elif key == ord("<") or key == ord(","):
+                handler.set_nb_jobs(int(getattr(handler, "nb_jobs", 1)) - 1)
 
             elif key == ord("c") or key == ord("C"):
                 if handler.selection_enabled:

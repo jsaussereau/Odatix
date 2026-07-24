@@ -33,6 +33,11 @@ if sys.platform == "win32":
 else:
     import select
 
+# Add parent dir to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sources_dir = os.path.realpath(os.path.join(current_dir, os.pardir))
+if sources_dir not in sys.path:
+    sys.path.append(sources_dir)
 
 import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
@@ -135,7 +140,14 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
     )
 
     # Start the server
-    serve_thread = Thread(target=serve, args=(odatix_app.app.server,), kwargs={'host': host_address, 'port': port})
+    # More worker threads than the waitress default (4): monitor callbacks issue
+    # blocking HTTP requests to the daemon, and too few threads let one slow call
+    # stall every other callback (and thus the whole UI).
+    serve_thread = Thread(
+        target=serve,
+        args=(odatix_app.app.server,),
+        kwargs={'host': host_address, 'port': port, 'threads': 16},
+    )
     serve_thread.start()
     
     try:

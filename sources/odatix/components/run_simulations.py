@@ -28,7 +28,9 @@ from odatix.components.replace_params import replace_params
 from odatix.components.run_common import (
     normalize_run_settings,
     confirm_valid_jobs,
+    abort_if_empty_job_list,
     replace_and_write_param_domains,
+    run_prepare_loop,
     start_parallel_jobs as start_parallel_jobs_common,
 )
 import odatix.lib.printc as printc
@@ -58,7 +60,7 @@ def add_arguments(parser):
     parser.add_argument('-s', '--simpath', help='simulation directory')
     parser.add_argument('-w', '--work', help='simulation work directory')
     parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
     parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
     parser.add_argument("--logsize", help="size of the log history per job in the monitor")
     parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
@@ -190,6 +192,9 @@ def check_settings(
          
             # copy design 
             if sim_instance.architecture.design_path is not None:
+                if not os.path.isdir(sim_instance.architecture.design_path):
+                    printc.error('The design directory "' + sim_instance.architecture.design_path + '" does not exist', script_name)
+                    return
                 try:
                     copytree(
                         src=sim_instance.architecture.design_path,
@@ -292,8 +297,16 @@ def prepare_simulations(
     log_size_limit,
     nb_jobs,
 ):
-    for sim_instance in simulation_instances:
-        prepare_job(sim_instance)
+    run_prepare_loop(
+        instances=simulation_instances,
+        build_job=prepare_job,
+        job_list=job_list,
+    )
+
+    # A simulation can pass the initial checklist but still fail while its job
+    # is being built (e.g. a missing design_path): do not launch the
+    # monitor/daemon session with zero jobs if every one of them failed.
+    abort_if_empty_job_list(job_list, script_name=script_name)
 
     parallel_jobs = ParallelJobHandler(
         job_list=job_list,

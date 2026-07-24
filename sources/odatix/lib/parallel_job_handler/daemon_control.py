@@ -93,11 +93,69 @@ def _normalize_session_name(session_name, default_name=DEFAULT_HOST):
     return session_name
 
 
+def _generate_default_session_name(host=DEFAULT_HOST):
+    host = str(host or DEFAULT_HOST).strip() or DEFAULT_HOST
+
+    # Try to determine a controlling TTY (stdin/out/err), fallback to env or 'no_tty'.
+    tty_slug = None
+    for fd in (0, 1, 2):
+        try:
+            tty_path = os.ttyname(fd)
+            if tty_path:
+                # Strip leading /dev/ to get a compact tty representation (e.g. pts/2)
+                if tty_path.startswith("/dev/"):
+                    tty_path = tty_path[len("/dev/"):]
+                tty_slug = _session_slug(tty_path)
+                if tty_slug:
+                    break
+        except Exception:
+            continue
+
+    if not tty_slug:
+        env_tty = os.environ.get("SSH_TTY") or os.environ.get("TTY") or None
+        if env_tty:
+            if env_tty.startswith("/dev/"):
+                env_tty = env_tty[len("/dev/"):]
+            tty_slug = _session_slug(env_tty)
+
+    if not tty_slug:
+        tty_slug = "no_tty"
+
+    if host == "127.0.0.1" or host == "localhost":
+        try:
+            host = os.uname().nodename
+        except Exception:
+            pass
+
+    host_slug = _session_slug(host) or DEFAULT_HOST
+    return "{}.{}".format(tty_slug, host_slug)
+
+
+def _unique_default_session_name(host=DEFAULT_HOST, active_daemons=None):
+    """
+    Default session name for a new session, made unique against the sessions
+    already running.
+
+    The default name is derived from the controlling tty, which distinguishes
+    concurrent CLI runs. Callers without a tty (the GUI server, a service, a
+    cron job) all get the same "no_tty" name, so without this every session they
+    launch would reuse the same state file and replace the previous one.
+    """
+    base_name = _generate_default_session_name(host=host)
+    taken = {_session_name_from_state(state) for state in (active_daemons or [])}
+    if base_name not in taken:
+        return base_name
+    suffix = 2
+    while "{}.{}".format(base_name, suffix) in taken:
+        suffix += 1
+    return "{}.{}".format(base_name, suffix)
+
+
 def _session_slug(session_name):
     session_name = str(session_name or "").strip()
     if session_name == "":
         return None
-    slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", session_name).strip("._")
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "-", session_name).strip("._")
     return slug or None
 
 
@@ -418,15 +476,6 @@ def ensure_daemon_running(
     workspace_root = detect_workspace_root(workspace_root)
     session_selector = str(session).strip() if session is not None else None
 
-    paths = get_daemon_paths(workspace_root)
-    state = _read_json_file(paths["state_file"])
-
-    if state is not None and daemon_is_alive(state):
-        state = dict(state)
-        state["workspace_root"] = workspace_root
-        _decorate_session_fields(state)
-        return state
-
     active_daemons = list_daemons(workspace_root=workspace_root)
     active_daemons, _workspace_root = _filter_by_workspace(active_daemons, workspace_root=workspace_root)
 
@@ -438,9 +487,10 @@ def ensure_daemon_running(
         session_name = _normalize_session_name(session_selector, default_name=host)
         paths = get_daemon_paths(workspace_root, session_name=session_name)
     else:
-        if len(active_daemons) == 1:
-            return active_daemons[0]
-        session_name = _normalize_session_name(None, default_name=host)
+        # By default, launching jobs creates a fresh daemon session.
+        # Existing sessions are reused only when an explicit selector is given.
+        session_name = _unique_default_session_name(host=host, active_daemons=active_daemons)
+        paths = get_daemon_paths(workspace_root, session_name=session_name)
 
     _delete_state_file(paths["state_file"])
     _spawn_daemon(
@@ -885,7 +935,11 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None):
         if state.get("session_name") in (None, "") and candidate.get("session_name") is not None:
             state["session_name"] = str(candidate["session_name"])
 
-        state["pid"] = int(candidate["pid"])
+        # Keep daemon pid from state file when available.
+        # Some process scans can surface intermediary python processes that
+        # share daemon cmdline args; overriding pid would create duplicates.
+        if state.get("pid") is None:
+            state["pid"] = int(candidate["pid"])
         state["state_file"] = candidate.get("state_file")
 
         if candidate.get("workspace_root") is not None:
@@ -899,8 +953,15 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None):
         if not daemon_is_alive(state):
             continue
 
+        # Deduplicate by logical daemon identity rather than candidate pid.
+        # Prefer state_file/session_id when available, then endpoint fallback.
+        state_file_key = str(state.get("state_file") or "")
+        session_id_key = str(state.get("session_id") or "")
+        workspace_key = str(state.get("workspace_root") or "")
         key = (
-            int(state.get("pid", 0)),
+            workspace_key,
+            state_file_key,
+            session_id_key,
             str(state.get("host", DEFAULT_HOST)),
             int(state.get("port", DEFAULT_PORT)),
         )

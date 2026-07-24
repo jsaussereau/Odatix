@@ -75,13 +75,23 @@
     --theme-border-color: #dde3ec;
     --theme-border-style: 1px solid;
     --theme-large-border-color: var(--theme-border-color);
-    --theme-large-border-style: 2px solid;
+    --theme-large-border-style: 1px solid;
     --theme-border: var(--theme-border-style) var(--theme-border-color);
     --theme-border-color-hover: #24292e;
     --theme-large-border-radius: 24px;
-    --theme-normal-border-radius: 24px;
+    --theme-normal-border-radius: 20px;
     --theme-small-border-radius: 15px;
     --theme-overlay-background-color: #1d254f3d;
+    --theme-badge-background-color: #228be61a;
+    --theme-badge-text-color: var(--theme-primary-color);
+
+    /* spacing scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
     
     /* navbar */
     --navbar-background: var(--theme-contrast-background-color);
@@ -91,13 +101,19 @@
     --card-background: var(--theme-element-background-color);
     --card-text-color: var(--theme-text-color);
     --card-border: initial;
-    --card-box-shadow: var(--theme-shadow-color) 0px 4px 24px 0px;
+    --card-box-shadow: var(--theme-shadow-color) 0px 2px 10px 0px;
     --card-border-hover: none;
     --card-border-radius: var(--theme-large-border-radius);
     --card-backdrop-filter: initial;
-    --card-hover-box-shadow: 0px 30px 18px -8px rgba(0, 0, 0, 0.1);
-    --card-hover-transition: all 0.2s cubic-bezier(0.175, 0.885, 0, 1);
-    --card-hover-transform: scale(1.05, 1.05);
+    --card-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
+    --card-hover-transition: all 0.18s ease;
+    --card-hover-transform: translateY(-3px);
+    --tile-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
+    --tile-hover-transition: all 0.18s ease;
+    --tile-hover-transform: translateY(-2px);
+    --tile-gap: 15px;
+    --tile-half-width: 355px;
+    --tile-width: calc(var(--tile-half-width) * 2 + var(--tile-gap));
     --add-card-background: var(--theme-dimmed-element-background-color);
     --add-card-border: 1px dashed #bbb;
     --add-card-text-color: var(--card-text-color);
@@ -129,15 +145,15 @@
     --primary-button-icon-color-hover: var(--theme-primary-color);
     --primary-button-text-color-hover: var(--theme-primary-color);
     --primary-button-box-shadow-hover: var(--button-box-shadow);
-    --secondary-button-background: var(--theme-secondary-color);
-    --secondary-button-border: var(--theme-large-border-style) #fff0;
-    --secondary-button-icon-color: var(--theme-contrast-text-color);
-    --secondary-button-text-color: var(--theme-contrast-text-color);
+    --secondary-button-background: #fff0;
+    --secondary-button-border: var(--theme-large-border-style) var(--theme-secondary-color);
+    --secondary-button-icon-color: var(--theme-secondary-color);
+    --secondary-button-text-color: var(--theme-secondary-color);
     --secondary-button-box-shadow: var(--button-box-shadow);
-    --secondary-button-background-hover: #fff0;
-    --secondary-button-border-hover: var(--theme-large-border-style) var(--theme-secondary-color);
-    --secondary-button-icon-color-hover: var(--theme-secondary-color);
-    --secondary-button-text-color-hover: var(--theme-secondary-color);
+    --secondary-button-background-hover: var(--theme-secondary-color);
+    --secondary-button-border-hover: var(--theme-large-border-style) #fff0;
+    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
     --secondary-button-box-shadow-hover: var(--button-box-shadow);
     --success-button-background: var(--theme-success-color);
     --success-button-border: var(--theme-large-border-style) #fff0;
@@ -160,15 +176,15 @@
     --warning-button-icon-color-hover: var(--theme-warning-color);
     --warning-button-text-color-hover: var(--theme-warning-color);
     --warning-button-box-shadow-hover: var(--theme-warning-color) 0px 0px 10px;
-    --caution-button-background: var(--theme-caution-color);
+    --caution-button-background: #fff0;
     --caution-button-border: var(--theme-large-border-style) var(--theme-caution-color);
-    --caution-button-icon-color: var(--theme-contrast-text-color);
-    --caution-button-text-color: var(--theme-contrast-text-color);
+    --caution-button-icon-color: var(--theme-caution-color);
+    --caution-button-text-color: var(--theme-caution-color);
     --caution-button-box-shadow: var(--button-box-shadow);
-    --caution-button-background-hover: #fff0;
+    --caution-button-background-hover: var(--theme-caution-color); 
     --caution-button-border-hover: var(--theme-large-border-style) var(--theme-caution-color);
-    --caution-button-icon-color-hover: var(--theme-caution-color);
-    --caution-button-text-color-hover: var(--theme-caution-color);
+    --caution-button-icon-color-hover: var(--theme-contrast-text-color);
+    --caution-button-text-color-hover: var(--theme-contrast-text-color);
     --caution-button-box-shadow-hover: var(--button-box-shadow);
     --error-button-background: var(--theme-disabled-error-background-color);
     --error-button-border: var(--theme-large-border-style) #fff0;
@@ -179,7 +195,7 @@
     --disabled-button-border: var(--theme-large-border-style) #fff0;
     --disabled-button-icon-color: var(--theme-disabled-text-color);
     --disabled-button-text-color: var(--theme-disabled-text-color);
-    --disabled-button-box-shadow: var(--button-box-shadow);
+    --disabled-button-box-shadow: none;
     --back-button-color: var(--theme-disabled-color);
     --back-button-filter: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
     --back-button-filter-hover: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
@@ -334,8 +350,8 @@
     --theme-background-color: #24292e;
     --theme-element-background-color: #33383c;
     --theme-action-color: #0078d4;
-    --theme-primary-color: #0078d4;
-    --theme-secondary-color: #0078d4;
+    --theme-primary-color: #2585cd;
+    --theme-secondary-color: #2585cd;
     --theme-tertiary-color: #43474a;
     --theme-tertiary-color-light: #43474a90;
     --theme-disabled-color: #616b73;
@@ -368,8 +384,8 @@
     --theme-background-color: #17181a;
     --theme-element-background-color: #242628;
     --theme-action-color: #0078d4;
-    --theme-primary-color: #005799;
-    --theme-secondary-color: #005799;
+    --theme-primary-color: #2585cd;
+    --theme-secondary-color: #2585cd;
     --theme-tertiary-color: #2f3133;
     --theme-tertiary-color-light: #2f313390;
     --theme-disabled-color: #515760;
@@ -581,9 +597,9 @@
     --theme-border-style: 0.5px solid;
     --theme-large-border-style: 0.5px solid;
     --theme-border-color: #d1d5da;
-    --theme-small-border-radius: 3px;
-    --theme-normal-border-radius: 3px;
-    --theme-large-border-radius: 3px;
+    --theme-small-border-radius: 5px;
+    --theme-normal-border-radius: 5px;
+    --theme-large-border-radius: 5px;
     --theme-overlay-background-color: #3131313d;
 
     /* navbar */

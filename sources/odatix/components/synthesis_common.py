@@ -8,7 +8,7 @@ import yaml
 import shutil
 
 from odatix.components.replace_params import replace_params
-from odatix.components.run_common import normalize_run_settings
+from odatix.components.run_common import normalize_run_settings, abort_if_empty_job_list, run_prepare_loop
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
@@ -16,7 +16,7 @@ from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import read_from_list, copytree, create_dir, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
-from odatix.lib.check_tool import check_tool
+from odatix.lib.check_tool import start_tool_check
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
@@ -154,10 +154,14 @@ def load_synthesis_context(
     )
     tool_test_command = replace_variables(tool_test_command, variables)
 
+    # The tool check runs in the background: the caller keeps building its
+    # architecture list while the tool starts up, and waits for the outcome
+    # right before asking the user to continue (see context["tool_check"]).
+    tool_check = None
     if check_eda_tool:
         if check_cancel is not None:
             check_cancel()
-        check_tool(
+        tool_check = start_tool_check(
             tool,
             command=tool_test_command,
             supported_tools=hard_settings.default_supported_tools,
@@ -183,6 +187,7 @@ def load_synthesis_context(
         "nb_jobs": nb_jobs,
         "overwrite": overwrite,
         "ask_continue": ask_continue,
+        "tool_check": tool_check,
     }
 
 
@@ -220,6 +225,9 @@ def build_prepare_synthesis_job(
         )
 
         if arch_instance.design_path is not None:
+            if not os.path.isdir(arch_instance.design_path):
+                printc.error('The design directory "' + arch_instance.design_path + '" does not exist', script_name)
+                return
             copytree(
                 src=arch_instance.design_path,
                 dst=arch_instance.tmp_dir,
@@ -364,11 +372,19 @@ def prepare_synthesis_jobs(
     log_size_limit,
     nb_jobs,
     check_cancel=None,
+    script_name=None,
 ):
-    for arch_instance in architecture_instances:
-        if check_cancel is not None:
-            check_cancel()
-        prepare_job(arch_instance, job_list)
+    run_prepare_loop(
+        instances=architecture_instances,
+        build_job=lambda arch_instance: prepare_job(arch_instance, job_list),
+        job_list=job_list,
+        check_cancel=check_cancel,
+    )
+
+    # An architecture can pass the initial checklist but still fail while its
+    # job is being built (e.g. a missing design_path): do not launch the
+    # monitor/daemon session with zero jobs if every one of them failed.
+    abort_if_empty_job_list(job_list, script_name=script_name)
 
     parallel_jobs = ParallelJobHandler(
         job_list,

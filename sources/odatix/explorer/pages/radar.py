@@ -20,27 +20,11 @@
 #
 
 import dash
-from dash import html, dcc, callback, Input, Output
 
-import odatix.explorer.legend as legend
-import odatix.explorer.navigation as navigation
+from odatix.explorer.ui.shell import explorer_shell
 
-dash.register_page(
-  __name__,
-  path='/radar',
-  title='Odatix - Radar',
-  name='Radar',
-  order=3,
-)
+def layout(**kwargs):
+  return explorer_shell("radar")
 
-layout = html.Div(
-  [
-    html.Div(
-      id="graph-radar",
-      style={"width": "100%", "height": "100%"},
-      className="graph-container"
-    )
-  ],
-  id = f"{__name__}-content",
-  style={"width": "100%", "height": f"calc(100vh - {navigation.top_bar_height})"},
-)
+
+dash.register_page(__name__, path="/explorer/radar", name="Radar", title="Odatix Explorer - Radar", order=25, layout=layout)

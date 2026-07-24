@@ -29,15 +29,19 @@ from odatix.components.replace_params import replace_params
 from odatix.components.run_common import (
     normalize_run_settings,
     confirm_valid_jobs,
+    abort_if_empty_job_list,
     replace_and_write_param_domains,
+    run_prepare_loop,
     start_parallel_jobs as start_parallel_jobs_common,
 )
 import odatix.components.export_workflow_results as exp_workflow_res
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
+from odatix.lib.config_generator import ConfigGenerator
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
+from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.param_domain import ParamDomain
 from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, get_timestamp_string, KeyNotInListError, BadValueInListError
 from odatix.lib.run_settings import get_workflow_settings
@@ -46,6 +50,7 @@ from odatix.lib.wosit import createTaskGraph
 script_name = os.path.basename(__file__)
 WORKFLOW_META_FILENAME = "workflow_meta.yml"
 WORKFLOW_COMMAND_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+WORKFLOW_VIRTUAL_DOMAIN_SAFE_VALUE_PATTERN = re.compile(r"[^A-Za-z0-9_.-]")
 
 
 class WorkflowInstance:
@@ -71,6 +76,7 @@ class WorkflowInstance:
         workflow_definition_dir,
         no_main_configuration=False,
         use_parameters=True,
+        extra_command_substitutions=None,
     ):
         self.workflow_name = workflow_name
         self.workflow_display_name = workflow_display_name
@@ -92,6 +98,9 @@ class WorkflowInstance:
         self.workflow_definition_dir = workflow_definition_dir
         self.no_main_configuration = no_main_configuration
         self.use_parameters = use_parameters
+        self.extra_command_substitutions = (
+            dict(extra_command_substitutions) if isinstance(extra_command_substitutions, dict) else {}
+        )
 
 
 def _read_command_parameter_value(param_file):
@@ -114,6 +123,10 @@ def _read_command_parameter_value(param_file):
 def _build_workflow_command_substitutions(workflow_instance):
     substitutions = {}
 
+    if isinstance(workflow_instance.extra_command_substitutions, dict):
+        for key, value in workflow_instance.extra_command_substitutions.items():
+            substitutions[str(key)] = str(value)
+
     if workflow_instance.param_file is not None:
         main_value = _read_command_parameter_value(workflow_instance.param_file)
         if main_value is not None:
@@ -125,6 +138,230 @@ def _build_workflow_command_substitutions(workflow_instance):
             substitutions[param_domain.domain] = value
 
     return substitutions
+
+
+def _sanitize_virtual_param_domain_value(value):
+    value = str(value).strip()
+    if value == "":
+        return "_"
+    sanitized = WORKFLOW_VIRTUAL_DOMAIN_SAFE_VALUE_PATTERN.sub("_", value)
+    if sanitized == "":
+        return "_"
+    return sanitized
+
+
+def get_workflow_virtual_domain_names(workflow_settings):
+    if not isinstance(workflow_settings, dict):
+        return set()
+    generate_settings = workflow_settings.get("generate_configurations_settings")
+    if not isinstance(generate_settings, dict):
+        return set()
+    variables = generate_settings.get("variables")
+    if not isinstance(variables, dict):
+        return set()
+    return set(name for name in variables.keys() if isinstance(name, str) and name.strip() != "")
+
+
+def _normalize_workflow_requests_for_virtual_domain_wildcards(workflow_requests, workflow_path, debug=False):
+    """
+    Normalize workflow requests before wildcard expansion.
+
+    If a request uses only virtual-domain wildcards (for example
+    workflow_name + var/* + other/*), strip these selectors so the generic
+    wildcard resolver does not expect physical parameter-domain directories.
+    """
+    normalized_requests = []
+    for request in workflow_requests:
+        (
+            workflow,
+            workflow_param_dir,
+            _workflow_config,
+            _workflow_display_name,
+            _workflow_param_dir_work,
+            _workflow_config_dir_work,
+            requested_param_domains,
+        ) = ArchitectureHandler.get_basic(request)
+
+        if len(requested_param_domains) == 0:
+            normalized_requests.append(request)
+            continue
+
+        workflow_settings_file = os.path.join(workflow_path, workflow_param_dir, hard_settings.param_settings_filename)
+        if not os.path.isfile(workflow_settings_file):
+            normalized_requests.append(request)
+            continue
+
+        try:
+            with open(workflow_settings_file, "r") as f:
+                workflow_settings = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        except Exception:
+            normalized_requests.append(request)
+            continue
+
+        virtual_domain_names = get_workflow_virtual_domain_names(workflow_settings)
+        if len(virtual_domain_names) == 0:
+            normalized_requests.append(request)
+            continue
+
+        dropped_virtual_wildcards = False
+        kept_param_domains = []
+        for requested_param_domain in requested_param_domains:
+            domain = re.sub('/.*', '', requested_param_domain)
+            value = re.sub('.*/', '', requested_param_domain)
+            if domain in virtual_domain_names and value == "*":
+                dropped_virtual_wildcards = True
+                continue
+            kept_param_domains.append(requested_param_domain)
+
+        if dropped_virtual_wildcards:
+            normalized_request = workflow
+            if len(kept_param_domains) > 0:
+                normalized_request = workflow + "+" + "+".join(kept_param_domains)
+            if debug:
+                printc.note(
+                    "Using generated workflow variables for wildcard selector(s) in request \""
+                    + request
+                    + "\".",
+                    script_name,
+                )
+            normalized_requests.append(normalized_request)
+        else:
+            normalized_requests.append(request)
+
+    return normalized_requests
+
+
+def build_workflow_virtual_param_domain_variants(workflow_settings, workflow_settings_file, debug=False):
+    """
+    Build workflow variants from generate_configurations_settings.variables.
+
+    Variants are only generated when generate_configurations is not enabled.
+    This preserves the existing meaning of generate_configurations while
+    allowing variable-based command placeholders to emulate parameter domains.
+    """
+    generate_enabled = bool(workflow_settings.get("generate_configurations", False))
+    if generate_enabled:
+        return []
+
+    generate_settings = workflow_settings.get("generate_configurations_settings")
+    if not isinstance(generate_settings, dict):
+        return []
+
+    variables = generate_settings.get("variables")
+    if not isinstance(variables, dict) or len(variables) == 0:
+        return []
+
+    variable_names = [name for name in variables.keys() if isinstance(name, str) and name.strip() != ""]
+    if len(variable_names) == 0:
+        printc.error(
+            "Invalid workflow variable settings in \""
+            + workflow_settings_file
+            + "\": no valid variable names found in \"generate_configurations_settings.variables\".",
+            script_name,
+        )
+        return None
+
+    synthetic_template = "\n".join([f"{variable_name}: ${{{variable_name}}}" for variable_name in variable_names])
+    synthetic_name = "__workflow_virtual__" + "__".join([f"${{{variable_name}}}" for variable_name in variable_names])
+
+    generator_data = {
+        "generate_configurations": True,
+        "generate_configurations_settings": {
+            "template": synthetic_template,
+            "name": synthetic_name,
+            "variables": variables,
+        },
+    }
+
+    generator = ConfigGenerator(data=generator_data, silent=True, debug=debug)
+    if not generator.valid:
+        printc.error(
+            "Invalid \"generate_configurations_settings.variables\" in workflow settings file \""
+            + workflow_settings_file
+            + "\".",
+            script_name,
+        )
+        return None
+
+    generated = generator.generate()
+    if not isinstance(generated, tuple) or len(generated) != 2:
+        printc.error(
+            "Could not generate workflow variable combinations from \""
+            + workflow_settings_file
+            + "\".",
+            script_name,
+        )
+        return None
+
+    generated_params, _all_values = generated
+    if not isinstance(generated_params, dict):
+        printc.error(
+            "Could not generate workflow variable combinations from \""
+            + workflow_settings_file
+            + "\".",
+            script_name,
+        )
+        return None
+
+    variants = []
+    for rendered_values in generated_params.values():
+        try:
+            parsed_values = yaml.load(rendered_values, Loader=yaml.loader.BaseLoader)
+        except yaml.YAMLError as e:
+            printc.error(
+                "Could not parse generated workflow variables from \""
+                + workflow_settings_file
+                + "\": "
+                + str(e),
+                script_name,
+            )
+            return None
+
+        if not isinstance(parsed_values, dict):
+            printc.error(
+                "Could not parse generated workflow variables from \""
+                + workflow_settings_file
+                + "\": generated values are not a mapping.",
+                script_name,
+            )
+            return None
+
+        substitutions = {}
+        requested_param_domains = []
+
+        for variable_name in variable_names:
+            raw_value = parsed_values.get(variable_name, "")
+            value = str(raw_value).strip() if raw_value is not None else ""
+            substitutions[variable_name] = value
+
+            variable_cfg = variables.get(variable_name, {})
+            unit = ""
+            if isinstance(variable_cfg, dict):
+                unit_value = variable_cfg.get("unit", "")
+                if unit_value is not None:
+                    unit = str(unit_value)
+
+            display_value = value + unit if unit != "" else value
+            requested_param_domains.append(variable_name + "/" + _sanitize_virtual_param_domain_value(display_value))
+
+        variants.append(
+            {
+                "requested_param_domains": requested_param_domains,
+                "substitutions": substitutions,
+            }
+        )
+
+    if debug and len(variants) > 0:
+        printc.note(
+            "Generated "
+            + str(len(variants))
+            + " workflow variants from \"generate_configurations_settings.variables\" in \""
+            + workflow_settings_file
+            + "\".",
+            script_name,
+        )
+
+    return variants
 
 
 def _replace_workflow_command_vars(value, substitutions):
@@ -334,7 +571,7 @@ def add_arguments(parser):
     parser.add_argument('-p', '--workflowpath', help='workflow directory')
     parser.add_argument('-w', '--work', help='workflow work directory')
     parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
     parser.add_argument("-k", "--keep", action="store_true", help="store workflow batch with a timestamp in the configuration name")
     parser.add_argument("-r", "--resume", action="store_true", help="resume from existing work directories (do not delete/recreate them)")
     parser.add_argument("--logsize", help="size of the log history per job in the monitor")
@@ -369,7 +606,7 @@ def run_workflows(
     detach=False,
     daemon_session=None,
 ):
-    workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs = check_settings(
+    workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs, _plan = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         workflow_path=workflow_path,
         work_path=work_path,
@@ -389,14 +626,10 @@ def run_workflows(
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
         resume=resume,
-    )
-
-    exp_workflow_res.configure_workflow_job_exports(
-        parallel_jobs=parallel_jobs,
-        work_root=work_path,
-        workflow_path=workflow_path,
-        output_dir=output_dir,
-        output_filename=output_filename,
+        export_output_dir=output_dir,
+        export_work_root=work_path,
+        export_workflow_path=workflow_path,
+        export_output_filename=output_filename,
     )
 
     start_parallel_jobs(parallel_jobs, detach=detach, session=daemon_session)
@@ -435,6 +668,11 @@ def check_settings(
         sys.exit(-1)
 
     workflow_requests = [item for item in workflows if isinstance(item, str) and item.strip() != ""]
+    workflow_requests = _normalize_workflow_requests_for_virtual_domain_wildcards(
+        workflow_requests=workflow_requests,
+        workflow_path=workflow_path,
+        debug=debug,
+    )
     expanded_workflows = ArchitectureHandler.configuration_wildcard(workflow_requests, arch_path=workflow_path)
 
     if expanded_workflows is None:
@@ -443,8 +681,7 @@ def check_settings(
 
     timestamp = get_timestamp_string()
 
-    valid_workflows = []
-    invalid_workflows = []
+    plan = JobPlan()
     workflow_instances = []
 
     first_progress_regex = None
@@ -469,7 +706,7 @@ def check_settings(
 
         if not os.path.isfile(workflow_settings_file):
             printc.error("Workflow settings file \"" + workflow_settings_file + "\" does not exist", script_name)
-            invalid_workflows.append(workflow_display_name)
+            plan.add(workflow_display_name, Category.ERROR)
             continue
 
         with open(workflow_settings_file, "r") as f:
@@ -479,7 +716,7 @@ def check_settings(
                 printc.error("Workflow settings file \"" + workflow_settings_file + "\" is not a valid YAML file", script_name)
                 printc.cyan("error details: ", end="", script_name=script_name)
                 print(str(e))
-                invalid_workflows.append(workflow_display_name)
+                plan.add(workflow_display_name, Category.ERROR)
                 continue
 
         try:
@@ -488,7 +725,7 @@ def check_settings(
             source_path = os.path.realpath(str(_expand_env_tokens(source_path)))
             if not os.path.isdir(source_path):
                 printc.error("The sources.path \"" + source_path + "\" does not exist", script_name)
-                invalid_workflows.append(workflow_display_name)
+                plan.add(workflow_display_name, Category.ERROR)
                 continue
 
             source_whitelist = read_from_list("whitelist", sources, workflow_settings_file, parent="sources", optional=True, raise_if_missing=False, print_error=False)
@@ -512,7 +749,7 @@ def check_settings(
 
             tasks = read_from_list("tasks", workflow_settings, workflow_settings_file, type=list, script_name=script_name)
         except (KeyNotInListError, BadValueInListError):
-            invalid_workflows.append(workflow_display_name)
+            plan.add(workflow_display_name, Category.ERROR)
             continue
 
         progress_file = hard_settings.sim_progress_filename
@@ -541,71 +778,139 @@ def check_settings(
         param_file = os.path.join(workflow_path, workflow_param_dir, workflow_config + ".txt")
         if use_parameters and not no_main_configuration and not os.path.isfile(param_file):
             printc.error("Workflow parameter file \"" + param_file + "\" does not exist", script_name)
-            invalid_workflows.append(workflow_display_name)
+            plan.add(workflow_display_name, Category.ERROR)
             continue
         if no_main_configuration or not use_parameters:
             param_file = None
 
+        virtual_domain_names = get_workflow_virtual_domain_names(workflow_settings)
+        requested_physical_param_domains = []
+        requested_virtual_param_domains = []
+        for requested_param_domain in requested_param_domains:
+            domain = re.sub('/.*', '', requested_param_domain)
+            if domain in virtual_domain_names:
+                requested_virtual_param_domains.append(requested_param_domain)
+            else:
+                requested_physical_param_domains.append(requested_param_domain)
+
         param_domains = []
-        if len(requested_param_domains) > 0:
+        if len(requested_physical_param_domains) > 0:
             param_domains = ParamDomain.get_param_domains(
-                requested_param_domains=requested_param_domains,
+                requested_param_domains=requested_physical_param_domains,
                 architecture=workflow_param_dir,
                 arch_path=workflow_path,
                 param_settings_filename=hard_settings.param_settings_filename,
                 top_level_file=workflow_settings_file,
             )
             if param_domains is None:
-                invalid_workflows.append(workflow_display_name)
+                plan.add(workflow_display_name, Category.ERROR)
                 continue
 
-        workflow_config_dir_work = workflow_config_dir_work + "_" + timestamp if keep and timestamp != "" else workflow_config_dir_work
-        tmp_dir = os.path.join(work_path, workflow_param_dir_work, workflow_config_dir_work)
-
-        workflow_instances.append(
-            WorkflowInstance(
-                workflow_name=workflow,
-                workflow_display_name=workflow_display_name,
-                workflow_full=workflow_full,
-                workflow_param_dir=workflow_param_dir,
-                workflow_config=workflow_config,
-                tmp_dir=tmp_dir,
-                source_path=source_path,
-                source_whitelist=source_whitelist,
-                source_blacklist=source_blacklist,
-                param_target_file=param_target_file,
-                start_delimiter=start_delimiter,
-                stop_delimiter=stop_delimiter,
-                param_file=param_file,
-                param_domains=param_domains,
-                progress_file=progress_file,
-                tasks=tasks,
+        virtual_param_domain_variants = [{"requested_param_domains": [], "substitutions": {}}]
+        if len(virtual_domain_names) > 0:
+            generated_virtual_variants = build_workflow_virtual_param_domain_variants(
+                workflow_settings=workflow_settings,
                 workflow_settings_file=workflow_settings_file,
-                workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
-                no_main_configuration=no_main_configuration,
-                use_parameters=use_parameters,
+                debug=debug,
             )
-        )
-        valid_workflows.append(workflow_display_name)
+            if generated_virtual_variants is None:
+                plan.add(workflow_display_name, Category.ERROR)
+                continue
+
+            if len(requested_virtual_param_domains) > 0:
+                filtered_virtual_variants = []
+                for virtual_variant in generated_virtual_variants:
+                    variant_domains = set(virtual_variant.get("requested_param_domains", []))
+                    keep_variant = True
+                    for requested_virtual_domain in requested_virtual_param_domains:
+                        domain = re.sub('/.*', '', requested_virtual_domain)
+                        value = re.sub('.*/', '', requested_virtual_domain)
+                        if value == "*":
+                            continue
+                        if (domain + "/" + value) not in variant_domains:
+                            keep_variant = False
+                            break
+                    if keep_variant:
+                        filtered_virtual_variants.append(virtual_variant)
+
+                if len(filtered_virtual_variants) == 0:
+                    printc.error(
+                        "No workflow variable combination matches selector(s) for workflow \""
+                        + workflow_display_name
+                        + "\".",
+                        script_name,
+                    )
+                    param_domain = re.sub('/.*', '', requested_virtual_param_domains[0])
+                    param_domain_value = re.sub('.*/', '', requested_virtual_param_domains[0])
+                    printc.tip("Add a parameter-domain config file \"" + param_domain_value + ".txt\" in \"" + os.path.join(workflow_param_dir, param_domain) + "\" ", script_name)
+                    printc.magenta("or add a variable \"" + param_domain + "\" generating the value \"" + param_domain_value + "\" to the workflow settings file \"" + workflow_settings_file + "\".")
+                    plan.add(workflow_display_name, Category.ERROR)
+                    continue
+
+                virtual_param_domain_variants = filtered_virtual_variants
+            elif len(requested_param_domains) == 0:
+                if len(generated_virtual_variants) > 0:
+                    virtual_param_domain_variants = generated_virtual_variants
+
+        for virtual_variant in virtual_param_domain_variants:
+            variant_requested_param_domains = requested_physical_param_domains + list(
+                virtual_variant.get("requested_param_domains", [])
+            )
+
+            workflow_full_variant = workflow
+            if len(variant_requested_param_domains) > 0:
+                workflow_full_variant = workflow + "+" + "+".join(variant_requested_param_domains)
+
+            (
+                _workflow_variant,
+                _workflow_param_dir_variant,
+                _workflow_config_variant,
+                workflow_display_name_variant,
+                workflow_param_dir_work_variant,
+                workflow_config_dir_work_variant,
+                _variant_domains,
+            ) = ArchitectureHandler.get_basic(workflow_full_variant)
+
+            workflow_config_dir_work_variant = (
+                workflow_config_dir_work_variant + "_" + timestamp if keep and timestamp != "" else workflow_config_dir_work_variant
+            )
+            tmp_dir = os.path.join(work_path, workflow_param_dir_work_variant, workflow_config_dir_work_variant)
+
+            workflow_instances.append(
+                WorkflowInstance(
+                    workflow_name=workflow,
+                    workflow_display_name=workflow_display_name_variant,
+                    workflow_full=workflow_full_variant,
+                    workflow_param_dir=workflow_param_dir,
+                    workflow_config=workflow_config,
+                    tmp_dir=tmp_dir,
+                    source_path=source_path,
+                    source_whitelist=source_whitelist,
+                    source_blacklist=source_blacklist,
+                    param_target_file=param_target_file,
+                    start_delimiter=start_delimiter,
+                    stop_delimiter=stop_delimiter,
+                    param_file=param_file,
+                    param_domains=param_domains,
+                    progress_file=progress_file,
+                    tasks=tasks,
+                    workflow_settings_file=workflow_settings_file,
+                    workflow_definition_dir=os.path.join(workflow_path, workflow_param_dir),
+                    no_main_configuration=no_main_configuration,
+                    use_parameters=use_parameters,
+                    extra_command_substitutions=virtual_variant.get("substitutions", {}),
+                )
+            )
+            plan.add(workflow_display_name_variant, Category.NEW, tasks=len(tasks))
 
     if first_progress_regex is None:
         first_progress_regex = hard_settings.sim_status_pattern.pattern
 
     ParallelJob.set_patterns(re.compile(first_progress_regex))
 
-    if len(valid_workflows) > 0:
-        print()
-        printc.bold("Valid workflows:")
-        for wf in valid_workflows:
-            print("  - " + wf)
-    if len(invalid_workflows) > 0:
-        print()
-        printc.bold("Invalid workflows (skipped):")
-        for wf in invalid_workflows:
-            printc.red("  - " + wf)
-        printc.endc()
+    plan.print_summary(noun="workflows")
 
-    confirm_valid_jobs(len(valid_workflows), ask_continue, ask_to_continue, script_name=script_name)
+    confirm_valid_jobs(plan.run_count(), ask_continue, ask_to_continue, script_name=script_name)
 
     print()
 
@@ -689,7 +994,7 @@ def check_settings(
             old_cwd = os.getcwd()
             try:
                 os.chdir(workflow_instance.tmp_dir)
-                execusion_stages = maker.getStages(name="main", max_process=1)
+                execution_stages = maker.getStages(name="main", max_process=1)
             finally:
                 os.chdir(old_cwd)
         except Exception as e:
@@ -698,11 +1003,15 @@ def check_settings(
             print(str(e))
             sys.exit(-1)
 
+        if execution_stages is None or len(execution_stages) == 0:
+            printc.error("Failed to generate execution stages for workflow \"" + workflow_instance.workflow_display_name + "\". Please check your workflow settings file and task definitions.", script_name)
+            sys.exit(-1)
+
         progress_file = os.path.join(workflow_instance.tmp_dir, workflow_instance.progress_file)
 
         running_workflow = ParallelJob(
             process=None,
-            command=execusion_stages,
+            command=execution_stages,
             directory=workflow_instance.tmp_dir,
             generate_rtl=False,
             generate_command="",
@@ -718,7 +1027,7 @@ def check_settings(
 
         job_list.append(running_workflow)
 
-    return workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs
+    return workflow_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs, plan
 
 
 def prepare_workflows(
@@ -729,9 +1038,21 @@ def prepare_workflows(
     log_size_limit,
     nb_jobs,
     resume=False,
+    export_output_dir=None,
+    export_work_root=None,
+    export_workflow_path=None,
+    export_output_filename=exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
 ):
-    for workflow_instance in workflow_instances:
-        prepare_job(workflow_instance, resume=resume)
+    run_prepare_loop(
+        instances=workflow_instances,
+        build_job=lambda workflow_instance: prepare_job(workflow_instance, resume=resume),
+        job_list=job_list,
+    )
+
+    # A workflow can pass the initial checklist but still fail while its job is
+    # being built: do not launch the monitor/daemon session with zero jobs if
+    # every one of them failed.
+    abort_if_empty_job_list(job_list, script_name=script_name)
 
     parallel_jobs = ParallelJobHandler(
         job_list=job_list,
@@ -740,6 +1061,19 @@ def prepare_workflows(
         auto_exit=exit_when_done,
         log_size_limit=log_size_limit,
     )
+
+    # Per-job result export (au fil de l'eau): tag every job so the handler
+    # exports its result as soon as it finishes, for both the CLI and the
+    # GUI/daemon (which both call this prepare function).
+    if export_output_dir and export_work_root and export_workflow_path:
+        exp_workflow_res.configure_workflow_job_exports(
+            parallel_jobs=parallel_jobs,
+            work_root=export_work_root,
+            workflow_path=export_workflow_path,
+            output_dir=export_output_dir,
+            output_filename=export_output_filename,
+        )
+
     return parallel_jobs
 
 

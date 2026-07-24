@@ -1,0 +1,136 @@
+/**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* Highlight of ${...} variables inside the workflow command textareas. */
+
+/* Theme variables live on the .theme wrapper, not :root, so alias them there
+   (referencing them from :root would resolve to nothing). */
+.theme {
+    --wf-hl-var-color: var(--theme-success-color);
+    --wf-hl-domain-color: var(--theme-primary-color);
+    --wf-hl-unknown-color: var(--theme-warning-color);
+}
+
+.wf-hl-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+/* The textarea styling brings its own margin-bottom; the wrapper owns it now. */
+.wf-hl-wrap .wf-command-textarea {
+    margin-bottom: 0 !important;
+}
+
+/* The mirror sits exactly under the textarea and shows the colored text. */
+.wf-hl-mirror {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    pointer-events: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    color: var(--textarea-text-color);
+    border: 1px solid transparent; /* width overwritten from the textarea */
+    border-radius: var(--textarea-border-radius);
+    background: var(--textarea-background);
+    z-index: 0;
+}
+
+/* The real textarea: transparent text/background so the mirror shows through,
+   but a visible caret and selection. */
+.wf-hl-input.wf-command-textarea {
+    position: relative;
+    z-index: 1;
+    background: transparent !important;
+    color: transparent !important;
+    caret-color: var(--theme-text-color);
+}
+
+.wf-hl-input.wf-command-textarea::selection {
+    background: color-mix(in srgb, var(--theme-primary-color) 30%, transparent);
+}
+.wf-hl-input.wf-command-textarea::-moz-selection {
+    background: color-mix(in srgb, var(--theme-primary-color) 30%, transparent);
+}
+
+.wf-hl-token {
+    border-radius: 3px;
+    font-weight: 700;
+}
+.wf-hl-var {
+    color: var(--wf-hl-var-color);
+    background: color-mix(in srgb, var(--wf-hl-var-color) 14%, transparent);
+}
+.wf-hl-domain {
+    color: var(--wf-hl-domain-color);
+    background: color-mix(in srgb, var(--wf-hl-domain-color) 14%, transparent);
+}
+.wf-hl-unknown {
+    color: var(--wf-hl-unknown-color);
+    background: color-mix(in srgb, var(--wf-hl-unknown-color) 14%, transparent);
+    text-decoration: underline dashed color-mix(in srgb, var(--wf-hl-unknown-color) 60%, transparent);
+    text-underline-offset: 2px;
+}
+
+/* Floating hover tooltip (positioned by JS, appended inside .theme). */
+.wf-hl-tooltip {
+    position: fixed;
+    max-width: 280px;
+    padding: var(--tooltip-padding, 6px 10px);
+    font-size: var(--tooltip-font-size, 0.8em);
+    line-height: var(--tooltip-line-height, 1.3);
+    border-radius: var(--tooltip-border-radius, 6px);
+    background: var(--default-tooltip-background, var(--theme-contrast-background-color));
+    color: var(--default-tooltip-text-color, var(--theme-contrast-text-color));
+    border: var(--default-tooltip-border, none);
+    box-shadow: var(--tooltip-box-shadow, 0 2px 8px rgba(0, 0, 0, 0.2));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 999999;
+}
+.wf-hl-tooltip.visible {
+    opacity: 1;
+}
+
+/* Colored to match the hovered token kind. */
+.wf-hl-tooltip.wf-hl-var {
+    background: var(--wf-hl-var-color);
+    color: #fff;
+    border-color: var(--wf-hl-var-color);
+}
+.wf-hl-tooltip.wf-hl-domain {
+    background: var(--wf-hl-domain-color);
+    color: #fff;
+    border-color: var(--wf-hl-domain-color);
+}
+.wf-hl-tooltip.wf-hl-unknown {
+    background: var(--wf-hl-unknown-color);
+    color: #fff;
+    border-color: var(--wf-hl-unknown-color);
+}

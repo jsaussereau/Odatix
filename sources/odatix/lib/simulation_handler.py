@@ -29,6 +29,7 @@ from os.path import isfile
 from os.path import isdir
 
 from odatix.lib.architecture_handler import ArchitectureHandler
+from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.utils import *
 from odatix.lib.param_domain import ParamDomain
 
@@ -68,12 +69,31 @@ class SimulationHandler:
   def reset_lists(self):
     self.no_settings_sims = []
     self.banned_sim_param = []
+    # Single source of truth for the check outcome (see lib/run_report.py).
+    self.plan = JobPlan()
+    # Simulations that passed every check (not derivable from the plan: a
+    # simulation is categorized before the last checks run).
     self.valid_sims = []
-    self.cached_sims = []
-    self.overwrite_sims = []
-    self.error_sims = []
-    self.incomplete_sims = []
-    self.new_sims = []
+
+  @property
+  def cached_sims(self):
+    return self.plan.names(Category.CACHED)
+
+  @property
+  def overwrite_sims(self):
+    return self.plan.names(Category.OVERWRITE)
+
+  @property
+  def error_sims(self):
+    return self.plan.names(Category.ERROR)
+
+  @property
+  def incomplete_sims(self):
+    return self.plan.names(Category.INCOMPLETE)
+
+  @property
+  def new_sims(self):
+    return self.plan.names(Category.NEW)
 
   def get_simulations(self, simulations, keep=False, timestamp=""):
 
@@ -181,7 +201,7 @@ class SimulationHandler:
 
     # check if sim has been banned
     if sim in self.banned_sim_param:
-      self.error_sims.append(sim_display_name)
+      self.plan.add(sim_display_name, Category.ERROR)
       return None
 
     # check if sim dir exists
@@ -189,7 +209,7 @@ class SimulationHandler:
     if not isdir(source_sim_dir):
       printc.error("There is no directory \"" + sim + "\" in directory \"" + self.sim_path + "\"", script_name)
       self.banned_sim_param.append(sim)
-      self.error_sims.append(sim_display_name)
+      self.plan.add(sim_display_name, Category.ERROR)
       return None
 
     # check if sim dir exists
@@ -197,13 +217,13 @@ class SimulationHandler:
     if not isdir(source_sim_dir):
       printc.error("There is no directory \"" + sim + "\" in directory \"" + self.sim_path + "\"", script_name)
       self.banned_sim_param.append(sim)
-      self.error_sims.append(sim_display_name)
+      self.plan.add(sim_display_name, Category.ERROR)
       return None
 
     # get architecture
     architecture = arch_handler.get_architecture(arch_full)
     if architecture is None:
-      self.error_sims.append(sim_display_name)
+      self.plan.add(sim_display_name, Category.ERROR)
       return None
 
     # check if makefile exists
@@ -212,7 +232,7 @@ class SimulationHandler:
       printc.error("There is no setting \"Makefile\" in directory \"" + source_sim_dir + "\"", script_name)
       printc.note("A Makefile with a rule \"sim\" is mandatory", script_name)
       self.banned_sim_param.append(sim)
-      self.error_sims.append(sim_display_name)
+      self.plan.add(sim_display_name, Category.ERROR)
       return None
 
     override_parameters = False
@@ -235,18 +255,18 @@ class SimulationHandler:
             printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
             printc.cyan("error details: ", end="", script_name=script_name)
             print(str(e))
-            self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
+            self.banned_sim_param.append(sim)
+            self.plan.add(sim_display_name, Category.ERROR)
             return None # if an identifier is missing
 
           # get use_parameters, start_delimiter and stop_delimiter
           use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, None, add_to_error_list=False)
           if use_parameters is None:
             self.banned_sim_param.append(sim)
-            self.error_sims.append(sim_display_name)
+            self.plan.add(sim_display_name, Category.ERROR)
             return None
           elif start_delimiter is None or stop_delimiter is None:
-            self.error_sims.append(sim_display_name)
+            self.plan.add(sim_display_name, Category.ERROR)
             return None
 
           # overwrite architecture settings
@@ -258,7 +278,7 @@ class SimulationHandler:
           if use_parameters:
             if param_target_filename is None:
               self.banned_sim_param.append(sim)
-              self.error_sims.append(sim_display_name)
+              self.plan.add(sim_display_name, Category.ERROR)
               return None
             else:
               # check if param target file path exists
@@ -274,7 +294,7 @@ class SimulationHandler:
             override_parameters = read_from_list('override_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
           except (KeyNotInListError, BadValueInListError):
             self.banned_sim_param.append(sim)
-            self.error_sims.append(sim_display_name)
+            self.plan.add(sim_display_name, Category.ERROR)
             return None
 
           if override_parameters:
@@ -284,13 +304,13 @@ class SimulationHandler:
             except (KeyNotInListError, BadValueInListError):
               printc.error("Cannot find key \"override_param_file\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
-              self.error_sims.append(sim_display_name)
+              self.plan.add(sim_display_name, Category.ERROR)
               return None
 
             # check if parameter file exists
             if not isfile(source_sim_dir + '/' + override_param_file):
               printc.error("There is no parameter file \"" + source_sim_dir + '/' + override_param_file + "\", while override_parameters=true", script_name)
-              self.error_sims.append(sim_display_name)
+              self.plan.add(sim_display_name, Category.ERROR)
               return True
           
           if override_parameters:
@@ -300,7 +320,7 @@ class SimulationHandler:
             except (KeyNotInListError, BadValueInListError):
               printc.error("Cannot find key \"override_start_delimiter\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
-              self.error_sims.append(sim_display_name)
+              self.plan.add(sim_display_name, Category.ERROR)
               return None
 
             # get stop delimiter
@@ -309,7 +329,7 @@ class SimulationHandler:
             except (KeyNotInListError, BadValueInListError):
               printc.error("Cannot find key \"override_stop_delimiter\" in \"" + settings_filename + "\", while \"override_parameters\" is true", script_name)
               self.banned_sim_param.append(sim)
-              self.error_sims.append(sim_display_name)
+              self.plan.add(sim_display_name, Category.ERROR)
           else:
             override_start_delimiter = ""
             override_stop_delimiter = ""
@@ -326,7 +346,7 @@ class SimulationHandler:
                 #printc.warning("The override parameter target file \"" + override_param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
             except (KeyNotInListError, BadValueInListError):
               self.banned_sim_param.append(sim)
-              self.error_sims.append(sim_display_name)
+              self.plan.add(sim_display_name, Category.ERROR)
               return None
           else:
             override_param_target_filename = "/dev/null"
@@ -335,13 +355,13 @@ class SimulationHandler:
     if isdir(tmp_dir):
       if self.overwrite:
         printc.warning("Found cached results for \"" + sim_display_name +"\".", script_name)
-        self.overwrite_sims.append(sim_display_name)
+        self.plan.add(sim_display_name, Category.OVERWRITE)
       else:
         printc.note("Found cached results for \"" + sim_display_name + "\". Skipping.", script_name)
-        self.cached_sims.append(sim_display_name)
+        self.plan.add(sim_display_name, Category.CACHED)
         return None
     else:
-      self.new_sims.append(sim_display_name)
+      self.plan.add(sim_display_name, Category.NEW)
 
     # passed all check: added to the list
     self.valid_sims.append(sim_display_name)
@@ -363,23 +383,8 @@ class SimulationHandler:
     return sim_instance
 
   def print_summary(self):
-    SimulationHandler.print_sim_list(self.new_sims, "New simulations", printc.colors.ENDC)
-    SimulationHandler.print_sim_list(self.incomplete_sims, "Incomplete results (will be overwritten)", printc.colors.YELLOW)
-    SimulationHandler.print_sim_list(self.cached_sims, "Existing results (skipped)", printc.colors.CYAN)
-    SimulationHandler.print_sim_list(self.overwrite_sims, "Existing results (will be overwritten)", printc.colors.YELLOW)
-    SimulationHandler.print_sim_list(self.error_sims, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
+    self.plan.print_summary(noun="simulations")
 
   def get_valid_sim_count(self):
     return len(self.valid_sims)
 
-  @staticmethod
-  def print_sim_list(arch_list, description, color):
-    if not len(arch_list) > 0:
-      return
-
-    print()
-    printc.bold(description + ":")
-    for arch in arch_list:
-      printc.color(color)
-      print("  - " + arch)
-    printc.endc()

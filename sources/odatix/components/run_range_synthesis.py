@@ -24,7 +24,8 @@ import sys
 import argparse
 
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
-from odatix.components.run_common import confirm_valid_jobs, start_parallel_jobs as start_parallel_jobs_common
+from odatix.components import workspace as workspace_utils
+from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
@@ -57,7 +58,7 @@ def add_arguments(parser):
     parser.add_argument("-a", "--archpath", help="architecture directory")
     parser.add_argument("-w", "--work", help="work directory")
     parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
     parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
     parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
     parser.add_argument("--from", dest="from_freq", type=int, help="override range lower bound for custom frequency synthesis (in MHz)")
@@ -80,6 +81,30 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def _load_settings_custom_frequencies(run_config_settings_filename):
+    settings_payload = workspace_utils.load_yaml_file(run_config_settings_filename, default={})
+    frequencies = settings_payload.get("frequencies", {})
+
+    override_arch_frequencies = bool(frequencies.get("override", False))
+    custom_freq_list = []
+
+    list_data = frequencies.get("list", [])
+    if list_data:
+        custom_freq_list.extend(list_data)
+
+    range_data = frequencies.get("range", {})
+    lower_bound = range_data.get("from")
+    upper_bound = range_data.get("to")
+    step = range_data.get("step")
+    if lower_bound is not None and upper_bound is not None and step is not None:
+        if ArchitectureHandler.check_bounds(lower_bound, upper_bound, step, synth_type="custom frequency synthesis"):
+            range_list = ArchitectureHandler.create_list_from_range(lower_bound, upper_bound, step)
+            custom_freq_list.extend(range_list)
+    # Keep order stable while removing duplicates.
+    custom_freq_list = list(dict.fromkeys(custom_freq_list))
+    return custom_freq_list, override_arch_frequencies
+
+
 ######################################
 # Run Synthesis
 ######################################
@@ -96,7 +121,7 @@ def run_synthesis(
     log_size_limit,
     nb_jobs,
     check_eda_tool,
-    custom_freq_list=[],
+    custom_freq_list=None,
     debug=False,
     keep=False,
     export_output_dir=None,
@@ -107,7 +132,7 @@ def run_synthesis(
     detach=False,
     daemon_session=None,
 ):
-    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs = check_settings(
+    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs, _plan = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
         tool=tool,
@@ -134,14 +159,9 @@ def run_synthesis(
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
         cancel_event=cancel_event,
-    )
-
-    exp_res.configure_synthesis_job_exports(
-        parallel_jobs=parallel_jobs,
-        result_type="custom_freq_synthesis",
-        work_path=work_path,
-        tool=tool,
-        output_dir=export_output_dir,
+        export_output_dir=export_output_dir,
+        export_tool=tool,
+        export_work_path=work_path,
         use_benchmark=use_benchmark,
         benchmark_file=benchmark_file,
         custom_metrics_file=custom_metrics_file,
@@ -161,12 +181,32 @@ def check_settings(
     log_size_limit,
     nb_jobs,
     check_eda_tool,
-    custom_freq_list=[],
+    custom_freq_list=None,
     debug=False,
     keep=False,
     cancel_event=None,
+    tool_check_sink=None,
 ):
     _check_cancel(cancel_event)
+
+    if custom_freq_list is None:
+        custom_freq_list = []
+
+    cli_custom_freq_list = list(custom_freq_list)
+    settings_custom_freq_list, override_arch_frequencies = _load_settings_custom_frequencies(run_config_settings_filename)
+
+    # Priority order:
+    # 1) CLI (--at / --from --to --step)
+    # 2) settings frequencies when override=true
+    # 3) architecture-specific settings
+    # 4) fallback frequencies list
+    # 5) default frequencies list
+    forced_custom_freq_list = cli_custom_freq_list
+    if len(forced_custom_freq_list) == 0 and override_arch_frequencies and len(settings_custom_freq_list) > 0:
+        forced_custom_freq_list = settings_custom_freq_list
+
+    fallback_custom_freq_list = settings_custom_freq_list if len(settings_custom_freq_list) > 0 else None
+
     context = load_synthesis_context(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
@@ -206,7 +246,8 @@ def check_settings(
         valid_frequency_search=hard_settings.valid_frequency_search,
         forced_fmax_lower_bound=None,
         forced_fmax_upper_bound=None,
-        forced_custom_freq_list=custom_freq_list,
+        forced_custom_freq_list=forced_custom_freq_list,
+        fallback_custom_freq_list=fallback_custom_freq_list,
         overwrite=context["overwrite"],
         force_single_thread=context["force_single_thread"],
     )
@@ -225,6 +266,10 @@ def check_settings(
     _check_cancel(cancel_event)
 
     arch_handler.print_summary()
+
+    # The eda tool check was started in the background by load_synthesis_context:
+    # its outcome is only needed now, right before the confirmation.
+    settle_tool_checks([context["tool_check"]], tool_check_sink)
     confirm_valid_jobs(arch_handler.get_valid_arch_count(), context["ask_continue"], ask_to_continue, script_name=script_name)
 
     print()
@@ -250,7 +295,8 @@ def check_settings(
         context["exit_when_done"],
         context["log_size_limit"],
         context["nb_jobs"],
-    )
+        arch_handler.plan,
+ )
 
 def prepare_synthesis(
     architecture_instances,
@@ -262,8 +308,14 @@ def prepare_synthesis(
     log_size_limit,
     nb_jobs,
     cancel_event=None,
+    export_output_dir=None,
+    export_tool=None,
+    export_work_path=None,
+    use_benchmark=False,
+    benchmark_file=None,
+    custom_metrics_file=None,
 ):
-    return prepare_synthesis_jobs(
+    parallel_jobs = prepare_synthesis_jobs(
         architecture_instances=architecture_instances,
         prepare_job=prepare_job,
         job_list=job_list,
@@ -273,7 +325,25 @@ def prepare_synthesis(
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
         check_cancel=lambda: _check_cancel(cancel_event),
+        script_name=script_name,
     )
+
+    # Per-job result export (au fil de l'eau): tag every job so the handler
+    # exports its result as soon as it finishes, for both the CLI and the
+    # GUI/daemon (which both call this prepare function).
+    if export_output_dir and export_tool and export_work_path:
+        exp_res.configure_synthesis_job_exports(
+            parallel_jobs=parallel_jobs,
+            result_type="custom_freq_synthesis",
+            work_path=export_work_path,
+            tool=export_tool,
+            output_dir=export_output_dir,
+            use_benchmark=use_benchmark,
+            benchmark_file=benchmark_file,
+            custom_metrics_file=custom_metrics_file,
+        )
+
+    return parallel_jobs
 
 def start_parallel_jobs(
     parallel_jobs, 

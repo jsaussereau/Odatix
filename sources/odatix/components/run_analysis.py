@@ -33,15 +33,26 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
+from odatix.lib.run_report import JobPlan
 from odatix.lib.read_tool_settings import read_tool_settings
-from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError, get_timestamp_string
+from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, KeyNotInListError, BadValueInListError, get_timestamp_string, resolve_nb_jobs
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
-from odatix.lib.check_tool import check_tool
+from odatix.lib.check_tool import start_tool_check
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
+from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, abort_if_empty_job_list, run_prepare_loop
 from odatix.components.analyze_results import generate_analysis_summary
+from odatix.components.export_analysis import configure_analysis_job_exports
+
+
+class AnalysisCancelled(Exception):
+  pass
+
+def _check_cancel(cancel_event):
+  if cancel_event is not None and cancel_event.is_set():
+    raise AnalysisCancelled()
 
 
 ## define colors
@@ -64,14 +75,14 @@ script_name = os.path.basename(__file__)
 
 
 def add_arguments(parser):
-  parser.add_argument("-t", "--tool", nargs="+", default=["vivado"], help="eda tool in use (default: vivado)")
+  parser.add_argument("-t", "--tool", nargs="+", default=None, help="eda tool(s) in use (overrides the 'tools' list of the analysis settings file; default: vivado)")
   parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
   parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
   parser.add_argument("-i", "--input", help="input settings file")
   parser.add_argument("-a", "--archpath", help="architecture directory")
   parser.add_argument("-w", "--work", help="work directory")
   parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-  parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+  parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
   parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
   parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
   parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
@@ -91,24 +102,152 @@ def parse_arguments():
 
 
 ######################################
-# Run Analysis
+# Tool context
 ######################################
 
 
-def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False):
+DEFAULT_ANALYSIS_TOOLS = ["vivado"]
+
+
+def get_analysis_tools_from_settings(settings_filename):
+  """
+  Read the default list of eda tools to run the analysis with from the analysis
+  settings file ("tools" key). Used when the CLI "--tool" argument is not given.
+
+  Returns:
+      list: the tools listed in the settings file, or DEFAULT_ANALYSIS_TOOLS if
+      the key is missing/empty/invalid.
+  """
+  if not settings_filename or not os.path.isfile(settings_filename):
+    return list(DEFAULT_ANALYSIS_TOOLS)
+
+  with open(settings_filename, "r") as f:
+    try:
+      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    except Exception:
+      return list(DEFAULT_ANALYSIS_TOOLS)
+
+  tools, _ = get_from_dict("tools", settings_data or {}, settings_filename, default_value=None, silent=True, script_name=script_name)
+  if tools is None:
+    return list(DEFAULT_ANALYSIS_TOOLS)
+  if isinstance(tools, str):
+    tools = [tools]
+  tools = [str(tool) for tool in tools if tool]
+  if not tools:
+    return list(DEFAULT_ANALYSIS_TOOLS)
+  return tools
+
+
+def load_tool_context(tool, target_path):
+  """
+  Validate an eda tool (tool directory) and load its tool settings, for the RTL
+  analysis flow.
+
+  RTL analysis (odatix analyze) does NOT use target definition files
+  ("target_<tool>.yml"): it does not target a specific technology / device, so
+  there is no target list, no timing constraint and no per-target settings. A
+  single generic analysis target is used and the tool install path defaults to
+  the tool being on the $PATH.
+
+  Returns:
+      dict: eda_target_filename (always None), tool_settings_file, process_group,
+      run_command, tool_test_command, targets, constraint_file,
+      install_path, force_single_thread.
+  """
+  # Check if the tool has a dedicated directory in odatix_eda_tools path
+  eda_tool_dir = os.path.join(OdatixSettings.odatix_eda_tools_path, tool)
+  if not os.path.isdir(eda_tool_dir):
+    printc.error(
+      'The directory "' + eda_tool_dir + '", for the selected eda tool "' + tool + '" does not exist', script_name
+    )
+    if tool not in hard_settings.default_supported_tools:
+      printc.note(
+        'The selected eda tool "'
+        + tool
+        + "\" is not one of the supported tool. Check out Odatix's documentation to add support for your own eda tool",
+        script_name,
+      )
+    sys.exit(-1)
+
+  # Get tool settings
+  tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
+  process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file,  synth_type='analysis')
+
+  # No target file for analysis: use a single generic target and a placeholder
+  # constraint file (the shared init_script.tcl always creates it, even though
+  # analysis never applies timing constraints; it must be a plain filename, not
+  # empty, see hard_settings.default_analysis_constraint_file). The install path
+  # defaults to "/" (tool expected on the $PATH).
+  targets = [hard_settings.default_analysis_target]
+  constraint_file = hard_settings.default_analysis_constraint_file
+  install_path = "/"
+  force_single_thread = False
+
+  # Concat all strings if it is a list
+  if isinstance(tool_test_command, list):
+    tool_test_command = " ".join(map(str, tool_test_command))
+
+  # Define user accessible variables
+  variables = Variables(
+    tool_install_path=os.path.realpath(install_path),
+    odatix_path=OdatixSettings.odatix_path,
+    odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+  )
+
+  # Replace variables in command
+  tool_test_command = replace_variables(tool_test_command, variables)
+
+  return {
+    "eda_target_filename": None,
+    "tool_settings_file": tool_settings_file,
+    "process_group": process_group,
+    "run_command": run_command,
+    "tool_test_command": tool_test_command,
+    "targets": targets,
+    "constraint_file": constraint_file,
+    "install_path": install_path,
+    "force_single_thread": force_single_thread,
+  }
+
+
+######################################
+# Prepare Analysis (one eda tool)
+######################################
+
+
+def prepare_analysis(
+  run_config_settings_filename,
+  arch_path,
+  tool,
+  work_path,
+  overwrite,
+  noask,
+  exit_when_done,
+  log_size_limit,
+  nb_jobs,
+  tool_context,
+  job_list,
+  timestamp,
+  display_suffix="",
+  debug=False,
+  keep=False,
+):
+  """
+  Check settings and prepare the analysis jobs of a single eda tool,
+  appending them to the shared job_list (so that several tools can run
+  in one single monitor session, like multi-target synthesis).
+
+  The checklist summary is NOT printed here: the caller merges the
+  arch_handler lists of every tool into one single global checklist.
+
+  Returns:
+      dict: resolved runtime settings for this tool (work_path,
+      tool_settings_file, process_group, arch_handler, ask_continue,
+      exit_when_done, log_size_limit, nb_jobs, valid_arch_count).
+  """
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
   work_path = os.path.join(work_path, tool)
-
-  supported_tools = hard_settings.default_supported_tools
-  if tool not in supported_tools:
-    printc.error(
-      f" Analysis flow is not yet implemented for tool '{tool}'"
-    )
-    printc.note(
-      "Supported tools are: " + ", ".join(supported_tools)
-    )
-    sys.exit(1)
 
   if architectures is None:
     printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)
@@ -131,96 +270,19 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   else:
     log_size_limit = _log_size_limit
 
-  if nb_jobs is not None:
-    nb_jobs = int(nb_jobs)
-  else:
-    nb_jobs = _nb_jobs
+  nb_jobs = resolve_nb_jobs(nb_jobs if nb_jobs is not None else _nb_jobs)
 
   if noask:
     ask_continue = False
 
-  eda_target_filename = os.path.realpath(os.path.join(target_path, "target_" + tool + ".yml"))
-
-  # Check if the target file exists
-  if not os.path.isfile(eda_target_filename):
-    printc.error(
-      'Target file "' + eda_target_filename + '", for the selected eda tool "' + tool + '" does not exist', script_name
-    )
-    sys.exit(-1)
-
-  # Check if the tool has a dedicated directory in odatix_eda_tools path
-  eda_tool_dir = os.path.join(OdatixSettings.odatix_eda_tools_path, tool)
-  if not os.path.isdir(eda_tool_dir):
-    printc.error(
-      'The directory "' + eda_tool_dir + '", for the selected eda tool "' + tool + '" does not exist', script_name
-    )
-    if tool not in hard_settings.default_supported_tools:
-      printc.note(
-        'The selected eda tool "'
-        + tool
-        + "\" is not one of the supported tool. Check out Odatix's documentation to add support for your own eda tool",
-        script_name,
-      )
-    sys.exit(-1)
-
-  # Get tool settings
-  tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
-  process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file,  synth_type='analysis')
-  #print("\033[91m========== DEBUG ==========\033[0m")
-  #print("\033[93mrun_command =\033[0m", run_command)
-  #print("\033[91m===========================\033[0m")
-
-  with open(eda_target_filename, "r") as f:
-    try:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-    except Exception as e:
-      printc.error('Settings file "' + eda_target_filename + '" is not a valid YAML file', script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
-      print(str(e))
-      sys.exit(-1)
-
-    # Mandatory keys
-    try:
-      targets = read_from_list("targets", settings_data, eda_target_filename, script_name=script_name)
-      constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      sys.exit(-1)  # if a key is missing
-
-    # Optional keys
-    try:
-      install_path = read_from_list("tool_install_path", settings_data, eda_target_filename, print_error=False, script_name=script_name)
-      install_path = os.path.realpath(os.path.expanduser(install_path))
-      if not os.path.isdir(install_path):
-        printc.error('The installation path "' + install_path + '" defined for tool "' + tool + '" in "' + eda_target_filename + '" does not exist', script_name)
-        printc.note('Please update the path in "' + eda_target_filename + '"', script_name=script_name)
-        printc.note('if no installation path is needed by ' + tool + '\'s Makefile, simply remove "install_path" from "' + eda_target_filename + '"', script_name=script_name)
-        sys.exit(-1)
-
-    except (KeyNotInListError, BadValueInListError):
-      printc.note('No tool_install_path specified for "' + tool + '"', script_name=script_name)
-      install_path = "/"
-
-    force_single_thread, _ = get_from_dict("force_single_thread", settings_data, eda_target_filename, default_value=False, script_name=script_name)
-
-  # Concat all strings if it is a list
-  if isinstance(tool_test_command, list):
-    tool_test_command = " ".join(map(str, tool_test_command)) 
-
-  # Define user accessible variables
-  variables = Variables(
-    tool_install_path=os.path.realpath(install_path),
-    odatix_path=OdatixSettings.odatix_path,
-    odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
-  )
-
-  # Replace variables in command
-  tool_test_command = replace_variables(tool_test_command, variables)
-
-  # Try launching eda tool
-  if check_eda_tool:
-    check_tool(
-      tool, command=tool_test_command, supported_tools=hard_settings.default_supported_tools, tool_install_path=install_path, debug=debug
-    )
+  eda_target_filename = tool_context["eda_target_filename"]
+  tool_settings_file = tool_context["tool_settings_file"]
+  process_group = tool_context["process_group"]
+  run_command = tool_context["run_command"]
+  targets = tool_context["targets"]
+  constraint_file = tool_context["constraint_file"]
+  install_path = tool_context["install_path"]
+  force_single_thread = tool_context["force_single_thread"]
 
   ParallelJob.set_patterns(hard_settings.synth_status_pattern, hard_settings.fmax_status_pattern)
 
@@ -248,24 +310,11 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
     force_single_thread=force_single_thread
   )
 
-  timestamp = get_timestamp_string()
-  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path, keep=keep, timestamp=timestamp)
+  # RTL analysis does not use target definition files (see load_tool_context):
+  # allow get_architectures to run without one.
+  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path, keep=keep, timestamp=timestamp, allow_missing_target_file=True)
 
-  # Print checklist summary
-  arch_handler.print_summary()
-
-  # ask to quit or continue
   valid_arch_count = arch_handler.get_valid_arch_count()
-  if valid_arch_count > 0:
-    if ask_continue:
-      printc.bold("\nTotal: " + str(valid_arch_count))
-      ask_to_continue()
-  else:
-    sys.exit(-1)
-
-  print()
-
-  job_list = []
 
   def prepare_job(arch_instance):
     if True:
@@ -288,6 +337,9 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
 
       # Copy design
       if arch_instance.design_path is not None:
+        if not os.path.isdir(arch_instance.design_path):
+          printc.error('The design directory "' + arch_instance.design_path + '" does not exist', script_name)
+          return
         copytree(
           src=arch_instance.design_path,
           dst=arch_instance.tmp_dir,
@@ -444,7 +496,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
         generate_command=arch_instance.generate_command,
         target=arch_instance.target,
         arch=arch_instance.arch_name,
-        display_name=arch_instance.arch_display_name,
+        display_name=arch_instance.arch_display_name + display_suffix,
         status_file=fmax_status_file,
         progress_file=synth_status_file,
         tmp_dir=arch_instance.tmp_dir,
@@ -455,31 +507,378 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
 
       job_list.append(running_arch)
 
-  for arch_instance in architecture_instances:
-    prepare_job(arch_instance)
+  # The job-building loop is intentionally not run here: the caller runs it
+  # after the (single, global) confirmation, so that no temporary work
+  # directory is created before the user confirms.
+  return {
+    "work_path": work_path,
+    "tool_settings_file": tool_settings_file,
+    "process_group": arch_handler.process_group,
+    "arch_handler": arch_handler,
+    "architecture_instances": architecture_instances,
+    "prepare_job": prepare_job,
+    "job_list": job_list,
+    "ask_continue": ask_continue,
+    "exit_when_done": exit_when_done,
+    "log_size_limit": log_size_limit,
+    "nb_jobs": nb_jobs,
+    "valid_arch_count": valid_arch_count,
+  }
+
+
+######################################
+# Run Analysis
+######################################
+
+
+def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False, result_path=None):
+  """
+  Run RTL analysis for all selected architectures with one or several eda
+  tools. The jobs of every tool run together in a single monitor session
+  (like multi-target synthesis); one summary is generated per tool afterwards.
+
+  Args:
+      tool (str or list): eda tool(s) to run the analysis with.
+      result_path (str, optional): workspace result directory. When given, the
+          detailed analysis results are also compiled into a v2 results file
+          ("results_analysis_<tool>.yml") for Odatix Explorer.
+
+  Returns:
+      dict: {tool: analysis summary}
+  """
+  tools = list(dict.fromkeys(tool)) if isinstance(tool, (list, tuple)) else [tool]
+
+  supported_tools = hard_settings.default_supported_tools
+  for current_tool in tools:
+    if current_tool not in supported_tools:
+      printc.error(f"Analysis flow is not yet implemented for tool '{current_tool}'")
+      printc.note("Supported tools are: " + ", ".join(supported_tools))
+      sys.exit(1)
+
+  # Check every eda tool first (target file, tool directory, test launch)
+  tool_contexts = {}
+  for current_tool in tools:
+    tool_contexts[current_tool] = load_tool_context(current_tool, target_path)
+  # Every tool check runs in the background while the settings are processed;
+  # they are waited for just before the checklist and the confirmation.
+  tool_checks = []
+  if check_eda_tool:
+    for current_tool in tools:
+      tool_context = tool_contexts[current_tool]
+      tool_checks.append(start_tool_check(
+        current_tool,
+        command=tool_context["tool_test_command"],
+        supported_tools=supported_tools,
+        tool_install_path=tool_context["install_path"],
+        debug=debug,
+      ))
+
+  # Same timestamp for the whole batch
+  timestamp = get_timestamp_string()
+
+  # The eda tool is displayed like a target: "arch (tool)" in the checklist
+  # and in the shared monitor
+  multi_tool = len(tools) > 1
+
+  job_list = []
+  prepared_tools = []
+  for current_tool in tools:
+    context = prepare_analysis(
+      run_config_settings_filename=run_config_settings_filename,
+      arch_path=arch_path,
+      tool=current_tool,
+      work_path=work_path,
+      overwrite=overwrite,
+      noask=noask,
+      exit_when_done=exit_when_done,
+      log_size_limit=log_size_limit,
+      nb_jobs=nb_jobs,
+      tool_context=tool_contexts[current_tool],
+      job_list=job_list,
+      timestamp=timestamp,
+      display_suffix=f" ({current_tool})" if multi_tool else "",
+      debug=debug,
+      keep=keep,
+    )
+    prepared_tools.append((current_tool, context))
+
+  # One single global checklist for all tools, with the eda tool shown like a
+  # target: merge every tool plan into one, suffixing the job names.
+  plan = merged_analysis_plan(prepared_tools, multi_tool)
+  plan.print_summary(noun="architectures")
+
+  for tool_check in tool_checks:
+    tool_check.wait()
+
+  # Single confirmation for all tools
+  total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
+  if total_valid == 0:
+    sys.exit(-1)
+  if any(context["ask_continue"] for _, context in prepared_tools):
+    printc.bold("\nTotal: " + str(total_valid))
+    ask_to_continue()
+
+  print()
+
+  # Build the jobs of every tool (creates the temporary work directories) only
+  # now that the run is confirmed.
+  build_pairs = []
+  for _current_tool, context in prepared_tools:
+    for arch_instance in context["architecture_instances"]:
+      build_pairs.append((context["prepare_job"], arch_instance))
+  run_prepare_loop(
+    instances=build_pairs,
+    build_job=lambda pair: pair[0](pair[1]),
+    job_list=job_list,
+  )
+
+  # An architecture can pass the initial checklist but still fail while its job
+  # is being built (e.g. a missing design_path): do not launch the monitor with
+  # zero jobs if every one of them failed.
+  abort_if_empty_job_list(job_list, script_name=script_name)
+
+  # Single monitor session with the jobs of every tool
+  first_context = prepared_tools[0][1]
+  parallel_jobs = ParallelJobHandler(
+    job_list,
+    first_context["nb_jobs"],
+    first_context["process_group"],
+    auto_exit=first_context["exit_when_done"],
+    format_yaml=first_context["tool_settings_file"],
+    log_size_limit=first_context["log_size_limit"],
+  )
+
+  # Export each job's result to the Explorer results file as soon as it finishes
+  # (per-job, au fil de l'eau), instead of a single export at the end. The tool
+  # of each job is derived from its work directory, so one call tags every tool.
+  if result_path:
+    configure_analysis_job_exports(
+      parallel_jobs=parallel_jobs,
+      analysis_work_root=work_path,
+      output_dir=result_path,
+    )
+
+  parallel_jobs.run()
+
+  # Generate one global report per tool (terminal summary + text report). The
+  # per-job export above already wrote the Explorer results file during the run.
+  all_summaries = {}
+  for current_tool, context in prepared_tools:
+    analysis_file = os.path.join(context["work_path"], "analysis.yml")
+    all_summaries[current_tool] = generate_analysis_summary(
+      root_dir=context["work_path"],
+      output_file=analysis_file,
+      tool=current_tool,
+    )
+
+  return all_summaries
+
+
+######################################
+# GUI interface (single tool)
+######################################
+
+
+def merged_analysis_plan(prepared_tools, multi_tool):
+  """
+  The check outcome of every eda tool as a single plan. The tool is appended to
+  the job names, the way a target would be, so one checklist covers the run.
+  """
+  plan = JobPlan()
+  for current_tool, context in prepared_tools:
+    suffix = f" ({current_tool})" if multi_tool else ""
+    plan.merge(context["arch_handler"].plan, suffix=suffix)
+  return plan
+
+
+def check_settings(
+  run_config_settings_filename,
+  arch_path,
+  tool,
+  work_path,
+  target_path,
+  overwrite,
+  noask,
+  exit_when_done,
+  log_size_limit,
+  nb_jobs,
+  check_eda_tool,
+  debug=False,
+  keep=False,
+  cancel_event=None,
+  tool_check_sink=None,
+):
+  """
+  Validate the analysis settings of one or several eda tools and prepare (but
+  do not build) their jobs, for the Odatix GUI. Mirrors
+  run_range_synthesis.check_settings so the GUI run flow can drive analysis
+  exactly like a synthesis, and mirrors the CLI run_analysis() multi-tool logic
+  so several tools run in a single monitor session (the eda tool is shown like a
+  target, "arch (tool)", in one merged global checklist).
+
+  Args:
+      tool (str or list): eda tool(s) to run the analysis with.
+
+  Returns the same 8-tuple shape as run_range_synthesis.check_settings:
+      (architecture_instances, prepare_job, job_list, tool_settings_file,
+       arch_handler, exit_when_done, log_size_limit, nb_jobs)
+
+  For several tools, ``architecture_instances`` is a flat list of
+  ``(build_job, arch_instance)`` pairs and ``prepare_job`` dispatches each pair
+  to its tool's own builder, so prepare_synthesis() stays tool-agnostic.
+  """
+  _check_cancel(cancel_event)
+
+  tools = list(dict.fromkeys(tool)) if isinstance(tool, (list, tuple)) else [tool]
+
+  supported_tools = hard_settings.default_supported_tools
+  for current_tool in tools:
+    if current_tool not in supported_tools:
+      printc.error(f"Analysis flow is not yet implemented for tool '{current_tool}'", script_name)
+      printc.note("Supported tools are: " + ", ".join(supported_tools), script_name)
+      sys.exit(-1)
+
+  tool_contexts = {}
+  for current_tool in tools:
+    tool_contexts[current_tool] = load_tool_context(current_tool, target_path)
+  # Every tool check runs in the background while the settings are processed;
+  # they are waited for just before the checklist and the confirmation.
+  tool_checks = []
+  if check_eda_tool:
+    for current_tool in tools:
+      tool_context = tool_contexts[current_tool]
+      tool_checks.append(start_tool_check(
+        current_tool,
+        command=tool_context["tool_test_command"],
+        supported_tools=supported_tools,
+        tool_install_path=tool_context["install_path"],
+        debug=debug,
+      ))
+      _check_cancel(cancel_event)
+
+  _check_cancel(cancel_event)
+
+  # Same timestamp for the whole batch; the eda tool is displayed like a target
+  timestamp = get_timestamp_string()
+  multi_tool = len(tools) > 1
+
+  job_list = []
+  prepared_tools = []
+  for current_tool in tools:
+    context = prepare_analysis(
+      run_config_settings_filename=run_config_settings_filename,
+      arch_path=arch_path,
+      tool=current_tool,
+      work_path=work_path,
+      overwrite=overwrite,
+      noask=noask,
+      exit_when_done=exit_when_done,
+      log_size_limit=log_size_limit,
+      nb_jobs=nb_jobs,
+      tool_context=tool_contexts[current_tool],
+      job_list=job_list,
+      timestamp=timestamp,
+      display_suffix=f" ({current_tool})" if multi_tool else "",
+      debug=debug,
+      keep=keep,
+    )
+    prepared_tools.append((current_tool, context))
+    _check_cancel(cancel_event)
+
+  # One single global checklist for all tools, with the eda tool shown like a
+  # target: merge every tool plan into one, suffixing the job names.
+  plan = merged_analysis_plan(prepared_tools, multi_tool)
+  plan.print_summary(noun="architectures")
+
+  settle_tool_checks(tool_checks, tool_check_sink)
+
+  _check_cancel(cancel_event)
+
+  # Single confirmation for all tools
+  total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
+  ask_continue = any(context["ask_continue"] for _, context in prepared_tools)
+  confirm_valid_jobs(total_valid, ask_continue, ask_to_continue, script_name=script_name)
+
+  print()
+
+  # Flatten every tool's instances into (build_job, arch_instance) pairs so the
+  # tool-agnostic prepare_synthesis() can build them all after confirmation.
+  architecture_instances = []
+  for _current_tool, context in prepared_tools:
+    build_job = context["prepare_job"]
+    for arch_instance in context["architecture_instances"]:
+      architecture_instances.append((build_job, arch_instance))
+
+  def prepare_job(pair):
+    build_job, arch_instance = pair
+    build_job(arch_instance)
+
+  first_context = prepared_tools[0][1]
+  return (
+    architecture_instances,
+    prepare_job,
+    job_list,
+    first_context["tool_settings_file"],
+    first_context["arch_handler"],
+    first_context["exit_when_done"],
+    first_context["log_size_limit"],
+    first_context["nb_jobs"],
+    plan,
+  )
+
+
+def prepare_synthesis(
+  architecture_instances,
+  prepare_job,
+  job_list,
+  tool_settings_file,
+  arch_handler,
+  exit_when_done,
+  log_size_limit,
+  nb_jobs,
+  cancel_event=None,
+  export_output_dir=None,
+  analysis_work_root=None,
+):
+  """
+  Build the analysis jobs and return a ParallelJobHandler ready to run/enqueue,
+  without running it. Mirrors run_range_synthesis.prepare_synthesis so the GUI
+  can enqueue analysis jobs into a daemon session.
+
+  When ``export_output_dir`` and ``analysis_work_root`` are given, each job is
+  tagged for per-job result export (au fil de l'eau), so the daemon writes the
+  Explorer results file as jobs finish (see configure_analysis_job_exports).
+  """
+  run_prepare_loop(
+    instances=architecture_instances,
+    build_job=prepare_job,
+    job_list=job_list,
+    check_cancel=lambda: _check_cancel(cancel_event),
+  )
+
+  # An architecture can pass the initial checklist but still fail while its job
+  # is being built (e.g. a missing design_path): do not launch the monitor/daemon
+  # session with zero jobs if every one of them failed.
+  abort_if_empty_job_list(job_list, script_name=script_name)
 
   parallel_jobs = ParallelJobHandler(
     job_list,
     nb_jobs,
     arch_handler.process_group,
     auto_exit=exit_when_done,
-    format_yaml= tool_settings_file,
+    format_yaml=tool_settings_file,
     log_size_limit=log_size_limit,
   )
-  job_exit_success = parallel_jobs.run()
 
-
-
-  # Generate global report
-  analysis_file = os.path.join(work_path, "analysis.yml")
-
-  summary = generate_analysis_summary(
-      root_dir=work_path,
-      output_file=analysis_file,
-      tool=tool
+  if export_output_dir and analysis_work_root:
+    configure_analysis_job_exports(
+      parallel_jobs=parallel_jobs,
+      analysis_work_root=analysis_work_root,
+      output_dir=export_output_dir,
     )
 
-  return summary
+  return parallel_jobs
+
 
 def get_colored_table_symbol(status, column_width=12):
   """
@@ -495,6 +894,9 @@ def get_colored_table_symbol(status, column_width=12):
   elif status == "FAILED":
     raw_symbol = "✗"
     color = RED
+  elif status == "INCOMPLETE":
+    raw_symbol = "/"
+    color = MAGENTA
   else:
     raw_symbol = "-"
     color = BLUE
@@ -534,7 +936,12 @@ def main(args, settings=None):
     work_path = os.path.join(settings.work_path, settings.analysis_work_path)
 
   target_path = settings.target_path
-  tool = args.tool
+  # The "--tool" CLI argument overrides the "tools" list of the analysis settings
+  # file; if neither is given, fall back to DEFAULT_ANALYSIS_TOOLS.
+  if args.tool is not None:
+    tool = args.tool
+  else:
+    tool = get_analysis_tools_from_settings(run_config_settings_filename)
   overwrite = args.overwrite
   noask = args.noask
   exit_when_done = args.exit
@@ -545,46 +952,33 @@ def main(args, settings=None):
   keep = args.keep
 
   supported_tools = hard_settings.default_supported_tools
-  all_summaries = {}
-  count = 0
-
+  tools = [current_tool for current_tool in tool if current_tool in supported_tools]
   for current_tool in tool:
-    exit_when_done = True
-
-    # ask for continue only for the first time
-    if count == 1:
-      noask = True
-    else:
-      noask = False
-      count = 1
-
     if current_tool not in supported_tools:
       printc.warning(f"Tool '{current_tool}' is not supported. Skipping.")
-      continue
+  if len(tools) == 0:
+    printc.error("None of the selected tools is supported.", script_name)
+    printc.note("Supported tools are: " + ", ".join(supported_tools), script_name)
+    sys.exit(-1)
 
-    print()
-    printc.bold("=" * 96, printc.colors.CYAN)
-    printc.bold(f"Running analysis with {current_tool}", printc.colors.GREEN)
-    printc.bold("=" * 96, printc.colors.CYAN)
+  # All tools run in a single monitor session
+  all_summaries = run_analysis(
+    run_config_settings_filename,
+    arch_path,
+    tools,
+    work_path,
+    target_path,
+    overwrite,
+    noask,
+    exit_when_done,
+    log_size_limit,
+    nb_jobs,
+    check_eda_tool,
+    debug,
+    keep,
+    result_path=settings.result_path,
+  )
 
-    summary = run_analysis(
-                run_config_settings_filename,
-                arch_path,
-                current_tool,
-                work_path,
-                target_path,
-                overwrite,
-                noask,
-                exit_when_done,
-                log_size_limit,
-                nb_jobs,
-                check_eda_tool,
-                debug,
-                keep
-            )
-
-    all_summaries[current_tool] = summary
-  
   comparison = {}
 
   for tool_name, summary in all_summaries.items():

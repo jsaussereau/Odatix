@@ -105,7 +105,7 @@ def architecture_title(arch_name):
             style={"position": "relative"},
         ),
         className="card-matrix config",
-        style={"marginTop": "0px", "marginBottom": "10px", "marginLeft": "-13px"},
+        style={"marginTop": "0px", "marginBottom": "10px"},
     )
 
 def architecture_form_field(

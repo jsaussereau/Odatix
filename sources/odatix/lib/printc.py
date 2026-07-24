@@ -19,6 +19,8 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import contextlib
+
 class colors:
   GREY = "\033[90m"
   RED = "\033[91m"
@@ -33,32 +35,68 @@ class colors:
   BLINK = "\033[5m"
   UNDERLINE = "\033[4m"
 
+# Sinks registered by collect(). They receive every diagnostic emitted here, so
+# a caller (the GUI) can display errors and warnings as structured data instead
+# of parsing the printed text back.
+_sinks = []
+
+def _emit(level, message, script_name=""):
+  for sink in list(_sinks):
+    try:
+      sink(level, str(message), str(script_name))
+    except Exception:
+      # A broken sink must never take the run down with it.
+      pass
+
+@contextlib.contextmanager
+def collect(sink):
+  """
+  Report every error/warning/note/tip emitted inside the context to `sink`,
+  called as sink(level, message, script_name). Printing is unaffected.
+
+  Like the stdout redirection the GUI already relies on, this is process-wide:
+  it is meant for one check/prepare phase at a time.
+  """
+  _sinks.append(sink)
+  try:
+    yield sink
+  finally:
+    try:
+      _sinks.remove(sink)
+    except ValueError:
+      pass
+
 def say(message="", script_name="", color=colors.ENDC, end="\n"):
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + color + message + colors.ENDC, end=end)
 
 def error(message, script_name="", end="\n"):
+  _emit("error", message, script_name)
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.BOLD + colors.RED + "error" + colors.ENDC + colors.RED + ": " + message + colors.ENDC, end=end)
 
 def internal_error(message, script_name="", end="\n"):
+  _emit("error", message, script_name)
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.BOLD + colors.RED + "internal error" + colors.ENDC + colors.RED + ": " + message + colors.ENDC, end=end)
 
 def warning(message, script_name="", end="\n"):
+  _emit("warning", message, script_name)
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.YELLOW + "warning: " + message + colors.ENDC, end=end)
 
 def note(message, script_name="", end="\n"):
+  _emit("note", message, script_name)
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.CYAN + "note: " + message + colors.ENDC, end=end)
 
 def tip(message, script_name="", end="\n"):
+  _emit("tip", message, script_name)
   if script_name != "":
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.MAGENTA + "tip: " + message + colors.ENDC, end=end)

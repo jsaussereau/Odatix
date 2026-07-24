@@ -21,9 +21,10 @@
 
 import os
 import dash
-from dash import dcc, html, Input, Output, State
+from dash import dcc, html, Input, Output
 
-import odatix.gui.ui_components as ui
+from odatix.components import home_shared
+from odatix.gui.icons import pictogram
 import odatix.gui.navigation as navigation
 from odatix.lib.settings import OdatixSettings
 
@@ -46,90 +47,61 @@ padding = 20
 
 home_cards = [
     {
-        "name": "Architectures",
+        "name": "Workflows",
+        "link": "/workflows",
+        "icon": "workflow",
+        "description": "Configure your workflows",
+    },
+    {
+        "name": "RTL Architectures",
         "link": "/architectures",
-        "image": "assets/icons/architecture.png",
-        "description": "Configure your architectures",
+        "icon": "architecture",
+        "description": "Configure your RTL architectures",
     },
     {
         "name": "Run Jobs",
         "link": "/choose_job_type",
-        "image": "assets/icons/run.png",
-        "description": "Run synthesis at Fmax and custom frequencies",
+        "icon": "run",
+        "description": "Run workflows, RTL analysis, logic synthesis at Fmax and custom frequencies",
     },
     {
         "name": "Monitor Jobs",
         "link": "/monitor",
-        "image": "assets/icons/monitor.png",
+        "icon": "monitor",
         "description": "Monitor currently running jobs",
     },
-    # {
-    #     "name": "Export Results",
-    #     "link": "/export",
-    #     "image": "assets/icons/export.png",
-    #     "description": "Export results from synthesis and simulation",
-    # },
-    # {
-    #     "name": "Explore Results",
-    #     "link": "/explorer",
-    #     "image": "assets/icons/explorer.png",
-    #     "description": "Explore results in an interactive interface",
-    # },
-    # {
-    #     "name": "EDA Tools",
-    #     "link": "/tools",
-    #     "image": "assets/icons/tools.png",
-    #     "description": "EDA tools options and metrics definition",
-    # },
+    {
+        "name": "Explore Results",
+        "link": "/explorer",
+        "icon": "explorer",
+        "description": "Explore results in an interactive interface",
+    },
     {
         "name": "Workspace Settings",
         "link": "/workspace",
-        "image": "assets/icons/settings.png",
+        "icon": "workspace",
         "description": "Adjust workspace settings",
     },
     {
         "name": "Documentation",
         "link": "https://odatix.readthedocs.io",
-        "image": "assets/icons/documentation.png",
+        "icon": "documentation",
         "description": "Access Odatix online documentation",
     },
 ]
 
-home_layout = [
-    html.Div(
-        children=[
-            html.Div(
-                [ui.create_card_button(card) for card in home_cards],
-                style={
-                    "display": "flex",
-                    "flexWrap": "wrap",
-                    "justifyContent": "center",
-                    "gap": "20px",
-                    "paddingLeft": "50px",
-                    "paddingRight": "50px",
-                },
-            ),
-        ],
-        id=f"{__name__}-content",
-        style={
-            "display": "flex",
-            "justifyContent": "center",
-            "alignItems": "center",
-            "paddingTop": f"{padding}px",
-            "paddingBottom": f"{padding}px",
-        },
-    ),
-    html.H4(
-        "Icons designed by Freepik from Flaticon",
-        style={
-            "textAlign": "center",
-            "color": "#aaa",
-            "marginTop": "20px",
-            "fontSize": "12px",
-            "fontWeight": "normal",
-        }
-    ),
-]
+
+def _card_visual(card):
+    icon_name = card.get("icon", "explorer")
+    return pictogram(icon_name, size="48px", className="xp-card-pictogram")
+
+home_layout = html.Div(
+    [
+        home_shared.home_header("Odatix", "Configure, run and explore your design space exploration."),
+        home_shared.home_card_grid(home_cards, _card_visual),
+    ],
+    className="xp-home",
+)
 
 
 # New workspace page
@@ -138,69 +110,32 @@ new_workspace_cards = [
     {
         "name": "Empty workspace",
         "id": "create-empty-workspace",
-        "image": "assets/icons/workspace_empty.svg",
+        "icon": "workspace_empty",
         "description": "Start from scratch",
     },
     {
         "name": "Workspace with examples",
         "id": "create-workspace-with-examples",
-        "image": "assets/icons/workspace_examples.svg",
+        "icon": "workspace_examples",
         "description": "Get started quickly with pre-configured examples",
     },
 ]
 
-new_workspace_layout = [
-    html.Div(
-        children=[
-            html.H2("Initialize an Odatix workspace in this directory", style={"fontSize": "32px", "marginBottom": "-15px"}),
-            html.Pre(
-                f"{os.getcwd()}", 
-                style={
-                    "display": "inline-block",
-                    "width": "fit-content",
-                    "fontSize": "20px",
-                    "padding": "0px 10px",
-                    "whiteSpace": "pre-wrap",
-                    "overflowWrap": "anywhere",
-                }
-            ),
-        ],
-        className="tile center",
-        style={"fontSize": "32px"}
-    ),
-    html.Div(
-        [
-            html.Div(
-                [html.Div(style={"display": "none"})] + [ui.create_card_button(card) for card in new_workspace_cards],
-                style={
-                    "display": "flex",
-                    "flexWrap": "wrap",
-                    "justifyContent": "center",
-                    "gap": "20px",
-                    "paddingLeft": "50px",
-                    "paddingRight": "50px",
-                },
-            ),
-        ],
-        id=f"{__name__}-content",
-        style={
-            "display": "flex",
-            "justifyContent": "center",
-            "alignItems": "center",
-            "paddingTop": f"{padding}px",
-            "paddingBottom": f"{padding}px",
-        },
-    ),
-    html.H4(
-        "Icons designed by Freepik from Flaticon",
-        className="subtle-text",
-        style={
-            "textAlign": "center",
-            "marginTop": "20px",
-        }
-    ),
-    html.Div(style={"height": "10vh"}),  # Spacer at the bottom
-]
+new_workspace_layout = html.Div(
+    [
+        home_shared.home_header("Initialize an Odatix workspace", "Create a workspace in the current directory."),
+        html.Div(
+            [
+                html.Div("Current directory", className="xp-source-name"),
+                html.Div(f"{os.getcwd()}", className="xp-source-detail"),
+            ],
+            className="xp-source-card",
+            style={"maxWidth": "1100px", "margin": "0 auto 24px auto"},
+        ),
+        home_shared.home_card_grid(new_workspace_cards, _card_visual),
+    ],
+    className="xp-home",
+)
 
 
 ######################################
@@ -250,11 +185,11 @@ layout = html.Div(
     id="home-page",
     className="page-content",
     style={
-        "width": "100%", 
+        "width": "100%",
         "minHeight": f"calc(100vh - {navigation.top_bar_height})",
-        "display": "flex",  
+        "display": "flex",
         "flexDirection": "column",
-        "justifyContent": "center",
-        "alignItems": "center",
+        "justifyContent": "flex-start",
+        "alignItems": "stretch",
     }
 )

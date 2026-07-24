@@ -48,57 +48,40 @@ def get_run_jobs_cards(job_type):
     return [
         {
             "name": "Vivado",
-            "link": f"/jobs_config?type={job_type}&tool=vivado",
+            "link": f"/run_jobs?type={job_type}&tool=vivado",
             "image": "assets/icons/vivado.png",
             "description": "AMD/Xilinx Vivado™",
         },
         {
             "name": "Design Compiler",
-            "link": f"/jobs_config?type={job_type}&tool=design_compiler",
+            "link": f"/run_jobs?type={job_type}&tool=design_compiler",
             "image": "assets/icons/synopsys.png",
             "description": "Synopsys® Design Compiler®",
         },
         {
+            "name": "Genus",
+            "link": f"/run_jobs?type={job_type}&tool=genus",
+            "image": "assets/icons/cadence.png",
+            "description": "Cadence® Genus™ Synthesis Solution",
+        },
+        {
             "name": "OpenLane",
-            "link": f"/jobs_config?type={job_type}&tool=openlane",
+            "link": f"/run_jobs?type={job_type}&tool=openlane",
             "image": "assets/icons/openroad.png",
             "description": "Open Source OpenLane flow",
         },
     ]
 def get_run_jobs_layout(job_type):
     return [
+        ui.page_header("Select an EDA Tool", "Choose the tool to run this job with."),
         html.Div(
-            children=[
-                html.Div(
-                    [ui.create_card_button(card) for card in get_run_jobs_cards(job_type)],
-                    style={
-                        "display": "flex",
-                        "flexWrap": "wrap",
-                        "justifyContent": "center",
-                        "gap": "20px",
-                        "paddingLeft": "50px",
-                        "paddingRight": "50px",
-                    },
-                ),
-            ],
+            ui.card_grid([ui.create_card_button(card) for card in get_run_jobs_cards(job_type)]),
             id=f"{__name__}-content",
             style={
                 "display": "flex",
                 "justifyContent": "center",
-                "alignItems": "center",
-                "paddingTop": f"{padding}px",
                 "paddingBottom": f"{padding}px",
             },
-        ),
-        html.H4(
-            "Icons designed by Freepik from Flaticon",
-            style={
-                "textAlign": "center",
-                "color": "#aaa",
-                "marginTop": "20px",
-                "fontSize": "12px",
-                "fontWeight": "normal",
-            }
         ),
     ]
 
@@ -130,11 +113,11 @@ layout = html.Div(
     id="run_jobs_tool-page",
     className="page-content",
     style={
-        "width": "100%", 
+        "width": "100%",
         "minHeight": f"calc(100vh - {navigation.top_bar_height})",
-        "display": "flex",  
+        "display": "flex",
         "flexDirection": "column",
-        "justifyContent": "center",
-        "alignItems": "center",
+        "justifyContent": "flex-start",
+        "alignItems": "stretch",
     }
 )

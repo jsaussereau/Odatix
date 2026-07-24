@@ -38,6 +38,7 @@ from odatix.lib.utils import *
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 from odatix.lib.parallel_job_handler.daemon_control import list_daemon_jobs
 import odatix.lib.printc as printc
+from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.variables import replace_variables, Variables
 from odatix.lib.param_domain import ParamDomain
 
@@ -221,6 +222,7 @@ class ArchitectureHandler:
         forced_fmax_upper_bound,
         forced_custom_freq_list,
         overwrite,
+        fallback_custom_freq_list=None,
         continue_on_error=False,
         force_single_thread=False,
     ):
@@ -247,6 +249,7 @@ class ArchitectureHandler:
         self.forced_fmax_lower_bound = forced_fmax_lower_bound
         self.forced_fmax_upper_bound = forced_fmax_upper_bound
         self.forced_custom_freq_list = forced_custom_freq_list
+        self.fallback_custom_freq_list = fallback_custom_freq_list
 
         self.overwrite = overwrite
         self.continue_on_error = continue_on_error
@@ -259,15 +262,40 @@ class ArchitectureHandler:
     def reset_lists(self):
         self.checked_arch_param = []
         self.banned_arch_param = []
+        # Single source of truth for the check outcome: the CLI checklist and
+        # the GUI run popup both read this plan.
+        self.plan = JobPlan()
+        # Architectures that passed *every* check. Not derivable from the plan:
+        # an architecture is categorized (new, overwrite, ...) before the last
+        # checks run, and may still be rejected afterwards.
         self.valid_archs = []
-        self.cached_archs = []
-        self.overwrite_archs = []
-        self.error_archs = []
-        self.incomplete_archs = []
-        self.daemon_archs = []
-        self.new_archs = []
         self.deprecation_notice_archs = []
         self._daemon_jobs_by_tmp_dir = None
+
+    # Kept as read-only views so existing callers (and the CLI) keep working.
+    @property
+    def cached_archs(self):
+        return self.plan.names(Category.CACHED)
+
+    @property
+    def overwrite_archs(self):
+        return self.plan.names(Category.OVERWRITE)
+
+    @property
+    def error_archs(self):
+        return self.plan.names(Category.ERROR)
+
+    @property
+    def incomplete_archs(self):
+        return self.plan.names(Category.INCOMPLETE)
+
+    @property
+    def daemon_archs(self):
+        return self.plan.names(Category.DAEMON)
+
+    @property
+    def new_archs(self):
+        return self.plan.names(Category.NEW)
 
     @staticmethod
     def _normalize_tmp_dir(tmp_dir):
@@ -327,7 +355,7 @@ class ArchitectureHandler:
 
         return "replace", daemon_entries[0]
 
-    def get_architectures(self, architectures, targets, constraint_filename="", install_path="", run_mode="default", keep=False, timestamp=""):
+    def get_architectures(self, architectures, targets, constraint_filename="", install_path="", run_mode="default", keep=False, timestamp="", allow_missing_target_file=False):
 
         self.reset_lists()
         self.architecture_instances = []
@@ -341,20 +369,34 @@ class ArchitectureHandler:
             odatix_path=OdatixSettings.odatix_path,
             odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
         )
-            
-        with open(self.eda_target_filename, 'r') as f:
-            try:
-                settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-            except Exception as e:
-                printc.error("Settings file \"" + self.eda_target_filename + "\" is not a valid YAML file", script_name)
-                printc.cyan("error details: ", end="", script_name=script_name)
-                print(str(e))
-                sys.exit(-1)
-            
+
+        # A missing / None target file is only tolerated when explicitly allowed
+        # (RTL analysis, odatix analyze, does not use target definition files).
+        # Every other flow (synthesis) still requires a valid target file.
+        has_target_file = self.eda_target_filename is not None and os.path.isfile(self.eda_target_filename)
+        if not has_target_file and not allow_missing_target_file:
+            printc.error("Settings file \"" + str(self.eda_target_filename) + "\" does not exist or is not a valid file", script_name)
+            sys.exit(-1)
+
+        if not has_target_file:
+            settings_data = {}
+            script_copy_enable = False
+            script_copy_source = "/dev/null"
+            target_settings = {}
+        else:
+            with open(self.eda_target_filename, 'r') as f:
+                try:
+                    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+                except Exception as e:
+                    printc.error("Settings file \"" + self.eda_target_filename + "\" is not a valid YAML file", script_name)
+                    printc.cyan("error details: ", end="", script_name=script_name)
+                    print(str(e))
+                    sys.exit(-1)
+
             try:
                 script_copy_enable = read_from_list('script_copy_enable', settings_data, self.eda_target_filename, type=bool, optional=True, script_name=script_name)
                 if script_copy_enable:
-                    script_copy_source = read_from_list('script_copy_source', settings_data, self.eda_target_filename, optional=True, script_name=script_name)        
+                    script_copy_source = read_from_list('script_copy_source', settings_data, self.eda_target_filename, optional=True, script_name=script_name)
                     script_copy_source = replace_variables(script_copy_source, variables) # Replace variables in command
 
                     if not os.path.isfile(script_copy_source):
@@ -371,6 +413,9 @@ class ArchitectureHandler:
             except (KeyNotInListError, BadValueInListError):
                 target_settings = {}
 
+        # Expand every (target, architecture) pair into an architecture instance.
+        # For RTL analysis the target list is a single generic entry.
+        if True:
             full_architectures = architectures
             for target in targets:
                 # Overwrite existing script copy settings if there are target specific settings
@@ -437,7 +482,7 @@ class ArchitectureHandler:
                                             local_state = "overwrite"
                                         else:
                                             printc.note("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\". Skipping.", script_name)
-                                            self.cached_archs.append(freq_arch.arch_display_name)
+                                            self.plan.add(freq_arch.arch_display_name, Category.CACHED)
                                             local_state = "cached"
                                     else: 
                                         printc.warning("The previous synthesis for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\" has not finished or the directory has been corrupted.", script_name)
@@ -465,7 +510,7 @@ class ArchitectureHandler:
                                         + "\"). Skipping.",
                                         script_name,
                                     )
-                                    self.daemon_archs.append(freq_arch.arch_display_name + ArchitectureHandler._format_daemon_entry(daemon_entry))
+                                    self.plan.add(freq_arch.arch_display_name + ArchitectureHandler._format_daemon_entry(daemon_entry), Category.DAEMON)
                                     continue
                                 elif daemon_decision == "replace":
                                     daemon_status = str(daemon_entry.get("status", "unknown"))
@@ -483,11 +528,11 @@ class ArchitectureHandler:
                                     )
 
                                 if local_state == "overwrite":
-                                    self.overwrite_archs.append(unformatted_display_name)
+                                    self.plan.add(unformatted_display_name, Category.OVERWRITE)
                                 elif local_state == "incomplete":
-                                    self.incomplete_archs.append(freq_arch.arch_display_name)
+                                    self.plan.add(freq_arch.arch_display_name, Category.INCOMPLETE)
                                 else:
-                                    self.new_archs.append(unformatted_display_name + formatted_freq)
+                                    self.plan.add(unformatted_display_name + formatted_freq, Category.NEW)
 
                                 self.architecture_instances.append(freq_arch)
                                 self.valid_archs.append(unformatted_display_name + formatted_freq)
@@ -555,7 +600,7 @@ class ArchitectureHandler:
 
         # check if arch_param has been banned
         if arch_param_dir in self.banned_arch_param:
-            self.error_archs.append(arch_display_name)
+            self.plan.add(arch_display_name, Category.ERROR)
             return None
 
         # check if parameter dir exists
@@ -563,14 +608,14 @@ class ArchitectureHandler:
         if not isdir(arch_param):
             printc.error("There is no directory \"" + arch_param_dir + "\" in directory \"" + self.arch_path + "\"", script_name)
             self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
+            self.plan.add(arch_display_name, Category.ERROR)
             return None
         
         # check if settings file exists
         if not isfile(os.path.join(arch_param, self.param_settings_filename)):
             printc.error("There is no setting file \"" + self.param_settings_filename + "\" in directory \"" + arch_param + "\"", script_name)
             self.banned_arch_param.append(arch_param_dir)
-            self.error_archs.append(arch_display_name)
+            self.plan.add(arch_display_name, Category.ERROR)
             return None
 
         # get settings variables
@@ -583,7 +628,7 @@ class ArchitectureHandler:
                 printc.cyan("error details: ", end="", script_name=script_name)
                 print(str(e))
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 return None # if an identifier is missing
             try:
                 top_level_filename = read_from_list('top_level_file', settings_data, settings_filename, script_name=script_name)
@@ -592,7 +637,7 @@ class ArchitectureHandler:
                 reset_signal       = read_from_list('reset_signal', settings_data, settings_filename, script_name=script_name)
             except (KeyNotInListError, BadValueInListError):
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 return None # if an identifier is missing
 
             file_copy_enable, defined = get_from_dict('file_copy_enable', settings_data, settings_filename, type=bool, silent=True, default_value=False, script_name=script_name)
@@ -601,7 +646,7 @@ class ArchitectureHandler:
                 file_copy_dest, dest_defined = get_from_dict('file_copy_dest', settings_data, settings_filename, behavior=Key.MANTADORY, script_name=script_name)
                 if not source_defined or not dest_defined:
                     self.banned_arch_param.append(arch_param_dir)
-                    self.error_archs.append(arch_display_name)
+                    self.plan.add(arch_display_name, Category.ERROR)
                     return None
             else:
                 file_copy_source = ""
@@ -621,7 +666,7 @@ class ArchitectureHandler:
                 else:
                     printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
                     self.banned_arch_param.append(arch_param_dir)
-                    self.error_archs.append(arch_display_name)
+                    self.plan.add(arch_display_name, Category.ERROR)
                     generate_rtl = False
                     return None
             else:
@@ -629,7 +674,7 @@ class ArchitectureHandler:
                 rtl_path, defined = get_from_dict('rtl_path', settings_data, settings_filename, script_name=script_name)
                 if not defined:
                     self.banned_arch_param.append(arch_param_dir)
-                    self.error_archs.append(arch_display_name)
+                    self.plan.add(arch_display_name, Category.ERROR)
                     return None
 
             top_level = os.path.join(rtl_path, top_level_filename)
@@ -658,14 +703,14 @@ class ArchitectureHandler:
             if not isdir(rtl_path):
                 printc.error("The rtl path \"" + rtl_path + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 return None
 
             # check if top level file path exists
             if not isfile(top_level):
                 printc.error("The top level file \"" + top_level_filename + "\" specified in \"" + settings_filename + "\" does not exist", script_name)
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 return None
 
             # check if the top level module name exists in the top level file, at least
@@ -673,7 +718,7 @@ class ArchitectureHandler:
             if top_level_module not in f.read():
                 printc.error("There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"", script_name)
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 f.close()
                 return None
             f.close()
@@ -683,7 +728,7 @@ class ArchitectureHandler:
             if clock_signal not in f.read():
                 printc.error("There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"", script_name)
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 f.close()
                 return None
             f.close()
@@ -693,7 +738,7 @@ class ArchitectureHandler:
             if clock_signal not in f.read():
                 printc.error("There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"", script_name)
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 f.close()
                 return None
             f.close()
@@ -703,7 +748,7 @@ class ArchitectureHandler:
             if not isfile(os.path.join(self.arch_path, arch + '.txt')):
                 printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + os.path.join(self.arch_path, arch_param_dir) + "\"", script_name)
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 return None
         
         if len(requested_param_domains) > 0:
@@ -716,7 +761,7 @@ class ArchitectureHandler:
             )
             if param_domains is None:
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 return None
         else:
             param_domains = []
@@ -733,7 +778,8 @@ class ArchitectureHandler:
                 target=target, 
                 settings_data=settings_data, 
                 settings_filename=settings_filename, 
-                run_mode=run_mode
+                run_mode=run_mode,
+                fallback_custom_freq_list=self.fallback_custom_freq_list,
             )
 
             # Override by bounds from --from and --to if used
@@ -756,12 +802,12 @@ class ArchitectureHandler:
             if run_mode == "fmax":
                 if not ArchitectureHandler.check_bounds(fmax_lower_bound, fmax_upper_bound):
                     self.banned_arch_param.append(arch_param_dir)
-                    self.error_archs.append(arch_display_name)
+                    self.plan.add(arch_display_name, Category.ERROR)
                     return None
             elif run_mode == "custom_freq":
                 if range_list is None or range_list == []: 
                     self.banned_arch_param.append(arch_param_dir)
-                    self.error_archs.append(arch_display_name)
+                    self.plan.add(arch_display_name, Category.ERROR)
                     return None
 
             fmax_lower_bound = str(fmax_lower_bound)
@@ -786,7 +832,7 @@ class ArchitectureHandler:
                                 local_state = "overwrite"
                             else:
                                 printc.note("Found cached results for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
-                                self.cached_archs.append(arch_display_name)
+                                self.plan.add(arch_display_name, Category.CACHED)
                                 return None
                         else:
                             printc.warning("The previous synthesis for \"" + arch + "\" did not result in a valid maximum operating frequency.", script_name)
@@ -813,7 +859,7 @@ class ArchitectureHandler:
                         + "\"). Skipping.",
                         script_name,
                     )
-                    self.daemon_archs.append(arch_display_name + formatted_bound + ArchitectureHandler._format_daemon_entry(daemon_entry))
+                    self.plan.add(arch_display_name + formatted_bound + ArchitectureHandler._format_daemon_entry(daemon_entry), Category.DAEMON)
                     return None
                 elif daemon_decision == "replace":
                     daemon_status = str(daemon_entry.get("status", "unknown"))
@@ -829,14 +875,14 @@ class ArchitectureHandler:
                     )
 
                 if local_state == "overwrite":
-                    self.overwrite_archs.append(arch_display_name + formatted_bound)
+                    self.plan.add(arch_display_name + formatted_bound, Category.OVERWRITE)
                 elif local_state == "incomplete":
-                    self.incomplete_archs.append(arch_display_name + formatted_bound)
+                    self.plan.add(arch_display_name + formatted_bound, Category.INCOMPLETE)
                 else:
-                    self.new_archs.append(arch_display_name + formatted_bound)
+                    self.plan.add(arch_display_name + formatted_bound, Category.NEW)
 
             elif run_mode == "default":
-                self.new_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.NEW)
 
         # Retrieve target-specific settings if they exist
         target_specific_data, target_specific_defined = get_from_dict(target, settings_data, settings_filename, silent=True)
@@ -873,7 +919,7 @@ class ArchitectureHandler:
             if not isfile(file_copy_source):
                 printc.error("The source file to copy \"" + file_copy_source + "\" does not exist", script_name)
                 self.banned_arch_param.append(arch_param_dir)
-                self.error_archs.append(arch_display_name)
+                self.plan.add(arch_display_name, Category.ERROR)
                 return None
 
         # passed all check: added to the list
@@ -944,13 +990,13 @@ class ArchitectureHandler:
                 if not isfile(param_file):
                     printc.error("There is no parameter file \"" + param_file + "\", while \"use_parameters\" is true", script_name)
                     if add_to_error_list:
-                        self.error_archs.append(arch_display_name)
+                        self.plan.add(arch_display_name, Category.ERROR)
                     return None, None, None, None
 
         return use_parameters, start_delimiter, stop_delimiter, param_target_filename
 
     @staticmethod
-    def get_frequency_settings(arch_config, target, settings_data, settings_filename, run_mode):
+    def get_frequency_settings(arch_config, target, settings_data, settings_filename, run_mode, fallback_custom_freq_list=None):
         """
         Retrieves frequency synthesis settings from the YAML configuration.
 
@@ -960,6 +1006,7 @@ class ArchitectureHandler:
                 settings_data (dict): The parsed YAML settings data.
                 settings_filename (str): Name of the YAML file.
                 run_mode (str): The mode of operation (e.g., "fmax", "custom_freq").
+                fallback_custom_freq_list (list, optional): A fallback list of custom frequencies to use instead of default values.
 
         Returns:
                 tuple: (fmax_lower_bound, fmax_upper_bound, custom_freq_list, warn_fmax_obsolete).
@@ -1078,7 +1125,10 @@ class ArchitectureHandler:
                 # printc.magenta("  upper_bound: XXX")
                 # printc.magenta("  step: XXX")
                 # printc.magenta("  list: [XXX, XXX, XXX] # append to the list generated by range")
-                custom_freq_list = hard_settings.default_custom_freq_list
+                if fallback_custom_freq_list is not None and fallback_custom_freq_list != []:
+                    custom_freq_list = list(fallback_custom_freq_list)
+                else:
+                    custom_freq_list = hard_settings.default_custom_freq_list
 
             return None, None, custom_freq_list, warn_fmax_obsolete
 
@@ -1234,12 +1284,7 @@ class ArchitectureHandler:
         return success
 
     def print_summary(self):
-        ArchitectureHandler.print_arch_list(self.cached_archs, "Existing results (skipped -> use '-o' to overwrite)", printc.colors.CYAN)
-        ArchitectureHandler.print_arch_list(self.overwrite_archs, "Existing results (will be overwritten)", printc.colors.YELLOW)
-        ArchitectureHandler.print_arch_list(self.incomplete_archs, "Incomplete results (will be overwritten)", printc.colors.YELLOW)
-        ArchitectureHandler.print_arch_list(self.daemon_archs, "Already managed in a session (skipped)", printc.colors.CYAN)
-        ArchitectureHandler.print_arch_list(self.new_archs, "New architectures", printc.colors.ENDC)
-        ArchitectureHandler.print_arch_list(self.error_archs, "Invalid settings, (skipped, see errors above)", printc.colors.RED)
+        self.plan.print_summary(noun="architectures")
 
     def get_valid_arch_count(self):
         return len(self.valid_archs)

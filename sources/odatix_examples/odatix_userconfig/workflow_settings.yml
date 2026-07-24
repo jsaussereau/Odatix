@@ -1,0 +1,44 @@
+
+##############################################
+# Odatix settings for workflow
+##############################################
+---
+
+# overwrite existing results
+overwrite:        No   # overridden by -o / --overwrite
+
+# prompt 'Continue? (Y/n)' after settings checks
+ask_continue:     Yes  # overridden by -y / --noask
+
+# exit monitor when all jobs are done
+exit_when_done:   No   # overridden by -E / --exit
+
+# size of the log history per job in the monitor
+log_size_limit:   300  # overridden by --logsize
+
+# maximum number of parallel jobs
+nb_jobs:          8    # overridden by -j / --jobs
+
+workflows:
+  # Platform-specific task implementation example
+  - crossplatform
+
+  # Command placeholder example (main workflow config value)
+  - cli_profile/default
+  - cli_profile/aggressive
+  
+  # Multiple virtual parameter domains (variables) replaced in command placeholders
+  - param_domains_cli_variables + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
+
+  # Paired ("grouped") variables: max_speed and road_length are zipped together
+  # (2 road profiles) instead of cross-combined, then crossed with the other variables
+  - param_domains_paired_variables + max_speed/* + road_length/* + num_vehicles/* + signal_timing/*
+
+  # Multiple parameter domains replaced in command placeholders
+  - param_domains_cli + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
+
+  # Multiple parameter domains replaced in a json
+  - param_domains_json + max_speed/* + num_vehicles/* + signal_timing/* + road_length/*
+
+  # TensorFlow training workflow example (requires TensorFlow in your Python environment)
+  - tensorflow + epochs/*

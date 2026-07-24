@@ -31,6 +31,10 @@
     font-size: 1em;
 }
 
+.checklist-switch.list label {
+	margin: 5px 0px;
+}
+
 .checklist-switch label:before {
     content: "";
     position: absolute;

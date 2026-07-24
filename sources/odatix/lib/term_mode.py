@@ -75,3 +75,12 @@ class RawModeOutputWrapper:
     Flushes the wrapped output stream
     """
     self.wrapped.flush()
+
+  def isatty(self):
+    """Preserve TTY detection for callers relying on interactive output."""
+    isatty = getattr(self.wrapped, "isatty", None)
+    return bool(isatty()) if callable(isatty) else False
+
+  def __getattr__(self, name):
+    """Delegate unknown attributes/methods to the wrapped stream."""
+    return getattr(self.wrapped, name)

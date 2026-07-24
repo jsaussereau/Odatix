@@ -31,6 +31,8 @@ import odatix.lib.printc as printc
 from odatix.lib.utils import internal_error
 import odatix.lib.term_mode as term_mode
 from odatix.lib.settings import OdatixSettings
+from odatix.explorer.integration import register_explorer
+import odatix.explorer.ui.shell as explorer_shell
 
 script_name = os.path.basename(__file__)
 error_logfile = "odatix-gui_error.log"
@@ -58,11 +60,13 @@ class OdatixApp:
             name=__name__, 
             use_pages=True,
             title="Odatix",
-            update_title="Odatix - Updating...",
+            update_title=None,
             suppress_callback_exceptions=True
         )
 
         self.app.server.register_error_handler(Exception, self.handle_flask_exception)
+
+        register_explorer(self.app, settings=self.odatix_settings)
 
         self.setup_layout()
         self.setup_callbacks()
@@ -88,6 +92,7 @@ class OdatixApp:
                 dcc.Location(id="url-global"),  
                 dcc.Store(id="previous-url", data=""),
                 dcc.Store(id="odatix-settings", data=self.odatix_settings.to_dict() if self.odatix_settings.valid else {}),
+                *explorer_shell.explorer_state_stores(),
                 html.Div(
                     [dash.page_container],
                     id="content",
@@ -119,7 +124,8 @@ class OdatixApp:
         self.app.run(
             # host='0.0.0.0',
             host='127.0.0.1',
-            debug=True
+            debug=True,
+            threaded=True,
         )
 
 

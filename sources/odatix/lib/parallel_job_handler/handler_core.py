@@ -321,6 +321,14 @@ class ParallelJobHandler:
 
             self._fill_running_slots_from_queue_unlocked()
 
+    def set_nb_jobs(self, nb_jobs):
+        """Change the max number of jobs allowed to run in parallel, at runtime.
+
+        Overridden by the daemon monitor handler to forward the change to the
+        remote daemon instead of applying it locally.
+        """
+        self.configure_runtime(nb_jobs=max(1, int(nb_jobs)))
+
     def _fill_running_slots_from_queue_unlocked(self):
         while len(self.running_job_list) < self.nb_jobs and not self.job_queue.empty():
             self.start_job(self.job_queue.get())
@@ -619,6 +627,9 @@ class ParallelJobHandler:
             elif export_kind == "workflow":
                 from odatix.components.export_workflow_results import export_single_workflow_job
                 export_fn = export_single_workflow_job
+            elif export_kind == "analysis":
+                from odatix.components.export_analysis import export_single_analysis_job
+                export_fn = export_single_analysis_job
             else:
                 self._append_job_log(
                     job,

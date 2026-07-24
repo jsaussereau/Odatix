@@ -1,0 +1,599 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* ====================================================================== */
+/*  Run / Jobs configuration page (/run_jobs)                             */
+/*                                                                        */
+/*  Only what is specific to this page: the shared furniture (panels,      */
+/*  sticky bar, stat strip, fields, chips, badges...) lives in the odx-*   */
+/*  design system, assets/odatix-ui.css.                                  */
+/* ====================================================================== */
+
+/* --- Session picker in the page bar ------------------------------------ */
+.odx-session {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.odx-session-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.55;
+}
+
+/* --- Architecture / workflow card -------------------------------------- */
+.jobs-arch-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.jobs-arch-card {
+    background: var(--theme-element-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.16);
+    border-radius: var(--theme-normal-border-radius);
+    box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    overflow: hidden;
+}
+.jobs-arch-card.enabled {
+    border-color: rgba(34, 139, 230, 0.45);
+    box-shadow: var(--theme-shadow-color) 0px 4px 14px -6px;
+}
+.jobs-arch-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+}
+.jobs-arch-headline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+/* The switch of a card has no label text: size it like odx-switch-only. */
+.jobs-arch-headline .checklist-switch label {
+    display: block;
+    width: 40px;
+    height: 22px;
+    padding-left: 0;
+    margin: 0;
+}
+.jobs-arch-headline .checklist-switch label::before {
+    top: 0;
+}
+.jobs-arch-headline .checklist-switch label::after {
+    top: 4px;
+}
+.jobs-arch-name {
+    font-size: 16px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.jobs-arch-card.enabled .jobs-arch-name {
+    font-weight: 700;
+}
+.jobs-arch-card.enabled .odx-badge {
+    background: var(--theme-badge-background-color);
+    color: var(--theme-badge-text-color);
+    opacity: 1;
+}
+.jobs-arch-buttons {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* --- Card body (parameter domains + preview) --------------------------- */
+.jobs-arch-body {
+    border-top: 1px solid rgba(128, 128, 128, 0.14);
+    background: var(--theme-tertiary-color-light);
+}
+.jobs-arch-body.hide {
+    border-top-color: transparent;
+}
+.jobs-arch-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-4) var(--space-4);
+    align-items: start;
+}
+.jobs-domains {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+@media (max-width: 1000px) {
+    .jobs-arch-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* --- Workflow variables ------------------------------------------------ */
+.jobs-var-line {
+    font-size: 13px;
+    padding: 2px 0;
+}
+.jobs-var-name {
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+/* --- Run popup --------------------------------------------------------- */
+.jobs-popup-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+.jobs-progress-counts {
+    margin-top: 6px;
+    text-align: center;
+    font-size: 13px;
+}
+.jobs-progress-track {
+    display: flex;
+    height: 10px;
+    width: 100%;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--theme-disabled-background-color, rgba(128, 128, 128, 0.25));
+}
+
+/* --- Run plan (run popup body) -----------------------------------------
+   What the check phase found, as one list of foldable lines: diagnostics and
+   job categories share the same row shape. Built on the .xpa-row vocabulary of
+   the explorer analysis dashboard (explorer.css). */
+.jobs-plan {
+    /* The status accent colors are scoped to .xpa-page in explorer.css; the run
+       popup lives outside it, so resolve them here from the same theme tokens. */
+    --xpa-passed: var(--theme-success-color, #40C057);
+    --xpa-warning: var(--theme-warning-color, #FF8825);
+    --xpa-failed: var(--theme-caution-color, #FA5252);
+    --xpa-incomplete: #9775FA;
+
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    text-align: left;
+}
+.jobs-plan-scroll {
+    max-height: 56vh;
+    overflow-y: auto;
+    text-align: left;
+    margin-top: var(--space-4);
+    padding: 2px 6px 2px 2px;
+}
+
+/* ---------- Headline stats ---------- */
+/* Dashboard-style summary, reusing the Explorer analysis page's .xpa-stat-card
+   look. Unlike that page's fixed 5-up grid, the popup's card count varies (1-2
+   totals + up to 6 categories), so the grid auto-fits instead. */
+.jobs-plan-stats {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    margin-bottom: 0;
+}
+.jobs-plan-stats .xpa-stat-card {
+    cursor: default;
+    padding: 10px 12px;
+}
+.jobs-plan-stats .xpa-stat-glyph {
+    font-size: 1.2em;
+    width: 28px;
+    height: 28px;
+}
+.jobs-plan-stats .xpa-stat-count {
+    font-size: 1.25em;
+}
+
+/* ---------- Sections ---------- */
+.jobs-plan-section {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.jobs-plan-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.45;
+}
+/* Hairline filling the rest of the line, so sections read as groups. */
+.jobs-plan-section-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.35;
+}
+.jobs-plan-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ---------- Foldable row ---------- */
+.jobs-plan-rows > .xpa-row {
+    border-left-width: 3px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.jobs-plan-summary {
+    padding: 9px 14px;
+    gap: 10px;
+    align-items: center;
+}
+.jobs-plan-summary .xpa-row-badge {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    font-size: 0.8em;
+    box-shadow: none;
+}
+.jobs-plan-summary .xpa-row-name {
+    font-size: 0.95em;
+    font-weight: 650;
+    flex: 0 0 auto;
+}
+.jobs-plan-subtitle {
+    font-size: 0.78em;
+    font-weight: 500;
+    opacity: 0.5;
+}
+/* Count as a tinted pill, pushed to the right. */
+.jobs-plan-count {
+    margin-left: auto;
+    min-width: 26px;
+    padding: 1px 9px;
+    border-radius: 999px;
+    font-size: 0.82em;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.jobs-plan-count.xpa-passed {
+    color: var(--xpa-passed);
+    background: color-mix(in srgb, var(--xpa-passed) 15%, transparent);
+}
+.jobs-plan-count.xpa-warning {
+    color: var(--xpa-warning);
+    background: color-mix(in srgb, var(--xpa-warning) 18%, transparent);
+}
+.jobs-plan-count.xpa-failed {
+    color: var(--xpa-failed);
+    background: color-mix(in srgb, var(--xpa-failed) 16%, transparent);
+}
+.jobs-plan-count.xpa-incomplete {
+    color: var(--xpa-incomplete);
+    background: color-mix(in srgb, var(--xpa-incomplete) 16%, transparent);
+}
+/* Caret: makes it obvious the row opens, and shows its state. */
+.jobs-plan-summary::after {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin-left: 4px;
+    margin-right: 2px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    opacity: 0.4;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.jobs-plan-summary:hover::after {
+    opacity: 0.75;
+}
+.xpa-row[open] > .jobs-plan-summary::after {
+    transform: rotate(45deg);
+}
+
+/* ---------- Folded detail ---------- */
+.jobs-plan-body {
+    padding: 10px 16px 14px 46px;
+    border-top: 1px solid var(--theme-border-color);
+    background: color-mix(in srgb, var(--theme-text-color) 3%, transparent);
+}
+/* Long lists stay compact: split into columns, but only when there is enough
+   room for a full job name (wide window), never at the cost of wrapping. */
+.jobs-plan-items {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    columns: 330px;
+    column-gap: 28px;
+}
+.jobs-plan-item {
+    font-size: 0.82em;
+    line-height: 1.6;
+    padding-left: 14px;
+    position: relative;
+    break-inside: avoid;
+    overflow-wrap: anywhere;
+    opacity: 0.85;
+}
+.jobs-plan-badge {
+    display: inline-block;
+    font-size: 0.85em;
+    font-weight: 600;
+    line-height: 1.4;
+    padding: 0 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+}
+.jobs-plan-badge.target {
+    color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-primary-color) 15%, transparent);
+}
+.jobs-plan-badge.freq {
+    color: var(--xpa-incomplete);
+    background: color-mix(in srgb, var(--xpa-incomplete) 18%, transparent);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Jobs grouped by architecture ---------- */
+/* The job body is a responsive grid of architecture cards, so many small groups
+   fill the width instead of stacking into one tall column. */
+.jobs-plan-body.groups {
+    padding: 12px 14px 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-auto-flow: row dense; /* let small cards backfill gaps left by wide ones */
+    gap: 8px;
+    align-content: start;
+    align-items: start; /* cards keep their natural height, no stretching */
+    container-type: inline-size; /* spans below react to the card area, not the viewport */
+}
+.jobs-plan-group {
+    border: 1px solid var(--theme-border-color);
+    border-radius: 10px;
+    background: var(--theme-element-background-color);
+    overflow: hidden;
+}
+/* Groups with long config lists claim extra columns instead of growing into one
+   tall narrow strip; the config list below flows into several inner columns to
+   use that width. Spans clamp to the available tracks on narrow windows. */
+/* Spans must stay bounded: an over-large span (e.g. span 99) is NOT clamped by
+   the grid — it creates extra implicit columns and overflows. The number of
+   columns tracks the card area (container query, matched to the 250px min
+   track), so a wide card fills the row exactly instead of overflowing it. */
+.jobs-plan-group.span-2 { grid-column: span 2; }
+.jobs-plan-group.span-3 { grid-column: span 2; }
+@container (min-width: 780px) {
+    .jobs-plan-group.span-3 { grid-column: span 3; }
+}
+@container (min-width: 1040px) {
+    .jobs-plan-group.span-3 { grid-column: span 4; }
+}
+@container (min-width: 1300px) {
+    .jobs-plan-group.span-3 { grid-column: span 5; }
+}
+@container (max-width: 540px) {
+    .jobs-plan-group.span-2,
+    .jobs-plan-group.span-3 { grid-column: auto; }
+}
+.jobs-plan-group-head {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 9px 11px 10px;
+}
+/* Title line: full name and its name-derived badges (target, frequency), then
+   the config count pushed to the right. */
+.jobs-plan-group-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.jobs-plan-group-name {
+    font-size: 0.9em;
+    font-weight: 650;
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-right: 2px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+/* Status badge, set apart on its own line above a hairline so it never blends
+   into the name-derived badges of the title. */
+.jobs-plan-group-badges {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    min-width: 0;
+    padding-top: 7px;
+    border-top: 1px dashed var(--theme-border-color);
+}
+.jobs-plan-group-badges:empty {
+    display: none;
+}
+.jobs-plan-group-count {
+    margin-left: auto;
+    flex-shrink: 0;
+    min-width: 22px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 0.76em;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.jobs-plan-group-count.xpa-passed { color: var(--xpa-passed); background: color-mix(in srgb, var(--xpa-passed) 15%, transparent); }
+.jobs-plan-group-count.xpa-warning { color: var(--xpa-warning); background: color-mix(in srgb, var(--xpa-warning) 18%, transparent); }
+.jobs-plan-group-count.xpa-failed { color: var(--xpa-failed); background: color-mix(in srgb, var(--xpa-failed) 16%, transparent); }
+.jobs-plan-group-count.xpa-incomplete { color: var(--xpa-incomplete); background: color-mix(in srgb, var(--xpa-incomplete) 16%, transparent); }
+
+/* Status badge on a card: the reason it landed in its bucket (its category). */
+.jobs-plan-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 1px 8px 1px 6px;
+    border-radius: 999px;
+    font-size: 0.66em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.jobs-plan-status-glyph {
+    font-size: 1.15em;
+    line-height: 1;
+    font-weight: 400;
+}
+.jobs-plan-status.xpa-passed {
+    color: var(--xpa-passed);
+    background: color-mix(in srgb, var(--xpa-passed) 13%, transparent);
+    border-color: color-mix(in srgb, var(--xpa-passed) 30%, transparent);
+}
+.jobs-plan-status.xpa-warning {
+    color: var(--xpa-warning);
+    background: color-mix(in srgb, var(--xpa-warning) 15%, transparent);
+    border-color: color-mix(in srgb, var(--xpa-warning) 32%, transparent);
+}
+.jobs-plan-status.xpa-failed {
+    color: var(--xpa-failed);
+    background: color-mix(in srgb, var(--xpa-failed) 14%, transparent);
+    border-color: color-mix(in srgb, var(--xpa-failed) 30%, transparent);
+}
+.jobs-plan-status.xpa-incomplete {
+    color: var(--xpa-incomplete);
+    background: color-mix(in srgb, var(--xpa-incomplete) 14%, transparent);
+    border-color: color-mix(in srgb, var(--xpa-incomplete) 30%, transparent);
+}
+/* Neutral config-count pill, pushed to the right of the status row. */
+.jobs-plan-group-count-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 0.68em;
+    font-weight: 600;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--theme-text-color);
+    background: color-mix(in srgb, var(--theme-text-color) 8%, transparent);
+    opacity: 0.75;
+}
+
+/* Configs of a group: a thin list under a separator, each on its own line. On a
+   wide card the list flows into several columns so it fills the width rather
+   than running down as one long strip. */
+.jobs-plan-configs {
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    border-top: 1px solid var(--theme-border-color);
+    background: color-mix(in srgb, var(--theme-text-color) 3%, transparent);
+}
+.jobs-plan-group.span-2 .jobs-plan-configs,
+.jobs-plan-group.span-3 .jobs-plan-configs {
+    columns: 200px;
+    column-gap: 0;
+}
+.jobs-plan-config-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap; /* keep the name whole; a badge that won't fit drops below */
+    gap: 3px 6px;
+    padding: 3px 12px 3px 22px;
+    position: relative;
+    font-size: 0.82em;
+    line-height: 1.4;
+    break-inside: avoid;
+}
+.jobs-plan-config-row::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    top: 0.72em;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.3;
+}
+.jobs-plan-config {
+    /* Wrap between words first; only split a single word when it is too long to
+       fit on its own line. */
+    overflow-wrap: break-word;
+    word-break: break-word;
+    opacity: 0.85;
+}
+.jobs-plan-config-row .jobs-plan-badge {
+    font-size: 0.9em;
+    padding: 0 6px;
+}
+
+.jobs-plan-item::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 0.75em;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.35;
+}
+/* Diagnostics read as sentences: give them room, no columns, and the color of
+   their severity (same convention as the analysis dashboard details). */
+.jobs-plan-body.messages .jobs-plan-items {
+    columns: auto;
+}
+.jobs-plan-body.messages .jobs-plan-item {
+    font-size: 0.86em;
+    line-height: 1.55;
+    padding-bottom: 7px;
+    opacity: 0.9;
+}
+/* Colored text would be washed out at this size: mark the severity on the
+   bullet instead and keep the sentence in the normal text color. */
+.jobs-plan-body.messages .jobs-plan-item::before {
+    top: 0.6em;
+    width: 5px;
+    height: 5px;
+    opacity: 1;
+}
+.xpa-row-failed .jobs-plan-body.messages .jobs-plan-item::before { background: var(--xpa-failed); }
+.xpa-row-warning .jobs-plan-body.messages .jobs-plan-item::before { background: var(--xpa-warning); }
+.xpa-row-incomplete .jobs-plan-body.messages .jobs-plan-item::before { background: var(--xpa-incomplete); }
+.jobs-plan-placeholder {
+    text-align: center;
+    padding: 28px 0;
+    opacity: 0.55;
+}

@@ -1,0 +1,48 @@
+# Design sources (that will be coppied into each work directory)
+sources:
+  path: examples/workflow_param_domains_cli
+  # whitelist: 
+  #   - "src/**"
+  #   - "lib/**"
+  #   - "config/**"
+  blacklist:
+    - "*.log"
+
+# Progress tracking
+progress:
+  file: progress.txt
+  regex: "Progress: ([0-9]+)"
+
+# Generated design settings
+use_parameters: No
+
+# Design workflow settings
+tasks:
+  - name: main
+    commands:
+      - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing} --road_length ${road_length}
+
+generate_configurations_settings:
+  variables:
+    max_speed:
+      type: list
+      unit: kmh
+      settings: 
+        list: [35, 45, 55]
+    
+    num_vehicles:
+      type: list
+      settings: 
+        list: [100, 300]
+    
+    signal_timing:
+      type: list
+      unit: s
+      settings: 
+        list: [15, 45]
+    
+    road_length:
+      type: list
+      unit: km
+      settings: 
+        list: [1, 5]

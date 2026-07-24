@@ -27,12 +27,15 @@ from typing import Optional#, Literal
 import odatix.gui.navigation as navigation
 import odatix.gui.ui_components as ui
 from odatix.gui.css_helper import Style
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_instance_mode, get_instance_context
 from odatix.gui.icons import icon
-from odatix.lib.settings import OdatixSettings 
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import ConfigGenerator
 import odatix.components.workspace as workspace
+import odatix.gui.variable_editor as ve
+
+# Variable-editor id namespace for this page (no prefix).
+VE_PREFIX = ""
 
 verbose = False
 
@@ -52,7 +55,7 @@ dash.register_page(
 
 def get_gen_settings(
     name, template,
-    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals
+    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals
 ):
     """
     Get the configuration generation settings from the UI inputs.
@@ -74,39 +77,15 @@ def get_gen_settings(
         source_vals (str): Dource variable name for "conversion" type.
         sources_vals (list): List of comma-separated source variable names for set operations.
         format_vals (list): List of format strings.
+        group_vals (list): List of pairing group labels. Variables sharing a group are zipped together.
     Returns:
         dict: Configuration generation settings.
     """
-    variables = {}
-    for idx, title in enumerate(titles):
-        type = types[idx]
-        settings = {}
-        format = format_vals[idx] if format_vals[idx] else None
-        if type == "range":
-            settings["from"] = int(from_vals[idx]) if from_vals[idx] else 0
-            settings["to"] = int(to_vals[idx]) if to_vals[idx] else 0
-            settings["step"] = int(step_vals[idx]) if step_vals[idx] else 1
-        elif type == "power_of_two":
-            settings["from_2^"] = int(from_2_pow_vals[idx]) if from_2_pow_vals[idx] else 0
-            settings["to_2^"] = int(to_2_pow_vals[idx]) if to_2_pow_vals[idx] else 0
-        elif type == "list":
-            settings["list"] = [x.strip() for x in list_vals[idx].split(",") if x.strip()] if list_vals[idx] else []
-        elif type == "multiples":
-            settings["base"] = int(base_vals[idx]) if base_vals[idx] else 1
-            settings["from"] = int(from_vals[idx]) if from_vals[idx] else 0
-            settings["to"] = int(to_vals[idx]) if to_vals[idx] else 0
-        elif type == "function":
-            settings["op"] = op_vals[idx] if op_vals[idx] else ""
-        elif type == "conversion":
-            settings["from"] = from_type_vals[idx] if from_type_vals[idx] else 0
-            settings["to"] = to_type_vals[idx] if to_type_vals[idx] else 0
-            settings["source"] = source_vals[idx] if source_vals[idx] else ""
-        elif type == "format":
-            settings["source"] = source_vals[idx] if source_vals[idx] else ""
-        elif type in {"union", "disjunctive_union", "intersection", "difference"}:
-            settings["sources"] = [x.strip() for x in sources_vals[idx].split(",") if x.strip()] if sources_vals[idx] else []
-        variable = workspace.create_config_gen_variable_dict(name=title, type=type, settings=settings, format=format)
-        variables.update(variable)
+    variables = ve.build_variables_dict(
+        titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals,
+        from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
+        format_vals, group_vals,
+    )
     gen_settings = workspace.create_config_gen_dict(name=name, template=template, variables=variables)
     return gen_settings
 
@@ -145,162 +124,6 @@ def config_parameters_form(settings):
         id="config-parameters",
         className="tile config",
     )
-
-def variable_field(
-    var: str,
-    # type: Literal['text', 'number', 'password', 'email', 'range', 'search', 'tel', 'url', 'hidden'] = "text",
-    type = "text",
-    name: str = "",
-    label: Optional[str] = None,
-    options: Optional[list] = None,
-    value: str = "",
-    placeholder: str = "",
-    default_style: dict = Style.hidden
-):
-    if label is None:
-        label = name
-    return html.Div(
-        children=[
-            html.Div(
-                children=[
-                    html.Label(label, style={"fontWeight": "bold", "fontSize": "1em"}),
-                    dcc.Input(
-                        value=value,
-                        type=type,
-                        placeholder=placeholder,
-                        id={"type": f"variable-field-{name}", "name": var},
-                        className="value-input",
-                        style={
-                            "width": "calc(100% - 20px)",
-                            "marginLeft": "5px",
-                            "marginRight": "5px",
-                            "marginBottom": "5px",
-                            "fontSize": "0.9em",
-                            "height": "10px",
-                            "zIndex": "900",
-                        },
-                    ) if options is None else dcc.Dropdown(
-                        id={"type": f"variable-field-{name}", "name": var},
-                        options=options,
-                        value=value,
-                        clearable=False,
-                        style={
-                            "fontSize": "0.95em",
-                            "zIndex": "900",
-                        },
-                    ),
-                ], 
-                style={"marginTop": "5px"}
-            ),
-        ],
-        id={"type": f"variable-field-{name}-div", "name": var},
-        style=default_style
-    )
-
-def variable_card(
-        name, var_layout="normal",
-        type_value="list",
-        base_value="", from_value="", to_value="",
-        from_2_pow_value="", to_2_pow_value="", step_value="1",
-        from_type_value="dec", to_type_value="hex",
-        op_value="", list_value="", source_value="", sources_value="", format_value="",
-    ):
-    save_class =  "color-button disabled"
-    return html.Div([
-        html.Div([
-            dcc.Input(
-                value=name,
-                type="text",
-                id={"type": "variable-title", "name": name},
-                className="title-input",
-                style={
-                    "width": "calc(100% - 20px)",
-                    "marginLeft": "5px",
-                    "marginRight": "5px",
-                    "marginTop": "-5px",
-                    "marginBottom": "2px",
-                    "fontWeight": "bold",
-                    "fontSize": "1.1em",
-                    "height": "10px",
-                    "textAlign": "center",
-                },
-            ),
-            dcc.Dropdown(
-                id={"type": "variable-type", "name": name},
-                options=[
-                    {"label": "Boolean", "value": "bool"},
-                    {"label": "List", "value": "list"},
-                    {"label": "Range", "value": "range"},
-                    {"label": "Power of 2", "value": "power_of_two"},
-                    {"label": "Multiples", "value": "multiples"},
-                    {"label": "Function", "value": "function"},
-                    {"label": "Conversion", "value": "conversion"},
-                    {"label": "Format", "value": "format"},
-                    {"label": "Union", "value": "union"},
-                    {"label": "Disjunctive Union", "value": "disjunctive_union"},
-                    {"label": "Intersection", "value": "intersection"},
-                    {"label": "Difference", "value": "difference"},
-                ],
-                value=type_value,
-                clearable=False,
-            ),
-            html.Div(
-                children=[ 
-                    variable_field(var=name, name="from", label="From", type="number", value=from_value),
-                    variable_field(var=name, name="to", label="To", type="number", value=to_value),
-                    variable_field(var=name, name="from_2_pow", label="From 2^", type="number", value=from_2_pow_value),
-                    variable_field(var=name, name="to_2_pow", label="To 2^", type="number", value=to_2_pow_value),
-                    variable_field(var=name, name="from_type", label="From type", type="text", options=[{"label": "Bin", "value": "bin"}, {"label": "Dec", "value": "dec"}, {"label": "Hex", "value": "hex"}], value=from_type_value),
-                    variable_field(var=name, name="to_type", label="To type", type="text", options=[{"label": "Bin", "value": "bin"}, {"label": "Dec", "value": "dec"}, {"label": "Hex", "value": "hex"}], value=to_type_value),
-                    variable_field(var=name, name="base", label="Base", type="number", value=base_value),
-                    variable_field(var=name, name="step", label="Step", type="number", value=step_value),
-                    variable_field(var=name, name="op", label="Op", type="text", value=op_value),
-                    variable_field(var=name, name="list", label="List", type="text", placeholder="Comma-separated values", default_style=Style.visible, value=list_value),
-                    variable_field(var=name, name="source", label="Source", type="text", value=source_value),
-                    variable_field(var=name, name="sources", label="Sources", type="text", placeholder="Comma-separated values", value=sources_value),
-                    html.Div(
-                        children=[
-                            variable_field(var=name, name="format", label="Format", type="text", value=format_value),
-                        ],
-                        id={"type": "more-variable-field-div", "name": name},
-                        className="expandable-area",
-                        style=Style.hidden
-                    )
-                ],
-                id="variable-fields-container",
-            ),
-        ]),
-        html.Div([
-            html.Div([
-                ui.icon_button(
-                    icon=icon("more", className="icon normal rotate", id={"type": "more-fields-icon", "name": name}),
-                    color="default",
-                    id={"type": "more-fields", "name": name},
-                    tooltip="Show/Hide extra fields",
-                    tooltip_options="bottom small",
-                )
-            ], id={"type": "more-fields-div", "name": name}, style={"display": "flex", "alignItems": "center"}),
-            html.Div([
-                ui.duplicate_button(id={"type": "duplicate-var", "name": name}),
-                ui.delete_button(id={"type": "delete-var", "name": name}),
-            ], style={"display": "flex", "flexDirection": "hotizontal", "alignItems": "center"}),
-        ], style={
-            "marginTop": "8px",
-            "display": "flex",
-            "flexDirection": "row",
-            "width": "100%",
-            "justifyContent": "space-between",
-        }),
-        dcc.Store(id={"type": "variable-metadata", "name": name}, data={"name": name, "type": type_value, "base_value": base_value, "from_value": from_value, "to_value": to_value, "from_2_pow_value": from_2_pow_value, "to_2_pow_value": to_2_pow_value, "from_type_value": from_type_value, "to_type_value": to_type_value, "step_value": step_value, "op_value": op_value, "list_value": list_value, "source_value": source_value, "sources_value": sources_value, "format_value": format_value}),
-    ], 
-    className="card configs", 
-    id={"type": "variable-card", "name": name},
-    style={
-        "padding": "10px", 
-        "margin": "5px", 
-        "display": "inline-block", 
-        "verticalAlign": "top"
-    })
 
 def add_card(text: str = "Add new variable"):
     return html.Div(
@@ -419,33 +242,12 @@ def config_card(filename, content, config_layout="normal", ellipsis=False):
         Output({"type": "variable-field-source-div", "name": dash.ALL}, "style"),
         Output({"type": "variable-field-sources-div", "name": dash.ALL}, "style"),
         Output({"type": "variable-field-format-div", "name": dash.ALL}, "style"),
+        Output({"type": "variable-field-group-div", "name": dash.ALL}, "style"),
     ],
     Input({"type": "variable-type", "name": dash.ALL}, "value"),
 )
 def update_variable_fields_visibility(types):
-    # Required fields for each type
-    mapping = {
-        "bool":              {"format"},
-        "list":              {"list", "format"},
-        "range":             {"from", "to", "step", "format"},
-        "power_of_two":      {"from_2_pow", "to_2_pow", "format"},
-        "multiples":         {"base", "from", "to", "format"},
-        "function":          {"op", "format"},
-        "conversion":        {"from_type", "to_type", "source", "format"},
-        "format":            {"source", "format"},
-        "union":             {"sources", "format"},
-        "disjunctive_union": {"sources", "format"},
-        "intersection":      {"sources", "format"},
-        "difference":        {"sources", "format"},
-    }
-    all_fields = ["from", "to", "from_2_pow", "to_2_pow", "from_type", "to_type", "base", "step", "op", "list", "source", "sources", "format"]
-
-    styles_by_field = {field: [] for field in all_fields}
-    for t in types:
-        visible = mapping.get(t, set())
-        for field in all_fields:
-            styles_by_field[field].append(Style.visible if field in visible else Style.hidden)
-
+    styles_by_field = ve.field_styles_for_types(types)
     return (
         styles_by_field["from"],
         styles_by_field["to"],
@@ -460,6 +262,7 @@ def update_variable_fields_visibility(types):
         styles_by_field["source"],
         styles_by_field["sources"],
         styles_by_field["format"],
+        styles_by_field["group"],
     )
 
 @dash.callback(
@@ -487,12 +290,13 @@ def update_variable_fields_visibility(types):
     State({"type": "variable-field-source", "name": dash.ALL}, "value"),
     State({"type": "variable-field-sources", "name": dash.ALL}, "value"),
     State({"type": "variable-field-format", "name": dash.ALL}, "value"),
+    State({"type": "variable-field-group", "name": dash.ALL}, "value"),
     State("odatix-settings", "data"),
     prevent_initial_call=True
 )
 def update_form_and_variable_cards(
     search, page, new_click, duplicate_clicks, delete_clicks, cards,
-    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals,
+    types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals,
     odatix_settings
 ):
     trigger_id = ctx.triggered_id
@@ -501,15 +305,14 @@ def update_form_and_variable_cards(
         if page != page_path:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
-        arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-        arch_name = get_key_from_url(search, "arch")
+        mode, instance_name, base_path = get_instance_context(search, odatix_settings)
         domain = get_key_from_url(search, "domain")
-        if not domain: 
+        if not domain:
             domain = hard_settings.main_parameter_domain
-        if not arch_name:
+        if not instance_name:
             return [], dash.no_update, dash.no_update, dash.no_update
 
-        settings = workspace.load_architecture_settings(arch_path, arch_name, domain)
+        settings = workspace.load_instance_domain_settings(base_path, instance_name, domain, kind=mode)
         variables = {}
 
         generator_name = ""
@@ -522,6 +325,7 @@ def update_form_and_variable_cards(
             generator_template = gen_settings.get("template", "")
             if isinstance(generator_template, list):
                 generator_template = "\n".join(generator_template)
+                gen_settings = dict(gen_settings, template=generator_template)
         else:
             # Default template
             generator_name = "config_${var1}${var2}"
@@ -530,32 +334,17 @@ def update_form_and_variable_cards(
                 "var1": {"type": "range", "settings": {"from": 1, "to": 3, "step": 1}},
                 "var2": {"type": "list", "settings": {"list": ["A", "B", "C", "D"]}},
             }
-        
-        cards = []
-        # Create cards from existing variables
-        for var_name, var_keys in variables.items():
-            type_value = var_keys.get("type", "list")
-            var_settings = var_keys.get("settings", {})
-            card_kwargs = {
-                "name": var_name,
-                "type_value": type_value,
-                "base_value": str(var_settings.get("base", "")),
-                "from_value": str(var_settings.get("from", "")),
-                "to_value": str(var_settings.get("to", "")),
-                "from_2_pow_value": str(var_settings.get("from_2^", "")),
-                "to_2_pow_value": str(var_settings.get("to_2^", "")),
-                "step_value": str(var_settings.get("step", "")),
-                "from_type_value": str(var_settings.get("from", "")),
-                "to_type_value": str(var_settings.get("to", "")),
-                "op_value": str(var_settings.get("op", "")),
-                "list_value": ", ".join(map(str, var_settings.get("list", []))),
-                "source_value": str(var_settings.get("source", "")),
-                "sources_value": ", ".join(map(str, var_settings.get("sources", []))),
-                "format_value": str(var_keys.get("format", "")),
+            # The defaults are what the form shows, so they are the reference the
+            # save button compares against: nothing is modified yet.
+            gen_settings = {
+                "name": generator_name,
+                "template": generator_template,
+                "variables": variables,
             }
-            cards.append(variable_card(**card_kwargs))
-        
-        # Append Add card
+
+
+        # Create cards from existing variables, plus the Add card
+        cards = ve.variable_cards_from_dict(VE_PREFIX, variables)
         cards.append(add_card())
         return cards, generator_name, generator_template, gen_settings
 
@@ -573,7 +362,7 @@ def update_form_and_variable_cards(
         while f"var{var_idx}" in existing_names:
             var_idx += 1
         new_name = f"var{var_idx}"
-        cards.append(variable_card(new_name))
+        cards.append(ve.variable_card(VE_PREFIX, new_name))
 
     if isinstance(trigger_id, dict):
         trig_type = trigger_id.get("type")
@@ -608,7 +397,8 @@ def update_form_and_variable_cards(
                 new_name = f"{trig_name}_copy{copy_idx}"
 
                 if idx is not None:
-                    cards.append(variable_card(
+                    cards.append(ve.variable_card(
+                        VE_PREFIX,
                         name=new_name,
                         type_value=types[idx],
                         base_value=base_vals[idx],
@@ -623,6 +413,7 @@ def update_form_and_variable_cards(
                         list_value=list_vals[idx],
                         source_value=sources_vals[idx],
                         sources_value=sources_vals[idx],
+                        group_value=group_vals[idx],
                     ))
 
     # Append Add card
@@ -654,15 +445,16 @@ def update_form_and_variable_cards(
     Input({"type": "variable-field-source", "name": dash.ALL}, "value"),
     Input({"type": "variable-field-sources", "name": dash.ALL}, "value"),
     Input({"type": "variable-field-format", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-group", "name": dash.ALL}, "value"),
     State({"type": "variable-metadata", "name": dash.ALL}, "data"),
     State("odatix-settings", "data"),
 )
 def update_generation(
     search, page, n_click_save, n_click_gen,
     name, template,
-    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals,
+    titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals,
     metadata, odatix_settings
-):  
+):
     trigger_id = ctx.triggered_id
 
     if trigger_id == "url":
@@ -675,32 +467,32 @@ def update_generation(
     
     gen_settings = get_gen_settings(
         name, template,
-        titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals
+        titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals
     )
 
     generator = ConfigGenerator(data=gen_settings)
     generated_params, variables = generator.generate()
     
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_key_from_url(search, "arch")
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
     domain = get_key_from_url(search, "domain")
     if not domain:
         domain = hard_settings.main_parameter_domain
     if trigger_id == {"page": page_path, "action": "save-all"} or trigger_id == {"action": "generate-all"}:
-        if domain and arch_name:
-            workspace.update_domain_settings(
-                arch_path=arch_path,
-                arch_name=arch_name, 
-                domain=domain, 
+        if domain and instance_name:
+            workspace.update_instance_domain_settings(
+                path=base_path,
+                name=instance_name,
+                domain=domain,
                 settings_to_update=gen_settings,
+                kind=mode,
             )
             if trigger_id == {"page": page_path, "action": "save-all"}:
                 return dash.no_update, dash.no_update, dash.no_update
-    
+
     if trigger_id == {"action": "generate-all"}:
         for config_name, config_content in generated_params.items():
-            arch_domain_path = workspace.get_arch_domain_path(arch_path, arch_name, domain)
-            config_file_path = os.path.join(arch_domain_path, f"{config_name}.txt")
+            instance_domain_path = workspace.get_arch_domain_path(base_path, instance_name, domain)
+            config_file_path = os.path.join(instance_domain_path, f"{config_name}.txt")
             try:
                 with open(config_file_path, "w") as config_file:
                     config_file.write(config_content)
@@ -770,19 +562,18 @@ def update_generation(
 def update_main_domain_title(search, page):
     if page != page_path:
         return dash.no_update, dash.no_update, dash.no_update
-    arch_name = get_key_from_url(search, "arch")
+    mode, instance_name = get_instance_mode(search)
     domain = get_key_from_url(search, "domain")
     if not domain:
         domain = hard_settings.main_parameter_domain
-        if not domain: domain = hard_settings.main_parameter_domain
 
-    if not arch_name:
-        return "No architecture selected."
-    
+    if not instance_name:
+        return "No architecture or workflow selected."
+
     if domain == hard_settings.main_parameter_domain:
-        title = f"{arch_name} - Main parameter domain"
+        title = f"{instance_name} - Main parameter domain"
     else:
-        title = f"{arch_name} - {domain}"
+        title = f"{instance_name} - {domain}"
     return title
 
 @dash.callback(
@@ -794,29 +585,11 @@ def update_main_domain_title(search, page):
     State({"type": "variable-metadata", "name": dash.ALL}, "data"),
 )
 def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, metadata):
-    # Get the button that triggered the callback
     trigger_id = ctx.triggered_id
     if not isinstance(trigger_id, dict) or "name" not in trigger_id:
         return [dash.no_update] * len(n_clicks), [dash.no_update] * len(n_clicks)
-
-    # Update only the relevant variable card
-    index = None
-    for i, clicks in enumerate(n_clicks):
-        current_name = metadata[i].get("name") if metadata and i < len(metadata) else {}
-        if trigger_id.get("name") == current_name:
-            index = i
-            break
-    
-    new_expandable_area_styles = list(expandable_area_styles)
-    new_icon_classes = list(icon_classes)
-    if index is not None:
-        if n_clicks[index] % 2 == 0:
-            new_expandable_area_styles[index] = Style.hidden
-            new_icon_classes[index] = "icon normal rotate"
-        else:
-            new_expandable_area_styles[index] = Style.visible
-            new_icon_classes[index] = "icon normal rotate rotated"
-    return new_expandable_area_styles, new_icon_classes
+    names = [m.get("name") if isinstance(m, dict) else None for m in (metadata or [])]
+    return ve.toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, names, trigger_id.get("name"))
 
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
@@ -840,14 +613,15 @@ def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, metadata)
     Input({"type": "variable-field-source", "name": dash.ALL}, "value"),
     Input({"type": "variable-field-sources", "name": dash.ALL}, "value"),
     Input({"type": "variable-field-format", "name": dash.ALL}, "value"),
+    Input({"type": "variable-field-group", "name": dash.ALL}, "value"),
     State("generator-initial-settings", "data"),
     State("generator-saved-settings", "data"),
     State({"type": "variable-metadata", "name": dash.ALL}, "data"),
     prevent_initial_call=True
 )
 def update_save_button(
-    save_n_clicks, generate_n_clicks, name, template, 
-    title_values, type_values, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals,
+    save_n_clicks, generate_n_clicks, name, template,
+    title_values, type_values, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals,
     initial_settings, saved_settings, metadata
 ):
     button_disabled = "color-button disabled icon-button"
@@ -869,40 +643,33 @@ def update_save_button(
     old_name = settings.get("name", "") if settings else ""
     old_template = settings.get("template", "") if settings else ""
 
-    if name != old_name or template != old_template:
+    if ve.field_value_changed(name, old_name) or ve.field_value_changed(template, old_template):
+        print(f"Name or template changed, enabling save button : {name} != {old_name} or {template} != {old_template}")
         return button_enabled, dash.no_update
-    
-    for i, _ in enumerate(title_values):
-        if str(title_values[i]) != str(metadata[i].get("name")):
-            return button_enabled, dash.no_update
-        if str(type_values[i]) != str(metadata[i].get("type")):
-            return button_enabled, dash.no_update
-        if str(base_vals[i]) != str(metadata[i].get("base_value")):
-            return button_enabled, dash.no_update
-        if str(from_vals[i]) != str(metadata[i].get("from_value")):
-            return button_enabled, dash.no_update
-        if str(to_vals[i]) != str(metadata[i].get("to_value")):
-            return button_enabled, dash.no_update
-        if str(from_2_pow_vals[i]) != str(metadata[i].get("from_2_pow_value")):
-            return button_enabled, dash.no_update
-        if str(to_2_pow_vals[i]) != str(metadata[i].get("to_2_pow_value")):
-            return button_enabled, dash.no_update
-        if str(from_type_vals[i]) != str(metadata[i].get("from_type_value")):
-            return button_enabled, dash.no_update
-        if str(to_type_vals[i]) != str(metadata[i].get("to_type_value")):
-            return button_enabled, dash.no_update
-        if str(step_vals[i]) != str(metadata[i].get("step_value")):
-            return button_enabled, dash.no_update
-        if str(op_vals[i]) != str(metadata[i].get("op_value")):
-            return button_enabled, dash.no_update
-        if str(list_vals[i]) != str(metadata[i].get("list_value")):
-            return button_enabled, dash.no_update
-        if str(source_vals[i]) != str(metadata[i].get("source_value")):
-            return button_enabled, dash.no_update
-        if str(sources_vals[i]) != str(metadata[i].get("sources_value")):
-            return button_enabled, dash.no_update
-        if str(format_vals[i]) != str(metadata[i].get("format_value")):
-            return button_enabled, dash.no_update
+
+    fields = [
+        ("name", title_values),
+        ("type", type_values),
+        ("base_value", base_vals),
+        ("from_value", from_vals),
+        ("to_value", to_vals),
+        ("from_2_pow_value", from_2_pow_vals),
+        ("to_2_pow_value", to_2_pow_vals),
+        ("from_type_value", from_type_vals),
+        ("to_type_value", to_type_vals),
+        ("step_value", step_vals),
+        ("op_value", op_vals),
+        ("list_value", list_vals),
+        ("source_value", source_vals),
+        ("sources_value", sources_vals),
+        ("format_value", format_vals),
+        ("group_value", group_vals),
+    ]
+    for key, values in fields:
+        for i, value in enumerate(values):
+            if ve.field_value_changed(value, metadata[i].get(key)):
+                print(f"Field '{key}' changed for variable {metadata[i].get('name')}, enabling save button.")
+                return button_enabled, dash.no_update
 
     return button_disabled, dash.no_update
 
@@ -912,17 +679,16 @@ def update_save_button(
     State("url", "search"),
     State("odatix-settings", "data"),
 )
-def clean_all_configs(n_clicks, search, odatix_settings):    
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    arch_name = get_key_from_url(search, "arch")
+def clean_all_configs(n_clicks, search, odatix_settings):
+    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
     domain = get_key_from_url(search, "domain")
     if not domain:
         domain = hard_settings.main_parameter_domain
-    
+
     trigger_id = ctx.triggered_id
     if trigger_id == {"action": "clean-all"} and n_clicks:
-        workspace.delete_all_config_files(arch_path, arch_name, domain)
-    
+        workspace.delete_all_config_files(base_path, instance_name, domain)
+
     return dash.no_update
 
 @dash.callback(
@@ -930,8 +696,9 @@ def clean_all_configs(n_clicks, search, odatix_settings):
     Input("url", "search"),
 )
 def update_back_button_link(search):
-    arch_name = get_key_from_url(search, "arch")
-    return f"/config_editor?arch={arch_name}"
+    mode, instance_name = get_instance_mode(search)
+    key = "workflow" if mode == "workflow" else "arch"
+    return f"/config_editor?{key}={instance_name}"
 
 
 ######################################
@@ -991,12 +758,11 @@ layout = html.Div(
         html.Div([ 
             html.Div(
                 children=[
-                    variable_card(name="var", type_value="range", from_value="1", to_value="10", step_value="1"),
+                    ve.variable_card(VE_PREFIX, name="var", type_value="range", from_value="1", to_value="10", step_value="1"),
                     add_card(),
                 ],
                 id={"type": "variable-cards-row"},
                 className=f"card-matrix configs", 
-                style={"marginLeft": "13px"},
             ),
         ]),
         ui.title_tile(text="Generation Preview", id="gen-preview", buttons=preview_title_tile_buttons),
@@ -1004,7 +770,7 @@ layout = html.Div(
             html.Div(
                 id={"type": "config-cards-row"},
                 className=f"card-matrix configs", 
-                style={"marginLeft": "13px", "marginBottom": "30px"},
+                style={"marginBottom": "30px"},
             ),
         ]),
         dcc.Store(id={"type": "update_url", "id": page_path}),

@@ -22,8 +22,9 @@
 import os
 import sys
 import argparse
+from odatix.components import workspace as workspace_utils
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
-from odatix.components.run_common import confirm_valid_jobs, start_parallel_jobs as start_parallel_jobs_common
+from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
@@ -56,7 +57,7 @@ def add_arguments(parser):
     parser.add_argument("-a", "--archpath", help="architecture directory")
     parser.add_argument("-w", "--work", help="work directory")
     parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
-    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs")
+    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
     parser.add_argument("-f", "--force", action="store_true", help="force fmax synthesis to continue on synthesis error")
     parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
     parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
@@ -108,7 +109,7 @@ def run_synthesis(
     detach=False,
     daemon_session=None,
 ):
-    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs = check_settings(
+    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs, _plan = check_settings(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
         tool=tool,
@@ -137,20 +138,47 @@ def run_synthesis(
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
         cancel_event=cancel_event,
-    )
-
-    exp_res.configure_synthesis_job_exports(
-        parallel_jobs=parallel_jobs,
-        result_type="fmax_synthesis",
-        work_path=work_path,
-        tool=tool,
-        output_dir=export_output_dir,
+        export_output_dir=export_output_dir,
+        export_tool=tool,
+        export_work_path=work_path,
         use_benchmark=use_benchmark,
         benchmark_file=benchmark_file,
         custom_metrics_file=custom_metrics_file,
     )
 
     start_parallel_jobs(parallel_jobs, detach=detach, session=daemon_session)
+
+def _load_settings_fmax_bounds(run_config_settings_filename):
+    """
+    Read the fmax binary search bounds from the run settings file. The bounds
+    are only returned when "override" is enabled, mirroring the "Override
+    frequencies" toggle of custom frequency synthesis: when disabled, the
+    settings-file bounds are not applied and architecture-specific / default
+    bounds are used instead.
+    Returns (lower_bound, upper_bound), each None when unset or not overriding.
+    """
+    settings_payload = workspace_utils.load_yaml_file(run_config_settings_filename, default={})
+    fmax_settings = settings_payload.get("fmax_synthesis", {})
+    if not isinstance(fmax_settings, dict):
+        return None, None
+
+    override_value = fmax_settings.get("override", False)
+    if isinstance(override_value, str):
+        override_enabled = override_value.strip().lower() in ("yes", "true", "1")
+    else:
+        override_enabled = bool(override_value)
+    if not override_enabled:
+        return None, None
+
+    def _to_int(value):
+        if value in (None, ""):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    return _to_int(fmax_settings.get("lower_bound")), _to_int(fmax_settings.get("upper_bound"))
 
 def check_settings(
     run_config_settings_filename,
@@ -170,8 +198,18 @@ def check_settings(
     debug=False,
     keep=False,
     cancel_event=None,
+    tool_check_sink=None,
 ):
     _check_cancel(cancel_event)
+
+    # Priority: CLI (--from / --to) overrides the settings file bounds, which in
+    # turn override the default / architecture-specific bounds.
+    settings_lower_bound, settings_upper_bound = _load_settings_fmax_bounds(run_config_settings_filename)
+    if forced_fmax_lower_bound is None:
+        forced_fmax_lower_bound = settings_lower_bound
+    if forced_fmax_upper_bound is None:
+        forced_fmax_upper_bound = settings_upper_bound
+
     context = load_synthesis_context(
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
@@ -231,6 +269,10 @@ def check_settings(
     _check_cancel(cancel_event)
 
     arch_handler.print_summary()
+
+    # The eda tool check was started in the background by load_synthesis_context:
+    # its outcome is only needed now, right before the confirmation.
+    settle_tool_checks([context["tool_check"]], tool_check_sink)
     confirm_valid_jobs(arch_handler.get_valid_arch_count(), context["ask_continue"], ask_to_continue, script_name=script_name)
 
     print()
@@ -256,7 +298,8 @@ def check_settings(
         context["exit_when_done"],
         context["log_size_limit"],
         context["nb_jobs"],
-    )
+        arch_handler.plan,
+ )
 
 def prepare_synthesis(
     architecture_instances,
@@ -268,8 +311,14 @@ def prepare_synthesis(
     log_size_limit,
     nb_jobs,
     cancel_event=None,
+    export_output_dir=None,
+    export_tool=None,
+    export_work_path=None,
+    use_benchmark=False,
+    benchmark_file=None,
+    custom_metrics_file=None,
 ):
-    return prepare_synthesis_jobs(
+    parallel_jobs = prepare_synthesis_jobs(
         architecture_instances=architecture_instances,
         prepare_job=prepare_job,
         job_list=job_list,
@@ -279,7 +328,25 @@ def prepare_synthesis(
         log_size_limit=log_size_limit,
         nb_jobs=nb_jobs,
         check_cancel=lambda: _check_cancel(cancel_event),
+        script_name=script_name,
     )
+
+    # Per-job result export (au fil de l'eau): tag every job so the handler
+    # exports its result as soon as it finishes, for both the CLI and the
+    # GUI/daemon (which both call this prepare function).
+    if export_output_dir and export_tool and export_work_path:
+        exp_res.configure_synthesis_job_exports(
+            parallel_jobs=parallel_jobs,
+            result_type="fmax_synthesis",
+            work_path=export_work_path,
+            tool=export_tool,
+            output_dir=export_output_dir,
+            use_benchmark=use_benchmark,
+            benchmark_file=benchmark_file,
+            custom_metrics_file=custom_metrics_file,
+        )
+
+    return parallel_jobs
 
 def start_parallel_jobs(
     parallel_jobs, 
