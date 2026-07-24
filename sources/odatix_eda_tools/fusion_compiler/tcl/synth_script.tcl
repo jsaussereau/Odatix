@@ -111,8 +111,12 @@ report_progress 80 $synth_statusfile
 # Reports
 ################################################################################
 
+if {[info exists synthesis_mode] && $synthesis_mode == "physical"} {
+    report_utilization > $area_rep
+} else {
+    report_area   > $area_rep
+}
 report_power  > $power_rep
-report_area   > $area_rep
 report_timing > $timing_rep
 
 puts ""
