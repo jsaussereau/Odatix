@@ -456,7 +456,7 @@ def wf_task_card(name="main", dependencies_value="", commands_value="", path_val
                 dcc.Textarea(
                     value=commands_value,
                     id={"type": "wf-task-field-commands", "name": name},
-                    className="auto-resize-textarea",
+                    className="auto-resize-textarea wf-command-textarea",
                     style={
                         "width": "100%",
                         "minHeight": "110px",
@@ -736,6 +736,44 @@ def init_form(search, page, odatix_settings):
     variables = settings.get("generate_configurations_settings", {}).get("variables", {})
     tasks = settings.get("tasks", [])
     return workflow_form(settings), settings, wf_cards_from_tasks(tasks), wf_cards_from_variables(variables)
+
+@dash.callback(
+    Output("wf-hl-param-domains", "data"),
+    Input(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+    State("odatix-settings", "data"),
+)
+def update_wf_param_domains(search, page, odatix_settings):
+    """
+    The workflow's parameter domains (its subdirectories), so the command
+    highlighter can color them apart from defined variables. Empty for a new,
+    unsaved workflow.
+    """
+    if page != page_path:
+        return dash.no_update
+    workflow_name = get_key_from_url(search, "workflow")
+    if not workflow_name:
+        return []
+    try:
+        workflow_path = _get_workflow_path(odatix_settings)
+        return workspace.get_param_domains(workflow_path, workflow_name)
+    except Exception:
+        return []
+
+
+# Push the parameter domains to the client and ask the highlighter to redraw.
+dash.clientside_callback(
+    """
+    function(domains) {
+        window.__odatixWfParamDomains = domains || [];
+        document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
+        return "";
+    }
+    """,
+    Output("wf-hl-dummy", "data"),
+    Input("wf-hl-param-domains", "data"),
+)
+
 
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
@@ -1169,6 +1207,11 @@ layout = html.Div(
         ),
         dcc.Store(id="workflow-initial-settings", data=None),
         dcc.Store(id="workflow-saved-settings", data=None),
+        # Physical parameter domains of the workflow (directory names), pushed to
+        # the client so the command highlighter can tell them apart from defined
+        # variables (which it reads live from the variable cards).
+        dcc.Store(id="wf-hl-param-domains", data=[]),
+        dcc.Store(id="wf-hl-dummy", data=""),
     ],
     className="page-content",
     style={
