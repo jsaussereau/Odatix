@@ -1,0 +1,33 @@
+##############################################
+# Target settings for Fusion Compiler
+##############################################
+
+constraint_file: timing_constraints.txt
+
+tool_install_path: ""   # fc_shell should be in your PATH
+
+force_single_thread: No
+
+script_copy_enable: No
+script_copy_source: "/dev/null"
+
+targets:
+  - GlobalFoundries22NHSP
+  #- GlobalFoundries12LP
+  # - Intel18AGLP
+
+target_settings:
+
+  GlobalFoundries22NHSP:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/fusion_compiler/technology/globalfoundaries22nhsp/fc_setup.tcl
+    directory_copy_enable: $eda_tools_path/fusion_compiler/technology/globalfoundaries22nhsp/gf22nspllogl32hdl116f_frame_timing_ccs.ndm
+
+  GlobalFoundries12LP:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/fusion_compiler/technology/globalfoundaries12lp/fc_setup.tcl
+    directory_copy_enable: $eda_tools_path/fusion_compiler/technology/globalfoundaries12lp/IN12LP_SC7P5T_84CPP_BASE_SSC14R_frame_timing_ccs.ndm
+
+  Intel18AGLP:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/fusion_compiler/technology/intel18aglp/fc_setup.tcl
