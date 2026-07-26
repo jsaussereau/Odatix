@@ -79,7 +79,9 @@ daemon_log_prefix = "daemon."
 daemon_log_suffix = ".log"
 daemon_log_enabled_default = False
 
-default_supported_tools = ["vivado", "design_compiler", "openlane", "genus", "verilator"]
+# Tools are no longer hard-coded: the list of supported eda tools is discovered
+# at runtime by scanning the user tools directory and the built-in one (see
+# odatix.lib.eda_tools). A tool is any directory containing a "tool.yml" file.
 default_analysis_target = "analysis"
 default_analysis_constraint_file = "analysis_constraints.txt"
 

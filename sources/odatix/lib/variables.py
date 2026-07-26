@@ -29,6 +29,7 @@ class Variables:
     self,
     odatix_path = None,
     odatix_eda_tools_path = None,
+    tool_path = None,
     work_path = None,
     tool_install_path = None,
     script_path = None,
@@ -39,6 +40,7 @@ class Variables:
   ):
     self.odatix_path = odatix_path
     self.odatix_eda_tools_path = odatix_eda_tools_path
+    self.tool_path = tool_path
     self.work_path = work_path
     self.tool_install_path = tool_install_path
     self.script_path = script_path
@@ -55,6 +57,7 @@ def replace_variables(command, variables):
     replacements = {
       "$odatix_path": variables.odatix_path,
       "$eda_tools_path": variables.odatix_eda_tools_path,
+      "$tool_path": variables.tool_path,
       "$work_path": variables.work_path,
       "$tool_install_path": variables.tool_install_path,
       "$script_path": variables.script_path,

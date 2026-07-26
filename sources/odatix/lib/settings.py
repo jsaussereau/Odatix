@@ -95,6 +95,7 @@ class OdatixSettings:
     DEFAULT_USERCONFIG_PATH = "odatix_userconfig"
     DEFAULT_ARCH_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "architectures")
     DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
+    DEFAULT_TOOLS_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "tools")
     DEFAULT_WORKFLOW_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "workflows")
     DEFAULT_TARGET_PATH = DEFAULT_USERCONFIG_PATH
     DEFAULT_USE_BENCHMARK = False
@@ -108,6 +109,11 @@ class OdatixSettings:
 
     odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
     odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
+    # User eda tools directory, resolved from the workspace settings file when it
+    # is read (defaults to DEFAULT_TOOLS_PATH, relative to the current directory).
+    # This class-level latch mirrors odatix_eda_tools_path so the many tool
+    # resolution call sites can reach it without holding a settings instance.
+    user_tools_path = None
     odatix_init_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_init"))
     odatix_examples_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_examples"))
 
@@ -231,6 +237,10 @@ class OdatixSettings:
         self.result_path, _ = get_from_dict("result_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_RESULT_PATH, silent=silent, script_name=script_name)
         self.arch_path, _ = get_from_dict("arch_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ARCH_PATH, silent=silent, script_name=script_name)
         self.sim_path, _ = get_from_dict("sim_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIM_PATH, silent=silent, script_name=script_name)
+        self.tools_path, _ = get_from_dict("tools_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TOOLS_PATH, silent=silent, script_name=script_name)
+        # Latch the user tools path at the class level so tool resolution helpers
+        # (odatix.lib.eda_tools) can find user-defined tools without a settings instance.
+        OdatixSettings.user_tools_path = os.path.realpath(self.tools_path)
         self.workflow_path, _ = get_from_dict("workflow_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_PATH, silent=silent, script_name=script_name)
         self.target_path, _ = get_from_dict("target_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TARGET_PATH, silent=silent, script_name=script_name)
         self.use_benchmark, _ = get_from_dict("use_benchmark", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_USE_BENCHMARK, type=bool, silent=silent, script_name=script_name)

@@ -73,21 +73,22 @@ def load_synthesis_context(
         raise SystemExit(-1)
 
     from odatix.lib.settings import OdatixSettings
+    import odatix.lib.eda_tools as eda_tools
 
-    eda_tool_dir = os.path.join(OdatixSettings.odatix_eda_tools_path, tool)
+    eda_tool_dir = eda_tools.get_tool_dir(tool)
 
-    if not os.path.isdir(eda_tool_dir):
+    if eda_tool_dir is None:
         printc.error(
-            'The directory "' + eda_tool_dir + '", for the selected eda tool "' + tool + '" does not exist',
+            'No directory found for the selected eda tool "' + tool + '"',
             script_name,
         )
-        if tool not in hard_settings.default_supported_tools:
-            printc.note(
-                'The selected eda tool "'
-                + tool
-                + '" is not one of the supported tool. Check out Odatix\'s documentation to add support for your own eda tool',
-                script_name,
-            )
+        printc.note(
+            'The selected eda tool "'
+            + tool
+            + '" is not one of the available tools. Check out Odatix\'s documentation to add support for your own eda tool',
+            script_name,
+        )
+        printc.note("Available tools are: " + ", ".join(eda_tools.get_supported_tools()), script_name)
         raise SystemExit(-1)
 
     tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
@@ -151,6 +152,7 @@ def load_synthesis_context(
         tool_install_path=os.path.realpath(install_path),
         odatix_path=OdatixSettings.odatix_path,
         odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+        tool_path=eda_tool_dir,
     )
     tool_test_command = replace_variables(tool_test_command, variables)
 
@@ -164,7 +166,7 @@ def load_synthesis_context(
         tool_check = start_tool_check(
             tool,
             command=tool_test_command,
-            supported_tools=hard_settings.default_supported_tools,
+            supported_tools=eda_tools.get_supported_tools(),
             tool_install_path=install_path,
             debug=debug,
         )
@@ -218,8 +220,13 @@ def build_prepare_synthesis_job(
         except Exception:
             printc.error('"' + arch_instance.tmp_script_path + '" exists while it should not', script_name)
 
+        import odatix.lib.eda_tools as eda_tools
+        tool_dir = eda_tools.get_tool_dir(tool)
+        if tool_dir is None:
+            printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
+            return
         copytree(
-            os.path.join(OdatixSettings.odatix_eda_tools_path, tool, hard_settings.tool_tcl_path),
+            os.path.join(tool_dir, hard_settings.tool_tcl_path),
             arch_instance.tmp_script_path,
             dirs_exist_ok=True,
         )
@@ -323,11 +330,13 @@ def build_prepare_synthesis_job(
 
         command = " ".join(map(str, arch_handler.command)) if isinstance(arch_handler.command, list) else arch_handler.command
 
+        import odatix.lib.eda_tools as eda_tools
         variables = Variables(
             work_path=os.path.realpath(arch_instance.tmp_dir),
             tool_install_path=os.path.realpath(arch_instance.install_path),
             odatix_path=OdatixSettings.odatix_path,
             odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+            tool_path=eda_tools.get_tool_dir(tool),
             script_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_script_path)),
             log_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path)),
             clock_signal=arch_instance.clock_signal,

@@ -25,6 +25,7 @@ import yaml
 import argparse
 
 import odatix.lib.printc as printc
+import odatix.lib.eda_tools as eda_tools
 import odatix.lib.results_schema as results_schema
 from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
@@ -484,7 +485,14 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
     units = {}
 
     # Get tool setting file
-    tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, tool_settings_filename)
+    tool_dir = eda_tools.get_tool_dir(tool)
+    if tool_dir is None:
+      printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
+      if len(tools) == 1:
+        sys.exit(-1)
+      else:
+        continue
+    tool_settings_file = os.path.join(tool_dir, tool_settings_filename)
     tool_settings = validate_tool_settings(tool_settings_file)
     if tool_settings is None:
       if len(tools) == 1:
@@ -504,6 +512,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
     variables = Variables(
       odatix_path=OdatixSettings.odatix_path,
       odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+      tool_path=tool_dir,
     )
 
     # Replace variables in command
@@ -603,7 +612,10 @@ def export_analysis(input_work_path, output, analysis_work_path, tools="all"):
 
 
 def _load_metrics_for_tool(tool, custom_metrics_file=None):
-  tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, tool_settings_filename)
+  tool_dir = eda_tools.get_tool_dir(tool)
+  if tool_dir is None:
+    return None, None
+  tool_settings_file = os.path.join(tool_dir, tool_settings_filename)
   tool_settings = validate_tool_settings(tool_settings_file)
   if tool_settings is None:
     return None, None
@@ -618,6 +630,7 @@ def _load_metrics_for_tool(tool, custom_metrics_file=None):
   variables = Variables(
     odatix_path=OdatixSettings.odatix_path,
     odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+    tool_path=tool_dir,
   )
   metrics_file = replace_variables(metrics_file, variables)
 

@@ -30,6 +30,7 @@ import subprocess
 from odatix.components.replace_params import replace_params
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.eda_tools as eda_tools
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler, Architecture
@@ -154,19 +155,17 @@ def load_tool_context(tool, target_path):
       run_command, tool_test_command, targets, constraint_file,
       install_path, force_single_thread.
   """
-  # Check if the tool has a dedicated directory in odatix_eda_tools path
-  eda_tool_dir = os.path.join(OdatixSettings.odatix_eda_tools_path, tool)
-  if not os.path.isdir(eda_tool_dir):
-    printc.error(
-      'The directory "' + eda_tool_dir + '", for the selected eda tool "' + tool + '" does not exist', script_name
+  # Resolve the tool directory (user tools directory first, then built-in)
+  eda_tool_dir = eda_tools.get_tool_dir(tool)
+  if eda_tool_dir is None:
+    printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
+    printc.note(
+      'The selected eda tool "'
+      + tool
+      + "\" is not one of the available tools. Check out Odatix's documentation to add support for your own eda tool",
+      script_name,
     )
-    if tool not in hard_settings.default_supported_tools:
-      printc.note(
-        'The selected eda tool "'
-        + tool
-        + "\" is not one of the supported tool. Check out Odatix's documentation to add support for your own eda tool",
-        script_name,
-      )
+    printc.note("Available tools are: " + ", ".join(eda_tools.get_supported_tools()), script_name)
     sys.exit(-1)
 
   # Get tool settings
@@ -192,6 +191,7 @@ def load_tool_context(tool, target_path):
     tool_install_path=os.path.realpath(install_path),
     odatix_path=OdatixSettings.odatix_path,
     odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+    tool_path=eda_tool_dir,
   )
 
   # Replace variables in command
@@ -333,7 +333,11 @@ def prepare_analysis(
       except:
         printc.error('"' + arch_instance.tmp_script_path + '" exists while it should not', script_name)
 
-      copytree(os.path.join(OdatixSettings.odatix_eda_tools_path, tool, hard_settings.tool_tcl_path), arch_instance.tmp_script_path, dirs_exist_ok=True)
+      tool_dir = eda_tools.get_tool_dir(tool)
+      if tool_dir is None:
+        printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
+        return
+      copytree(os.path.join(tool_dir, hard_settings.tool_tcl_path), arch_instance.tmp_script_path, dirs_exist_ok=True)
 
       # Copy design
       if arch_instance.design_path is not None:
@@ -474,6 +478,7 @@ def prepare_analysis(
         tool_install_path=os.path.realpath(arch_instance.install_path),
         odatix_path=OdatixSettings.odatix_path,
         odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+        tool_path=eda_tools.get_tool_dir(tool),
         script_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_script_path)),
         log_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path)),
         clock_signal=arch_instance.clock_signal,
@@ -548,7 +553,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   """
   tools = list(dict.fromkeys(tool)) if isinstance(tool, (list, tuple)) else [tool]
 
-  supported_tools = hard_settings.default_supported_tools
+  supported_tools = eda_tools.tools_supporting("analysis")
   for current_tool in tools:
     if current_tool not in supported_tools:
       printc.error(f"Analysis flow is not yet implemented for tool '{current_tool}'")
@@ -731,7 +736,7 @@ def check_settings(
 
   tools = list(dict.fromkeys(tool)) if isinstance(tool, (list, tuple)) else [tool]
 
-  supported_tools = hard_settings.default_supported_tools
+  supported_tools = eda_tools.tools_supporting("analysis")
   for current_tool in tools:
     if current_tool not in supported_tools:
       printc.error(f"Analysis flow is not yet implemented for tool '{current_tool}'", script_name)
@@ -951,7 +956,7 @@ def main(args, settings=None):
   debug = args.debug
   keep = args.keep
 
-  supported_tools = hard_settings.default_supported_tools
+  supported_tools = eda_tools.tools_supporting("analysis")
   tools = [current_tool for current_tool in tool if current_tool in supported_tools]
   for current_tool in tool:
     if current_tool not in supported_tools:
