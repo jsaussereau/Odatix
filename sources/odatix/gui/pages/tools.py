@@ -43,6 +43,7 @@ import odatix.gui.navigation as navigation
 import odatix.components.workspace as workspace
 import odatix.lib.eda_tools as eda_tools
 from odatix.lib.settings import OdatixSettings
+from odatix.lib.utils import open_path_in_explorer
 
 page_path = "/tools"
 
@@ -147,6 +148,14 @@ def workspace_tool_card(name, tools_path):
                     ),
                     html.Div(
                         [
+                            ui.icon_button(
+                                id={"type": "tool-button-open", "name": name},
+                                icon=icon("folder_open", className="icon"),
+                                color="secondary",
+                                width="auto",
+                                tooltip="Open tool directory",
+                                tooltip_options="bottom",
+                            ),
                             ui.duplicate_button(id={"type": "tool-button-duplicate", "name": name}),
                             ui.delete_button(id={"type": "tool-button-delete", "name": name}),
                         ],
@@ -321,6 +330,37 @@ def fork_builtin(fork_timestamps, btn_ids, odatix_settings):
     return build_tool_cards(tools_path), build_builtin_cards(tools_path)
 
 @dash.callback(
+    Output("tool-open-dummy", "data"),
+    Input({"type": "tool-button-open", "name": dash.ALL}, "n_clicks_timestamp"),
+    State({"type": "tool-button-open", "name": dash.ALL}, "id"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def open_tool_directory(open_timestamps, btn_ids, odatix_settings):
+    triggered = ctx.triggered_id
+    if not triggered or not isinstance(triggered, dict):
+        return dash.no_update
+    if not open_timestamps or not btn_ids:
+        return dash.no_update
+
+    idx = max(range(len(open_timestamps)), key=lambda i: open_timestamps[i] or 0)
+    btn_id = btn_ids[idx]
+    if btn_id != triggered or not open_timestamps[idx]:
+        return dash.no_update
+
+    tools_path = get_tools_path(odatix_settings)
+    tool_dir = os.path.join(tools_path, btn_id["name"])
+    if not os.path.isdir(tool_dir):
+        return dash.no_update
+
+    try:
+        open_path_in_explorer(tool_dir)
+    except Exception:
+        return dash.no_update
+
+    return dash.no_update
+
+@dash.callback(
     Output("tool-delete-popup", "className"),
     Output("tool-delete-popup-message", "children"),
     Output("tool-delete-info", "data"),
@@ -411,6 +451,7 @@ layout = html.Div(
             style={"display": "block", "width": "auto", "textAlign": "center", "marginBottom": "10px"},
         ),
         dcc.Store(id="tool-delete-info"),
+        dcc.Store(id="tool-open-dummy"),
         html.Div(
             id="tool-delete-popup",
             className="overlay-odatix",
