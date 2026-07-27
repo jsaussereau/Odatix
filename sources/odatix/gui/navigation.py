@@ -44,6 +44,7 @@ nav_groups = [
     ("Configure", "", [
         ("Workflows", "/workflows"),
         ("RTL Architectures", "/architectures"),
+        ("EDA Tools", "/tools"),
     ]),
     ("Run", "/choose_job_type", [
         ("Workflows", "/run_jobs?type=workflow"),

@@ -72,7 +72,8 @@ def workspace_form(settings):
                     id="target_path",
                     value=defval("target_path", ""),
                     placeholder=OdatixSettings.DEFAULT_TARGET_PATH,
-                    tooltip="The path where target definitions for all tools are stored.",
+                    tooltip="The path where target definitions for all tools are stored. "
+                            "Files not found here are also looked up in odatix_userconfig.",
                 ),
             ]),
             ui.panel(body=[

@@ -97,7 +97,11 @@ class OdatixSettings:
     DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
     DEFAULT_TOOLS_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "tools")
     DEFAULT_WORKFLOW_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "workflows")
-    DEFAULT_TARGET_PATH = DEFAULT_USERCONFIG_PATH
+    DEFAULT_TARGET_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "targets")
+    # Target definition files not found in the configured target_path are also
+    # looked up in this directory (the userconfig root), so workspaces created
+    # before target_path defaulted to "<userconfig>/targets" keep working.
+    DEFAULT_TARGET_FALLBACK_PATH = DEFAULT_USERCONFIG_PATH
     DEFAULT_USE_BENCHMARK = False
     DEFAULT_BENCHMARK_FILE = "results/benchmark.yml"
     DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml")

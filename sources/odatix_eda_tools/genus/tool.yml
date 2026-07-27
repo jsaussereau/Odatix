@@ -2,6 +2,11 @@
 # Settings for Genus
 ##############################################
 
+# Display metadata (used by the GUI tool selection page)
+label: "Genus"
+description: "Cadence® Genus™ Synthesis Solution"
+icon: "assets/icons/cadence.png"
+
 process_group: True
 
 # Default metrics file for this tool

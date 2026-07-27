@@ -25,6 +25,7 @@ from dash import dcc, html, Input, Output, State
 
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
+import odatix.lib.eda_tools as eda_tools
 from odatix.lib.settings import OdatixSettings
 from odatix.gui.utils import get_key_from_url
 
@@ -44,33 +45,27 @@ dash.register_page(
 
 padding = 20
 
+# Fallback icon used when a tool.yml does not define an "icon" key.
+DEFAULT_TOOL_ICON = "assets/icons/workflow.png"
+
+
 def get_run_jobs_cards(job_type):
-    return [
-        {
-            "name": "Vivado",
-            "link": f"/run_jobs?type={job_type}&tool=vivado",
-            "image": "assets/icons/vivado.png",
-            "description": "AMD/Xilinx Vivado™",
-        },
-        {
-            "name": "Design Compiler",
-            "link": f"/run_jobs?type={job_type}&tool=design_compiler",
-            "image": "assets/icons/synopsys.png",
-            "description": "Synopsys® Design Compiler®",
-        },
-        {
-            "name": "Genus",
-            "link": f"/run_jobs?type={job_type}&tool=genus",
-            "image": "assets/icons/cadence.png",
-            "description": "Cadence® Genus™ Synthesis Solution",
-        },
-        {
-            "name": "OpenLane",
-            "link": f"/run_jobs?type={job_type}&tool=openlane",
-            "image": "assets/icons/openroad.png",
-            "description": "Open Source OpenLane flow",
-        },
-    ]
+    """
+    Build one card per discovered eda tool that supports the requested job type
+    (flow). Card label / description / icon come from the optional "label",
+    "description" and "icon" keys of the tool's tool.yml.
+    """
+    cards = []
+    for tool in eda_tools.tools_supporting(job_type):
+        meta = eda_tools._load_tool_yml(tool)
+        icon = meta.get("icon") if isinstance(meta.get("icon"), str) else None
+        cards.append({
+            "name": eda_tools.get_tool_label(tool),
+            "link": f"/run_jobs?type={job_type}&tool={tool}",
+            "image": icon or DEFAULT_TOOL_ICON,
+            "description": meta.get("description", "") if isinstance(meta.get("description"), str) else "",
+        })
+    return cards
 def get_run_jobs_layout(job_type):
     return [
         ui.page_header("Select an EDA Tool", "Choose the tool to run this job with."),

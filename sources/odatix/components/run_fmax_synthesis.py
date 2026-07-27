@@ -28,6 +28,7 @@ from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks,
 import odatix.components.export_results as exp_res
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.eda_tools as eda_tools
 from odatix.lib.parallel_job_handler import ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
@@ -241,7 +242,7 @@ def check_settings(
         work_report_path=hard_settings.work_report_path,
         process_group=context["process_group"],
         command=context["run_command"],
-        eda_target_filename=os.path.realpath(os.path.join(target_path, "target_" + tool + ".yml")),
+        eda_target_filename=eda_tools.resolve_target_file(tool, target_path),
         fmax_status_filename=hard_settings.fmax_status_filename,
         frequency_search_filename=hard_settings.frequency_search_filename,
         param_settings_filename=hard_settings.param_settings_filename,

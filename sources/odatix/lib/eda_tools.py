@@ -188,3 +188,43 @@ def tool_supports(tool, flow):
 def tools_supporting(flow):
   """Return the list of discovered tool names that support the given flow."""
   return [tool for tool in list_tools() if tool_supports(tool, flow)]
+
+
+def get_target_filename(tool):
+  """
+  Return the target definition file name of a tool: the optional "target_file"
+  key of tool.yml, falling back to the default "target_<tool>.yml".
+  """
+  data = _load_tool_yml(tool)
+  name = data.get("target_file")
+  if isinstance(name, str) and name.strip():
+    return name.strip()
+  return "target_" + tool + ".yml"
+
+
+def resolve_target_file(tool, target_path, fallback_dir=None):
+  """
+  Resolve the target definition file of a tool. The file name comes from the
+  tool's tool.yml (see get_target_filename). It is looked up first in
+  `target_path`, then in `fallback_dir` (the userconfig root by default), so
+  target files kept at the old default location still resolve.
+
+  Returns the path of the first existing candidate, or the primary
+  (`target_path`) path when none exists (for error reporting / new files).
+  """
+  from odatix.lib.settings import OdatixSettings
+
+  filename = get_target_filename(tool)
+  if fallback_dir is None:
+    fallback_dir = OdatixSettings.DEFAULT_TARGET_FALLBACK_PATH
+
+  primary = os.path.join(target_path, filename)
+  candidates = [primary]
+  fallback = os.path.join(fallback_dir, filename)
+  if os.path.realpath(fallback) != os.path.realpath(primary):
+    candidates.append(fallback)
+
+  for candidate in candidates:
+    if os.path.isfile(candidate):
+      return os.path.realpath(candidate)
+  return os.path.realpath(primary)

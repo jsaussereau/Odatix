@@ -59,6 +59,12 @@ home_cards = [
         "description": "Configure your RTL architectures",
     },
     {
+        "name": "EDA Tools",
+        "link": "/tools",
+        "icon": "eda_tool",
+        "description": "Add and configure your EDA tools",
+    },
+    {
         "name": "Run Jobs",
         "link": "/choose_job_type",
         "icon": "run",

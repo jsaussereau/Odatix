@@ -28,6 +28,7 @@ from odatix.gui.utils import get_key_from_url
 import odatix.gui.ui_components as ui
 from odatix.gui.css_helper import Style
 import odatix.gui.navigation as navigation
+import odatix.lib.eda_tools as eda_tools
 from odatix.lib.settings import OdatixSettings
 
 page_path = "/select_targets"
@@ -40,13 +41,6 @@ dash.register_page(
     order=3,
 )
 
-tool_display_names = {
-    "vivado": "Vivado",
-    "design_compiler": "Design Compiler",
-    "genus": "Genus",
-    "openlane": "OpenLane",
-}
-
 save_button_disabled = "color-button disabled icon-button"
 save_button_enabled = "color-button warning icon-button tooltip delay bottom auto caution"
 
@@ -54,7 +48,11 @@ save_button_enabled = "color-button warning icon-button tooltip delay bottom aut
 def get_tool_display_name(tool):
     if not tool:
         return ""
-    return tool_display_names.get(tool, tool.replace("_", " ").title())
+    # Use the tool's own "label" (from tool.yml) when it is a discovered tool,
+    # otherwise fall back to a prettified version of its identifier.
+    if eda_tools.is_supported(tool):
+        return eda_tools.get_tool_label(tool)
+    return tool.replace("_", " ").title()
 
 
 ######################################

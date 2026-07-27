@@ -63,7 +63,10 @@ def load_synthesis_context(
         defaults=(_overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs),
     )
 
-    eda_target_filename = os.path.realpath(os.path.join(target_path, "target_" + tool + ".yml"))
+    from odatix.lib.settings import OdatixSettings
+    import odatix.lib.eda_tools as eda_tools
+
+    eda_target_filename = eda_tools.resolve_target_file(tool, target_path)
 
     if not os.path.isfile(eda_target_filename):
         printc.error(
@@ -71,9 +74,6 @@ def load_synthesis_context(
             script_name,
         )
         raise SystemExit(-1)
-
-    from odatix.lib.settings import OdatixSettings
-    import odatix.lib.eda_tools as eda_tools
 
     eda_tool_dir = eda_tools.get_tool_dir(tool)
 

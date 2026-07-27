@@ -54,6 +54,15 @@ from odatix.lib.settings import OdatixSettings
 
 page_path = "/metric_editor"
 
+# The page has two edit modes, selected by the URL query:
+#   ?workflow=<name>  -> workflow metrics: two sections (metrics + metadata),
+#                        stored in the workflow's "_metrics.yml".
+#   ?tool=<name>      -> eda tool metrics: three sections (fmax synthesis /
+#                        custom frequency synthesis / common), stored in the
+#                        tool's "metrics.yml".
+# The same prefixed card UI is reused for every section; only the section labels
+# and the load/save target differ between modes.
+
 dash.register_page(
     __name__,
     path=page_path,
@@ -62,9 +71,11 @@ dash.register_page(
     order=6,
 )
 
-# The two sections and the "_metrics.yml" key each of them is stored under.
+# The three reusable section card-rows. Workflow mode uses the first two;
+# tool mode uses all three (see WORKFLOW_SECTIONS / TOOL_SECTIONS below).
 METRIC_PREFIX = "metric"
 META_PREFIX = "metadata"
+THIRD_PREFIX = "metric3"
 
 # Explanations of what each section is, shown as tooltips and reused in code.
 METRIC_TOOLTIP = (
@@ -76,6 +87,24 @@ META_TOOLTIP = (
     "Combined with a metric's 'Multiple values' option, a single run expands into "
     "one result entry per metadata value."
 )
+
+# Tool metric sections: (card-row prefix, section label, tooltip, metrics.yml key).
+FMAX_TOOLTIP = "Metrics extracted only for the maximum-frequency synthesis flow."
+CUSTOM_FREQ_TOOLTIP = "Metrics extracted only for the custom-frequency synthesis flow."
+COMMON_TOOLTIP = "Metrics extracted for every flow (e.g. area, resource counts)."
+
+WORKFLOW_SECTIONS = [
+    (METRIC_PREFIX, "Metrics", METRIC_TOOLTIP, "metrics"),
+    (META_PREFIX, "Metadata Dimensions", META_TOOLTIP, "metadata"),
+]
+TOOL_SECTIONS = [
+    (METRIC_PREFIX, "Fmax synthesis metrics", FMAX_TOOLTIP, "fmax_synthesis_metrics"),
+    (META_PREFIX, "Custom frequency synthesis metrics", CUSTOM_FREQ_TOOLTIP, "custom_freq_synthesis_metrics"),
+    (THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, "metrics"),
+]
+
+def _sections_for_mode(is_tool):
+    return TOOL_SECTIONS if is_tool else WORKFLOW_SECTIONS
 
 # Metric extraction types and the fields each of them uses.
 METRIC_TYPE_OPTIONS = [
@@ -114,6 +143,15 @@ def _get_workflow_path(odatix_settings):
         return settings_data.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
 
     return OdatixSettings.DEFAULT_WORKFLOW_PATH
+
+def _get_tools_path(odatix_settings):
+    tools_path = odatix_settings.get("tools_path", "") if isinstance(odatix_settings, dict) else ""
+    if tools_path:
+        return tools_path
+    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
+    if isinstance(settings_data, dict):
+        return settings_data.get("tools_path", OdatixSettings.DEFAULT_TOOLS_PATH)
+    return OdatixSettings.DEFAULT_TOOLS_PATH
 
 def _checked(value):
     """Turn a checklist value ([True]/[]) or bool into a plain bool."""
@@ -184,17 +222,30 @@ def build_section_dict(
 # UI Components
 ######################################
 
-def metric_title(workflow_name):
+def metric_title(name, is_tool=False):
+    if is_tool:
+        settings_link = f"/tool_editor?tool={name}"
+        settings_text = "Tool Settings"
+        settings_tooltip = "Back to the Tool Editor for this tool"
+        back_link = f"/tool_editor?tool={name}" if name else "/tools"
+        empty_text = "No tool selected"
+    else:
+        settings_link = f"/workflow_editor?workflow={name}"
+        settings_text = "Workflow Settings"
+        settings_tooltip = "Back to the Workflow Editor for this workflow"
+        back_link = f"/workflow_editor?workflow={name}" if name else "/workflows"
+        empty_text = "No workflow selected"
+
     title_buttons = html.Div(
         children=[
             ui.icon_button(
                 id="button-open-workflow-editor",
                 icon=icon("gear", className="icon blue"),
-                text="Workflow Settings",
-                tooltip="Back to the Workflow Editor for this workflow",
+                text=settings_text,
+                tooltip=settings_tooltip,
                 tooltip_options="bottom delay",
                 color="default",
-                link=f"/workflow_editor?workflow={workflow_name}",
+                link=settings_link,
                 multiline=False,
                 width="150px",
             ),
@@ -215,7 +266,7 @@ def metric_title(workflow_name):
                         html.Div(
                             children=[
                                 html.H3(
-                                    f"{workflow_name}" if workflow_name else "No workflow selected",
+                                    f"{name}" if name else empty_text,
                                     id="metric-workflow-title",
                                     style={"marginBottom": "0px"},
                                 )
@@ -232,7 +283,7 @@ def metric_title(workflow_name):
                         "justifyContent": "space-between",
                     },
                 ),
-                ui.back_button(link=f"/workflow_editor?workflow={workflow_name}" if workflow_name else "/workflows"),
+                ui.back_button(link=back_link),
             ],
             className="tile title",
             style={"position": "relative"},
@@ -598,16 +649,29 @@ def register_section_callbacks(prefix, name_stem, add_text):
 
 register_section_callbacks(METRIC_PREFIX, "metric", "Add new metric")
 register_section_callbacks(META_PREFIX, "meta", "Add new metadata")
+register_section_callbacks(THIRD_PREFIX, "metric", "Add new metric")
 
 
 ######################################
 # Page-level callbacks
 ######################################
 
+def _section_title_children(sections):
+    """Title tiles for the (up to three) sections, keyed by their card-row prefix."""
+    children = {METRIC_PREFIX: None, META_PREFIX: None, THIRD_PREFIX: None}
+    for prefix, label, tooltip, _key in sections:
+        children[prefix] = ui.title_tile(text=label, id=f"{prefix}-section-title", tooltip=tooltip)
+    return children
+
 @dash.callback(
     Output({"page": page_path, "type": "metric-title-div"}, "children"),
+    Output(f"{METRIC_PREFIX}-section-title-div", "children"),
+    Output(f"{META_PREFIX}-section-title-div", "children"),
+    Output(f"{THIRD_PREFIX}-section-title-div", "children"),
+    Output(f"{THIRD_PREFIX}-section-wrapper", "style"),
     Output(f"{METRIC_PREFIX}-cards-row", "children"),
     Output(f"{META_PREFIX}-cards-row", "children"),
+    Output(f"{THIRD_PREFIX}-cards-row", "children"),
     Output("metric-initial", "data"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
@@ -615,24 +679,53 @@ register_section_callbacks(META_PREFIX, "meta", "Add new metadata")
 )
 def init_page(search, page, odatix_settings):
     if page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return (dash.no_update,) * 9
 
+    tool_name = get_key_from_url(search, "tool")
     workflow_name = get_key_from_url(search, "workflow")
-    if not workflow_name:
-        return (
-            metric_title(""),
-            [add_card(METRIC_PREFIX, "Add new metric")],
-            [add_card(META_PREFIX, "Add new metadata")],
-            {"metrics": {}, "metadata": {}},
-        )
+    is_tool = bool(tool_name)
+    name = tool_name if is_tool else workflow_name
 
-    workflow_path = _get_workflow_path(odatix_settings)
-    metrics, metadata = workspace.load_workflow_metrics(workflow_path, workflow_name)
+    sections = _sections_for_mode(is_tool)
+    titles = _section_title_children(sections)
+    third_style = {"display": "block"} if is_tool else {"display": "none"}
+
+    # Load the definitions for each section (empty when nothing selected).
+    if is_tool and name:
+        tools_path = _get_tools_path(odatix_settings)
+        loaded = workspace.load_tool_metrics(tools_path, name)
+        section_defs = {prefix: loaded.get(key, {}) for prefix, _l, _t, key in sections}
+    elif (not is_tool) and name:
+        workflow_path = _get_workflow_path(odatix_settings)
+        metrics, metadata = workspace.load_workflow_metrics(workflow_path, name)
+        by_key = {"metrics": metrics, "metadata": metadata}
+        section_defs = {prefix: by_key.get(key, {}) for prefix, _l, _t, key in sections}
+    else:
+        section_defs = {prefix: {} for prefix, _l, _t, _k in sections}
+
+    rows = {}
+    for prefix, _l, _t, _key in sections:
+        rows[prefix] = cards_from_section(prefix, section_defs.get(prefix, {}), "Add new metric")
+    # Prefixes not used by this mode still need a valid (empty) card row.
+    for prefix in (METRIC_PREFIX, META_PREFIX, THIRD_PREFIX):
+        if prefix not in rows:
+            rows[prefix] = [add_card(prefix, "Add new metric")]
+
+    initial = {
+        "mode": "tool" if is_tool else "workflow",
+        "sections": {prefix: section_defs.get(prefix, {}) for prefix, _l, _t, _k in sections},
+    }
+
     return (
-        metric_title(workflow_name),
-        cards_from_section(METRIC_PREFIX, metrics, "Add new metric"),
-        cards_from_section(META_PREFIX, metadata, "Add new metadata"),
-        {"metrics": metrics, "metadata": metadata},
+        metric_title(name, is_tool=is_tool),
+        titles[METRIC_PREFIX],
+        titles[META_PREFIX],
+        titles[THIRD_PREFIX],
+        third_style,
+        rows[METRIC_PREFIX],
+        rows[META_PREFIX],
+        rows[THIRD_PREFIX],
+        initial,
     )
 
 @dash.callback(
@@ -664,6 +757,18 @@ def init_page(search, page, odatix_settings):
     Input({"type": f"{META_PREFIX}-field-format", "name": dash.ALL}, "value"),
     Input({"type": f"{META_PREFIX}-field-error_if_missing", "name": dash.ALL}, "value"),
     Input({"type": f"{META_PREFIX}-field-multiple", "name": dash.ALL}, "value"),
+    # Third section (tool "common metrics"; unused/empty in workflow mode)
+    Input({"type": f"{THIRD_PREFIX}-title", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-type", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-file", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-pattern", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-group_id", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-key", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-op", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-unit", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-format", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-error_if_missing", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-multiple", "name": dash.ALL}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("metric-initial", "data"),
@@ -675,6 +780,7 @@ def save_and_status(
     n_clicks,
     m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple,
     d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple,
+    t_names, t_types, t_file, t_pattern, t_group_id, t_key, t_op, t_unit, t_format, t_error, t_multiple,
     search, page, initial, saved, odatix_settings,
 ):
     triggered_id = ctx.triggered_id
@@ -685,25 +791,29 @@ def save_and_status(
     warning = ("color-button warning icon-button tooltip bottom small", "Unsaved changes!")
     error = "color-button error-status icon-button tooltip bottom small"
 
-    metrics = build_section_dict(
-        m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple,
-    )
-    metadata = build_section_dict(
-        d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple,
-    )
-    current = {"metrics": metrics, "metadata": metadata}
+    tool_name = get_key_from_url(search, "tool")
+    workflow_name = get_key_from_url(search, "workflow")
+    is_tool = bool(tool_name)
+    sections = _sections_for_mode(is_tool)
 
-    reference = saved if saved is not None else initial
-    if not isinstance(reference, dict):
-        reference = {"metrics": {}, "metadata": {}}
+    section_fields = {
+        METRIC_PREFIX: (m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple),
+        META_PREFIX: (d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple),
+        THIRD_PREFIX: (t_names, t_types, t_file, t_pattern, t_group_id, t_key, t_op, t_unit, t_format, t_error, t_multiple),
+    }
 
-    # Reject empty / duplicate names, per section.
-    for label, section_names in (("metric", m_names or []), ("metadata", d_names or [])):
+    # Build the definitions of each section used by the current mode.
+    current_sections = {}
+    for prefix, label, _t, _key in sections:
+        fields = section_fields[prefix]
+        current_sections[prefix] = build_section_dict(*fields)
+
+        # Reject empty / duplicate names in this section.
         seen = set()
-        for name in section_names:
+        for name in (fields[0] or []):
             clean = str(name).strip() if name is not None else ""
             if clean == "":
-                return error, f"{label.capitalize()} name cannot be empty", dash.no_update
+                return error, f"{label} name cannot be empty", dash.no_update
             for character in hard_settings.invalid_filename_characters:
                 if character in clean and character != " ":
                     return error, f"Unauthorized character in {label} name: '{character}'", dash.no_update
@@ -711,19 +821,37 @@ def save_and_status(
                 return error, f"Duplicate {label} name: '{clean}'", dash.no_update
             seen.add(clean)
 
-    workflow_name = get_key_from_url(search, "workflow")
+    current = {"mode": "tool" if is_tool else "workflow", "sections": current_sections}
+
+    reference = saved if saved is not None else initial
+    if not isinstance(reference, dict) or "sections" not in reference:
+        reference = {"mode": current["mode"], "sections": {p: {} for p, _l, _t, _k in sections}}
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
-        if not workflow_name:
-            return error, "No workflow selected", dash.no_update
-        workflow_path = _get_workflow_path(odatix_settings)
-        try:
-            workspace.save_workflow_metrics(workflow_path, workflow_name, metrics, metadata)
-            return disabled[0], disabled[1], current
-        except Exception:
-            return error, "Failed to save...", dash.no_update
+        if is_tool:
+            if not tool_name:
+                return error, "No tool selected", dash.no_update
+            tools_path = _get_tools_path(odatix_settings)
+            key_sections = {key: current_sections[prefix] for prefix, _l, _t, key in sections}
+            try:
+                workspace.save_tool_metrics(tools_path, tool_name, key_sections)
+                return disabled[0], disabled[1], current
+            except Exception:
+                return error, "Failed to save...", dash.no_update
+        else:
+            if not workflow_name:
+                return error, "No workflow selected", dash.no_update
+            workflow_path = _get_workflow_path(odatix_settings)
+            try:
+                workspace.save_workflow_metrics(
+                    workflow_path, workflow_name,
+                    current_sections.get(METRIC_PREFIX, {}), current_sections.get(META_PREFIX, {}),
+                )
+                return disabled[0], disabled[1], current
+            except Exception:
+                return error, "Failed to save...", dash.no_update
 
-    if current != reference:
+    if current.get("sections") != reference.get("sections"):
         return warning[0], warning[1], dash.no_update
 
     return disabled[0], disabled[1], dash.no_update
@@ -733,37 +861,35 @@ def save_and_status(
 # Layout
 ######################################
 
+def _section_block(prefix, default_title, default_tooltip, wrapper_style=None):
+    """One editable section: a dynamic title tile placeholder + its cards row."""
+    return html.Div(
+        children=[
+            html.Div(
+                id=f"{prefix}-section-title-div",
+                children=ui.title_tile(text=default_title, id=f"{prefix}-section-title", tooltip=default_tooltip),
+            ),
+            html.Div([
+                html.Div(
+                    id=f"{prefix}-cards-row",
+                    children=[add_card(prefix, "Add new metric")],
+                    className="card-matrix configs",
+                    style={"marginBottom": "30px"},
+                ),
+            ]),
+        ],
+        id=f"{prefix}-section-wrapper",
+        style=wrapper_style or {},
+    )
+
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "metric-title-div"}, style={"marginTop": "20px"}),
-        ui.title_tile(
-            text="Metrics",
-            id="metric-section-title",
-            tooltip=METRIC_TOOLTIP,
-        ),
-        html.Div([
-            html.Div(
-                id=f"{METRIC_PREFIX}-cards-row",
-                children=[add_card(METRIC_PREFIX, "Add new metric")],
-                className="card-matrix configs",
-                style={"marginBottom": "30px"},
-            ),
-        ]),
-        ui.title_tile(
-            text="Metadata Dimensions",
-            id="metadata-section-title",
-            tooltip=META_TOOLTIP,
-        ),
-        html.Div([
-            html.Div(
-                id=f"{META_PREFIX}-cards-row",
-                children=[add_card(META_PREFIX, "Add new metadata")],
-                className="card-matrix configs",
-                style={"marginBottom": "30px"},
-            ),
-        ]),
-        dcc.Store(id="metric-initial", data={"metrics": {}, "metadata": {}}),
+        _section_block(METRIC_PREFIX, "Metrics", METRIC_TOOLTIP),
+        _section_block(META_PREFIX, "Metadata Dimensions", META_TOOLTIP),
+        _section_block(THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, wrapper_style={"display": "none"}),
+        dcc.Store(id="metric-initial", data={"mode": "workflow", "sections": {}}),
         dcc.Store(id="metric-saved", data=None),
     ],
     className="page-content",

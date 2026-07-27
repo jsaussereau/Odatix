@@ -2,6 +2,11 @@
 # Settings for Vivado
 ##############################################
 
+# Display metadata (used by the GUI tool selection page)
+label: "Vivado"
+description: "AMD/Xilinx Vivado™"
+icon: "assets/icons/vivado.png"
+
 # Group processes
 process_group: True
 

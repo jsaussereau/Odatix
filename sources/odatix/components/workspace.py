@@ -316,6 +316,294 @@ def save_workflow_metrics(workflow_path, workflow_name, metrics, metadata=None) 
     save_yaml_file(path, data, yaml_obj=yaml_obj)
 
 ######################################
+# EDA Tools
+######################################
+#
+# A workspace EDA tool is a directory under the workspace tools directory
+# (odatix_userconfig/tools by default) containing a "tool.yml" file (and usually
+# a "metrics.yml"). These helpers manage those workspace tool directories from
+# the GUI (list / create / duplicate / delete / rename, and read/write of the
+# tool.yml and metrics.yml files). Built-in tools shipped with Odatix are handled
+# read-only through odatix.lib.eda_tools; only workspace tools are edited here.
+
+TOOL_SETTINGS_FILENAME = hard_settings.tool_settings_filename  # "tool.yml"
+TOOL_METRICS_FILENAME = "metrics.yml"
+
+# The metric sections of a tool metrics.yml, in render order, with the tool.yml
+# key each is stored under (see odatix.components.export_results.extract_metrics).
+TOOL_METRIC_SECTIONS = [
+    ("fmax_synthesis_metrics", "Fmax synthesis metrics"),
+    ("custom_freq_synthesis_metrics", "Custom frequency synthesis metrics"),
+    ("metrics", "Common metrics"),
+]
+
+def get_tools(path: str) -> list:
+    """
+    Get the list of workspace tools (directories containing a tool.yml).
+    """
+    if not path or not os.path.isdir(path):
+        return []
+    tools = [
+        d for d in os.listdir(path)
+        if not d.startswith("_") and not d.startswith(".")
+        and os.path.isfile(os.path.join(path, d, TOOL_SETTINGS_FILENAME))
+    ]
+    return natsorted(tools)
+
+def tool_exists(path, name) -> bool:
+    """
+    Check if a specific workspace tool exists.
+    """
+    return bool(name) and os.path.isfile(os.path.join(path, name, TOOL_SETTINGS_FILENAME))
+
+def create_tool(path, name) -> None:
+    """
+    Create a new workspace tool directory with a minimal tool.yml.
+    """
+    tool_dir = os.path.join(path, name)
+    os.makedirs(tool_dir, exist_ok=True)
+    settings_path = os.path.join(tool_dir, TOOL_SETTINGS_FILENAME)
+    if not os.path.isfile(settings_path):
+        save_tool_settings(path, name, {
+            "label": name,
+            "process_group": True,
+            "default_metrics_file": "$tool_path/metrics.yml",
+        })
+
+def duplicate_tool(path, source_name, target_name) -> None:
+    """
+    Duplicate a workspace tool directory.
+    """
+    source_path = os.path.join(path, source_name)
+    target_path = os.path.join(path, target_name)
+    if not os.path.isdir(source_path):
+        raise ValueError(f"Source tool '{source_name}' does not exist.")
+    if os.path.exists(target_path):
+        raise ValueError(f"Target tool '{target_name}' already exists.")
+    copytree(source_path, target_path)
+
+def duplicate_builtin_tool(builtin_dir, tools_path, target_name) -> None:
+    """
+    Copy a built-in tool directory into the workspace tools directory so it can
+    be edited. `builtin_dir` is the resolved source directory (from
+    odatix.lib.eda_tools.get_tool_dir).
+    """
+    target_path = os.path.join(tools_path, target_name)
+    if not builtin_dir or not os.path.isdir(builtin_dir):
+        raise ValueError("Built-in tool directory does not exist.")
+    if os.path.exists(target_path):
+        raise ValueError(f"Target tool '{target_name}' already exists.")
+    os.makedirs(tools_path, exist_ok=True)
+    copytree(builtin_dir, target_path)
+
+def delete_tool(path, name) -> None:
+    """
+    Delete a workspace tool directory.
+    """
+    tool_dir = os.path.join(path, name)
+    if os.path.isdir(tool_dir):
+        shutil.rmtree(tool_dir)
+
+def rename_tool(path, old_name, new_name) -> None:
+    """
+    Rename a workspace tool directory.
+    """
+    old_path = os.path.join(path, old_name)
+    new_path = os.path.join(path, new_name)
+    if not os.path.isdir(old_path):
+        return
+    if os.path.exists(new_path):
+        return
+    shutil.move(old_path, new_path)
+
+def get_tool_settings_path(tools_path, name) -> str:
+    """
+    Get the tool.yml path of a specific workspace tool.
+    """
+    return os.path.join(tools_path, name, TOOL_SETTINGS_FILENAME)
+
+def load_tool_settings(tools_path, name) -> dict:
+    """
+    Load a workspace tool's tool.yml. YAML anchors/aliases used in the built-in
+    tools are resolved on load (safe_load), so commands come back as plain lists;
+    the editor re-emits a flat, anchor-free tool.yml on save.
+    """
+    path = get_tool_settings_path(tools_path, name)
+    data = load_yaml_file(path, default={})
+    return data if isinstance(data, dict) else {}
+
+def save_tool_settings(tools_path, name, settings) -> None:
+    """
+    Write a workspace tool's tool.yml from a structured settings dict. The file
+    is rewritten from scratch (no comment preservation) since the graphical
+    editor owns the whole document; a header comment is added.
+    """
+    path = get_tool_settings_path(tools_path, name)
+    yaml_obj = YAML()
+
+    data = CommentedMap()
+    data.yaml_set_start_comment(
+f"""##############################################
+# Settings for {name}
+##############################################
+
+# This file was generated by Odatix GUI {motd.read_version()} on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.
+# You can still modify manually this file as needed.
+"""
+    )
+
+    def _clean_str(value):
+        return "" if value is None else str(value)
+
+    # Display metadata
+    for key in ("label", "description", "icon"):
+        val = settings.get(key)
+        if val is not None and str(val).strip() != "":
+            data[key] = str(val)
+
+    # Behaviour
+    if "process_group" in settings and settings.get("process_group") is not None:
+        data["process_group"] = bool(settings.get("process_group"))
+    report_path = settings.get("report_path")
+    if report_path is not None and str(report_path).strip() != "":
+        data["report_path"] = str(report_path)
+    target_file = settings.get("target_file")
+    if target_file is not None and str(target_file).strip() != "":
+        data["target_file"] = str(target_file)
+    default_metrics_file = settings.get("default_metrics_file")
+    if default_metrics_file is not None and str(default_metrics_file).strip() != "":
+        data["default_metrics_file"] = str(default_metrics_file)
+
+    # Per-platform command sections
+    platforms = settings.get("platforms", {})
+    if isinstance(platforms, dict):
+        for platform_key in ("unix", "windows"):
+            platform = platforms.get(platform_key, {})
+            if not isinstance(platform, dict):
+                continue
+            section = CommentedMap()
+            for cmd_key in (
+                "tool_test_command",
+                "fmax_synthesis_command",
+                "custom_freq_synthesis_command",
+                "analysis_command",
+            ):
+                commands = platform.get(cmd_key)
+                if isinstance(commands, str):
+                    commands = [line.strip() for line in commands.splitlines() if line.strip()]
+                if isinstance(commands, (list, tuple)):
+                    commands = [str(c) for c in commands if str(c).strip() != ""]
+                else:
+                    commands = []
+                if commands:
+                    section[cmd_key] = _as_flow_seq(commands)
+            if len(section) > 0:
+                data[platform_key] = section
+
+    # Log formatting section
+    fmt = settings.get("format", {})
+    if isinstance(fmt, dict):
+        fmt_map = CommentedMap()
+
+        logs = fmt.get("logs", {})
+        if isinstance(logs, dict):
+            logs_map = CommentedMap()
+            for level, tags in logs.items():
+                if isinstance(tags, str):
+                    tags = [t.strip() for t in tags.split(",") if t.strip()]
+                if isinstance(tags, (list, tuple)):
+                    tags = [str(t) for t in tags if str(t).strip() != ""]
+                    if tags:
+                        logs_map[level] = _as_flow_seq(tags)
+            if len(logs_map) > 0:
+                fmt_map["logs"] = logs_map
+
+        tags = fmt.get("tags", {})
+        if isinstance(tags, dict):
+            tags_map = CommentedMap()
+            for tag_name, markers in tags.items():
+                if isinstance(markers, str):
+                    markers = [m.strip() for m in markers.split(",") if m.strip()]
+                if isinstance(markers, (list, tuple)):
+                    markers = [str(m) for m in markers if str(m).strip() != ""]
+                    if markers:
+                        tags_map[tag_name] = _as_flow_seq(markers)
+            if len(tags_map) > 0:
+                fmt_map["tags"] = tags_map
+
+        replace = fmt.get("replace", [])
+        if isinstance(replace, (list, tuple)):
+            replace_seq = CommentedSeq()
+            for entry in replace:
+                if isinstance(entry, dict) and entry:
+                    item = CommentedMap()
+                    for pattern, repl in entry.items():
+                        if str(pattern).strip() != "":
+                            item[str(pattern)] = _clean_str(repl)
+                    if len(item) > 0:
+                        replace_seq.append(item)
+            if len(replace_seq) > 0:
+                fmt_map["replace"] = replace_seq
+
+        if len(fmt_map) > 0:
+            data["format"] = fmt_map
+
+    save_yaml_file(path, data, yaml_obj=yaml_obj)
+
+def _as_flow_seq(values):
+    """Return a ruamel sequence rendered on its own block lines (default)."""
+    seq = CommentedSeq(values)
+    return seq
+
+def get_tool_metrics_path(tools_path, name) -> str:
+    """
+    Get the metrics.yml path of a specific workspace tool.
+    """
+    return os.path.join(tools_path, name, TOOL_METRICS_FILENAME)
+
+def load_tool_metrics(tools_path, name) -> dict:
+    """
+    Load a workspace tool's metrics.yml.
+
+    Returns:
+        dict: {section_key: {metric_name: definition}} for each of
+        TOOL_METRIC_SECTIONS. Missing sections come back as empty dicts.
+    """
+    path = get_tool_metrics_path(tools_path, name)
+    data = load_yaml_file(path, default={})
+    result = {}
+    for section_key, _label in TOOL_METRIC_SECTIONS:
+        section = data.get(section_key, {}) if isinstance(data, dict) else {}
+        result[section_key] = section if isinstance(section, dict) else {}
+    return result
+
+def save_tool_metrics(tools_path, name, sections) -> None:
+    """
+    Save a workspace tool's metrics.yml, preserving comments and any key not
+    owned by the editor. `sections` is a {section_key: {metric_name: definition}}
+    dict for the TOOL_METRIC_SECTIONS keys.
+    """
+    path = get_tool_metrics_path(tools_path, name)
+    yaml_obj = YAML()
+
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = yaml_obj.load(f)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    for section_key, _label in TOOL_METRIC_SECTIONS:
+        definitions = sections.get(section_key, {})
+        if isinstance(definitions, dict) and len(definitions) > 0:
+            data[section_key] = definitions
+        else:
+            data.pop(section_key, None)
+
+    save_yaml_file(path, data, yaml_obj=yaml_obj)
+
+######################################
 # Architecture Settings
 ######################################
  
@@ -880,8 +1168,15 @@ def _scrub_commented_targets(commented_map, key):
 def get_target_file_path(target_path, tool) -> str:
     """
     Get the path of the target file of an EDA tool.
+
+    The file name comes from the tool's tool.yml ("target_file" key, defaulting
+    to "target_<tool>.yml"). The file is looked up in `target_path` first, then
+    in the userconfig root (see odatix.lib.eda_tools.resolve_target_file), so an
+    existing file at the legacy location is edited in place; a brand-new file is
+    created under `target_path` (odatix_userconfig/targets by default).
     """
-    return os.path.join(target_path, f"target_{tool}.yml")
+    import odatix.lib.eda_tools as eda_tools
+    return eda_tools.resolve_target_file(tool, target_path)
 
 
 def target_file_exists(target_path, tool) -> bool:

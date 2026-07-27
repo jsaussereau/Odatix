@@ -10,3 +10,4 @@ analyze:
 		--top-module $$(grep "set top_level_module" $(SCRIPT_DIR)/settings.tcl | awk '{print $$3}') \
 		rtl/$$(grep "set top_level_file" $(SCRIPT_DIR)/settings.tcl | awk '{print $$3}') \
 		2>&1 | tee $(LOG_DIR)/analysis.log
+	@echo "Done: 100%" > $(LOG_DIR)/synth_status.log

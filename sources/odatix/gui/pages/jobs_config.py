@@ -37,6 +37,7 @@ from odatix.gui.utils import get_key_from_url, ansi_to_html_spans
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.eda_tools as eda_tools
 import odatix.lib.printc as printc
 import odatix.lib.run_report as run_report
 from odatix.lib.run_report import JobPlan, MessageLog
@@ -61,17 +62,6 @@ dash.register_page(
 
 MAX_PREVIEW_COMBINATIONS = 10000
 
-# Display labels for the eda tools that can run RTL analysis (analyze flow).
-# The values must match hard_settings.default_supported_tools (used both by the
-# CLI and by run_analysis.check_settings).
-ANALYSIS_TOOL_LABELS = {
-    "vivado": "Vivado",
-    "design_compiler": "Design Compiler",
-    "genus": "Genus",
-    "openlane": "OpenLane",
-    "verilator": "Verilator",
-}
-
 # Display labels of the job types the page can be opened with (?type=...),
 # shown as a tag in the summary strip of the header.
 RUN_MODE_LABELS = {
@@ -81,12 +71,17 @@ RUN_MODE_LABELS = {
     "workflow": "Workflow",
 }
 
+def _analysis_tools():
+    """Discovered eda tools that support the RTL analysis flow."""
+    return eda_tools.tools_supporting("analysis")
+
+
 def _analysis_tool_options():
-    """Checklist options for the analysis 'Tools' tile, ordered like
-    hard_settings.default_supported_tools."""
+    """Checklist options for the analysis 'Tools' tile, one per discovered tool
+    that supports the analysis flow."""
     return [
-        {"label": ANALYSIS_TOOL_LABELS.get(tool, tool), "value": tool}
-        for tool in hard_settings.default_supported_tools
+        {"label": eda_tools.get_tool_label(tool), "value": tool}
+        for tool in _analysis_tools()
     ]
 
 class _ThreadSafeBuffer(io.StringIO):
@@ -1409,7 +1404,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
 
     if selected_tools is None:
         selected_tools = settings.get("tools", [])
-    selected_tools = [tool for tool in selected_tools if tool in ANALYSIS_TOOL_LABELS]
+    selected_tools = [tool for tool in selected_tools if tool in _analysis_tools()]
 
     return html.Div(
         children=[
@@ -2067,7 +2062,7 @@ def update_jobs_summary(switch_values, preview_values, nb_jobs, auto_nb_jobs, se
         html.Span(RUN_MODE_LABELS.get(run_mode, "Jobs"), className="odx-tag"),
     ]
     if tool and run_mode != "workflow":
-        children.append(html.Span(ANALYSIS_TOOL_LABELS.get(tool, tool), className="odx-tag neutral"))
+        children.append(html.Span(eda_tools.get_tool_label(tool), className="odx-tag neutral"))
     children.append(html.Div(className="odx-spacer"))
     children.append(ui.stat(len(enabled), instances_label, "" if enabled else "muted"))
     children.append(ui.stat(n_configs, configs_label, "accent" if n_configs else "muted"))
