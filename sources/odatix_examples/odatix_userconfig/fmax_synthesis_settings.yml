@@ -17,7 +17,7 @@ exit_when_done:   No   # overridden by -E / --exit
 log_size_limit:   300  # overridden by --logsize
 
 # maximum number of parallel jobs
-nb_jobs:          8    # overridden by -j / --jobs
+nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
 # targeted architectures
 architectures: 
