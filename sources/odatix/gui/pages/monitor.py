@@ -22,6 +22,7 @@
 import dash
 from dash import html, dcc, Input, Output, State, ctx, ALL
 from typing import Optional#, Literal
+import os
 import requests
 import socket
 from dash.exceptions import PreventUpdate
@@ -32,6 +33,7 @@ from odatix.gui.utils import get_key_from_url, ansi_to_html_spans
 import odatix.gui.ui_components as ui
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import daemon_control
+from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
 
 page_path = "/monitor"
 
@@ -1174,6 +1176,29 @@ def _compose_split_class(layout):
     )
 
 
+# Formatters are keyed by tool.yml path: parsing it on every log render would be
+# wasteful, and a handler keeps the same format file for its whole lifetime.
+_formatter_cache = {}
+
+
+def _get_formatter(format_yaml):
+    """Return the JobOutputFormatter for a handler's format YAML, or None.
+
+    The daemon serves raw log lines (the remote curses monitor formats them
+    client-side too), so the GUI has to apply the tool.yml rules itself before
+    converting ANSI codes to spans.
+    """
+    if not format_yaml:
+        return None
+    path = str(format_yaml)
+    if path not in _formatter_cache:
+        try:
+            _formatter_cache[path] = JobOutputFormatter(path) if os.path.isfile(path) else None
+        except Exception:
+            _formatter_cache[path] = None
+    return _formatter_cache[path]
+
+
 @dash.callback(
     Output("monitor-log", "children"),
     Output("monitor-status", "children"),
@@ -1181,14 +1206,20 @@ def _compose_split_class(layout):
     Output("monitor-error-container", "className"),
     Input("monitor-logs", "data"),
     Input("monitor-error", "data"),
+    State("monitor-snapshot", "data"),
     State(f"url_{page_path}", "search"),
 )
-def _render_logs(logs_state, error_message, search):
+def _render_logs(logs_state, error_message, snapshot, search):
     if not isinstance(logs_state, dict):
         logs_state = {}
     lines_any = logs_state.get("lines")
     lines = lines_any if isinstance(lines_any, list) else []
     lines = [str(line).rstrip("\n") for line in lines]
+
+    handler = snapshot.get("handler") if isinstance(snapshot, dict) else None
+    formatter = _get_formatter(handler.get("format_yaml") if isinstance(handler, dict) else None)
+    if formatter is not None:
+        lines = [formatter.replace_in_line(line) for line in lines]
 
     text = "\n".join(lines)
     status = ""

@@ -148,6 +148,9 @@ def ansi_to_html_spans(text: str):
                 style = {}
             elif code == 1:
                 style = {**style, "fontWeight": "bold"}
+            elif code == 22:
+                if "fontWeight" in style:
+                    style = {k: v for k, v in style.items() if k != "fontWeight"}
             elif code in _ANSI_COLORS:
                 style = {**style, "color": _ANSI_COLORS[code]}
             elif code in _ANSI_BG_COLORS:
