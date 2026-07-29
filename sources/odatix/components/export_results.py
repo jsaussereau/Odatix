@@ -28,6 +28,7 @@ import odatix.lib.printc as printc
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.job_steps as job_steps
+import odatix.lib.metrics as metrics_lib
 import odatix.lib.results_schema as results_schema
 from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
@@ -143,57 +144,17 @@ def validate_tool_settings(file_path):
 
 def resolve_metrics_file(tool, custom_metrics_file=None, flow=None):
   """
-  Path of the metrics definition file to use for a tool run with a given flow.
+  Path of the highest precedence metrics definition file of a tool for a given
+  flow, or None when there is none.
 
-  The tool settings are the merged ones (a tool can be defined both in the
-  workspace and in the built-in directory, see eda_tools.load_tool_settings), so
-  a workspace tool.yml holding only a "flows" section still inherits the
-  built-in "default_metrics_file". A flow can override it with its own
-  "metrics_file".
-
-  "$tool_path" is resolved against each directory defining the tool, highest
-  precedence first, so a metrics file shipped next to either definition is found.
-
-  Returns:
-      str | None: the resolved path, or None when it cannot be determined.
+  Metrics are not read from that single file: every file defining the tool is
+  merged (see odatix.lib.metrics), which is what load_metrics_for_tool does.
+  This function is only kept for callers that need a path to point at.
   """
-  tool_dirs = eda_tools.get_tool_dirs(tool)
-  if not tool_dirs:
-    return None
-
   if custom_metrics_file is not None:
-    metrics_file = custom_metrics_file
-  else:
-    metrics_file = None
-    if flow:
-      flow_settings = eda_tools.get_flow(tool, flow=flow)
-      if flow_settings is not None:
-        metrics_file = flow_settings["metrics_file"]
-    if not metrics_file:
-      metrics_file = eda_tools.load_tool_settings(tool).get("default_metrics_file")
-    if not isinstance(metrics_file, str) or metrics_file.strip() == "":
-      printc.error('Cannot find key "default_metrics_file" for the eda tool "' + str(tool) + '"', script_name)
-      return None
-
-  candidates = []
-  for tool_dir in reversed(tool_dirs):
-    resolved = replace_variables(
-      metrics_file,
-      Variables(
-        odatix_path=OdatixSettings.odatix_path,
-        odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
-        tool_path=tool_dir,
-      ),
-    )
-    if resolved not in candidates:
-      candidates.append(resolved)
-
-  for candidate in candidates:
-    if os.path.isfile(candidate):
-      return candidate
-
-  printc.error('Metrics definition file "' + os.path.realpath(candidates[0]) + '" does not exist', script_name)
-  return None
+    return custom_metrics_file if os.path.isfile(custom_metrics_file) else None
+  files = metrics_lib.metrics_files(tool, flow=flow)
+  return files[-1] if files else None
 
 
 def load_metrics_file(metrics_file):
@@ -608,15 +569,12 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       else:
         continue
 
-    metrics_file = resolve_metrics_file(tool, custom_metrics_file=custom_metrics_file)
-    if metrics_file is None:
+    metrics_data, metrics_file = load_metrics_for_tool(tool, custom_metrics_file=custom_metrics_file)
+    if metrics_data is None:
       if len(tools) == 1:
         sys.exit(-1)
       else:
         continue
-    metrics_data = load_metrics_file(metrics_file)
-    if metrics_data is None:
-      continue
 
     for result_type in result_types:
       result_key = result_types[result_type]["key"]
@@ -705,14 +663,20 @@ def export_analysis(input_work_path, output, analysis_work_path, tools="all"):
     export_analysis_results(summary, output, tool)
 
 
-def _load_metrics_for_tool(tool, custom_metrics_file=None, flow=None):
-  metrics_file = resolve_metrics_file(tool, custom_metrics_file=custom_metrics_file, flow=flow)
-  if metrics_file is None:
-    return None, None
-  metrics_data = load_metrics_file(metrics_file)
-  if metrics_data is None:
-    return None, None
-  return metrics_data, metrics_file
+def load_metrics_for_tool(tool, custom_metrics_file=None, flow=None):
+  """
+  Load the metrics definitions used to export a tool's results: the built-in
+  ones completed and overridden by the workspace metrics.yml, unless an explicit
+  metrics file is given (see odatix.lib.metrics.load_metrics).
+
+  Returns:
+      tuple: (metrics_data, source) or (None, None) when they cannot be loaded.
+  """
+  return metrics_lib.load_metrics(tool, custom_metrics_file=custom_metrics_file, flow=flow)
+
+
+# Deprecated alias.
+_load_metrics_for_tool = load_metrics_for_tool
 
 
 # Backward-compatible alias: the shared loader (odatix.components.export_common)

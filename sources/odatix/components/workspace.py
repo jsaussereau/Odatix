@@ -775,6 +775,10 @@ def save_tool_metrics(tools_path, name, sections) -> None:
     Save a workspace tool's metrics.yml, preserving comments and any key not
     owned by the editor. `sections` is a {section_key: {metric_name: definition}}
     dict for the TOOL_METRIC_SECTIONS keys.
+
+    The file holds only what the workspace says about the tool's metrics: the
+    metrics it adds, the built-in ones it overrides, and, as entries mapped to
+    None, the built-in ones it removes (see odatix.lib.metrics).
     """
     path = get_tool_metrics_path(tools_path, name)
     yaml_obj = YAML()
