@@ -199,6 +199,9 @@ class Architecture:
 class ArchitectureHandler:
 
     DAEMON_RESTARTABLE_STATUSES = ("failed", "killed", "canceled", "cancelled")
+    # Statuses of a job a session is done with: re-enqueueing over one of them is
+    # allowed when the flow has steps left to run (see _get_daemon_job_decision).
+    DAEMON_FINISHED_STATUSES = ("success", "done", "finished")
 
     def __init__(
         self,
@@ -225,6 +228,8 @@ class ArchitectureHandler:
         fallback_custom_freq_list=None,
         continue_on_error=False,
         force_single_thread=False,
+        requested_steps=None,
+        rerun_step_index=None,
     ):
         self.work_path = work_path
         self.arch_path = arch_path
@@ -254,10 +259,41 @@ class ArchitectureHandler:
         self.overwrite = overwrite
         self.continue_on_error = continue_on_error
         self.force_single_thread = force_single_thread
+        # Names of the flow steps this run covers, when the flow is split into
+        # steps (see odatix.lib.job_steps). Empty for a one shot flow.
+        self.requested_steps = list(requested_steps) if requested_steps else []
+        # Index of the step "--rerun-from" points at: everything from there on is
+        # re-run even when already recorded.
+        self.rerun_step_index = rerun_step_index
 
         self.reset_lists()
 
         self.odatix_path = os.path.realpath(os.path.join(self.script_path, ".."))
+
+    def steps_decision(self, tmp_dir):
+        """
+        Cache decision for a flow split into steps, or None when the flow is not
+        stepped (the caller then falls back to the status file).
+
+        Returns "cached" when the directory already holds every step this run
+        asks for, "resume" when it holds some of them (the run picks up at the
+        first missing one), "new" otherwise.
+
+        This has to take precedence over the status file: a directory left by a
+        run that stopped at an earlier step holds a perfectly valid status file,
+        and must not be mistaken for a complete result.
+        """
+        if not self.requested_steps:
+            return None
+
+        import odatix.lib.job_steps as job_steps
+
+        done = job_steps.resume_index(tmp_dir, self.requested_steps)
+        if self.rerun_step_index is not None:
+            done = min(done, self.rerun_step_index)
+        if done >= len(self.requested_steps):
+            return "cached"
+        return "resume" if done > 0 else "new"
 
     def reset_lists(self):
         self.checked_arch_param = []
@@ -340,7 +376,17 @@ class ArchitectureHandler:
                 }
             )
 
-    def _get_daemon_job_decision(self, tmp_dir):
+    def _get_daemon_job_decision(self, tmp_dir, steps_decision=None):
+        """
+        Whether a job is already handled by a daemon session ("skip"), can be
+        re-enqueued over a failed one ("replace"), or is unknown to every
+        session ("none").
+
+        `steps_decision` is the step-level verdict for the same directory (see
+        steps_decision): a session that ran an earlier step of the flow reports
+        a successful job, which must not stand in the way of running the steps
+        left to do.
+        """
         if self._daemon_jobs_by_tmp_dir is None:
             self._refresh_daemon_jobs_index()
 
@@ -349,9 +395,17 @@ class ArchitectureHandler:
         if len(daemon_entries) == 0:
             return "none", None
 
+        # A job still queued or running belongs to its session whatever the
+        # steps say; a finished one does not when steps are left to run.
+        finished_is_restartable = steps_decision in ("resume", "new")
+
         for entry in daemon_entries:
-            if entry["status"] not in ArchitectureHandler.DAEMON_RESTARTABLE_STATUSES:
-                return "skip", entry
+            status = entry["status"]
+            if status in ArchitectureHandler.DAEMON_RESTARTABLE_STATUSES:
+                continue
+            if finished_is_restartable and status in ArchitectureHandler.DAEMON_FINISHED_STATUSES:
+                continue
+            return "skip", entry
 
         return "replace", daemon_entries[0]
 
@@ -473,7 +527,19 @@ class ArchitectureHandler:
                                 # check if the architecture is in cache and has a status file
                                 status_file = os.path.join(freq_arch.tmp_dir, self.work_log_path, self.fmax_status_filename)
                                 local_state = "new"
-                                if isdir(freq_arch.tmp_dir) and isfile(status_file):
+                                steps_decision = self.steps_decision(freq_arch.tmp_dir)
+                                if steps_decision is not None:
+                                    if steps_decision == "cached":
+                                        if self.overwrite:
+                                            printc.warning("Every requested step is already done for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\".", script_name)
+                                            local_state = "overwrite"
+                                        else:
+                                            printc.note("Every requested step is already done for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\". Skipping.", script_name)
+                                            self.plan.add(freq_arch.arch_display_name, Category.CACHED)
+                                            local_state = "cached"
+                                    elif steps_decision == "resume" and not self.overwrite:
+                                        local_state = "resume"
+                                elif isdir(freq_arch.tmp_dir) and isfile(status_file):
                                     # check if the previous synthesis has completed
                                     sf = open(status_file, "r")
                                     if self.valid_status in sf.read():
@@ -492,7 +558,7 @@ class ArchitectureHandler:
                                 if local_state == "cached":
                                     continue
 
-                                daemon_decision, daemon_entry = self._get_daemon_job_decision(freq_arch.tmp_dir)
+                                daemon_decision, daemon_entry = self._get_daemon_job_decision(freq_arch.tmp_dir, steps_decision)
                                 if daemon_decision == "skip":
                                     daemon_status = str(daemon_entry.get("status", "unknown"))
                                     daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
@@ -531,6 +597,8 @@ class ArchitectureHandler:
                                     self.plan.add(unformatted_display_name, Category.OVERWRITE)
                                 elif local_state == "incomplete":
                                     self.plan.add(freq_arch.arch_display_name, Category.INCOMPLETE)
+                                elif local_state == "resume":
+                                    self.plan.add(freq_arch.arch_display_name + formatted_freq, Category.RESUME)
                                 else:
                                     self.plan.add(unformatted_display_name + formatted_freq, Category.NEW)
 
@@ -821,7 +889,19 @@ class ArchitectureHandler:
             # check if the architecture is in cache and has a status file
             if run_mode == "fmax":
                 local_state = "new"
-                if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
+                steps_decision = self.steps_decision(tmp_dir)
+                if steps_decision is not None:
+                    if steps_decision == "cached":
+                        if self.overwrite:
+                            printc.warning("Every requested step is already done for \"" + arch + "\" with target \"" + target + "\".", script_name)
+                            local_state = "overwrite"
+                        else:
+                            printc.note("Every requested step is already done for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
+                            self.plan.add(arch_display_name, Category.CACHED)
+                            return None
+                    elif steps_decision == "resume" and not self.overwrite:
+                        local_state = "resume"
+                elif isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
                     # check if the previous synth_fmax has completed
                     sf = open(fmax_status_file, "r")
                     if self.valid_status in sf.read():
@@ -843,7 +923,7 @@ class ArchitectureHandler:
                         local_state = "incomplete"
                     sf.close()
 
-                daemon_decision, daemon_entry = self._get_daemon_job_decision(tmp_dir)
+                daemon_decision, daemon_entry = self._get_daemon_job_decision(tmp_dir, steps_decision)
                 if daemon_decision == "skip":
                     daemon_status = str(daemon_entry.get("status", "unknown"))
                     daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
@@ -878,6 +958,8 @@ class ArchitectureHandler:
                     self.plan.add(arch_display_name + formatted_bound, Category.OVERWRITE)
                 elif local_state == "incomplete":
                     self.plan.add(arch_display_name + formatted_bound, Category.INCOMPLETE)
+                elif local_state == "resume":
+                    self.plan.add(arch_display_name + formatted_bound, Category.RESUME)
                 else:
                     self.plan.add(arch_display_name + formatted_bound, Category.NEW)
 

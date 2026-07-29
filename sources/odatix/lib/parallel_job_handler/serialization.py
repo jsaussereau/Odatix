@@ -135,6 +135,10 @@ def job_to_payload(job):
     if not isinstance(post_run_export, dict):
         post_run_export = None
 
+    step_tracking = getattr(job, "step_tracking", None)
+    if not isinstance(step_tracking, dict):
+        step_tracking = None
+
     return {
         "command": serialize_command(job.command),
         "directory": str(job.directory),
@@ -149,6 +153,11 @@ def job_to_payload(job):
         "log_size_limit": int(getattr(job, "log_size_limit", 200)),
         "progress_mode": str(getattr(job, "progress_mode", "default")),
         "post_run_export": post_run_export,
+        # Step pipeline bookkeeping (see odatix.lib.job_steps); absent for jobs
+        # that are not split into steps.
+        "step_tracking": step_tracking,
+        "step_names": [str(name) for name in (getattr(job, "step_names", None) or [])],
+        "resume_step_index": int(getattr(job, "resume_step_index", 0) or 0),
     }
 
 
@@ -181,5 +190,14 @@ def payload_to_job(payload, default_log_size_limit=200):
     post_run_export = payload.get("post_run_export")
     if isinstance(post_run_export, dict):
         job.post_run_export = post_run_export
+
+    step_tracking = payload.get("step_tracking")
+    if isinstance(step_tracking, dict):
+        job.step_tracking = step_tracking
+        job.step_names = [str(name) for name in (payload.get("step_names") or [])]
+        try:
+            job.resume_step_index = int(payload.get("resume_step_index", 0) or 0)
+        except (TypeError, ValueError):
+            job.resume_step_index = 0
 
     return job

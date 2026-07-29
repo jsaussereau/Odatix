@@ -693,6 +693,7 @@ class ParallelJobHandler:
                             self.run_job(job)
                             continue
                         elif hasattr(job, "_task_pipeline"):
+                            self._record_completed_step(job)
                             if self._start_next_task(job):
                                 continue
                             self._clear_task_pipeline(job)
@@ -936,8 +937,32 @@ class ParallelJobHandler:
         return pipeline
 
     @staticmethod
+    def _record_completed_step(job):
+        """
+        Record the step a stepped job just completed, so a later run can resume
+        after it instead of redoing it. Jobs that did not opt in (workflows, and
+        flows that are not split into steps) are left alone.
+        """
+        tracking = getattr(job, "step_tracking", None)
+        step_name = getattr(job, "_current_task_name", None)
+        if not isinstance(tracking, dict) or not step_name:
+            return
+        tmp_dir = tracking.get("tmp_dir")
+        if not tmp_dir:
+            return
+        try:
+            import odatix.lib.job_steps as job_steps
+
+            job_steps.record_completed_step(tmp_dir, step_name, flow=tracking.get("flow"))
+        except Exception as e:
+            job.log_history.append(
+                printc.colors.YELLOW + "warning: could not record step '" + str(step_name) + "': " + str(e) + printc.colors.ENDC
+            )
+
+    @staticmethod
     def _clear_task_pipeline(job):
-        for attr in ("_task_pipeline", "_task_index", "_current_task_name"):
+        for attr in ("_task_pipeline", "_task_index", "_current_task_name",
+                     "current_step_index", "current_step_started_at"):
             if hasattr(job, attr):
                 delattr(job, attr)
 
@@ -953,6 +978,10 @@ class ParallelJobHandler:
         taskname, full_command = pipeline[task_index]
         job._task_index = task_index + 1
         job._current_task_name = taskname
+        # Which step the progress read from the status files belongs to, and
+        # since when they speak for it (see ParallelJob._read_status_file).
+        job.current_step_index = task_index
+        job.current_step_started_at = time.time()
 
         job.log_history.append(printc.colors.CYAN + "Run job task '" + taskname + "'" + printc.colors.ENDC)
         job.log_history.append(printc.colors.BOLD + " > " + full_command + printc.colors.ENDC)
@@ -1034,7 +1063,15 @@ class ParallelJobHandler:
         elif isinstance(job.command, dict):
             if not hasattr(job, "_task_pipeline"):
                 job._task_pipeline = self._build_task_pipeline(job)
-                job._task_index = 0
+                # Resume: the steps already completed in the job directory are
+                # skipped (see odatix.lib.job_steps).
+                resume_index = int(getattr(job, "resume_step_index", 0) or 0)
+                job._task_index = max(0, min(resume_index, len(job._task_pipeline)))
+                if job._task_index > 0:
+                    skipped = ", ".join(name for name, _ in job._task_pipeline[: job._task_index])
+                    job.log_history.append(
+                        printc.colors.CYAN + "Resuming: already done -> " + skipped + printc.colors.ENDC
+                    )
 
             if not self._start_next_task(job):
                 self._clear_task_pipeline(job)

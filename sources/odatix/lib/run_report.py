@@ -43,6 +43,7 @@ class Category:
     NEW = "new"
     OVERWRITE = "overwrite"
     INCOMPLETE = "incomplete"
+    RESUME = "resume"
     CACHED = "cached"
     DAEMON = "daemon"
     ERROR = "error"
@@ -64,7 +65,7 @@ CATEGORIES = {
         "color": printc.colors.RED,
         "runs": False,
         "severity": 0,
-        "cli_order": 5,
+        "cli_order": 6,
     },
     Category.OVERWRITE: {
         "glyph": "↻",
@@ -86,6 +87,16 @@ CATEGORIES = {
         "severity": 2,
         "cli_order": 2,
     },
+    Category.RESUME: {
+        "glyph": "▸",
+        "style": "warning",
+        "label": "Resumed",
+        "description": "Partially done (will resume at the first missing step)",
+        "color": printc.colors.YELLOW,
+        "runs": True,
+        "severity": 3,
+        "cli_order": 3,
+    },
     Category.NEW: {
         "glyph": "+",
         "style": "passed",
@@ -93,8 +104,8 @@ CATEGORIES = {
         "description": "New {noun}",
         "color": printc.colors.ENDC,
         "runs": True,
-        "severity": 3,
-        "cli_order": 4,
+        "severity": 4,
+        "cli_order": 5,
     },
     Category.CACHED: {
         "glyph": "=",
@@ -103,7 +114,7 @@ CATEGORIES = {
         "description": "Existing results (skipped -> use '-o' to overwrite)",
         "color": printc.colors.CYAN,
         "runs": False,
-        "severity": 4,
+        "severity": 5,
         "cli_order": 0,
     },
     Category.DAEMON: {
@@ -113,8 +124,8 @@ CATEGORIES = {
         "description": "Already managed in a session (skipped)",
         "color": printc.colors.CYAN,
         "runs": False,
-        "severity": 5,
-        "cli_order": 3,
+        "severity": 6,
+        "cli_order": 4,
     },
 }
 

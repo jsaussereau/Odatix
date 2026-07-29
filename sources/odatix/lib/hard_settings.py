@@ -38,6 +38,8 @@ work_log_path = "log"
 # Work directory files
 arch_filename = "architecture.txt"
 target_filename = "target.txt"
+flow_filename = "flow.txt"
+steps_filename = "steps.yml"
 tcl_config_filename = "settings.tcl"
 yaml_config_filename = "settings.yml"
 fmax_status_filename = "status.log"

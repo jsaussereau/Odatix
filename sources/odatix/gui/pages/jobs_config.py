@@ -72,13 +72,13 @@ RUN_MODE_LABELS = {
 }
 
 def _analysis_tools():
-    """Discovered eda tools that support the RTL analysis flow."""
+    """Discovered eda tools that support the RTL analysis job type."""
     return eda_tools.tools_supporting("analysis")
 
 
 def _analysis_tool_options():
     """Checklist options for the analysis 'Tools' tile, one per discovered tool
-    that supports the analysis flow."""
+    that supports the analysis job type."""
     return [
         {"label": eda_tools.get_tool_label(tool), "value": tool}
         for tool in _analysis_tools()
@@ -720,6 +720,8 @@ def _run_check_custom_freq_settings(
     run_config_settings_filename,
     arch_path,
     tool,
+    flow,
+    until_step,
     work_path,
     target_path,
     overwrite_enabled,
@@ -739,6 +741,11 @@ def _run_check_custom_freq_settings(
                 run_config_settings_filename,
                 arch_path,
                 tool,
+                flow,
+                until_step,
+                # Re-running an already completed step ("--rerun-from") is
+                # CLI-only: from the GUI a run always resumes where it stopped.
+                None,
                 work_path,
                 target_path,
                 overwrite_enabled,
@@ -763,6 +770,8 @@ def _run_check_fmax_settings(
     run_config_settings_filename,
     arch_path,
     tool,
+    flow,
+    until_step,
     work_path,
     target_path,
     overwrite_enabled,
@@ -780,6 +789,11 @@ def _run_check_fmax_settings(
                 run_config_settings_filename,
                 arch_path,
                 tool,
+                flow,
+                until_step,
+                # Re-running an already completed step ("--rerun-from") is
+                # CLI-only: from the GUI a run always resumes where it stopped.
+                None,
                 work_path,
                 target_path,
                 overwrite_enabled,
@@ -806,6 +820,7 @@ def _run_check_analysis_settings(
     run_config_settings_filename,
     arch_path,
     tool,
+    flow,
     work_path,
     target_path,
     overwrite_enabled,
@@ -834,6 +849,7 @@ def _run_check_analysis_settings(
                 keep=False,
                 cancel_event=_prepare_cancel_event,
                 tool_check_sink=_collect_tool_check,
+                flows=run_analysis.parse_flow_selection([flow] if flow else None, tool if isinstance(tool, (list, tuple)) else [tool]),
             )
         _prepare_status = {"status": "checked", "error": None}
     except run_analysis.AnalysisCancelled:
@@ -936,6 +952,7 @@ def _run_prepare_synthesis():
                         cancel_event=_prepare_cancel_event,
                         export_output_dir=export_ctx.get("output_dir"),
                         export_tool=export_ctx.get("tool"),
+                        export_flow=export_ctx.get("flow"),
                         export_work_path=export_ctx.get("work_path"),
                         use_benchmark=export_ctx.get("use_benchmark", False),
                         benchmark_file=export_ctx.get("benchmark_file"),
@@ -953,6 +970,7 @@ def _run_prepare_synthesis():
                         cancel_event=_prepare_cancel_event,
                         export_output_dir=export_ctx.get("output_dir"),
                         analysis_work_root=export_ctx.get("analysis_work_root"),
+                        flows=export_ctx.get("flows"),
                     )
                 else:
                     _prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
@@ -967,6 +985,7 @@ def _run_prepare_synthesis():
                         cancel_event=_prepare_cancel_event,
                         export_output_dir=export_ctx.get("output_dir"),
                         export_tool=export_ctx.get("tool"),
+                        export_flow=export_ctx.get("flow"),
                         export_work_path=export_ctx.get("work_path"),
                         use_benchmark=export_ctx.get("use_benchmark", False),
                         benchmark_file=export_ctx.get("benchmark_file"),
@@ -2046,6 +2065,8 @@ def update_jobs_summary(switch_values, preview_values, nb_jobs, auto_nb_jobs, se
 
     run_mode = get_key_from_url(search, "type")
     tool = get_key_from_url(search, "tool")
+    flow = get_key_from_url(search, "flow")
+    until_step = get_key_from_url(search, "until")
 
     if _checklist_enabled(auto_nb_jobs):
         parallel = str(resolve_nb_jobs(AUTO_NB_JOBS_KEYWORD)) + " (auto)"
@@ -2063,6 +2084,17 @@ def update_jobs_summary(switch_values, preview_values, nb_jobs, auto_nb_jobs, se
     ]
     if tool and run_mode != "workflow":
         children.append(html.Span(eda_tools.get_tool_label(tool), className="odx-tag neutral"))
+        # Show the flow only when the tool has a choice to make: a single-flow
+        # tool would just add noise.
+        if len(eda_tools.list_flows(tool, job_type=run_mode)) > 1:
+            children.append(
+                html.Span(eda_tools.get_flow_label(tool, flow=flow, job_type=run_mode), className="odx-tag neutral")
+            )
+        # A run stopping short of the last step is worth spelling out: the rest
+        # of the flow is left for a later run.
+        steps = eda_tools.get_flow_step_names(tool, flow=flow, job_type=run_mode)
+        if until_step in steps and until_step != steps[-1]:
+            children.append(html.Span("up to " + until_step, className="odx-tag neutral"))
     children.append(html.Div(className="odx-spacer"))
     children.append(ui.stat(len(enabled), instances_label, "" if enabled else "muted"))
     children.append(ui.stat(n_configs, configs_label, "accent" if n_configs else "muted"))
@@ -2604,6 +2636,15 @@ def run_jobs(
     settings = odatix_settings or {}
     run_mode = get_key_from_url(search, "type")
     tool = get_key_from_url(search, "tool") or "vivado"
+    flow = get_key_from_url(search, "flow") or None
+    # Last step to run, for a flow split into steps (see /choose_eda_tool).
+    # Ignored unless it really is one of the flow's steps: an url can be edited
+    # by hand, and check_settings() answers an unknown step with sys.exit().
+    until_step = get_key_from_url(search, "until") or None
+    if until_step is not None and until_step not in eda_tools.get_flow_step_names(
+        tool, flow=flow, job_type=run_mode
+    ):
+        until_step = None
 
     # arch_path for architecture modes, workflow_path for workflow mode
     run_context = _run_context(search, odatix_settings)
@@ -2700,6 +2741,7 @@ def run_jobs(
             "result_type": "custom_freq_synthesis",
             "work_path": work_path,
             "tool": tool,
+            "flow": flow,
             "output_dir": result_path,
             "use_benchmark": export_use_benchmark,
             "benchmark_file": export_benchmark_file,
@@ -2711,6 +2753,8 @@ def run_jobs(
                 run_config_settings_filename,
                 base_path,
                 tool,
+                flow,
+                until_step,
                 work_path,
                 target_path,
                 overwrite_enabled,
@@ -2738,6 +2782,7 @@ def run_jobs(
             "result_type": "fmax_synthesis",
             "work_path": work_path,
             "tool": tool,
+            "flow": flow,
             "output_dir": result_path,
             "use_benchmark": export_use_benchmark,
             "benchmark_file": export_benchmark_file,
@@ -2751,6 +2796,8 @@ def run_jobs(
                 run_config_settings_filename,
                 base_path,
                 tool,
+                flow,
+                until_step,
                 work_path,
                 target_path,
                 overwrite_enabled,
@@ -2818,12 +2865,18 @@ def run_jobs(
         if not analysis_tool_list:
             analysis_tool_list = [tool]
 
+        # The flow picked on /choose_eda_tool applies to every selected tool.
+        _prepare_runtime_settings["export"]["flows"] = run_analysis.parse_flow_selection(
+            [flow] if flow else None, analysis_tool_list
+        )
+
         _prepare_thread = threading.Thread(
             target=_run_check_analysis_settings,
             args=(
                 run_config_settings_filename,
                 base_path,
                 analysis_tool_list,
+                flow,
                 work_path,
                 target_path,
                 overwrite_enabled,

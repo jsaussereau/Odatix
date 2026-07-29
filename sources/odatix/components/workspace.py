@@ -329,6 +329,16 @@ def save_workflow_metrics(workflow_path, workflow_name, metrics, metadata=None) 
 TOOL_SETTINGS_FILENAME = hard_settings.tool_settings_filename  # "tool.yml"
 TOOL_METRICS_FILENAME = "metrics.yml"
 
+# The platform sections of a tool.yml, in render order.
+TOOL_PLATFORM_KEYS = ("unix", "windows")
+
+# The job types a flow declares a command (or steps) for, in render order. Only
+# the ones in TOOL_STEPPED_JOB_TYPES can be split into resumable steps: checking
+# that the tool is installed is a single command by nature.
+TOOL_JOB_TYPES = ("tool_test", "fmax_synthesis", "custom_freq_synthesis", "analysis")
+TOOL_STEPPED_JOB_TYPES = ("fmax_synthesis", "custom_freq_synthesis", "analysis")
+TOOL_COMMAND_KEYS = tuple(f"{job_type}_command" for job_type in TOOL_JOB_TYPES)
+
 # The metric sections of a tool metrics.yml, in render order, with the tool.yml
 # key each is stored under (see odatix.components.export_results.extract_metrics).
 TOOL_METRIC_SECTIONS = [
@@ -337,9 +347,18 @@ TOOL_METRIC_SECTIONS = [
     ("metrics", "Common metrics"),
 ]
 
+# Keys a workspace tool.yml may hold while still being only an overlay on a
+# built-in tool of the same name: flows added to it, and which one is default.
+# Anything else means the workspace owns the whole definition.
+TOOL_OVERLAY_KEYS = {"flows", "default_flow"}
+
 def get_tools(path: str) -> list:
     """
     Get the list of workspace tools (directories containing a tool.yml).
+
+    Overlays on built-in tools (see is_builtin_overlay) are left out: they are
+    not tools of their own, they are flows added to a built-in tool, and are
+    listed with it.
     """
     if not path or not os.path.isdir(path):
         return []
@@ -347,8 +366,111 @@ def get_tools(path: str) -> list:
         d for d in os.listdir(path)
         if not d.startswith("_") and not d.startswith(".")
         and os.path.isfile(os.path.join(path, d, TOOL_SETTINGS_FILENAME))
+        and not is_builtin_overlay(path, d)
     ]
     return natsorted(tools)
+
+def get_builtin_tool_dir(name) -> str:
+    """
+    Directory of the built-in tool of that name, or None when there is none.
+    """
+    from odatix.lib.settings import OdatixSettings
+
+    candidate = os.path.join(OdatixSettings.odatix_eda_tools_path, name)
+    return candidate if os.path.isfile(os.path.join(candidate, TOOL_SETTINGS_FILENAME)) else None
+
+def builtin_tool_exists(name) -> bool:
+    """True when a built-in tool of that name is shipped with Odatix."""
+    return bool(name) and get_builtin_tool_dir(name) is not None
+
+def is_builtin_overlay(tools_path, name) -> bool:
+    """
+    True when the workspace tool.yml of `name` only adds flows to the built-in
+    tool of the same name, rather than defining a tool of its own. Such a file
+    is what "add a flow to a built-in tool" writes: odatix merges it over the
+    built-in definition (see odatix.lib.eda_tools.load_tool_settings).
+    """
+    if not builtin_tool_exists(name):
+        return False
+    if not tool_exists(tools_path, name):
+        # Nothing written yet: the tool is still a plain built-in, and anything
+        # the editor saves for it will be an overlay.
+        return True
+    data = load_tool_settings(tools_path, name)
+    return all(key in TOOL_OVERLAY_KEYS for key in data)
+
+def load_builtin_tool_settings(name) -> dict:
+    """
+    Load the tool.yml shipped with Odatix for that tool, or {} when there is no
+    built-in tool of that name.
+    """
+    tool_dir = get_builtin_tool_dir(name)
+    if tool_dir is None:
+        return {}
+    data = load_yaml_file(os.path.join(tool_dir, TOOL_SETTINGS_FILENAME), default={})
+    return data if isinstance(data, dict) else {}
+
+def load_overlaid_tool_settings(tools_path, name) -> dict:
+    """
+    Load a built-in tool.yml with the workspace overlay applied on top, the way
+    odatix resolves it at run time.
+    """
+    import odatix.lib.eda_tools as eda_tools
+
+    return eda_tools._deep_merge(load_builtin_tool_settings(name), load_tool_settings(tools_path, name))
+
+def save_tool_flow_overlay(tools_path, name, flows) -> None:
+    """
+    Write the workspace overlay of a built-in tool: only the flows it adds (and
+    nothing of the built-in definition, which stays owned by Odatix).
+    """
+    tool_dir = os.path.join(tools_path, name)
+    path = os.path.join(tool_dir, TOOL_SETTINGS_FILENAME)
+
+    named_flows = [
+        flow for flow in flows or []
+        if isinstance(flow, dict) and str(flow.get("name", "")).strip() != ""
+    ]
+    if not named_flows:
+        # Nothing left to add: drop the overlay rather than leave an empty one
+        # behind, so the tool goes back to being a plain built-in.
+        if os.path.isfile(path):
+            os.remove(path)
+        if os.path.isdir(tool_dir) and not os.listdir(tool_dir):
+            os.rmdir(tool_dir)
+        return
+
+    os.makedirs(tool_dir, exist_ok=True)
+
+    data = CommentedMap()
+    data.yaml_set_start_comment(
+f"""##############################################
+# Flows added to the built-in {name} tool
+##############################################
+
+# This file was generated by Odatix GUI {motd.read_version()} on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.
+# It only adds flows to the tool shipped with Odatix: everything else ({name}'s
+# commands, its log formatting, its metrics) still comes from the built-in
+# definition. You can still modify manually this file as needed.
+"""
+    )
+
+    flows_map = CommentedMap()
+    for flow in named_flows:
+        flow_name = str(flow.get("name", "")).strip()
+        entry = CommentedMap()
+        for key in ("label", "description", "icon", "metrics_file"):
+            value = flow.get(key)
+            if value is not None and str(value).strip() != "":
+                entry[key] = str(value)
+        for platform_key in TOOL_PLATFORM_KEYS:
+            section = _emit_platform_section(flow.get("platforms", {}).get(platform_key, {}))
+            if len(section) > 0:
+                entry[platform_key] = section
+        flows_map[flow_name] = entry
+
+    data["flows"] = flows_map
+    save_yaml_file(path, data, yaml_obj=YAML())
 
 def tool_exists(path, name) -> bool:
     """
@@ -474,31 +596,58 @@ f"""##############################################
     if default_metrics_file is not None and str(default_metrics_file).strip() != "":
         data["default_metrics_file"] = str(default_metrics_file)
 
-    # Per-platform command sections
-    platforms = settings.get("platforms", {})
-    if isinstance(platforms, dict):
-        for platform_key in ("unix", "windows"):
-            platform = platforms.get(platform_key, {})
-            if not isinstance(platform, dict):
+    # Flows, or, for a settings dict predating them, plain platform sections.
+    #
+    # The commands of the default flow are the ones declared directly in the
+    # "unix"/"windows" sections (see odatix.lib.eda_tools), so they are written
+    # there; every flow, the default one included, gets an entry in "flows"
+    # holding its metadata and, for the others, what it overrides.
+    flows = settings.get("flows")
+    if isinstance(flows, list) and flows:
+        named = [f for f in flows if isinstance(f, dict) and str(f.get("name", "")).strip() != ""]
+        default_flow = next((f for f in named if f.get("is_default")), next(iter(named), None))
+
+        if default_flow is not None:
+            data["default_flow"] = str(default_flow.get("name")).strip()
+            for platform_key in TOOL_PLATFORM_KEYS:
+                section = _emit_platform_section(default_flow.get("platforms", {}).get(platform_key, {}))
+                if len(section) > 0:
+                    data[platform_key] = section
+
+        flows_map = CommentedMap()
+        for flow in flows:
+            if not isinstance(flow, dict):
                 continue
-            section = CommentedMap()
-            for cmd_key in (
-                "tool_test_command",
-                "fmax_synthesis_command",
-                "custom_freq_synthesis_command",
-                "analysis_command",
-            ):
-                commands = platform.get(cmd_key)
-                if isinstance(commands, str):
-                    commands = [line.strip() for line in commands.splitlines() if line.strip()]
-                if isinstance(commands, (list, tuple)):
-                    commands = [str(c) for c in commands if str(c).strip() != ""]
-                else:
-                    commands = []
-                if commands:
-                    section[cmd_key] = _as_flow_seq(commands)
-            if len(section) > 0:
-                data[platform_key] = section
+            name = str(flow.get("name", "")).strip()
+            if name == "":
+                continue
+            entry = CommentedMap()
+            for key in ("label", "description", "icon", "metrics_file"):
+                value = flow.get(key)
+                if value is not None and str(value).strip() != "":
+                    entry[key] = str(value)
+            if flow is not default_flow:
+                for platform_key in TOOL_PLATFORM_KEYS:
+                    section = _emit_platform_section(flow.get("platforms", {}).get(platform_key, {}))
+                    if len(section) > 0:
+                        entry[platform_key] = section
+            flows_map[name] = entry
+        if len(flows_map) > 0:
+            data["flows"] = flows_map
+    else:
+        platforms = settings.get("platforms", {})
+        if isinstance(platforms, dict):
+            for platform_key in TOOL_PLATFORM_KEYS:
+                platform = platforms.get(platform_key, {})
+                if not isinstance(platform, dict):
+                    continue
+                section = CommentedMap()
+                for cmd_key in TOOL_COMMAND_KEYS:
+                    commands = _as_command_list(platform.get(cmd_key))
+                    if commands:
+                        section[cmd_key] = _as_flow_seq(commands)
+                if len(section) > 0:
+                    data[platform_key] = section
 
     # Log formatting section
     fmt = settings.get("format", {})
@@ -554,6 +703,50 @@ def _as_flow_seq(values):
     """Return a ruamel sequence rendered on its own block lines (default)."""
     seq = CommentedSeq(values)
     return seq
+
+def _as_command_list(commands):
+    """Normalize a command (list, or text with one token per line) to a list."""
+    if isinstance(commands, str):
+        commands = [line.strip() for line in commands.splitlines() if line.strip()]
+    if isinstance(commands, (list, tuple)):
+        return [str(c) for c in commands if str(c).strip() != ""]
+    return []
+
+def _emit_platform_section(jobs) -> CommentedMap:
+    """
+    Build the "unix"/"windows" section of a flow from its {job_type: spec} dict,
+    where a spec is {"mode": "inherit"|"command"|"steps", "command", "steps"}.
+    A job type left on "inherit" declares nothing, so the flow runs whatever it
+    inherits from the tool's default flow (see odatix.lib.eda_tools).
+    """
+    section = CommentedMap()
+    if not isinstance(jobs, dict):
+        return section
+    for job_type in TOOL_JOB_TYPES:
+        spec = jobs.get(job_type)
+        if not isinstance(spec, dict):
+            continue
+        mode = spec.get("mode", "inherit")
+        if mode == "command":
+            commands = _as_command_list(spec.get("command"))
+            if commands:
+                section[f"{job_type}_command"] = _as_flow_seq(commands)
+        elif mode == "steps" and job_type in TOOL_STEPPED_JOB_TYPES:
+            steps_seq = CommentedSeq()
+            for step in spec.get("steps") or []:
+                if not isinstance(step, dict):
+                    continue
+                step_name = str(step.get("name", "")).strip()
+                commands = _as_command_list(step.get("command"))
+                if step_name == "" or not commands:
+                    continue
+                item = CommentedMap()
+                item["name"] = step_name
+                item["command"] = _as_flow_seq(commands)
+                steps_seq.append(item)
+            if len(steps_seq) > 0:
+                section[f"{job_type}_steps"] = steps_seq
+    return section
 
 def get_tool_metrics_path(tools_path, name) -> str:
     """

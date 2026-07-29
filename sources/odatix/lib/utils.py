@@ -268,6 +268,17 @@ def ask_yes_no():
         else:
             print("Please enter yes or no")
 
+def create_dir_if_missing(dir):
+    """
+    Creates a directory, keeping its content when it already exists.
+
+    Used by jobs resuming a flow split into steps: their directory holds what
+    the steps already run produced (checkpoints, reports, step state) and must
+    not be wiped, unlike create_dir.
+    """
+    os.makedirs(dir, exist_ok=True)
+
+
 def create_dir(dir):
     """Creates a directory, removing it first if it exists."""
     if os.path.isdir(dir):

@@ -180,42 +180,93 @@ class ParallelJob:
         except (TypeError, ValueError):
             return None
 
+    def _read_status_file(self, path):
+        """
+        Content of a status file the running step has written, or None.
+
+        A flow split into steps runs one process per step, and they all report
+        into the same files: what a previous step left there says nothing about
+        the one running now, and would be read as "this step is already done"
+        for as long as the tool takes to start up. A file older than the step
+        reading it is therefore treated as empty.
+        """
+        if not path or not os.path.isfile(path):
+            return None
+        step_started_at = getattr(self, "current_step_started_at", None)
+        if step_started_at is not None:
+            try:
+                if os.path.getmtime(path) < step_started_at:
+                    return None
+            except OSError:
+                return None
+        with open(path, "r") as f:
+            return f.read()
+
+    def _step_position(self):
+        """
+        Where the running step sits in the run, as (steps done before it, number
+        of steps the run covers), or None when there is nothing to scale: a job
+        that is not split into steps, or one whose run is a single step.
+
+        The run is not the whole flow: it goes from the step it resumes at (the
+        earlier ones are already done, see odatix.lib.job_steps) to the last one
+        it was asked for ("--until" already truncated the list).
+        """
+        step_names = getattr(self, "step_names", None) or []
+        total = len(step_names)
+        current = getattr(self, "current_step_index", None)
+        if total < 2 or current is None:
+            return None
+
+        first = max(0, min(int(getattr(self, "resume_step_index", 0) or 0), total - 1))
+        span = total - first
+        if span < 2:
+            return None
+
+        current = max(first, min(int(current), total - 1))
+        return current - first, span
+
+    def _scale_to_run(self, progress):
+        """Map the progress of the running step (0-100) onto the whole run."""
+        position = self._step_position()
+        if position is None:
+            return progress
+        done, span = position
+        return (done * 100 + progress) / span
+
     def get_progress(self):
         if self.progress_mode == "fmax":
             return self.get_progress_fmax()
-        else:
-            progress = 0
-            if os.path.isfile(self.progress_file):
-                with open(self.progress_file, "r") as f:
-                    content = f.read()
-                parsed_progress = ParallelJob._extract_int_from_pattern(
-                    content,
-                    ParallelJob.progress_file_pattern,
-                    default_group_index=1,
-                )
-                if parsed_progress is not None:
-                    progress = parsed_progress
-            if progress > 100:
-                progress = 100
-            return progress
+
+        progress = 0
+        content = self._read_status_file(self.progress_file)
+        if content is not None:
+            parsed_progress = ParallelJob._extract_int_from_pattern(
+                content,
+                ParallelJob.progress_file_pattern,
+                default_group_index=1,
+            )
+            if parsed_progress is not None:
+                progress = parsed_progress
+        if progress > 100:
+            progress = 100
+        return self._scale_to_run(progress)
 
     def get_progress_fmax(self):
         # Get progress from status file
         fmax_progress = 0
         fmax_step = 1
         fmax_totalstep = 1
-        if os.path.isfile(self.status_file):
-            with open(self.status_file, "r") as f:
-                content = f.read()
+        content = self._read_status_file(self.status_file)
+        if content is not None:
             parsed_fmax_status = ParallelJob._extract_fmax_status(content, ParallelJob.status_file_pattern)
             if parsed_fmax_status is not None:
                 fmax_progress, fmax_step, fmax_totalstep = parsed_fmax_status
 
         # Get progress from synth status file
         synth_progress = 0
-        if os.path.isfile(self.progress_file):
-            with open(self.progress_file, "r") as f:
-                content = f.read()
+        content = self._read_status_file(self.progress_file)
+        if content is not None:
             parsed_synth_progress = ParallelJob._extract_int_from_pattern(
                 content,
                 ParallelJob.progress_file_pattern,
@@ -232,7 +283,7 @@ class ParallelJob:
 
         if progress > 100:
             progress = 100
-        return progress
+        return self._scale_to_run(progress)
 
     def pause(self):
         """Suspend the job execution."""

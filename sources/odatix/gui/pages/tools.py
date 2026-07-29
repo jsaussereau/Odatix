@@ -77,7 +77,11 @@ def get_tools_path(odatix_settings):
     return OdatixSettings.DEFAULT_TOOLS_PATH
 
 def get_builtin_tools(tools_path):
-    """Names of built-in tools not shadowed by a workspace tool."""
+    """
+    Names of built-in tools not shadowed by a workspace tool. A workspace file
+    that only adds flows to a built-in tool does not shadow it: it is listed
+    here, with the flows it adds (see workspace.get_tools).
+    """
     workspace_tools = set(workspace.get_tools(tools_path))
     builtin = []
     eda_tools_path = OdatixSettings.odatix_eda_tools_path
@@ -93,13 +97,44 @@ def get_builtin_tools(tools_path):
 
 def tool_icon_image(meta):
     """Return the tool's tool.yml "icon" as an <img>, falling back to a default
-    icon when none is defined, mirroring the image handling of /choose_eda_tool."""
+    icon when none is defined, mirroring the image handling of /choose_eda_tool.
+    Wrapped in a fixed-height box so tool names line up regardless of each
+    logo's own aspect ratio."""
     tool_icon = meta.get("icon") if isinstance(meta.get("icon"), str) else None
-    return html.Img(
-        src=tool_icon or DEFAULT_TOOL_ICON,
-        className="card-img",
-        style={"maxHeight": "48px", "maxWidth": "60%", "marginBottom": "8px"},
+    return html.Div(
+        html.Img(
+            src=tool_icon or DEFAULT_TOOL_ICON,
+            className="card-img",
+            style={"maxHeight": "100%", "maxWidth": "60%"},
+        ),
+        className="card-pictogram-wrap",
     )
+
+def flows_line(name):
+    """Small subtitle listing the flows a tool declares (see the "flows" section
+    of tool.yml). Returns None for a tool with a single flow, which is the
+    common case and would only add noise."""
+    try:
+        flows = eda_tools.list_flows(name)
+    except Exception:
+        return None
+    if len(flows) < 2:
+        return None
+    labels = ", ".join(flow["label"] for flow in flows.values())
+    return html.Div(
+        f"{len(flows)} flows: {labels}",
+        title=labels,
+        style={
+            "fontSize": "0.8em",
+            "opacity": "0.6",
+            "textAlign": "center",
+            "marginTop": "2px",
+            "textOverflow": "ellipsis",
+            "overflow": "hidden",
+            "whiteSpace": "nowrap",
+        },
+    )
+
 
 def build_tool_cards(tools_path):
     cards = [workspace_tool_card(name, tools_path) for name in workspace.get_tools(tools_path)]
@@ -107,7 +142,7 @@ def build_tool_cards(tools_path):
     return cards
 
 def build_builtin_cards(tools_path):
-    return [builtin_tool_card(name) for name in get_builtin_tools(tools_path)]
+    return [builtin_tool_card(name, tools_path) for name in get_builtin_tools(tools_path)]
 
 
 ######################################
@@ -121,6 +156,7 @@ def workspace_tool_card(name, tools_path):
         [
             *([visual] if visual is not None else []),
             html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
+            *([flows] if (flows := flows_line(name)) is not None else []),
             html.Div(
                 [
                     html.Div(
@@ -178,22 +214,40 @@ def workspace_tool_card(name, tools_path):
         key=unique_key,
     )
 
-def builtin_tool_card(name):
+def builtin_tool_card(name, tools_path):
     unique_key = str(uuid.uuid4())
     label = eda_tools.get_tool_label(name)
-    visual = tool_icon_image(eda_tools._load_tool_yml(name))
+    visual = tool_icon_image(eda_tools.load_tool_settings(name))
+    # A built-in tool the workspace already adds flows to says so: the card is
+    # still the built-in one, its definition is not owned by the workspace.
+    extended = workspace.tool_exists(tools_path, name)
     return html.Div(
         [
             *([visual] if visual is not None else []),
             html.Div(label, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
-            html.Div("built-in", style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "marginTop": "2px"}),
+            html.Div(
+                "built-in + your flows" if extended else "built-in",
+                style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "marginTop": "2px"},
+            ),
+            *([flows] if (flows := flows_line(name)) is not None else []),
             html.Div(
                 [
+                    ui.icon_button(
+                        id=f"button-flows-tool-{name}",
+                        icon=icon("edit", className="icon black"),
+                        text="Add flows",
+                        tooltip="Add flows of your own to this built-in tool, without copying it",
+                        tooltip_options="bottom delay",
+                        color="default",
+                        link=f"/tool_editor?tool={name}",
+                        width="auto",
+                        bold=False,
+                    ),
                     ui.icon_button(
                         id={"type": "tool-button-fork", "name": name},
                         icon=icon("duplicate", className="icon black"),
                         text="Duplicate to workspace",
-                        tooltip="Copy this built-in tool into your workspace to edit it",
+                        tooltip="Copy this built-in tool into your workspace to edit all of it",
                         tooltip_options="bottom delay",
                         color="default",
                         width="auto",
@@ -207,6 +261,7 @@ def builtin_tool_card(name):
                     "width": "100%",
                     "alignItems": "center",
                     "justifyContent": "center",
+                    "gap": "4px",
                 },
             ),
         ],
@@ -440,11 +495,18 @@ layout = html.Div(
             children=[
                 ui.page_header("EDA Tools", "Add and configure the EDA tools of your workspace.", back_link="/"),
                 html.Div(id="tool-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
-                ui.title_tile(
-                    text="Built-in tools",
-                    id="builtin-tools-title",
-                    tooltip="Tools shipped with Odatix. Duplicate one into your workspace to edit it.",
-                    style={"marginTop": "24px", "marginBottom": "16px"},
+                html.Div(
+                    [
+                        html.H2(
+                            [
+                                html.Span("Built-in tools"),
+                            ],
+                            id="builtin-tools-title",
+                        ),
+                        ui.tooltip_icon("Tools shipped with Odatix. Duplicate one into your workspace to edit it."),
+                    ],
+                    className="odx-section-head",
+                    style={"justifyContent": "center", "marginTop": "32px", "gap": "0"},
                 ),
                 html.Div(id="builtin-tool-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],

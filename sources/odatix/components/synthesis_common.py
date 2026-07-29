@@ -13,12 +13,13 @@ import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.read_tool_settings import read_tool_settings
-from odatix.lib.utils import read_from_list, copytree, create_dir, KeyNotInListError, BadValueInListError
+from odatix.lib.utils import read_from_list, copytree, create_dir, create_dir_if_missing, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import start_tool_check
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
+import odatix.lib.job_steps as job_steps
 
 
 def load_synthesis_context(
@@ -36,14 +37,13 @@ def load_synthesis_context(
     debug=False,
     script_name="",
     synth_type=None,
+    flow=None,
     check_cancel=None,
 ):
     if check_cancel is not None:
         check_cancel()
 
     _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
-
-    work_path = os.path.join(work_path, tool)
 
     if architectures is None:
         printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)
@@ -93,9 +93,16 @@ def load_synthesis_context(
 
     tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
     if synth_type is None:
-        process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file)
+        process_group, report_path, run_command, tool_test_command, _, flow_name, flow_steps = read_tool_settings(tool, tool_settings_file, flow=flow)
     else:
-        process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file, synth_type=synth_type)
+        process_group, report_path, run_command, tool_test_command, _, flow_name, flow_steps = read_tool_settings(
+            tool, tool_settings_file, synth_type=synth_type, flow=flow
+        )
+
+    # Two flows of the same tool are alternatives to compare: they each get
+    # their own work sub-directory ("vivado@power_opt"), the default flow
+    # keeping the bare tool name.
+    work_path = os.path.join(work_path, eda_tools.tool_work_dirname(tool, flow_name, job_type=synth_type))
 
     with open(eda_target_filename, "r") as f:
         try:
@@ -178,6 +185,12 @@ def load_synthesis_context(
         "architectures": architectures,
         "work_path": work_path,
         "tool_settings_file": tool_settings_file,
+        # tool.yml the log formatter reads: the highest precedence one declaring
+        # a "format" section, which is not necessarily the tool.yml above when a
+        # user tool.yml only adds flows to a built-in tool.
+        "format_settings_file": eda_tools.get_format_settings_file(tool) or tool_settings_file,
+        "flow": flow_name,
+        "flow_steps": flow_steps,
         "process_group": process_group,
         "run_command": run_command,
         "install_path": install_path,
@@ -202,6 +215,9 @@ def build_prepare_synthesis_job(
     timestamp,
     progress_mode,
     script_name,
+    flow=None,
+    steps=None,
+    rerun_index=None,
     check_cancel=None,
 ):
     from odatix.lib.settings import OdatixSettings
@@ -212,24 +228,41 @@ def build_prepare_synthesis_job(
         if check_cancel is not None:
             check_cancel()
 
-        create_dir(arch_instance.tmp_dir)
-        create_dir(arch_instance.tmp_log_path)
+        # What this directory has already done has to be read *before* it is
+        # refreshed, and a resuming job must keep what the completed steps
+        # produced: their checkpoints, reports and the step state itself. Only a
+        # job starting from scratch wipes its directory.
+        resume_index = job_steps.start_index(arch_instance.tmp_dir, steps, rerun_index) if steps else 0
+        resuming = resume_index > 0
+
+        if resuming:
+            create_dir_if_missing(arch_instance.tmp_dir)
+            create_dir_if_missing(arch_instance.tmp_log_path)
+        else:
+            create_dir(arch_instance.tmp_dir)
+            create_dir(arch_instance.tmp_log_path)
 
         try:
-            copytree(os.path.join(OdatixSettings.odatix_eda_tools_path, hard_settings.common_script_path), arch_instance.tmp_script_path)
+            copytree(
+                os.path.join(OdatixSettings.odatix_eda_tools_path, hard_settings.common_script_path),
+                arch_instance.tmp_script_path,
+                dirs_exist_ok=resuming,
+            )
         except Exception:
             printc.error('"' + arch_instance.tmp_script_path + '" exists while it should not', script_name)
 
         import odatix.lib.eda_tools as eda_tools
-        tool_dir = eda_tools.get_tool_dir(tool)
-        if tool_dir is None:
+        tool_dirs = eda_tools.get_tool_dirs(tool)
+        if not tool_dirs:
             printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
             return
-        copytree(
-            os.path.join(tool_dir, hard_settings.tool_tcl_path),
-            arch_instance.tmp_script_path,
-            dirs_exist_ok=True,
-        )
+        # A tool can be defined in both the built-in and the user directory (a
+        # user adding flows to a built-in tool): copy the scripts of every
+        # location, the user ones last so they win.
+        for tool_dir in tool_dirs:
+            tcl_dir = os.path.join(tool_dir, hard_settings.tool_tcl_path)
+            if os.path.isdir(tcl_dir):
+                copytree(tcl_dir, arch_instance.tmp_script_path, dirs_exist_ok=True)
 
         if arch_instance.design_path is not None:
             if not os.path.isdir(arch_instance.design_path):
@@ -277,6 +310,11 @@ def build_prepare_synthesis_job(
             print(arch_instance.target, file=f)
         with open(os.path.join(arch_instance.tmp_dir, hard_settings.arch_filename), "w") as f:
             print(arch_instance.arch_name, file=f)
+        if flow:
+            # Record the flow the job ran with, so a later full re-export
+            # ("odatix export") can tag the results with it.
+            with open(os.path.join(arch_instance.tmp_dir, hard_settings.flow_filename), "w") as f:
+                print(flow, file=f)
 
         if arch_instance.file_copy_enable:
             file_copy_dest = os.path.join(arch_instance.tmp_dir, arch_instance.file_copy_dest)
@@ -328,8 +366,6 @@ def build_prepare_synthesis_job(
                 with open(os.path.join(arch_instance.tmp_script_path, filename), "w") as f:
                     f.write(tcl_content)
 
-        command = " ".join(map(str, arch_handler.command)) if isinstance(arch_handler.command, list) else arch_handler.command
-
         import odatix.lib.eda_tools as eda_tools
         variables = Variables(
             work_path=os.path.realpath(arch_instance.tmp_dir),
@@ -344,7 +380,19 @@ def build_prepare_synthesis_job(
             lib_name=arch_instance.lib_name,
         )
 
-        command = replace_variables(command, variables)
+        def _flatten(command):
+            return " ".join(map(str, command)) if isinstance(command, list) else command
+
+        if steps:
+            # A flow split into steps runs as a pipeline: one process per step,
+            # in order. Integer stage keys keep the declared order (see
+            # ParallelJobHandler._build_task_pipeline).
+            command = {
+                index: [{"name": step["name"], "command": replace_variables(_flatten(step["command"]), variables)}]
+                for index, step in enumerate(steps)
+            }
+        else:
+            command = replace_variables(_flatten(arch_handler.command), variables)
 
         fmax_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.fmax_status_filename)
         synth_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.synth_status_filename)
@@ -365,6 +413,13 @@ def build_prepare_synthesis_job(
             progress_mode=progress_mode,
             status="idle",
         )
+
+        if steps:
+            # Steps already completed in this directory are skipped, so asking
+            # for a further step resumes instead of redoing everything.
+            running_arch.step_names = [step["name"] for step in steps]
+            running_arch.resume_step_index = resume_index
+            running_arch.step_tracking = {"tmp_dir": os.path.realpath(arch_instance.tmp_dir), "flow": flow}
 
         job_list.append(running_arch)
 

@@ -89,8 +89,8 @@ META_TOOLTIP = (
 )
 
 # Tool metric sections: (card-row prefix, section label, tooltip, metrics.yml key).
-FMAX_TOOLTIP = "Metrics extracted only for the maximum-frequency synthesis flow."
-CUSTOM_FREQ_TOOLTIP = "Metrics extracted only for the custom-frequency synthesis flow."
+FMAX_TOOLTIP = "Metrics extracted only for maximum-frequency synthesis."
+CUSTOM_FREQ_TOOLTIP = "Metrics extracted only for custom-frequency synthesis."
 COMMON_TOOLTIP = "Metrics extracted for every flow (e.g. area, resource counts)."
 
 WORKFLOW_SECTIONS = [

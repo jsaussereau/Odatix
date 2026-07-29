@@ -19,13 +19,33 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+"""
+Tool, flow and step selection: everything that has to be decided before the job
+settings page, in a single click.
+
+A flow is a named way of running a job type with a given eda tool (a different
+script, different options, sometimes a different binary); a flow can in turn be
+split into ordered steps, and a run can stop at any of them and be resumed
+later. Both are declared in the "flows" section of a tool.yml (see
+odatix.lib.eda_tools).
+
+Every choice a tool offers is laid out inside its own card, so the page shows
+what is available at a glance and every card leads straight to the job
+settings: a tool with a single one shot flow is one card-sized link, a tool with
+several flows lists them as buttons, and a flow split into steps lists its steps
+as "run up to here" buttons. There is nothing to confirm and no state to keep.
+"""
+
 import os
+from urllib.parse import quote
+
 import dash
-from dash import dcc, html, Input, Output, State
+from dash import dcc, html, Input, Output
 
 import odatix.gui.ui_components as ui
-import odatix.gui.navigation as navigation
 import odatix.lib.eda_tools as eda_tools
+import odatix.gui.navigation as navigation
+from odatix.gui.icons import icon
 from odatix.lib.settings import OdatixSettings
 from odatix.gui.utils import get_key_from_url
 
@@ -49,32 +69,194 @@ padding = 20
 DEFAULT_TOOL_ICON = "assets/icons/workflow.png"
 
 
-def get_run_jobs_cards(job_type):
+def is_builtin_tool(tool):
+    """True if the tool resolves to a directory under the built-in EDA tools
+    directory, as opposed to one shadowed/added by the workspace."""
+    tool_dir = eda_tools.get_tool_dir(tool)
+    if tool_dir is None:
+        return False
+    builtin_root = os.path.realpath(OdatixSettings.odatix_eda_tools_path)
+    return os.path.realpath(tool_dir).startswith(builtin_root + os.sep)
+
+
+def run_link(job_type, tool, flow=None, until=None):
+    """Link to the job settings page for a complete selection."""
+    link = f"/run_jobs?type={quote(job_type)}&tool={quote(tool)}"
+    if flow:
+        link += f"&flow={quote(flow)}"
+    if until:
+        link += f"&until={quote(until)}"
+    return link
+
+
+def tool_head(tool, meta):
+    """Logo, name and description, the part every tool card starts with."""
+    icon_path = meta.get("icon") if isinstance(meta.get("icon"), str) else None
+    description = meta.get("description", "") if isinstance(meta.get("description"), str) else ""
+
+    children = [
+        html.Img(src=icon_path or DEFAULT_TOOL_ICON, className="odx-tool-img"),
+        html.Div(eda_tools.get_tool_label(tool), className="odx-tool-name"),
+    ]
+    if description:
+        children.append(html.Div(description, className="odx-tool-desc"))
+    return html.Div(children, className="odx-tool-head")
+
+
+def step_buttons(job_type, tool, flow, steps):
     """
-    Build one card per discovered eda tool that supports the requested job type
-    (flow). Card label / description / icon come from the optional "label",
-    "description" and "icon" keys of the tool's tool.yml.
+    Steps of a flow, as an ordered chain of "run up to here" buttons.
+
+    Stopping early is not throwing work away: the steps a job has done are
+    tracked, so a later run picks up at the first one left to do. This is how a
+    bitstream ends up generated only for the implementations worth it.
     """
-    cards = []
+    return html.Div(
+        [
+            dcc.Link(
+                children=[
+                    html.Span(str(index + 1), className="odx-step-index"),
+                    html.Span(step, className="odx-step-name"),
+                ],
+                # Running the whole flow is the default: it carries no "until".
+                href=run_link(job_type, tool, flow, None if index == len(steps) - 1 else step),
+                className="odx-step",
+            )
+            for index, step in enumerate(steps)
+        ],
+        className="odx-steps",
+    )
+
+
+def flow_entry(job_type, tool, flow, single_flow=False):
+    """
+    One flow of a tool: a button running it, or, when it is split into steps, a
+    labelled group of buttons choosing where the run stops.
+    """
+    steps = eda_tools.get_flow_step_names(tool, flow=flow["name"], job_type=job_type)
+    label = "Run" if single_flow else flow["label"]
+
+    if not steps:
+        return dcc.Link(
+            children=[
+                html.Span(label, className="odx-flow-name"),
+                html.Span("→", className="odx-flow-go"),
+            ],
+            href=run_link(job_type, tool, flow["name"]),
+            className="odx-flow",
+            # What a flow does is a sentence, not a chip: keep it out of the
+            # card and one hover away.
+            title=flow["description"] or None,
+        )
+
+    return html.Div(
+        children=[
+            html.Div(
+                [html.Span(label, className="odx-flow-name"), html.Span("run up to", className="odx-flow-hint")],
+                className="odx-flow-block-head",
+            ),
+            step_buttons(job_type, tool, flow["name"], steps),
+        ],
+        className="odx-flow-block",
+        title=flow["description"] or None,
+    )
+
+
+def tool_settings_button(tool):
+    """
+    Way out of the page for the tool itself: its commands, and the flows it
+    offers here. A sibling of the card rather than a child, because a card with
+    a single flow is one big link and a link cannot hold another one.
+    """
+    return dcc.Link(
+        children=icon("gear", className="icon", width="17px", height="17px"),
+        href=f"/tool_editor?tool={quote(tool)}",
+        className="odx-tool-gear",
+        title=f"Edit {tool}",
+    )
+
+
+def tool_card(job_type, tool):
+    """
+    Card of a single tool: its identity, then whatever it leaves to choose.
+
+    A tool with a single one shot flow has nothing to choose, so the whole card
+    is the link to the job settings rather than a card holding a lone button.
+    """
+    meta = eda_tools.load_tool_settings(tool)
+    flows = eda_tools.list_flows(tool, job_type=job_type)
+
+    only_flow = next(iter(flows.values()), None) if len(flows) == 1 else None
+    if only_flow and not eda_tools.get_flow_step_names(tool, flow=only_flow["name"], job_type=job_type):
+        card = dcc.Link(
+            children=tool_head(tool, meta),
+            href=run_link(job_type, tool, only_flow["name"]),
+            className="odx-tool-card single",
+        )
+    else:
+        card = html.Div(
+            children=[
+                tool_head(tool, meta),
+                html.Div(
+                    [flow_entry(job_type, tool, flow, single_flow=len(flows) == 1) for flow in flows.values()],
+                    className="odx-tool-flows",
+                ),
+            ],
+            className="odx-tool-card",
+        )
+
+    return html.Div([card, tool_settings_button(tool)], className="odx-tool-card-wrap")
+
+
+def get_tool_cards(job_type):
+    """
+    One card per discovered eda tool that supports the requested job type, split
+    into workspace tools and built-in tools (mirroring the /tools page). Card
+    label / description / icon come from the optional "label", "description" and
+    "icon" keys of the tool's tool.yml.
+    """
+    workspace_cards = []
+    builtin_cards = []
     for tool in eda_tools.tools_supporting(job_type):
-        meta = eda_tools._load_tool_yml(tool)
-        icon = meta.get("icon") if isinstance(meta.get("icon"), str) else None
-        cards.append({
-            "name": eda_tools.get_tool_label(tool),
-            "link": f"/run_jobs?type={job_type}&tool={tool}",
-            "image": icon or DEFAULT_TOOL_ICON,
-            "description": meta.get("description", "") if isinstance(meta.get("description"), str) else "",
-        })
-    return cards
-def get_run_jobs_layout(job_type):
+        card = tool_card(job_type, tool)
+        (builtin_cards if is_builtin_tool(tool) else workspace_cards).append(card)
+    return workspace_cards, builtin_cards
+
+
+def get_layout(job_type):
+    if not job_type:
+        return [ui.page_header("Select an EDA Tool", "No job type selected.", back_link="/choose_job_type")]
+
+    workspace_cards, builtin_cards = get_tool_cards(job_type)
+
+    if not workspace_cards and not builtin_cards:
+        content = [ui.empty_state("No eda tool can run this job type.")]
+    else:
+        content = []
+        if workspace_cards:
+            content.append(html.Div(workspace_cards, className="odx-tool-grid"))
+        if builtin_cards:
+            if workspace_cards:
+                content.append(
+                    html.Div(
+                        html.H2("Built-in tools", id="choose-eda-tool-builtin-title"),
+                        className="odx-section-head odx-choose-subhead",
+                    )
+                )
+            content.append(html.Div(builtin_cards, className="odx-tool-grid"))
+
     return [
-        ui.page_header("Select an EDA Tool", "Choose the tool to run this job with."),
+        ui.page_header(
+            "Select an EDA Tool",
+            "Choose the tool to run this job with, and how it should run.",
+            back_link="/choose_job_type",
+        ),
         html.Div(
-            ui.card_grid([ui.create_card_button(card) for card in get_run_jobs_cards(job_type)]),
+            content,
             id=f"{__name__}-content",
             style={
                 "display": "flex",
-                "justifyContent": "center",
+                "flexDirection": "column",
                 "paddingBottom": f"{padding}px",
             },
         ),
@@ -90,9 +272,9 @@ def get_run_jobs_layout(job_type):
     Input("url", "search"),
     prevent_initial_call=False,
 )
-def redirect_to_new_workspace(search):
-    job_type = get_key_from_url(search, "type")
-    return get_run_jobs_layout(job_type)
+def update_layout(search):
+    return get_layout(get_key_from_url(search, "type"))
+
 
 ######################################
 # Layout

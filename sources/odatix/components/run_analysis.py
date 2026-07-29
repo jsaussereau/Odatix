@@ -77,6 +77,7 @@ script_name = os.path.basename(__file__)
 
 def add_arguments(parser):
   parser.add_argument("-t", "--tool", nargs="+", default=None, help="eda tool(s) in use (overrides the 'tools' list of the analysis settings file; default: vivado)")
+  parser.add_argument("-f", "--flow", nargs="+", default=None, help="flow(s) to run, as \"flow\" (applied to every tool) or \"tool:flow\" (default: each tool's default flow)")
   parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
   parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
   parser.add_argument("-i", "--input", help="input settings file")
@@ -110,6 +111,39 @@ def parse_arguments():
 DEFAULT_ANALYSIS_TOOLS = ["vivado"]
 
 
+def parse_flow_selection(flow_args, tools):
+  """
+  Turn the "--flow" arguments into a {tool: flow} mapping. An entry without a
+  tool prefix ("place_route") applies to every tool; an entry of the form
+  "tool:flow" only applies to that tool and wins over a bare entry.
+
+  Returns:
+      dict: {tool: flow name or None for the tool's default flow}
+  """
+  flows = {current_tool: None for current_tool in tools}
+  if not flow_args:
+    return flows
+
+  for entry in flow_args:
+    if ":" not in str(entry):
+      for current_tool in flows:
+        flows[current_tool] = str(entry).strip()
+
+  for entry in flow_args:
+    entry = str(entry)
+    if ":" not in entry:
+      continue
+    tool_name, _, flow_name = entry.partition(":")
+    tool_name = tool_name.strip()
+    if tool_name not in flows:
+      printc.error(f'"--flow {entry}" refers to the tool "{tool_name}", which is not one of the selected tools', script_name)
+      printc.note("Selected tools are: " + ", ".join(flows), script_name)
+      sys.exit(-1)
+    flows[tool_name] = flow_name.strip()
+
+  return flows
+
+
 def get_analysis_tools_from_settings(settings_filename):
   """
   Read the default list of eda tools to run the analysis with from the analysis
@@ -139,10 +173,10 @@ def get_analysis_tools_from_settings(settings_filename):
   return tools
 
 
-def load_tool_context(tool, target_path):
+def load_tool_context(tool, target_path, flow=None):
   """
   Validate an eda tool (tool directory) and load its tool settings, for the RTL
-  analysis flow.
+  RTL analysis job type.
 
   RTL analysis (odatix analyze) does NOT use target definition files
   ("target_<tool>.yml"): it does not target a specific technology / device, so
@@ -170,7 +204,9 @@ def load_tool_context(tool, target_path):
 
   # Get tool settings
   tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
-  process_group, report_path, run_command, tool_test_command, _ = read_tool_settings(tool, tool_settings_file,  synth_type='analysis')
+  process_group, report_path, run_command, tool_test_command, _, flow_name, flow_steps = read_tool_settings(
+    tool, tool_settings_file, synth_type='analysis', flow=flow
+  )
 
   # No target file for analysis: use a single generic target and a placeholder
   # constraint file (the shared init_script.tcl always creates it, even though
@@ -200,6 +236,10 @@ def load_tool_context(tool, target_path):
   return {
     "eda_target_filename": None,
     "tool_settings_file": tool_settings_file,
+    # tool.yml the log formatter reads (see eda_tools.get_format_settings_file)
+    "format_settings_file": eda_tools.get_format_settings_file(tool) or tool_settings_file,
+    "flow": flow_name,
+    "flow_steps": flow_steps,
     "process_group": process_group,
     "run_command": run_command,
     "tool_test_command": tool_test_command,
@@ -247,7 +287,10 @@ def prepare_analysis(
   """
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
 
-  work_path = os.path.join(work_path, tool)
+  # Two flows of the same tool are alternatives to compare: they each get their
+  # own work sub-directory ("vivado@lint_strict"), the default flow keeping the
+  # bare tool name.
+  work_path = os.path.join(work_path, eda_tools.tool_work_dirname(tool, tool_context.get("flow"), job_type="analysis"))
 
   if architectures is None:
     printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)
@@ -536,7 +579,7 @@ def prepare_analysis(
 ######################################
 
 
-def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False, result_path=None):
+def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False, result_path=None, flows=None):
   """
   Run RTL analysis for all selected architectures with one or several eda
   tools. The jobs of every tool run together in a single monitor session
@@ -556,14 +599,15 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   supported_tools = eda_tools.tools_supporting("analysis")
   for current_tool in tools:
     if current_tool not in supported_tools:
-      printc.error(f"Analysis flow is not yet implemented for tool '{current_tool}'")
+      printc.error(f"RTL analysis is not supported by the tool '{current_tool}'")
       printc.note("Supported tools are: " + ", ".join(supported_tools))
       sys.exit(1)
 
   # Check every eda tool first (target file, tool directory, test launch)
+  flows = parse_flow_selection(None, tools) if flows is None else dict(flows)
   tool_contexts = {}
   for current_tool in tools:
-    tool_contexts[current_tool] = load_tool_context(current_tool, target_path)
+    tool_contexts[current_tool] = load_tool_context(current_tool, target_path, flow=flows.get(current_tool))
   # Every tool check runs in the background while the settings are processed;
   # they are waited for just before the checklist and the confirmation.
   tool_checks = []
@@ -649,7 +693,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
     first_context["nb_jobs"],
     first_context["process_group"],
     auto_exit=first_context["exit_when_done"],
-    format_yaml=first_context["tool_settings_file"],
+    format_yaml=first_context["format_settings_file"],
     log_size_limit=first_context["log_size_limit"],
   )
 
@@ -661,6 +705,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
       parallel_jobs=parallel_jobs,
       analysis_work_root=work_path,
       output_dir=result_path,
+      flows={current_tool: context["flow"] for current_tool, context in prepared_tools},
     )
 
   parallel_jobs.run()
@@ -712,6 +757,7 @@ def check_settings(
   keep=False,
   cancel_event=None,
   tool_check_sink=None,
+  flows=None,
 ):
   """
   Validate the analysis settings of one or several eda tools and prepare (but
@@ -739,13 +785,14 @@ def check_settings(
   supported_tools = eda_tools.tools_supporting("analysis")
   for current_tool in tools:
     if current_tool not in supported_tools:
-      printc.error(f"Analysis flow is not yet implemented for tool '{current_tool}'", script_name)
+      printc.error(f"RTL analysis is not supported by the tool '{current_tool}'", script_name)
       printc.note("Supported tools are: " + ", ".join(supported_tools), script_name)
       sys.exit(-1)
 
+  flows = parse_flow_selection(None, tools) if flows is None else dict(flows)
   tool_contexts = {}
   for current_tool in tools:
-    tool_contexts[current_tool] = load_tool_context(current_tool, target_path)
+    tool_contexts[current_tool] = load_tool_context(current_tool, target_path, flow=flows.get(current_tool))
   # Every tool check runs in the background while the settings are processed;
   # they are waited for just before the checklist and the confirmation.
   tool_checks = []
@@ -823,7 +870,7 @@ def check_settings(
     architecture_instances,
     prepare_job,
     job_list,
-    first_context["tool_settings_file"],
+    first_context["format_settings_file"],
     first_context["arch_handler"],
     first_context["exit_when_done"],
     first_context["log_size_limit"],
@@ -844,6 +891,7 @@ def prepare_synthesis(
   cancel_event=None,
   export_output_dir=None,
   analysis_work_root=None,
+  flows=None,
 ):
   """
   Build the analysis jobs and return a ParallelJobHandler ready to run/enqueue,
@@ -880,6 +928,7 @@ def prepare_synthesis(
       parallel_jobs=parallel_jobs,
       analysis_work_root=analysis_work_root,
       output_dir=export_output_dir,
+      flows=flows,
     )
 
   return parallel_jobs
@@ -982,6 +1031,7 @@ def main(args, settings=None):
     debug,
     keep,
     result_path=settings.result_path,
+    flows=parse_flow_selection(args.flow, tools),
   )
 
   comparison = {}

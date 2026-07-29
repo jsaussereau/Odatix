@@ -33,6 +33,9 @@ Format v2 (current):
   results:          # flat list of records
     - meta:
         type: fmax_synthesis          # fmax_synthesis | custom_freq_synthesis | workflow | ...
+        tool: vivado                  # eda tool the job ran with
+        flow: standard                # flow of that tool the job ran with
+        step: pnr                     # last step of that flow the job reached
         target: xc7a100t-csg324-1
         architecture: Example_Counter_verilog
         configuration: 04bits         # full configuration name (incl. "+domain/value" segments)
@@ -63,6 +66,9 @@ SCHEMA_VERSION = 2
 # Meta keys with fixed semantics. Any other (non "_"-prefixed) meta key is a
 # free dimension (typically a parameter domain).
 META_TYPE = "type"
+META_TOOL = "tool"
+META_FLOW = "flow"
+META_STEP = "step"
 META_TARGET = "target"
 META_ARCHITECTURE = "architecture"
 META_CONFIGURATION = "configuration"
@@ -72,6 +78,9 @@ META_TIMESTAMP = "timestamp"
 
 RESERVED_META_KEYS = (
   META_TYPE,
+  META_TOOL,
+  META_FLOW,
+  META_STEP,
   META_TARGET,
   META_ARCHITECTURE,
   META_CONFIGURATION,
@@ -140,16 +149,28 @@ def make_record(meta, metrics):
   return {"meta": meta, "metrics": metrics}
 
 
+# Meta keys that describe a record without telling it apart from another one.
+# The timestamp changes on every run, and the step is how far a job got: a job
+# resumed to a further step refines its own record instead of adding one.
+# The flow, on the other hand, *is* a dimension: two flows of the same tool run
+# in separate work directories and are meant to be compared.
+NON_IDENTITY_META_KEYS = (META_TIMESTAMP, META_STEP)
+
+
 def record_identity(meta):
   """
   Identity of a record, used to deduplicate/replace records on incremental
-  exports. The timestamp and informational ("_"-prefixed) keys are excluded:
-  re-running the same job replaces its previous record.
+  exports. The timestamp, the step and informational ("_"-prefixed) keys are
+  excluded: re-running the same job replaces its previous record.
   """
   if not isinstance(meta, dict):
     return tuple()
   return tuple(
-    sorted((str(key), str(value)) for key, value in meta.items() if str(key) != META_TIMESTAMP and not str(key).startswith("_"))
+    sorted(
+      (str(key), str(value))
+      for key, value in meta.items()
+      if str(key) not in NON_IDENTITY_META_KEYS and not str(key).startswith("_")
+    )
   )
 
 

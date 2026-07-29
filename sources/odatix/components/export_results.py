@@ -26,6 +26,8 @@ import argparse
 
 import odatix.lib.printc as printc
 import odatix.lib.eda_tools as eda_tools
+import odatix.lib.hard_settings as hard_settings
+import odatix.lib.job_steps as job_steps
 import odatix.lib.results_schema as results_schema
 from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
@@ -137,6 +139,72 @@ def validate_tool_settings(file_path):
     except yaml.YAMLError as e:
       printc.error("Error in tool configuration file: " + str(e), script_name)
       return None
+
+
+def resolve_metrics_file(tool, custom_metrics_file=None, flow=None):
+  """
+  Path of the metrics definition file to use for a tool run with a given flow.
+
+  The tool settings are the merged ones (a tool can be defined both in the
+  workspace and in the built-in directory, see eda_tools.load_tool_settings), so
+  a workspace tool.yml holding only a "flows" section still inherits the
+  built-in "default_metrics_file". A flow can override it with its own
+  "metrics_file".
+
+  "$tool_path" is resolved against each directory defining the tool, highest
+  precedence first, so a metrics file shipped next to either definition is found.
+
+  Returns:
+      str | None: the resolved path, or None when it cannot be determined.
+  """
+  tool_dirs = eda_tools.get_tool_dirs(tool)
+  if not tool_dirs:
+    return None
+
+  if custom_metrics_file is not None:
+    metrics_file = custom_metrics_file
+  else:
+    metrics_file = None
+    if flow:
+      flow_settings = eda_tools.get_flow(tool, flow=flow)
+      if flow_settings is not None:
+        metrics_file = flow_settings["metrics_file"]
+    if not metrics_file:
+      metrics_file = eda_tools.load_tool_settings(tool).get("default_metrics_file")
+    if not isinstance(metrics_file, str) or metrics_file.strip() == "":
+      printc.error('Cannot find key "default_metrics_file" for the eda tool "' + str(tool) + '"', script_name)
+      return None
+
+  candidates = []
+  for tool_dir in reversed(tool_dirs):
+    resolved = replace_variables(
+      metrics_file,
+      Variables(
+        odatix_path=OdatixSettings.odatix_path,
+        odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+        tool_path=tool_dir,
+      ),
+    )
+    if resolved not in candidates:
+      candidates.append(resolved)
+
+  for candidate in candidates:
+    if os.path.isfile(candidate):
+      return candidate
+
+  printc.error('Metrics definition file "' + os.path.realpath(candidates[0]) + '" does not exist', script_name)
+  return None
+
+
+def load_metrics_file(metrics_file):
+  """Load a metrics definition file, or None when it is not valid YAML."""
+  with open(metrics_file, "r") as file:
+    try:
+      metrics_data = yaml.safe_load(file)
+    except yaml.YAMLError as e:
+      printc.error("Error in metrics definition file: " + str(e), script_name)
+      return None
+  return metrics_data if metrics_data is not None else {}
 
 
 ######################################
@@ -335,7 +403,31 @@ def corrupted_directory(directory):
 # Export Results
 ######################################
 
-def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file):
+def tool_work_dirs(type_dir, tool):
+  """
+  Work directories holding the jobs of a tool inside a job type directory, one
+  per flow it has been run with.
+
+  Returns:
+      list: (directory name, flow name or None) pairs, the default flow (bare
+      tool name) first.
+  """
+  found = []
+  try:
+    entries = sorted(os.listdir(type_dir))
+  except OSError:
+    return found
+  for entry in entries:
+    if not os.path.isdir(os.path.join(type_dir, entry)):
+      continue
+    entry_tool, entry_flow = eda_tools.split_tool_work_dirname(entry)
+    if entry_tool == tool:
+      found.append((entry, entry_flow))
+  # The bare tool name (default flow) comes first.
+  return sorted(found, key=lambda item: (item[1] is not None, item[1] or ""))
+
+
+def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=None, flow=None):
   """
   Process the configuration for a specific architecture and extract relevant metrics.
 
@@ -355,6 +447,8 @@ def process_configuration(input, target, architecture, configuration, frequency,
       metrics_file (str): Path to the YAML file containing tool settings.
       use_benchmark (bool): Whether to use benchmark values for metric extraction.
       benchmark_file (str): Path to the benchmark YAML file.
+      tool (str | None): eda tool the job ran with, written to the record meta.
+      flow (str | None): flow of that tool the job ran with, written to the record meta.
 
   Returns:
       dict | None: The extracted result record, or None if the synthesis
@@ -379,6 +473,21 @@ def process_configuration(input, target, architecture, configuration, frequency,
   cur_path = os.path.join(input, arch_path)
   status_log = os.path.join(cur_path, "log", status_filename)
 
+  # A flow split into steps can stop early (e.g. implemented but no bitstream):
+  # record how far this job went, so partial results stay distinguishable.
+  step = job_steps.last_completed_step(cur_path)
+
+  if not flow:
+    # A full re-export does not know which flow ran: read it back from the
+    # "flow.txt" the runner wrote in the job directory.
+    flow_file = os.path.join(cur_path, hard_settings.flow_filename)
+    if os.path.isfile(flow_file):
+      try:
+        with open(flow_file, "r") as f:
+          flow = f.read().strip() or None
+      except OSError:
+        flow = None
+
   # Check if synthesis completed
   if not os.path.isfile(status_log):
     corrupted_directory(arch_path)
@@ -399,6 +508,12 @@ def process_configuration(input, target, architecture, configuration, frequency,
     results_schema.META_ARCHITECTURE: str(architecture),
     results_schema.META_CONFIGURATION: str(configuration),
   }
+  if tool:
+    meta[results_schema.META_TOOL] = str(tool)
+  if flow:
+    meta[results_schema.META_FLOW] = str(flow)
+  if step:
+    meta[results_schema.META_STEP] = str(step)
   if frequency is not None:
     frequency_value = results_schema.parse_frequency_label(frequency)
     meta[results_schema.META_FREQUENCY] = frequency_value if frequency_value is not None else str(frequency)
@@ -476,7 +591,9 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
         type_dir = os.path.join(input_path, work_path)
         if os.path.isdir(type_dir):
           tools += [item for item in os.listdir(type_dir) if os.path.isdir(os.path.join(input, result_type, item))]
-      tools = list(set(tools))
+      # A work directory is named "<tool>" or "<tool>@<flow>": every flow of a
+      # tool is exported into that tool's single results file.
+      tools = list(set(eda_tools.split_tool_work_dirname(item)[0] for item in tools))
 
   for tool in tools:
     _reset_banned_lists()
@@ -484,74 +601,51 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
     records = []
     units = {}
 
-    # Get tool setting file
-    tool_dir = eda_tools.get_tool_dir(tool)
-    if tool_dir is None:
+    if eda_tools.get_tool_dir(tool) is None:
       printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
       if len(tools) == 1:
         sys.exit(-1)
       else:
         continue
-    tool_settings_file = os.path.join(tool_dir, tool_settings_filename)
-    tool_settings = validate_tool_settings(tool_settings_file)
-    if tool_settings is None:
+
+    metrics_file = resolve_metrics_file(tool, custom_metrics_file=custom_metrics_file)
+    if metrics_file is None:
       if len(tools) == 1:
         sys.exit(-1)
       else:
         continue
-
-    # Get the default_metrics_file from the tool settings file
-    if custom_metrics_file is None:
-      metrics_file, defined = get_from_dict("default_metrics_file", tool_settings, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
-      if not defined:
-        continue
-    else:
-      metrics_file = custom_metrics_file
-
-    # Define user accessible variables
-    variables = Variables(
-      odatix_path=OdatixSettings.odatix_path,
-      odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
-      tool_path=tool_dir,
-    )
-
-    # Replace variables in command
-    metrics_file = replace_variables(metrics_file, variables)
-
-    if not os.path.isfile(metrics_file):
-      printc.error('Metrics definition file "' + os.path.realpath(metrics_file) + '" does not exist', script_name)
+    metrics_data = load_metrics_file(metrics_file)
+    if metrics_data is None:
       continue
-    with open(metrics_file, "r") as file:
-      try:
-        metrics_data = yaml.safe_load(file)
-      except yaml.YAMLError as e:
-        printc.error("Error in metrics definition file: " + str(e), script_name)
-        continue
 
     for result_type in result_types:
       result_key = result_types[result_type]["key"]
       work_path = result_types[result_type]["path"]
       printc.cyan("Export " + tool + " " + result_key + " results", script_name)
 
-      input = os.path.join(input_path, work_path, tool)
+      # A tool can have run through several flows, each in its own work
+      # directory ("vivado", "vivado@power_opt", ...). They all land in the same
+      # results file, told apart by the "flow" meta key.
+      for work_dirname, flow in tool_work_dirs(os.path.join(input_path, work_path), tool):
+        input = os.path.join(input_path, work_path, work_dirname)
 
-      try:
-        dirs = sorted(next(os.walk(input))[1])
-      except StopIteration:
-        continue
+        try:
+          dirs = sorted(next(os.walk(input))[1])
+        except StopIteration:
+          continue
 
-      for target in dirs:
-        for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
-          for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
-            if result_type == "custom_freq_synthesis":
-              for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
-                record = process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file)
+        for target in dirs:
+          for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
+            for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
+              if result_type == "custom_freq_synthesis":
+                for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
+                  record = process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=tool, flow=flow)
+                  if record is not None:
+                    records.append(record)
+              else:
+                record = process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=tool, flow=flow)
                 if record is not None:
                   records.append(record)
-            else:
-              record = process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file)
-              if record is not None:
-                records.append(record)
 
     # Export to the desired format
     output_file = os.path.join(output, "results_" + tool + ".yml")
@@ -611,43 +705,13 @@ def export_analysis(input_work_path, output, analysis_work_path, tools="all"):
     export_analysis_results(summary, output, tool)
 
 
-def _load_metrics_for_tool(tool, custom_metrics_file=None):
-  tool_dir = eda_tools.get_tool_dir(tool)
-  if tool_dir is None:
+def _load_metrics_for_tool(tool, custom_metrics_file=None, flow=None):
+  metrics_file = resolve_metrics_file(tool, custom_metrics_file=custom_metrics_file, flow=flow)
+  if metrics_file is None:
     return None, None
-  tool_settings_file = os.path.join(tool_dir, tool_settings_filename)
-  tool_settings = validate_tool_settings(tool_settings_file)
-  if tool_settings is None:
-    return None, None
-
-  if custom_metrics_file is None:
-    metrics_file, defined = get_from_dict("default_metrics_file", tool_settings, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
-    if not defined:
-      return None, None
-  else:
-    metrics_file = custom_metrics_file
-
-  variables = Variables(
-    odatix_path=OdatixSettings.odatix_path,
-    odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
-    tool_path=tool_dir,
-  )
-  metrics_file = replace_variables(metrics_file, variables)
-
-  if not os.path.isfile(metrics_file):
-    printc.error('Metrics definition file "' + os.path.realpath(metrics_file) + '" does not exist', script_name)
-    return None, None
-
-  with open(metrics_file, "r") as file:
-    try:
-      metrics_data = yaml.safe_load(file)
-    except yaml.YAMLError as e:
-      printc.error("Error in metrics definition file: " + str(e), script_name)
-      return None, None
-
+  metrics_data = load_metrics_file(metrics_file)
   if metrics_data is None:
-    metrics_data = {}
-
+    return None, None
   return metrics_data, metrics_file
 
 
@@ -663,6 +727,7 @@ def configure_synthesis_job_exports(
   work_path,
   tool,
   output_dir,
+  flow=None,
   use_benchmark=False,
   benchmark_file=None,
   custom_metrics_file=None,
@@ -674,7 +739,14 @@ def configure_synthesis_job_exports(
     printc.error('Unsupported synthesis result type "' + str(result_type) + '" for per-job export', script_name)
     return 0
 
-  input_tool_path = os.path.realpath(os.path.join(str(work_path), str(tool)))
+  # Resolve the flow the same way the runner does, so the exported records carry
+  # the flow that actually ran even when none was explicitly requested.
+  if flow in (None, ""):
+    flow = eda_tools.get_default_flow(tool, job_type=result_type)
+
+  input_tool_path = os.path.realpath(
+    os.path.join(str(work_path), eda_tools.tool_work_dirname(tool, flow, job_type=result_type))
+  )
   output_dir = os.path.realpath(str(output_dir))
 
   configured = 0
@@ -707,6 +779,7 @@ def configure_synthesis_job_exports(
       "kind": "synthesis",
       "result_type": result_type,
       "tool": str(tool),
+      "flow": str(flow) if flow else None,
       "input_tool_path": input_tool_path,
       "output_dir": output_dir,
       "target": str(target),
@@ -734,6 +807,7 @@ def export_single_job_result(job, export_config=None):
     return False
 
   tool = str(config.get("tool", ""))
+  flow = config.get("flow", None)
   input_tool_path = str(config.get("input_tool_path", ""))
   output_dir = str(config.get("output_dir", ""))
   target = str(config.get("target", ""))
@@ -764,6 +838,7 @@ def export_single_job_result(job, export_config=None):
   metrics_data, metrics_file = _load_metrics_for_tool(
     tool=tool,
     custom_metrics_file=config.get("custom_metrics_file", None),
+    flow=flow,
   )
   if metrics_data is None:
     return False
@@ -787,6 +862,8 @@ def export_single_job_result(job, export_config=None):
     metrics_file=metrics_file,
     use_benchmark=use_benchmark,
     benchmark_file=benchmark_file,
+    tool=tool,
+    flow=flow,
   )
 
   if record is None:
