@@ -231,8 +231,15 @@ def build_prepare_synthesis_job(
         # What this directory has already done has to be read *before* it is
         # refreshed, and a resuming job must keep what the completed steps
         # produced: their checkpoints, reports and the step state itself. Only a
-        # job starting from scratch wipes its directory.
-        resume_index = job_steps.start_index(arch_instance.tmp_dir, steps, rerun_index) if steps else 0
+        # job starting from scratch wipes its directory. An overwrite always
+        # counts as starting from scratch, even if leftover step state would
+        # otherwise look resumable.
+        # An overwrite always restarts from scratch: neither the leftover step
+        # state nor the directory content is carried over.
+        if arch_handler.overwrite:
+            resume_index = 0
+        else:
+            resume_index = job_steps.start_index(arch_instance.tmp_dir, steps, rerun_index) if steps else 0
         resuming = resume_index > 0
 
         if resuming:
