@@ -44,10 +44,12 @@ nav_groups = [
     ("Configure", "", [
         ("Workflows", "/workflows"),
         ("RTL Architectures", "/architectures"),
+        ("RTL Simulations", "/architectures#simulations"),
         ("EDA Tools", "/tools"),
     ]),
     ("Run", "/choose_job_type", [
         ("Workflows", "/run_jobs?type=workflow"),
+        ("Simulations", "/run_jobs?type=simulation"),
         ("RTL Analysis", "/run_jobs?type=analyze"),
         ("Fmax Synthesis", "/choose_eda_tool?type=fmax_synthesis"),
         ("Custom Synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),

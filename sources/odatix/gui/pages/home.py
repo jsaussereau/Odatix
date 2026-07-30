@@ -56,7 +56,7 @@ home_cards = [
         "name": "RTL Architectures",
         "link": "/architectures",
         "icon": "architecture",
-        "description": "Configure your RTL architectures",
+        "description": "Configure your RTL architectures and simulations",
     },
     {
         "name": "EDA Tools",

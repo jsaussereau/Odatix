@@ -334,6 +334,7 @@ layout = html.Div(
                 # they are always tied to the architectures above (a simulation
                 # has no configuration, it runs on theirs).
                 html.Div(
+                    id="simulations",
                     children=[
                         html.H2("Simulations", className="page-header-title", style={"fontSize": "1.6em"}),
                         html.P(
@@ -342,7 +343,9 @@ layout = html.Div(
                         ),
                     ],
                     className="page-header",
-                    style={"marginTop": "24px"},
+                    # scroll-margin-top keeps the sticky navbar from covering the
+                    # heading when the "RTL Simulations" nav link scrolls here.
+                    style={"marginTop": "24px", "scrollMarginTop": f"calc({navigation.top_bar_height} + 16px)"},
                 ),
                 html.Div(id="sim-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],
@@ -394,6 +397,7 @@ layout = html.Div(
             ]
         ),
         dcc.Store(id={"type": "update_url", "id": page_path}),
+        dcc.Store(id="scroll-to-hash-dummy"),
     ],
     className="page-content",
     style={
@@ -402,4 +406,49 @@ layout = html.Div(
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
+)
+
+
+# The "RTL Simulations" nav link points here with a "#simulations" fragment,
+# but dcc.Link navigates client-side and never lets the browser do its native
+# anchor scroll, so the target has to be scrolled into view by hand.
+#
+# The scroll cannot happen as soon as the url changes: arriving from another
+# page, the page content and then the cards themselves are rendered by
+# callbacks, so at that point the target either does not exist yet or sits at an
+# offset that the cards are about to push down. Both the target and the cards
+# above it are therefore waited for before scrolling.
+dash.clientside_callback(
+    """
+    function(href) {
+        if (!href || href.indexOf("#simulations") === -1) {
+            return "";
+        }
+        // A navigation supersedes the wait started by the previous one.
+        const token = (window.__odatixScrollToken || 0) + 1;
+        window.__odatixScrollToken = token;
+
+        let frames = 0;
+        const maxFrames = 90;  // ~1.5 s, then scroll to wherever it is
+        const attempt = function() {
+            if (window.__odatixScrollToken !== token) {
+                return;
+            }
+            const target = document.getElementById("simulations");
+            const archCards = document.getElementById("arch-cards-matrix");
+            const rendered = target && archCards && archCards.childElementCount > 0;
+            if (target && (rendered || frames >= maxFrames)) {
+                target.scrollIntoView({behavior: "smooth", block: "start"});
+                return;
+            }
+            if (frames++ < maxFrames) {
+                window.requestAnimationFrame(attempt);
+            }
+        };
+        window.requestAnimationFrame(attempt);
+        return "";
+    }
+    """,
+    Output("scroll-to-hash-dummy", "data"),
+    Input("url", "href"),
 )
