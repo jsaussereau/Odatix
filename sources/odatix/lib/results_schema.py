@@ -32,7 +32,7 @@ Format v2 (current):
     Fmax: MHz
   results:          # flat list of records
     - meta:
-        type: fmax_synthesis          # fmax_synthesis | custom_freq_synthesis | workflow | ...
+        type: fmax_synthesis          # fmax_synthesis | custom_freq_synthesis | workflow | simulation | ...
         tool: vivado                  # eda tool the job ran with
         flow: standard                # flow of that tool the job ran with
         step: pnr                     # last step of that flow the job reached
@@ -74,6 +74,7 @@ META_ARCHITECTURE = "architecture"
 META_CONFIGURATION = "configuration"
 META_FREQUENCY = "frequency"
 META_WORKFLOW = "workflow"
+META_SIMULATION = "simulation"
 META_TIMESTAMP = "timestamp"
 
 RESERVED_META_KEYS = (
@@ -86,12 +87,14 @@ RESERVED_META_KEYS = (
   META_CONFIGURATION,
   META_FREQUENCY,
   META_WORKFLOW,
+  META_SIMULATION,
   META_TIMESTAMP,
 )
 
 TYPE_FMAX = "fmax_synthesis"
 TYPE_CUSTOM_FREQ = "custom_freq_synthesis"
 TYPE_WORKFLOW = "workflow"
+TYPE_SIMULATION = "simulation"
 
 FORMAT_V2 = "v2"
 FORMAT_V1_SYNTH = "v1_synth"
@@ -383,6 +386,44 @@ def make_workflow_record(workflow, workflow_full, fallback_configuration, run_di
     meta["_workflow_definition_dir"] = str(workflow_definition_dir)
   if isinstance(workflow_full, str) and workflow_full != "":
     meta["_workflow_full"] = workflow_full
+  return make_record(meta, metrics)
+
+
+def make_simulation_record(
+  simulation,
+  architecture,
+  configuration,
+  arch_full,
+  run_dir,
+  simulation_definition_dir,
+  metrics,
+  timestamp=None,
+):
+  """
+  Build a v2 simulation record.
+
+  A simulation run is identified by the simulation that ran it and by the
+  architecture configuration it ran on, so it carries both the "simulation"
+  dimension and the usual architecture/configuration ones. The "+domain/value"
+  segments of arch_full are flattened into meta, exactly like synthesis and
+  workflow records.
+  """
+  meta = {
+    META_TYPE: TYPE_SIMULATION,
+    META_SIMULATION: str(simulation),
+    META_ARCHITECTURE: str(architecture),
+    META_CONFIGURATION: str(configuration),
+  }
+  if timestamp is not None:
+    meta[META_TIMESTAMP] = timestamp
+  for domain, value in parse_domain_segments(arch_full).items():
+    meta.setdefault(domain, value)
+  if run_dir is not None:
+    meta["_run_dir"] = str(run_dir)
+  if simulation_definition_dir is not None:
+    meta["_simulation_definition_dir"] = str(simulation_definition_dir)
+  if isinstance(arch_full, str) and arch_full != "":
+    meta["_arch_full"] = arch_full
   return make_record(meta, metrics)
 
 

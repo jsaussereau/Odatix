@@ -627,6 +627,9 @@ class ParallelJobHandler:
             elif export_kind == "workflow":
                 from odatix.components.export_workflow_results import export_single_workflow_job
                 export_fn = export_single_workflow_job
+            elif export_kind == "simulation":
+                from odatix.components.export_simulation_results import export_single_simulation_job
+                export_fn = export_single_simulation_job
             elif export_kind == "analysis":
                 from odatix.components.export_analysis import export_single_analysis_job
                 export_fn = export_single_analysis_job

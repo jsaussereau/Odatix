@@ -40,6 +40,7 @@ COL_ARCHITECTURE = "Architecture"
 COL_CONFIGURATION = "Configuration"
 COL_FREQUENCY = "Frequency"
 COL_WORKFLOW = "Workflow"
+COL_SIMULATION = "Simulation"
 COL_TIMESTAMP = "Timestamp"
 
 RESERVED_META_COLUMNS = {
@@ -49,17 +50,19 @@ RESERVED_META_COLUMNS = {
   results_schema.META_CONFIGURATION: COL_CONFIGURATION,
   results_schema.META_FREQUENCY: COL_FREQUENCY,
   results_schema.META_WORKFLOW: COL_WORKFLOW,
+  results_schema.META_SIMULATION: COL_SIMULATION,
   results_schema.META_TIMESTAMP: COL_TIMESTAMP,
 }
 
 # Preferred display order for the reserved dimension columns
-RESERVED_DIMENSION_ORDER = [COL_SOURCE, COL_TYPE, COL_TARGET, COL_FREQUENCY, COL_ARCHITECTURE, COL_WORKFLOW, COL_CONFIGURATION]
+RESERVED_DIMENSION_ORDER = [COL_SOURCE, COL_TYPE, COL_TARGET, COL_FREQUENCY, COL_ARCHITECTURE, COL_WORKFLOW, COL_SIMULATION, COL_CONFIGURATION]
 
 # Result type display names ("type" meta values)
 TYPE_DISPLAY_NAMES = {
   results_schema.TYPE_FMAX: "Fmax",
   results_schema.TYPE_CUSTOM_FREQ: "Custom Freq",
   results_schema.TYPE_WORKFLOW: "Workflow",
+  results_schema.TYPE_SIMULATION: "Simulation",
 }
 
 # Result types that are NOT chartable and must be excluded from the generic

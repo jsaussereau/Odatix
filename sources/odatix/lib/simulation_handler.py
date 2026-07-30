@@ -32,14 +32,36 @@ from odatix.lib.architecture_handler import ArchitectureHandler
 from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.utils import *
 from odatix.lib.param_domain import ParamDomain
+import odatix.lib.hard_settings as hard_settings
 
 script_name = os.path.basename(__file__)
 
 class Simulation:
-  def __init__(self, sim_name, sim_display_name, architecture, tmp_dir, source_sim_dir, override_parameters, override_param_target_filename, override_param_filename, override_start_delimiter, override_stop_delimiter, simulation_command):
+  def __init__(
+    self,
+    sim_name,
+    sim_display_name,
+    architecture,
+    arch_full,
+    arch_param_dir,
+    arch_config,
+    tmp_dir,
+    source_sim_dir,
+    override_parameters,
+    override_param_target_filename,
+    override_param_filename,
+    override_start_delimiter,
+    override_stop_delimiter,
+    tasks=None,
+    progress_file=None,
+    progress_regex=None,
+  ):
     self.sim_name = sim_name
     self.sim_display_name = sim_display_name
     self.architecture = architecture
+    self.arch_full = arch_full
+    self.arch_param_dir = arch_param_dir
+    self.arch_config = arch_config
     self.tmp_dir = tmp_dir
     self.source_sim_dir = source_sim_dir
     self.override_parameters = override_parameters
@@ -47,8 +69,13 @@ class Simulation:
     self.override_param_filename = override_param_filename
     self.override_start_delimiter = override_start_delimiter
     self.override_stop_delimiter = override_stop_delimiter
-    self.simulation_command = simulation_command
-    
+    # Tasks are the workflow-style execution graph of the simulation. When the
+    # settings file defines none, run_simulations falls back to the historical
+    # single "make sim" rule (see default_simulation_task there).
+    self.tasks = tasks if isinstance(tasks, list) else []
+    self.progress_file = progress_file
+    self.progress_regex = progress_regex
+
 
 class SimulationHandler:
 
@@ -131,7 +158,6 @@ class SimulationHandler:
               # Handle wildcard
               architectures = []
               for arch in arch_list:
-                print(f"arch: {arch}")
                 arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, "", False)
                 if arch.endswith("/*"):
                   # get param dir (arch name before '/*')
@@ -189,26 +215,17 @@ class SimulationHandler:
   
   def get_simulation(self, sim, arch_full, arch_handler, keep=False, timestamp=""):
     
-    arch, arch_param, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch_full)
+    arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch_full)
 
     arch_config_dir_work = arch_config_dir_work + "_" + timestamp if keep and timestamp != "" else arch_config_dir_work
 
     tmp_dir = os.path.join(self.work_path, sim, arch_param_dir_work, arch_config_dir_work) 
 
     sim_name = sim
-    sim_display_name = sim + ": " + arch_display_name 
-    simulation_command = None
+    sim_display_name = sim + ": " + arch_display_name
 
     # check if sim has been banned
     if sim in self.banned_sim_param:
-      self.plan.add(sim_display_name, Category.ERROR)
-      return None
-
-    # check if sim dir exists
-    source_sim_dir = self.sim_path + '/' + sim
-    if not isdir(source_sim_dir):
-      printc.error("There is no directory \"" + sim + "\" in directory \"" + self.sim_path + "\"", script_name)
-      self.banned_sim_param.append(sim)
       self.plan.add(sim_display_name, Category.ERROR)
       return None
 
@@ -226,20 +243,17 @@ class SimulationHandler:
       self.plan.add(sim_display_name, Category.ERROR)
       return None
 
-    # check if makefile exists
-    makefile_filename = source_sim_dir + '/' + self.sim_makefile_filename
-    if not isfile(makefile_filename):
-      printc.error("There is no setting \"Makefile\" in directory \"" + source_sim_dir + "\"", script_name)
-      printc.note("A Makefile with a rule \"sim\" is mandatory", script_name)
-      self.banned_sim_param.append(sim)
-      self.plan.add(sim_display_name, Category.ERROR)
-      return None
-
     override_parameters = False
     override_param_target_filename = ""
     override_param_file = ""
     override_start_delimiter = ""
     override_stop_delimiter = ""
+
+    # Workflow-style execution graph. Empty means "use the legacy 'make sim'
+    # rule", which is what every simulation defined before tasks existed does.
+    tasks = []
+    progress_file = hard_settings.sim_progress_filename
+    progress_regex = hard_settings.sim_status_pattern.pattern
 
     # check if settings file exists
     if sim not in self.no_settings_sims:
@@ -258,6 +272,27 @@ class SimulationHandler:
             self.banned_sim_param.append(sim)
             self.plan.add(sim_display_name, Category.ERROR)
             return None # if an identifier is missing
+
+          # get tasks (optional: without them the legacy "make sim" rule is used)
+          try:
+            tasks = read_from_list('tasks', settings_data, settings_filename, type=list, optional=True, raise_if_missing=False, print_error=False)
+          except (KeyNotInListError, BadValueInListError):
+            tasks = []
+          if tasks in (False, None):
+            tasks = []
+
+          # get progress tracking settings (optional)
+          try:
+            progress = read_from_list('progress', settings_data, settings_filename, type=dict, optional=True, raise_if_missing=False, print_error=False)
+          except (KeyNotInListError, BadValueInListError):
+            progress = None
+          if progress not in (False, None):
+            progress_file_setting = read_from_list('file', progress, settings_filename, parent='progress', optional=True, raise_if_missing=False, print_error=False)
+            progress_regex_setting = read_from_list('regex', progress, settings_filename, parent='progress', optional=True, raise_if_missing=False, print_error=False)
+            if progress_file_setting not in (False, None):
+              progress_file = progress_file_setting
+            if progress_regex_setting not in (False, None):
+              progress_regex = progress_regex_setting
 
           # get use_parameters, start_delimiter and stop_delimiter
           use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, None, add_to_error_list=False)
@@ -289,13 +324,13 @@ class SimulationHandler:
               # overwrite architecture settings
               architecture.param_target_filename = param_target_filename
 
-          # get override_parameters
+          # get override_parameters (optional, defaults to no override)
           try:
-            override_parameters = read_from_list('override_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
+            override_parameters = read_from_list('override_parameters', settings_data, settings_filename, type=bool, optional=True, raise_if_missing=False, print_error=False)
           except (KeyNotInListError, BadValueInListError):
-            self.banned_sim_param.append(sim)
-            self.plan.add(sim_display_name, Category.ERROR)
-            return None
+            override_parameters = False
+          if override_parameters is False or override_parameters is None:
+            override_parameters = False
 
           if override_parameters:
             # get override_param_target_file
@@ -350,7 +385,18 @@ class SimulationHandler:
               return None
           else:
             override_param_target_filename = "/dev/null"
-      
+
+    # Without tasks, the simulation is run through its Makefile's "sim" rule:
+    # that Makefile is then mandatory. Task-based simulations do not need one.
+    if len(tasks) == 0:
+      makefile_filename = source_sim_dir + '/' + self.sim_makefile_filename
+      if not isfile(makefile_filename):
+        printc.error("There is no file \"" + self.sim_makefile_filename + "\" in directory \"" + source_sim_dir + "\"", script_name)
+        printc.note("A Makefile with a rule \"sim\" is mandatory, unless the simulation defines \"tasks\" in \"" + self.sim_settings_filename + "\"", script_name)
+        self.banned_sim_param.append(sim)
+        self.plan.add(sim_display_name, Category.ERROR)
+        return None
+
     # check if the architecture is in cache and has a status file
     if isdir(tmp_dir):
       if self.overwrite:
@@ -361,7 +407,7 @@ class SimulationHandler:
         self.plan.add(sim_display_name, Category.CACHED)
         return None
     else:
-      self.plan.add(sim_display_name, Category.NEW)
+      self.plan.add(sim_display_name, Category.NEW, tasks=max(len(tasks), 1))
 
     # passed all check: added to the list
     self.valid_sims.append(sim_display_name)
@@ -370,6 +416,9 @@ class SimulationHandler:
       sim_name = sim_name,
       sim_display_name = sim_display_name,
       architecture = architecture,
+      arch_full = arch_full,
+      arch_param_dir = arch_param_dir,
+      arch_config = arch_config,
       tmp_dir = tmp_dir,
       source_sim_dir = source_sim_dir,
       override_parameters = override_parameters,
@@ -377,7 +426,9 @@ class SimulationHandler:
       override_param_filename = override_param_file,
       override_start_delimiter = override_start_delimiter,
       override_stop_delimiter = override_stop_delimiter,
-      simulation_command = simulation_command
+      tasks = tasks,
+      progress_file = progress_file,
+      progress_regex = progress_regex,
     )
 
     return sim_instance
