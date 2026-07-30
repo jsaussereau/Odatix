@@ -347,18 +347,21 @@ TOOL_METRIC_SECTIONS = [
     ("metrics", "Common metrics"),
 ]
 
-# Keys a workspace tool.yml may hold while still being only an overlay on a
-# built-in tool of the same name: flows added to it, and which one is default.
-# Anything else means the workspace owns the whole definition.
-TOOL_OVERLAY_KEYS = {"flows", "default_flow"}
+# Settings of a built-in tool.yml the workspace may override, i.e. everything
+# but its flows: the built-in flows and their commands (declared in the top level
+# "unix"/"windows" sections, and pointed at by "default_flow") belong to Odatix.
+TOOL_OVERRIDABLE_KEYS = (
+    "label", "description", "icon", "process_group",
+    "report_path", "target_file", "default_metrics_file",
+)
 
 def get_tools(path: str) -> list:
     """
     Get the list of workspace tools (directories containing a tool.yml).
 
     Overlays on built-in tools (see is_builtin_overlay) are left out: they are
-    not tools of their own, they are flows added to a built-in tool, and are
-    listed with it.
+    not tools of their own, they are what the workspace adds to a built-in tool,
+    and are listed with it.
     """
     if not path or not os.path.isdir(path):
         return []
@@ -385,19 +388,16 @@ def builtin_tool_exists(name) -> bool:
 
 def is_builtin_overlay(tools_path, name) -> bool:
     """
-    True when the workspace tool.yml of `name` only adds flows to the built-in
-    tool of the same name, rather than defining a tool of its own. Such a file
-    is what "add a flow to a built-in tool" writes: odatix merges it over the
-    built-in definition (see odatix.lib.eda_tools.load_tool_settings).
+    True when `name` is a built-in tool: whatever the workspace holds for it is
+    an overlay on the built-in definition, never a tool of its own. Odatix owns
+    the built-in flows and their commands; the workspace can add flows of its own
+    and override the rest of the settings (see save_tool_overlay). Odatix merges
+    the two at run time (see odatix.lib.eda_tools.load_tool_settings).
+
+    `tools_path` is unused: a built-in tool stays a built-in tool whatever the
+    workspace says about it. It is kept so callers read as the other helpers do.
     """
-    if not builtin_tool_exists(name):
-        return False
-    if not tool_exists(tools_path, name):
-        # Nothing written yet: the tool is still a plain built-in, and anything
-        # the editor saves for it will be an overlay.
-        return True
-    data = load_tool_settings(tools_path, name)
-    return all(key in TOOL_OVERLAY_KEYS for key in data)
+    return builtin_tool_exists(name)
 
 def load_builtin_tool_settings(name) -> dict:
     """
@@ -413,16 +413,28 @@ def load_builtin_tool_settings(name) -> dict:
 def load_overlaid_tool_settings(tools_path, name) -> dict:
     """
     Load a built-in tool.yml with the workspace overlay applied on top, the way
-    odatix resolves it at run time.
+    odatix resolves it at run time: what the overlay says about the built-in
+    flows is dropped, so the editor shows what actually runs.
     """
     import odatix.lib.eda_tools as eda_tools
 
-    return eda_tools._deep_merge(load_builtin_tool_settings(name), load_tool_settings(tools_path, name))
+    builtin = load_builtin_tool_settings(name)
+    overlay = eda_tools.strip_builtin_overrides(
+        builtin, load_tool_settings(tools_path, name), tool=name, source=get_tool_settings_path(tools_path, name)
+    )
+    return eda_tools._deep_merge(builtin, overlay)
 
-def save_tool_flow_overlay(tools_path, name, flows) -> None:
+def save_tool_overlay(tools_path, name, overrides, flows) -> None:
     """
-    Write the workspace overlay of a built-in tool: only the flows it adds (and
-    nothing of the built-in definition, which stays owned by Odatix).
+    Write the workspace overlay of a built-in tool: the flows it adds, and the
+    settings it overrides. Nothing of the built-in flows is written: their
+    commands stay owned by Odatix.
+
+    `overrides` holds only what actually differs from the built-in definition
+    (TOOL_OVERRIDABLE_KEYS and "format"), so a setting reset back to what Odatix
+    says simply disappears from the file instead of being frozen into it. Values
+    are written as given, empty lists included: an empty marker list is how the
+    overlay says a built-in one is cleared.
     """
     tool_dir = os.path.join(tools_path, name)
     path = os.path.join(tool_dir, TOOL_SETTINGS_FILENAME)
@@ -431,9 +443,59 @@ def save_tool_flow_overlay(tools_path, name, flows) -> None:
         flow for flow in flows or []
         if isinstance(flow, dict) and str(flow.get("name", "")).strip() != ""
     ]
-    if not named_flows:
-        # Nothing left to add: drop the overlay rather than leave an empty one
-        # behind, so the tool goes back to being a plain built-in.
+    overrides = overrides if isinstance(overrides, dict) else {}
+
+    data = CommentedMap()
+
+    for key in TOOL_OVERRIDABLE_KEYS:
+        if key not in overrides:
+            continue
+        value = overrides.get(key)
+        data[key] = bool(value) if key == "process_group" else ("" if value is None else str(value))
+
+    fmt = overrides.get("format") if isinstance(overrides.get("format"), dict) else {}
+    fmt_map = CommentedMap()
+    for section_key in ("logs", "tags"):
+        section = fmt.get(section_key)
+        if isinstance(section, dict) and len(section) > 0:
+            section_map = CommentedMap()
+            for entry_key, markers in section.items():
+                section_map[str(entry_key)] = _as_flow_seq(_as_command_list(markers))
+            fmt_map[section_key] = section_map
+    if "replace" in fmt:
+        replace_seq = CommentedSeq()
+        for entry in fmt.get("replace") or []:
+            if not isinstance(entry, dict):
+                continue
+            item = CommentedMap()
+            for pattern, repl in entry.items():
+                if str(pattern).strip() != "":
+                    item[str(pattern)] = "" if repl is None else str(repl)
+            if len(item) > 0:
+                replace_seq.append(item)
+        fmt_map["replace"] = replace_seq
+    if len(fmt_map) > 0:
+        data["format"] = fmt_map
+
+    if named_flows:
+        flows_map = CommentedMap()
+        for flow in named_flows:
+            flow_name = str(flow.get("name", "")).strip()
+            entry = CommentedMap()
+            for key in ("label", "description", "icon", "metrics_file"):
+                value = flow.get(key)
+                if value is not None and str(value).strip() != "":
+                    entry[key] = str(value)
+            for platform_key in TOOL_PLATFORM_KEYS:
+                section = _emit_platform_section(flow.get("platforms", {}).get(platform_key, {}))
+                if len(section) > 0:
+                    entry[platform_key] = section
+            flows_map[flow_name] = entry
+        data["flows"] = flows_map
+
+    if len(data) == 0:
+        # Nothing left of its own: drop the overlay rather than leave an empty
+        # one behind, so the tool goes back to being a plain built-in.
         if os.path.isfile(path):
             os.remove(path)
         if os.path.isdir(tool_dir) and not os.listdir(tool_dir):
@@ -442,34 +504,19 @@ def save_tool_flow_overlay(tools_path, name, flows) -> None:
 
     os.makedirs(tool_dir, exist_ok=True)
 
-    data = CommentedMap()
     data.yaml_set_start_comment(
 f"""##############################################
-# Flows added to the built-in {name} tool
+# Your changes to the built-in {name} tool
 ##############################################
 
 # This file was generated by Odatix GUI {motd.read_version()} on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.
-# It only adds flows to the tool shipped with Odatix: everything else ({name}'s
-# commands, its log formatting, its metrics) still comes from the built-in
-# definition. You can still modify manually this file as needed.
+# It is merged over the {name} tool shipped with Odatix: it holds the flows you
+# added to it and the settings you overrode, everything else (the commands of
+# {name}'s own flows) still comes from the built-in definition. You can still
+# modify manually this file as needed.
 """
     )
 
-    flows_map = CommentedMap()
-    for flow in named_flows:
-        flow_name = str(flow.get("name", "")).strip()
-        entry = CommentedMap()
-        for key in ("label", "description", "icon", "metrics_file"):
-            value = flow.get(key)
-            if value is not None and str(value).strip() != "":
-                entry[key] = str(value)
-        for platform_key in TOOL_PLATFORM_KEYS:
-            section = _emit_platform_section(flow.get("platforms", {}).get(platform_key, {}))
-            if len(section) > 0:
-                entry[platform_key] = section
-        flows_map[flow_name] = entry
-
-    data["flows"] = flows_map
     save_yaml_file(path, data, yaml_obj=YAML())
 
 def tool_exists(path, name) -> bool:

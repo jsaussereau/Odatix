@@ -36,7 +36,10 @@ scanning these directories.
 
 A tool can be defined in both locations at once: the tool.yml files are then
 merged, the user one taking precedence key by key. This is what lets a user add
-a flow to a built-in tool without copying its whole definition.
+a flow to a built-in tool without copying its whole definition. The built-in
+flows themselves stay read-only: what a user tool.yml says about them is dropped
+(see strip_builtin_overrides), so a built-in tool always runs what Odatix says it
+runs. Duplicating the tool gives a tool of its own, with nothing read-only left.
 
 Two distinct notions must not be confused:
 
@@ -260,6 +263,91 @@ def _deep_merge(base, override):
   return merged
 
 
+# Keys of a tool.yml declaring the tool's default flow: the commands of the
+# platform sections, and the name the flow is known under.
+DEFAULT_FLOW_KEYS = ("unix", "windows")
+
+# Paths of the user tool.yml files already warned about, so a rejected override
+# is reported once per run rather than on every settings load.
+_reported_builtin_overrides = set()
+
+
+def get_builtin_tool_dir(tool):
+  """
+  Return the directory of the built-in tool of that name (the one shipped with
+  Odatix), or None when the tool is not a built-in one.
+  """
+  from odatix.lib.settings import OdatixSettings
+
+  candidate = os.path.join(OdatixSettings.odatix_eda_tools_path, tool)
+  if os.path.isfile(os.path.join(candidate, hard_settings.tool_settings_filename)):
+    return candidate
+  return None
+
+
+def strip_builtin_overrides(builtin, override, tool="", source=""):
+  """
+  Return the part of a user tool.yml (`override`) that may be applied on top of
+  a built-in one (`builtin`).
+
+  The built-in flows belong to Odatix: their commands are what makes a built-in
+  tool work, and a workspace silently redefining them would leave Odatix running
+  something else than what it reports (and than what the GUI shows, where those
+  flows are read-only). So a user tool.yml may add flows and override the rest of
+  the settings, but whatever it says about the built-in flows is dropped:
+
+    * the platform sections ("unix"/"windows"), which hold the commands of the
+      built-in default flow, and "default_flow", which names it;
+    * the entries of "flows" the built-in tool already declares.
+
+  Everything the built-in definition does not declare goes through untouched: a
+  flow of its own, a "format" section, a "label"... Dropped keys are reported
+  once per file, so a hand-written override does not fail silently.
+
+  `tool` and `source` are only used for that message.
+  """
+  import odatix.lib.printc as printc
+
+  if not isinstance(builtin, dict) or not builtin or not isinstance(override, dict):
+    return override if isinstance(override, dict) else {}
+
+  builtin_flows = builtin.get("flows") if isinstance(builtin.get("flows"), dict) else {}
+  # A built-in tool declaring commands has a default flow, whether or not it
+  # names it: renaming it is redefining it.
+  has_default_flow = any(key in builtin for key in DEFAULT_FLOW_KEYS)
+
+  kept = {}
+  rejected = []
+  for key, value in override.items():
+    if key in DEFAULT_FLOW_KEYS and key in builtin:
+      rejected.append('the "%s" commands of the built-in default flow' % key)
+      continue
+    if key == "default_flow" and has_default_flow:
+      rejected.append('"default_flow"')
+      continue
+    if key == "flows" and isinstance(value, dict):
+      added = {name: spec for name, spec in value.items() if str(name) not in builtin_flows}
+      rejected.extend('the built-in flow "%s"' % name for name in value if str(name) in builtin_flows)
+      if added:
+        kept[key] = added
+      continue
+    kept[key] = value
+
+  if rejected and source not in _reported_builtin_overrides:
+    _reported_builtin_overrides.add(source)
+    printc.warning(
+      "Ignoring what '%s' says about %s: the built-in flows of tool '%s' are read-only."
+      % (source, ", ".join(rejected), tool),
+      script_name=script_name,
+    )
+    printc.note(
+      "Duplicate the tool to start from what it does, or add a flow of your own instead.",
+      script_name=script_name,
+    )
+
+  return kept
+
+
 def load_tool_settings(tool):
   """
   Load the settings of a tool, merging the tool.yml files of every directory
@@ -267,11 +355,20 @@ def load_tool_settings(tool):
 
   Merging is done key by key, so a user tool.yml holding only a "flows" section
   adds its flows to the built-in tool without having to repeat the rest of its
-  definition.
+  definition. What a user tool.yml says about the built-in flows is dropped
+  first (see strip_builtin_overrides): those belong to Odatix.
   """
   settings = {}
+  builtin_dir = get_builtin_tool_dir(tool)
+  builtin = {}
   for tool_dir in get_tool_dirs(tool):
-    settings = _deep_merge(settings, _read_yaml(os.path.join(tool_dir, hard_settings.tool_settings_filename)))
+    path = os.path.join(tool_dir, hard_settings.tool_settings_filename)
+    data = _read_yaml(path)
+    if builtin_dir is not None and os.path.realpath(tool_dir) == os.path.realpath(builtin_dir):
+      builtin = data
+    else:
+      data = strip_builtin_overrides(builtin, data, tool=tool, source=path)
+    settings = _deep_merge(settings, data)
   return settings
 
 
