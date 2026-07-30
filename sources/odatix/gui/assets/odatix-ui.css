@@ -587,6 +587,16 @@
     font-weight: 600;
 }
 
+/* Read-only recap line, laid out like a checklist row but with nothing to
+   click (see the simulation preview in /run_jobs?type=simulation). */
+.odx-preview-item {
+    padding: 3px 8px;
+    border-radius: var(--theme-small-border-radius);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
 /* --- Item cards (configs, variables, tasks) ---------------------------- */
 .odx-cards {
     display: grid;

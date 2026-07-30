@@ -137,6 +137,45 @@
     }
 }
 
+/* --- Architectures nested in a simulation card ------------------------- */
+/* A simulation card holds one collapsible architecture card per architecture,
+   each with the same domains + preview layout every other job type uses. */
+.jobs-sim-archs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4) var(--space-4) var(--space-4);
+}
+.jobs-arch-card.nested {
+    background: var(--theme-element-background-color);
+    box-shadow: none;
+}
+.jobs-arch-card.nested > .jobs-arch-header {
+    padding: var(--space-2) var(--space-3);
+}
+.jobs-arch-card.nested .jobs-arch-name {
+    font-size: 14px;
+}
+.jobs-arch-card.nested .jobs-arch-headline .checklist-switch label {
+    width: 34px;
+    height: 19px;
+}
+.jobs-arch-card.nested .jobs-arch-headline .checklist-switch label::after {
+    top: 2px;
+}
+.jobs-arch-card.nested .jobs-arch-grid {
+    padding: var(--space-2) var(--space-3) var(--space-3) var(--space-3);
+}
+/* Only a nested card that is itself on gets the "selected" badge treatment. */
+.jobs-arch-card.nested:not(.enabled) .odx-badge {
+    background: none;
+    color: inherit;
+    opacity: 0.55;
+}
+.jobs-arch-card.nested:not(.enabled) .jobs-arch-name {
+    font-weight: 600;
+}
+
 /* --- Workflow variables ------------------------------------------------ */
 .jobs-var-line {
     font-size: 13px;

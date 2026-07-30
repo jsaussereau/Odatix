@@ -47,6 +47,7 @@ import odatix.components.run_common as run_common
 import odatix.components.run_fmax_synthesis as run_fmax_synthesis
 import odatix.components.run_range_synthesis as run_range_synthesis
 import odatix.components.run_workflow as run_workflow
+import odatix.components.run_simulations as run_simulations
 import odatix.components.run_analysis as run_analysis
 from odatix.lib.parallel_job_handler import daemon_control
 
@@ -69,6 +70,7 @@ RUN_MODE_LABELS = {
     "custom_freq_synthesis": "Custom frequency synthesis",
     "analyze": "RTL analysis",
     "workflow": "Workflow",
+    "simulation": "Simulation",
 }
 
 def _analysis_tools():
@@ -296,7 +298,11 @@ def _prepare_plan():
 
 
 def _plan_noun():
-    return "workflows" if _prepare_synth_type == "workflow" else "architectures"
+    if _prepare_synth_type == "workflow":
+        return "workflows"
+    if _prepare_synth_type == "simulation":
+        return "simulations"
+    return "architectures"
 
 
 def _summary_row(glyph, style, title, count, subtitle, items=None, content=None, body_class="", opened=False):
@@ -894,6 +900,41 @@ def _run_check_workflow_settings(
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
 
+def _run_check_simulation_settings(
+    run_config_settings_filename,
+    arch_path,
+    sim_path,
+    work_path,
+    overwrite_enabled,
+    noask,
+    exit_when_done_enabled,
+    log_size_val,
+    nb_jobs_val,
+):
+    global _prepare_status, _prepare_check_data
+    try:
+        with printc.collect(_prepare_messages.add), contextlib.redirect_stdout(_prepare_log_buffer):
+            _prepare_check_data = run_simulations.check_settings(
+                run_config_settings_filename=run_config_settings_filename,
+                arch_path=arch_path,
+                sim_path=sim_path,
+                work_path=work_path,
+                overwrite=overwrite_enabled,
+                noask=noask,
+                exit_when_done=exit_when_done_enabled,
+                log_size_limit=log_size_val,
+                nb_jobs=nb_jobs_val,
+                debug=False,
+                keep=False,
+            )
+        _prepare_status = {"status": "checked", "error": None}
+    except SystemExit:
+        # check_settings() calls sys.exit(-1) on invalid simulation settings
+        # instead of raising: turn that into a normal error status.
+        _prepare_status = {"status": "error", "error": "Invalid simulation settings. See log above for details."}
+    except Exception as exc:
+        _prepare_status = {"status": "error", "error": str(exc)}
+
 def _run_prepare_synthesis():
     global _prepare_status, _prepare_parallel_jobs
     try:
@@ -906,7 +947,28 @@ def _run_prepare_synthesis():
         if isinstance(_prepare_runtime_settings, dict):
             export_ctx = _prepare_runtime_settings.get("export") or {}
         with printc.collect(_prepare_messages.add), contextlib.redirect_stdout(_prepare_log_buffer):
-            if _prepare_synth_type == "workflow":
+            if _prepare_synth_type == "simulation":
+                (
+                    simulation_instances,
+                    prepare_job,
+                    job_list,
+                    exit_when_done,
+                    log_size_limit,
+                    nb_jobs,
+                    _plan,
+                ) = _prepare_check_data
+                _prepare_parallel_jobs = run_simulations.prepare_simulations(
+                    simulation_instances=simulation_instances,
+                    prepare_job=prepare_job,
+                    job_list=job_list,
+                    exit_when_done=exit_when_done,
+                    log_size_limit=log_size_limit,
+                    nb_jobs=nb_jobs,
+                    export_output_dir=export_ctx.get("output_dir"),
+                    export_work_root=export_ctx.get("work_root"),
+                    export_sim_path=export_ctx.get("sim_path"),
+                )
+            elif _prepare_synth_type == "workflow":
                 (
                     workflow_instances,
                     prepare_job,
@@ -1074,6 +1136,8 @@ def _collect_run_settings(
     lower_bound,
     upper_bound,
     analysis_tools,
+    sim_selection_values=None,
+    sim_selection_ids=None,
 ) -> dict:
     """
     Build the settings dict that reflects the current, possibly unsaved, state of
@@ -1081,6 +1145,20 @@ def _collect_run_settings(
     mode-specific frequency/tool fields. Shared by the "Save" callback and the
     "Run" callback (which writes it to a temporary file to run without saving).
     """
+    if run_mode == "simulation":
+        # Simulations hold a mapping, not a flat list (see
+        # _collect_simulation_selection), so they short-circuit the shared
+        # architecture/preview flattening below.
+        return {
+            selection_key: _collect_simulation_selection(
+                switch_values, switch_ids, sim_selection_values, sim_selection_ids
+            ),
+            **_job_settings_current(
+                overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done,
+                auto_nb_jobs=auto_nb_jobs,
+            ),
+        }
+
     preview_by_arch = {}
     for val, pid in zip(preview_values or [], preview_ids or []):
         arch = pid.get("arch") if isinstance(pid, dict) else None
@@ -1175,6 +1253,11 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
             "analysis_settings_file",
             OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE,
         )
+    if run_mode == "simulation":
+        return odatix_settings.get(
+            "simulation_settings_file",
+            OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
+        )
     if run_mode == "workflow":
         # Without this, the Job Settings form of a workflow run would be filled
         # from the fmax synthesis settings file while the selection is saved to
@@ -1207,6 +1290,24 @@ def _run_context(search, odatix_settings) -> dict:
     """
     settings = odatix_settings or {}
     run_mode = get_key_from_url(search, "type")
+    if run_mode == "simulation":
+        base_path = settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+        return {
+            "mode": "simulation",
+            "base_path": base_path,
+            # Simulations run *on* architectures, so a simulation section needs
+            # the architecture directory too (unlike every other job type, where
+            # base_path is the only directory involved).
+            "arch_path": settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH),
+            "settings_path": settings.get("simulation_settings_file", OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE),
+            "selection_key": "simulations",
+            "instances": workspace.get_simulations(base_path),
+            "settings_link": lambda name: f"/sim_editor?sim={name}",
+            "config_link": lambda name: f"/metric_editor?simulation={name}",
+            "config_text": "Edit Metrics",
+            "settings_text": "Simulation Settings",
+            "title": "Simulations",
+        }
     if run_mode == "workflow":
         base_path = settings.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
         return {
@@ -1218,6 +1319,7 @@ def _run_context(search, odatix_settings) -> dict:
             "settings_link": lambda name: f"/workflow_editor?workflow={name}",
             "config_link": lambda name: f"/config_editor?workflow={name}",
             "settings_text": "Workflow Settings",
+            "config_text": "Edit Configs",
             "title": "Workflows",
         }
     base_path = settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
@@ -1230,6 +1332,7 @@ def _run_context(search, odatix_settings) -> dict:
         "settings_link": lambda name: f"/arch_editor?arch={name}",
         "config_link": lambda name: f"/config_editor?arch={name}",
         "settings_text": "Architecture Settings",
+        "config_text": "Edit Configs",
         "title": "Architectures",
     }
 
@@ -1407,6 +1510,493 @@ def _expand_wildcard_selection(entry: str, domains_configs: dict, arch_name: str
             combo = replaced_parts
         expanded.append(" + ".join(combo))
     return expanded
+
+
+def _arch_domains_configs(arch_path, arch_name) -> dict:
+    """The configurations of every parameter domain of an architecture that
+    actually uses parameters, keyed by domain (main domain included)."""
+    domains_configs = {}
+    domains = [hard_settings.main_parameter_domain] + workspace.get_param_domains(arch_path, arch_name)
+    for domain in domains:
+        if not workspace.check_parameter_domain_use_parameters(arch_path, arch_name, domain):
+            continue
+        configurations = workspace.get_config_files(arch_path, arch_name, domain)
+        if not configurations:
+            continue
+        # Remove .txt extension
+        domains_configs[domain] = [cfg[:-4] if cfg.endswith(".txt") else cfg for cfg in configurations]
+    return domains_configs
+
+
+def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mode, id_extra=None):
+    """
+    Build the body an architecture gets on this page: one panel per parameter
+    domain to pick values from, the "Default configuration" panel, and the
+    preview checklist holding the resulting combinations (the fine-grained
+    control over what actually runs).
+
+    id_extra is merged into every pattern-matching id. It is empty for the
+    architecture-keyed job types, and {"sim": <name>} for the architecture
+    panels nested in a simulation card, which keeps the two sets of widgets in
+    separate callback groups while they share this layout (see
+    _simulation_job_sections).
+
+    Args:
+        selected_values: the saved selection of this architecture, in preview
+            format ("Arch + domain/value + ..."); wildcards are expanded here.
+        arch_enabled: whether that saved selection applies. A disabled
+            architecture has nothing saved yet, so everything is pre-checked:
+            enabling it is then a single click.
+
+    Returns:
+        tuple: (domain_tiles, preview_tile, info) where info holds
+        n_combos / n_selected / default_selected / filtered_selected (what the
+        preview checklist renders as checked) / domains_configs / unmatched
+        (saved entries no combination of this architecture accounts for).
+    """
+    id_extra = id_extra or {}
+    domains_configs = _arch_domains_configs(arch_path, arch_name)
+
+    selected_domain_values = _extract_domain_values(arch_name, selected_values) if arch_enabled else {}
+    domain_tiles = []
+    for domain, configurations in domains_configs.items():
+        if arch_enabled:
+            domain_selected = selected_domain_values.get(domain, set())
+            if "*" in domain_selected:
+                # Wildcard ("domain/*" or the bare "arch_name/*" main-domain
+                # form): select every configuration in this domain, like
+                # ArchitectureHandler.configuration_wildcard() does at run time.
+                checklist_values = list(configurations)
+            else:
+                checklist_values = [cfg for cfg in configurations if cfg in domain_selected]
+        else:
+            checklist_values = list(configurations)
+        checklist = dcc.Checklist(
+            options=[{"label": cfg, "value": cfg} for cfg in configurations],
+            id={"type": "domain-config-checklist", "arch": arch_name, "domain": domain, **id_extra},
+            value=checklist_values,
+            className="odx-chips",
+        )
+        domain_tiles.append(
+            ui.panel(
+                title=[
+                    html.Span(domain if domain != hard_settings.main_parameter_domain else "Main parameter domain"),
+                    html.Span(f"{len(configurations)}", className="odx-badge"),
+                ],
+                tools=_select_all_buttons(
+                    "domain-config-select-all", {"arch": arch_name, "domain": domain, **id_extra}
+                ),
+                body=checklist,
+            )
+        )
+
+    # Virtual parameter domains (workflow command-placeholder variables)
+    virtual_combos = []
+    if mode == "workflow":
+        virtual_combos, virtual_domain_values, virtual_error = _workflow_virtual_variant_combos(arch_path, arch_name)
+        if virtual_error:
+            domain_tiles.append(
+                ui.panel(
+                    title="Workflow variables",
+                    body=html.Div(virtual_error, className="error-message"),
+                )
+            )
+        elif virtual_domain_values:
+            domain_tiles.append(
+                ui.panel(
+                    title="Workflow variables",
+                    body=[
+                        html.Div(
+                            [
+                                html.Span(f"{domain}:", className="jobs-var-name"),
+                                html.Span(", ".join(values)),
+                            ],
+                            className="jobs-var-line",
+                        )
+                        for domain, values in virtual_domain_values.items()
+                    ],
+                )
+            )
+
+    # Compute the preview data up-front so the "Default Configuration" tile
+    # and the preview stay consistent about whether the default config
+    # (the bare "<arch_name>" entry) is selected. n_combos counts the
+    # non-default combinations only; the default config is counted apart.
+    n_combos = workspace.count_combinations(domains_configs) + len(virtual_combos)
+    too_many = n_combos > MAX_PREVIEW_COMBINATIONS
+    formatted_combinations = []
+    filtered_selected = []
+    unmatched = []
+    if not too_many:
+        all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name) + virtual_combos
+        if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
+            all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
+        formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
+        available_values = [opt.get("value") for opt in formatted_combinations]
+        # Expand domain-value wildcards ("domain/*", or the bare "arch/*"
+        # main-domain form) into every concrete combo they represent before
+        # matching against the available combinations: a raw wildcard entry
+        # never matches literally, which used to silently drop it from the
+        # preview (and from what gets saved back on the next Save).
+        expanded_selected = []
+        for entry in selected_values or []:
+            expanded_selected.extend(_expand_wildcard_selection(entry, domains_configs, arch_name))
+        filtered_selected = [val for val in expanded_selected if val in available_values]
+        unmatched = [val for val in expanded_selected if val not in available_values]
+        # Select all combinations for disabled architectures
+        if not arch_enabled:
+            filtered_selected = [" + ".join(comb) for comb in all_combinations]
+            unmatched = []
+        default_selected = arch_name in filtered_selected
+        n_selected = len([v for v in filtered_selected if v != arch_name])
+    else:
+        default_selected = (not arch_enabled) or (arch_name in (selected_values or []))
+        # Nothing is enumerated, so nothing can be matched: the saved entries are
+        # carried over untouched rather than dropped.
+        unmatched = list(selected_values or []) if arch_enabled else []
+        n_selected = 0
+
+    # Default configuration tile. Its checkbox is kept in sync with the
+    # default "<arch_name>" entry of the preview checklist (both directions),
+    # see sync_default_to_preview / sync_preview_to_default.
+    domain_tiles.append(
+        ui.panel(
+            title="Default configuration",
+            body=dcc.Checklist(
+                options=[{"label": f"{arch_name} (default)", "value": arch_name}],
+                id={"type": "default-config-checklist", "arch": arch_name, "domain": "default", **id_extra},
+                value=[arch_name] if default_selected else [],
+                className="odx-check-list",
+            ),
+        )
+    )
+
+    if too_many:
+        preview_tile = ui.panel(
+            title=_preview_title(n_combos, default_selected, n_selected),
+            title_id={"type": "preview-config-title", "arch": arch_name, **id_extra},
+            body=html.Div(
+                f"Too many combinations to display (> {MAX_PREVIEW_COMBINATIONS}).",
+                className="odx-panel-note",
+            ),
+        )
+    else:
+        preview_tile = ui.panel(
+            title=_preview_title(n_combos, default_selected, n_selected),
+            title_id={"type": "preview-config-title", "arch": arch_name, **id_extra},
+            tools=_select_all_buttons("preview-config-select-all", {"arch": arch_name, **id_extra}),
+            body=dcc.Checklist(
+                options=formatted_combinations,
+                id={"type": "preview-config-checklist", "arch": arch_name, **id_extra},
+                value=filtered_selected,
+                className="odx-check-list",
+            ),
+            body_className="scroll tall",
+        )
+
+    info = {
+        "n_combos": n_combos,
+        "n_selected": n_selected,
+        "default_selected": default_selected,
+        "filtered_selected": filtered_selected,
+        "domains_configs": domains_configs,
+        "unmatched": unmatched,
+        "too_many": too_many,
+    }
+    return domain_tiles, preview_tile, info
+
+
+######################################
+# Simulation mode
+######################################
+#
+# A simulation run is set up the other way around from every other job type: the
+# instances are the simulations, and what each of them selects is a set of
+# *architecture configurations* to run on -- not configurations of its own (a
+# simulation has none). The settings file mirrors that shape:
+#
+#   simulations:
+#     - TB_Example:
+#       - Example_Counter_vhdl/04bits
+#       - Example_Counter_vhdl/08bits+width/16
+#
+# A simulation card therefore nests one collapsible sub-card per architecture,
+# each holding the very same widgets an architecture gets in every other job
+# type (parameter-domain panels plus the preview checklist), built by
+# _arch_config_widgets. Those nested widgets carry an extra "sim" id key, which
+# keeps them in callback groups of their own while the layout stays shared.
+#
+# The union of what the nested previews have checked is mirrored into a
+# per-simulation store ("sim-selection"), which is what Save and Run read.
+
+
+def _sim_entry_from_combo(combo: str) -> str:
+    """Convert a preview combination ("Arch + domain/value") into the syntax the
+    simulation settings file uses ("Arch+domain/value")."""
+    return "+".join(part.strip() for part in str(combo).split(" + ") if part.strip())
+
+
+def _combo_from_sim_entry(entry: str) -> str:
+    """Inverse of _sim_entry_from_combo."""
+    return " + ".join(part.strip() for part in str(entry).split("+") if part.strip())
+
+
+def _sim_entry_arch(entry: str) -> str:
+    """The architecture a simulation settings entry runs on."""
+    return str(entry).split("+", 1)[0].split("/", 1)[0].strip()
+
+
+def _simulation_job_sections(context, selection_settings):
+    """
+    Build one card per simulation, each holding a collapsible sub-card per
+    architecture where the configurations that simulation runs are picked, the
+    same way they are picked for a synthesis.
+
+    Returns:
+        tuple: (sections, baseline_selection) where baseline_selection is the
+        simulation -> entries mapping a fresh page load is equivalent to (used
+        as the "saved" baseline so nothing falsely reads as unsaved).
+    """
+    arch_path = context["arch_path"]
+    simulations = context["instances"]
+
+    selection_map = workspace.load_simulation_selection(context["settings_path"])
+    architectures = workspace.get_architectures(arch_path)
+
+    baseline_selection = {}
+    sections = []
+    for sim_name in simulations:
+        sim_enabled = sim_name in selection_map
+
+        # Group the saved entries by the architecture they belong to, converted
+        # to the preview syntax _arch_config_widgets expects.
+        saved_by_arch = {}
+        for entry in selection_map.get(sim_name, []):
+            saved_by_arch.setdefault(_sim_entry_arch(entry), []).append(_combo_from_sim_entry(entry))
+
+        arch_cards = []
+        # Kept apart, and concatenated at the end in this exact order, so the
+        # baseline matches how sync_simulation_selection() rebuilds the store:
+        # the "unsaved changes" check compares the two lists element by element.
+        checked_entries = []
+        extra_entries = []
+        n_total = 0
+        n_selected_total = 0
+        for arch_name in architectures:
+            # An architecture this simulation does not mention runs nothing yet;
+            # its sub-card is off, with everything pre-checked so that turning it
+            # on is a single click (exactly like a disabled architecture card).
+            arch_enabled = sim_enabled and arch_name in saved_by_arch
+            domain_tiles, preview_tile, info = _arch_config_widgets(
+                arch_path,
+                arch_name,
+                saved_by_arch.get(arch_name, []),
+                arch_enabled,
+                context["mode"],
+                id_extra={"sim": sim_name},
+            )
+
+            n_configs = info["n_combos"] + 1
+            n_total += n_configs
+            selected = list(info["filtered_selected"])
+            # Entries this architecture cannot enumerate (too many combinations)
+            # or no longer offers are carried untouched so saving never silently
+            # drops a hand-written selection.
+            extra = list(info["unmatched"])
+            if arch_enabled:
+                n_selected_total += len(selected) + len(extra)
+                checked_entries.extend(_sim_entry_from_combo(value) for value in selected)
+                extra_entries.extend(_sim_entry_from_combo(value) for value in extra)
+
+            arch_cards.append(
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=html.Div(
+                                children=[
+                                    dcc.Checklist(
+                                        options=[{"label": "", "value": True}],
+                                        value=[True] if arch_enabled else [],
+                                        id={"type": "sim-arch-switch", "sim": sim_name, "arch": arch_name},
+                                        className="checklist-switch",
+                                    ),
+                                    html.Span(arch_name, className="jobs-arch-name"),
+                                    html.Span(
+                                        _arch_badge_text(
+                                            info["n_combos"],
+                                            info["n_selected"],
+                                            info["default_selected"],
+                                            arch_enabled,
+                                        ),
+                                        id={"type": "arch-count", "sim": sim_name, "arch": arch_name},
+                                        className="odx-badge",
+                                    ),
+                                ],
+                                className="jobs-arch-headline",
+                            ),
+                            className="jobs-arch-header",
+                        ),
+                        html.Div(
+                            children=html.Div(
+                                children=[
+                                    html.Div(domain_tiles, className="jobs-domains"),
+                                    preview_tile,
+                                ],
+                                className="jobs-arch-grid",
+                            ),
+                            id={"type": "sim-arch-body", "sim": sim_name, "arch": arch_name},
+                            className="jobs-arch-body animated-section" + ("" if arch_enabled else " hide"),
+                        ),
+                        dcc.Store(
+                            id={"type": "arch-metadata", "sim": sim_name, "arch": arch_name},
+                            data={"arch_name": arch_name, "n_combos": info["n_combos"]},
+                        ),
+                        dcc.Store(
+                            id={"type": "domain-selections", "sim": sim_name, "arch": arch_name},
+                            data=info["domains_configs"],
+                        ),
+                        # Saved entries no combination accounts for: kept aside
+                        # and re-contributed to the selection as they are.
+                        dcc.Store(
+                            id={"type": "sim-arch-extra", "sim": sim_name, "arch": arch_name},
+                            data=[_sim_entry_from_combo(value) for value in extra],
+                        ),
+                    ],
+                    id={"type": "sim-arch-card", "sim": sim_name, "arch": arch_name},
+                    className="jobs-arch-card nested" + (" enabled" if arch_enabled else ""),
+                )
+            )
+
+        # Entries of a saved selection whose architecture does not exist anymore
+        # have no sub-card to live in. They are still this simulation's, so they
+        # ride along in a store rather than being dropped on the next Save.
+        orphan_entries = [
+            _sim_entry_from_combo(value)
+            for arch_name, values in saved_by_arch.items()
+            if arch_name not in architectures
+            for value in values
+        ]
+        if sim_enabled and orphan_entries:
+            n_selected_total += len(orphan_entries)
+            n_total += len(orphan_entries)
+
+        if not arch_cards:
+            arch_cards.append(
+                ui.panel(
+                    title="Architectures",
+                    body=html.Div(f"No architecture found in {arch_path}.", className="odx-panel-note"),
+                )
+            )
+
+        sim_entries = list(dict.fromkeys(checked_entries + extra_entries + orphan_entries))
+        if sim_enabled:
+            baseline_selection[sim_name] = sim_entries
+
+        sim_buttons = html.Div(
+            children=[
+                ui.icon_button(
+                    icon=icon("gear", className="icon"),
+                    text=context["settings_text"],
+                    tooltip="Open the settings of this simulation",
+                    tooltip_options="bottom delay",
+                    color="default",
+                    link=context["settings_link"](sim_name),
+                    multiline=True,
+                    width="135px",
+                ),
+                ui.icon_button(
+                    icon=icon("metrics", className="icon blue"),
+                    text=context["config_text"],
+                    tooltip="Open the Exported Metrics Editor for this simulation",
+                    tooltip_options="bottom delay",
+                    color="default",
+                    link=context["config_link"](sim_name),
+                    multiline=False,
+                    width="135px",
+                ),
+            ],
+            className="jobs-arch-buttons",
+        )
+
+        sections.append(
+            html.Div(
+                children=[
+                    html.Div(
+                        children=[
+                            html.Div(
+                                children=[
+                                    dcc.Checklist(
+                                        options=[{"label": "", "value": True}],
+                                        value=[True] if sim_enabled else [],
+                                        id={"type": "arch-title", "arch": sim_name, "is_switch": True},
+                                        className="checklist-switch",
+                                    ),
+                                    html.Span(sim_name, id={"type": "arch-title", "arch": sim_name}, className="jobs-arch-name"),
+                                    html.Span(
+                                        _simulation_badge_text(n_total, n_selected_total, sim_enabled),
+                                        id={"type": "sim-count", "sim": sim_name},
+                                        className="odx-badge",
+                                    ),
+                                ],
+                                className="jobs-arch-headline",
+                            ),
+                            sim_buttons,
+                        ],
+                        className="jobs-arch-header",
+                    ),
+                    html.Div(
+                        children=html.Div(arch_cards, className="jobs-sim-archs"),
+                        id={"type": "param-domains-container", "arch": sim_name},
+                        className="jobs-arch-body animated-section" + ("" if sim_enabled else " hide"),
+                    ),
+                    dcc.Store(
+                        id={"type": "sim-metadata", "sim": sim_name},
+                        data={"sim_name": sim_name, "n_entries": n_total},
+                    ),
+                    dcc.Store(
+                        id={"type": "sim-orphan-entries", "sim": sim_name},
+                        data=orphan_entries,
+                    ),
+                    # What this simulation runs, kept in sync with the nested
+                    # architecture cards and read by Save / Run.
+                    dcc.Store(
+                        id={"type": "sim-selection", "sim": sim_name},
+                        data=sim_entries,
+                    ),
+                ],
+                id={"type": "job-section", "arch": sim_name},
+                className="jobs-arch-card" + (" enabled" if sim_enabled else ""),
+            )
+        )
+
+    return sections, baseline_selection
+
+
+def _simulation_badge_text(n_entries, n_selected, enabled=True):
+    word = "config" if n_entries == 1 else "configs"
+    if not enabled:
+        return f"{n_entries} {word}"
+    return f"{n_selected}/{n_entries} {word}"
+
+
+def _collect_simulation_selection(switch_values, switch_ids, selection_values, selection_ids) -> dict:
+    """
+    The simulation -> architecture entries mapping the page currently describes,
+    keeping only the simulations whose switch is on.
+    """
+    by_sim = {}
+    for value, sel_id in zip(selection_values or [], selection_ids or []):
+        sim_name = sel_id.get("sim") if isinstance(sel_id, dict) else None
+        if sim_name:
+            by_sim[sim_name] = list(dict.fromkeys([str(v) for v in (value or []) if v is not None]))
+
+    selection = {}
+    for value, sid in zip(switch_values or [], switch_ids or []):
+        sim_name = sid.get("arch") if isinstance(sid, dict) else None
+        if sim_name and bool(value):
+            selection[sim_name] = by_sim.get(sim_name, [])
+    return selection
+
 
 ######################################
 # UI Components
@@ -1705,6 +2295,24 @@ def update_param_domains(
 
     settings_path = context["settings_path"]
     selection_settings = workspace.load_arch_selection_settings(settings_path)
+
+    # Simulations select architecture configurations rather than their own, so
+    # they get their own sections (see _simulation_job_sections).
+    if context["mode"] == "simulation":
+        job_sections, baseline_selection = _simulation_job_sections(context, selection_settings)
+        if not job_sections:
+            job_sections = [
+                html.Div(
+                    f"No simulation found in {context['base_path']}.",
+                    className="odx-panel odx-empty",
+                )
+            ]
+        saved_baseline = {
+            context["selection_key"]: baseline_selection,
+            **_job_settings_baseline(selection_settings),
+        }
+        return job_sections, context["title"], "Select the configurations each simulation runs on", saved_baseline
+
     selection_map = _group_arch_selections(selection_settings.get(context["selection_key"], []))
     # Baseline of the "saved" selection, computed exactly like the widgets are
     # initialized below, so a fresh page load does not falsely report "unsaved
@@ -1712,151 +2320,24 @@ def update_param_domains(
     baseline_selection = []
     job_sections = []
     for arch_name in architectures:
-        domains_configs = {}
-        domains = [hard_settings.main_parameter_domain] + workspace.get_param_domains(arch_path, arch_name)
-        domain_tiles = []
         arch_enabled = arch_name in selection_map
-        selected_domain_values = _extract_domain_values(arch_name, selection_map.get(arch_name, [])) if arch_enabled else {}
-        for domain in domains:
-            if not workspace.check_parameter_domain_use_parameters(arch_path, arch_name, domain):
-                continue
-            configurations = workspace.get_config_files(arch_path, arch_name, domain)
-            if not configurations:
-                continue
-            configurations = [cfg[:-4] if cfg.endswith('.txt') else cfg for cfg in configurations] # Remove .txt extension
-            domains_configs[domain] = configurations
-            if arch_enabled:
-                domain_selected = selected_domain_values.get(domain, set())
-                if "*" in domain_selected:
-                    # Wildcard ("domain/*" or the bare "arch_name/*" main-domain
-                    # form): select every configuration in this domain, like
-                    # ArchitectureHandler.configuration_wildcard() does at run time.
-                    checklist_values = list(configurations)
-                else:
-                    checklist_values = [cfg for cfg in configurations if cfg in domain_selected]
-            else:
-                checklist_values = configurations
-            checklist = dcc.Checklist(
-                options=[{"label": cfg, "value": cfg} for cfg in configurations],
-                id={"type": "domain-config-checklist", "arch": arch_name, "domain": domain},
-                value=checklist_values,
-                className="odx-chips",
-            )
-            domain_tiles.append(
-                ui.panel(
-                    title=[
-                        html.Span(domain if domain != hard_settings.main_parameter_domain else "Main parameter domain"),
-                        html.Span(f"{len(configurations)}", className="odx-badge"),
-                    ],
-                    tools=_select_all_buttons("domain-config-select-all", {"arch": arch_name, "domain": domain}),
-                    body=checklist,
-                )
-            )
-
-        # Virtual parameter domains (workflow command-placeholder variables)
-        virtual_combos = []
-        if context["mode"] == "workflow":
-            virtual_combos, virtual_domain_values, virtual_error = _workflow_virtual_variant_combos(arch_path, arch_name)
-            if virtual_error:
-                domain_tiles.append(
-                    ui.panel(
-                        title="Workflow variables",
-                        body=html.Div(virtual_error, className="error-message"),
-                    )
-                )
-            elif virtual_domain_values:
-                domain_tiles.append(
-                    ui.panel(
-                        title="Workflow variables",
-                        body=[
-                            html.Div(
-                                [
-                                    html.Span(f"{domain}:", className="jobs-var-name"),
-                                    html.Span(", ".join(values)),
-                                ],
-                                className="jobs-var-line",
-                            )
-                            for domain, values in virtual_domain_values.items()
-                        ],
-                    )
-                )
-
-        # Compute the preview data up-front so the "Default Configuration" tile
-        # and the preview stay consistent about whether the default config
-        # (the bare "<arch_name>" entry) is selected. n_combos counts the
-        # non-default combinations only; the default config is counted apart.
-        n_combos = workspace.count_combinations(domains_configs) + len(virtual_combos)
-        too_many = n_combos > MAX_PREVIEW_COMBINATIONS
-        formatted_combinations = []
-        filtered_selected = []
-        if not too_many:
-            all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name) + virtual_combos
-            if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
-                all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
-            formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
-            available_values = [opt.get("value") for opt in formatted_combinations]
-            selected_values = selection_map.get(arch_name, [])
-            # Expand domain-value wildcards ("domain/*", or the bare "arch/*"
-            # main-domain form) into every concrete combo they represent before
-            # matching against the available combinations: a raw wildcard entry
-            # never matches literally, which used to silently drop it from the
-            # preview (and from what gets saved back on the next Save).
-            expanded_selected = []
-            for entry in selected_values:
-                expanded_selected.extend(_expand_wildcard_selection(entry, domains_configs, arch_name))
-            filtered_selected = [val for val in expanded_selected if val in available_values]
-            # Select all combinations for disabled architectures
-            if arch_name not in selection_map:
-                filtered_selected = [" + ".join(comb) for comb in all_combinations]
-            default_selected = arch_name in filtered_selected
-            n_selected = len([v for v in filtered_selected if v != arch_name])
-        else:
-            default_selected = (arch_name not in selection_map) or (arch_name in selection_map.get(arch_name, []))
-            n_selected = 0
+        domain_tiles, preview_tile, info = _arch_config_widgets(
+            arch_path,
+            arch_name,
+            selection_map.get(arch_name, []),
+            arch_enabled,
+            context["mode"],
+        )
+        n_combos = info["n_combos"]
+        n_selected = info["n_selected"]
+        default_selected = info["default_selected"]
+        domains_configs = info["domains_configs"]
 
         # Enabled architectures contribute their (rendered) preview selection to
         # the saved baseline, exactly like save_architecture_selections() builds
         # its "current" selection from the switch + preview widgets.
         if arch_enabled:
-            baseline_selection.extend(filtered_selected)
-
-        # Default configuration tile. Its checkbox is kept in sync with the
-        # default "<arch_name>" entry of the preview checklist (both directions),
-        # see sync_default_to_preview / sync_preview_to_default.
-        domain_tiles.append(
-            ui.panel(
-                title="Default configuration",
-                body=dcc.Checklist(
-                    options=[{"label": f"{arch_name} (default)", "value": arch_name}],
-                    id={"type": "default-config-checklist", "arch": arch_name, "domain": "default"},
-                    value=[arch_name] if default_selected else [],
-                    className="odx-check-list",
-                ),
-            )
-        )
-
-        if too_many:
-            preview_tile = ui.panel(
-                title=_preview_title(n_combos, default_selected, n_selected),
-                title_id={"type": "preview-config-title", "arch": arch_name},
-                body=html.Div(
-                    f"Too many combinations to display (> {MAX_PREVIEW_COMBINATIONS}).",
-                    className="odx-panel-note",
-                ),
-            )
-        else:
-            preview_tile = ui.panel(
-                title=_preview_title(n_combos, default_selected, n_selected),
-                title_id={"type": "preview-config-title", "arch": arch_name},
-                tools=_select_all_buttons("preview-config-select-all", {"arch": arch_name}),
-                body=dcc.Checklist(
-                    options=formatted_combinations,
-                    id={"type": "preview-config-checklist", "arch": arch_name},
-                    value=filtered_selected,
-                    className="odx-check-list",
-                ),
-                body_className="scroll tall",
-            )
+            baseline_selection.extend(info["filtered_selected"])
 
         arch_buttons = html.Div(
             children=[
@@ -1872,8 +2353,8 @@ def update_param_domains(
                 ),
                 ui.icon_button(
                     icon=icon("edit", className="icon blue"),
-                    text="Edit Configs",
-                    tooltip=f"Open the Configuration Editor for this {context['mode']}",
+                    text=context.get("config_text", "Edit Configs"),
+                    tooltip=f"Open the {context.get('config_text', 'Edit Configs')} page for this {context['mode']}",
                     tooltip_options="bottom delay",
                     color="default",
                     link=context["config_link"](arch_name),
@@ -2042,13 +2523,18 @@ def update_arch_count(preview_values, switch_values, preview_ids, switch_ids, co
     Output("jobs-summary", "children"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
+    Input({"type": "sim-selection", "sim": dash.ALL}, "data"),
     Input("nb_jobs", "value"),
     Input("auto-nb-jobs", "value"),
     Input(f"url_{page_path}", "search"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
+    State({"type": "sim-selection", "sim": dash.ALL}, "id"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
 )
-def update_jobs_summary(switch_values, preview_values, nb_jobs, auto_nb_jobs, search, preview_ids, switch_ids):
+def update_jobs_summary(
+    switch_values, preview_values, sim_selection_values, nb_jobs, auto_nb_jobs, search,
+    preview_ids, sim_selection_ids, switch_ids,
+):
     """Live recap of what the Run button is about to launch: job type, eda tool,
     how many instances are enabled and how many configurations they add up to."""
     enabled = set()
@@ -2061,6 +2547,10 @@ def update_jobs_summary(switch_values, preview_values, nb_jobs, auto_nb_jobs, se
     for value, pid in zip(preview_values or [], preview_ids or []):
         arch = pid.get("arch") if isinstance(pid, dict) else None
         if arch in enabled:
+            n_configs += len(value or [])
+    for value, pid in zip(sim_selection_values or [], sim_selection_ids or []):
+        sim_name = pid.get("sim") if isinstance(pid, dict) else None
+        if sim_name in enabled:
             n_configs += len(value or [])
 
     run_mode = get_key_from_url(search, "type")
@@ -2075,6 +2565,8 @@ def update_jobs_summary(switch_values, preview_values, nb_jobs, auto_nb_jobs, se
 
     if run_mode == "workflow":
         instances_label = "workflow" if len(enabled) == 1 else "workflows"
+    elif run_mode == "simulation":
+        instances_label = "simulation" if len(enabled) == 1 else "simulations"
     else:
         instances_label = "architecture" if len(enabled) == 1 else "architectures"
     configs_label = "configuration selected" if n_configs == 1 else "configurations selected"
@@ -2082,7 +2574,7 @@ def update_jobs_summary(switch_values, preview_values, nb_jobs, auto_nb_jobs, se
     children = [
         html.Span(RUN_MODE_LABELS.get(run_mode, "Jobs"), className="odx-tag"),
     ]
-    if tool and run_mode != "workflow":
+    if tool and run_mode not in ("workflow", "simulation"):
         children.append(html.Span(eda_tools.get_tool_label(tool), className="odx-tag neutral"))
         # Show the flow only when the tool has a choice to make: a single-flow
         # tool would just add noise.
@@ -2366,6 +2858,7 @@ def update_preview_title(preview_value, arch_metadata):
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
+    Input({"type": "sim-selection", "sim": dash.ALL}, "data"),
     Input("override-arch-frequencies", "value"),
     Input("use-custom-freq-list", "value"),
     Input("target_frequencies", "value"),
@@ -2385,6 +2878,7 @@ def update_preview_title(preview_value, arch_metadata):
     Input("exit_when_done", "value"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
+    State({"type": "sim-selection", "sim": dash.ALL}, "id"),
     State("jobs-config-saved-selection", "data"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
@@ -2395,6 +2889,7 @@ def save_architecture_selections(
     save_n_clicks,
     switch_values,
     preview_values,
+    sim_selection_values,
     override_arch_frequencies,
     use_custom_freq_list,
     target_frequencies,
@@ -2414,6 +2909,7 @@ def save_architecture_selections(
     exit_when_done,
     switch_ids,
     preview_ids,
+    sim_selection_ids,
     saved_selection,
     search,
     page,
@@ -2450,6 +2946,8 @@ def save_architecture_selections(
         lower_bound,
         upper_bound,
         analysis_tools,
+        sim_selection_values=sim_selection_values,
+        sim_selection_ids=sim_selection_ids,
     )
 
     if isinstance(saved_selection, dict):
@@ -2534,6 +3032,204 @@ def save_architecture_selections(
         dash.no_update,
     )
 
+######################################
+# Simulation callbacks
+######################################
+#
+# The architecture panels nested in a simulation card are the same widgets the
+# other job types use, with an extra "sim" id key (see _simulation_job_sections).
+# Dash matches patterns on the exact set of id keys, so they form callback groups
+# of their own: the callbacks below wire them up, delegating to the very same
+# implementations the architecture-keyed widgets use.
+
+
+@dash.callback(
+    Output({"type": "sim-arch-body", "sim": dash.MATCH, "arch": dash.MATCH}, "className"),
+    Output({"type": "sim-arch-card", "sim": dash.MATCH, "arch": dash.MATCH}, "className"),
+    Input({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
+)
+def toggle_sim_arch(switch_value):
+    """Collapse/expand an architecture inside a simulation card with its switch."""
+    enabled = bool(switch_value)
+    return (
+        "jobs-arch-body animated-section" + ("" if enabled else " hide"),
+        "jobs-arch-card nested" + (" enabled" if enabled else ""),
+    )
+
+
+@dash.callback(
+    Output({"type": "domain-selections", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
+    Input({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "value"),
+    State({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "id"),
+)
+def sim_update_domain_selections(selected_per_domain, domain_ids):
+    return update_domain_selections(selected_per_domain, domain_ids)
+
+
+@dash.callback(
+    Output({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.MATCH}, "value"),
+    Input({"type": "domain-config-select-all", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.MATCH, "action": dash.ALL}, "n_clicks"),
+    State({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.MATCH}, "options"),
+    prevent_initial_call=True,
+)
+def sim_domain_select_all(n_clicks, options):
+    return domain_select_all(n_clicks, options)
+
+
+@dash.callback(
+    Output({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value", allow_duplicate=True),
+    Input({"type": "preview-config-select-all", "sim": dash.MATCH, "arch": dash.MATCH, "action": dash.ALL}, "n_clicks"),
+    State({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "options"),
+    prevent_initial_call=True,
+)
+def sim_preview_select_all(n_clicks, options):
+    return preview_select_all(n_clicks, options)
+
+
+@dash.callback(
+    Output({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
+    Input({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "value"),
+    State({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "id"),
+    State({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
+    State({"type": "domain-selections", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
+)
+def sim_sync_preview_values(selected_per_domain, domain_ids, current_preview_values, arch_metadata, prev_selections):
+    return sync_preview_values(
+        selected_per_domain, domain_ids, current_preview_values, arch_metadata, prev_selections
+    )
+
+
+@dash.callback(
+    Output({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value", allow_duplicate=True),
+    Input({"type": "default-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": "default"}, "value"),
+    State({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def sim_sync_default_to_preview(default_value, preview_value, arch_metadata):
+    return sync_default_to_preview(default_value, preview_value, arch_metadata)
+
+
+@dash.callback(
+    Output({"type": "default-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": "default"}, "value"),
+    Input({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def sim_sync_preview_to_default(preview_value, arch_metadata):
+    return sync_preview_to_default(preview_value, arch_metadata)
+
+
+@dash.callback(
+    Output({"type": "preview-config-title", "sim": dash.MATCH, "arch": dash.MATCH}, "children"),
+    Input({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
+    State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
+    prevent_initial_call=True,
+)
+def sim_update_preview_title(preview_value, arch_metadata):
+    return update_preview_title(preview_value, arch_metadata)
+
+
+@dash.callback(
+    Output({"type": "arch-count", "sim": dash.MATCH, "arch": dash.ALL}, "children"),
+    Input({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
+    Input({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
+    State({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
+    State({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
+    State({"type": "arch-count", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
+    State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.ALL}, "data"),
+)
+def sim_update_arch_count(preview_values, switch_values, preview_ids, switch_ids, count_ids, metadatas):
+    """The "selected/total configs" badge of an architecture inside a simulation.
+
+    Written with ALL rather than MATCH on the architecture because an
+    architecture with too many combinations has no preview checklist at all: a
+    MATCH group would then be incomplete and Dash would report a nonexistent
+    object.
+    """
+    return update_arch_count(preview_values, switch_values, preview_ids, switch_ids, count_ids, metadatas)
+
+
+@dash.callback(
+    Output({"type": "sim-selection", "sim": dash.MATCH}, "data"),
+    Input({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
+    Input({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
+    State({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
+    State({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
+    State({"type": "sim-arch-extra", "sim": dash.MATCH, "arch": dash.ALL}, "data"),
+    State({"type": "sim-arch-extra", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
+    State({"type": "sim-orphan-entries", "sim": dash.MATCH}, "data"),
+)
+def sync_simulation_selection(
+    preview_values, switch_values, preview_ids, switch_ids, extra_values, extra_ids, orphan_entries
+):
+    """
+    What a simulation runs is the union of what the architectures enabled inside
+    it have checked -- not a cross product: a simulation runs each selected
+    configuration once.
+    """
+    enabled = {
+        sid.get("arch"): bool(value)
+        for value, sid in zip(switch_values or [], switch_ids or [])
+        if isinstance(sid, dict)
+    }
+
+    entries = []
+    for values, pid in zip(preview_values or [], preview_ids or []):
+        if not isinstance(pid, dict) or not enabled.get(pid.get("arch")):
+            continue
+        entries.extend(_sim_entry_from_combo(value) for value in (values or []) if value is not None)
+    for values, eid in zip(extra_values or [], extra_ids or []):
+        if not isinstance(eid, dict) or not enabled.get(eid.get("arch")):
+            continue
+        entries.extend(str(value) for value in (values or []) if value is not None)
+    entries.extend(str(value) for value in (orphan_entries or []))
+    return list(dict.fromkeys(entries))
+
+
+@dash.callback(
+    Output({"type": "sim-count", "sim": dash.ALL}, "children"),
+    Input({"type": "sim-selection", "sim": dash.ALL}, "data"),
+    Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    State({"type": "sim-selection", "sim": dash.ALL}, "id"),
+    State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
+    State({"type": "sim-count", "sim": dash.ALL}, "id"),
+    State({"type": "sim-metadata", "sim": dash.ALL}, "data"),
+)
+def update_simulation_counts(selection_values, switch_values, selection_ids, switch_ids, count_ids, metadatas):
+    """
+    Keep every simulation's badge in sync with its selection and its switch.
+
+    Written with ALL rather than MATCH because the switch is keyed by "arch"
+    (it is the shared instance switch) while the selection is keyed by "sim": a
+    single MATCH group cannot span two different wildcard key names.
+    """
+    selected = {
+        pid.get("sim"): len(value or [])
+        for value, pid in zip(selection_values or [], selection_ids or [])
+        if isinstance(pid, dict)
+    }
+    enabled = {
+        sid.get("arch"): bool(value)
+        for value, sid in zip(switch_values or [], switch_ids or [])
+        if isinstance(sid, dict)
+    }
+    n_entries_by_sim = {
+        (data or {}).get("sim_name"): (data or {}).get("n_entries", 0)
+        for data in (metadatas or [])
+    }
+
+    return [
+        _simulation_badge_text(
+            n_entries_by_sim.get(cid.get("sim"), 0),
+            selected.get(cid.get("sim"), 0),
+            enabled.get(cid.get("sim"), False),
+        )
+        for cid in (count_ids or [])
+    ]
+
+
 # Open run popup
 @dash.callback(
     Output("run-popup", "className"),
@@ -2576,6 +3272,8 @@ def close_run_popup(n):
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
+    State({"type": "sim-selection", "sim": dash.ALL}, "data"),
+    State({"type": "sim-selection", "sim": dash.ALL}, "id"),
     State("override-arch-frequencies", "value"),
     State("use-custom-freq-list", "value"),
     State("target_frequencies", "value"),
@@ -2605,6 +3303,8 @@ def run_jobs(
     switch_ids,
     preview_values,
     preview_ids,
+    sim_selection_values,
+    sim_selection_ids,
     override_arch_frequencies,
     use_custom_freq_list,
     target_frequencies,
@@ -2714,6 +3414,8 @@ def run_jobs(
             lower_bound,
             upper_bound,
             analysis_tools,
+            sim_selection_values=sim_selection_values,
+            sim_selection_ids=sim_selection_ids,
         )
         temp_settings_file = _write_temp_run_settings(
             run_context["settings_path"],
@@ -2832,6 +3534,39 @@ def run_jobs(
             target=_run_check_workflow_settings,
             args=(
                 run_config_settings_filename,
+                base_path,
+                work_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+            ),
+            daemon=True,
+        )
+        _prepare_thread.start()
+    elif run_mode == "simulation":
+        run_config_settings_filename = temp_settings_file or settings.get(
+            "simulation_settings_file",
+            OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
+        )
+        work_path = os.path.join(
+            work_path_root,
+            settings.get("simulation_work_path", OdatixSettings.DEFAULT_SIMULATION_WORK_PATH),
+        )
+
+        _prepare_runtime_settings["export"] = {
+            "kind": "simulation",
+            "work_root": work_path,
+            "sim_path": base_path,
+            "output_dir": result_path,
+        }
+
+        _prepare_thread = threading.Thread(
+            target=_run_check_simulation_settings,
+            args=(
+                run_config_settings_filename,
+                run_context["arch_path"],
                 base_path,
                 work_path,
                 overwrite_enabled,

@@ -152,6 +152,171 @@ def create_simulation(path, name) -> None:
 
 
 ######################################
+# Simulation settings and metrics
+######################################
+#
+# A simulation directory holds a "_settings.yml" (how the architecture
+# parameters are replaced in the testbench, plus the optional workflow-style
+# "tasks" and "progress" keys) and an optional "_metrics.yml" (what to extract
+# from each run at export time, same format as a workflow's, see
+# odatix.components.export_simulation_results).
+
+SIMULATION_METRICS_FILENAME = "_metrics.yml"
+
+def get_simulation_path(sim_path, sim_name) -> str:
+    """
+    Get the path of a specific simulation.
+    """
+    return os.path.join(sim_path, sim_name)
+
+def get_simulation_settings_path(sim_path, sim_name) -> str:
+    """
+    Get the settings file path of a specific simulation.
+    """
+    return os.path.join(get_simulation_path(sim_path, sim_name), hard_settings.sim_settings_filename)
+
+def load_simulation_settings(sim_path, sim_name) -> dict:
+    """
+    Load simulation settings.
+    """
+    return load_yaml_file(get_simulation_settings_path(sim_path, sim_name), default={})
+
+def save_simulation_settings(sim_path, sim_name, settings) -> None:
+    """
+    Save simulation settings, preserving comments and any key the editor does
+    not know about.
+    """
+    path = get_simulation_settings_path(sim_path, sim_name)
+    yaml_obj = YAML()
+
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = yaml_obj.load(f)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    for key, value in settings.items():
+        data[key] = value
+
+    save_yaml_file(path, data, yaml_obj=yaml_obj)
+
+def get_simulation_metrics_path(sim_path, sim_name) -> str:
+    """
+    Get the metrics definition file path of a specific simulation.
+    """
+    return os.path.join(get_simulation_path(sim_path, sim_name), SIMULATION_METRICS_FILENAME)
+
+def load_simulation_metrics(sim_path, sim_name) -> tuple:
+    """
+    Load the metrics definition of a simulation.
+
+    Returns:
+        tuple: (metrics, metadata), each a name -> definition dict. Both are
+        empty when the file is missing or unparsable.
+    """
+    path = get_simulation_metrics_path(sim_path, sim_name)
+    data = load_yaml_file(path, default={})
+    if not isinstance(data, dict):
+        return {}, {}
+
+    if "metrics" in data:
+        metrics = data.get("metrics") or {}
+        metadata = data.get("metadata") or {}
+    else:
+        metrics = data
+        metadata = {}
+
+    if not isinstance(metrics, dict):
+        metrics = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return metrics, metadata
+
+def save_simulation_metrics(sim_path, sim_name, metrics, metadata=None) -> None:
+    """
+    Save the metrics definition of a simulation, preserving comments and any
+    other key of the file (same layout as workflow metrics).
+    """
+    path = get_simulation_metrics_path(sim_path, sim_name)
+    yaml_obj = YAML()
+
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = yaml_obj.load(f)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    # Migrate the legacy top-level layout (metrics defined at the root) to the
+    # explicit "metrics" key on write.
+    if "metrics" not in data:
+        for key in list(data.keys()):
+            if key != "metadata":
+                del data[key]
+
+    data["metrics"] = metrics if isinstance(metrics, dict) else {}
+    if metadata:
+        data["metadata"] = metadata
+    else:
+        data.pop("metadata", None)
+
+    save_yaml_file(path, data, yaml_obj=yaml_obj)
+
+def load_simulation_selection(path: str) -> dict:
+    """
+    Read the "simulations" key of a simulation settings file into a
+    simulation name -> list of architecture entries mapping.
+
+    The file holds it as a list of single-key mappings, which is what the
+    "odatix sim" command reads:
+
+        simulations:
+          - TB_Example:
+            - Example_Counter_vhdl/04bits
+    """
+    data = load_yaml_file(path, default={})
+    if not isinstance(data, dict):
+        return {}
+
+    selection = {}
+    simulations = data.get("simulations", [])
+    if isinstance(simulations, dict):
+        simulations = [{name: entries} for name, entries in simulations.items()]
+    if not isinstance(simulations, (list, tuple)):
+        return {}
+
+    for item in simulations:
+        if not isinstance(item, dict):
+            continue
+        for name, entries in item.items():
+            if entries is None:
+                entries = []
+            if isinstance(entries, str):
+                entries = [entries]
+            if not isinstance(entries, (list, tuple)):
+                continue
+            selection.setdefault(str(name), []).extend([str(entry) for entry in entries if entry is not None])
+    return selection
+
+def create_simulation_selection_list(selection: dict) -> list:
+    """
+    Build the "simulations" value of a simulation settings file from a
+    simulation name -> architecture entries mapping (the inverse of
+    load_simulation_selection).
+    """
+    simulations = CommentedSeq()
+    for name, entries in (selection or {}).items():
+        if not name:
+            continue
+        entry_list = CommentedSeq([str(entry) for entry in (entries or []) if entry])
+        simulations.append(CommentedMap({str(name): entry_list}))
+    return simulations
+
+
+######################################
 # Workflows
 ######################################
 
@@ -1740,6 +1905,8 @@ def save_architecture_selection(path, settings, run_mode="default", use_custom_f
         run_mode_display = "custom frequency synthesis"
     elif run_mode == "workflow":
         run_mode_display = "workflows"
+    elif run_mode == "simulation":
+        run_mode_display = "simulations"
     elif run_mode == "analyze":
         run_mode_display = "RTL analysis"
     else:
@@ -1857,11 +2024,19 @@ f"""##############################################
         data.yaml_set_comment_before_after_key(key='tools', before="\n eda tools to run the analysis with")
         data.yaml_add_eol_comment(key='tools', comment="overridden by -t / --tool")
 
-    # targeted instances (architectures or workflows)
+    # targeted instances (architectures, workflows or simulations)
     if run_mode == "workflow":
         workflows = settings.get('workflows', settings.get('architectures', []))
         data['workflows'] = workflows
         data.yaml_set_comment_before_after_key(key='workflows', before="\n targeted workflows")
+    elif run_mode == "simulation":
+        # One entry per simulation, each holding the architecture configurations
+        # it runs on (see load_simulation_selection).
+        simulations = settings.get('simulations', [])
+        if isinstance(simulations, dict):
+            simulations = create_simulation_selection_list(simulations)
+        data['simulations'] = simulations
+        data.yaml_set_comment_before_after_key(key='simulations', before="\n targeted simulations")
     else:
         architectures = settings.get('architectures', {})
         data['architectures'] = architectures
