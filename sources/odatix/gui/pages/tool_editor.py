@@ -450,10 +450,12 @@ def tool_title(tool_name, overlay=False):
                 ui.back_button(link="/tools"),
             ],
             className="tile title",
-            style={"position": "relative"},
+            # The notice sits right under the title tile: they read as one block.
+            style={"position": "relative", "borderRadius": "var(--card-border-radius) var(--card-border-radius) 0 0"}
+            if overlay else {"position": "relative"},
         ),
         className="card-matrix config",
-        style={"marginTop": "0px", "marginBottom": "10px"},
+        style={"marginTop": "0px", "marginBottom": "0px" if overlay else "10px"},
     )
 
 def tool_form_field(label, id, value="", tooltip="", placeholder="", disabled=False):
@@ -472,22 +474,34 @@ def builtin_notice(tool_name):
     What the editor can and cannot do to a built-in tool: its definition belongs
     to Odatix, but the workspace can add flows of its own on top of it.
     """
-    return html.Div(
+    return html.Div(html.Div(
         children=[
             html.Div(
                 [
-                    ui.badge("built-in", className="odx-flow-builtin-badge"),
+                    ui.badge("read-only", className="odx-flow-builtin-badge", color="warning"),
                     html.Span(
-                        f"\"{tool_name}\" is shipped with Odatix. You can add flows to it — they are saved next to "
-                        f"it in your workspace — but its own settings, commands and log formatting stay read-only. "
-                        f"Duplicate it from the tools page to make it yours and change everything.",
+                        [
+                            html.Strong(tool_name),
+                            " tool definition is shipped with Odatix. You can add flows to it and edit metrics, they will be saved in your workspace.  ",
+                            html.Br(),
+                            "However, its own settings, commands and log formatting stay read-only. ",
+                            "Duplicate it from the tools page to make it yours and change everything.",
+                        ],
+                        style={"transform": "translateX(4px)"},
                     ),
                 ],
                 className="odx-notice-text",
+                style={"transform": "translateX(-4px)"},
             ),
+
         ],
-        className="odx-notice",
-    )
+        # "tile title" only for its width rules: the notice must always be as
+        # wide as the title tile above it, including in the responsive breakpoints.
+        className="odx-notice tile title",
+        # No "auto" side margins: when the tile is wider than the grid track they
+        # resolve to 0 and shift the notice right of the title tile above it.
+        style={"margin": "-20px 0 32px", "borderRadius": "0 0 var(--card-border-radius) var(--card-border-radius)"},
+    ), className="card-matrix config")
 
 def tool_form(settings, tool_name="", disabled=False):
     target_placeholder = f"target_{tool_name}.yml" if tool_name else "target_<tool>.yml"
@@ -718,7 +732,7 @@ def flow_card(flow_uid, flow, lock_default=False):
                 ),
             ),
             html.Div(style={"flex": "1"}),
-            *([ui.badge("built-in", className="odx-flow-builtin-badge")] if locked else []),
+            *([ui.badge("read-only", className="odx-flow-builtin-badge", color="warning")] if locked else []),
             ui.duplicate_button(id={"type": "tool-flow-duplicate", "flow": flow_uid}, tooltip="Duplicate this flow"),
             *([] if locked else [
                 ui.delete_button(id={"type": "tool-flow-delete", "flow": flow_uid}, tooltip="Delete this flow"),

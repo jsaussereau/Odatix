@@ -317,9 +317,14 @@ def tag(text: str, className: str="") -> Component:
     return html.Span(text, className=f"odx-tag {className}".strip())
 
 
-def badge(text, className: str="", id: Optional[Union[str, dict]]=None) -> Component:
+def badge(text, className: str="", id: Optional[Union[str, dict]]=None, color: str="") -> Component:
+    """
+    Pill badge. "color" picks a theme color variant ("primary"/"accent",
+    "success", "warning", "caution"/"error"); without it the badge is neutral.
+    """
     kwargs = {"id": id} if id is not None else {}
-    return html.Span(text, className=f"odx-badge {className}".strip(), **kwargs)
+    classes = " ".join(c for c in ("odx-badge", color, className) if c)
+    return html.Span(text, className=classes, **kwargs)
 
 
 def section(title: str, children, id: Optional[Union[str, dict]]=None, heading_id: Optional[Union[str, dict]]=None, tools=None, tooltip: str="") -> Component:

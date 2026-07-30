@@ -474,10 +474,33 @@
     white-space: nowrap;
     opacity: 0.85;
 }
-.odx-badge.accent {
-    background: var(--theme-badge-background-color);
-    color: var(--theme-badge-text-color);
+/* Colored variants: a variant only sets --odx-badge-color, the tinted
+   background and the text color follow. Any theme color works, so a page
+   needing an unlisted one can set the variable inline instead of adding a
+   class. */
+.odx-badge.accent,
+.odx-badge.primary,
+.odx-badge.success,
+.odx-badge.warning,
+.odx-badge.caution,
+.odx-badge.error {
+    background: color-mix(in srgb, var(--odx-badge-color) 14%, transparent);
+    color: var(--odx-badge-color);
     opacity: 1;
+}
+.odx-badge.accent,
+.odx-badge.primary {
+    --odx-badge-color: var(--theme-primary-color);
+}
+.odx-badge.success {
+    --odx-badge-color: var(--theme-success-color);
+}
+.odx-badge.warning {
+    --odx-badge-color: var(--theme-warning-color);
+}
+.odx-badge.caution,
+.odx-badge.error {
+    --odx-badge-color: var(--theme-caution-color);
 }
 .odx-empty {
     padding: var(--space-6);
@@ -997,6 +1020,7 @@
 /* A flow of a built-in tool: shown, not editable. */
 .odx-flow-builtin-badge {
     margin-right: var(--space-1);
+    flex-shrink: 0;
 }
 .odx-flow-card.locked {
     border-style: dashed;
@@ -1008,23 +1032,27 @@
 }
 
 /* What editing a built-in tool can and cannot change. */
-.odx-notice {
-    width: 100%;
-    max-width: calc(2 * var(--tile-width) + var(--tile-gap));
-    margin: 0 auto var(--space-3);
-    padding: var(--space-3);
-    border: 1px solid rgba(128, 128, 128, 0.2);
-    border-radius: var(--theme-normal-border-radius);
+/* Sizing comes from the "tile title" classes it is given, so the notice is
+   always exactly as wide as the title tile above it (breakpoints included). */
+.odx-notice.tile {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid rgba(128, 128, 128, 0.18);
+    border-top: none;
     background: var(--theme-tertiary-color);
+    box-shadow: none;
     box-sizing: border-box;
 }
 .odx-notice-text {
     display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
     font-size: 13px;
-    line-height: 1.5;
-    opacity: 0.85;
+    line-height: 1.6;
+    opacity: 0.9;
+}
+.odx-notice-text > span {
+    width: fit-content;
 }
 
 /* Gear opening the tool editor, in the top right corner of a tool card, level
