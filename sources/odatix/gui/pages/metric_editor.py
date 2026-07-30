@@ -27,6 +27,10 @@ Edits how results are extracted from each run at export time, in two modes:
   - workflow mode (/metric_editor?workflow=<name>, from the Workflow Editor):
     the workflow's "_metrics.yml" (see
     odatix.components.export_workflow_results);
+  - simulation mode (/metric_editor?simulation=<name>, from the Simulation
+    Editor or /architectures): the simulation's "_metrics.yml" (see
+    odatix.components.export_simulation_results). Simulations converged with
+    workflows, so this mode is the workflow one with a different file to write;
   - tool mode (/metric_editor?tool=<name>, from /tools or the Tool Editor): the
     metrics of an eda tool (see odatix.components.export_results).
 
@@ -76,6 +80,8 @@ page_path = "/metric_editor"
 # The page has two edit modes, selected by the URL query:
 #   ?workflow=<name>  -> workflow metrics: two sections (metrics + metadata),
 #                        stored in the workflow's "_metrics.yml".
+#   ?simulation=<name>-> simulation metrics: same two sections, stored in the
+#                        simulation's "_metrics.yml".
 #   ?tool=<name>      -> eda tool metrics: three sections (fmax synthesis /
 #                        custom frequency synthesis / common), stored in the
 #                        tool's "metrics.yml".
@@ -198,6 +204,17 @@ def _get_workflow_path(odatix_settings):
         return settings_data.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
 
     return OdatixSettings.DEFAULT_WORKFLOW_PATH
+
+def _get_sim_path(odatix_settings):
+    sim_path = odatix_settings.get("sim_path", "") if isinstance(odatix_settings, dict) else ""
+    if sim_path:
+        return sim_path
+
+    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
+    if isinstance(settings_data, dict):
+        return settings_data.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+
+    return OdatixSettings.DEFAULT_SIM_PATH
 
 def _get_tools_path(odatix_settings):
     tools_path = odatix_settings.get("tools_path", "") if isinstance(odatix_settings, dict) else ""
@@ -378,13 +395,19 @@ def build_section_dict(
 # UI Components
 ######################################
 
-def metric_title(name, is_tool=False):
+def metric_title(name, is_tool=False, mode="workflow"):
     if is_tool:
         settings_link = f"/tool_editor?tool={name}"
         settings_text = "Tool Settings"
         settings_tooltip = "Back to the Tool Editor for this tool"
         back_link = f"/tool_editor?tool={name}" if name else "/tools"
         empty_text = "No tool selected"
+    elif mode == "simulation":
+        settings_link = f"/sim_editor?sim={name}"
+        settings_text = "Simulation Settings"
+        settings_tooltip = "Back to the Simulation Editor for this simulation"
+        back_link = f"/sim_editor?sim={name}" if name else "/architectures"
+        empty_text = "No simulation selected"
     else:
         settings_link = f"/workflow_editor?workflow={name}"
         settings_text = "Workflow Settings"
@@ -1043,8 +1066,11 @@ def init_page(search, page, odatix_settings):
 
     tool_name = get_key_from_url(search, "tool")
     workflow_name = get_key_from_url(search, "workflow")
+    simulation_name = get_key_from_url(search, "simulation")
     is_tool = bool(tool_name)
-    name = tool_name if is_tool else workflow_name
+    is_simulation = (not is_tool) and bool(simulation_name)
+    mode = "tool" if is_tool else ("simulation" if is_simulation else "workflow")
+    name = tool_name if is_tool else (simulation_name if is_simulation else workflow_name)
 
     sections = _sections_for_mode(is_tool)
     titles = _section_title_children(sections)
@@ -1064,8 +1090,10 @@ def init_page(search, page, odatix_settings):
             builtin_defs[prefix] = builtin.get(key, {})
             entries[prefix] = section_entries(builtin.get(key, {}), workspace_metrics.get(key, {}))
     elif (not is_tool) and name:
-        workflow_path = _get_workflow_path(odatix_settings)
-        metrics, metadata = workspace.load_workflow_metrics(workflow_path, name)
+        if is_simulation:
+            metrics, metadata = workspace.load_simulation_metrics(_get_sim_path(odatix_settings), name)
+        else:
+            metrics, metadata = workspace.load_workflow_metrics(_get_workflow_path(odatix_settings), name)
         by_key = {"metrics": metrics, "metadata": metadata}
         section_defs = {prefix: by_key.get(key, {}) for prefix, _l, _t, key in sections}
         entries = {prefix: section_defs[prefix] for prefix, _l, _t, _k in sections}
@@ -1082,12 +1110,12 @@ def init_page(search, page, odatix_settings):
             rows[prefix] = [add_card(prefix, "Add new metric")]
 
     initial = {
-        "mode": "tool" if is_tool else "workflow",
+        "mode": mode,
         "sections": {prefix: section_defs.get(prefix, {}) for prefix, _l, _t, _k in sections},
     }
 
     return (
-        metric_title(name, is_tool=is_tool),
+        metric_title(name, is_tool=is_tool, mode=mode),
         titles[METRIC_PREFIX],
         titles[META_PREFIX],
         titles[THIRD_PREFIX],
@@ -1168,7 +1196,10 @@ def save_and_status(
 
     tool_name = get_key_from_url(search, "tool")
     workflow_name = get_key_from_url(search, "workflow")
+    simulation_name = get_key_from_url(search, "simulation")
     is_tool = bool(tool_name)
+    is_simulation = (not is_tool) and bool(simulation_name)
+    mode = "tool" if is_tool else ("simulation" if is_simulation else "workflow")
     sections = _sections_for_mode(is_tool)
 
     section_fields = {
@@ -1203,7 +1234,7 @@ def save_and_status(
                 return error, f"Duplicate {label} name: '{clean}'", dash.no_update
             seen.add(clean)
 
-    current = {"mode": "tool" if is_tool else "workflow", "sections": current_sections}
+    current = {"mode": mode, "sections": current_sections}
 
     reference = saved if saved is not None else initial
     if not isinstance(reference, dict) or "sections" not in reference:
@@ -1217,6 +1248,15 @@ def save_and_status(
             key_sections = {key: current_sections[prefix] for prefix, _l, _t, key in sections}
             try:
                 workspace.save_tool_metrics(tools_path, tool_name, key_sections)
+                return disabled[0], disabled[1], current
+            except Exception:
+                return error, "Failed to save...", dash.no_update
+        elif is_simulation:
+            try:
+                workspace.save_simulation_metrics(
+                    _get_sim_path(odatix_settings), simulation_name,
+                    current_sections.get(METRIC_PREFIX, {}), current_sections.get(META_PREFIX, {}),
+                )
                 return disabled[0], disabled[1], current
             except Exception:
                 return error, "Failed to save...", dash.no_update
