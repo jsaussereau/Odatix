@@ -24,8 +24,9 @@ EDA Tools page.
 
 Lists the workspace EDA tools (directories under the workspace tools directory,
 odatix_userconfig/tools by default) and lets the user add, edit, duplicate and
-delete them. Built-in tools shipped with Odatix are listed read-only and can be
-duplicated into the workspace to be used as an editable starting point.
+delete them. Built-in tools shipped with Odatix are listed apart: their flows are
+read-only, but their settings and metrics can be overridden in the workspace (see
+/tool_editor), and they can be duplicated into it to be edited as a whole.
 
 Each tool is edited through the Tool Editor (/tool_editor?tool=...) for its
 tool.yml, and the Exported Metrics Editor (/metric_editor?tool=...) for its
@@ -218,15 +219,16 @@ def builtin_tool_card(name, tools_path):
     unique_key = str(uuid.uuid4())
     label = eda_tools.get_tool_label(name)
     visual = tool_icon_image(eda_tools.load_tool_settings(name))
-    # A built-in tool the workspace already adds flows to says so: the card is
-    # still the built-in one, its definition is not owned by the workspace.
+    # A built-in tool the workspace already adds flows to or overrides settings of
+    # says so: the card is still the built-in one, its flows are not owned by the
+    # workspace.
     extended = workspace.tool_exists(tools_path, name)
     return html.Div(
         [
             *([visual] if visual is not None else []),
             html.Div(label, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
             html.Div(
-                "built-in + your flows" if extended else "built-in",
+                "built-in + your changes" if extended else "built-in",
                 style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "marginTop": "2px"},
             ),
             *([flows] if (flows := flows_line(name)) is not None else []),
@@ -234,9 +236,10 @@ def builtin_tool_card(name, tools_path):
                 [
                     ui.icon_button(
                         id=f"button-flows-tool-{name}",
-                        icon=icon("edit", className="icon black"),
-                        text="Add flows",
-                        tooltip="Add flows of your own to this built-in tool, without copying it",
+                        icon=icon("gear", className="icon black"),
+                        text="Settings",
+                        tooltip="Override this built-in tool's settings and add flows of your own to it, "
+                                "without copying it",
                         tooltip_options="bottom delay",
                         color="default",
                         link=f"/tool_editor?tool={name}",
@@ -514,7 +517,8 @@ layout = html.Div(
                             ],
                             id="builtin-tools-title",
                         ),
-                        ui.tooltip_icon("Tools shipped with Odatix. Duplicate one into your workspace to edit it."),
+                        ui.tooltip_icon("Tools shipped with Odatix. Their settings can be overridden in your workspace; "
+                                    "duplicate one into it to edit all of it, flows included."),
                     ],
                     className="odx-section-head",
                     style={"justifyContent": "center", "marginTop": "32px", "gap": "0"},

@@ -24,7 +24,7 @@ Tool Editor page.
 
 Graphical editor for a workspace tool's tool.yml (see
 odatix.components.workspace and odatix.lib.eda_tools). It exposes:
-  - display metadata (label / description / icon),
+  - display metadata (Display name / description / icon),
   - behaviour (process_group, report_path, default_metrics_file),
   - the tool's *flows*: every way of running it, each one editable, and one of
     them marked as the default,
@@ -36,6 +36,14 @@ inherit what the default flow does. That is exactly what the three "Inherited /
 Command / Steps" choices of each job type mean. The commands of the default
 flow are the ones written directly in the "unix"/"windows" sections of tool.yml,
 the other flows live under "flows:" — the editor hides that asymmetry.
+
+A built-in tool is edited as an overlay: the flows Odatix ships are shown
+read-only (their commands belong to Odatix, duplicate one to start from what it
+does), while everything else — the metadata, the behaviour, the log formatting —
+can be overridden in the workspace. Only what actually differs from the built-in
+definition is written, and each section has a button putting it back to the
+built-in state, the way the metrics editor handles built-in metrics. A tool with
+such an overlay is still a built-in tool, on /tools as everywhere else.
 
 YAML anchors used by the built-in tool.yml files are resolved on load, so the
 editor works on plain command lists and re-emits a flat, anchor-free tool.yml on
@@ -225,6 +233,11 @@ def normalize_flows(raw):
             "label": str(spec.get("label", "") or ""),
             "description": str(spec.get("description", "") or ""),
             "is_default": is_default,
+            # A loaded flow starts folded: the page opens on what the tool is and
+            # the list of what it can run, and a flow is unfolded to work on it.
+            # A tool with nothing saved yet has nothing to read, so its flow is
+            # unfolded: the page opens ready to be filled in.
+            "collapsed": bool(raw),
             "platforms": platforms,
         })
     return flows
@@ -383,6 +396,47 @@ def normalize_for_compare(settings):
         },
     }
 
+def overlay_overrides(current, builtin):
+    """
+    What the workspace says about a built-in tool's settings: only the values
+    that differ from the built-in definition, so a setting put back to what
+    Odatix says drops out of the workspace file instead of being frozen into it.
+
+    The flows are not part of it: the built-in ones belong to Odatix and the
+    added ones are written on their own (see workspace.save_tool_overlay).
+    """
+    builtin = builtin if isinstance(builtin, dict) else {}
+    overrides = {}
+    for key in workspace.TOOL_OVERRIDABLE_KEYS:
+        if current.get(key) != builtin.get(key):
+            overrides[key] = current.get(key)
+
+    current_format = current.get("format", {}) or {}
+    builtin_format = builtin.get("format", {}) or {}
+    fmt = {}
+    for section_key in ("logs", "tags"):
+        current_section = current_format.get(section_key, {}) or {}
+        builtin_section = builtin_format.get(section_key, {}) or {}
+        # Built-in entries first, so the file reads in the order the tool.yml it
+        # overrides does; a marker list cleared by the user is kept as an empty
+        # list, which is how the overlay says a built-in one no longer applies.
+        keys = list(builtin_section) + [key for key in current_section if key not in builtin_section]
+        section = {
+            key: list(current_section.get(key) or [])
+            for key in keys
+            if list(current_section.get(key) or []) != list(builtin_section.get(key) or [])
+        }
+        if section:
+            fmt[section_key] = section
+
+    current_replace = current_format.get("replace", [])
+    if _replace_pairs(current_replace) != _replace_pairs(builtin_format.get("replace", [])):
+        fmt["replace"] = current_replace
+
+    if fmt:
+        overrides["format"] = fmt
+    return overrides
+
 def _replace_pairs(replace):
     """Normalize a replace list to a list of (pattern, replacement) pairs."""
     pairs = []
@@ -471,21 +525,22 @@ def tool_form_field(label, id, value="", tooltip="", placeholder="", disabled=Fa
 
 def builtin_notice(tool_name):
     """
-    What the editor can and cannot do to a built-in tool: its definition belongs
-    to Odatix, but the workspace can add flows of its own on top of it.
+    What the editor can and cannot do to a built-in tool: its flows belong to
+    Odatix, everything else can be overridden in the workspace.
     """
     return html.Div(html.Div(
         children=[
             html.Div(
                 [
-                    ui.badge("read-only", className="odx-flow-builtin-badge", color="warning"),
+                    ui.badge("built-in", className="odx-flow-builtin-badge", color="warning"),
                     html.Span(
                         [
                             html.Strong(tool_name),
-                            " tool definition is shipped with Odatix. You can add flows to it and edit metrics, they will be saved in your workspace.  ",
+                            " tool definition is shipped with Odatix. Its settings, log formatting and metrics can be overridden in your workspace, "
+                            "and you can add flows of your own to it.  ",
                             html.Br(),
-                            "However, its own settings, commands and log formatting stay read-only. ",
-                            "Duplicate it from the tools page to make it yours and change everything.",
+                            "However, the flows it already declares stay read-only: duplicate one to start from what it does. ",
+                            "Use the reset buttons to put a section back to what Odatix defines.",
                         ],
                         style={"transform": "translateX(4px)"},
                     ),
@@ -503,17 +558,44 @@ def builtin_notice(tool_name):
         style={"margin": "-20px 0 32px", "borderRadius": "0 0 var(--card-border-radius) var(--card-border-radius)"},
     ), className="card-matrix config")
 
-def tool_form(settings, tool_name="", disabled=False):
+def reset_builtin_button(section, tooltip):
+    """The button dropping what the workspace says about one section of a
+    built-in tool, putting it back to what Odatix defines."""
+    return ui.icon_button(
+        id={"type": "tool-reset-builtin", "section": section},
+        icon=icon("reset", className="icon default"),
+        text="Reset",
+        tooltip=tooltip,
+        tooltip_options="bottom delay",
+        color="default",
+        width="auto",
+        bold=False,
+    )
+
+def tile_head(title, reset_section=None, reset_tooltip=""):
+    """The heading of a settings tile, with its reset button when the tool is a
+    built-in one and the section can be put back to the built-in state."""
+    return html.Div(
+        children=[
+            html.H3(title, style={"margin": "0"}),
+            reset_builtin_button(reset_section, reset_tooltip) if reset_section else None,
+        ],
+        style={"display": "flex", "alignItems": "center", "justifyContent": "space-between",
+               "gap": "10px", "marginBottom": "14px", "minHeight": "26px"},
+    )
+
+def tool_form(settings, tool_name="", overlay=False):
     target_placeholder = f"target_{tool_name}.yml" if tool_name else "target_<tool>.yml"
 
     metadata_tile = html.Div(
         [
-            html.H3("Tool Metadata"),
-            tool_form_field("Label", "tool-label", value=settings.get("label", ""), disabled=disabled,
+            tile_head("Tool Metadata", "metadata" if overlay else None,
+                      "Reset the metadata to what Odatix defines for this built-in tool"),
+            tool_form_field("Display Name", "tool-label", value=settings.get("label", ""),
                             tooltip="Display name shown in the GUI (defaults to the tool identifier)."),
-            tool_form_field("Description", "tool-description", value=settings.get("description", ""), disabled=disabled,
+            tool_form_field("Description", "tool-description", value=settings.get("description", ""),
                             tooltip="Short description shown on the tool selection page."),
-            tool_form_field("Icon", "tool-icon", value=settings.get("icon", ""), disabled=disabled,
+            tool_form_field("Icon", "tool-icon", value=settings.get("icon", ""),
                             placeholder="assets/icons/my_tool.png",
                             tooltip="Optional icon path (relative to the GUI assets) shown on the tool selection page."),
         ],
@@ -522,28 +604,29 @@ def tool_form(settings, tool_name="", disabled=False):
 
     behaviour_tile = html.Div(
         [
-            html.H3("Behaviour"),
+            tile_head("Behaviour", "behaviour" if overlay else None,
+                      "Reset the behaviour to what Odatix defines for this built-in tool"),
             html.Div(
                 children=[
                     dcc.Checklist(
                         value=[True] if settings.get("process_group", True) else [],
                         id="tool-process-group",
                         className="checklist-switch",
-                        options=[{"label": "Group processes", "value": True, "disabled": disabled}],
+                        options=[{"label": "Group processes", "value": True}],
                         style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
                     ),
                     ui.tooltip_icon("Group the tool's child processes so they can be terminated together."),
                 ],
                 style={"marginBottom": "12px"},
             ),
-            tool_form_field("Report Path", "tool-report-path", value=settings.get("report_path", ""), disabled=disabled,
+            tool_form_field("Report Path", "tool-report-path", value=settings.get("report_path", ""),
                             tooltip="Optional path (relative to the run directory) where the tool writes its reports."),
-            tool_form_field("Target Definition File", "tool-target-file", disabled=disabled,
+            tool_form_field("Target Definition File", "tool-target-file",
                             value=settings.get("target_file", ""),
                             placeholder=target_placeholder,
                             tooltip="Name of the target definition file for this tool (defaults to target_<tool>.yml). "
                                     "Looked up in the workspace target directory, then in odatix_userconfig."),
-            tool_form_field("Default Metrics File", "tool-default-metrics-file", disabled=disabled,
+            tool_form_field("Default Metrics File", "tool-default-metrics-file",
                             value=settings.get("default_metrics_file", ""),
                             placeholder="$tool_path/metrics.yml",
                             tooltip="Metrics definition file used at export time. Use $tool_path to point inside the tool directory."),
@@ -691,13 +774,34 @@ def flow_card(flow_uid, flow, lock_default=False):
     One flow. A built-in flow of a built-in tool is shown locked: it belongs to
     Odatix, and what the workspace adds on top of it is a flow of its own
     (duplicate it to start from what it does).
+
+    A card can be folded down to its head, so a tool with several flows stays
+    readable. Whether it is folded is held in the page like the other states the
+    server owns, so it survives the re-render a structural change triggers.
     """
     is_default = bool(flow.get("is_default"))
     locked = bool(flow.get("builtin"))
+    collapsed = bool(flow.get("collapsed"))
     platforms = flow.get("platforms", {})
 
     head = html.Div(
         children=[
+            ui.icon_button(
+                id={"type": "tool-flow-toggle", "flow": flow_uid},
+                icon=icon(
+                    "more",
+                    className="icon normal rotate" + ("" if collapsed else " rotated"),
+                    id={"type": "tool-flow-toggle-icon", "flow": flow_uid},
+                ),
+                color="default",
+                tooltip="Fold or unfold this flow",
+                tooltip_options="bottom auto delay",
+            ),
+            dcc.Input(
+                id={"type": "tool-flow-collapsed", "flow": flow_uid},
+                value="1" if collapsed else "",
+                type="hidden",
+            ),
             dcc.Input(
                 id={"type": "tool-flow-name", "flow": flow_uid},
                 value=flow.get("name", ""),
@@ -726,7 +830,7 @@ def flow_card(flow_uid, flow, lock_default=False):
                 disabled=is_default or lock_default,
                 className="odx-flow-default-chip" + (" active" if is_default else ""),
                 title=(
-                    "This tool's default flow is defined by Odatix"
+                    "Built-in tools default flow cannot be changed."
                     if lock_default and not is_default
                     else "The flow used when none is asked for. Its commands are the ones the other flows start from."
                 ),
@@ -771,11 +875,19 @@ def flow_card(flow_uid, flow, lock_default=False):
         for platform, platform_label in PLATFORMS
     ]
 
+    body = html.Div(
+        children=[metadata, ui.grid(platform_panels, className="wide top")],
+        id={"type": "tool-flow-body", "flow": flow_uid},
+        className="animated-section" + (" hide" if collapsed else ""),
+    )
+
     return html.Div(
-        children=[head, metadata, ui.grid(platform_panels, className="wide top")],
+        children=[head, body],
+        id={"type": "tool-flow-card", "flow": flow_uid},
         className="odx-panel padded odx-flow-card"
                   + (" default" if is_default else "")
-                  + (" locked" if locked else ""),
+                  + (" locked" if locked else "")
+                  + (" collapsed" if collapsed else ""),
     )
 
 def flow_cards(flows, lock_default=False):
@@ -787,7 +899,7 @@ def flow_cards(flows, lock_default=False):
 def new_flow(name):
     """A flow that declares nothing yet: it inherits the default flow as is."""
     return {"name": name, "label": "", "description": "", "is_default": False,
-            "builtin": False, "platforms": _empty_platforms()}
+            "builtin": False, "collapsed": False, "platforms": _empty_platforms()}
 
 def _unique_flow_name(base, taken):
     name = base
@@ -814,7 +926,7 @@ def _by_job(ids, values):
     }
 
 def gather_flows(
-    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins,
+    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
     mode_ids, mode_values, cmd_ids, cmd_values,
     step_ids, step_names, step_cmds,
 ):
@@ -832,6 +944,7 @@ def gather_flows(
     descriptions = _by_uid(flow_ids, flow_descriptions)
     defaults = _by_uid(flow_ids, flow_defaults)
     builtins = _by_uid(flow_ids, flow_builtins)
+    collapsed = _by_uid(flow_ids, flow_collapsed)
     modes = _by_job(mode_ids, mode_values)
     commands = _by_job(cmd_ids, cmd_values)
 
@@ -868,6 +981,7 @@ def gather_flows(
             "description": str(descriptions.get(uid) or ""),
             "is_default": bool(defaults.get(uid)),
             "builtin": bool(builtins.get(uid)),
+            "collapsed": bool(collapsed.get(uid)),
             "platforms": platforms,
         })
 
@@ -902,6 +1016,7 @@ def flow_dependencies(text_dep, choice_dep):
         # Hidden, server owned values: they only ever change with a re-render.
         State({"type": "tool-flow-default", "flow": dash.ALL}, "value"),
         State({"type": "tool-flow-builtin", "flow": dash.ALL}, "value"),
+        State({"type": "tool-flow-collapsed", "flow": dash.ALL}, "value"),
         State(dict(job_pattern, type="tool-job-mode"), "id"),
         choice_dep(dict(job_pattern, type="tool-job-mode"), "value"),
         State(dict(job_pattern, type="tool-cmd"), "id"),
@@ -931,6 +1046,36 @@ def _step_index(step_ids, key, step_uid):
     return uids.index(step_uid) if step_uid in uids else None
 
 @dash.callback(
+    Output({"type": "tool-flow-body", "flow": dash.MATCH}, "className"),
+    Output({"type": "tool-flow-toggle-icon", "flow": dash.MATCH}, "className"),
+    Output({"type": "tool-flow-card", "flow": dash.MATCH}, "className"),
+    Output({"type": "tool-flow-collapsed", "flow": dash.MATCH}, "value"),
+    Input({"type": "tool-flow-toggle", "flow": dash.MATCH}, "n_clicks"),
+    State({"type": "tool-flow-collapsed", "flow": dash.MATCH}, "value"),
+    State({"type": "tool-flow-card", "flow": dash.MATCH}, "className"),
+    prevent_initial_call=True,
+)
+def toggle_flow(n_clicks, collapsed, card_class):
+    """
+    Fold a flow card down to its head, or unfold it. The new state is written
+    back to the hidden value the card carries, so a re-render of the section
+    (a flow added, a job type switched to steps) keeps every card as it was.
+    """
+    if not n_clicks:
+        return (dash.no_update,) * 4
+
+    collapsed = not collapsed
+    classes = [name for name in str(card_class or "").split() if name != "collapsed"]
+    if collapsed:
+        classes.append("collapsed")
+    return (
+        "animated-section hide" if collapsed else "animated-section",
+        "icon normal rotate" if collapsed else "icon normal rotate rotated",
+        " ".join(classes),
+        "1" if collapsed else "",
+    )
+
+@dash.callback(
     Output("tool-flows-container", "children", allow_duplicate=True),
     # A flow added, duplicated or deleted changes the settings without any field
     # changing, and the save callback cannot watch the section itself without
@@ -951,7 +1096,7 @@ def _step_index(step_ids, key, step_uid):
 def update_flows(
     new_click, duplicate_clicks, delete_clicks, set_default_clicks,
     step_new_clicks, step_duplicate_clicks, step_delete_clicks,
-    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins,
+    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
     mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds, overlay,
 ):
     """
@@ -973,7 +1118,7 @@ def update_flows(
         return dash.no_update, dash.no_update, dash.no_update
 
     flows = gather_flows(
-        flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins,
+        flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
         mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds,
     )
     taken = {flow["name"] for flow in flows}
@@ -987,8 +1132,11 @@ def update_flows(
             copy = copy_module.deepcopy(flows[index])
             copy["name"] = _unique_flow_name(f"{flows[index]['name'] or 'flow'}_copy", taken)
             copy["is_default"] = False
-            # A copy belongs to the workspace, even when what it copies does not.
+            # A copy belongs to the workspace, even when what it copies does not,
+            # and is unfolded whatever the flow it copies is: it is there to be
+            # worked on.
             copy["builtin"] = False
+            copy["collapsed"] = False
             flows.insert(index + 1, copy)
 
     elif action == "tool-flow-delete":
@@ -1037,13 +1185,14 @@ def update_flows(
         "Unsaved changes!",
     )
 
-def log_formatting_tiles(settings, disabled=False):
+def log_formatting_tiles(settings, overlay=False):
     logs = settings.get("format", {}).get("logs", {})
     tags = settings.get("format", {}).get("tags", {})
 
     log_tile = html.Div(
         [
-            html.H3("Log Levels"),
+            tile_head("Log Levels", "logs" if overlay else None,
+                      "Reset the log levels to what Odatix defines for this built-in tool"),
             html.Div(
                 "Comma-separated markers: a log line containing one of them is colored with the level.",
                 style={"fontSize": "0.85em", "opacity": "0.7", "marginBottom": "10px"},
@@ -1053,7 +1202,6 @@ def log_formatting_tiles(settings, disabled=False):
                     label, f"tool-log-{level}",
                     value=", ".join(logs.get(level, [])),
                     placeholder="<error>, ERROR:",
-                    disabled=disabled,
                 )
                 for level, label in LOG_LEVELS
             ],
@@ -1061,12 +1209,13 @@ def log_formatting_tiles(settings, disabled=False):
         className="tile config",
     )
 
-    tag_rows = [tag_marker_row(name, ", ".join(tags.get(name, [])), disabled=disabled) for name in TAG_NAMES]
+    tag_rows = [tag_marker_row(name, ", ".join(tags.get(name, []))) for name in TAG_NAMES]
     tag_columns_split = (len(tag_rows) + 1) // 2
 
     tags_tile = html.Div(
         [
-            html.H3("Log Format Tags"),
+            tile_head("Log Format Tags", "tags" if overlay else None,
+                      "Reset the format tags to what Odatix defines for this built-in tool"),
             html.Div(
                 "Marker(s) used in the tool output for each style/color, replaced by the "
                 "matching ANSI escape code. Comma-separate several markers; leave empty to disable a tag.",
@@ -1089,7 +1238,7 @@ def log_formatting_tiles(settings, disabled=False):
         style={"marginBottom": "20px"},
     )
 
-def tag_marker_row(name, markers="", disabled=False):
+def tag_marker_row(name, markers=""):
     # Fixed row: the tag name (an ANSI style/color) + its editable marker(s).
     return html.Div(
         [
@@ -1100,7 +1249,6 @@ def tag_marker_row(name, markers="", disabled=False):
                 placeholder=f"<{name}>",
                 id={"type": "tool-tag-markers", "name": name},
                 className="value-input",
-                disabled=disabled,
                 style={"flex": "1 1 auto", "minWidth": "0", "marginBottom": "0"},
             ),
         ],
@@ -1112,7 +1260,7 @@ def tag_marker_row(name, markers="", disabled=False):
 # Tag and Replace cards (dynamic)
 ######################################
 
-def replace_card(name, pattern="", replacement="", disabled=False):
+def replace_card(name, pattern="", replacement=""):
     return html.Div(
         [
             html.Div([
@@ -1123,7 +1271,6 @@ def replace_card(name, pattern="", replacement="", disabled=False):
                     placeholder="(Slack \\(VIOLATED\\))",
                     id={"type": "tool-replace-pattern", "name": name},
                     className="value-input",
-                    disabled=disabled,
                     style={"width": "100%", "marginBottom": "6px"},
                 ),
                 html.Label("Replacement", style={"fontWeight": "bold", "fontSize": "0.95em"}),
@@ -1133,13 +1280,12 @@ def replace_card(name, pattern="", replacement="", disabled=False):
                     placeholder="<red>$1<end>",
                     id={"type": "tool-replace-repl", "name": name},
                     className="value-input",
-                    disabled=disabled,
                     style={"width": "100%", "marginBottom": "6px"},
                 ),
             ]),
             html.Div([
                 html.Div(),
-                html.Div([] if disabled else [
+                html.Div([
                     ui.duplicate_button(id={"type": "tool-replace-duplicate", "name": name}),
                     ui.delete_button(id={"type": "tool-replace-delete", "name": name}),
                 ], style={"display": "flex", "flexDirection": "row", "alignItems": "center", "gap": "5px"}),
@@ -1150,9 +1296,8 @@ def replace_card(name, pattern="", replacement="", disabled=False):
         style={"padding": "10px", "margin": "5px", "display": "inline-block", "verticalAlign": "top"},
     )
 
-def add_card(prefix, text, hidden=False):
-    """The "add one more" card. Kept in the page even when hidden: the callbacks
-    adding a card are wired to it by id."""
+def add_card(prefix, text):
+    """The "add one more" card."""
     return html.Div(
         html.Div(
             html.Div(
@@ -1169,15 +1314,26 @@ def add_card(prefix, text, hidden=False):
         className="card configs add hover",
         id=f"{prefix}-add-card",
         style={"padding": "10px", "margin": "5px", "verticalAlign": "top", "boxSizing": "border-box",
-               "display": "none" if hidden else "inline-block"},
+               "display": "inline-block"},
     )
 
-def replace_cards_from_list(replace, disabled=False):
+def replace_cards_from_list(replace):
     cards = []
     for idx, pair in enumerate(_replace_pairs(replace)):
-        cards.append(replace_card(f"rep{idx + 1}", pattern=pair[0], replacement=pair[1], disabled=disabled))
-    cards.append(add_card("tool-replace", "Add replacement", hidden=disabled))
+        cards.append(replace_card(f"rep{idx + 1}", pattern=pair[0], replacement=pair[1]))
+    cards.append(add_card("tool-replace", "Add replacement"))
     return cards
+
+def replace_section_title(overlay=False):
+    """The heading of the log replacements section: they are cards, not a tile,
+    so their reset button lives in the title tile."""
+    return ui.title_tile(
+        text="Log Replacements", id="tool-replace-title",
+        tooltip="Regular expressions applied to the tool output to recolor or rewrite matching text.",
+        buttons=reset_builtin_button(
+            "replace", "Reset the replacements to what Odatix defines for this built-in tool",
+        ) if overlay else html.Div(),
+    )
 
 
 ######################################
@@ -1197,14 +1353,10 @@ def _strip_add_card(cards, add_card_id):
     State("tool-replace-cards-row", "children"),
     State({"type": "tool-replace-pattern", "name": dash.ALL}, "value"),
     State({"type": "tool-replace-repl", "name": dash.ALL}, "value"),
-    State("tool-edit-overlay", "data"),
     prevent_initial_call=True,
 )
-def update_replace_cards(new_click, duplicate_clicks, delete_clicks, cards, pattern_vals, repl_vals, overlay):
+def update_replace_cards(new_click, duplicate_clicks, delete_clicks, cards, pattern_vals, repl_vals):
     trigger_id = ctx.triggered_id
-    # The log formatting of a built-in tool belongs to it, not to the workspace.
-    if overlay:
-        return dash.no_update
     if cards is None:
         cards = []
     cards = _strip_add_card(cards, "tool-replace-add-card")
@@ -1263,61 +1415,145 @@ def update_tool_title(search, odatix_settings):
 
 def _is_overlay(tools_path, tool_name):
     """
-    True when editing a built-in tool: only the flows the workspace adds on top
-    of it can be changed (see workspace.is_builtin_overlay).
+    True when editing a built-in tool: its flows belong to Odatix, and what the
+    workspace says about the rest is an overlay (see workspace.is_builtin_overlay).
     """
     return bool(tool_name) and workspace.is_builtin_overlay(tools_path, tool_name)
 
 def load_editor_settings(tools_path, tool_name):
     """
-    Load what the editor shows for a tool, and say whether it is a built-in one.
+    Load what the editor shows for a tool: its settings, the built-in definition
+    they may override (empty for a workspace tool), and whether it is a built-in
+    tool.
 
     For a built-in tool, the built-in definition and the workspace overlay are
     merged the way odatix resolves them at run time, and every flow the built-in
     already declares is marked as such so the page can lock it.
     """
+    empty = normalize_tool_settings({})
     if not tool_name:
-        return normalize_tool_settings({}), False
+        return empty, empty, False
 
     overlay = _is_overlay(tools_path, tool_name)
     if not overlay:
-        return normalize_tool_settings(workspace.load_tool_settings(tools_path, tool_name)), False
+        return normalize_tool_settings(workspace.load_tool_settings(tools_path, tool_name)), empty, False
 
+    builtin = normalize_tool_settings(workspace.load_builtin_tool_settings(tool_name))
     settings = normalize_tool_settings(workspace.load_overlaid_tool_settings(tools_path, tool_name))
-    builtin_names = {flow["name"] for flow in normalize_flows(workspace.load_builtin_tool_settings(tool_name))}
+    builtin_names = {flow["name"] for flow in builtin.get("flows", [])}
     for flow in settings.get("flows", []):
         flow["builtin"] = flow["name"] in builtin_names
-    return settings, True
+    return settings, builtin, True
 
 @dash.callback(
     Output("tool-form-container", "children"),
     Output("tool-initial-settings", "data"),
     Output("tool-replace-cards-row", "children"),
+    Output("tool-replace-title-container", "children"),
     Output("tool-log-format-container", "children"),
     Output("tool-flows-container", "children"),
     Output("tool-overlay-notice", "children"),
     Output("tool-edit-overlay", "data"),
+    Output("tool-builtin-settings", "data"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
 def init_form(search, page, odatix_settings):
     if page != page_path:
-        return (dash.no_update,) * 7
+        return (dash.no_update,) * 9
 
     tool_name = get_key_from_url(search, "tool")
     tools_path = _get_tools_path(odatix_settings)
-    settings, overlay = load_editor_settings(tools_path, tool_name)
+    settings, builtin, overlay = load_editor_settings(tools_path, tool_name)
 
     fmt = settings.get("format", {})
     return (
-        tool_form(settings, tool_name or "", disabled=overlay),
+        tool_form(settings, tool_name or "", overlay=overlay),
         settings,
-        replace_cards_from_list(fmt.get("replace", []), disabled=overlay),
-        log_formatting_tiles(settings, disabled=overlay),
+        replace_cards_from_list(fmt.get("replace", [])),
+        replace_section_title(overlay=overlay),
+        log_formatting_tiles(settings, overlay=overlay),
         flow_cards(settings.get("flows", []), lock_default=overlay),
         builtin_notice(tool_name) if overlay else None,
         overlay,
+        builtin,
+    )
+
+# The section a reset button puts back to the built-in state, and the settings
+# keys it covers. "logs", "tags" and "replace" are the "format" subsections.
+RESET_SECTIONS = {
+    "metadata": ("label", "description", "icon"),
+    "behaviour": ("process_group", "report_path", "target_file", "default_metrics_file"),
+}
+
+@dash.callback(
+    Output("tool-form-container", "children", allow_duplicate=True),
+    Output("tool-log-format-container", "children", allow_duplicate=True),
+    Output("tool-replace-cards-row", "children", allow_duplicate=True),
+    Input({"type": "tool-reset-builtin", "section": dash.ALL}, "n_clicks"),
+    State("tool-label", "value"),
+    State("tool-description", "value"),
+    State("tool-icon", "value"),
+    State("tool-process-group", "value"),
+    State("tool-report-path", "value"),
+    State("tool-target-file", "value"),
+    State("tool-default-metrics-file", "value"),
+    State("tool-log-error", "value"),
+    State("tool-log-crit_warning", "value"),
+    State("tool-log-warning", "value"),
+    State("tool-log-info", "value"),
+    State("tool-log-trace", "value"),
+    State({"type": "tool-tag-markers", "name": dash.ALL}, "value"),
+    State({"type": "tool-tag-markers", "name": dash.ALL}, "id"),
+    State({"type": "tool-replace-pattern", "name": dash.ALL}, "value"),
+    State({"type": "tool-replace-repl", "name": dash.ALL}, "value"),
+    State("tool-builtin-settings", "data"),
+    State(f"url_{page_path}", "search"),
+    prevent_initial_call=True,
+)
+def reset_section_to_builtin(
+    reset_clicks, label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
+    log_error, log_crit, log_warning, log_info, log_trace,
+    tag_markers, tag_ids, replace_patterns, replace_repls, builtin, search,
+):
+    """
+    Drop what the workspace says about one section of a built-in tool: its fields
+    go back to the built-in values, and saving then writes nothing for them.
+
+    The whole form is re-rendered from what the page currently holds, so the
+    unsaved edits of the other sections are carried over. The re-render feeds the
+    fields back to save_and_status, which refreshes the dirty state on its own.
+    """
+    trigger = ctx.triggered_id
+    section = trigger.get("section") if isinstance(trigger, dict) else None
+    if section is None or not (ctx.triggered[0]["value"] if ctx.triggered else None):
+        return (dash.no_update,) * 3
+
+    tag_names = [tid.get("name") if isinstance(tid, dict) else None for tid in (tag_ids or [])]
+    log_values = {
+        "error": log_error, "crit_warning": log_crit, "warning": log_warning,
+        "info": log_info, "trace": log_trace,
+    }
+    settings = build_tool_settings(
+        label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
+        [], log_values, tag_names, tag_markers, replace_patterns, replace_repls,
+    )
+
+    builtin = builtin if isinstance(builtin, dict) else normalize_tool_settings({})
+    if section in RESET_SECTIONS:
+        for key in RESET_SECTIONS[section]:
+            settings[key] = builtin.get(key)
+    elif section in ("logs", "tags", "replace"):
+        settings["format"][section] = copy_module.deepcopy(builtin.get("format", {}).get(section))
+    else:
+        return (dash.no_update,) * 3
+
+    tool_name = get_key_from_url(search, "tool") or ""
+    return (
+        tool_form(settings, tool_name, overlay=True),
+        log_formatting_tiles(settings, overlay=True),
+        replace_cards_from_list(settings.get("format", {}).get("replace", [])),
     )
 
 @dash.callback(
@@ -1350,15 +1586,16 @@ def init_form(search, page, odatix_settings):
     State("tool-saved-settings", "data"),
     State("odatix-settings", "data"),
     State("tool-edit-overlay", "data"),
+    State("tool-builtin-settings", "data"),
     prevent_initial_call=True,
 )
 def save_and_status(
     n_clicks, tool_title_value, label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
-    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins,
+    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
     mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds,
     log_error, log_crit, log_warning, log_info, log_trace,
     tag_markers, replace_patterns, replace_repls,
-    tag_ids, search, page, initial_settings, saved_settings, odatix_settings, overlay,
+    tag_ids, search, page, initial_settings, saved_settings, odatix_settings, overlay, builtin_settings,
 ):
     # The tag set is fixed (the ANSI style/color names): the tag names come from
     # the markers inputs' ids, not from an editable field.
@@ -1368,7 +1605,7 @@ def save_and_status(
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     flows = gather_flows(
-        flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins,
+        flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
         mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds,
     )
     log_values = {
@@ -1399,12 +1636,17 @@ def save_and_status(
     if triggered_id == {"page": page_path, "action": "save-all"}:
         new_search = dash.no_update
 
-        # A built-in tool keeps its name and its definition: only the flows the
-        # workspace adds to it are written, next to the built-in ones.
+        # A built-in tool keeps its name and its flows: the workspace file holds
+        # the flows added to it and the settings that differ from the built-in
+        # ones, nothing else.
         if overlay:
             added = [flow for flow in flows if not flow.get("builtin")]
+            overrides = overlay_overrides(
+                current_settings,
+                builtin_settings if isinstance(builtin_settings, dict) else {},
+            )
             try:
-                workspace.save_tool_flow_overlay(tools_path, tool_name, added)
+                workspace.save_tool_overlay(tools_path, tool_name, overrides, added)
                 return (
                     "color-button disabled icon-button tooltip delay bottom small",
                     "Nothing to save",
@@ -1482,7 +1724,7 @@ layout = html.Div(
                 html.Div(id="tool-flows-container", className="odx-flows"),
                 ui.title_tile(text="Log Formatting", id="tool-format-title", tooltip="Tags and markers used to colorize the tool output in the job monitor."),
                 html.Div(id="tool-log-format-container"),
-                ui.title_tile(text="Log Replacements", id="tool-replace-title", tooltip="Regular expressions applied to the tool output to recolor or rewrite matching text."),
+                html.Div(id="tool-replace-title-container", children=replace_section_title()),
                 html.Div([
                     html.Div(
                         id="tool-replace-cards-row",
@@ -1494,6 +1736,9 @@ layout = html.Div(
             ],
         ),
         dcc.Store(id="tool-edit-overlay", data=False),
+        # The built-in definition a built-in tool's settings override, kept so a
+        # section can be put back to it and so only what differs is saved.
+        dcc.Store(id="tool-builtin-settings", data=None),
         dcc.Store(id="tool-initial-settings", data=None),
         dcc.Store(id="tool-saved-settings", data=None),
     ],

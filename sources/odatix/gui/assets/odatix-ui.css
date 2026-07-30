@@ -540,6 +540,19 @@
     color: var(--theme-contrast-text-color);
     border-color: transparent;
 }
+/* A read-only choice (the job types of a built-in flow): still readable, and
+   plainly not yours to change. */
+.odx-chips label:has(input:disabled) {
+    cursor: default;
+    opacity: 0.55;
+}
+.odx-chips label:has(input:disabled):hover {
+    border-color: rgba(128, 128, 128, 0.3);
+}
+.odx-chips label:has(input:disabled:checked) {
+    background: rgba(128, 128, 128, 0.45);
+    color: inherit;
+}
 
 /* --- Row checklist ----------------------------------------------------- */
 .odx-check-list {
@@ -895,6 +908,10 @@
 }
 .odx-flow-head {
     margin-bottom: var(--space-3);
+}
+/* Folded down to its head: no room left for a body that is not there. */
+.odx-flow-card.collapsed .odx-flow-head {
+    margin-bottom: 0;
 }
 .odx-flow-head .odx-card-name {
     flex: 0 1 auto;
