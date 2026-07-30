@@ -20,7 +20,8 @@
 *
 */
 
-/* Highlight of ${...} variables inside the workflow command textareas. */
+/* Highlight of ${...} variables inside command fields (workflow task commands,
+   architecture generation command). */
 
 /* Theme variables live on the .theme wrapper, not :root, so alias them there
    (referencing them from :root would resolve to nothing). */
@@ -36,12 +37,12 @@
     margin-bottom: 8px;
 }
 
-/* The textarea styling brings its own margin-bottom; the wrapper owns it now. */
-.wf-hl-wrap .wf-command-textarea {
+/* The field styling brings its own margin-bottom; the wrapper owns it now. */
+.wf-hl-wrap .odatix-command-field {
     margin-bottom: 0 !important;
 }
 
-/* The mirror sits exactly under the textarea and shows the colored text. */
+/* The mirror sits exactly under the field and shows the colored text. */
 .wf-hl-mirror {
     position: absolute;
     top: 0;
@@ -61,9 +62,24 @@
     z-index: 0;
 }
 
-/* The real textarea: transparent text/background so the mirror shows through,
+/* A single-line field sits in a form row that already owns the spacing. */
+.wf-hl-wrap-single {
+    margin-bottom: 0;
+}
+
+/* A single-line field never wraps: it scrolls horizontally instead, and the
+   mirror follows its scroll position. */
+.wf-hl-mirror-single {
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
+    display: flex;
+    align-items: center;
+}
+
+/* The real field: transparent text/background so the mirror shows through,
    but a visible caret and selection. */
-.wf-hl-input.wf-command-textarea {
+.wf-hl-input.odatix-command-field {
     position: relative;
     z-index: 1;
     background: transparent !important;
@@ -71,10 +87,10 @@
     caret-color: var(--theme-text-color);
 }
 
-.wf-hl-input.wf-command-textarea::selection {
+.wf-hl-input.odatix-command-field::selection {
     background: color-mix(in srgb, var(--theme-primary-color) 30%, transparent);
 }
-.wf-hl-input.wf-command-textarea::-moz-selection {
+.wf-hl-input.odatix-command-field::-moz-selection {
     background: color-mix(in srgb, var(--theme-primary-color) 30%, transparent);
 }
 

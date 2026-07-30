@@ -41,6 +41,7 @@ import odatix.lib.printc as printc
 from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.variables import replace_variables, Variables
 from odatix.lib.param_domain import ParamDomain
+import odatix.lib.virtual_param_domain as virtual_param_domain
 
 script_name = os.path.basename(__file__)
 
@@ -470,7 +471,15 @@ class ArchitectureHandler:
         # Expand every (target, architecture) pair into an architecture instance.
         # For RTL analysis the target list is a single generic entry.
         if True:
-            full_architectures = architectures
+            # Virtual parameter domains have no directory on disk: drop their
+            # wildcard selectors before the generic wildcard resolver runs.
+            full_architectures = virtual_param_domain.normalize_requests_for_wildcards(
+                requests=architectures,
+                base_path=self.arch_path,
+                get_basic=ArchitectureHandler.get_basic,
+                param_settings_filename=self.param_settings_filename,
+                script_name=script_name,
+            )
             for target in targets:
                 # Overwrite existing script copy settings if there are target specific settings
                 if target_settings != {}:
@@ -496,12 +505,15 @@ class ArchitectureHandler:
                 # Handle wildcard
                 architectures = ArchitectureHandler.configuration_wildcard(full_architectures, self.arch_path, target)
 
-                for arch in architectures:
+                # One job per combination of the virtual parameter domains
+                architectures = self.expand_virtual_param_domains(architectures, target, only_one_target)
+
+                for arch, command_substitutions in architectures:
                     architecture_instance = self.get_architecture(
                         arch = arch,
-                        target = target, 
-                        only_one_target = only_one_target, 
-                        script_copy_enable = script_copy_enable, 
+                        target = target,
+                        only_one_target = only_one_target,
+                        script_copy_enable = script_copy_enable,
                         script_copy_source = script_copy_source,
                         synthesis = True,
                         constraint_filename = constraint_filename,
@@ -509,6 +521,7 @@ class ArchitectureHandler:
                         run_mode = run_mode,
                         keep=keep,
                         timestamp=timestamp,
+                        command_substitutions=command_substitutions,
                     )
                     if run_mode == "custom_freq":
                         if architecture_instance is not None:
@@ -610,6 +623,98 @@ class ArchitectureHandler:
                             self.architecture_instances.append(architecture_instance)
         return self.architecture_instances
 
+    def expand_virtual_param_domains(self, architectures, target="", only_one_target=True, debug=False):
+        """
+        Expand each architecture request into one request per combination of its
+        virtual parameter domains (the variables defined in its settings file).
+
+        Only "generate_command" consumes these variables, so an architecture that
+        does not reference any of them there keeps a single job, and its variables
+        keep their sole original meaning: generating configurations.
+
+        Returns a list of (architecture request, command substitutions) tuples.
+        """
+        expanded = []
+        for arch_request in architectures:
+            expanded.extend(
+                self._expand_arch_virtual_param_domains(arch_request, target, only_one_target, debug=debug)
+            )
+        return expanded
+
+    def _expand_arch_virtual_param_domains(self, arch_request, target="", only_one_target=True, debug=False):
+        no_expansion = [(arch_request, {})]
+
+        arch, arch_param_dir, _, arch_display_name, _, _, requested_param_domains = ArchitectureHandler.get_basic(
+            arch_request, target, only_one_target
+        )
+
+        settings_data = virtual_param_domain.load_instance_settings(
+            self.arch_path, arch_param_dir, self.param_settings_filename
+        )
+        if settings_data is None:
+            # Missing or invalid settings file: let get_architecture report it.
+            return no_expansion
+
+        virtual_domain_names = virtual_param_domain.get_virtual_domain_names(settings_data)
+        if len(virtual_domain_names) == 0:
+            return no_expansion
+
+        requested_physical_param_domains, requested_virtual_param_domains = (
+            virtual_param_domain.split_requested_param_domains(requested_param_domains, virtual_domain_names)
+        )
+
+        generate_command = settings_data.get("generate_command", "") if settings_data.get("generate_rtl", False) else ""
+        referenced_variables = virtual_param_domain.referenced_variable_names(generate_command) & virtual_domain_names
+
+        # Without an explicit selector, only expand when the generation command
+        # actually uses the variables.
+        if len(requested_virtual_param_domains) == 0 and len(referenced_variables) == 0:
+            return no_expansion
+
+        settings_file = os.path.join(self.arch_path, arch_param_dir, self.param_settings_filename)
+        variants = virtual_param_domain.build_variants(
+            settings=settings_data,
+            settings_file=settings_file,
+            debug=debug,
+            script_name=script_name,
+        )
+        if variants is None:
+            self.plan.add(arch_display_name, Category.ERROR)
+            return []
+        if len(variants) == 0:
+            return no_expansion
+
+        if len(requested_virtual_param_domains) > 0:
+            variants = virtual_param_domain.filter_variants(variants, requested_virtual_param_domains)
+            if len(variants) == 0:
+                requested_domain = re.sub('/.*', '', requested_virtual_param_domains[0])
+                requested_value = re.sub('.*/', '', requested_virtual_param_domains[0])
+                printc.error(
+                    "No variable combination matches selector(s) for architecture \"" + arch_display_name + "\".",
+                    script_name,
+                )
+                printc.tip(
+                    "Add a parameter-domain config file \"" + requested_value + ".txt\" in \""
+                    + os.path.join(arch_param_dir, requested_domain) + "\" ",
+                    script_name,
+                )
+                printc.magenta(
+                    "or add a variable \"" + requested_domain + "\" generating the value \"" + requested_value
+                    + "\" to the architecture settings file \"" + settings_file + "\"."
+                )
+                self.plan.add(arch_display_name, Category.ERROR)
+                return []
+
+        expanded = []
+        for variant in variants:
+            variant_param_domains = requested_physical_param_domains + list(variant.get("requested_param_domains", []))
+            variant_request = arch
+            if len(variant_param_domains) > 0:
+                variant_request = arch + "+" + "+".join(variant_param_domains)
+            expanded.append((variant_request, variant.get("substitutions", {})))
+
+        return expanded
+
     @staticmethod
     def get_basic(arch, target="", only_one_target=True):
         arch_full = arch.replace(" ", "")
@@ -648,7 +753,7 @@ class ArchitectureHandler:
 
         return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains
     
-    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp=""):
+    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp="", command_substitutions=None):
         
         arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
 
@@ -819,12 +924,19 @@ class ArchitectureHandler:
                 self.plan.add(arch_display_name, Category.ERROR)
                 return None
         
-        if len(requested_param_domains) > 0:
+        # Virtual parameter domains (variables) have no directory on disk: their
+        # values are provided as command substitutions instead.
+        virtual_domain_names = virtual_param_domain.get_virtual_domain_names(settings_data)
+        requested_physical_param_domains, _requested_virtual_param_domains = (
+            virtual_param_domain.split_requested_param_domains(requested_param_domains, virtual_domain_names)
+        )
+
+        if len(requested_physical_param_domains) > 0:
             param_domains = ParamDomain.get_param_domains(
-                requested_param_domains=requested_param_domains, 
-                architecture=arch_param_dir, 
-                arch_path=self.arch_path, 
-                param_settings_filename=self.param_settings_filename, 
+                requested_param_domains=requested_physical_param_domains,
+                architecture=arch_param_dir,
+                arch_path=self.arch_path,
+                param_settings_filename=self.param_settings_filename,
                 top_level_file=work_top_level
             )
             if param_domains is None:
@@ -833,7 +945,30 @@ class ArchitectureHandler:
                 return None
         else:
             param_domains = []
-            
+
+        # Resolve ${...} placeholders in the generation command: virtual parameter
+        # domains (variables) first, then the values of the selected configuration
+        # and of each physical parameter domain.
+        if generate_rtl and generate_command:
+            substitutions = {}
+            if isinstance(command_substitutions, dict):
+                for key, value in command_substitutions.items():
+                    substitutions[str(key)] = str(value)
+
+            if not no_configuration:
+                main_value = virtual_param_domain.read_command_parameter_value(
+                    os.path.join(self.arch_path, arch + ".txt")
+                )
+                if main_value is not None:
+                    substitutions[arch_param_dir] = main_value
+
+            for param_domain in param_domains:
+                domain_value = virtual_param_domain.read_command_parameter_value(param_domain.param_file)
+                if domain_value is not None:
+                    substitutions[param_domain.domain] = domain_value
+
+            generate_command = virtual_param_domain.replace_command_vars(generate_command, substitutions)
+
         # optional settings
         formatted_bound = ""
         fmax_lower_bound = 0

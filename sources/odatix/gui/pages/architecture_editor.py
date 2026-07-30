@@ -117,12 +117,20 @@ def architecture_form_field(
     tooltip_options: str="secondary",
     # type: Optional[Literal["text", "number", "password", "email", "range", "search", "tel", "url", "hidden"]] = None,
     type = None,
+    className: str=None,
 ):
     return html.Div(
         children=[
             html.Label(label),
             ui.tooltip_icon(tooltip, tooltip_options),
-            dcc.Input(id=id, value=value, type=type, placeholder=placeholder, style={"width": "100%"}),
+            dcc.Input(
+                id=id,
+                value=value,
+                type=type,
+                placeholder=placeholder,
+                className=className,
+                style={"width": "100%"},
+            ),
         ],
         style={"marginBottom": "12px"}
     )
@@ -179,7 +187,9 @@ def architecture_form(settings):
                             label="Generation Command",
                             id="generate_command",
                             value=defval("generate_command", ""),
-                            tooltip="Command to generate the RTL files. This command will be executed in each copy of the design path directory. Make sure all files needed for this command to succeed are included in the design path.",
+                            tooltip="Command to generate the RTL files. This command will be executed in each copy of the design path directory. Make sure all files needed for this command to succeed are included in the design path. You can use ${name} to insert the value of a parameter domain or of a variable: a variable used here generates one run per value, like a parameter domain would.",
+                            tooltip_options="secondary large",
+                            className="odatix-command-field",
                         ),
                         architecture_form_field(
                             label="Generation Output",
@@ -455,6 +465,66 @@ def save_and_status(
     return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, saved_settings
 
 @dash.callback(
+    Output("arch-hl-param-domains", "data"),
+    Output("arch-hl-variables", "data"),
+    Input(f"url_{page_path}", "search"),
+    State(f"url_{page_path}", "pathname"),
+    State("odatix-settings", "data"),
+)
+def update_arch_highlight_names(search, page, odatix_settings):
+    """
+    The names the generation command highlighter colors apart: the architecture's
+    parameter domains (its subdirectories) and its variables, which act as
+    virtual parameter domains. Both are empty for a new, unsaved architecture.
+    """
+    if page != page_path:
+        return dash.no_update, dash.no_update
+
+    arch_name = get_key_from_url(search, "arch")
+    if not arch_name:
+        return [], []
+
+    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+
+    try:
+        param_domains = workspace.get_param_domains(arch_path, arch_name)
+    except Exception:
+        param_domains = []
+
+    variables = []
+    try:
+        settings = workspace.load_architecture_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        # When configuration generation is enabled, the variables generate
+        # configuration files instead of command values: they are not usable in
+        # the generation command.
+        if not settings.get("generate_configurations", False):
+            generate_settings = settings.get("generate_configurations_settings", {})
+            if isinstance(generate_settings, dict):
+                declared_variables = generate_settings.get("variables", {})
+                if isinstance(declared_variables, dict):
+                    variables = [name for name in declared_variables.keys() if str(name).strip()]
+    except Exception:
+        variables = []
+
+    return param_domains, variables
+
+
+# Push the names to the client and ask the highlighter to redraw.
+dash.clientside_callback(
+    """
+    function(domains, variables) {
+        window.__odatixHlParamDomains = domains || [];
+        window.__odatixHlVariables = variables || [];
+        document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
+        return "";
+    }
+    """,
+    Output("arch-hl-dummy", "data"),
+    Input("arch-hl-param-domains", "data"),
+    Input("arch-hl-variables", "data"),
+)
+
+@dash.callback(
     Output("generate-settings", "className"),
     Output("rtl-path-container", "className"),
     Input("generate_rtl", "value"),
@@ -502,7 +572,13 @@ layout = html.Div(
         html.Div(id="arch-form-container"),
         dcc.Store(id="save-state", data=""),
         dcc.Store(id="architecture-initial-settings", data=None),
-        dcc.Store(id="architecture-saved-settings", data=None), 
+        dcc.Store(id="architecture-saved-settings", data=None),
+        # Parameter domains (directory names) and variables (virtual parameter
+        # domains) of the architecture, pushed to the client so the generation
+        # command highlighter can tell them apart.
+        dcc.Store(id="arch-hl-param-domains", data=[]),
+        dcc.Store(id="arch-hl-variables", data=[]),
+        dcc.Store(id="arch-hl-dummy", data=""),
     ],
     className="page-content",
     style={

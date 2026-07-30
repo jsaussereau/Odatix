@@ -456,7 +456,7 @@ def wf_task_card(name="main", dependencies_value="", commands_value="", path_val
                 dcc.Textarea(
                     value=commands_value,
                     id={"type": "wf-task-field-commands", "name": name},
-                    className="auto-resize-textarea wf-command-textarea",
+                    className="auto-resize-textarea odatix-command-field",
                     style={
                         "width": "100%",
                         "minHeight": "110px",
@@ -765,7 +765,9 @@ def update_wf_param_domains(search, page, odatix_settings):
 dash.clientside_callback(
     """
     function(domains) {
-        window.__odatixWfParamDomains = domains || [];
+        window.__odatixHlParamDomains = domains || [];
+        // The workflow's variables are read live from its variable cards.
+        window.__odatixHlVariables = [];
         document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
         return "";
     }
