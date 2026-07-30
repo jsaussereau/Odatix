@@ -1515,9 +1515,12 @@ h3 {
 .monitor-task-button-container {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     gap: 5px;
     scale: 0.7;
     width: 100px;
+    height: 22px;
+    overflow: visible;
 }
 
 .monitor-task-progress {
@@ -1934,6 +1937,7 @@ input[type="checkbox"] {
 .monitor-list-panel .monitor-task-progress-text { width: 46px; min-width: 46px; font-size: 13px; }
 .monitor-list-panel .monitor-task-runtime { width: 68px; min-width: 68px; font-size: 13px; }
 .monitor-list-panel .monitor-task-status { width: 72px; min-width: 72px; font-size: 13px; }
+.monitor-list-panel .monitor-task-button-container { height: 18px; overflow: visible; }
 
 /* --- Filter chips ------------------------------------------------------ */
 .monitor-filter {
