@@ -49,6 +49,29 @@ dash.register_page(
 
 def normal_card(name, card_type: str = "arch"):
     unique_key = str(uuid.uuid4())
+    # An architecture owns configurations; a simulation owns none (it runs on
+    # the configurations of the architectures it is paired with), so its second
+    # button opens its exported metrics instead.
+    if card_type == "sim":
+        second_button = ui.icon_button(
+            id=f"button-open-{card_type}-{name}",
+            icon=icon("metrics", className="icon black"),
+            text="Edit Metrics",
+            color="default",
+            link=f"/metric_editor?simulation={name}",
+            width="auto",
+            bold=False,
+        )
+    else:
+        second_button = ui.icon_button(
+            id=f"button-open-{card_type}-{name}",
+            icon=icon("edit", className="icon black"),
+            text="Edit Configs",
+            color="default",
+            link=f"/config_editor?{card_type}={name}",
+            width="auto",
+            bold=False,
+        )
     return html.Div(
         [
             html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
@@ -63,15 +86,7 @@ def normal_card(name, card_type: str = "arch"):
                         width="auto",
                         bold=False,
                     ),
-                    ui.icon_button(
-                        id=f"button-open-{card_type}-{name}",
-                        icon=icon("edit", className="icon black"),
-                        text="Edit Configs",
-                        color="default",
-                        link=f"/config_editor?{card_type}={name}",
-                        width="auto",
-                        bold=False,
-                    ),
+                    second_button,
                 ], style={"display": "flex", "gap": "4px"}),
                 html.Div([
                     ui.duplicate_button(id={"type": "button-duplicate", "card_type": card_type, "name": name}),
@@ -149,9 +164,8 @@ def update_cards(_, odatix_settings):
 
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
-    # sim_cards = [normal_card(name, "sim") for name in simulations]
-    # sim_cards.append(add_card("Create New Simulation", "sim"))
-    sim_cards = []
+    sim_cards = [normal_card(name, "sim") for name in simulations]
+    sim_cards.append(add_card("Create New Simulation", "sim"))
     return arch_cards, sim_cards
 
 @dash.callback(
@@ -316,7 +330,20 @@ layout = html.Div(
             children=[
                 ui.page_header("Architectures", "Configure your RTL architectures and their configurations.", back_link="/"),
                 html.Div(id="arch-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
-                # html.H2("Simulations", style={"textAlign": "center", "marginTop": "40px"}),
+                # Simulations live here rather than on a page of their own:
+                # they are always tied to the architectures above (a simulation
+                # has no configuration, it runs on theirs).
+                html.Div(
+                    children=[
+                        html.H2("Simulations", className="page-header-title", style={"fontSize": "1.6em"}),
+                        html.P(
+                            "Testbenches run against the configurations of the architectures above.",
+                            className="page-header-subtitle",
+                        ),
+                    ],
+                    className="page-header",
+                    style={"marginTop": "24px"},
+                ),
                 html.Div(id="sim-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],
             style={
