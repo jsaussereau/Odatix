@@ -2007,6 +2007,9 @@ input[type="checkbox"] {
     overflow: auto;
     border-radius: 0 0 var(--theme-normal-border-radius) var(--theme-normal-border-radius);
 }
+/* Focusable for keyboard scrolling, but no ring when focused by click. */
+.monitor-log-scroll:focus { outline: none; }
+.monitor-log-scroll:focus-visible { outline: 1px solid var(--theme-primary-color); outline-offset: -1px; }
 .monitor-log-panel .monitor-log {
     margin: 0;
     height: auto;

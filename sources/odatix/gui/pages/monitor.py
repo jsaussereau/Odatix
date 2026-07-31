@@ -1546,6 +1546,8 @@ log_panel = html.Div(
         ),
         html.Div(
             className="monitor-log-scroll",
+            # Focusable so Home/End/PageUp scroll the log pane, not the page.
+            tabIndex="0",
             children=[
                 html.Pre(id="monitor-log", className="monitor-log"),
             ],
