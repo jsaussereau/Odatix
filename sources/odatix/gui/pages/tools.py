@@ -153,11 +153,12 @@ def build_builtin_cards(tools_path):
 def workspace_tool_card(name, tools_path):
     unique_key = str(uuid.uuid4())
     visual = tool_icon_image(workspace.load_tool_settings(tools_path, name))
+    flows = flows_line(name)
     return html.Div(
         [
             *([visual] if visual is not None else []),
             html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
-            *([flows] if (flows := flows_line(name)) is not None else []),
+            *([flows] if flows is not None else []),
             html.Div(
                 [
                     html.Div(
@@ -219,6 +220,7 @@ def builtin_tool_card(name, tools_path):
     unique_key = str(uuid.uuid4())
     label = eda_tools.get_tool_label(name)
     visual = tool_icon_image(eda_tools.load_tool_settings(name))
+    flows = flows_line(name)
     # A built-in tool the workspace already adds flows to or overrides settings of
     # says so: the card is still the built-in one, its flows are not owned by the
     # workspace.
@@ -231,7 +233,7 @@ def builtin_tool_card(name, tools_path):
                 "built-in + your changes" if extended else "built-in",
                 style={"fontSize": "0.8em", "opacity": "0.6", "textAlign": "center", "marginTop": "2px"},
             ),
-            *([flows] if (flows := flows_line(name)) is not None else []),
+            *([flows] if flows is not None else []),
             html.Div(
                 [
                     ui.icon_button(
