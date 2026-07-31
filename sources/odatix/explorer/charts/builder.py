@@ -54,9 +54,37 @@ def _dimension_series(df, dimension):
   return df[dimension].fillna(schema.MISSING_VALUE).astype(str)
 
 
+def _auto_line_color_dimension(spec, dimensions):
+  """
+  The configuration, when a line chart would otherwise draw every configuration
+  as a single trace.
+
+  On a line chart the x axis is swept (a metric or a parameter), so several
+  configurations sharing the same x values collapse into one zigzagging trace.
+  Splitting and coloring them by configuration is what was meant. It is not done
+  for the other chart kinds: on a scatter, the configuration is the point
+  identity, and grouping by it would make one trace per point.
+
+  Returns None as soon as the user picked any explicit grouping: that choice is
+  theirs, and a second grouping behind their back is not.
+  """
+  if spec.kind != "lines":
+    return None
+  for explicit in (spec.color_by, spec.symbol_by, spec.legend_group_by, spec.dissociate):
+    if explicit and explicit != NONE_VALUE:
+      return None
+  dimension = schema.COL_CONFIGURATION
+  if dimension == spec.x or len(dimensions.get(dimension, [])) <= 1:
+    return None
+  return dimension
+
+
 def identity_dimensions(spec, dimensions):
   """Dimensions splitting the selection into traces."""
   identity = [dim for dim in AUTO_GROUP_DIMENSIONS if dim in dimensions and len(dimensions[dim]) > 1]
+  auto_line = _auto_line_color_dimension(spec, dimensions)
+  if auto_line and auto_line not in identity:
+    identity.append(auto_line)
   for extra in (spec.color_by, spec.symbol_by, spec.legend_group_by, spec.dissociate):
     if extra and extra != NONE_VALUE and extra in dimensions and extra not in identity:
       identity.append(extra)
@@ -121,16 +149,21 @@ def _value_index(value, values):
     return -1
 
 
-def style_indices(info, spec, dimensions, global_dimensions):
-  """(color index, symbol index) of a trace, from its dimension values."""
+def style_indices(info, spec, dimensions, global_dimensions, color_by=None):
+  """(color index, symbol index) of a trace, from its dimension values.
+
+  ``color_by`` overrides spec.color_by, for the dimension a line chart colors by
+  on its own when nothing explicit was picked (see _auto_line_color_dimension).
+  """
   reference = global_dimensions if spec.stable_index else dimensions
 
+  color_by = color_by or spec.color_by
   color_index = 0
-  if spec.color_by and spec.color_by != NONE_VALUE:
-    if spec.color_by in info:
-      color_index = _value_index(info[spec.color_by], reference.get(spec.color_by, []))
+  if color_by and color_by != NONE_VALUE:
+    if color_by in info:
+      color_index = _value_index(info[color_by], reference.get(color_by, []))
     else:
-      color_index = -1 if spec.color_by not in dimensions else 0
+      color_index = -1 if color_by not in dimensions else 0
 
   symbol_index = 0
   if spec.symbol_by and spec.symbol_by != NONE_VALUE and spec.symbol_by in info:
@@ -191,8 +224,10 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
   x_is_metric = spec.kind in ("scatter", "scatter3d") or (spec.x in metrics and spec.x not in dimensions)
   categories = [] if x_is_metric else _x_categories(df, spec)
 
+  auto_color_by = _auto_line_color_dimension(spec, dimensions)
+
   for info, sub_df in group_traces(df, spec, dimensions):
-    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions)
+    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by)
     color = palettes.get_color(color_index, palette)
     name = trace_name(info, dimensions, spec, units)
     legend_group = None
@@ -474,7 +509,8 @@ def legend_entries(df, spec, dimensions, global_dimensions=None, palette=palette
   if global_dimensions is None:
     global_dimensions = dimensions
   entries = []
+  auto_color_by = _auto_line_color_dimension(spec, dimensions)
   for info, _ in group_traces(df, spec, dimensions):
-    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions)
+    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by)
     entries.append((trace_name(info, dimensions, spec, {}), palettes.get_color(color_index, palette), palettes.get_marker_symbol(symbol_index)))
   return entries
