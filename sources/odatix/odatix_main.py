@@ -33,6 +33,7 @@ from odatix.components.motd import *
 import odatix.components.run_simulations as run_sim
 import odatix.components.run_fmax_synthesis as run_synth
 import odatix.components.run_range_synthesis as run_range
+import odatix.components.run_pnr as run_pnr_cmd
 import odatix.components.run_analysis as analyze
 import odatix.components.run_workflow as run_workflow
 import odatix.components.export_results as exp_res
@@ -109,6 +110,12 @@ class ArgParser:
     run_range.add_arguments(ArgParser.range_parser)
     ArgParser.range_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.range_parser)
+
+    # Define parser for the 'pnr' command
+    ArgParser.pnr_parser = subparsers.add_parser("pnr", help="place & route designs already synthesized by another eda tool", formatter_class=formatter)
+    run_pnr_cmd.add_arguments(ArgParser.pnr_parser)
+    ArgParser.pnr_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after place & route')
+    ArgParser.add_nobanner(ArgParser.pnr_parser)
 
     # Define parser for the 'analyze' command
     ArgParser.analyze_parser = subparsers.add_parser("analyze", help="run rtl analysis", formatter_class=formatter)
@@ -218,6 +225,9 @@ class ArgParser:
     print()
     printc.bold("Custom Frequency Synthesis:\n  ", printc.colors.CYAN, end="")
     ArgParser.range_parser.print_help()
+    print()
+    printc.bold("Place & Route:\n  ", printc.colors.CYAN, end="")
+    ArgParser.pnr_parser.print_help()
     print()
     printc.bold("RTL Analysis:\n  ", printc.colors.CYAN, end="")
     ArgParser.analyze_parser.print_help()
@@ -365,6 +375,18 @@ def run_range_synthesis(args):
   success = True
   try:
     run_range.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
+def run_place_and_route(args):
+  success = True
+  try:
+    run_pnr_cmd.main(args)
   except SystemExit as e:
     if e.code != EXIT_SUCCESS:
       success = False
@@ -647,6 +669,8 @@ def main(args=None):
     success = run_fmax_synthesis(args)
   elif args.command == "freq":
     success = run_range_synthesis(args)
+  elif args.command == "pnr":
+    success = run_place_and_route(args)
   elif args.command == "analyze":
     success = run_analysis(args)
   elif args.command == "results":

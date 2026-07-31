@@ -23,18 +23,31 @@ import sys
 import os
 import re
 
-def edit_config_file(arch, config_file):
-  """Replace settings in tcl config file"""
 
-  # Read tcl settings file
+def _normalize_path(path):
+  """Normalise a path for Windows/Unix compatibility inside a tcl script."""
+  path = os.path.realpath(path)
+  if sys.platform == "win32":
+    path = path.replace("\\", "/")
+  return path
+
+
+def _apply_replacements(config_file, replacements):
+  """Rewrite the "set <name> <value>" lines of a tcl settings file."""
   with open(config_file, 'r', encoding='utf-8') as f:
     cf_content = f.read()
 
-  # Normalise path for Windows/Unix compatibility
-  tmp_path = os.path.realpath(arch.tmp_dir)
-  if sys.platform == "win32":
-    tmp_path = tmp_path.replace("\\", "/") 
-  
+  for pattern, replacement in replacements.items():
+    cf_content = re.sub(pattern, replacement, cf_content, flags=re.MULTILINE)
+
+  with open(config_file, 'w', encoding='utf-8') as f:
+    f.write(cf_content)
+
+
+def edit_config_file(arch, config_file):
+  """Replace settings in tcl config file"""
+
+  tmp_path = _normalize_path(arch.tmp_dir)
   constraints_file = "$tmp_path" + "/" + arch.constraint_filename
 
   def safe_replace(value):
@@ -61,10 +74,36 @@ def edit_config_file(arch, config_file):
     r"(set single_thread\s+).*":      lambda m: f"{m.group(1)}" + ("1" if arch.force_single_thread else "0"),
   }
 
-  # Replace
-  for pattern, replacement in replacements.items():
-    cf_content = re.sub(pattern, replacement, cf_content, flags=re.MULTILINE)
+  _apply_replacements(config_file, replacements)
 
-  # Write tcl settings file
-  with open(config_file, 'w', encoding='utf-8') as f:
-    f.write(cf_content)
+
+def edit_pnr_config_file(arch, source, config_file):
+  """
+  Add to a tcl config file what a place & route job needs on top of what
+  edit_config_file already wrote: where the synthesis it continues ran, and the
+  handoff files it left there.
+
+  The constraints are re-pointed at the source's sdc: a place & route job writes
+  no constraint file of its own, so the one edit_config_file named does not
+  exist.
+  """
+  def quoted(value):
+    # Always quoted: a flow name is empty for a tool's default flow, and
+    # "set source_flow" with nothing after it is a variable *read* in tcl, not an
+    # assignment to the empty string. Quoting also survives a path with spaces.
+    if value is None:
+      value = ""
+    return '"' + str(value).replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+  replacements = {
+    r"(set source_work_path\s+).*":  lambda m: f"{m.group(1)}{quoted(_normalize_path(source.job_dir))}",
+    r"(set source_tool\s+).*":       lambda m: f"{m.group(1)}{quoted(source.tool)}",
+    r"(set source_flow\s+).*":       lambda m: f"{m.group(1)}{quoted(source.flow)}",
+    r"(set source_type\s+).*":       lambda m: f"{m.group(1)}{quoted(source.job_type)}",
+    r"(set source_netlist\s+).*":    lambda m: f"{m.group(1)}{quoted(_normalize_path(source.netlist))}",
+    r"(set source_sdc\s+).*":        lambda m: f"{m.group(1)}{quoted(_normalize_path(source.sdc))}",
+    r"(set source_sdf\s+).*":        lambda m: f"{m.group(1)}{quoted(_normalize_path(source.sdf))}",
+    r"(set constraints_file\s+).*":  lambda m: f"{m.group(1)}{quoted(_normalize_path(source.sdc))}",
+  }
+
+  _apply_replacements(config_file, replacements)

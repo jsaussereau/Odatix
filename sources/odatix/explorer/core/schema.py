@@ -61,6 +61,7 @@ RESERVED_DIMENSION_ORDER = [COL_SOURCE, COL_TYPE, COL_TARGET, COL_FREQUENCY, COL
 TYPE_DISPLAY_NAMES = {
   results_schema.TYPE_FMAX: "Fmax",
   results_schema.TYPE_CUSTOM_FREQ: "Custom Freq",
+  results_schema.TYPE_PNR: "Place & Route",
   results_schema.TYPE_WORKFLOW: "Workflow",
   results_schema.TYPE_SIMULATION: "Simulation",
 }

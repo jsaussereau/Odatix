@@ -147,6 +147,17 @@ def resume_index(tmp_dir, step_names):
   return index
 
 
+def default_step(steps):
+  """
+  Name of the step a run stops at when it is not told where to: the last one the
+  flow marks with "default: true", or None when it marks none (the whole flow
+  runs). Mirror of odatix.lib.eda_tools.get_default_step, on an already resolved
+  step list.
+  """
+  marked = [step["name"] for step in steps or [] if step.get("default")]
+  return marked[-1] if marked else None
+
+
 def select_steps(steps, until=None, rerun_from=None):
   """
   Narrow an ordered step list to what a run should cover.
@@ -155,7 +166,9 @@ def select_steps(steps, until=None, rerun_from=None):
       steps (list): the flow's steps ({"name", "command"} dicts).
       until (str, optional): last step to run, inclusive. Later steps are
           dropped, which is how "only implement, do not write the bitstream"
-          is expressed.
+          is expressed. When it is not given, the flow's own default step
+          applies (see default_step): a flow can declare more than it usually
+          runs and leave the rest to the runs asking for it.
       rerun_from (str, optional): earliest step allowed to be reused. Steps
           before it stay eligible for resume; this one and the following ones
           are re-run even when already recorded.
@@ -165,6 +178,9 @@ def select_steps(steps, until=None, rerun_from=None):
       message or None)
   """
   names = [step["name"] for step in steps]
+
+  if until is None or str(until).strip() == "":
+    until = default_step(steps)
 
   if until is not None and str(until).strip() != "":
     until = str(until).strip()

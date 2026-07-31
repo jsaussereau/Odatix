@@ -86,6 +86,54 @@ def get_synth_settings(settings_filename):
   return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, architectures
 
 
+def get_pnr_settings(settings_filename):
+  """
+  Read the run settings of a place & route run.
+
+  Same shape as get_synth_settings, except that what a pnr run selects is not
+  architectures but the completed synthesis jobs to start from ("sources"), each
+  written as
+  "<source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]"
+  with "*" accepted at every level (see odatix.lib.pnr_source).
+  """
+  # failsafe
+  if settings_filename is None:
+    printc.error("No settings file specified: get_pnr_settings(settings_filename) -> settings_filename is None", script_name)
+    sys.exit(-1)
+
+  if not os.path.isfile(settings_filename):
+    printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
+    sys.exit(-1)
+
+  with open(settings_filename, 'r') as f:
+    try:
+      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+    except Exception as e:
+      printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
+      printc.cyan("error details: ", end="", script_name=script_name)
+      print(str(e))
+      sys.exit(-1)
+    try:
+      overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
+      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
+      nb_jobs         = read_nb_jobs(settings_data, settings_filename)
+      sources         = read_from_list("sources", settings_data, settings_filename, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      sys.exit(-1) # if a key is missing
+
+    # Optional keys
+    try:
+      exit_when_done  = read_from_list("exit_when_done", settings_data, settings_filename, optional=True, type=bool, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      exit_when_done = DEFAULT_EXIT_WHEN_DONE
+    try:
+      log_size_limit  = read_from_list("log_size_limit", settings_data, settings_filename, optional=True, type=int, script_name=script_name)
+    except (KeyNotInListError, BadValueInListError):
+      log_size_limit = DEFAULT_LOG_SIZE_LIMIT
+
+  return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, sources
+
+
 def get_sim_settings(settings_filename):
   # failsafe
   if settings_filename is None:

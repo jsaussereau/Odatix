@@ -54,7 +54,7 @@ def _check_cancel(cancel_event):
 def add_arguments(parser):
     parser.add_argument("-t", "--tool", default="vivado", help="eda tool in use (default: vivado)")
     parser.add_argument("-f", "--flow", default=None, help="flow of the eda tool to run (default: the tool's default flow)")
-    parser.add_argument("-u", "--until", default=None, help="last step of the flow to run, inclusive (default: all its steps)")
+    parser.add_argument("-u", "--until", default=None, help="last step of the flow to run, inclusive (default: the flow's default step, or all its steps)")
     parser.add_argument("--rerun-from", dest="rerun_from", default=None, help="re-run this step and the following ones, even if already done")
     parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
     parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")

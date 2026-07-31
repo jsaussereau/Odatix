@@ -32,14 +32,17 @@ Format v2 (current):
     Fmax: MHz
   results:          # flat list of records
     - meta:
-        type: fmax_synthesis          # fmax_synthesis | custom_freq_synthesis | workflow | simulation | ...
+        type: fmax_synthesis          # fmax_synthesis | custom_freq_synthesis | pnr | workflow | simulation | ...
         tool: vivado                  # eda tool the job ran with
         flow: standard                # flow of that tool the job ran with
         step: pnr                     # last step of that flow the job reached
         target: xc7a100t-csg324-1
         architecture: Example_Counter_verilog
         configuration: 04bits         # full configuration name (incl. "+domain/value" segments)
-        frequency: 100                # custom_freq_synthesis only
+        frequency: 100                # custom_freq_synthesis, and pnr of one
+        source_tool: design_compiler  # pnr only: the synthesis it started from
+        source_flow: dc_shell         # pnr only
+        source_type: custom_freq_synthesis  # pnr only
         timestamp: 2025-08-27_07-50-09
         main: 04bits                  # parameter domains are flattened into meta
         _run_dir: /abs/path           # "_" prefix = informational, not a dimension
@@ -76,6 +79,12 @@ META_FREQUENCY = "frequency"
 META_WORKFLOW = "workflow"
 META_SIMULATION = "simulation"
 META_TIMESTAMP = "timestamp"
+# Place & route records only: the synthesis the job started from. The same
+# design placed & routed from a Design Compiler and from a Genus netlist are two
+# results to be compared, so these are part of what identifies a record.
+META_SOURCE_TYPE = "source_type"
+META_SOURCE_TOOL = "source_tool"
+META_SOURCE_FLOW = "source_flow"
 
 RESERVED_META_KEYS = (
   META_TYPE,
@@ -89,10 +98,14 @@ RESERVED_META_KEYS = (
   META_WORKFLOW,
   META_SIMULATION,
   META_TIMESTAMP,
+  META_SOURCE_TYPE,
+  META_SOURCE_TOOL,
+  META_SOURCE_FLOW,
 )
 
 TYPE_FMAX = "fmax_synthesis"
 TYPE_CUSTOM_FREQ = "custom_freq_synthesis"
+TYPE_PNR = "pnr"
 TYPE_WORKFLOW = "workflow"
 TYPE_SIMULATION = "simulation"
 

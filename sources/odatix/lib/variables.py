@@ -37,6 +37,8 @@ class Variables:
     clock_signal = None,
     top_level_module = None,
     lib_name = None,
+    source_work_path = None,
+    source_tool = None,
   ):
     self.odatix_path = odatix_path
     self.odatix_eda_tools_path = odatix_eda_tools_path
@@ -48,6 +50,10 @@ class Variables:
     self.clock_signal = clock_signal
     self.top_level_module = top_level_module
     self.lib_name = lib_name
+    # Place & route jobs only: the synthesis job this one starts from.
+    # $work_path is already taken and means *this* job's directory.
+    self.source_work_path = source_work_path
+    self.source_tool = source_tool
 
 def replace_variables(command, variables):
   if variables is None:
@@ -64,7 +70,9 @@ def replace_variables(command, variables):
       "$log_path": variables.log_path,
       "$clock_signal": variables.clock_signal,
       "$top_level_module": variables.top_level_module,
-      "$lib_name": variables.lib_name
+      "$lib_name": variables.lib_name,
+      "$source_work_path": variables.source_work_path,
+      "$source_tool": variables.source_tool,
     }
     for key, value in replacements.items():
       if value is not None:

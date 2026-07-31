@@ -383,6 +383,9 @@ JOB_TYPE_COMMAND_KEYS = {
   "custom_freq_synthesis": "custom_freq_synthesis_command",
   "analysis": "analysis_command",
   "analyze": "analysis_command",
+  # Place & route of a design another tool has already synthesized: the job
+  # starts from that synthesis job's netlist rather than from the RTL.
+  "pnr": "pnr_command",
 }
 
 # Deprecated alias, kept so external tool scripts importing it keep working.
@@ -396,6 +399,7 @@ JOB_TYPE_STEPS_KEYS = {
   "custom_freq_synthesis": "custom_freq_synthesis_steps",
   "analysis": "analysis_steps",
   "analyze": "analysis_steps",
+  "pnr": "pnr_steps",
 }
 
 
@@ -433,9 +437,13 @@ def _flow_steps(section):
   """
   Extract the {job_type_steps_key: [step, ...]} pairs of a platform section.
 
-  A step is a dict with a "name" and a "command". Entries that are not a list of
-  named commands are ignored, so a malformed declaration never turns into a
-  silently truncated pipeline.
+  A step is a dict with a "name", a "command" and a "default" flag. Entries that
+  are not a list of named commands are ignored, so a malformed declaration never
+  turns into a silently truncated pipeline.
+
+  A step marked "default: true" is where a run stops when it is not told where to
+  (see get_default_step): a flow can declare every step it knows how to run and
+  still stop before the expensive ones by default.
   """
   if not isinstance(section, dict):
     return {}
@@ -452,7 +460,7 @@ def _flow_steps(section):
       command = entry.get("command")
       if not isinstance(name, str) or name.strip() == "" or command in (None, ""):
         continue
-      parsed.append({"name": name.strip(), "command": command})
+      parsed.append({"name": name.strip(), "command": command, "default": bool(entry.get("default", False))})
     if parsed:
       steps[key] = parsed
   return steps
@@ -703,6 +711,25 @@ def get_flow_step_names(tool, flow=None, job_type="fmax_synthesis"):
   """Names of the steps of a flow, in order, or [] when it has none."""
   steps = get_flow_steps(tool, flow=flow, job_type=job_type)
   return [step["name"] for step in steps] if steps else []
+
+
+def get_default_step(tool, flow=None, job_type="fmax_synthesis"):
+  """
+  Name of the step a run stops at when it is not told where to, i.e. the last
+  step the flow marks with "default: true", or None when it marks none (the
+  whole flow runs).
+
+  Going all the way is not always what a flow is usually for: a flow declaring
+  place & route and bitstream generation can still stop after synthesis by
+  default, and leave the rest for the runs worth it. The last marked step wins,
+  so a flow inheriting steps and marking a later one moves the stopping point
+  instead of ending up with two.
+  """
+  steps = get_flow_steps(tool, flow=flow, job_type=job_type)
+  if not steps:
+    return None
+  default = [step["name"] for step in steps if step.get("default")]
+  return default[-1] if default else None
 
 
 def flow_supports(tool, flow, job_type):

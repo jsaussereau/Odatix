@@ -47,6 +47,21 @@ sim_progress_filename = "progress.log"
 synth_status_filename = "synth_status.log"
 frequency_search_filename = "frequency_search.log"
 param_domains_filename = "param_domains.yml"
+pnr_source_filename = "pnr.yml"
+
+# Handoff from a synthesis job to a place & route job run with another tool
+# ("odatix pnr"). A synthesis flow that wants to be usable as a pnr input writes
+# these three files in its result directory, under these exact names, whatever
+# the tool calls them internally. Mirrored in tcl by $netlist_file, $sdc_file and
+# $sdf_file (see the _common/settings.tcl of the eda tools).
+pnr_netlist_filename = "netlist.v"
+pnr_sdc_filename = "design.sdc"
+pnr_sdf_filename = "design.sdf"
+
+# Last path segment of a place & route job whose source is an fmax search. A
+# custom frequency source uses "<N>MHz" there instead, so the two never collide
+# and every pnr job directory has the same depth.
+pnr_fmax_dirname = "fmax"
 
 # Values to retrieve in files
 valid_status = "Done: 100%"

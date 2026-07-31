@@ -89,6 +89,7 @@ class OdatixSettings:
     DEFAULT_SIMULATION_WORK_PATH = "simulations"
     DEFAULT_FMAX_SYNTHESIS_WORK_PATH = "fmax_synthesis"
     DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH = "custom_freq_synthesis"
+    DEFAULT_PNR_WORK_PATH = "pnr"
     DEFAULT_ANALYSIS_WORK_PATH = "analysis"
     DEFAULT_WORKFLOW_WORK_PATH = "workflows"
     DEFAULT_RESULT_PATH = "results"
@@ -108,6 +109,7 @@ class OdatixSettings:
     DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
     DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
     DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml")
+    DEFAULT_PNR_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "pnr_settings.yml")
     DEFAULT_ANALYSIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "analysis_settings.yml")
     DEFAULT_WORKFLOW_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "workflow_settings.yml")
     DEFAULT_DERIVED_METRICS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "derived_metrics.yml")
@@ -200,6 +202,7 @@ class OdatixSettings:
             "simulation_settings_file": settings.get('simulation_settings_file', ""),
             "fmax_synthesis_settings_file": settings.get('fmax_synthesis_settings_file', ""),
             "custom_freq_synthesis_settings_file": settings.get('custom_freq_synthesis_settings_file', ""),
+            "pnr_settings_file": settings.get('pnr_settings_file', ""),
             "analysis_settings_file": settings.get('analysis_settings_file', ""),
             "derived_metrics_file": settings.get('derived_metrics_file', ""),
 
@@ -208,6 +211,7 @@ class OdatixSettings:
             "simulation_work_path": settings.get('simulation_work_path', ""),
             "fmax_synthesis_work_path": settings.get('fmax_synthesis_work_path', ""),
             "custom_freq_synthesis_work_path": settings.get('custom_freq_synthesis_work_path', ""),
+            "pnr_work_path": settings.get('pnr_work_path', ""),
             
             # Results
             "result_path": settings.get('result_path', ""),
@@ -238,6 +242,7 @@ class OdatixSettings:
         self.simulation_work_path, _ = get_from_dict("simulation_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_WORK_PATH, silent=silent, script_name=script_name)
         self.fmax_synthesis_work_path, _ = get_from_dict("fmax_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH, silent=silent, script_name=script_name)
         self.custom_freq_synthesis_work_path, _ = get_from_dict("custom_freq_synthesis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH, silent=silent, script_name=script_name)
+        self.pnr_work_path, _ = get_from_dict("pnr_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_PNR_WORK_PATH, silent=silent, script_name=script_name)
         self.analysis_work_path, _ = get_from_dict( "analysis_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ANALYSIS_WORK_PATH, silent=silent, script_name=script_name)
         self.workflow_work_path, _ = get_from_dict("workflow_work_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_WORK_PATH, silent=silent, script_name=script_name)
         self.result_path, _ = get_from_dict("result_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_RESULT_PATH, silent=silent, script_name=script_name)
@@ -255,6 +260,7 @@ class OdatixSettings:
         self.simulation_settings_file, _ = get_from_dict("simulation_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE, silent=silent, script_name=script_name)
         self.fmax_synthesis_settings_file, _ = get_from_dict("fmax_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.custom_freq_synthesis_settings_file, _ = get_from_dict("custom_freq_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
+        self.pnr_settings_file, _ = get_from_dict("pnr_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_PNR_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.analysis_settings_file, _ = get_from_dict("analysis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.workflow_settings_file, _ = get_from_dict("workflow_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.derived_metrics_file, _ = get_from_dict("derived_metrics_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_DERIVED_METRICS_FILE , silent=silent, script_name=script_name)
@@ -281,6 +287,10 @@ class OdatixSettings:
             "fmax_synthesis": {
                 "key": "fmax_synthesis",
                 "path": self.fmax_synthesis_work_path,
+            },
+            "pnr": {
+                "key": "pnr",
+                "path": self.pnr_work_path,
             },
         }
 
@@ -403,6 +413,7 @@ class OdatixSettings:
             "simulation_settings_file": self.simulation_settings_file,
             "fmax_synthesis_settings_file": self.fmax_synthesis_settings_file,
             "custom_freq_synthesis_settings_file": self.custom_freq_synthesis_settings_file,
+            "pnr_settings_file": self.pnr_settings_file,
             "analysis_settings_file": self.analysis_settings_file,
             "derived_metrics_file": self.derived_metrics_file,
 
@@ -411,6 +422,7 @@ class OdatixSettings:
             "simulation_work_path": self.simulation_work_path,
             "fmax_synthesis_work_path": self.fmax_synthesis_work_path,
             "custom_freq_synthesis_work_path": self.custom_freq_synthesis_work_path,
+            "pnr_work_path": self.pnr_work_path,
 
             # Results   
             "result_path": self.result_path,
@@ -504,6 +516,9 @@ f"""##############################################
         custom_freq_synthesis_settings_file = settings.get('custom_freq_synthesis_settings_file')
         if custom_freq_synthesis_settings_file is not None and custom_freq_synthesis_settings_file != "":
             data['custom_freq_synthesis_settings_file'] = custom_freq_synthesis_settings_file
+        pnr_settings_file = settings.get('pnr_settings_file')
+        if pnr_settings_file is not None and pnr_settings_file != "":
+            data['pnr_settings_file'] = pnr_settings_file
         analysis_settings_file = settings.get('analysis_settings_file')
         if analysis_settings_file is not None and analysis_settings_file != "":
             data['analysis_settings_file'] = analysis_settings_file
@@ -518,6 +533,8 @@ f"""##############################################
             data.yaml_set_comment_before_after_key('fmax_synthesis_settings_file', before="\nSettings files")
         elif custom_freq_synthesis_settings_file is not None and custom_freq_synthesis_settings_file != "":
             data.yaml_set_comment_before_after_key('custom_freq_synthesis_settings_file', before="\nSettings files")
+        elif pnr_settings_file is not None and pnr_settings_file != "" :
+            data.yaml_set_comment_before_after_key('pnr_settings_file', before="\nSettings files")
         elif analysis_settings_file is not None and analysis_settings_file != "" :
             data.yaml_set_comment_before_after_key('analysis_settings_file', before="\nSettings files")
         elif derived_metrics_file is not None and derived_metrics_file != "" :
@@ -536,6 +553,9 @@ f"""##############################################
         custom_freq_synthesis_work_path = settings.get('custom_freq_synthesis_work_path')
         if custom_freq_synthesis_work_path is not None and custom_freq_synthesis_work_path != "":
             data['custom_freq_synthesis_work_path'] = custom_freq_synthesis_work_path
+        pnr_work_path = settings.get('pnr_work_path')
+        if pnr_work_path is not None and pnr_work_path != "":
+            data['pnr_work_path'] = pnr_work_path
 
         if work_path is not None and work_path != "":
             data.yaml_set_comment_before_after_key('work_path', before="\nWork directories")
@@ -545,6 +565,8 @@ f"""##############################################
             data.yaml_set_comment_before_after_key('fmax_synthesis_work_path', before="\nWork directories")
         elif custom_freq_synthesis_work_path is not None and custom_freq_synthesis_work_path != "":
             data.yaml_set_comment_before_after_key('custom_freq_synthesis_work_path', before="\nWork directories")
+        elif pnr_work_path is not None and pnr_work_path != "":
+            data.yaml_set_comment_before_after_key('pnr_work_path', before="\nWork directories")
 
         # Results
         result_path = settings.get('result_path')

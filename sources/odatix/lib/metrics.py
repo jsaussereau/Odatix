@@ -36,7 +36,7 @@ lowest precedence first:
      complete or override the metrics of a built-in tool.
 
 Merging happens metric by metric, inside each section
-("fmax_synthesis_metrics", "custom_freq_synthesis_metrics", "metrics"):
+("fmax_synthesis_metrics", "custom_freq_synthesis_metrics", "pnr_metrics", "metrics"):
 
   * a metric the workspace defines and the built-in file does not is added;
   * a metric of the same name replaces the built-in one entirely (the whole
@@ -63,7 +63,7 @@ METRICS_FILENAME = "metrics.yml"
 
 # The sections of a metrics file, i.e. the keys holding {metric name: definition}
 # mappings. Anything else in the file is merged as a plain key.
-METRIC_SECTION_KEYS = ("fmax_synthesis_metrics", "custom_freq_synthesis_metrics", "metrics")
+METRIC_SECTION_KEYS = ("fmax_synthesis_metrics", "custom_freq_synthesis_metrics", "pnr_metrics", "metrics")
 
 
 def user_tools_path(tools_path=None):

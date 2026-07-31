@@ -231,6 +231,10 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
     range_metrics = read_from_list("custom_freq_synthesis_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
     if range_metrics != False:
       metrics.update(range_metrics)
+  elif type == "pnr":
+    pnr_metrics = read_from_list("pnr_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
+    if pnr_metrics != False:
+      metrics.update(pnr_metrics)
 
   common_metrics = read_from_list("metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
   if common_metrics != False:
@@ -364,6 +368,10 @@ def corrupted_directory(directory):
 # Export Results
 ######################################
 
+# Job types whose results the per-job (as-they-finish) export can write.
+SUPPORTED_JOB_RESULT_TYPES = ("fmax_synthesis", "custom_freq_synthesis", "pnr")
+
+
 def tool_work_dirs(type_dir, tool):
   """
   Work directories holding the jobs of a tool inside a job type directory, one
@@ -388,7 +396,31 @@ def tool_work_dirs(type_dir, tool):
   return sorted(found, key=lambda item: (item[1] is not None, item[1] or ""))
 
 
-def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=None, flow=None):
+def _subdirectories(path):
+  """The sub-directories of a directory, sorted; empty when it cannot be read."""
+  try:
+    return sorted(entry for entry in os.listdir(path) if os.path.isdir(os.path.join(path, entry)))
+  except OSError:
+    return []
+
+
+def _walk_configurations(job_root, has_frequency_level):
+  """
+  Walk the job directories under a work directory, yielding what identifies each
+  of them: (target, architecture, configuration, frequency), the frequency being
+  None when the job type has no such level.
+  """
+  for target in _subdirectories(job_root):
+    for architecture in _subdirectories(os.path.join(job_root, target)):
+      for configuration in _subdirectories(os.path.join(job_root, target, architecture)):
+        if has_frequency_level:
+          for frequency in _subdirectories(os.path.join(job_root, target, architecture, configuration)):
+            yield target, architecture, configuration, frequency
+        else:
+          yield target, architecture, configuration, None
+
+
+def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=None, flow=None, source=None):
   """
   Process the configuration for a specific architecture and extract relevant metrics.
 
@@ -425,14 +457,29 @@ def process_configuration(input, target, architecture, configuration, frequency,
   if type == "custom_freq_synthesis":
     arch = architecture + "[" + configuration + "] @ " + frequency
     arch_path = os.path.join(target, architecture, configuration, frequency)
-    status_filename = "synth_status.log"
+    status_filenames = ["synth_status.log"]
+  elif type == "pnr":
+    # A place & route job directory always has a last segment, "<N>MHz" when it
+    # started from a custom frequency synthesis and "fmax" when it started from
+    # an fmax search, so both kinds sit side by side at the same depth.
+    arch = architecture + "[" + configuration + "] @ " + frequency
+    arch_path = os.path.join(target, architecture, configuration, frequency)
+    # A place & route tool may report progress through either status file.
+    status_filenames = ["synth_status.log", "status.log"]
   else:
     arch = architecture + "[" + configuration + "]"
     arch_path = os.path.join(target, architecture, configuration)
-    status_filename = "status.log"
+    status_filenames = ["status.log"]
 
   cur_path = os.path.join(input, arch_path)
-  status_log = os.path.join(cur_path, "log", status_filename)
+  status_log = next(
+    (
+      os.path.join(cur_path, "log", filename)
+      for filename in status_filenames
+      if os.path.isfile(os.path.join(cur_path, "log", filename))
+    ),
+    os.path.join(cur_path, "log", status_filenames[0]),
+  )
 
   # A flow split into steps can stop early (e.g. implemented but no bitstream):
   # record how far this job went, so partial results stay distinguishable.
@@ -448,6 +495,15 @@ def process_configuration(input, target, architecture, configuration, frequency,
           flow = f.read().strip() or None
       except OSError:
         flow = None
+
+  if type == "pnr" and not source:
+    # A full re-export does not know which synthesis this job started from: read
+    # it back from the "pnr.yml" the runner wrote in the job directory. Deriving
+    # it from the path is not enough, since nothing there says where the source
+    # tool name stops and its flow begins.
+    from odatix.components.pnr_common import read_pnr_source_file
+
+    source = read_pnr_source_file(cur_path)
 
   # Check if synthesis completed
   if not os.path.isfile(status_log):
@@ -477,7 +533,22 @@ def process_configuration(input, target, architecture, configuration, frequency,
     meta[results_schema.META_STEP] = str(step)
   if frequency is not None:
     frequency_value = results_schema.parse_frequency_label(frequency)
-    meta[results_schema.META_FREQUENCY] = frequency_value if frequency_value is not None else str(frequency)
+    if frequency_value is not None:
+      meta[results_schema.META_FREQUENCY] = frequency_value
+    elif str(frequency) != hard_settings.pnr_fmax_dirname:
+      meta[results_schema.META_FREQUENCY] = str(frequency)
+    # A place & route job whose source is an fmax search has no target
+    # frequency: the one it reached is a metric, not a dimension.
+
+  if isinstance(source, dict):
+    for meta_key in (
+      results_schema.META_SOURCE_TYPE,
+      results_schema.META_SOURCE_TOOL,
+      results_schema.META_SOURCE_FLOW,
+    ):
+      value = source.get(meta_key)
+      if value:
+        meta[meta_key] = str(value)
   param_domains = metrics.pop(results_schema.PARAM_DOMAINS_KEY, None)
   results_schema.flatten_param_domains(param_domains, meta)
 
@@ -587,23 +658,29 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       for work_dirname, flow in tool_work_dirs(os.path.join(input_path, work_path), tool):
         input = os.path.join(input_path, work_path, work_dirname)
 
-        try:
-          dirs = sorted(next(os.walk(input))[1])
-        except StopIteration:
-          continue
+        # A place & route job also carries the synthesis it started from, spelled
+        # in the work tree one level below the tool that ran it
+        # ("pnr/innovus/design_compiler@dcnxt/..."), so that Design Compiler +
+        # Innovus and Genus + Innovus results do not land in the same directory.
+        if result_type == "pnr":
+          job_roots = [os.path.join(input, source_dirname) for source_dirname in _subdirectories(input)]
+        else:
+          job_roots = [input]
 
-        for target in dirs:
-          for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
-            for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
-              if result_type == "custom_freq_synthesis":
-                for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
-                  record = process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=tool, flow=flow)
-                  if record is not None:
-                    records.append(record)
-              else:
-                record = process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=tool, flow=flow)
-                if record is not None:
-                  records.append(record)
+        # Every job type but an fmax search has a last level below the
+        # configuration: the frequency it was run at for a custom frequency
+        # synthesis, and for a place & route either that or "fmax".
+        has_frequency_level = result_type in ("custom_freq_synthesis", "pnr")
+
+        for job_root in job_roots:
+          for target, architecture, configuration, frequency in _walk_configurations(job_root, has_frequency_level):
+            record = process_configuration(
+              job_root, target, architecture, configuration, frequency,
+              result_type, result_key, units, metrics_data, metrics_file,
+              use_benchmark, benchmark_file, tool=tool, flow=flow,
+            )
+            if record is not None:
+              records.append(record)
 
     # Export to the desired format
     output_file = os.path.join(output, "results_" + tool + ".yml")
@@ -699,7 +776,7 @@ def configure_synthesis_job_exports(
   if work_path is None or output_dir is None or tool is None:
     return 0
 
-  if result_type not in ("fmax_synthesis", "custom_freq_synthesis"):
+  if result_type not in SUPPORTED_JOB_RESULT_TYPES:
     printc.error('Unsupported synthesis result type "' + str(result_type) + '" for per-job export', script_name)
     return 0
 
@@ -708,7 +785,7 @@ def configure_synthesis_job_exports(
   if flow in (None, ""):
     flow = eda_tools.get_default_flow(tool, job_type=result_type)
 
-  input_tool_path = os.path.realpath(
+  batch_tool_path = os.path.realpath(
     os.path.join(str(work_path), eda_tools.tool_work_dirname(tool, flow, job_type=result_type))
   )
   output_dir = os.path.realpath(str(output_dir))
@@ -719,24 +796,42 @@ def configure_synthesis_job_exports(
     if not tmp_dir:
       continue
 
-    try:
-      rel_path = os.path.relpath(tmp_dir, input_tool_path)
-    except Exception:
-      continue
+    # A job that already knows where its result belongs says so. Place & route
+    # jobs do: their work directory has one level more (the tool that ran the
+    # source synthesis), and it varies from one job of the same batch to the
+    # next, so it cannot be derived from the batch's own path.
+    coordinates = getattr(job, "export_coordinates", None)
+    if isinstance(coordinates, dict):
+      input_tool_path = str(coordinates.get("input_tool_path", batch_tool_path))
+      target = coordinates.get("target")
+      architecture = coordinates.get("architecture")
+      configuration = coordinates.get("configuration")
+      frequency = coordinates.get("frequency")
+      source = coordinates.get("source")
+      if not (target and architecture and configuration):
+        continue
+    else:
+      input_tool_path = batch_tool_path
+      source = None
 
-    if rel_path.startswith(".."):
-      continue
+      try:
+        rel_path = os.path.relpath(tmp_dir, input_tool_path)
+      except Exception:
+        continue
 
-    parts = [part for part in rel_path.split(os.sep) if part not in ("", ".")]
-    if len(parts) < 3:
-      continue
+      if rel_path.startswith(".."):
+        continue
 
-    target = parts[0]
-    architecture = parts[1]
-    configuration = parts[2]
-    frequency = parts[3] if len(parts) >= 4 else None
+      parts = [part for part in rel_path.split(os.sep) if part not in ("", ".")]
+      if len(parts) < 3:
+        continue
 
-    if result_type == "custom_freq_synthesis" and frequency is None:
+      target = parts[0]
+      architecture = parts[1]
+      configuration = parts[2]
+      frequency = parts[3] if len(parts) >= 4 else None
+
+    if result_type in ("custom_freq_synthesis", "pnr") and frequency is None:
       continue
 
     job.post_run_export = {
@@ -746,6 +841,7 @@ def configure_synthesis_job_exports(
       "flow": str(flow) if flow else None,
       "input_tool_path": input_tool_path,
       "output_dir": output_dir,
+      "source": source,
       "target": str(target),
       "architecture": str(architecture),
       "configuration": str(configuration),
@@ -766,7 +862,7 @@ def export_single_job_result(job, export_config=None):
     return False
 
   result_type = str(config.get("result_type", ""))
-  if result_type not in ("fmax_synthesis", "custom_freq_synthesis"):
+  if result_type not in SUPPORTED_JOB_RESULT_TYPES:
     printc.error('Unsupported synthesis result type "' + result_type + '"', script_name=script_name)
     return False
 
@@ -789,7 +885,7 @@ def export_single_job_result(job, export_config=None):
     printc.error("Per-job export target/architecture/configuration is missing", script_name=script_name)
     return False
 
-  if result_type == "custom_freq_synthesis" and (frequency is None or frequency == ""):
+  if result_type in ("custom_freq_synthesis", "pnr") and (frequency is None or frequency == ""):
     printc.error("Per-job custom frequency export is missing frequency", script_name=script_name)
     return False
 
@@ -828,6 +924,7 @@ def export_single_job_result(job, export_config=None):
     benchmark_file=benchmark_file,
     tool=tool,
     flow=flow,
+    source=config.get("source", None),
   )
 
   if record is None:

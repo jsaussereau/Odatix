@@ -95,10 +95,23 @@ class Architecture:
         self.continue_on_error = continue_on_error
         self.force_single_thread = force_single_thread
 
-    def write_yaml(arch, config_file): 
-        domain_dict=dict()
-        for param_domain in arch.param_domains:
-            domain_dict[param_domain.domain] = param_domain.domain_value
+    # Keys of a ParamDomain serialized in the job's settings.yml. Writing them all
+    # is what lets read_yaml rebuild the domains instead of only their values.
+    PARAM_DOMAIN_KEYS = (
+        "domain",
+        "domain_value",
+        "use_parameters",
+        "start_delimiter",
+        "stop_delimiter",
+        "param_target_file",
+        "param_file",
+    )
+
+    def write_yaml(arch, config_file):
+        domain_list = [
+            {key: getattr(param_domain, key, None) for key in Architecture.PARAM_DOMAIN_KEYS}
+            for param_domain in (arch.param_domains or [])
+        ]
         yaml_data = {
             'arch_name': arch.arch_name,
             'arch_display_name': arch.arch_display_name,
@@ -108,6 +121,7 @@ class Architecture:
             'script_path': arch.tmp_script_path,
             'report_path': arch.tmp_report_path,
             'log_path': arch.tmp_log_path,
+            'local_log_path': arch.log_path,
             'tmp_path': arch.tmp_dir,
             'design_path': arch.design_path,
             'design_path_whitelist': arch.design_path_whitelist,
@@ -135,13 +149,43 @@ class Architecture:
             'generate_command': arch.generate_command,
             'constraint_filename': arch.constraint_filename,
             'install_path': arch.install_path,
-            'param_domains': domain_dict,
+            'param_domains': domain_list,
             'continue_on_error': arch.continue_on_error,
             'force_single_thread': arch.force_single_thread,
         }
             
         with open(config_file, 'w') as f:
             yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
+
+    @staticmethod
+    def read_param_domains(value):
+        """
+        Rebuild the parameter domains of a job from what its settings.yml holds.
+
+        Two shapes are accepted: the list of full domains write_yaml produces, and
+        the "{domain: value}" mapping older job directories hold, which only
+        carries the domain values.
+        """
+        if isinstance(value, list):
+            return [
+                ParamDomain(**{key: entry.get(key) for key in Architecture.PARAM_DOMAIN_KEYS})
+                for entry in value
+                if isinstance(entry, dict)
+            ]
+        if isinstance(value, dict):
+            return [
+                ParamDomain(
+                    domain=domain,
+                    domain_value=domain_value,
+                    use_parameters=False,
+                    start_delimiter=None,
+                    stop_delimiter=None,
+                    param_target_file=None,
+                    param_file=None,
+                )
+                for domain, domain_value in value.items()
+            ]
+        return []
 
     def read_yaml(config_file):
         if not os.path.isfile(config_file):
@@ -150,7 +194,7 @@ class Architecture:
 
         with open(config_file, 'r') as f:
             yaml_data = yaml.safe_load(f)
-        
+
         try:
             arch = Architecture(
                 arch_name                = get_from_dict("arch_name", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
@@ -160,8 +204,8 @@ class Architecture:
                 rtl_path                 = get_from_dict("source_rtl_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 tmp_script_path          = get_from_dict("script_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 tmp_report_path          = get_from_dict("report_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
-                tmp_log_path             = get_from_dict("log_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
-                log_path                 = get_from_dict("log_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
+                tmp_log_path             = get_from_dict("log_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
+                log_path                 = get_from_dict("local_log_path", yaml_data, config_file, default_value=hard_settings.work_log_path, silent=True, script_name=script_name)[0],
                 tmp_dir                  = get_from_dict("tmp_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 design_path              = get_from_dict("design_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 design_path_whitelist    = get_from_dict("design_path_whitelist", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
@@ -189,11 +233,13 @@ class Architecture:
                 generate_command         = get_from_dict("generate_command", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 constraint_filename      = get_from_dict("constraint_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 install_path             = get_from_dict("install_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
-                param_domains            = get_from_dict("install_path", yaml_data, config_file, default_value={}, script_name=script_name)[0],
+                param_domains            = Architecture.read_param_domains(
+                    get_from_dict("param_domains", yaml_data, config_file, default_value=[], silent=True, script_name=script_name)[0]
+                ),
                 continue_on_error        = get_from_dict("continue_on_error", yaml_data, config_file, default_value=False, script_name=script_name)[0],
                 force_single_thread      = get_from_dict("force_single_thread", yaml_data, config_file, default_value=False, script_name=script_name)[0],
             )
-        except (KeyNotInListError, BadValueInListError):
+        except (KeyNotInDictError, BadValueInDictError):
             return None
         return arch
 
@@ -410,6 +456,85 @@ class ArchitectureHandler:
 
         return "replace", daemon_entries[0]
 
+    def classify_job(self, tmp_dir, subject, job_noun="synthesis"):
+        """
+        Decide what a run should do with a job directory, printing the notes and
+        warnings the checklist is built from.
+
+        The verdict comes from three sources, in order of precedence: the step
+        state of the directory (see steps_decision), its status file, then the
+        daemon sessions (a job another session already owns is not run again).
+
+        Args:
+            tmp_dir (str): the job directory.
+            subject (str): how to name the job in the messages, already quoted and
+                complete (e.g. '"Counter/8bits" @ 50 MHz with target "gf22"').
+            job_noun (str): what the previous run was, for the "not finished"
+                warning ("synthesis", "place & route", ...).
+
+        Returns:
+            tuple: (state, daemon_entry) where state is one of "cached",
+            "daemon", "overwrite", "incomplete", "resume" or "new". Mapping a
+            state to a plan category is left to the caller, which knows how it
+            names its jobs there.
+        """
+        state = "new"
+
+        status_file = os.path.join(tmp_dir, self.work_log_path, self.fmax_status_filename)
+        steps_decision = self.steps_decision(tmp_dir)
+
+        if steps_decision is not None:
+            if steps_decision == "cached":
+                if self.overwrite:
+                    printc.warning("Every requested step is already done for " + subject + ".", script_name)
+                    state = "overwrite"
+                else:
+                    printc.note("Every requested step is already done for " + subject + ". Skipping.", script_name)
+                    state = "cached"
+            elif steps_decision == "resume" and not self.overwrite:
+                state = "resume"
+        elif isdir(tmp_dir) and isfile(status_file):
+            # Check whether the previous run completed.
+            with open(status_file, "r") as sf:
+                completed = self.valid_status in sf.read()
+            if completed:
+                if self.overwrite:
+                    printc.warning("Found cached results for " + subject + ".", script_name)
+                    state = "overwrite"
+                else:
+                    printc.note("Found cached results for " + subject + ". Skipping.", script_name)
+                    state = "cached"
+            else:
+                printc.warning(
+                    "The previous " + job_noun + " for " + subject
+                    + " has not finished or the directory has been corrupted.",
+                    script_name,
+                )
+                state = "incomplete"
+
+        if state == "cached":
+            return "cached", None
+
+        daemon_decision, daemon_entry = self._get_daemon_job_decision(tmp_dir, steps_decision)
+        if daemon_decision == "skip":
+            daemon_status = str(daemon_entry.get("status", "unknown"))
+            daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
+            printc.note(
+                "Found existing daemon job for " + subject
+                + " (session \"" + daemon_session + "\", status \"" + daemon_status + "\"). Skipping.",
+                script_name,
+            )
+            return "daemon", daemon_entry
+        if daemon_decision == "replace":
+            daemon_status = str(daemon_entry.get("status", "unknown"))
+            printc.warning(
+                "Found previously failed/canceled daemon job for " + subject
+                + " (status \"" + daemon_status + "\"). Re-enqueueing.",
+                script_name,
+            )
+
+        return state, daemon_entry
+
     def get_architectures(self, architectures, targets, constraint_filename="", install_path="", run_mode="default", keep=False, timestamp="", allow_missing_target_file=False):
 
         self.reset_lists()
@@ -538,73 +663,19 @@ class ArchitectureHandler:
                                 freq_arch.lib_name = freq_arch.lib_name + "_" + str(freq) + "MHz"
 
                                 # check if the architecture is in cache and has a status file
-                                status_file = os.path.join(freq_arch.tmp_dir, self.work_log_path, self.fmax_status_filename)
-                                local_state = "new"
-                                steps_decision = self.steps_decision(freq_arch.tmp_dir)
-                                if steps_decision is not None:
-                                    if steps_decision == "cached":
-                                        if self.overwrite:
-                                            printc.warning("Every requested step is already done for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\".", script_name)
-                                            local_state = "overwrite"
-                                        else:
-                                            printc.note("Every requested step is already done for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\". Skipping.", script_name)
-                                            self.plan.add(freq_arch.arch_display_name, Category.CACHED)
-                                            local_state = "cached"
-                                    elif steps_decision == "resume" and not self.overwrite:
-                                        local_state = "resume"
-                                elif isdir(freq_arch.tmp_dir) and isfile(status_file):
-                                    # check if the previous synthesis has completed
-                                    sf = open(status_file, "r")
-                                    if self.valid_status in sf.read():
-                                        if self.overwrite:
-                                            printc.warning("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\".", script_name)
-                                            local_state = "overwrite"
-                                        else:
-                                            printc.note("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\". Skipping.", script_name)
-                                            self.plan.add(freq_arch.arch_display_name, Category.CACHED)
-                                            local_state = "cached"
-                                    else: 
-                                        printc.warning("The previous synthesis for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\" has not finished or the directory has been corrupted.", script_name)
-                                        local_state = "incomplete"
-                                    sf.close()
+                                subject = (
+                                    "\"" + unformatted_display_name + "\" @ " + str(freq)
+                                    + " MHz with target \"" + target + "\""
+                                )
+                                local_state, daemon_entry = self.classify_job(freq_arch.tmp_dir, subject)
 
                                 if local_state == "cached":
+                                    self.plan.add(freq_arch.arch_display_name, Category.CACHED)
                                     continue
 
-                                daemon_decision, daemon_entry = self._get_daemon_job_decision(freq_arch.tmp_dir, steps_decision)
-                                if daemon_decision == "skip":
-                                    daemon_status = str(daemon_entry.get("status", "unknown"))
-                                    daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
-                                    printc.note(
-                                        "Found existing daemon job for \""
-                                        + unformatted_display_name
-                                        + "\" @ "
-                                        + str(freq)
-                                        + " MHz with target \""
-                                        + target
-                                        + "\" (session \""
-                                        + daemon_session
-                                        + "\", status \""
-                                        + daemon_status
-                                        + "\"). Skipping.",
-                                        script_name,
-                                    )
+                                if local_state == "daemon":
                                     self.plan.add(freq_arch.arch_display_name + ArchitectureHandler._format_daemon_entry(daemon_entry), Category.DAEMON)
                                     continue
-                                elif daemon_decision == "replace":
-                                    daemon_status = str(daemon_entry.get("status", "unknown"))
-                                    printc.warning(
-                                        "Found previously failed/canceled daemon job for \""
-                                        + unformatted_display_name
-                                        + "\" @ "
-                                        + str(freq)
-                                        + " MHz with target \""
-                                        + target
-                                        + "\" (status \""
-                                        + daemon_status
-                                        + "\"). Re-enqueueing.",
-                                        script_name,
-                                    )
 
                                 if local_state == "overwrite":
                                     self.plan.add(unformatted_display_name, Category.OVERWRITE)
