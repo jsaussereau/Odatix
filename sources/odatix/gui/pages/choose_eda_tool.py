@@ -45,6 +45,7 @@ from dash import dcc, html, Input, Output
 import odatix.gui.ui_components as ui
 import odatix.lib.eda_tools as eda_tools
 import odatix.gui.navigation as navigation
+import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
 from odatix.lib.settings import OdatixSettings
 from odatix.gui.utils import get_key_from_url
@@ -70,13 +71,14 @@ DEFAULT_TOOL_ICON = "assets/icons/workflow.png"
 
 
 def is_builtin_tool(tool):
-    """True if the tool resolves to a directory under the built-in EDA tools
-    directory, as opposed to one shadowed/added by the workspace."""
-    tool_dir = eda_tools.get_tool_dir(tool)
-    if tool_dir is None:
-        return False
+    """True if the tool is defined under the built-in EDA tools directory. A
+    workspace tool.yml that only overrides or adds to a built-in tool does not
+    make it a workspace tool: it stays built-in, with what the workspace adds."""
     builtin_root = os.path.realpath(OdatixSettings.odatix_eda_tools_path)
-    return os.path.realpath(tool_dir).startswith(builtin_root + os.sep)
+    return any(
+        os.path.realpath(tool_dir).startswith(builtin_root + os.sep)
+        for tool_dir in eda_tools.get_tool_dirs(tool)
+    )
 
 
 def run_link(job_type, tool, flow=None, until=None):
@@ -103,62 +105,87 @@ def tool_head(tool, meta):
     return html.Div(children, className="odx-tool-head")
 
 
-def step_buttons(job_type, tool, flow, steps):
+def step_overlay(job_type, tool, flow, steps):
     """
     Steps of a flow, as an ordered chain of "run up to here" buttons.
 
     Stopping early is not throwing work away: the steps a job has done are
     tracked, so a later run picks up at the first one left to do. This is how a
     bitstream ends up generated only for the implementations worth it.
+
+    Where a run stops is a refinement of running the flow, not a question the
+    page has to ask upfront: the buttons stay out of the card and appear beside
+    it on hover.
     """
     return html.Div(
-        [
-            dcc.Link(
-                children=[
-                    html.Span(str(index + 1), className="odx-step-index"),
-                    html.Span(step, className="odx-step-name"),
-                ],
-                # Running the whole flow is the default: it carries no "until".
-                href=run_link(job_type, tool, flow, None if index == len(steps) - 1 else step),
-                className="odx-step",
-            )
-            for index, step in enumerate(steps)
-        ],
-        className="odx-steps",
+        html.Div(
+            [html.Div("Run up to", className="odx-steps-title")]
+            + [
+                dcc.Link(
+                    children=[
+                        html.Span(str(index + 1), className="odx-step-index"),
+                        html.Span(step, className="odx-step-name"),
+                    ],
+                    # Running the whole flow is the default: it carries no "until".
+                    href=run_link(job_type, tool, flow, None if index == len(steps) - 1 else step),
+                    className="odx-step",
+                )
+                for index, step in enumerate(steps)
+            ],
+            className="odx-steps",
+        ),
+        # Wrapper rather than the panel itself: its padding is the gap the
+        # pointer crosses to reach the panel without leaving the hover.
+        className="odx-steps-pop",
     )
 
 
-def flow_entry(job_type, tool, flow, single_flow=False):
+def custom_flow_names(job_type, tool):
     """
-    One flow of a tool: a button running it, or, when it is split into steps, a
-    labelled group of buttons choosing where the run stops.
+    Flows of a built-in tool the workspace added on top of the ones Odatix
+    ships. Empty for a workspace tool: nothing there was "added", the whole tool
+    is the workspace's, so nothing needs telling apart.
+    """
+    if not is_builtin_tool(tool):
+        return frozenset()
+    builtin = eda_tools.list_flows(tool, job_type=job_type, settings=workspace.load_builtin_tool_settings(tool))
+    return frozenset(
+        name for name in eda_tools.list_flows(tool, job_type=job_type) if name not in builtin
+    )
+
+
+def flow_entry(job_type, tool, flow, single_flow=False, custom=False):
+    """
+    One flow of a tool: a button running it, plus, when it is split into steps,
+    an overlay of stopping points shown on hover.
+
+    "custom" marks a flow the workspace added to a built-in tool: it runs like
+    any other, but where it comes from is worth seeing next to the flows Odatix
+    ships.
     """
     steps = eda_tools.get_flow_step_names(tool, flow=flow["name"], job_type=job_type)
     label = "Run" if single_flow else flow["label"]
 
-    if not steps:
-        return dcc.Link(
-            children=[
-                html.Span(label, className="odx-flow-name"),
-                html.Span("→", className="odx-flow-go"),
-            ],
-            href=run_link(job_type, tool, flow["name"]),
-            className="odx-flow",
-            # What a flow does is a sentence, not a chip: keep it out of the
-            # card and one hover away.
-            title=flow["description"] or None,
-        )
-
-    return html.Div(
+    button = dcc.Link(
         children=[
-            html.Div(
-                [html.Span(label, className="odx-flow-name"), html.Span("run up to", className="odx-flow-hint")],
-                className="odx-flow-block-head",
-            ),
-            step_buttons(job_type, tool, flow["name"], steps),
+            html.Span(label, className="odx-flow-name"),
+            ui.badge("custom", className="odx-flow-custom-badge") if custom else None,
+            html.Span("→", className="odx-flow-go"),
         ],
-        className="odx-flow-block",
+        href=run_link(job_type, tool, flow["name"]),
+        className="odx-flow",
+        # What a flow does is a sentence, not a chip: keep it out of the
+        # card and one hover away.
         title=flow["description"] or None,
+    )
+
+    if not steps:
+        return button
+
+    button.className = "odx-flow has-steps"
+    return html.Div(
+        children=[button, step_overlay(job_type, tool, flow["name"], steps)],
+        className="odx-flow-block",
     )
 
 
@@ -176,6 +203,23 @@ def tool_settings_button(tool):
     )
 
 
+# Rows of buttons a card shows before it is widened rather than lengthened, and
+# the most columns it may take (past three, cards stop fitting side by side).
+MAX_FLOW_ROWS = 10
+MAX_FLOW_COLUMNS = 3
+
+
+def flow_columns(flows):
+    """
+    How many columns of flows a card gets, and so how wide it is.
+
+    Every flow is one button, steps or not: the steps live in an overlay and
+    cost the card no height. Once the buttons exceed what reads comfortably
+    stacked, they spread sideways instead of the card running off the page.
+    """
+    return min(MAX_FLOW_COLUMNS, max(1, -(-len(flows) // MAX_FLOW_ROWS)))
+
+
 def tool_card(job_type, tool):
     """
     Card of a single tool: its identity, then whatever it leaves to choose.
@@ -185,6 +229,8 @@ def tool_card(job_type, tool):
     """
     meta = eda_tools.load_tool_settings(tool)
     flows = eda_tools.list_flows(tool, job_type=job_type)
+
+    custom_flows = custom_flow_names(job_type, tool)
 
     only_flow = next(iter(flows.values()), None) if len(flows) == 1 else None
     if only_flow and not eda_tools.get_flow_step_names(tool, flow=only_flow["name"], job_type=job_type):
@@ -198,14 +244,29 @@ def tool_card(job_type, tool):
             children=[
                 tool_head(tool, meta),
                 html.Div(
-                    [flow_entry(job_type, tool, flow, single_flow=len(flows) == 1) for flow in flows.values()],
+                    [
+                        flow_entry(
+                            job_type,
+                            tool,
+                            flow,
+                            single_flow=len(flows) == 1,
+                            custom=flow["name"] in custom_flows,
+                        )
+                        for flow in flows.values()
+                    ],
                     className="odx-tool-flows",
                 ),
             ],
             className="odx-tool-card",
         )
 
-    return html.Div([card, tool_settings_button(tool)], className="odx-tool-card-wrap")
+    return html.Div(
+        [card, tool_settings_button(tool)],
+        className="odx-tool-card-wrap",
+        # The card width and its flow layout both follow from this: the css
+        # turns a column count into a width.
+        style={"--odx-tool-cols": str(flow_columns(flows))},
+    )
 
 
 def get_tool_cards(job_type):

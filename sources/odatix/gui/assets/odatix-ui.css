@@ -736,8 +736,11 @@
    here" buttons. Every button leads straight to the job settings, so picking a
    tool is a single click whatever it offers. */
 .odx-tool-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, 268px);
+    --odx-tool-col: 236px;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: var(--space-4);
     justify-content: center;
     max-width: 1120px;
@@ -792,9 +795,13 @@
     opacity: 0.65;
 }
 
+/* Flows spread over as many columns as the card was given (--odx-tool-cols,
+   set from the number of flows): stacking a dozen of them would make a card
+   taller than the page. */
 .odx-tool-flows {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(var(--odx-tool-cols, 1), minmax(0, 1fr));
+    align-items: start;
     gap: 6px;
     margin-top: auto;
     padding-top: var(--space-3);
@@ -826,30 +833,69 @@
 .odx-flow-go {
     opacity: 0.45;
 }
+/* A flow the workspace added to a built-in tool. Drawn in the button's own
+   colour rather than a fixed one, so it survives the hover turning the button
+   into a solid primary block. */
+.odx-flow-custom-badge {
+    flex: none;
+    padding: 0 7px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: transparent;
+    color: inherit;
+    border: 1px solid currentColor;
+    opacity: 0.5;
+}
+.odx-flow:hover .odx-flow-custom-badge {
+    opacity: 0.85;
+}
 .odx-flow:hover .odx-flow-go {
     opacity: 1;
 }
 
-/* A flow split into steps: its steps are the buttons, one per stopping point. */
+/* A flow split into steps: the button still runs the whole flow, and the
+   stopping points wait in an overlay until the flow is hovered. */
 .odx-flow-block {
-    padding: 9px 12px 11px;
-    border-radius: var(--theme-normal-border-radius);
-    background: var(--theme-tertiary-color);
+    position: relative;
 }
-.odx-flow-block-head {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
-    margin-bottom: 8px;
-    font-size: 13px;
-    font-weight: 600;
+/* Hint that there is more here than the button: a chevron in the gutter the
+   overlay comes out of. */
+.odx-flow.has-steps::after {
+    content: "›";
+    position: absolute;
+    right: -11px;
+    top: 50%;
+    transform: translateY(-50%);
+    line-height: 1;
+    font-size: 15px;
+    font-weight: 700;
+    opacity: 0.35;
+    transition: opacity 0.15s ease;
 }
-.odx-flow-hint {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    opacity: 0.45;
+.odx-flow-block:hover .odx-flow.has-steps::after {
+    opacity: 1;
+}
+
+/* The overlay itself. Its left padding is a bridge the pointer crosses without
+   ever leaving the block, so the panel does not vanish on the way to it. */
+.odx-steps-pop {
+    position: absolute;
+    top: -6px;
+    left: 100%;
+    z-index: 20;
+    padding-left: 12px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-4px);
+    transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+.odx-flow-block:hover .odx-steps-pop,
+.odx-flow-block:focus-within .odx-steps-pop {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
 }
 /* Stacked rather than chained side by side: the steps read as an ordered list,
    and a long step name does not push the chain onto a second line. */
@@ -857,6 +903,21 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    min-width: 168px;
+    padding: 9px 10px 10px;
+    border-radius: var(--theme-normal-border-radius);
+    background: var(--card-background);
+    border: var(--card-border);
+    box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
+    backdrop-filter: var(--card-backdrop-filter);
+}
+.odx-steps-title {
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.45;
 }
 .odx-step {
     display: flex;
@@ -1085,10 +1146,18 @@
 /* Gear opening the tool editor, in the top right corner of a tool card, level
    with its logo. Outside the card in the markup: a card with a single flow is
    itself a link. */
+/* Width follows the content: one column of flows per --odx-tool-cols, plus the
+   gaps between them. The card may shrink below that on a narrow window, never
+   grow past it. */
 .odx-tool-card-wrap {
     position: relative;
     display: flex;
     min-width: 0;
+    flex: 0 1 calc(
+        var(--odx-tool-col, 236px) * var(--odx-tool-cols, 1)
+        + 6px * (var(--odx-tool-cols, 1) - 1)
+        + 2 * var(--space-4)
+    );
 }
 .odx-tool-card-wrap > .odx-tool-card {
     flex: 1;
