@@ -19,19 +19,20 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-import dash
+"""
+Building blocks of the "Run jobs" page (odatix/gui/pages/jobs_config.py).
 
-from odatix.gui.jobs_config.common import page_path
-from odatix.gui.jobs_config.layout import layout
-
-from odatix.gui.jobs_config import callbacks_config
-from odatix.gui.jobs_config import callbacks_run
-from odatix.gui.jobs_config import callbacks_sim
-
-dash.register_page(
-    __name__,
-    path=page_path,
-    title='Odatix - Job Selection',
-    name='Run jobs',
-    order=3,
-)
+The page is split by concern:
+    common        : page path, shared constants and small shared helpers
+    prepare_state : the module-level state of a run (threads, log, status, ...)
+    checks        : the check/prepare phases run in background threads
+    run_popup     : rendering of the run plan popup
+    arch_widgets  : the parameter-domain / preview widgets of an architecture
+    pnr           : the place & route cards (built from the work tree)
+    simulation    : the simulation cards (architectures nested in a simulation)
+    context       : what differs between job types, resolved from the url
+    settings_io   : reading the page state back into a settings dict
+    settings_form : the "Job Settings" form
+    callbacks_*   : the callbacks, grouped the same way
+    layout        : the page layout
+"""
