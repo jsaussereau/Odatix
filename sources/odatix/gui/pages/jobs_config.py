@@ -50,6 +50,7 @@ import odatix.components.run_range_synthesis as run_range_synthesis
 import odatix.components.run_workflow as run_workflow
 import odatix.components.run_simulations as run_simulations
 import odatix.components.run_analysis as run_analysis
+import odatix.lib.virtual_param_domain as virtual_param_domain
 import odatix.components.run_pnr as run_pnr
 from odatix.lib.parallel_job_handler import daemon_control
 
@@ -2038,39 +2039,53 @@ def _group_arch_selections(architectures_setting) -> dict:
         grouped.setdefault(arch_name, []).append(str(entry))
     return grouped
 
-def _workflow_virtual_variant_combos(base_path, workflow_name):
+def _virtual_variant_tokens(base_path, name, mode):
     """
-    Resolve the virtual parameter domains of a workflow (command-placeholder
-    variables defined under "generate_configurations_settings.variables" in
-    its _settings.yml, see run_workflow.py), by reusing the exact generation
-    logic run_workflow.check_settings() uses at run time.
+    Resolve the virtual parameter domains of a workflow or an architecture
+    (command-placeholder variables defined under
+    "generate_configurations_settings.variables" in its _settings.yml), by
+    reusing the exact generation logic used at run time
+    (run_workflow.check_settings() / ArchitectureHandler.expand_virtual_param_domains()).
+
+    For architectures, the variables only become a parameter domain when
+    "generate_command" actually references them; otherwise they keep their sole
+    original meaning (generating configuration files), exactly like
+    ArchitectureHandler._expand_arch_virtual_param_domains() decides.
 
     Returns:
-        combos        : list of [workflow_name, "domain/value", ...], one per
-                         generated variant (empty if the workflow has none).
+        variants      : list of ["domain/value", ...] token lists, one per
+                        generated variant (empty if there is none). These are
+                        meant to be appended to every physical combination.
         domain_values : dict domain name -> sorted list of distinct values
-                        seen across combos (for display only).
+                        seen across variants (for display only).
         error         : error message if the variable settings are invalid,
                          else None.
     """
-    settings = workspace.load_workflow_settings(base_path, workflow_name)
-    virtual_domain_names = run_workflow.get_workflow_virtual_domain_names(settings)
+    settings = workspace.load_workflow_settings(base_path, name)
+    virtual_domain_names = virtual_param_domain.get_virtual_domain_names(settings)
     if not virtual_domain_names:
         return [], {}, None
 
-    settings_file = workspace.get_workflow_settings_path(base_path, workflow_name)
-    variants = run_workflow.build_workflow_virtual_param_domain_variants(settings, settings_file, debug=False)
-    if variants is None:
-        return [], {}, "Invalid workflow variable settings. Check the workflow settings file."
+    if mode != "workflow":
+        # Only "generate_command" consumes these variables as a parameter domain.
+        generate_command = settings.get("generate_command", "") if settings.get("generate_rtl", False) else ""
+        if not (virtual_param_domain.referenced_variable_names(generate_command) & virtual_domain_names):
+            return [], {}, None
 
-    combos = [[workflow_name] + variant["requested_param_domains"] for variant in variants]
+    settings_file = workspace.get_workflow_settings_path(base_path, name)
+    variants = virtual_param_domain.build_variants(settings=settings, settings_file=settings_file, debug=False)
+    if variants is None:
+        return [], {}, "Invalid variable settings. Check the settings file."
+
+    token_lists = [list(variant.get("requested_param_domains", [])) for variant in variants]
+    token_lists = [tokens for tokens in token_lists if tokens]
     domain_values = {}
-    for combo in combos:
-        for token in combo[1:]:
+    for tokens in token_lists:
+        for token in tokens:
             domain, _, value = token.partition("/")
             domain_values.setdefault(domain, set()).add(value)
     domain_values = {domain: sorted(values) for domain, values in domain_values.items()}
-    return combos, domain_values, None
+    return token_lists, domain_values, None
 
 def _select_all_buttons(button_type: str, id_keys: dict) -> html.Div:
     """Build a 'Select all' / 'Clear' button pair for a checklist.
@@ -2269,45 +2284,61 @@ def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mo
             )
         )
 
-    # Virtual parameter domains (workflow command-placeholder variables)
-    virtual_combos = []
-    if mode == "workflow":
-        virtual_combos, virtual_domain_values, virtual_error = _workflow_virtual_variant_combos(arch_path, arch_name)
-        if virtual_error:
-            domain_tiles.append(
-                ui.panel(
-                    title="Workflow variables",
-                    body=html.Div(virtual_error, className="error-message"),
-                )
+    # Virtual parameter domains (command-placeholder variables)
+    virtual_panel_title = "Workflow variables" if mode == "workflow" else "Variables"
+    virtual_variants, virtual_domain_values, virtual_error = _virtual_variant_tokens(arch_path, arch_name, mode)
+    if virtual_error:
+        domain_tiles.append(
+            ui.panel(
+                title=virtual_panel_title,
+                body=html.Div(virtual_error, className="error-message"),
             )
-        elif virtual_domain_values:
-            domain_tiles.append(
-                ui.panel(
-                    title="Workflow variables",
-                    body=[
-                        html.Div(
-                            [
-                                html.Span(f"{domain}:", className="jobs-var-name"),
-                                html.Span(", ".join(values)),
-                            ],
-                            className="jobs-var-line",
-                        )
-                        for domain, values in virtual_domain_values.items()
-                    ],
-                )
+        )
+    elif virtual_domain_values:
+        domain_tiles.append(
+            ui.panel(
+                title=virtual_panel_title,
+                body=[
+                    html.Div(
+                        [
+                            html.Span(f"{domain}:", className="jobs-var-name"),
+                            html.Span(", ".join(values)),
+                        ],
+                        className="jobs-var-line",
+                    )
+                    for domain, values in virtual_domain_values.items()
+                ],
             )
+        )
 
     # Compute the preview data up-front so the "Default Configuration" tile
     # and the preview stay consistent about whether the default config
     # (the bare "<arch_name>" entry) is selected. n_combos counts the
     # non-default combinations only; the default config is counted apart.
-    n_combos = workspace.count_combinations(domains_configs) + len(virtual_combos)
+    # Virtual parameter domains behave like any other parameter domain: every
+    # variant is combined with every physical combination (and with the bare
+    # architecture, which has no physical configuration of its own), exactly
+    # like the expansion performed at run time.
+    n_physical_combos = workspace.count_combinations(domains_configs)
+    if virtual_variants:
+        n_combos = (n_physical_combos + 1) * len(virtual_variants)
+    else:
+        n_combos = n_physical_combos
     too_many = n_combos > MAX_PREVIEW_COMBINATIONS
     formatted_combinations = []
     filtered_selected = []
     unmatched = []
     if not too_many:
-        all_combinations = [[f"{arch_name}"]] + workspace.generate_config_combinations(domains_configs, arch_name) + virtual_combos
+        physical_combos = workspace.generate_config_combinations(domains_configs, arch_name)
+        if virtual_variants:
+            non_default_combos = [
+                base + tokens
+                for base in [[f"{arch_name}"]] + physical_combos
+                for tokens in virtual_variants
+            ]
+        else:
+            non_default_combos = physical_combos
+        all_combinations = [[f"{arch_name}"]] + non_default_combos
         if len(all_combinations) > MAX_PREVIEW_COMBINATIONS:
             all_combinations = [{comb[0]} for comb in all_combinations]  # Only show default if too many combinations
         formatted_combinations = [{"label": " + ".join(comb), "value": " + ".join(comb)} for comb in all_combinations]
@@ -2317,9 +2348,12 @@ def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mo
         # matching against the available combinations: a raw wildcard entry
         # never matches literally, which used to silently drop it from the
         # preview (and from what gets saved back on the next Save).
+        # Virtual domains are wildcard-expandable too ("Arch + width/*").
+        wildcard_domains = dict(domains_configs)
+        wildcard_domains.update(virtual_domain_values or {})
         expanded_selected = []
         for entry in selected_values or []:
-            expanded_selected.extend(_expand_wildcard_selection(entry, domains_configs, arch_name))
+            expanded_selected.extend(_expand_wildcard_selection(entry, wildcard_domains, arch_name))
         filtered_selected = [val for val in expanded_selected if val in available_values]
         unmatched = [val for val in expanded_selected if val not in available_values]
         # Select all combinations for disabled architectures
@@ -2381,6 +2415,7 @@ def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mo
         "domains_configs": domains_configs,
         "unmatched": unmatched,
         "too_many": too_many,
+        "virtual_variants": virtual_variants,
     }
     return domain_tiles, preview_tile, info
 
@@ -2528,7 +2563,11 @@ def _simulation_job_sections(context, selection_settings):
                         ),
                         dcc.Store(
                             id={"type": "arch-metadata", "sim": sim_name, "arch": arch_name},
-                            data={"arch_name": arch_name, "n_combos": info["n_combos"]},
+                            data={
+                                "arch_name": arch_name,
+                                "n_combos": info["n_combos"],
+                                "virtual_variants": info["virtual_variants"],
+                            },
                         ),
                         dcc.Store(
                             id={"type": "domain-selections", "sim": sim_name, "arch": arch_name},
@@ -3099,7 +3138,11 @@ def update_param_domains(
                 ),
                 dcc.Store(
                     id={"type": "arch-metadata", "arch": arch_name},
-                    data={"arch_name": arch_name, "n_combos": n_combos},
+                    data={
+                        "arch_name": arch_name,
+                        "n_combos": n_combos,
+                        "virtual_variants": info["virtual_variants"],
+                    },
                 ),
                 dcc.Store(
                     id={"type": "domain-selections", "arch": arch_name},
@@ -3470,8 +3513,14 @@ def sync_preview_values(
     # Start from the current preview value (including manual changes)
     preview_set = set(current_preview_values or [])
 
-    # Helper: generate all complete combinations from current_domains
+    # Helper: generate all complete combinations from current_domains. Virtual
+    # parameter domains have no checklist of their own (they are generated, not
+    # picked), but they still multiply every combination, exactly like in
+    # _arch_config_widgets.
     all_combos = workspace.generate_config_combinations(current_domains, arch_name)
+    virtual_variants = (arch_metadata or {}).get("virtual_variants") or []
+    if virtual_variants:
+        all_combos = [combo + list(tokens) for combo in all_combos for tokens in virtual_variants]
     all_combo_strings = {" + ".join(c) for c in all_combos}
 
     # Values are domain-scoped in combos as "<domain>/<cfg>" (or "<arch_name>/<cfg>" for main).
