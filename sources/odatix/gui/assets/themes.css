@@ -318,6 +318,7 @@
     --progress-bar-background-color-selected: var(--theme-background-color);
 
     /* monitor */
+    --terminal-background-color: var(--theme-background-color);
     --task-background-color: var(--theme-element-background-color);
     --task-background-color-hover: var(--theme-tertiary-color-light);
     --task-background-color-selected: var(--theme-tertiary-color-light);
@@ -665,6 +666,10 @@
     --default-button-text-color: var(--theme-text-color);
     --default-button-background: var(--theme-tertiary-color);
     --back-button-color: #fdfdfdc4;
+
+    /* monitor */
+    --progress-bar-background-color: #ffffff3d;
+    --terminal-background-color: #ffffff3d;
 }
 
 .theme.galaxy {
@@ -720,6 +725,7 @@
     --progress-bar-background-color-selected: #bda9f454;
 
     /* monitor */
+    --terminal-background-color: #0b07161f;
     --task-background-color: transparent;
 }
 
@@ -836,6 +842,9 @@
     --progress-bar-background-color: var(--win95-face);
     --progress-bar-background-color-hover: var(--win95-face);
     --progress-bar-background-color-selected: var(--win95-face);
+
+    /* monitor */
+    --terminal-background-color: #ffffff6e;
 }
 .theme.win95 .card,
 .theme.win95 .tile,

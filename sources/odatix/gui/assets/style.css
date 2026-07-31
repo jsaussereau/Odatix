@@ -1620,6 +1620,7 @@ h3 {
 }
 
 .monitor-log {
+    background: var(--terminal-background-color);
     font-family: monospace;
     font-size: 12px;
     line-height: 16px;
