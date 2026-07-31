@@ -83,6 +83,7 @@ JOBS = [
     ("tool_test", "Tool test", "Command run to check the tool is installed and reachable.", False),
     ("fmax_synthesis", "Fmax synthesis", "Command run to search for the maximum frequency of a design.", True),
     ("custom_freq_synthesis", "Custom frequency synthesis", "Command run to synthesize a design at given frequencies.", True),
+    ("pnr", "Place & route", "Command run to place and route a netlist another tool has already synthesized.", True),
     ("analysis", "RTL analysis", "Command run to analyze (lint, elaborate) a design.", True),
 ]
 
@@ -186,7 +187,11 @@ def _parse_platform_section(section):
                 name = str(entry.get("name", "") or "").strip()
                 if name == "":
                     continue
-                steps.append({"name": name, "command": _lines_to_list(_as_lines(entry.get("command")))})
+                steps.append({
+                    "name": name,
+                    "command": _lines_to_list(_as_lines(entry.get("command"))),
+                    "default": bool(entry.get("default", False)),
+                })
         jobs[job] = {"mode": mode, "command": command, "steps": steps}
     return jobs
 
@@ -355,7 +360,7 @@ def _flows_for_compare(flows):
                         jobs[job] = ["command", command]
                 elif mode == "steps" and supports_steps:
                     steps = [
-                        [str(step.get("name", "")).strip(), list(step.get("command") or [])]
+                        [str(step.get("name", "")).strip(), list(step.get("command") or []), bool(step.get("default"))]
                         for step in (spec.get("steps") or [])
                         if str(step.get("name", "")).strip() != "" and step.get("command")
                     ]
@@ -655,7 +660,13 @@ def _hidden(shown):
     """Keep a body in the page but out of sight (see job_editor)."""
     return {} if shown else {"display": "none"}
 
-def step_row(flow_uid, platform, job, step_uid, name="", command="", locked=False):
+def step_row(flow_uid, platform, job, step_uid, name="", command="", is_default=False, locked=False):
+    """
+    One step of a job type. "Default" marks the step the flow stops at when a run
+    does not say where to: the later steps stay declared, and are only run when
+    asked for (see odatix.lib.eda_tools.get_default_step). No step marked means
+    the flow runs to its end.
+    """
     return html.Div(
         children=[
             html.Div(
@@ -667,6 +678,24 @@ def step_row(flow_uid, platform, job, step_uid, name="", command="", locked=Fals
                         placeholder="Step name...",
                         className="odx-jobstep-name",
                         disabled=locked,
+                    ),
+                    # Like the default flow: a hidden value the server owns, so
+                    # two steps can never end up marked at once.
+                    dcc.Input(
+                        id={"type": "tool-step-default", "flow": flow_uid, "platform": platform, "job": job, "step": step_uid},
+                        value="1" if is_default else "",
+                        type="hidden",
+                    ),
+                    html.Button(
+                        "Default",
+                        id={"type": "tool-step-set-default", "flow": flow_uid, "platform": platform, "job": job, "step": step_uid},
+                        n_clicks=0,
+                        disabled=locked,
+                        className="odx-flow-default-chip" + (" active" if is_default else ""),
+                        title=(
+                            "The last step run when nothing else is asked for. "
+                            "Click again to unmark it and run the whole flow by default."
+                        ),
                     ),
                     *([] if locked else [
                         ui.duplicate_button(
@@ -733,7 +762,7 @@ def job_editor(flow_uid, platform, job, label, tooltip, supports_steps, spec, is
                     *[
                         step_row(flow_uid, platform, job, _uid("s", index),
                                  name=step.get("name", ""), command=_as_lines(step.get("command", [])),
-                                 locked=locked)
+                                 is_default=bool(step.get("default")), locked=locked)
                         for index, step in enumerate(steps)
                     ],
                     *([] if locked else [
@@ -925,10 +954,21 @@ def _by_job(ids, values):
         for i, v in zip(ids or [], values or []) if isinstance(i, dict)
     }
 
+def _single_default(steps):
+    """
+    Keep at most one step marked as the default one of its job type: the last one
+    marked. Like the default flow, the mark is a hidden value only the server
+    writes, so this is a safety net rather than a rule to enforce.
+    """
+    marked = [index for index, step in enumerate(steps) if step.get("default")]
+    for index in marked[:-1]:
+        steps[index]["default"] = False
+    return steps
+
 def gather_flows(
     flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
     mode_ids, mode_values, cmd_ids, cmd_values,
-    step_ids, step_names, step_cmds,
+    step_ids, step_names, step_cmds, step_defaults,
 ):
     """
     Rebuild the flows list from what is currently in the page. Used both to save
@@ -949,11 +989,13 @@ def gather_flows(
     commands = _by_job(cmd_ids, cmd_values)
 
     steps = {}
-    for step_id, step_name, step_cmd in zip(step_ids or [], step_names or [], step_cmds or []):
+    for step_id, step_name, step_cmd, step_default in zip(
+        step_ids or [], step_names or [], step_cmds or [], step_defaults or [],
+    ):
         if not isinstance(step_id, dict):
             continue
         key = (step_id.get("flow"), step_id.get("platform"), step_id.get("job"))
-        steps.setdefault(key, []).append((step_id.get("step"), step_name, step_cmd))
+        steps.setdefault(key, []).append((step_id.get("step"), step_name, step_cmd, step_default))
 
     flows = []
     for uid in sorted(names):
@@ -968,10 +1010,14 @@ def gather_flows(
                 jobs[job] = {
                     "mode": mode,
                     "command": _lines_to_list(commands.get(key, "")),
-                    "steps": [
-                        {"name": str(step_name or "").strip(), "command": _lines_to_list(step_cmd)}
-                        for _step_uid, step_name, step_cmd in sorted(steps.get(key, []))
-                    ],
+                    "steps": _single_default([
+                        {
+                            "name": str(step_name or "").strip(),
+                            "command": _lines_to_list(step_cmd),
+                            "default": bool(step_default),
+                        }
+                        for _step_uid, step_name, step_cmd, step_default in sorted(steps.get(key, []))
+                    ]),
                 }
             platforms[platform] = jobs
         flows.append({
@@ -1024,6 +1070,7 @@ def flow_dependencies(text_dep, choice_dep):
         State(dict(step_pattern, type="tool-step-name"), "id"),
         text_dep(dict(step_pattern, type="tool-step-name"), "value"),
         text_dep(dict(step_pattern, type="tool-step-cmd"), "value"),
+        State(dict(step_pattern, type="tool-step-default"), "value"),
     ]
 
 
@@ -1089,15 +1136,16 @@ def toggle_flow(n_clicks, collapsed, card_class):
     Input({"type": "tool-step-new", "flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL}, "n_clicks"),
     Input({"type": "tool-step-duplicate", "flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL, "step": dash.ALL}, "n_clicks"),
     Input({"type": "tool-step-delete", "flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL, "step": dash.ALL}, "n_clicks"),
+    Input({"type": "tool-step-set-default", "flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL, "step": dash.ALL}, "n_clicks"),
     *flow_dependencies(State, Input),
     State("tool-edit-overlay", "data"),
     prevent_initial_call=True,
 )
 def update_flows(
     new_click, duplicate_clicks, delete_clicks, set_default_clicks,
-    step_new_clicks, step_duplicate_clicks, step_delete_clicks,
+    step_new_clicks, step_duplicate_clicks, step_delete_clicks, step_set_default_clicks,
     flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-    mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds, overlay,
+    mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds, step_defaults, overlay,
 ):
     """
     Apply a structural change (a flow or a step added, duplicated or deleted, a
@@ -1113,13 +1161,13 @@ def update_flows(
     # a value of 0 is a button that was just rendered.
     if action in (
         "tool-flow-new", "tool-flow-duplicate", "tool-flow-delete", "tool-flow-set-default",
-        "tool-step-new", "tool-step-duplicate", "tool-step-delete",
+        "tool-step-new", "tool-step-duplicate", "tool-step-delete", "tool-step-set-default",
     ) and not trigger_value:
         return dash.no_update, dash.no_update, dash.no_update
 
     flows = gather_flows(
         flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-        mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds,
+        mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds, step_defaults,
     )
     taken = {flow["name"] for flow in flows}
 
@@ -1160,23 +1208,32 @@ def update_flows(
         if index is not None and trigger_value == "steps":
             spec = flows[index]["platforms"][trigger.get("platform")][trigger.get("job")]
             if not spec["steps"]:
-                spec["steps"] = [{"name": "", "command": []}]
+                spec["steps"] = [{"name": "", "command": [], "default": False}]
 
-    elif action in ("tool-step-new", "tool-step-duplicate", "tool-step-delete"):
+    elif action in ("tool-step-new", "tool-step-duplicate", "tool-step-delete", "tool-step-set-default"):
         index = _flow_index(flows, trigger.get("flow"))
         if index is not None:
             spec = flows[index]["platforms"][trigger.get("platform")][trigger.get("job")]
             key = (trigger.get("flow"), trigger.get("platform"), trigger.get("job"))
             if action == "tool-step-new":
-                spec["steps"].append({"name": "", "command": []})
+                spec["steps"].append({"name": "", "command": [], "default": False})
             else:
                 step_index = _step_index(step_ids, key, trigger.get("step"))
                 if step_index is not None and step_index < len(spec["steps"]):
                     if action == "tool-step-delete":
                         spec["steps"].pop(step_index)
+                    elif action == "tool-step-set-default":
+                        # At most one step is the default one, and clicking the
+                        # one already marked unmarks it: the flow then runs to
+                        # its end unless a run says otherwise.
+                        was_default = spec["steps"][step_index].get("default")
+                        for position, step in enumerate(spec["steps"]):
+                            step["default"] = (position == step_index) and not was_default
                     else:
                         copy = copy_module.deepcopy(spec["steps"][step_index])
                         copy["name"] = f"{copy['name']}_copy" if copy["name"] else ""
+                        # The copy is a new step, not the one the flow stops at.
+                        copy["default"] = False
                         spec["steps"].insert(step_index + 1, copy)
 
     return (
@@ -1592,7 +1649,7 @@ def reset_section_to_builtin(
 def save_and_status(
     n_clicks, tool_title_value, label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
     flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-    mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds,
+    mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds, step_defaults,
     log_error, log_crit, log_warning, log_info, log_trace,
     tag_markers, replace_patterns, replace_repls,
     tag_ids, search, page, initial_settings, saved_settings, odatix_settings, overlay, builtin_settings,
@@ -1606,7 +1663,7 @@ def save_and_status(
 
     flows = gather_flows(
         flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-        mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds,
+        mode_ids, mode_values, cmd_ids, cmd_values, step_ids, step_names, step_cmds, step_defaults,
     )
     log_values = {
         "error": log_error, "crit_warning": log_crit, "warning": log_warning,

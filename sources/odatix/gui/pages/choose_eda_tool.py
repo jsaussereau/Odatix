@@ -105,7 +105,7 @@ def tool_head(tool, meta):
     return html.Div(children, className="odx-tool-head")
 
 
-def step_overlay(job_type, tool, flow, steps):
+def step_overlay(job_type, tool, flow, steps, default_step=None):
     """
     Steps of a flow, as an ordered chain of "run up to here" buttons.
 
@@ -115,7 +115,8 @@ def step_overlay(job_type, tool, flow, steps):
 
     Where a run stops is a refinement of running the flow, not a question the
     page has to ask upfront: the buttons stay out of the card and appear beside
-    it on hover.
+    it on hover. The step a flow stops at when nothing is asked for is marked,
+    since that is what the flow button itself does.
     """
     return html.Div(
         html.Div(
@@ -125,10 +126,12 @@ def step_overlay(job_type, tool, flow, steps):
                     children=[
                         html.Span(str(index + 1), className="odx-step-index"),
                         html.Span(step, className="odx-step-name"),
+                        html.Span("(default)", className="odx-step-default") if step == default_step else None,
                     ],
-                    # Running the whole flow is the default: it carries no "until".
-                    href=run_link(job_type, tool, flow, None if index == len(steps) - 1 else step),
-                    className="odx-step",
+                    # Every button says where it stops, the last one included: not
+                    # saying it would mean "wherever the flow stops by default".
+                    href=run_link(job_type, tool, flow, step),
+                    className="odx-step" + (" default" if step == default_step else ""),
                 )
                 for index, step in enumerate(steps)
             ],
@@ -164,6 +167,7 @@ def flow_entry(job_type, tool, flow, single_flow=False, custom=False):
     ships.
     """
     steps = eda_tools.get_flow_step_names(tool, flow=flow["name"], job_type=job_type)
+    default_step = eda_tools.get_default_step(tool, flow=flow["name"], job_type=job_type)
     label = "Run" if single_flow else flow["label"]
 
     button = dcc.Link(
@@ -172,7 +176,8 @@ def flow_entry(job_type, tool, flow, single_flow=False, custom=False):
             ui.badge("custom", className="odx-flow-custom-badge") if custom else None,
             html.Span("→", className="odx-flow-go"),
         ],
-        href=run_link(job_type, tool, flow["name"]),
+        # Running the flow means running it up to where it stops by default.
+        href=run_link(job_type, tool, flow["name"], default_step),
         className="odx-flow",
         # What a flow does is a sentence, not a chip: keep it out of the
         # card and one hover away.
@@ -184,7 +189,7 @@ def flow_entry(job_type, tool, flow, single_flow=False, custom=False):
 
     button.className = "odx-flow has-steps"
     return html.Div(
-        children=[button, step_overlay(job_type, tool, flow["name"], steps)],
+        children=[button, step_overlay(job_type, tool, flow["name"], steps, default_step=default_step)],
         className="odx-flow-block",
     )
 

@@ -54,6 +54,7 @@ nav_groups = [
         ("RTL Analysis", "/run_jobs?type=analyze"),
         ("Fmax Synthesis", "/choose_eda_tool?type=fmax_synthesis"),
         ("Custom Synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
+        ("Place & Route", "/choose_eda_tool?type=pnr"),
     ]),
     ("Monitor", "/monitor"),
     ("Explorer", "/explorer", [

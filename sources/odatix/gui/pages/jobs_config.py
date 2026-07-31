@@ -38,6 +38,7 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.eda_tools as eda_tools
+import odatix.lib.pnr_source as pnr_source
 import odatix.lib.printc as printc
 import odatix.lib.run_report as run_report
 from odatix.lib.run_report import JobPlan, MessageLog
@@ -49,6 +50,7 @@ import odatix.components.run_range_synthesis as run_range_synthesis
 import odatix.components.run_workflow as run_workflow
 import odatix.components.run_simulations as run_simulations
 import odatix.components.run_analysis as run_analysis
+import odatix.components.run_pnr as run_pnr
 from odatix.lib.parallel_job_handler import daemon_control
 
 page_path = "/run_jobs"
@@ -68,6 +70,7 @@ MAX_PREVIEW_COMBINATIONS = 10000
 RUN_MODE_LABELS = {
     "fmax_synthesis": "Fmax synthesis",
     "custom_freq_synthesis": "Custom frequency synthesis",
+    "pnr": "Place & route",
     "analyze": "RTL analysis",
     "workflow": "Workflow",
     "simulation": "Simulation",
@@ -302,6 +305,8 @@ def _plan_noun():
         return "workflows"
     if _prepare_synth_type == "simulation":
         return "simulations"
+    if _prepare_synth_type == "pnr":
+        return "place & route jobs"
     return "architectures"
 
 
@@ -772,6 +777,53 @@ def _run_check_custom_freq_settings(
     except Exception as exc:
         _prepare_status = {"status": "error", "error": str(exc)}
 
+def _run_check_pnr_settings(
+    run_config_settings_filename,
+    source_work_root,
+    tool,
+    flow,
+    until_step,
+    work_path,
+    target_path,
+    overwrite_enabled,
+    noask,
+    exit_when_done_enabled,
+    log_size_val,
+    nb_jobs_val,
+    check_eda_tool,
+    source_result_types=None,
+):
+    global _prepare_status, _prepare_check_data
+    try:
+        with printc.collect(_prepare_messages.add), contextlib.redirect_stdout(_prepare_log_buffer):
+            _prepare_check_data = run_pnr.check_settings(
+                run_config_settings_filename=run_config_settings_filename,
+                source_work_root=source_work_root,
+                tool=tool,
+                flow=flow,
+                until_step=until_step,
+                # Re-running an already completed step ("--rerun-from") is
+                # CLI-only: from the GUI a run always resumes where it stopped.
+                rerun_from_step=None,
+                work_path=work_path,
+                target_path=target_path,
+                overwrite=overwrite_enabled,
+                noask=noask,
+                exit_when_done=exit_when_done_enabled,
+                log_size_limit=log_size_val,
+                nb_jobs=nb_jobs_val,
+                check_eda_tool=check_eda_tool,
+                source_result_types=source_result_types,
+                debug=False,
+                cancel_event=_prepare_cancel_event,
+                tool_check_sink=_collect_tool_check,
+            )
+        _prepare_status = {"status": "checked", "error": None}
+    except run_pnr.PnrCancelled:
+        _prepare_status = {"status": "canceled", "error": None}
+    except Exception as exc:
+        _prepare_status = {"status": "error", "error": str(exc)}
+
 def _run_check_fmax_settings(
     run_config_settings_filename,
     arch_path,
@@ -1019,6 +1071,28 @@ def _run_prepare_synthesis():
                         use_benchmark=export_ctx.get("use_benchmark", False),
                         benchmark_file=export_ctx.get("benchmark_file"),
                     )
+                elif _prepare_synth_type == "pnr":
+                    # Explicit rather than left to the fallback below: a place &
+                    # route batch sent to run_range_synthesis would be exported
+                    # as custom frequency synthesis results, writing wrong
+                    # records without ever failing.
+                    _prepare_parallel_jobs = run_pnr.prepare_pnr(
+                        architecture_instances=architecture_instances,
+                        prepare_job=prepare_job,
+                        job_list=job_list,
+                        tool_settings_file=tool_settings_file,
+                        arch_handler=arch_handler,
+                        exit_when_done=exit_when_done,
+                        log_size_limit=log_size_limit,
+                        nb_jobs=nb_jobs,
+                        cancel_event=_prepare_cancel_event,
+                        export_output_dir=export_ctx.get("output_dir"),
+                        export_tool=export_ctx.get("tool"),
+                        export_flow=export_ctx.get("flow"),
+                        export_work_path=export_ctx.get("work_path"),
+                        use_benchmark=export_ctx.get("use_benchmark", False),
+                        benchmark_file=export_ctx.get("benchmark_file"),
+                    )
                 elif _prepare_synth_type == "analyze":
                     _prepare_parallel_jobs = run_analysis.prepare_synthesis(
                         architecture_instances=architecture_instances,
@@ -1058,6 +1132,8 @@ def _run_prepare_synthesis():
     except run_fmax_synthesis.SynthesisCancelled:
         _prepare_status = {"status": "canceled", "error": None}
     except run_analysis.AnalysisCancelled:
+        _prepare_status = {"status": "canceled", "error": None}
+    except run_pnr.PnrCancelled:
         _prepare_status = {"status": "canceled", "error": None}
     except SystemExit:
         # abort_if_empty_job_list() calls sys.exit(-1) when every selected job
@@ -1159,6 +1235,28 @@ def _collect_run_settings(
             ),
         }
 
+    if run_mode == "pnr":
+        # Place & route cards hold their selection in the same per-instance store
+        # simulations use (see _pnr_job_sections), but write it as the flat
+        # selector list the settings file expects.
+        enabled_tools = {
+            sid.get("arch")
+            for value, sid in zip(switch_values or [], switch_ids or [])
+            if isinstance(sid, dict) and bool(value)
+        }
+        selectors = []
+        for value, pid in zip(sim_selection_values or [], sim_selection_ids or []):
+            if not isinstance(pid, dict) or pid.get("sim") not in enabled_tools:
+                continue
+            selectors.extend(str(entry) for entry in (value or []) if entry is not None)
+        return {
+            selection_key: list(dict.fromkeys(selectors)),
+            **_job_settings_current(
+                overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done,
+                auto_nb_jobs=auto_nb_jobs,
+            ),
+        }
+
     preview_by_arch = {}
     for val, pid in zip(preview_values or [], preview_ids or []):
         arch = pid.get("arch") if isinstance(pid, dict) else None
@@ -1248,6 +1346,11 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
             "fmax_synthesis_settings_file",
             OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
         )
+    if run_mode == "pnr":
+        return odatix_settings.get(
+            "pnr_settings_file",
+            OdatixSettings.DEFAULT_PNR_SETTINGS_FILE,
+        )
     if run_mode == "analyze":
         return odatix_settings.get(
             "analysis_settings_file",
@@ -1271,6 +1374,559 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
         "fmax_synthesis_settings_file",
         OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
     )
+
+######################################
+# Place & route mode
+######################################
+#
+# A place & route run is the only job type whose input is not in the workspace
+# configuration but in the work tree: it starts from synthesis jobs that have
+# already run and succeeded, possibly with another eda tool (see
+# odatix.lib.pnr_source).
+#
+# The page keeps the shape a simulation has: one card per eda tool, holding one
+# nested card per architecture that tool synthesized, where the completed jobs
+# are picked with the very same widgets an architecture gets everywhere else —
+# one panel per parameter domain plus the preview checklist.
+#
+# There is nothing to *combine* here though (what a job is was decided by the
+# synthesis): the domains are read back from what is on disk, by splitting the
+# work directory names of the sources, and checking a domain value selects the
+# sources that have it rather than generating a new combination.
+
+
+def _pnr_tool_of(work_dirname):
+    """The eda tool a work directory name belongs to ("genus@fast" -> "genus")."""
+    return eda_tools.split_tool_work_dirname(str(work_dirname))[0]
+
+
+def _pnr_sources_by_tool(work_root, odatix_settings):
+    """
+    The completed synthesis jobs of the workspace, grouped by the work directory
+    of the tool that produced them ("design_compiler", "genus@fast", ...).
+
+    Jobs that did not write the handoff files are listed too, so a synthesis that
+    cannot be placed & routed shows up as unusable rather than silently missing.
+    """
+    result_types = None
+    if isinstance(odatix_settings, dict):
+        result_types = {
+            job_type: {"path": odatix_settings.get(f"{job_type}_work_path") or job_type}
+            for job_type in pnr_source.SOURCE_JOB_TYPES
+        }
+
+    grouped = {}
+    for source in pnr_source.discover_sources(work_root, result_types=result_types, require_handoff=False):
+        grouped.setdefault(source.work_dirname, []).append(source)
+    return grouped
+
+
+def _group_pnr_selections(sources_setting, work_dirnames) -> dict:
+    """
+    Group the saved selectors by the card they belong to, i.e. by the work
+    directory of the tool that ran the synthesis.
+
+    The generic _group_arch_selections cannot be used here for two reasons: the
+    first "/"-separated segment of a selector is the source job type, not the
+    tool, and a selector may name the tool with a wildcard, in which case it
+    belongs to *every* card rather than to one named "*" (which would leave them
+    all switched off while the settings file selects them).
+    """
+    grouped = {}
+    for entry in sources_setting or []:
+        if entry is None:
+            continue
+        parsed = pnr_source.parse_selector(str(entry))
+        if parsed is None:
+            continue
+        if parsed["work_dirname"] == pnr_source.WILDCARD:
+            targets = list(work_dirnames)
+        else:
+            targets = [parsed["work_dirname"]]
+        for work_dirname in targets:
+            grouped.setdefault(work_dirname, []).append(str(entry))
+    return grouped
+
+
+# The levels of a source that are not parameter domains but still tell two
+# sources apart. They get a panel of their own, keyed with a "@" prefix so they
+# can never collide with the name of a real parameter domain.
+PNR_JOB_TYPE_DOMAIN = "@job_type"
+PNR_TARGET_DOMAIN = "@target"
+PNR_FREQUENCY_DOMAIN = "@frequency"
+
+PNR_DOMAIN_TITLES = {
+    PNR_JOB_TYPE_DOMAIN: "Synthesis type",
+    PNR_TARGET_DOMAIN: "Target",
+    PNR_FREQUENCY_DOMAIN: "Frequency",
+}
+
+
+def _pnr_split_config_token(token, known_domains):
+    """
+    Split a "<domain>_<configuration>" token of a work directory name back into
+    the domain and the configuration it was built from (see
+    ArchitectureHandler: the work directory of a configuration with parameter
+    domains is "<config>+<domain>_<value>+...").
+
+    The separator is also a legal character of both names, so the known domains
+    of the architecture are tried first, longest first; the split falls back to
+    the first "_" for an architecture that does not exist anymore.
+    """
+    for domain in sorted(known_domains or [], key=len, reverse=True):
+        prefix = str(domain) + "_"
+        if token.startswith(prefix):
+            return str(domain), token[len(prefix):]
+    domain, _, value = token.partition("_")
+    return domain, value
+
+
+def _pnr_source_tokens(source, known_domains):
+    """The domain -> value mapping describing one source: its parameter domains,
+    read back from the work directory name, plus the levels above it."""
+    tokens = {
+        PNR_JOB_TYPE_DOMAIN: source.job_type,
+        PNR_TARGET_DOMAIN: source.target,
+        PNR_FREQUENCY_DOMAIN: source.frequency_segment,
+    }
+    parts = [part for part in str(source.configuration).split("+") if part]
+    if parts:
+        tokens[hard_settings.main_parameter_domain] = parts[0]
+    for part in parts[1:]:
+        domain, value = _pnr_split_config_token(part, known_domains)
+        if domain and value:
+            tokens[domain] = value
+    return tokens
+
+
+def _pnr_domain_values(tokens_by_selector, known_domains):
+    """
+    The panels an architecture card shows, in display order: its main parameter
+    domain, its parameter domains, then the target and the frequency. A level
+    every source of the card shares says nothing (a single chip to pick from),
+    so only the synthesis type is dropped when it is uniform — the target and
+    the frequency are kept, they are what a place & route job is named after.
+    """
+    values = {}
+    for tokens in tokens_by_selector.values():
+        for domain, value in tokens.items():
+            values.setdefault(domain, set()).add(value)
+
+    order = [hard_settings.main_parameter_domain]
+    order += [domain for domain in (known_domains or []) if domain in values]
+    order += [domain for domain in sorted(values) if domain not in order and not domain.startswith("@")]
+    order += [PNR_TARGET_DOMAIN, PNR_FREQUENCY_DOMAIN, PNR_JOB_TYPE_DOMAIN]
+
+    ordered = {}
+    for domain in order:
+        if domain not in values:
+            continue
+        if domain == PNR_JOB_TYPE_DOMAIN and len(values[domain]) < 2:
+            continue
+        ordered[domain] = sorted(values[domain])
+    return ordered
+
+
+def _pnr_domain_title(domain):
+    if domain in PNR_DOMAIN_TITLES:
+        return PNR_DOMAIN_TITLES[domain]
+    if domain == hard_settings.main_parameter_domain:
+        return "Main parameter domain"
+    return domain
+
+
+def _pnr_value_label(domain, value):
+    """A domain value as a chip reads it. Only the frequency needs help: it is
+    stored as the work directory name ("50MHz", or "fmax" for an fmax search)."""
+    if domain == PNR_FREQUENCY_DOMAIN and value.endswith("MHz"):
+        return value[: -len("MHz")] + " MHz"
+    return value
+
+
+def _pnr_source_label(source):
+    """How a source reads in the preview checklist of its architecture card (the
+    architecture itself is the card, so it is not repeated)."""
+    label = source.configuration + "  ·  " + source.target
+    if source.frequency is not None:
+        label += "  ·  " + str(source.frequency) + " MHz"
+    else:
+        label += "  ·  fmax"
+    return label
+
+
+def _pnr_unusable_badge_text(n_unusable: int) -> str:
+    """The badge counting the synthesis jobs left out of an architecture card
+    because they handed no netlist over."""
+    word = "synthesis" if n_unusable == 1 else "syntheses"
+    return f"{n_unusable} {word} without netlist"
+
+
+def _pnr_config_widgets(work_dirname, arch_name, sources, selected_values, enabled, arch_path):
+    """
+    Build the body an architecture gets inside a place & route card: one panel
+    per parameter domain of its completed synthesis jobs, and the preview
+    checklist holding those jobs.
+
+    Returns the same (domain_tiles, preview_tile, info) triple as
+    _arch_config_widgets, so the nested-card layout and the callbacks keyed on
+    those widget ids apply unchanged. Unlike an architecture card, the domain
+    panels enumerate nothing: they *select* among the sources that exist.
+
+    Args:
+        selected_values: the saved selectors of this tool (wildcards included);
+            the ones this architecture matches are checked.
+        enabled: whether that saved selection applies. Nothing saved yet means
+            everything runnable is pre-checked, so enabling the card is a single
+            click (exactly like a disabled architecture card).
+    """
+    id_extra = {"sim": work_dirname}
+    known_domains = workspace.get_param_domains(arch_path, arch_name) if arch_path else []
+
+    # A synthesis that handed no netlist over cannot be placed & routed. Listing
+    # it would only add unselectable noise, so it is left out of the card and
+    # only counted, in a badge next to the configuration count.
+    options = []
+    tokens_by_selector = {}
+    n_unusable = 0
+    for source in sources:
+        if source.missing_handoff_files():
+            n_unusable += 1
+            continue
+        options.append({"label": _pnr_source_label(source), "value": source.selector})
+        tokens_by_selector[source.selector] = _pnr_source_tokens(source, known_domains)
+
+    available = list(tokens_by_selector.keys())
+
+    if enabled:
+        parsed_selectors = [pnr_source.parse_selector(entry) for entry in selected_values or []]
+        selected = [
+            source.selector
+            for source in sources
+            if source.selector in tokens_by_selector
+            and any(parsed and pnr_source.source_matches(source, parsed) for parsed in parsed_selectors)
+        ]
+    else:
+        selected = list(available)
+
+    domains_values = _pnr_domain_values(tokens_by_selector, known_domains)
+
+    # A domain chip is checked when at least one selected source has that value:
+    # the panels describe what the preview holds, the same way they do for an
+    # architecture.
+    checked_by_domain = {}
+    for selector in selected:
+        for domain, value in tokens_by_selector.get(selector, {}).items():
+            checked_by_domain.setdefault(domain, set()).add(value)
+
+    domain_tiles = []
+    for domain, values in domains_values.items():
+        checklist = dcc.Checklist(
+            options=[{"label": _pnr_value_label(domain, value), "value": value} for value in values],
+            id={"type": "domain-config-checklist", "arch": arch_name, "domain": domain, **id_extra},
+            value=[value for value in values if value in checked_by_domain.get(domain, set())],
+            className="odx-chips",
+        )
+        domain_tiles.append(
+            ui.panel(
+                title=[
+                    html.Span(_pnr_domain_title(domain)),
+                    html.Span(f"{len(values)}", className="odx-badge"),
+                ],
+                tools=_select_all_buttons(
+                    "domain-config-select-all", {"arch": arch_name, "domain": domain, **id_extra}
+                ),
+                body=checklist,
+            )
+        )
+
+    # A source is picked whole or not at all: there is no default configuration
+    # to mirror. The checkbox is still rendered (empty, hidden) because the
+    # callbacks shared with the simulation cards are keyed on it.
+    domain_tiles.append(
+        html.Div(
+            dcc.Checklist(
+                options=[],
+                id={"type": "default-config-checklist", "arch": arch_name, "domain": "default", **id_extra},
+                value=[],
+            ),
+            style={"display": "none"},
+        )
+    )
+
+    preview_tile = ui.panel(
+        title=_preview_title(len(options), False, len(selected)),
+        title_id={"type": "preview-config-title", "arch": arch_name, **id_extra},
+        tools=_select_all_buttons("preview-config-select-all", {"arch": arch_name, **id_extra}),
+        body=dcc.Checklist(
+            options=options,
+            id={"type": "preview-config-checklist", "arch": arch_name, **id_extra},
+            value=selected,
+            className="odx-check-list",
+        ),
+        body_className="scroll tall",
+    )
+
+    info = {
+        "n_combos": len(options),
+        "n_selected": len(selected),
+        "default_selected": False,
+        "filtered_selected": selected,
+        # Only the domains that got a panel: this store is the "previous state"
+        # sync_preview_values compares the panels against, so a domain it cannot
+        # see must not appear in it (it would read as a domain just emptied).
+        "domains_configs": {
+            domain: sorted(checked_by_domain[domain])
+            for domain in domains_values
+            if checked_by_domain.get(domain)
+        },
+        "sources": tokens_by_selector,
+        "n_unusable": n_unusable,
+        "unmatched": [],
+        "too_many": False,
+    }
+    return domain_tiles, preview_tile, info
+
+
+def _pnr_sync_preview_values(
+    arch_metadata, current_domains, current_preview_values, changed_domain, added_values, removed_values
+):
+    """
+    What checking (or unchecking) a domain value does to the preview of a place
+    & route card. The sources are not combined, they exist or they do not, so
+    the panels select among them instead of generating combinations:
+
+      * a value checked selects every source that has it *and* whose other
+        levels are checked too, so the panels read as a filter,
+      * a value unchecked deselects every source that has it.
+
+    Called by sync_preview_values once it has worked out what changed, so both
+    kinds of card share the "which domain moved" bookkeeping.
+    """
+    sources = (arch_metadata or {}).get("sources") or {}
+    preview_set = set(current_preview_values or [])
+
+    for selector, tokens in sources.items():
+        value = tokens.get(changed_domain)
+        if value in removed_values:
+            preview_set.discard(selector)
+        elif value in added_values:
+            if all(
+                tokens.get(domain) in set(values)
+                for domain, values in current_domains.items()
+                if domain != changed_domain
+            ):
+                preview_set.add(selector)
+
+    return sorted(preview_set)
+
+
+def _pnr_job_sections(context, selection_settings):
+    """
+    Build one card per eda tool that ran a synthesis, each holding a nested card
+    per architecture it synthesized, exactly like a simulation card holds the
+    architectures it runs on.
+
+    Returns:
+        tuple: (sections, baseline_selection) where baseline_selection is the
+        flat selector list a fresh page load is equivalent to (used as the
+        "saved" baseline so nothing falsely reads as unsaved).
+    """
+    arch_path = context.get("arch_path", "")
+    sources_by_tool = context["sources_by_tool"]
+    selection_map = _group_pnr_selections(
+        selection_settings.get(context["selection_key"], []), context["instances"]
+    )
+
+    baseline_selection = []
+    sections = []
+    for work_dirname in context["instances"]:
+        tool_sources = sources_by_tool.get(work_dirname, [])
+        tool_enabled = work_dirname in selection_map
+        saved_selectors = selection_map.get(work_dirname, [])
+
+        sources_by_arch = {}
+        for source in tool_sources:
+            sources_by_arch.setdefault(source.architecture, []).append(source)
+
+        arch_cards = []
+        tool_entries = []
+        n_total = 0
+        n_selected_total = 0
+        n_unusable_total = 0
+        for arch_name, arch_sources in sources_by_arch.items():
+            domain_tiles, preview_tile, info = _pnr_config_widgets(
+                work_dirname, arch_name, arch_sources, saved_selectors, tool_enabled, arch_path
+            )
+            # An architecture none of the saved selectors names runs nothing yet;
+            # its sub-card is off, with everything pre-checked.
+            arch_enabled = tool_enabled and bool(info["filtered_selected"])
+
+            n_total += info["n_combos"]
+            n_unusable_total += info["n_unusable"]
+            if arch_enabled:
+                n_selected_total += info["n_selected"]
+                tool_entries.extend(info["filtered_selected"])
+
+            arch_cards.append(
+                html.Div(
+                    children=[
+                        html.Div(
+                            children=html.Div(
+                                children=[
+                                    dcc.Checklist(
+                                        options=[{"label": "", "value": True}],
+                                        value=[True] if arch_enabled else [],
+                                        id={"type": "sim-arch-switch", "sim": work_dirname, "arch": arch_name},
+                                        className="checklist-switch",
+                                    ),
+                                    html.Span(arch_name, className="jobs-arch-name"),
+                                    html.Span(
+                                        _simulation_badge_text(
+                                            info["n_combos"], info["n_selected"], arch_enabled
+                                        ),
+                                        id={"type": "arch-count", "sim": work_dirname, "arch": arch_name},
+                                        className="odx-badge",
+                                    ),
+                                ] + ([
+                                    html.Span(
+                                        _pnr_unusable_badge_text(info["n_unusable"]),
+                                        title="These syntheses handed no netlist over: they cannot be placed & routed.",
+                                        className="odx-badge caution",
+                                    )
+                                ] if info["n_unusable"] else []),
+                                className="jobs-arch-headline",
+                            ),
+                            className="jobs-arch-header",
+                        ),
+                        html.Div(
+                            children=html.Div(
+                                children=[
+                                    html.Div(domain_tiles, className="jobs-domains"),
+                                    preview_tile,
+                                ],
+                                className="jobs-arch-grid",
+                            ),
+                            id={"type": "sim-arch-body", "sim": work_dirname, "arch": arch_name},
+                            className="jobs-arch-body animated-section" + ("" if arch_enabled else " hide"),
+                        ),
+                        dcc.Store(
+                            id={"type": "arch-metadata", "sim": work_dirname, "arch": arch_name},
+                            data={
+                                "kind": "pnr",
+                                "arch_name": arch_name,
+                                "n_combos": info["n_combos"],
+                                "sources": info["sources"],
+                            },
+                        ),
+                        dcc.Store(
+                            id={"type": "domain-selections", "sim": work_dirname, "arch": arch_name},
+                            data=info["domains_configs"],
+                        ),
+                        dcc.Store(
+                            id={"type": "sim-arch-extra", "sim": work_dirname, "arch": arch_name},
+                            data=[],
+                        ),
+                    ],
+                    id={"type": "sim-arch-card", "sim": work_dirname, "arch": arch_name},
+                    className="jobs-arch-card nested" + (" enabled" if arch_enabled else ""),
+                )
+            )
+
+        if not arch_cards:
+            arch_cards.append(
+                ui.panel(
+                    title="Synthesized designs",
+                    body=html.Div("No completed synthesis found for this tool.", className="odx-panel-note"),
+                )
+            )
+
+        tool_entries = list(dict.fromkeys(tool_entries))
+        if tool_enabled:
+            baseline_selection.extend(tool_entries)
+
+        tool_buttons = html.Div(
+            children=[
+                ui.icon_button(
+                    icon=icon("gear", className="icon"),
+                    text=context["settings_text"],
+                    tooltip="Open the settings of this tool",
+                    tooltip_options="bottom delay",
+                    color="default",
+                    link=context["settings_link"](work_dirname),
+                    multiline=True,
+                    width="135px",
+                ),
+                ui.icon_button(
+                    icon=icon("metrics", className="icon blue"),
+                    text=context["config_text"],
+                    tooltip="Open the Exported Metrics Editor for this tool",
+                    tooltip_options="bottom delay",
+                    color="default",
+                    link=context["config_link"](work_dirname),
+                    multiline=False,
+                    width="135px",
+                ),
+            ],
+            className="jobs-arch-buttons",
+        )
+
+        sections.append(
+            html.Div(
+                children=[
+                    html.Div(
+                        children=[
+                            html.Div(
+                                children=[
+                                    dcc.Checklist(
+                                        options=[{"label": "", "value": True}],
+                                        value=[True] if tool_enabled else [],
+                                        id={"type": "arch-title", "arch": work_dirname, "is_switch": True},
+                                        className="checklist-switch",
+                                    ),
+                                    html.Span(
+                                        work_dirname,
+                                        id={"type": "arch-title", "arch": work_dirname},
+                                        className="jobs-arch-name",
+                                    ),
+                                    html.Span(
+                                        _simulation_badge_text(n_total, n_selected_total, tool_enabled),
+                                        id={"type": "sim-count", "sim": work_dirname},
+                                        className="odx-badge",
+                                    ),
+                                ] + ([
+                                    html.Span(
+                                        _pnr_unusable_badge_text(n_unusable_total),
+                                        title="These syntheses handed no netlist over: they cannot be placed & routed.",
+                                        className="odx-badge caution",
+                                    )
+                                ] if n_unusable_total else []),
+                                className="jobs-arch-headline",
+                            ),
+                            tool_buttons,
+                        ],
+                        className="jobs-arch-header",
+                    ),
+                    html.Div(
+                        children=html.Div(arch_cards, className="jobs-sim-archs"),
+                        id={"type": "param-domains-container", "arch": work_dirname},
+                        className="jobs-arch-body animated-section" + ("" if tool_enabled else " hide"),
+                    ),
+                    dcc.Store(
+                        id={"type": "sim-metadata", "sim": work_dirname},
+                        data={"sim_name": work_dirname, "n_entries": n_total},
+                    ),
+                    dcc.Store(id={"type": "sim-orphan-entries", "sim": work_dirname}, data=[]),
+                    # What this tool places & routes, kept in sync with the
+                    # nested architecture cards and read by Save / Run.
+                    dcc.Store(id={"type": "sim-selection", "sim": work_dirname}, data=tool_entries),
+                ],
+                id={"type": "job-section", "arch": work_dirname},
+                className="jobs-arch-card" + (" enabled" if tool_enabled else ""),
+            )
+        )
+
+    return sections, list(dict.fromkeys(baseline_selection))
+
 
 def _run_context(search, odatix_settings) -> dict:
     """
@@ -1307,6 +1963,29 @@ def _run_context(search, odatix_settings) -> dict:
             "config_text": "Edit Metrics",
             "settings_text": "Simulation Settings",
             "title": "Simulations",
+        }
+    if run_mode == "pnr":
+        # A place & route run selects completed synthesis jobs, not
+        # architectures: the "instances" are the eda tools that ran them, and
+        # each card holds the jobs that tool produced.
+        work_root = settings.get("work_path", OdatixSettings.DEFAULT_WORK_PATH)
+        sources_by_tool = _pnr_sources_by_tool(work_root, settings)
+        return {
+            "mode": "pnr",
+            "base_path": work_root,
+            # The parameter domains of a source are read back from its work
+            # directory name, which needs the domain names of the architecture
+            # it was synthesized from (see _pnr_split_config_token).
+            "arch_path": settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH),
+            "settings_path": _get_synth_settings_path(search, settings),
+            "selection_key": "sources",
+            "instances": list(sources_by_tool.keys()),
+            "sources_by_tool": sources_by_tool,
+            "settings_link": lambda name: f"/tool_editor?tool={_pnr_tool_of(name)}",
+            "config_link": lambda name: f"/metric_editor?tool={_pnr_tool_of(name)}",
+            "settings_text": "Tool Settings",
+            "config_text": "Edit Metrics",
+            "title": "Synthesized designs",
         }
     if run_mode == "workflow":
         base_path = settings.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
@@ -2313,6 +2992,24 @@ def update_param_domains(
         }
         return job_sections, context["title"], "Select the configurations each simulation runs on", saved_baseline
 
+    # A place & route run selects completed synthesis jobs, grouped by tool then
+    # by architecture, so it gets the same nested sections (see
+    # _pnr_job_sections).
+    if context["mode"] == "pnr":
+        job_sections, baseline_selection = _pnr_job_sections(context, selection_settings)
+        if not job_sections:
+            job_sections = [
+                html.Div(
+                    f"No completed synthesis found in {context['base_path']}.",
+                    className="odx-panel odx-empty",
+                )
+            ]
+        saved_baseline = {
+            context["selection_key"]: baseline_selection,
+            **_job_settings_baseline(selection_settings),
+        }
+        return job_sections, context["title"], "Select the synthesized designs to place & route", saved_baseline
+
     selection_map = _group_arch_selections(selection_settings.get(context["selection_key"], []))
     # Baseline of the "saved" selection, computed exactly like the widgets are
     # initialized below, so a fresh page load does not falsely report "unsaved
@@ -2512,9 +3209,17 @@ def update_arch_count(preview_values, switch_values, preview_ids, switch_ids, co
             children.append(dash.no_update)
             continue
         selected = previews.get(arch_name) or []
+        metadata = metadata_by_arch.get(arch_name, {})
+        n_combos = metadata.get("n_combos", 0)
+        if metadata.get("kind") == "pnr":
+            # A source is picked whole: there is no default configuration to
+            # count apart, and nothing to combine.
+            children.append(
+                _simulation_badge_text(n_combos, len(selected), enabled.get(arch_name, False))
+            )
+            continue
         default_enabled = arch_name in selected
         n_selected = len([v for v in selected if v != arch_name])
-        n_combos = metadata_by_arch.get(arch_name, {}).get("n_combos", 0)
         children.append(_arch_badge_text(n_combos, n_selected, default_enabled, enabled.get(arch_name, False)))
     return children
 
@@ -2689,7 +3394,9 @@ def preview_select_all(n_clicks, options):
     if not isinstance(triggered, dict) or not any(n_clicks or []):
         raise dash.exceptions.PreventUpdate
     if triggered.get("action") == "show":
-        return [option["value"] for option in options or []]
+        # A disabled entry cannot run (a place & route source with no netlist
+        # handed over): "Select all" must not check it.
+        return [option["value"] for option in options or [] if not option.get("disabled")]
     return []
 
 @dash.callback(
@@ -2754,6 +3461,11 @@ def sync_preview_values(
     # here would show the checked count instead once any items are unchecked.
     if not changed_domain:
         return current_preview_values or []
+
+    if (arch_metadata or {}).get("kind") == "pnr":
+        return _pnr_sync_preview_values(
+            arch_metadata, current_domains, current_preview_values, changed_domain, added_values, removed_values
+        )
 
     # Start from the current preview value (including manual changes)
     preview_set = set(current_preview_values or [])
@@ -3469,6 +4181,53 @@ def run_jobs(
             daemon=True,
         )
         _prepare_thread.start()
+    elif run_mode == "pnr":
+        run_config_settings_filename = temp_settings_file or settings.get(
+            "pnr_settings_file",
+            OdatixSettings.DEFAULT_PNR_SETTINGS_FILE,
+        )
+        work_path = os.path.join(
+            work_path_root,
+            settings.get("pnr_work_path", OdatixSettings.DEFAULT_PNR_WORK_PATH),
+        )
+
+        _prepare_runtime_settings["export"] = {
+            "kind": "synthesis",
+            "result_type": "pnr",
+            "work_path": work_path,
+            "tool": tool,
+            "flow": flow,
+            "output_dir": result_path,
+            "use_benchmark": export_use_benchmark,
+            "benchmark_file": export_benchmark_file,
+        }
+
+        _prepare_thread = threading.Thread(
+            target=_run_check_pnr_settings,
+            args=(
+                run_config_settings_filename,
+                # A place & route run reads the synthesis jobs from the whole
+                # work tree, not from a single job type directory.
+                work_path_root,
+                tool,
+                flow,
+                until_step,
+                work_path,
+                target_path,
+                overwrite_enabled,
+                noask,
+                exit_when_done_enabled,
+                log_size_val,
+                nb_jobs_val,
+                check_eda_tool,
+                {
+                    job_type: {"path": settings.get(f"{job_type}_work_path") or job_type}
+                    for job_type in pnr_source.SOURCE_JOB_TYPES
+                },
+            ),
+            daemon=True,
+        )
+        _prepare_thread.start()
     elif run_mode == "fmax_synthesis":
         run_config_settings_filename = temp_settings_file or settings.get(
             "fmax_synthesis_settings_file",
@@ -3868,7 +4627,7 @@ dash.clientside_callback(
 def update_choose_targets_link(search):
     tool = get_key_from_url(search, "tool") or "vivado"
     run_mode = get_key_from_url(search, "type")
-    if run_mode == "fmax_synthesis" or run_mode == "custom_freq_synthesis":
+    if run_mode in ("fmax_synthesis", "custom_freq_synthesis", "pnr"):
         return (
             f"/select_targets?tool={quote(tool)}",
             "color-button default icon-button tooltip bottom small tooltip"

@@ -951,6 +951,19 @@
     background: var(--theme-contrast-text-color);
     color: var(--theme-primary-color);
 }
+.odx-step.default {
+    box-shadow: inset 0 0 0 1px var(--theme-primary-color);
+}
+/* Where the flow stops when nothing is asked for: the same run as the flow
+   button itself, so it is named rather than highlighted like a choice apart. */
+.odx-step-default {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.5;
+}
 /* "Built-in tools", between two card grids. */
 .odx-choose-subhead {
     justify-content: center;

@@ -76,6 +76,12 @@ run_jobs_cards = [
         "icon": "custom_freq",
         "description": "Run synthesis at custom frequencies",
     },
+    {
+        "name": "Run Place & Route",
+        "link": "/choose_eda_tool?type=pnr",
+        "icon": "pnr",
+        "description": "Place & route designs another tool has already synthesized",
+    },
 ]
 
 home_layout = [

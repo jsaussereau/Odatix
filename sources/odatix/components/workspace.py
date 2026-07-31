@@ -33,11 +33,13 @@ from functools import reduce
 from natsort import natsorted
 import operator
 
+import odatix.lib.printc as printc
 import odatix.components.motd as motd
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree
 from typing import Optional
 
+script_name = os.path.basename(__file__)
 
 ######################################
 # Architectures and Simulations
@@ -500,8 +502,8 @@ TOOL_PLATFORM_KEYS = ("unix", "windows")
 # The job types a flow declares a command (or steps) for, in render order. Only
 # the ones in TOOL_STEPPED_JOB_TYPES can be split into resumable steps: checking
 # that the tool is installed is a single command by nature.
-TOOL_JOB_TYPES = ("tool_test", "fmax_synthesis", "custom_freq_synthesis", "analysis")
-TOOL_STEPPED_JOB_TYPES = ("fmax_synthesis", "custom_freq_synthesis", "analysis")
+TOOL_JOB_TYPES = ("tool_test", "fmax_synthesis", "custom_freq_synthesis", "pnr", "analysis")
+TOOL_STEPPED_JOB_TYPES = ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analysis")
 TOOL_COMMAND_KEYS = tuple(f"{job_type}_command" for job_type in TOOL_JOB_TYPES)
 
 # The metric sections of a tool metrics.yml, in render order, with the tool.yml
@@ -509,6 +511,7 @@ TOOL_COMMAND_KEYS = tuple(f"{job_type}_command" for job_type in TOOL_JOB_TYPES)
 TOOL_METRIC_SECTIONS = [
     ("fmax_synthesis_metrics", "Fmax synthesis metrics"),
     ("custom_freq_synthesis_metrics", "Custom frequency synthesis metrics"),
+    ("pnr_metrics", "Place & route metrics"),
     ("metrics", "Common metrics"),
 ]
 
@@ -955,6 +958,10 @@ def _emit_platform_section(jobs) -> CommentedMap:
                 item = CommentedMap()
                 item["name"] = step_name
                 item["command"] = _as_flow_seq(commands)
+                # Only the step the flow stops at by default says so: the others
+                # are simply not it (see odatix.lib.eda_tools.get_default_step).
+                if step.get("default"):
+                    item["default"] = True
                 steps_seq.append(item)
             if len(steps_seq) > 0:
                 section[f"{job_type}_steps"] = steps_seq
@@ -1822,7 +1829,7 @@ def save_yaml_file(path: str, data, yaml_obj: Optional[YAML]=None) -> None:
 
 def load_arch_selection_settings(path: str) -> dict:
     if not os.path.exists(path):
-        print(f"Settings file '{path}' does not exist. Using default settings.", "yellow")
+        printc.warning(f"Settings file '{path}' does not exist. Using default settings.", script_name)
         return {}
     with open(path, "r") as f:
         return yaml.safe_load(f) or {}
@@ -1909,6 +1916,8 @@ def save_architecture_selection(path, settings, run_mode="default", use_custom_f
         run_mode_display = "simulations"
     elif run_mode == "analyze":
         run_mode_display = "RTL analysis"
+    elif run_mode == "pnr":
+        run_mode_display = "place & route"
     else:
         run_mode_display = run_mode
 
@@ -2037,6 +2046,17 @@ f"""##############################################
             simulations = create_simulation_selection_list(simulations)
         data['simulations'] = simulations
         data.yaml_set_comment_before_after_key(key='simulations', before="\n targeted simulations")
+    elif run_mode == "pnr":
+        # A place & route run does not select architectures but the completed
+        # synthesis jobs it starts from (see odatix.lib.pnr_source).
+        sources = settings.get('sources', settings.get('architectures', []))
+        data['sources'] = CommentedSeq([str(source) for source in sources if source])
+        data.yaml_set_comment_before_after_key(
+            key='sources',
+            before="\n completed synthesis jobs to place & route, written"
+                   "\n <source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]"
+                   '\n with "*" accepted at every level',
+        )
     else:
         architectures = settings.get('architectures', {})
         data['architectures'] = architectures
