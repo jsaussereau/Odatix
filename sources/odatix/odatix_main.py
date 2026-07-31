@@ -39,6 +39,7 @@ import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
 import odatix.components.export_simulation_results as exp_sim_res
 import odatix.components.export_workflow_results as exp_workflow_res
+import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.clean as cln
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
@@ -181,6 +182,11 @@ class ArgParser:
     exp_sim_res.add_arguments(ArgParser.exp_sim_res_parser)
     ArgParser.add_nobanner(ArgParser.exp_sim_res_parser)
 
+    # Define parser for the 'res_derived' command
+    ArgParser.exp_derived_parser = subparsers.add_parser("res_derived", help="apply derived metrics to the result files")
+    exp_derived.add_arguments(ArgParser.exp_derived_parser)
+    ArgParser.add_nobanner(ArgParser.exp_derived_parser)
+
     # Define parser for the 'clean' command
     ArgParser.clean_parser = subparsers.add_parser("clean", help="clean directory", formatter_class=formatter)
     cln.add_arguments(ArgParser.clean_parser)
@@ -257,6 +263,12 @@ class ArgParser:
     print(ArgParser.exp_sim_res_parser.format_usage(), end="")
     print("  run ", end="")
     printc.bold(prog + " res_simulation -h", end="")
+    print(" for more details")
+    print()
+    printc.cyan("- Derived Metrics:\n  ", end="")
+    print(ArgParser.exp_derived_parser.format_usage(), end="")
+    print("  run ", end="")
+    printc.bold(prog + " res_derived -h", end="")
     print(" for more details")
     print()
     printc.bold("Clean:\n  ", printc.colors.CYAN, end="")
@@ -539,6 +551,26 @@ def export_all_results(args):
   except Exception as e:
     internal_error(e, error_logfile, script_name)
     success = False
+
+  # Derived metrics come last: they read the records the exports above just
+  # wrote, plus the simulation and workflow ones already on disk.
+  try:
+    exp_derived.run(result_path=args.respath, config_file=args.config)
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
+def export_derived_metrics(args):
+  success = True
+  try:
+    exp_derived.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
   return success
 
 def clean(args):
@@ -627,6 +659,8 @@ def main(args=None):
     success = export_workflow_results(args)
   elif args.command == "res_simulation":
     success = export_simulation_results(args)
+  elif args.command == "res_derived":
+    success = export_derived_metrics(args)
   elif args.command in "generate":
     success = generate_configs(args)
   elif args.command in "replace":

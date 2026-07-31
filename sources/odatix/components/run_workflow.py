@@ -35,6 +35,7 @@ from odatix.components.run_common import (
     start_parallel_jobs as start_parallel_jobs_common,
 )
 import odatix.components.export_workflow_results as exp_workflow_res
+import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.task_common as task_common
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
@@ -710,6 +711,11 @@ def prepare_workflows(
             output_dir=export_output_dir,
             output_filename=export_output_filename,
         )
+
+    # Whole-batch derivation: a derived metric reads records other jobs produce,
+    # so it can only be computed once every job of the batch is done.
+    if export_output_dir:
+        exp_derived.configure_post_batch_derivation(parallel_jobs, export_output_dir)
 
     return parallel_jobs
 

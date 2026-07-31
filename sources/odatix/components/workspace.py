@@ -2161,3 +2161,69 @@ def update_raw_settings(arch_path, arch_name, domain, settings_to_update) -> dic
         settings[k] = v
     
     return settings
+
+
+######################################
+# Derived metrics
+######################################
+
+def get_derived_metrics_path(odatix_settings=None) -> str:
+    """
+    Path of the workspace derived metrics file (see odatix.lib.derived_metrics).
+    """
+    from odatix.lib.settings import OdatixSettings
+
+    path = (odatix_settings or {}).get("derived_metrics_file", "")
+    if isinstance(path, str) and path.strip() != "":
+        return path
+
+    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
+    if isinstance(settings_data, dict):
+        path = settings_data.get("derived_metrics_file", "")
+        if isinstance(path, str) and path.strip() != "":
+            return path
+
+    return OdatixSettings.DEFAULT_DERIVED_METRICS_FILE
+
+
+def load_derived_metrics_file(odatix_settings=None) -> tuple:
+    """
+    Load the derived metrics of the workspace.
+
+    Returns:
+        tuple: (groups, metrics), each a name -> definition dict. Both are empty
+        when the file is missing or unparsable, which is the normal state of a
+        workspace that derives nothing.
+    """
+    data = load_yaml_file(get_derived_metrics_path(odatix_settings), default={})
+    if not isinstance(data, dict):
+        return {}, {}
+
+    groups = data.get("groups")
+    metrics = data.get("derived_metrics")
+    return (
+        groups if isinstance(groups, dict) else {},
+        metrics if isinstance(metrics, dict) else {},
+    )
+
+
+def save_derived_metrics_file(groups, metrics, odatix_settings=None) -> None:
+    """
+    Save the derived metrics of the workspace, preserving the comments and any
+    top-level key the editor does not know about.
+    """
+    path = get_derived_metrics_path(odatix_settings)
+    yaml_obj = YAML()
+
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = yaml_obj.load(f)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    data["groups"] = groups if groups else CommentedMap()
+    data["derived_metrics"] = metrics if metrics else CommentedMap()
+
+    save_yaml_file(path, data, yaml_obj=yaml_obj)

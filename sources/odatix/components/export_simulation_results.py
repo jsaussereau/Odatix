@@ -37,6 +37,8 @@ import argparse
 
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
+import odatix.lib.param_domain as param_domain
+import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 from odatix.components.export_common import parse_yaml, load_existing_results_file
 from odatix.components.export_workflow_results import _load_metrics, _extract_run_records
@@ -44,6 +46,7 @@ from odatix.components.export_workflow_results import _load_metrics, _extract_ru
 script_name = os.path.basename(__file__)
 
 SIMULATION_META_FILENAME = "sim_meta.yml"
+SIMULATION_SETTINGS_FILENAME = hard_settings.sim_settings_filename
 SIMULATION_METRICS_FILENAME = "_metrics.yml"
 DEFAULT_OUTPUT_FILENAME = "results_simulation.yml"
 
@@ -75,8 +78,8 @@ def _run_identity(run_dir, work_root, sim_path):
     directory layout.
 
     Returns:
-        dict: simulation, architecture, configuration, arch_full and
-        simulation_definition_dir.
+        dict: simulation, architecture, configuration, arch_full,
+        simulation_definition_dir and invariant_domains.
     """
     fallback = {"simulation": "", "architecture": "", "configuration": os.path.basename(run_dir)}
     try:
@@ -103,13 +106,33 @@ def _run_identity(run_dir, work_root, sim_path):
     if not isinstance(simulation_definition_dir, str) or simulation_definition_dir == "":
         simulation_definition_dir = os.path.join(sim_path, simulation) if simulation else sim_path
 
+    if "invariant_domains" in meta:
+        invariant_domains = param_domain.parse_invariant_domains(meta.get("invariant_domains"))
+    else:
+        # Work directories produced before invariant domains existed have no such
+        # key: read the declaration back from the simulation definition, so that
+        # re-exporting an old run gives the same record as running it again.
+        invariant_domains = _declared_invariant_domains(simulation_definition_dir)
+
     return {
         "simulation": simulation,
         "architecture": architecture,
         "configuration": configuration,
         "arch_full": arch_full,
         "simulation_definition_dir": simulation_definition_dir,
+        "invariant_domains": sorted(invariant_domains),
     }
+
+
+def _declared_invariant_domains(simulation_definition_dir):
+    """The invariant domains a simulation declares in its settings file."""
+    settings_file = os.path.join(str(simulation_definition_dir), SIMULATION_SETTINGS_FILENAME)
+    settings_data = parse_yaml(settings_file, error_if_missing=False)
+    if not isinstance(settings_data, dict):
+        return {}
+    return param_domain.parse_invariant_domains(
+        settings_data.get(param_domain.INVARIANT_DOMAINS_KEY), settings_file
+    )
 
 
 def _build_simulation_records(run_records, identity, run_dir):
@@ -124,6 +147,7 @@ def _build_simulation_records(run_records, identity, run_dir):
             run_dir=run_dir,
             simulation_definition_dir=identity["simulation_definition_dir"],
             metrics=metrics,
+            invariant_domains=identity["invariant_domains"],
         )
         for key, value in meta_extra.items():
             # setdefault protects the reserved simulation meta keys

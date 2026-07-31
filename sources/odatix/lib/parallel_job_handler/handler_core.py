@@ -111,6 +111,14 @@ class ParallelJobHandler:
         self.running_job_list = []
         self.retired_job_list = []
         self.job_queue = queue.Queue()
+
+        # Work to run once, when nothing is running and nothing is queued
+        # anymore. Per-job exports (post_run_export) cannot cover everything a
+        # batch produces: a derived metric reads records of other jobs, which
+        # may not have finished yet when a job exports its own. See
+        # odatix.components.export_derived_metrics.
+        self.post_batch_action = None
+        self._post_batch_done = False
         self.selected_job_index = 0
         self.previous_log_size = 0
         if len(self.job_list) > 0:
@@ -344,6 +352,8 @@ class ParallelJobHandler:
         with self._lock:
             self.job_list.append(job)
             self.job_count = len(self.job_list)
+            # A new job means a new batch to close: derive again once it drains.
+            self._post_batch_done = False
             self.max_title_length = max(self.max_title_length, len(job.display_name))
 
             if self.job_count == 1:
@@ -677,6 +687,42 @@ class ParallelJobHandler:
         self._flush_job_log_buffer(job)
         return False
 
+    def _run_post_batch_action(self):
+        """
+        Run the batch-wide action once the last job of the batch has retired.
+
+        Failures are reported but never fail a job: the jobs themselves are
+        done, and their own results are already exported.
+        """
+        action = self.post_batch_action
+        if not isinstance(action, dict):
+            return
+
+        kind = str(action.get("kind", "")).strip().lower()
+        if kind == "":
+            return
+
+        try:
+            if kind == "derived_metrics":
+                from odatix.components.export_derived_metrics import apply_derived_metrics
+
+                derived_metrics_file = action.get("derived_metrics_file")
+                if derived_metrics_file and os.path.isfile(derived_metrics_file):
+                    apply_derived_metrics(action.get("result_path"), derived_metrics_file)
+            else:
+                printc.warning("Unsupported post-batch action '" + kind + "'", script_name)
+        except Exception as e:
+            printc.error("Post-batch action '" + kind + "' failed: " + str(e), script_name)
+
+    def _run_post_batch_action_if_drained(self):
+        """Run the batch-wide action when no job is running or waiting anymore."""
+        if self._post_batch_done or not isinstance(self.post_batch_action, dict):
+            return
+        if len(self.running_job_list) > 0 or not self.job_queue.empty():
+            return
+        self._post_batch_done = True
+        self._run_post_batch_action()
+
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
         for job in self.job_list:
             if job in self.retired_job_list:
@@ -723,6 +769,7 @@ class ParallelJobHandler:
                     self.retire_job(job, job.progress)
                     if not self.job_queue.empty():
                         self.start_job(self.job_queue.get())
+                    self._run_post_batch_action_if_drained()
 
                     if selected_job is not None and job == selected_job:
                         selected_job.log_changed = True

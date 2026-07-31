@@ -32,6 +32,7 @@ from odatix.lib.architecture_handler import ArchitectureHandler
 from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.utils import *
 from odatix.lib.param_domain import ParamDomain
+import odatix.lib.param_domain as param_domain
 import odatix.lib.hard_settings as hard_settings
 
 script_name = os.path.basename(__file__)
@@ -55,6 +56,7 @@ class Simulation:
     tasks=None,
     progress_file=None,
     progress_regex=None,
+    invariant_domains=None,
   ):
     self.sim_name = sim_name
     self.sim_display_name = sim_display_name
@@ -75,6 +77,10 @@ class Simulation:
     self.tasks = tasks if isinstance(tasks, list) else []
     self.progress_file = progress_file
     self.progress_regex = progress_regex
+    # Parameter domains this simulation's result does not depend on. They are
+    # collapsed to a single run (see SimulationHandler.get_simulations) and are
+    # left out of the exported record, so it matches every value of them.
+    self.invariant_domains = invariant_domains if isinstance(invariant_domains, dict) else {}
 
 
 class SimulationHandler:
@@ -93,7 +99,37 @@ class SimulationHandler:
     self.sim_makefile_filename = sim_makefile_filename
     self.reset_lists()
 
+  def get_invariant_domains(self, sim):
+    """
+    The parameter domains a simulation declares its result does not depend on.
+
+    Read straight from the simulation settings file, and before the
+    configurations are expanded: which configurations are worth running depends
+    on it, so it cannot wait until each one is built.
+    """
+    if sim in self._invariant_domains_cache:
+      return self._invariant_domains_cache[sim]
+
+    domains = {}
+    settings_filename = os.path.join(self.sim_path, sim, self.sim_settings_filename)
+    if isfile(settings_filename):
+      try:
+        with open(settings_filename, "r") as f:
+          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        if isinstance(settings_data, dict):
+          domains = param_domain.parse_invariant_domains(
+            settings_data.get(param_domain.INVARIANT_DOMAINS_KEY), settings_filename
+          )
+      except Exception:
+        # An unreadable settings file is reported by get_simulation, which needs
+        # to ban the simulation anyway. Nothing to add here.
+        domains = {}
+
+    self._invariant_domains_cache[sim] = domains
+    return domains
+
   def reset_lists(self):
+    self._invariant_domains_cache = {}
     self.no_settings_sims = []
     self.banned_sim_param = []
     # Single source of truth for the check outcome (see lib/run_report.py).
@@ -204,7 +240,22 @@ class SimulationHandler:
 
               # Remove duplicates
               architectures = list(dict.fromkeys(architectures))
-              
+
+              # Configurations that only differ by a domain the simulation is
+              # invariant to would all compute the same result: keep one.
+              invariant_domains = self.get_invariant_domains(sim)
+              if invariant_domains:
+                architectures, dropped = param_domain.collapse_invariant_configurations(
+                  architectures, invariant_domains, error_prefix=sim + ": "
+                )
+                if dropped > 0:
+                  printc.note(
+                    sim + ': skipping ' + str(dropped) + ' redundant configuration'
+                    + ("s" if dropped > 1 else "")
+                    + ' (invariant to "' + '", "'.join(sorted(invariant_domains)) + '")',
+                    script_name,
+                  )
+
               for arch in architectures:
                 simulation_instance = self.get_simulation(sim, arch, arch_handler, keep=keep, timestamp=timestamp)
                 if simulation_instance is not None:
@@ -429,6 +480,7 @@ class SimulationHandler:
       tasks = tasks,
       progress_file = progress_file,
       progress_regex = progress_regex,
+      invariant_domains = self.get_invariant_domains(sim),
     )
 
     return sim_instance

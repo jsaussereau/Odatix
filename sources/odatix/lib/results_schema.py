@@ -398,6 +398,7 @@ def make_simulation_record(
   simulation_definition_dir,
   metrics,
   timestamp=None,
+  invariant_domains=None,
 ):
   """
   Build a v2 simulation record.
@@ -407,7 +408,16 @@ def make_simulation_record(
   dimension and the usual architecture/configuration ones. The "+domain/value"
   segments of arch_full are flattened into meta, exactly like synthesis and
   workflow records.
+
+  `invariant_domains` names the domains the simulation declared its result does
+  not depend on. They are deliberately left out of meta: a dimension the record
+  does not carry is a dimension it does not constrain, so a single run matches
+  every value of it when another record borrows a metric from it (see
+  odatix.lib.derived_metrics). The full name is still kept under "_arch_full",
+  so what actually ran stays traceable.
   """
+  invariant = set(str(domain) for domain in invariant_domains) if invariant_domains else set()
+
   meta = {
     META_TYPE: TYPE_SIMULATION,
     META_SIMULATION: str(simulation),
@@ -417,7 +427,11 @@ def make_simulation_record(
   if timestamp is not None:
     meta[META_TIMESTAMP] = timestamp
   for domain, value in parse_domain_segments(arch_full).items():
+    if domain in invariant:
+      continue
     meta.setdefault(domain, value)
+  if invariant:
+    meta["_invariant_domains"] = sorted(invariant)
   if run_dir is not None:
     meta["_run_dir"] = str(run_dir)
   if simulation_definition_dir is not None:

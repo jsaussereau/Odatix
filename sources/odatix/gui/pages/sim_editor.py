@@ -87,6 +87,37 @@ def get_sim_path(odatix_settings):
 
     return OdatixSettings.DEFAULT_SIM_PATH
 
+def parse_invariant_domains_text(text):
+    """
+    Parse the invariant domains field, written the same way parameter domains are
+    written everywhere else: "MEM/1024I_1024D, Voltage" -- a domain alone lets
+    Odatix pick which value to run, a "domain/value" pins the one to run.
+    """
+    domains = {}
+    for item in str(text or "").split(","):
+        item = item.strip()
+        if item == "":
+            continue
+        if "/" in item:
+            domain, value = item.split("/", 1)
+            domain = domain.strip()
+            if domain != "":
+                domains[domain] = value.strip() or None
+        else:
+            domains[item] = None
+    return domains
+
+
+def format_invariant_domains(domains):
+    """Render an invariant domains mapping back into the editable text form."""
+    if not isinstance(domains, dict):
+        return ""
+    return ", ".join(
+        domain if value in (None, "") else str(domain) + "/" + str(value)
+        for domain, value in sorted(domains.items())
+    )
+
+
 def normalize_simulation_settings(settings):
     """
     Reduce a simulation settings file to the keys this page edits, with stable
@@ -104,7 +135,21 @@ def normalize_simulation_settings(settings):
     if not isinstance(tasks, list):
         tasks = []
 
+    invariant_domains = settings.get("invariant_domains")
+    if isinstance(invariant_domains, str):
+        invariant_domains = parse_invariant_domains_text(invariant_domains)
+    elif isinstance(invariant_domains, list):
+        invariant_domains = {str(domain): None for domain in invariant_domains if domain is not None}
+    elif isinstance(invariant_domains, dict):
+        invariant_domains = {
+            str(domain): (None if value in (None, "") else str(value))
+            for domain, value in invariant_domains.items()
+        }
+    else:
+        invariant_domains = {}
+
     return {
+        "invariant_domains": invariant_domains,
         "use_parameters": _parse_bool(settings.get("use_parameters", True), True),
         "param_target_file": str(settings.get("param_target_file", "") or ""),
         "start_delimiter": str(settings.get("start_delimiter", "") or ""),
@@ -371,6 +416,25 @@ def sim_form(settings):
                         value=progress.get("regex", ""),
                         placeholder=hard_settings.sim_status_pattern.pattern,
                         tooltip="Regex containing one capture group for the completion percentage.",
+                    ),
+                ],
+                className="tile config",
+            ),
+            html.Div(
+                [
+                    html.H3("Invariant Parameter Domains"),
+                    sim_form_field(
+                        label="Domains",
+                        id="sim-invariant-domains",
+                        value=format_invariant_domains(defval("invariant_domains", {})),
+                        placeholder="MEM/1024I_1024D, Voltage",
+                        tooltip=(
+                            "Parameter domains this simulation's result does not depend on. Only one value "
+                            "of each is run instead of all of them, and the result carries no such dimension, "
+                            "so it applies to every value of it when a synthesis result borrows a metric from "
+                            'it. Write "domain" to let Odatix pick the value to run, or "domain/value" to '
+                            "choose it."
+                        ),
                     ),
                 ],
                 className="tile config",
@@ -706,6 +770,7 @@ def init_form(search, page, odatix_settings):
     Input("sim-override-stop-delimiter", "value"),
     Input("sim-progress-file", "value"),
     Input("sim-progress-regex", "value"),
+    Input("sim-invariant-domains", "value"),
     Input({"type": "sim-task-field-name", "name": dash.ALL}, "value"),
     Input({"type": "sim-task-field-dependencies", "name": dash.ALL}, "value"),
     Input({"type": "sim-task-field-commands", "name": dash.ALL}, "value"),
@@ -732,6 +797,7 @@ def save_and_status(
     override_stop_delimiter,
     progress_file,
     progress_regex,
+    invariant_domains,
     task_names,
     task_dependencies,
     task_commands,
@@ -767,6 +833,7 @@ def save_and_status(
                 "file": progress_file or "",
                 "regex": progress_regex or "",
             },
+            "invariant_domains": parse_invariant_domains_text(invariant_domains),
             "tasks": build_tasks_list(
                 task_names, task_dependencies, task_commands, task_paths, task_platforms
             ),

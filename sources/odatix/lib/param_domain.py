@@ -252,3 +252,145 @@ class ParamDomain:
       param_target_filename = ""
 
     return use_parameters, start_delimiter, stop_delimiter, param_target_filename
+
+
+######################################
+# Invariant parameter domains
+######################################
+
+# Key a simulation (or any job definition) uses to declare the parameter domains
+# its result does not depend on.
+INVARIANT_DOMAINS_KEY = "invariant_domains"
+
+
+def parse_invariant_domains(value, source=""):
+  """
+  Parse an "invariant_domains" declaration.
+
+  A job declares here the parameter domains its result is the same for, whatever
+  value they take: a benchmark whose cycle count does not depend on the memory
+  size is invariant to the memory domain. Two things follow from that, and both
+  matter: only one value of the domain is worth running, and the record produced
+  does not carry the domain at all, so it matches every value of it when another
+  record borrows a metric from it (see odatix.lib.derived_metrics).
+
+  Both forms are accepted::
+
+      invariant_domains: [MEM]                  # any value will do
+      invariant_domains: {MEM: 1024I_1024D}     # this exact value must be run
+
+  Returns:
+      dict: domain name -> the value to run, or None to let Odatix pick one.
+  """
+  domains = {}
+  if value is None or value is False:
+    return domains
+
+  if isinstance(value, dict):
+    for domain, pinned in value.items():
+      domains[str(domain)] = None if pinned is None else str(pinned)
+    return domains
+
+  if isinstance(value, (list, tuple)):
+    for domain in value:
+      if isinstance(domain, dict):
+        # A YAML list of single-key mappings, which is what "- MEM: 1024I" gives.
+        for name, pinned in domain.items():
+          domains[str(name)] = None if pinned is None else str(pinned)
+      elif domain is not None:
+        domains[str(domain)] = None
+    return domains
+
+  if isinstance(value, str):
+    domains[value] = None
+    return domains
+
+  printc.warning(
+    '"' + INVARIANT_DOMAINS_KEY + '" must be a list or a dictionary'
+    + (' in "' + source + '"' if source else ""),
+    script_name,
+  )
+  return domains
+
+
+def split_configuration(configuration):
+  """
+  Split a configuration name into its base name and its "+domain/value"
+  segments, e.g. "rv32i+MEM/1024I+Mul/fast" -> ("rv32i", {"MEM": "1024I",
+  "Mul": "fast"}). Segments without a "/" are kept in the base name, so that
+  nothing is silently dropped.
+  """
+  parts = str(configuration).split("+")
+  base = parts[0]
+  domains = {}
+  for segment in parts[1:]:
+    if "/" in segment:
+      domain, value = segment.split("/", 1)
+      if domain != "":
+        domains[domain] = value
+        continue
+    base = base + "+" + segment
+  return base, domains
+
+
+def collapse_invariant_configurations(configurations, invariant_domains, error_prefix=""):
+  """
+  Reduce a list of configurations to one per class of configurations that only
+  differ by an invariant domain.
+
+  Running the others would compute the same result again, so only a
+  representative is kept: the value the declaration pins, or the first one in
+  alphabetical order when it pins none.
+
+  Returns:
+      tuple: (kept configurations, number of configurations dropped)
+  """
+  if not invariant_domains:
+    return list(configurations), 0
+
+  classes = {}
+  order = []
+  for configuration in configurations:
+    base, domains = split_configuration(configuration)
+    key = (base, tuple(sorted((domain, value) for domain, value in domains.items() if domain not in invariant_domains)))
+    if key not in classes:
+      classes[key] = []
+      order.append(key)
+    classes[key].append((configuration, domains))
+
+  kept = []
+  dropped = 0
+  missing_pins = set()
+
+  for key in order:
+    candidates = classes[key]
+    dropped += len(candidates) - 1
+
+    pinned = [
+      (configuration, domains)
+      for configuration, domains in candidates
+      if all(
+        domains.get(domain) == value
+        for domain, value in invariant_domains.items()
+        if value is not None and domain in domains
+      )
+    ]
+    if len(pinned) == 0:
+      # The requested value was not among the configurations to run: keeping a
+      # representative anyway is better than running nothing, but the user has
+      # to know their pin was ignored.
+      for domain, value in invariant_domains.items():
+        if value is not None:
+          missing_pins.add(domain + "/" + value)
+      pinned = candidates
+
+    kept.append(sorted(pinned, key=lambda candidate: candidate[0])[0][0])
+
+  for missing in sorted(missing_pins):
+    printc.warning(
+      error_prefix + 'Invariant domain value "' + missing + '" is not among the configurations to run, '
+      "using another value of that domain instead",
+      script_name,
+    )
+
+  return kept, dropped

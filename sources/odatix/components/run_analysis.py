@@ -46,6 +46,7 @@ from odatix.lib.variables import replace_variables, Variables
 from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, abort_if_empty_job_list, run_prepare_loop
 from odatix.components.analyze_results import generate_analysis_summary
 from odatix.components.export_analysis import configure_analysis_job_exports
+import odatix.components.export_derived_metrics as exp_derived
 
 
 class AnalysisCancelled(Exception):
@@ -708,6 +709,11 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
       flows={current_tool: context["flow"] for current_tool, context in prepared_tools},
     )
 
+  # Whole-batch derivation: a derived metric reads records other jobs produce,
+  # so it can only be computed once every job of the batch is done.
+  if result_path:
+    exp_derived.configure_post_batch_derivation(parallel_jobs, result_path)
+
   parallel_jobs.run()
 
   # Generate one global report per tool (terminal summary + text report). The
@@ -930,6 +936,11 @@ def prepare_synthesis(
       output_dir=export_output_dir,
       flows=flows,
     )
+
+  # Whole-batch derivation: a derived metric reads records other jobs produce,
+  # so it can only be computed once every job of the batch is done.
+  if export_output_dir:
+    exp_derived.configure_post_batch_derivation(parallel_jobs, export_output_dir)
 
   return parallel_jobs
 

@@ -26,6 +26,7 @@ from odatix.components import workspace as workspace_utils
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
 from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
+import odatix.components.export_derived_metrics as exp_derived
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.eda_tools as eda_tools
@@ -386,6 +387,11 @@ def prepare_synthesis(
             benchmark_file=benchmark_file,
             custom_metrics_file=custom_metrics_file,
         )
+
+    # Whole-batch derivation: a derived metric reads records other jobs produce,
+    # so it can only be computed once every job of the batch is done.
+    if export_output_dir:
+        exp_derived.configure_post_batch_derivation(parallel_jobs, export_output_dir)
 
     return parallel_jobs
 

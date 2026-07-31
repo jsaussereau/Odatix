@@ -46,6 +46,7 @@ nav_groups = [
         ("RTL Architectures", "/architectures"),
         ("RTL Simulations", "/architectures#simulations"),
         ("EDA Tools", "/tools"),
+        ("Derived Metrics", "/derived_metrics"),
     ]),
     ("Run", "/choose_job_type", [
         ("Workflows", "/run_jobs?type=workflow"),

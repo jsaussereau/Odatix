@@ -35,6 +35,7 @@ from odatix.components.run_common import (
     start_parallel_jobs as start_parallel_jobs_common,
 )
 import odatix.components.export_simulation_results as exp_sim_res
+import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.task_common as task_common
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
@@ -409,6 +410,10 @@ def write_simulation_meta(sim_instance):
                     "architecture": sim_instance.arch_param_dir,
                     "configuration": sim_instance.arch_config,
                     "arch_full": sim_instance.arch_full,
+                    # Which domains the run is invariant to is what the record
+                    # must leave out to match every value of them, so it travels
+                    # with the run rather than being looked up again at export.
+                    "invariant_domains": sorted(sim_instance.invariant_domains),
                 },
                 f,
                 default_flow_style=False,
@@ -522,6 +527,11 @@ def prepare_simulations(
             output_dir=export_output_dir,
             output_filename=export_output_filename,
         )
+
+    # Whole-batch derivation: a derived metric reads records other jobs produce,
+    # so it can only be computed once every job of the batch is done.
+    if export_output_dir:
+        exp_derived.configure_post_batch_derivation(parallel_jobs, export_output_dir)
 
     return parallel_jobs
 

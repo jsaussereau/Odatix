@@ -110,6 +110,7 @@ class OdatixSettings:
     DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml")
     DEFAULT_ANALYSIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "analysis_settings.yml")
     DEFAULT_WORKFLOW_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "workflow_settings.yml")
+    DEFAULT_DERIVED_METRICS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "derived_metrics.yml")
 
     odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
     odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
@@ -200,6 +201,7 @@ class OdatixSettings:
             "fmax_synthesis_settings_file": settings.get('fmax_synthesis_settings_file', ""),
             "custom_freq_synthesis_settings_file": settings.get('custom_freq_synthesis_settings_file', ""),
             "analysis_settings_file": settings.get('analysis_settings_file', ""),
+            "derived_metrics_file": settings.get('derived_metrics_file', ""),
 
             # Work directories
             "work_path": settings.get('work_path', ""),
@@ -255,6 +257,7 @@ class OdatixSettings:
         self.custom_freq_synthesis_settings_file, _ = get_from_dict("custom_freq_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.analysis_settings_file, _ = get_from_dict("analysis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.workflow_settings_file, _ = get_from_dict("workflow_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE , silent=silent, script_name=script_name)
+        self.derived_metrics_file, _ = get_from_dict("derived_metrics_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_DERIVED_METRICS_FILE , silent=silent, script_name=script_name)
 
         # Depreciation warnings
         no_longer_supported = False
@@ -401,6 +404,7 @@ class OdatixSettings:
             "fmax_synthesis_settings_file": self.fmax_synthesis_settings_file,
             "custom_freq_synthesis_settings_file": self.custom_freq_synthesis_settings_file,
             "analysis_settings_file": self.analysis_settings_file,
+            "derived_metrics_file": self.derived_metrics_file,
 
             # Work directories
             "work_path": self.work_path,
@@ -503,6 +507,9 @@ f"""##############################################
         analysis_settings_file = settings.get('analysis_settings_file')
         if analysis_settings_file is not None and analysis_settings_file != "":
             data['analysis_settings_file'] = analysis_settings_file
+        derived_metrics_file = settings.get('derived_metrics_file')
+        if derived_metrics_file is not None and derived_metrics_file != "":
+            data['derived_metrics_file'] = derived_metrics_file
         if clean_settings_file is not None and clean_settings_file != "":
             data.yaml_set_comment_before_after_key('clean_settings_file', before="\nSettings files")
         elif simulation_settings_file is not None and simulation_settings_file != "":
@@ -513,6 +520,8 @@ f"""##############################################
             data.yaml_set_comment_before_after_key('custom_freq_synthesis_settings_file', before="\nSettings files")
         elif analysis_settings_file is not None and analysis_settings_file != "" :
             data.yaml_set_comment_before_after_key('analysis_settings_file', before="\nSettings files")
+        elif derived_metrics_file is not None and derived_metrics_file != "" :
+            data.yaml_set_comment_before_after_key('derived_metrics_file', before="\nSettings files")
 
         # Work directories
         work_path = settings.get('work_path')
