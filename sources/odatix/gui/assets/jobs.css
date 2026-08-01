@@ -160,8 +160,22 @@
     width: 34px;
     height: 19px;
 }
+.jobs-arch-card.nested .jobs-arch-headline .checklist-switch label::before {
+    width: 34px;
+    height: 19px;
+    border-radius: 19px;
+}
 .jobs-arch-card.nested .jobs-arch-headline .checklist-switch label::after {
-    top: 2px;
+    top: 2.5px;
+    left: 4px;
+    width: 15px;
+    height: 15px;
+}
+.jobs-arch-card.nested
+    .jobs-arch-headline
+    .checklist-switch
+    label:has(input[type="checkbox"]:checked)::after {
+    left: 17px;
 }
 .jobs-arch-card.nested .jobs-arch-grid {
     padding: var(--space-2) var(--space-3) var(--space-3) var(--space-3);
