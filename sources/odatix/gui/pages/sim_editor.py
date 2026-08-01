@@ -41,14 +41,12 @@ section, unlike the Workflow Editor.
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
-import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
 
 page_path = "/sim_editor"
 
@@ -75,17 +73,6 @@ def _parse_bool(value, default=False):
         if val in ["no", "false", "0"]:
             return False
     return default
-
-def get_sim_path(odatix_settings):
-    sim_path = (odatix_settings or {}).get("sim_path", "")
-    if sim_path:
-        return sim_path
-
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
-
-    return OdatixSettings.DEFAULT_SIM_PATH
 
 def parse_invariant_domains_text(text):
     """
@@ -747,8 +734,8 @@ def init_form(search, page, odatix_settings):
         settings = normalize_simulation_settings({})
         return sim_form(settings), settings, sim_cards_from_tasks([])
 
-    sim_path = get_sim_path(odatix_settings)
-    settings = normalize_simulation_settings(workspace.load_simulation_settings(sim_path, sim_name))
+    simulations = get_workspace(odatix_settings).simulations
+    settings = normalize_simulation_settings(simulations.entry(sim_name).settings.to_dict())
     return sim_form(settings), settings, sim_cards_from_tasks(settings.get("tasks", []))
 
 
@@ -841,7 +828,7 @@ def save_and_status(
     )
 
     sim_name = get_key_from_url(search, "sim")
-    sim_path = get_sim_path(odatix_settings)
+    simulations = get_workspace(odatix_settings).simulations
 
     if not sim_title_value:
         return (
@@ -865,26 +852,27 @@ def save_and_status(
         new_search = dash.no_update
 
         if sim_name and sim_title_value != sim_name:
-            if workspace.simulation_exists(sim_path, sim_title_value):
+            if sim_title_value in simulations:
                 return (
                     "color-button error-status icon-button tooltip bottom",
                     f"'{sim_title_value}' already exists",
                     dash.no_update,
                     saved_settings,
                 )
-            if workspace.simulation_exists(sim_path, sim_name):
-                workspace.rename_simulation(sim_path, sim_name, sim_title_value)
+            if sim_name in simulations:
+                simulations.rename(sim_name, sim_title_value)
             sim_name = sim_title_value
             new_search = f"?sim={sim_name}"
         elif not sim_name:
             sim_name = sim_title_value
             new_search = f"?sim={sim_name}"
 
-        if not workspace.simulation_exists(sim_path, sim_name):
-            workspace.create_simulation(sim_path, sim_name)
+        simulation = simulations.get(sim_name)
+        if simulation is None:
+            simulation = simulations.create(sim_name)
 
         try:
-            workspace.save_simulation_settings(sim_path, sim_name, current_settings)
+            simulation.update(current_settings)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",

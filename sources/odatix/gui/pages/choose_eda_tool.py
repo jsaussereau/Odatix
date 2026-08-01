@@ -45,7 +45,7 @@ from dash import dcc, html, Input, Output
 import odatix.gui.ui_components as ui
 import odatix.lib.eda_tools as eda_tools
 import odatix.gui.navigation as navigation
-import odatix.components.workspace as workspace
+from odatix.workspace.tools import Tool
 from odatix.gui.icons import icon
 from odatix.lib.settings import OdatixSettings
 from odatix.gui.utils import get_key_from_url
@@ -151,7 +151,7 @@ def custom_flow_names(job_type, tool):
     """
     if not is_builtin_tool(tool):
         return frozenset()
-    builtin = eda_tools.list_flows(tool, job_type=job_type, settings=workspace.load_builtin_tool_settings(tool))
+    builtin = eda_tools.list_flows(tool, job_type=job_type, settings=Tool(None, "", tool).builtin_document)
     return frozenset(
         name for name in eda_tools.list_flows(tool, job_type=job_type) if name not in builtin
     )

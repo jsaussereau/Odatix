@@ -41,9 +41,8 @@ from dash import html, dcc, Input, Output, ctx, State
 import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
-import odatix.components.workspace as workspace
 import odatix.lib.eda_tools as eda_tools
-from odatix.lib.settings import OdatixSettings
+from odatix.gui.utils import get_workspace
 from odatix.lib.utils import open_path_in_explorer
 
 page_path = "/tools"
@@ -64,37 +63,14 @@ dash.register_page(
 # Fallback icon used when a tool.yml does not define an "icon" key.
 DEFAULT_TOOL_ICON = "assets/icons/workflow.png"
 
-def get_tools_path(odatix_settings):
-    """Resolve the workspace tools directory (settings 'tools_path', default
-    odatix_userconfig/tools), mirroring the other list pages."""
-    tools_path = odatix_settings.get("tools_path", "") if isinstance(odatix_settings, dict) else ""
-    if tools_path:
-        return tools_path
-
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("tools_path", OdatixSettings.DEFAULT_TOOLS_PATH)
-
-    return OdatixSettings.DEFAULT_TOOLS_PATH
-
-def get_builtin_tools(tools_path):
+def get_builtin_tools(tools):
     """
     Names of built-in tools not shadowed by a workspace tool. A workspace file
     that only adds flows to a built-in tool does not shadow it: it is listed
-    here, with the flows it adds (see workspace.get_tools).
+    here, with the flows it adds.
     """
-    workspace_tools = set(workspace.get_tools(tools_path))
-    builtin = []
-    eda_tools_path = OdatixSettings.odatix_eda_tools_path
-    if os.path.isdir(eda_tools_path):
-        for name in sorted(os.listdir(eda_tools_path)):
-            if name.startswith("_") or name.startswith("."):
-                continue
-            if name in workspace_tools:
-                continue
-            if os.path.isfile(os.path.join(eda_tools_path, name, workspace.TOOL_SETTINGS_FILENAME)):
-                builtin.append(name)
-    return builtin
+    workspace_tools = set(tools.names())
+    return [name for name in tools.builtin_names() if name not in workspace_tools]
 
 def tool_icon_image(meta):
     """Return the tool's tool.yml "icon" as an <img>, falling back to a default
@@ -137,22 +113,23 @@ def flows_line(name):
     )
 
 
-def build_tool_cards(tools_path):
-    cards = [workspace_tool_card(name, tools_path) for name in workspace.get_tools(tools_path)]
+def build_tool_cards(tools):
+    cards = [workspace_tool_card(tools.entry(name)) for name in tools.names()]
     cards.append(add_card("Create New Tool"))
     return cards
 
-def build_builtin_cards(tools_path):
-    return [builtin_tool_card(name, tools_path) for name in get_builtin_tools(tools_path)]
+def build_builtin_cards(tools):
+    return [builtin_tool_card(tools.entry(name)) for name in get_builtin_tools(tools)]
 
 
 ######################################
 # UI Components
 ######################################
 
-def workspace_tool_card(name, tools_path):
+def workspace_tool_card(tool):
+    name = tool.name
     unique_key = str(uuid.uuid4())
-    visual = tool_icon_image(workspace.load_tool_settings(tools_path, name))
+    visual = tool_icon_image(tool.document)
     flows = flows_line(name)
     return html.Div(
         [
@@ -216,7 +193,8 @@ def workspace_tool_card(name, tools_path):
         key=unique_key,
     )
 
-def builtin_tool_card(name, tools_path):
+def builtin_tool_card(tool):
+    name = tool.name
     unique_key = str(uuid.uuid4())
     label = eda_tools.get_tool_label(name)
     visual = tool_icon_image(eda_tools.load_tool_settings(name))
@@ -224,7 +202,7 @@ def builtin_tool_card(name, tools_path):
     # A built-in tool the workspace already adds flows to or overrides settings of
     # says so: the card is still the built-in one, its flows are not owned by the
     # workspace.
-    extended = workspace.tool_exists(tools_path, name)
+    extended = tool.has_overlay
     return html.Div(
         [
             *([visual] if visual is not None else []),
@@ -317,8 +295,8 @@ def add_card(text: str):
     State("odatix-settings", "data"),
 )
 def update_cards(_, odatix_settings):
-    tools_path = get_tools_path(odatix_settings)
-    return build_tool_cards(tools_path), build_builtin_cards(tools_path)
+    tools = get_workspace(odatix_settings).tools
+    return build_tool_cards(tools), build_builtin_cards(tools)
 
 @dash.callback(
     Output("tool-cards-matrix", "children", allow_duplicate=True),
@@ -340,25 +318,25 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     if btn_id != triggered or not dupl_timestamps[idx]:
         return dash.no_update, dash.no_update
 
-    tools_path = get_tools_path(odatix_settings)
+    tools = get_workspace(odatix_settings).tools
     name = btn_id["name"]
 
     base = name
     suffix = 1
     while True:
         new_name = f"{base}_copy{suffix}"
-        if not workspace.tool_exists(tools_path, new_name):
+        if not tools.exists(new_name):
             break
         suffix += 1
         if suffix > 1000:
             return dash.no_update, dash.no_update
 
     try:
-        workspace.duplicate_tool(tools_path, name, new_name)
+        tools.duplicate(name, new_name)
     except Exception:
         return dash.no_update, dash.no_update
 
-    return build_tool_cards(tools_path), build_builtin_cards(tools_path)
+    return build_tool_cards(tools), build_builtin_cards(tools)
 
 @dash.callback(
     Output("tool-cards-matrix", "children", allow_duplicate=True),
@@ -380,25 +358,24 @@ def fork_builtin(fork_timestamps, btn_ids, odatix_settings):
     if btn_id != triggered or not fork_timestamps[idx]:
         return dash.no_update, dash.no_update
 
-    tools_path = get_tools_path(odatix_settings)
+    tools = get_workspace(odatix_settings).tools
     name = btn_id["name"]
-    builtin_dir = eda_tools.get_tool_dir(name)
 
     suffix = 1
     while True:
         target_name = f"{name}_copy{suffix}"
-        if not workspace.tool_exists(tools_path, target_name):
+        if not tools.exists(target_name):
             break
         suffix += 1
         if suffix > 1000:
             return dash.no_update, dash.no_update
 
     try:
-        workspace.duplicate_builtin_tool(builtin_dir, tools_path, target_name)
+        tools.import_builtin(name, target_name)
     except Exception:
         return dash.no_update, dash.no_update
 
-    return build_tool_cards(tools_path), build_builtin_cards(tools_path)
+    return build_tool_cards(tools), build_builtin_cards(tools)
 
 @dash.callback(
     Output("tool-open-dummy", "data"),
@@ -419,8 +396,7 @@ def open_tool_directory(open_timestamps, btn_ids, odatix_settings):
     if btn_id != triggered or not open_timestamps[idx]:
         return dash.no_update
 
-    tools_path = get_tools_path(odatix_settings)
-    tool_dir = os.path.join(tools_path, btn_id["name"])
+    tool_dir = get_workspace(odatix_settings).tools.entry(btn_id["name"]).path
     if not os.path.isdir(tool_dir):
         return dash.no_update
 
@@ -467,17 +443,17 @@ def do_delete(n_clicks, info, odatix_settings):
     if not n_clicks or not info:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
-    tools_path = get_tools_path(odatix_settings)
+    tools = get_workspace(odatix_settings).tools
     name = info["name"]
-    if not workspace.tool_exists(tools_path, name):
+    if not tools.exists(name):
         return dash.no_update, "Tool not found.", dash.no_update, dash.no_update
 
     try:
-        workspace.delete_tool(tools_path, name)
+        tools.delete(name)
     except Exception as e:
         return dash.no_update, f"Error: {e}", dash.no_update, dash.no_update
 
-    return "overlay-odatix", "", build_tool_cards(tools_path), build_builtin_cards(tools_path)
+    return "overlay-odatix", "", build_tool_cards(tools), build_builtin_cards(tools)
 
 @dash.callback(
     Output({"type": "update_url", "id": page_path}, "data"),
@@ -489,12 +465,12 @@ def handle_add_card(n_click_timestamp, odatix_settings):
     if not n_click_timestamp:
         return dash.no_update
 
-    tools_path = get_tools_path(odatix_settings)
+    tools = get_workspace(odatix_settings).tools
     base_name = "new_tool"
 
     for i in range(1, 1001):
         candidate = f"{base_name}{i}"
-        if not workspace.tool_exists(tools_path, candidate):
+        if not tools.exists(candidate):
             return {"href": f"/tool_editor?tool={candidate}", "id": page_path}
 
     return {"href": "/tool_editor", "id": page_path}

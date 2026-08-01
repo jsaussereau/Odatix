@@ -39,7 +39,7 @@ from dash import html, dcc
 import odatix.gui.ui_components as ui
 from odatix.gui.css_helper import Style
 from odatix.gui.icons import icon
-import odatix.components.workspace as workspace
+from odatix.workspace.configs import variable_definition
 
 # Type dropdown options, shared by every variable card.
 VARIABLE_TYPE_OPTIONS = [
@@ -141,7 +141,7 @@ def build_variables_dict(
         elif variable_type in {"union", "disjunctive_union", "intersection", "difference"}:
             settings["sources"] = [x.strip() for x in sources_vals[idx].split(",") if x.strip()] if sources_vals[idx] else []
         group = group_vals[idx] if group_vals[idx] else None
-        variable = workspace.create_config_gen_variable_dict(name=title, type=variable_type, settings=settings, format=var_format, group=group)
+        variable = variable_definition(title, variable_type, settings, format=var_format, group=group)
         variables.update(variable)
     return variables
 

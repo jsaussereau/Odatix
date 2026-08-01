@@ -27,11 +27,11 @@ from typing import Optional#, Literal
 import odatix.gui.navigation as navigation
 import odatix.gui.ui_components as ui
 from odatix.gui.css_helper import Style
-from odatix.gui.utils import get_key_from_url, get_instance_mode, get_instance_context
+from odatix.gui.utils import get_key_from_url, get_instance_mode, get_instance_collection_context
 from odatix.gui.icons import icon
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import ConfigGenerator
-import odatix.components.workspace as workspace
+from odatix.workspace.domains import ParameterDomain
 import odatix.gui.variable_editor as ve
 
 # Variable-editor id namespace for this page (no prefix).
@@ -86,8 +86,14 @@ def get_gen_settings(
         from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals,
         format_vals, group_vals,
     )
-    gen_settings = workspace.create_config_gen_dict(name=name, template=template, variables=variables)
-    return gen_settings
+    return {
+        "generate_configurations": True,
+        "generate_configurations_settings": {
+            "name": name,
+            "template": template,
+            "variables": variables,
+        },
+    }
 
 ######################################
 # UI Components
@@ -305,14 +311,14 @@ def update_form_and_variable_cards(
         if page != page_path:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
-        mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+        mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
         domain = get_key_from_url(search, "domain")
         if not domain:
             domain = hard_settings.main_parameter_domain
         if not instance_name:
             return [], dash.no_update, dash.no_update, dash.no_update
 
-        settings = workspace.load_instance_domain_settings(base_path, instance_name, domain, kind=mode)
+        settings = ParameterDomain(instances.entry(instance_name), domain).settings.to_dict()
         variables = {}
 
         generator_name = ""
@@ -473,30 +479,22 @@ def update_generation(
     generator = ConfigGenerator(data=gen_settings)
     generated_params, variables = generator.generate()
     
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     domain = get_key_from_url(search, "domain")
     if not domain:
         domain = hard_settings.main_parameter_domain
     if trigger_id == {"page": page_path, "action": "save-all"} or trigger_id == {"action": "generate-all"}:
         if domain and instance_name:
-            workspace.update_instance_domain_settings(
-                path=base_path,
-                name=instance_name,
-                domain=domain,
-                settings_to_update=gen_settings,
-                kind=mode,
-            )
+            ParameterDomain(instances.entry(instance_name), domain).update(gen_settings)
             if trigger_id == {"page": page_path, "action": "save-all"}:
                 return dash.no_update, dash.no_update, dash.no_update
 
     if trigger_id == {"action": "generate-all"}:
+        configs = ParameterDomain(instances.entry(instance_name), domain).configs
         for config_name, config_content in generated_params.items():
-            instance_domain_path = workspace.get_arch_domain_path(base_path, instance_name, domain)
-            config_file_path = os.path.join(instance_domain_path, f"{config_name}.txt")
             try:
-                with open(config_file_path, "w") as config_file:
-                    config_file.write(config_content)
-            except Exception as e:
+                configs.write(config_name, config_content)
+            except Exception:
                 pass
         return dash.no_update, dash.no_update, dash.no_update
         
@@ -680,14 +678,14 @@ def update_save_button(
     State("odatix-settings", "data"),
 )
 def clean_all_configs(n_clicks, search, odatix_settings):
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     domain = get_key_from_url(search, "domain")
     if not domain:
         domain = hard_settings.main_parameter_domain
 
     trigger_id = ctx.triggered_id
     if trigger_id == {"action": "clean-all"} and n_clicks:
-        workspace.delete_all_config_files(base_path, instance_name, domain)
+        ParameterDomain(instances.entry(instance_name), domain).configs.clear()
 
     return dash.no_update
 

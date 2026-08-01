@@ -28,9 +28,9 @@ import itertools
 
 from dash import dcc, html
 
-import odatix.components.workspace as workspace
 import odatix.gui.ui_components as ui
 import odatix.lib.hard_settings as hard_settings
+from odatix.workspace.configs import combinations, count_combinations
 import odatix.lib.virtual_param_domain as virtual_param_domain
 
 from odatix.gui.jobs_config.common import (
@@ -62,7 +62,7 @@ def _group_arch_selections(architectures_setting) -> dict:
         grouped.setdefault(arch_name, []).append(str(entry))
     return grouped
 
-def _virtual_variant_tokens(base_path, name, mode):
+def _virtual_variant_tokens(instances, name, mode):
     """
     Resolve the virtual parameter domains of a workflow or an architecture
     (command-placeholder variables defined under
@@ -84,7 +84,8 @@ def _virtual_variant_tokens(base_path, name, mode):
         error         : error message if the variable settings are invalid,
                          else None.
     """
-    settings = workspace.load_workflow_settings(base_path, name)
+    instance = instances.entry(name)
+    settings = instance.settings.to_dict()
     virtual_domain_names = virtual_param_domain.get_virtual_domain_names(settings)
     if not virtual_domain_names:
         return [], {}, None
@@ -95,7 +96,7 @@ def _virtual_variant_tokens(base_path, name, mode):
         if not (virtual_param_domain.referenced_variable_names(generate_command) & virtual_domain_names):
             return [], {}, None
 
-    settings_file = workspace.get_workflow_settings_path(base_path, name)
+    settings_file = instance.settings_path
     variants = virtual_param_domain.build_variants(settings=settings, settings_file=settings_file, debug=False)
     if variants is None:
         return [], {}, "Invalid variable settings. Check the settings file."
@@ -134,7 +135,7 @@ def _expand_wildcard_selection(entry: str, domains_configs: dict, arch_name: str
     "Arch + addr/* + data/5", or the bare main-domain form "Arch/*"), mirroring
     the wildcard syntax ArchitectureHandler.configuration_wildcard() understands
     at run time, into every concrete "arch + domain/value + ..." combo string it
-    represents (the exact format produced by workspace.generate_config_combinations).
+    represents (the exact format produced by odatix.workspace.configs.combinations).
 
     Returns [entry] unchanged if it uses no wildcard ("*") value.
     """
@@ -175,23 +176,14 @@ def _expand_wildcard_selection(entry: str, domains_configs: dict, arch_name: str
     return expanded
 
 
-def _arch_domains_configs(arch_path, arch_name) -> dict:
+def _arch_domains_configs(instances, arch_name) -> dict:
     """The configurations of every parameter domain of an architecture that
     actually uses parameters, keyed by domain (main domain included)."""
-    domains_configs = {}
-    domains = [hard_settings.main_parameter_domain] + workspace.get_param_domains(arch_path, arch_name)
-    for domain in domains:
-        if not workspace.check_parameter_domain_use_parameters(arch_path, arch_name, domain):
-            continue
-        configurations = workspace.get_config_files(arch_path, arch_name, domain)
-        if not configurations:
-            continue
-        # Remove .txt extension
-        domains_configs[domain] = [cfg[:-4] if cfg.endswith(".txt") else cfg for cfg in configurations]
-    return domains_configs
+    instance = instances.get(arch_name)
+    return instance.parameter_domains() if instance is not None else {}
 
 
-def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mode, id_extra=None):
+def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mode, id_extra=None):
     """
     Build the body an architecture gets on this page: one panel per parameter
     domain to pick values from, the "Default configuration" panel, and the
@@ -218,7 +210,7 @@ def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mo
         (saved entries no combination of this architecture accounts for).
     """
     id_extra = id_extra or {}
-    domains_configs = _arch_domains_configs(arch_path, arch_name)
+    domains_configs = _arch_domains_configs(instances, arch_name)
 
     selected_domain_values = _extract_domain_values(arch_name, selected_values) if arch_enabled else {}
     domain_tiles = []
@@ -255,7 +247,7 @@ def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mo
 
     # Virtual parameter domains (command-placeholder variables)
     virtual_panel_title = "Workflow variables" if mode == "workflow" else "Variables"
-    virtual_variants, virtual_domain_values, virtual_error = _virtual_variant_tokens(arch_path, arch_name, mode)
+    virtual_variants, virtual_domain_values, virtual_error = _virtual_variant_tokens(instances, arch_name, mode)
     if virtual_error:
         domain_tiles.append(
             ui.panel(
@@ -288,7 +280,7 @@ def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mo
     # variant is combined with every physical combination (and with the bare
     # architecture, which has no physical configuration of its own), exactly
     # like the expansion performed at run time.
-    n_physical_combos = workspace.count_combinations(domains_configs)
+    n_physical_combos = count_combinations(domains_configs)
     if virtual_variants:
         n_combos = (n_physical_combos + 1) * len(virtual_variants)
     else:
@@ -298,7 +290,7 @@ def _arch_config_widgets(arch_path, arch_name, selected_values, arch_enabled, mo
     filtered_selected = []
     unmatched = []
     if not too_many:
-        physical_combos = workspace.generate_config_combinations(domains_configs, arch_name)
+        physical_combos = combinations(domains_configs, arch_name)
         if virtual_variants:
             non_default_combos = [
                 base + tokens

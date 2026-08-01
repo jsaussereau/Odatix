@@ -24,7 +24,7 @@ import sys
 import argparse
 
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
-from odatix.components import workspace as workspace_utils
+from odatix.workspace.yaml_io import read_yaml
 from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
 import odatix.components.export_derived_metrics as exp_derived
@@ -88,7 +88,7 @@ def parse_arguments():
 
 
 def _load_settings_custom_frequencies(run_config_settings_filename):
-    settings_payload = workspace_utils.load_yaml_file(run_config_settings_filename, default={})
+    settings_payload = read_yaml(run_config_settings_filename, default={})
     frequencies = settings_payload.get("frequencies", {})
 
     override_arch_frequencies = bool(frequencies.get("override", False))

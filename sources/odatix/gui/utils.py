@@ -24,6 +24,34 @@ import re
 from dash import html
 
 from odatix.lib.settings import OdatixSettings
+from odatix.workspace import Workspace
+
+def get_workspace(odatix_settings=None):
+    """
+    The workspace the pages work on. Every path is resolved by the workspace
+    itself, so a page never has to join one.
+
+    What the app keeps in its store wins over what the settings file says (it is
+    what the settings page is editing), but only where it actually holds a
+    value: a field left empty there means "use the workspace's own setting".
+    """
+    overrides = dict(
+        (key, value) for key, value in (odatix_settings or {}).items()
+        if value is not None and value != ""
+    )
+    workspace = Workspace.open()
+    if not overrides:
+        return workspace
+    settings = dict(workspace.settings)
+    settings.update(overrides)
+    return Workspace.from_dict(settings)
+
+def get_instance_collection(workspace, mode):
+    """
+    The architectures or the workflows of a workspace, depending on which of the
+    two a page is showing (see :func:`get_instance_mode`).
+    """
+    return workspace.workflows if mode == "workflow" else workspace.architectures
 
 def get_key_from_url(url, key):
     """
@@ -56,6 +84,16 @@ def get_instance_context(url, odatix_settings):
     else:
         base_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
     return mode, name, base_path
+
+def get_instance_collection_context(url, odatix_settings):
+    """
+    What a page editing "an architecture or a workflow" is working on:
+    ``(mode, name, collection)``, where the collection is the one of the two the
+    URL points at.
+    """
+    mode, name = get_instance_mode(url)
+    return mode, name, get_instance_collection(get_workspace(odatix_settings), mode)
+
 
 _ANSI_PATTERN = re.compile(r"[\x1b\033]\[[0-9;]*m")
 

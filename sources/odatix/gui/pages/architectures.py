@@ -28,9 +28,8 @@ from dash import html, dcc, Input, Output, ctx, State
 import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
-import odatix.components.workspace as workspace
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
+from odatix.gui.utils import get_workspace
 
 page_path = "/architectures"
 
@@ -156,11 +155,10 @@ def add_card(text: str, card_type: str = "arch"):
     State("odatix-settings", "data"),
 )
 def update_cards(_, odatix_settings):
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+    ws = get_workspace(odatix_settings)
 
-    architectures = workspace.get_architectures(arch_path)
-    simulations = workspace.get_simulations(sim_path)
+    architectures = ws.architectures.names()
+    simulations = ws.simulations.names()
 
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
@@ -183,9 +181,8 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
 
     if not dupl_timestamps or not btn_ids:
         return dash.no_update, dash.no_update
-    
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+
+    ws = get_workspace(odatix_settings)
 
     idx = max(range(len(dupl_timestamps)), key=lambda i: dupl_timestamps[i] or 0)
     btn_id = btn_ids[idx]
@@ -196,26 +193,26 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     card_type = btn_id["card_type"]
     name = btn_id["name"]
 
-    path = arch_path if card_type == "arch" else sim_path
+    collection = ws.architectures if card_type == "arch" else ws.simulations
 
     base = name
     suffix = 1
     while True:
         new_name = f"{base}_copy{suffix}"
-        if not workspace.instance_exists(path, new_name):
+        if new_name not in collection:
             break
         suffix += 1
         if suffix > 1000:
             return dash.no_update, dash.no_update
 
     try:
-        workspace.duplicate_instance(path, name, new_name)
+        collection.duplicate(name, new_name)
     except Exception:
         return dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = workspace.get_architectures(arch_path)
-    simulations = workspace.get_simulations(sim_path)
+    architectures = ws.architectures.names()
+    simulations = ws.simulations.names()
     arch_cards = [normal_card(n, "arch") for n in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(n, "sim") for n in simulations]
@@ -263,24 +260,23 @@ def close_delete_popup(n):
 def do_delete(n_clicks, info, odatix_settings):
     if not n_clicks or not info:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-    
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
-    
+
+    ws = get_workspace(odatix_settings)
+
     card_type = info["card_type"]
     name = info["name"]
-    path = arch_path if card_type == "arch" else sim_path
-    if not workspace.instance_exists(path, name):
+    collection = ws.architectures if card_type == "arch" else ws.simulations
+    if name not in collection:
         return dash.no_update, "Item not found.", dash.no_update, dash.no_update
     try:
-        workspace.delete_instance(path, name)
+        collection.delete(name)
     except Exception as e:
         print("Error during deletion:", e)
         return dash.no_update, f"Error: {e}", dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = workspace.get_architectures(arch_path)
-    simulations = workspace.get_simulations(sim_path)
+    architectures = ws.architectures.names()
+    simulations = ws.simulations.names()
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]
@@ -304,16 +300,15 @@ def handle_add_card(n_clicks_timestamps, ids, odatix_settings):
     
     card_type = triggered_id.get("card_type")
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
-    root = arch_path if card_type == "arch" else sim_path
+    ws = get_workspace(odatix_settings)
+    collection = ws.architectures if card_type == "arch" else ws.simulations
 
     base_name = "New_Architecture" if card_type == "arch" else "New_Simulation"
 
     # Search for an available name
     for i in range(1, 1001):
         candidate = f"{base_name}{i}"
-        if not workspace.instance_exists(root, candidate):
+        if candidate not in collection:
             return {"href": f"/{card_type}_editor?{card_type}={candidate}", "id":page_path}
     # If all names are taken, go to editor without preset name
     return {"href": f"/{card_type}_editor", "id":page_path}

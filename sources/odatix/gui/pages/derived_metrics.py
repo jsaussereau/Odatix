@@ -47,7 +47,7 @@ for the fields most metrics do not need.
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
-import odatix.components.workspace as workspace
+from odatix.gui.utils import get_workspace
 import odatix.lib.derived_metrics as derived_metrics_lib
 from odatix.gui.icons import icon
 from odatix.gui.css_helper import Style
@@ -969,7 +969,8 @@ def init_page(page, odatix_settings):
     if page != page_path:
         return dash.no_update, dash.no_update, dash.no_update
 
-    groups, metrics = workspace.load_derived_metrics_file(odatix_settings)
+    derived = get_workspace(odatix_settings).derived_metrics
+    groups, metrics = derived.groups, derived.metrics
     initial = {
         "groups": build_groups_dict(list(groups.keys()), [join_patterns(v) for v in groups.values()]),
         "metrics": normalize_metrics(metrics),
@@ -1034,9 +1035,10 @@ def save_and_status(
 
     if ctx.triggered_id == {"page": page_path, "action": "save-all"}:
         try:
-            workspace.save_derived_metrics_file(
-                current["groups"], current["metrics"], odatix_settings
-            )
+            derived = get_workspace(odatix_settings).derived_metrics
+            derived.groups = current["groups"]
+            derived.metrics = current["metrics"]
+            derived.save()
             return disabled[0], disabled[1], current
         except Exception:
             return error, "Failed to save...", dash.no_update

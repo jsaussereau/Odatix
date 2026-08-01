@@ -25,7 +25,9 @@ their parameter-domain / preview widgets, and the Save button."""
 import dash
 from dash import ctx, dcc, html, Input, Output, State
 
-import odatix.components.workspace as workspace
+from odatix.workspace.configs import combinations
+from odatix.workspace.jobs import FmaxBoundsSettings, FrequenciesSettings
+from odatix.workspace.yaml_io import read_yaml
 import odatix.gui.ui_components as ui
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
@@ -51,7 +53,7 @@ from odatix.gui.jobs_config.common import (
 from odatix.gui.jobs_config.context import _run_context
 from odatix.gui.jobs_config.pnr import _pnr_job_sections, _pnr_sync_preview_values
 from odatix.gui.jobs_config.settings_form import job_settings_form
-from odatix.gui.jobs_config.settings_io import _collect_run_settings, _job_settings_baseline
+from odatix.gui.jobs_config.settings_io import _collect_run_settings, _job_settings_baseline, write_run_settings
 from odatix.gui.jobs_config.simulation import _simulation_job_sections
 
 @dash.callback(
@@ -91,13 +93,11 @@ def init_form(search, page, odatix_settings):
     run_mode = get_key_from_url(search, "type")
     settings_path = _get_synth_settings_path(search, odatix_settings or {})
     
-    settings = workspace.load_arch_selection_settings(settings_path)
-    if settings is None:
-        settings = {}
+    settings = read_yaml(settings_path, default={})
     if run_mode == "custom_freq_synthesis":
         # Normalize the frequencies for the form, but keep the other job
         # settings (overwrite, nb_jobs, ...) so their widgets reflect the file.
-        settings = {**settings, **workspace.get_frequencies_form_values(settings)}
+        settings = {**settings, "frequencies": FrequenciesSettings.from_dict(settings.get("frequencies", {})).to_dict()}
 
     selected_tools = None
     if run_mode == "analyze":
@@ -145,7 +145,7 @@ def update_param_domains(
     run_mode = get_key_from_url(search, "type")
 
     settings_path = context["settings_path"]
-    selection_settings = workspace.load_arch_selection_settings(settings_path)
+    selection_settings = read_yaml(settings_path, default={})
 
     # Simulations select architecture configurations rather than their own, so
     # they get their own sections (see _simulation_job_sections).
@@ -191,7 +191,7 @@ def update_param_domains(
     for arch_name in architectures:
         arch_enabled = arch_name in selection_map
         domain_tiles, preview_tile, info = _arch_config_widgets(
-            arch_path,
+            context["workspace"].workflows if context["mode"] == "workflow" else context["workspace"].architectures,
             arch_name,
             selection_map.get(arch_name, []),
             arch_enabled,
@@ -306,26 +306,14 @@ def update_param_domains(
     if run_mode == "analyze":
         saved_baseline["tools"] = [t for t in _analysis_tools_selection(search, settings_path) if t]
     if run_mode == "custom_freq_synthesis":
-        form_freq = workspace.get_frequencies_form_values(selection_settings).get("frequencies", {})
-        form_range = form_freq.get("range", {})
-        saved_baseline["frequencies"] = workspace.create_custom_frequencies_settings_dict(
-            form_freq.get("override", False),
-            form_freq.get("list", []),
-            form_range.get("from"),
-            form_range.get("to"),
-            form_range.get("step"),
-            use_custom_freq_list=form_freq.get("use_custom_freq_list", False),
-            use_custom_freq_range=form_freq.get("use_custom_freq_range", False),
-        )
+        saved_baseline["frequencies"] = FrequenciesSettings.from_dict(
+            selection_settings.get("frequencies", {})
+        ).to_dict()
     if run_mode == "fmax_synthesis":
         fmax_bounds = selection_settings.get("fmax_synthesis", {})
         if not isinstance(fmax_bounds, dict):
             fmax_bounds = {}
-        saved_baseline["fmax_synthesis"] = workspace.create_fmax_bounds_settings_dict(
-            fmax_bounds.get("lower_bound"),
-            fmax_bounds.get("upper_bound"),
-            override_enabled=fmax_bounds.get("override", False),
-        )
+        saved_baseline["fmax_synthesis"] = FmaxBoundsSettings.from_dict(fmax_bounds).to_dict()
 
     return job_sections, context["title"], main_title, saved_baseline
 
@@ -650,7 +638,7 @@ def sync_preview_values(
     # parameter domains have no checklist of their own (they are generated, not
     # picked), but they still multiply every combination, exactly like in
     # _arch_config_widgets.
-    all_combos = workspace.generate_config_combinations(current_domains, arch_name)
+    all_combos = combinations(current_domains, arch_name)
     virtual_variants = (arch_metadata or {}).get("virtual_variants") or []
     if virtual_variants:
         all_combos = [combo + list(tokens) for combo in all_combos for tokens in virtual_variants]
@@ -852,12 +840,11 @@ def save_architecture_selections(
     if triggered_id == {"page": page_path, "action": "save-all"}:
         try:
             settings_path = context["settings_path"]
-            base_settings = workspace.load_arch_selection_settings(settings_path)
             payload = {
-                **base_settings,
+                **read_yaml(settings_path, default={}),
                 **current_settings,
             }
-            workspace.save_architecture_selection(settings_path, payload, run_mode=run_mode, use_custom_freq_list=use_custom_freq_list, use_custom_freq_range=use_custom_freq_range)
+            write_run_settings(settings_path, payload, run_mode, use_custom_freq_list, use_custom_freq_range)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",

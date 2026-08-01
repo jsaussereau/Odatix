@@ -23,7 +23,6 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional#, Literal
 
-import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url
 import odatix.gui.ui_components as ui

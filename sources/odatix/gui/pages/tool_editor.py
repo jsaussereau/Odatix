@@ -23,7 +23,7 @@
 Tool Editor page.
 
 Graphical editor for a workspace tool's tool.yml (see
-odatix.components.workspace and odatix.lib.eda_tools). It exposes:
+odatix.workspace.tools and odatix.lib.eda_tools). It exposes:
   - display metadata (Display name / description / icon),
   - behaviour (process_group, report_path, default_metrics_file),
   - the tool's *flows*: every way of running it, each one editable, and one of
@@ -57,10 +57,10 @@ import os
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
-import odatix.components.workspace as workspace
+from odatix.workspace.tools import OVERRIDABLE_KEYS
 import odatix.lib.eda_tools as eda_tools
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
@@ -130,15 +130,6 @@ TAG_NAMES = [
 ######################################
 # Helpers
 ######################################
-
-def _get_tools_path(odatix_settings):
-    tools_path = odatix_settings.get("tools_path", "") if isinstance(odatix_settings, dict) else ""
-    if tools_path:
-        return tools_path
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("tools_path", OdatixSettings.DEFAULT_TOOLS_PATH)
-    return OdatixSettings.DEFAULT_TOOLS_PATH
 
 def _builtin_tool_exists(name):
     """Check if a name collides with a built-in (non-workspace) tool."""
@@ -408,11 +399,11 @@ def overlay_overrides(current, builtin):
     Odatix says drops out of the workspace file instead of being frozen into it.
 
     The flows are not part of it: the built-in ones belong to Odatix and the
-    added ones are written on their own (see workspace.save_tool_overlay).
+    added ones are written on their own (see Tool.save_overlay).
     """
     builtin = builtin if isinstance(builtin, dict) else {}
     overrides = {}
-    for key in workspace.TOOL_OVERRIDABLE_KEYS:
+    for key in OVERRIDABLE_KEYS:
         if current.get(key) != builtin.get(key):
             overrides[key] = current.get(key)
 
@@ -1468,16 +1459,17 @@ def update_replace_cards(new_click, duplicate_clicks, delete_clicks, cards, patt
 )
 def update_tool_title(search, odatix_settings):
     tool_name = get_key_from_url(search, "tool") or ""
-    return tool_title(tool_name, overlay=_is_overlay(_get_tools_path(odatix_settings), tool_name))
+    tools = get_workspace(odatix_settings).tools
+    return tool_title(tool_name, overlay=_is_overlay(tools, tool_name))
 
-def _is_overlay(tools_path, tool_name):
+def _is_overlay(tools, tool_name):
     """
     True when editing a built-in tool: its flows belong to Odatix, and what the
-    workspace says about the rest is an overlay (see workspace.is_builtin_overlay).
+    workspace says about the rest is an overlay.
     """
-    return bool(tool_name) and workspace.is_builtin_overlay(tools_path, tool_name)
+    return bool(tool_name) and tools.entry(tool_name).is_builtin
 
-def load_editor_settings(tools_path, tool_name):
+def load_editor_settings(tools, tool_name):
     """
     Load what the editor shows for a tool: its settings, the built-in definition
     they may override (empty for a workspace tool), and whether it is a built-in
@@ -1491,12 +1483,13 @@ def load_editor_settings(tools_path, tool_name):
     if not tool_name:
         return empty, empty, False
 
-    overlay = _is_overlay(tools_path, tool_name)
+    tool = tools.entry(tool_name)
+    overlay = _is_overlay(tools, tool_name)
     if not overlay:
-        return normalize_tool_settings(workspace.load_tool_settings(tools_path, tool_name)), empty, False
+        return normalize_tool_settings(tool.document), empty, False
 
-    builtin = normalize_tool_settings(workspace.load_builtin_tool_settings(tool_name))
-    settings = normalize_tool_settings(workspace.load_overlaid_tool_settings(tools_path, tool_name))
+    builtin = normalize_tool_settings(tool.builtin_document)
+    settings = normalize_tool_settings(tool.effective_document)
     builtin_names = {flow["name"] for flow in builtin.get("flows", [])}
     for flow in settings.get("flows", []):
         flow["builtin"] = flow["name"] in builtin_names
@@ -1521,8 +1514,7 @@ def init_form(search, page, odatix_settings):
         return (dash.no_update,) * 9
 
     tool_name = get_key_from_url(search, "tool")
-    tools_path = _get_tools_path(odatix_settings)
-    settings, builtin, overlay = load_editor_settings(tools_path, tool_name)
+    settings, builtin, overlay = load_editor_settings(get_workspace(odatix_settings).tools, tool_name)
 
     fmt = settings.get("format", {})
     return (
@@ -1679,7 +1671,7 @@ def save_and_status(
     current_compare = normalize_for_compare(current_settings)
 
     tool_name = get_key_from_url(search, "tool")
-    tools_path = _get_tools_path(odatix_settings)
+    tools = get_workspace(odatix_settings).tools
 
     error_class = "color-button error-status icon-button tooltip bottom"
 
@@ -1703,7 +1695,7 @@ def save_and_status(
                 builtin_settings if isinstance(builtin_settings, dict) else {},
             )
             try:
-                workspace.save_tool_overlay(tools_path, tool_name, overrides, added)
+                tools[tool_name].save_overlay(overrides, added)
                 return (
                     "color-button disabled icon-button tooltip delay bottom small",
                     "Nothing to save",
@@ -1714,27 +1706,29 @@ def save_and_status(
                 return error_class + " small", "Failed to save...", dash.no_update, saved_settings
 
         if tool_name and tool_title_value != tool_name:
-            if workspace.tool_exists(tools_path, tool_title_value):
+            if tools.exists(tool_title_value):
                 return error_class, f"'{tool_title_value}' already exists", dash.no_update, saved_settings
             if _builtin_tool_exists(tool_title_value):
                 return error_class, f"'{tool_title_value}' is a built-in tool name", dash.no_update, saved_settings
-            if workspace.tool_exists(tools_path, tool_name):
-                workspace.rename_tool(tools_path, tool_name, tool_title_value)
+            if tools.exists(tool_name):
+                tools.rename(tool_name, tool_title_value)
             tool_name = tool_title_value
             new_search = f"?tool={tool_name}"
         elif not tool_name:
-            if workspace.tool_exists(tools_path, tool_title_value):
+            if tools.exists(tool_title_value):
                 return error_class, f"'{tool_title_value}' already exists", dash.no_update, saved_settings
             if _builtin_tool_exists(tool_title_value):
                 return error_class, f"'{tool_title_value}' is a built-in tool name", dash.no_update, saved_settings
             tool_name = tool_title_value
             new_search = f"?tool={tool_name}"
 
-        if not workspace.tool_exists(tools_path, tool_name):
-            workspace.create_tool(tools_path, tool_name)
+        tool = tools.get(tool_name)
+        if tool is None:
+            tool = tools.create(tool_name)
 
         try:
-            workspace.save_tool_settings(tools_path, tool_name, current_settings)
+            tool.settings = current_settings
+            tool.save(as_overlay=False)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",

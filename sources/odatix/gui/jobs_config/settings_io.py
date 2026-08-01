@@ -26,7 +26,7 @@ it without saving."""
 import os
 import tempfile
 
-import odatix.components.workspace as workspace
+from odatix.workspace.jobs import FmaxBoundsSettings, FrequenciesSettings, job_config
 from odatix.lib.utils import AUTO_NB_JOBS_KEYWORD, is_auto_nb_jobs
 
 from odatix.gui.jobs_config.common import (
@@ -145,21 +145,19 @@ def _collect_run_settings(
         **_job_settings_current(overwrite, force_single_thread, nb_jobs, log_size_limit, ask_continue, exit_when_done, auto_nb_jobs=auto_nb_jobs),
     }
     if run_mode == "custom_freq_synthesis":
-        current_settings["frequencies"] = workspace.create_custom_frequencies_settings_dict(
-            _checklist_enabled(override_arch_frequencies),
-            target_frequencies,
-            from_frequency,
-            to_frequency,
-            step_frequency,
+        current_settings["frequencies"] = FrequenciesSettings(
+            override=_checklist_enabled(override_arch_frequencies),
+            frequencies=target_frequencies,
+            range={"from": from_frequency, "to": to_frequency, "step": step_frequency},
             use_custom_freq_list=_checklist_enabled(use_custom_freq_list),
             use_custom_freq_range=_checklist_enabled(use_custom_freq_range),
-        )
+        ).to_dict()
     if run_mode == "fmax_synthesis":
-        current_settings["fmax_synthesis"] = workspace.create_fmax_bounds_settings_dict(
-            lower_bound,
-            upper_bound,
-            override_enabled=_checklist_enabled(override_arch_frequencies),
-        )
+        current_settings["fmax_synthesis"] = FmaxBoundsSettings(
+            override=_checklist_enabled(override_arch_frequencies),
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+        ).to_dict()
     if run_mode == "analyze":
         current_settings["tools"] = [tool for tool in (analysis_tools or []) if tool]
 
@@ -172,19 +170,28 @@ def _write_temp_run_settings(settings_path, current_settings, run_mode, use_cust
     run can use them without touching the real settings file, and return its
     path. The real file's other keys are preserved (loaded and overlaid).
     """
-    base_settings = workspace.load_arch_selection_settings(settings_path) if settings_path else {}
-    payload = {**(base_settings or {}), **current_settings}
+    base_settings = job_config(settings_path, run_mode).settings.to_dict() if settings_path else {}
+    payload = {**base_settings, **current_settings}
 
     fd, temp_path = tempfile.mkstemp(prefix="odatix_run_", suffix=".yml")
     os.close(fd)
-    workspace.save_architecture_selection(
-        temp_path,
-        payload,
-        run_mode=run_mode,
-        use_custom_freq_list=use_custom_freq_list,
-        use_custom_freq_range=use_custom_freq_range,
-    )
+    write_run_settings(temp_path, payload, run_mode, use_custom_freq_list, use_custom_freq_range)
     return temp_path
+
+
+def write_run_settings(settings_path, payload, run_mode, use_custom_freq_list=False, use_custom_freq_range=False):
+    """
+    Write a run settings file from what the page holds. Only the settings of
+    that run mode are written, so a key belonging to another one never leaks in.
+    """
+    config = job_config(settings_path, run_mode)
+    config.settings = payload
+    config.settings.extra.clear()
+    if run_mode == "custom_freq_synthesis":
+        config.settings.frequencies.use_custom_freq_list = use_custom_freq_list
+        config.settings.frequencies.use_custom_freq_range = use_custom_freq_range
+    config.save(regenerate=True)
+    return settings_path
 
 
 def _job_settings_baseline(settings: dict) -> dict:

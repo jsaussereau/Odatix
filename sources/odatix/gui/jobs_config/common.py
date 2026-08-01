@@ -25,7 +25,7 @@ from typing import Optional
 
 from dash import html
 
-import odatix.components.workspace as workspace
+from odatix.workspace.jobs import job_config
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 from odatix.gui.utils import get_key_from_url
@@ -198,7 +198,7 @@ def _analysis_tools_selection(search: str, settings_path: str) -> list:
     saved in the analysis settings file plus the tool selected on the "Choose
     EDA Tool" page (?tool=...). Shared by init_form (widget init) and the saved
     baseline so a refresh does not falsely report "unsaved changes"."""
-    selected_tools = list(workspace.load_analysis_tools(settings_path))
+    selected_tools = list(job_config(settings_path, "analysis").settings.tools)
     url_tool = get_key_from_url(search, "tool")
     if url_tool and url_tool not in selected_tools:
         selected_tools.append(url_tool)

@@ -24,14 +24,12 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional
 
-import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
 import odatix.gui.variable_editor as ve
 
 # Variable-editor id namespace for this page.
@@ -69,17 +67,6 @@ def _normalize_list(value):
     if isinstance(value, list):
         return [str(v).strip() for v in value if str(v).strip()]
     return [str(v).strip() for v in str(value).split(",") if str(v).strip()]
-
-def _get_workflow_path(odatix_settings):
-    workflow_path = odatix_settings.get("workflow_path", "")
-    if workflow_path:
-        return workflow_path
-
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
-
-    return OdatixSettings.DEFAULT_WORKFLOW_PATH
 
 def normalize_workflow_settings(settings):
     if not isinstance(settings, dict):
@@ -731,8 +718,8 @@ def init_form(search, page, odatix_settings):
     if not workflow_name:
         return workflow_form({}), {}, wf_cards_from_tasks([]), wf_cards_from_variables({})
 
-    workflow_path = _get_workflow_path(odatix_settings)
-    settings = normalize_workflow_settings(workspace.load_workflow_settings(workflow_path, workflow_name))
+    workflows = get_workspace(odatix_settings).workflows
+    settings = normalize_workflow_settings(workflows.entry(workflow_name).settings.to_dict())
     variables = settings.get("generate_configurations_settings", {}).get("variables", {})
     tasks = settings.get("tasks", [])
     return workflow_form(settings), settings, wf_cards_from_tasks(tasks), wf_cards_from_variables(variables)
@@ -755,8 +742,7 @@ def update_wf_param_domains(search, page, odatix_settings):
     if not workflow_name:
         return []
     try:
-        workflow_path = _get_workflow_path(odatix_settings)
-        return workspace.get_param_domains(workflow_path, workflow_name)
+        return get_workspace(odatix_settings).workflows.entry(workflow_name).domains.sub_names()
     except Exception:
         return []
 
@@ -907,7 +893,7 @@ def save_and_status(
     )
 
     workflow_name = get_key_from_url(search, "workflow")
-    workflow_path = _get_workflow_path(odatix_settings)
+    workflows = get_workspace(odatix_settings).workflows
 
     if not workflow_title_value:
         return (
@@ -931,26 +917,27 @@ def save_and_status(
         new_search = dash.no_update
 
         if workflow_name and workflow_title_value != workflow_name:
-            if workspace.workflow_exists(workflow_path, workflow_title_value):
+            if workflow_title_value in workflows:
                 return (
                     "color-button error-status icon-button tooltip bottom",
                     f"'{workflow_title_value}' already exists",
                     dash.no_update,
                     saved_settings,
                 )
-            if workspace.workflow_exists(workflow_path, workflow_name):
-                workspace.rename_workflow(workflow_path, workflow_name, workflow_title_value)
+            if workflow_name in workflows:
+                workflows.rename(workflow_name, workflow_title_value)
             workflow_name = workflow_title_value
             new_search = f"?workflow={workflow_name}"
         elif not workflow_name:
             workflow_name = workflow_title_value
             new_search = f"?workflow={workflow_name}"
 
-        if not workspace.workflow_exists(workflow_path, workflow_name):
-            workspace.create_workflow(workflow_path, workflow_name)
+        workflow = workflows.get(workflow_name)
+        if workflow is None:
+            workflow = workflows.create(workflow_name)
 
         try:
-            workspace.save_workflow_settings(workflow_path, workflow_name, current_settings)
+            workflow.update(current_settings)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",

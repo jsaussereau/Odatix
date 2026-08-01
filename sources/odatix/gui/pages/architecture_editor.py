@@ -23,13 +23,11 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional#, Literal
 
-import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
 
 page_path = "/arch_editor"
 
@@ -309,13 +307,13 @@ def init_form(search, page, odatix_settings):
     if page != page_path:
         return dash.no_update, dash.no_update
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    architectures = get_workspace(odatix_settings).architectures
     arch_name = get_key_from_url(search, "arch")
     if not arch_name:
         return architecture_form({}), {}
 
     if arch_name:
-        full_settings = workspace.load_architecture_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        full_settings = architectures.entry(arch_name).settings.to_dict()
         settings ={
             "generate_rtl": full_settings.get("generate_rtl", False),
             "design_path": full_settings.get("design_path", ""),
@@ -387,9 +385,9 @@ def save_and_status(
     if custom_freq_list is None:
         custom_freq_list = ""
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    architectures = get_workspace(odatix_settings).architectures
     arch_name = get_key_from_url(search, "arch")
-    
+
     current_settings_subset = {
         "generate_rtl": True if generate_rtl else False,
         "design_path": design_path,
@@ -415,14 +413,10 @@ def save_and_status(
         } if custom_freq_list != "" else {},
     }
 
-    if arch_name:
-        current_settings = workspace.update_raw_settings(
-            arch_path=arch_path,
-            arch_name=arch_name,
-            domain=hard_settings.main_parameter_domain,
-            settings_to_update=current_settings_subset
-        )
-    else: 
+    if arch_name and arch_name in architectures:
+        current_settings = architectures.entry(arch_name).settings.to_dict()
+        current_settings.update(current_settings_subset)
+    else:
         current_settings = current_settings_subset
 
     if not arch_title:
@@ -439,22 +433,24 @@ def save_and_status(
         if arch_title != arch_name:
             old_name = arch_name
             new_name = arch_title
-            if workspace.architecture_exists(arch_path, new_name):
+            if new_name in architectures:
                 return "color-button error-status icon-button tooltip bottom", f"'{new_name}' already exists", dash.no_update, dash.no_update
             try:
-                workspace.rename_architecture(arch_path, old_name, new_name)
+                if old_name in architectures:
+                    architectures.rename(old_name, new_name)
                 arch_name = new_name
                 new_search = f"?arch={new_name}"
             except Exception as e:
                 return "color-button error-status icon-button tooltip bottom", "Failed renaming architecture", dash.no_update, dash.no_update
         
         # Create architecture if it does not exist yet
-        if not workspace.architecture_exists(arch_path, arch_name):
-            workspace.create_architecture(arch_path, arch_name)
+        architecture = architectures.get(arch_name)
+        if architecture is None:
+            architecture = architectures.create(arch_name)
 
         # Save settings
         try:
-            workspace.save_architecture_settings(arch_path, arch_name, current_settings)
+            architecture.update(current_settings)
             return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", new_search, current_settings
         except Exception as e:
             return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update
@@ -484,16 +480,16 @@ def update_arch_highlight_names(search, page, odatix_settings):
     if not arch_name:
         return [], []
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
+    architectures = get_workspace(odatix_settings).architectures
 
     try:
-        param_domains = workspace.get_param_domains(arch_path, arch_name)
+        param_domains = architectures.entry(arch_name).domains.sub_names()
     except Exception:
         param_domains = []
 
     variables = []
     try:
-        settings = workspace.load_architecture_settings(arch_path, arch_name, hard_settings.main_parameter_domain)
+        settings = architectures.entry(arch_name).settings.to_dict()
         # When configuration generation is enabled, the variables generate
         # configuration files instead of command values: they are not usable in
         # the generation command.

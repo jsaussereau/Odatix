@@ -21,7 +21,6 @@
 
 from dash import dcc, html
 
-import odatix.components.workspace as workspace
 import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 
@@ -79,11 +78,11 @@ def _simulation_job_sections(context, selection_settings):
         simulation -> entries mapping a fresh page load is equivalent to (used
         as the "saved" baseline so nothing falsely reads as unsaved).
     """
-    arch_path = context["arch_path"]
+    architectures_collection = context["workspace"].architectures
     simulations = context["instances"]
 
-    selection_map = workspace.load_simulation_selection(context["settings_path"])
-    architectures = workspace.get_architectures(arch_path)
+    selection_map = context["workspace"].jobs.simulation.settings.simulations
+    architectures = architectures_collection.names()
 
     baseline_selection = {}
     sections = []
@@ -110,7 +109,7 @@ def _simulation_job_sections(context, selection_settings):
             # on is a single click (exactly like a disabled architecture card).
             arch_enabled = sim_enabled and arch_name in saved_by_arch
             domain_tiles, preview_tile, info = _arch_config_widgets(
-                arch_path,
+                architectures_collection,
                 arch_name,
                 saved_by_arch.get(arch_name, []),
                 arch_enabled,
@@ -210,7 +209,7 @@ def _simulation_job_sections(context, selection_settings):
             arch_cards.append(
                 ui.panel(
                     title="Architectures",
-                    body=html.Div(f"No architecture found in {arch_path}.", className="odx-panel-note"),
+                    body=html.Div(f"No architecture found in {architectures_collection.path}.", className="odx-panel-note"),
                 )
             )
 

@@ -22,7 +22,7 @@
 import os
 import sys
 import argparse
-from odatix.components import workspace as workspace_utils
+from odatix.workspace.yaml_io import read_yaml
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
 from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
@@ -170,7 +170,7 @@ def _load_settings_fmax_bounds(run_config_settings_filename):
     bounds are used instead.
     Returns (lower_bound, upper_bound), each None when unset or not overriding.
     """
-    settings_payload = workspace_utils.load_yaml_file(run_config_settings_filename, default={})
+    settings_payload = read_yaml(run_config_settings_filename, default={})
     fmax_settings = settings_payload.get("fmax_synthesis", {})
     if not isinstance(fmax_settings, dict):
         return None, None

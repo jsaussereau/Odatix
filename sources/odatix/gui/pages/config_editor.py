@@ -26,11 +26,11 @@ import uuid
 import random
 
 import odatix.gui.ui_components as ui
-from odatix.gui.utils import get_instance_mode, get_instance_context
+from odatix.gui.utils import get_instance_mode, get_instance_collection_context
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 import odatix.components.replace_params as replace_params
-import odatix.components.workspace as workspace
+from odatix.workspace.domains import ParameterDomain
 from odatix.gui.icons import icon
 from odatix.gui.css_helper import Style
 
@@ -633,6 +633,11 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
     )
 
 
+def instance_domain(instances, instance_name, domain_name):
+    """One parameter domain of the architecture or workflow being edited."""
+    return ParameterDomain(instances.entry(instance_name), domain_name)
+
+
 ######################################
 # Callbacks
 ######################################
@@ -674,7 +679,7 @@ def update_param_domains(
         if page != page_path:
             return dash.no_update, dash.no_update, dash.no_update
 
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         return html.Div(
             children=[
@@ -690,22 +695,22 @@ def update_param_domains(
         className="card-matrix config",
     )
 
-    if not workspace.instance_exists(base_path, instance_name):
+    if instance_name not in instances:
         domain_sections = []
         domain_sections.append(domain_section(hard_settings.main_parameter_domain, mode, instance_name, settings={}))
         domain_sections.append(add_domain_div)
         return domain_sections, dash.no_update, dash.no_update
 
-    domains = workspace.get_param_domains(base_path, instance_name)
+    instance = instances[instance_name]
+    domains = instance.domains.sub_names()
 
     # Generate domain sections
     if triggered_id == {"page": page_path, "type": "instance-title-div"}:
         domain_sections = []
-        settings = workspace.load_instance_domain_settings(base_path, instance_name, hard_settings.main_parameter_domain, kind=mode)
-        domain_sections.append(domain_section(hard_settings.main_parameter_domain, mode, instance_name, settings=settings))
-        for domain in domains:
-            settings = workspace.load_instance_domain_settings(base_path, instance_name, domain, kind=mode)
-            domain_sections.append(domain_section(domain, mode, instance_name, settings=settings))
+        for domain in instance.domains:
+            domain_sections.append(
+                domain_section(domain.name, mode, instance_name, settings=domain.settings.to_dict())
+            )
         domain_sections.append(add_domain_div)
         return domain_sections, True, dash.no_update
 
@@ -719,7 +724,7 @@ def update_param_domains(
             while new_domain in domains:
                 suffix += 1
                 new_domain = f"{base_name}{suffix}"
-            workspace.create_parameter_domain(base_path, instance_name, new_domain)
+            instance.domains.create(new_domain)
 
             # Insert new domain section before the add domain button
             domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
@@ -752,13 +757,11 @@ def update_param_domains(
                 while new_domain in domains:
                     suffix += 1
                     new_domain = f"{base_name}{suffix}"
-                workspace.duplicate_parameter_domain(
-                    base_path, instance_name, instance_name, domain_to_duplicate, new_domain
-                )
+                instance.domains.duplicate(domain_to_duplicate, new_domain)
 
                 # Insert new domain section before the add domain button
                 domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
-                new_domain_settings = workspace.load_instance_domain_settings(base_path, instance_name, new_domain, kind=mode)
+                new_domain_settings = instance.domains[new_domain].settings.to_dict()
                 domain_uuid = get_uuid()
                 domain_sections.append(domain_section(new_domain, mode, instance_name, settings=new_domain_settings, domain_uuid=domain_uuid))
                 domain_sections.append(add_domain_div)
@@ -782,7 +785,7 @@ def update_param_domains(
                 return dash.no_update, dash.no_update, dash.no_update
 
             if domain_to_delete and domain_to_delete != hard_settings.main_parameter_domain:
-                workspace.delete_parameter_domain(base_path, instance_name, domain_to_delete)
+                instance.domains.delete(domain_to_delete)
                 if isinstance(domain_sections, list):
                     for i, section in enumerate(domain_sections):
                         domain = section.get("props", {}).get("id", {}).get("domain_uuid", "")
@@ -815,7 +818,7 @@ def update_config_cards(
     config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, update_domain_uuid,
     config_cards_row, title_values, contents, config_metadata, domain_metadata, odatix_settings
 ):
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         return [html.Div("No architecture or workflow selected.", className="error")]
 
@@ -870,7 +873,7 @@ def update_config_cards(
                 for idx in range(1, 1001):
                     new_filename = f"new_config{idx}.txt"
                     if new_filename not in trig_domain_configs:
-                        workspace.save_config_file(base_path, instance_name, trig_domain_name, new_filename, "")
+                        instance_domain(instances, instance_name, trig_domain_name).configs.write(new_filename, "")
                         config_uuid = get_uuid()
                         config_cards_row[trig_domain_idx].insert(-1, 
                             config_card(
@@ -902,7 +905,7 @@ def update_config_cards(
                             if verbose:
                                 print(f"File '{config_new_title}' already exists.")
                         else:
-                            path = workspace.get_arch_domain_path(base_path, instance_name, trig_domain_name)
+                            path = instance_domain(instances, instance_name, trig_domain_name).path
                             old_path = os.path.join(path, config_old_title)
                             new_path = os.path.join(path, config_new_title)
                             if verbose:
@@ -911,7 +914,7 @@ def update_config_cards(
                             config_old_title = config_new_title
                     if verbose:
                         print(f"Saving config '{config_old_title}' in domain '{trig_domain_name}'")
-                    workspace.save_config_file(base_path, instance_name, trig_domain_name, config_new_title, trig_config_content)
+                    instance_domain(instances, instance_name, trig_domain_name).configs.write(config_new_title, trig_config_content)
                     config_metadata[trig_config_idx]['config_content'] = trig_config_content
                     config_cards_row[trig_domain_idx][trig_config_idx] = config_card(
                         domain_uuid=trig_domain_uuid,
@@ -924,7 +927,7 @@ def update_config_cards(
                 
                 # Delete config
                 if trig_type == "delete-config":
-                    workspace.delete_config_file(base_path, instance_name, trig_domain_name, trig_config_name)
+                    instance_domain(instances, instance_name, trig_domain_name).configs.delete(trig_config_name)
                     config_cards_row[trig_domain_idx].pop(trig_config_idx)
 
                 # Duplicate config
@@ -935,7 +938,7 @@ def update_config_cards(
                     while new_filename in trig_domain_configs:
                         suffix += 1
                         new_filename = f"{base}_copy{suffix}.txt"
-                    workspace.save_config_file(base_path, instance_name, trig_domain_name, new_filename, trig_config_content)
+                    instance_domain(instances, instance_name, trig_domain_name).configs.write(new_filename, trig_config_content)
                     config_uuid = get_uuid()
                     config_cards_row[trig_domain_idx].insert(-1, 
                         config_card(
@@ -952,11 +955,11 @@ def update_config_cards(
     if triggered_id == "param-domains-section-initialized":
         config_cards_row = []
         for idx, (domain_uuid, domain_name) in enumerate(domains.items()):
-            files = workspace.get_config_files(base_path, instance_name, domain_name)
+            configs = instance_domain(instances, instance_name, domain_name).configs
             config_cards = []
             config_metadata = []
-            for config_name in files:
-                config_content = workspace.load_config_file(base_path, instance_name, domain_name, config_name)
+            for config_name in configs.filenames():
+                config_content = configs[config_name].read()
                 config_uuid = get_uuid()
                 # Create config card
                 config_cards.append(
@@ -979,10 +982,10 @@ def update_config_cards(
         for i, domain_uuid in enumerate(domains.keys()):
             if domain_uuid == update_domain_uuid:
                 domain_name = domains[domain_uuid]
-                files = workspace.get_config_files(base_path, instance_name, domain_name)
+                configs = instance_domain(instances, instance_name, domain_name).configs
                 config_cards = []
-                for config_name in files:
-                    config_content = workspace.load_config_file(base_path, instance_name, domain_name, config_name)
+                for config_name in configs.filenames():
+                    config_content = configs[config_name].read()
                     config_uuid = get_uuid()
                     # Create config card
                     config_cards.append(
@@ -1022,8 +1025,8 @@ def update_preview_all(
     config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, 
     config_metadata, domain_metadata, odatix_settings
 ):
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
-    if not instance_name or not workspace.instance_exists(base_path, instance_name):
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
+    if not instance_name or instance_name not in instances:
         label = "Workflow" if mode == "workflow" else "Architecture"
         return [
             html.Div([
@@ -1161,7 +1164,7 @@ def save_all(
     if not n_clicks:
         return no_config_update, no_config_update, no_config_update, no_domain_update
 
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         return no_config_update, no_config_update, no_config_update, no_domain_update
 
@@ -1195,13 +1198,13 @@ def save_all(
 
         new_name = new_title if new_title.endswith(".txt") else new_title + ".txt"
         if new_name != old_name:
-            path = workspace.get_arch_domain_path(base_path, instance_name, domain_name)
+            path = instance_domain(instances, instance_name, domain_name).path
             if verbose:
                 print(f"Renaming config from '{old_name}' to '{new_name}'")
             os.rename(os.path.join(path, old_name), os.path.join(path, new_name))
         if verbose:
             print(f"Saving config '{new_name}' in domain '{domain_name}'")
-        workspace.save_config_file(base_path, instance_name, domain_name, new_name, new_content)
+        instance_domain(instances, instance_name, domain_name).configs.write(new_name, new_content)
 
         new_titles[i] = new_title
         new_contents[i] = new_content
@@ -1226,9 +1229,7 @@ def save_all(
             "start_delimiter": start_delimiter,
             "stop_delimiter": stop_delimiter,
         }
-        workspace.update_instance_domain_settings(
-            base_path, instance_name, metadata.get("domain_name", ""), settings, kind=mode
-        )
+        instance_domain(instances, instance_name, metadata.get("domain_name", "")).update(settings)
         new_params[i] = settings
 
     return new_titles, new_contents, new_metadata, new_params
@@ -1270,7 +1271,7 @@ def save_config_parameters(
     use_parameters, param_target_files, start_delimiters, stop_delimiters, domain_metadata, config_params_stores,
     search, odatix_settings
 ):
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):        
@@ -1302,7 +1303,7 @@ def save_config_parameters(
             settings["start_delimiter"] = start_delimiter
             settings["stop_delimiter"] = stop_delimiter
 
-            workspace.update_instance_domain_settings(base_path, instance_name, trig_domain_name, settings, kind=mode)
+            instance_domain(instances, instance_name, trig_domain_name).update(settings)
             return [settings if i == idx else dash.no_update for i in range(len(domain_metadata))]
     return [dash.no_update for _ in range(len(domain_metadata))]
 
@@ -1358,7 +1359,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
     triggered_type = triggered_id.get("type", "")
     triggered_domain_uuid = triggered_id.get("domain_uuid", "")
     
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         raise dash.exceptions.PreventUpdate
 
@@ -1371,7 +1372,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
         # Save button clicked for this domain
         if triggered_type == "save-domain-title" and domain_uuid == triggered_domain_uuid:
             if new_domain_name != domain_name and new_domain_name != "":
-                workspace.rename_parameter_domain(base_path, instance_name, domain_name, new_domain_name)
+                instances.entry(instance_name).domains.rename(domain_name, new_domain_name)
 
                 domain_name = new_domain_name
                 save_classes.append(disabled_class)
@@ -1404,7 +1405,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                 if new_domain_name == "" or " " in new_domain_name:
                     save_classes.append(error_class)
                     tooltips.append("Parameter domain name cannot be empty")
-                elif workspace.parameter_domain_exists(base_path, instance_name, new_domain_name):
+                elif new_domain_name in instances.entry(instance_name).domains:
                     save_classes.append(error_class)
                     label = "workflow" if mode == "workflow" else "architecture"
                     tooltips.append(f"Parameter domain '{new_domain_name}' already exists for this {label}")

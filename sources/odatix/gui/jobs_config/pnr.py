@@ -21,7 +21,6 @@
 
 from dash import dcc, html
 
-import odatix.components.workspace as workspace
 import odatix.gui.ui_components as ui
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
@@ -220,7 +219,7 @@ def _pnr_unusable_badge_text(n_unusable: int) -> str:
     return f"{n_unusable} {word} without netlist"
 
 
-def _pnr_config_widgets(work_dirname, arch_name, sources, selected_values, enabled, arch_path):
+def _pnr_config_widgets(work_dirname, arch_name, sources, selected_values, enabled, architectures):
     """
     Build the body an architecture gets inside a place & route card: one panel
     per parameter domain of its completed synthesis jobs, and the preview
@@ -239,7 +238,8 @@ def _pnr_config_widgets(work_dirname, arch_name, sources, selected_values, enabl
             click (exactly like a disabled architecture card).
     """
     id_extra = {"sim": work_dirname}
-    known_domains = workspace.get_param_domains(arch_path, arch_name) if arch_path else []
+    architecture = architectures.get(arch_name) if architectures is not None else None
+    known_domains = architecture.domains.sub_names() if architecture is not None else []
 
     # A synthesis that handed no netlist over cannot be placed & routed. Listing
     # it would only add unselectable noise, so it is left out of the card and
@@ -390,7 +390,7 @@ def _pnr_job_sections(context, selection_settings):
         flat selector list a fresh page load is equivalent to (used as the
         "saved" baseline so nothing falsely reads as unsaved).
     """
-    arch_path = context.get("arch_path", "")
+    architectures = context["workspace"].architectures
     sources_by_tool = context["sources_by_tool"]
     selection_map = _group_pnr_selections(
         selection_settings.get(context["selection_key"], []), context["instances"]
@@ -414,7 +414,7 @@ def _pnr_job_sections(context, selection_settings):
         n_unusable_total = 0
         for arch_name, arch_sources in sources_by_arch.items():
             domain_tiles, preview_tile, info = _pnr_config_widgets(
-                work_dirname, arch_name, arch_sources, saved_selectors, tool_enabled, arch_path
+                work_dirname, arch_name, arch_sources, saved_selectors, tool_enabled, architectures
             )
             # An architecture none of the saved selectors names runs nothing yet;
             # its sub-card is off, with everything pre-checked.

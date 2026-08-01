@@ -65,15 +65,13 @@ Configuration Generator / Workflow Editor pages.
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
-import odatix.components.workspace as workspace
 import odatix.lib.metrics as metrics_lib
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
 
 page_path = "/metric_editor"
 
@@ -193,37 +191,6 @@ ORIGIN_NOTES = {
 ######################################
 # Helpers
 ######################################
-
-def _get_workflow_path(odatix_settings):
-    workflow_path = odatix_settings.get("workflow_path", "") if isinstance(odatix_settings, dict) else ""
-    if workflow_path:
-        return workflow_path
-
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
-
-    return OdatixSettings.DEFAULT_WORKFLOW_PATH
-
-def _get_sim_path(odatix_settings):
-    sim_path = odatix_settings.get("sim_path", "") if isinstance(odatix_settings, dict) else ""
-    if sim_path:
-        return sim_path
-
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
-
-    return OdatixSettings.DEFAULT_SIM_PATH
-
-def _get_tools_path(odatix_settings):
-    tools_path = odatix_settings.get("tools_path", "") if isinstance(odatix_settings, dict) else ""
-    if tools_path:
-        return tools_path
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("tools_path", OdatixSettings.DEFAULT_TOOLS_PATH)
-    return OdatixSettings.DEFAULT_TOOLS_PATH
 
 def _checked(value):
     """Turn a checklist value ([True]/[]) or bool into a plain bool."""
@@ -1083,17 +1050,17 @@ def init_page(search, page, odatix_settings):
     builtin_defs = {prefix: {} for prefix in (METRIC_PREFIX, META_PREFIX, THIRD_PREFIX)}
     entries = {}
     if is_tool and name:
-        tools_path = _get_tools_path(odatix_settings)
+        tools_path = get_workspace(odatix_settings).paths.tools_path
         builtin, workspace_metrics = metrics_lib.load_metrics_layers(name, tools_path=tools_path)
         section_defs = {prefix: workspace_metrics.get(key, {}) for prefix, _l, _t, key in sections}
         for prefix, _l, _t, key in sections:
             builtin_defs[prefix] = builtin.get(key, {})
             entries[prefix] = section_entries(builtin.get(key, {}), workspace_metrics.get(key, {}))
     elif (not is_tool) and name:
-        if is_simulation:
-            metrics, metadata = workspace.load_simulation_metrics(_get_sim_path(odatix_settings), name)
-        else:
-            metrics, metadata = workspace.load_workflow_metrics(_get_workflow_path(odatix_settings), name)
+        ws = get_workspace(odatix_settings)
+        instances = ws.simulations if is_simulation else ws.workflows
+        metrics_file = instances.entry(name).metrics
+        metrics, metadata = metrics_file.metrics, metrics_file.metadata
         by_key = {"metrics": metrics, "metadata": metadata}
         section_defs = {prefix: by_key.get(key, {}) for prefix, _l, _t, key in sections}
         entries = {prefix: section_defs[prefix] for prefix, _l, _t, _k in sections}
@@ -1244,31 +1211,31 @@ def save_and_status(
         if is_tool:
             if not tool_name:
                 return error, "No tool selected", dash.no_update
-            tools_path = _get_tools_path(odatix_settings)
             key_sections = {key: current_sections[prefix] for prefix, _l, _t, key in sections}
             try:
-                workspace.save_tool_metrics(tools_path, tool_name, key_sections)
+                tool_metrics = get_workspace(odatix_settings).tools.entry(tool_name).metrics
+                tool_metrics.sections = key_sections
+                tool_metrics.save()
                 return disabled[0], disabled[1], current
             except Exception:
                 return error, "Failed to save...", dash.no_update
         elif is_simulation:
             try:
-                workspace.save_simulation_metrics(
-                    _get_sim_path(odatix_settings), simulation_name,
-                    current_sections.get(METRIC_PREFIX, {}), current_sections.get(META_PREFIX, {}),
-                )
+                metrics_file = get_workspace(odatix_settings).simulations.entry(simulation_name).metrics
+                metrics_file.metrics = current_sections.get(METRIC_PREFIX, {})
+                metrics_file.metadata = current_sections.get(META_PREFIX, {})
+                metrics_file.save()
                 return disabled[0], disabled[1], current
             except Exception:
                 return error, "Failed to save...", dash.no_update
         else:
             if not workflow_name:
                 return error, "No workflow selected", dash.no_update
-            workflow_path = _get_workflow_path(odatix_settings)
             try:
-                workspace.save_workflow_metrics(
-                    workflow_path, workflow_name,
-                    current_sections.get(METRIC_PREFIX, {}), current_sections.get(META_PREFIX, {}),
-                )
+                metrics_file = get_workspace(odatix_settings).workflows.entry(workflow_name).metrics
+                metrics_file.metrics = current_sections.get(METRIC_PREFIX, {})
+                metrics_file.metadata = current_sections.get(META_PREFIX, {})
+                metrics_file.save()
                 return disabled[0], disabled[1], current
             except Exception:
                 return error, "Failed to save...", dash.no_update
