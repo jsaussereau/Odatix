@@ -17,7 +17,8 @@ from odatix.lib.param_domain import ParamDomain
 from odatix.lib.run_settings import get_synth_settings, get_sim_settings, get_workflow_settings
 from odatix.lib.settings import OdatixSettings
 import odatix.lib.results_schema as schema
-import odatix.components.workspace as ws
+from odatix.workspace.architectures import ArchitectureCollection, ArchitectureSettings
+from odatix.workspace.yaml_io import read_yaml
 
 
 ######################################
@@ -509,20 +510,20 @@ class TestWorkspaceYamlFiles:
     def test_load_yaml_invalid_returns_default(self, tmp_path):
         f = tmp_path / "f.yml"
         f.write_text("a: [unclosed")
-        assert ws.load_yaml_file(str(f), default={"fallback": True}) == {"fallback": True}
+        assert read_yaml(str(f), default={"fallback": True}) == {"fallback": True}
 
     def test_load_yaml_empty_returns_default(self, tmp_path):
         f = tmp_path / "f.yml"
         f.write_text("")
-        assert ws.load_yaml_file(str(f), default={"d": 1}) == {"d": 1}
+        assert read_yaml(str(f), default={"d": 1}) == {"d": 1}
 
     def test_load_architecture_settings_empty_file(self, tmp_path):
         arch_root = tmp_path / "archs"
         (arch_root / "archA").mkdir(parents=True)
         (arch_root / "archA" / "_settings.yml").write_text("")
-        assert ws.load_architecture_settings(str(arch_root), "archA") == {}
+        assert ArchitectureCollection(None, str(arch_root))["archA"].settings == ArchitectureSettings()
 
     def test_load_architecture_settings_missing_file(self, tmp_path):
         arch_root = tmp_path / "archs"
         (arch_root / "archA").mkdir(parents=True)
-        assert ws.load_architecture_settings(str(arch_root), "archA") == {}
+        assert ArchitectureCollection(None, str(arch_root))["archA"].settings == ArchitectureSettings()

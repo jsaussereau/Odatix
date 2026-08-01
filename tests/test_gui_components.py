@@ -16,6 +16,52 @@ import odatix.gui.themes as themes
 
 
 ######################################
+# "Run jobs" page helper
+######################################
+#
+# The page is split across odatix.gui.jobs_config.* (the page module itself only
+# registers it). The tests address it as the single namespace it used to be:
+# reads find the module that defines the name, and writes -- the module-level
+# prepare state some tests reset, and the "ctx" monkeypatching -- go back to
+# every module holding it, so patching reaches the callback that reads it.
+
+JOBS_CONFIG_MODULES = [
+    "callbacks_config", "callbacks_run", "callbacks_sim", "common", "prepare_state",
+    "checks", "run_popup", "arch_widgets", "pnr", "simulation", "context",
+    "settings_io", "settings_form", "layout",
+]
+
+
+class _ModuleGroup:
+    def __init__(self, modules):
+        object.__setattr__(self, "_modules", modules)
+
+    def __getattr__(self, name):
+        for module in self._modules:
+            if hasattr(module, name):
+                return getattr(module, name)
+        raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        holders = [module for module in self._modules if hasattr(module, name)]
+        for module in holders or self._modules[:1]:
+            setattr(module, name, value)
+
+
+def import_jobs_config():
+    """The "Run jobs" page as one namespace (see _ModuleGroup)."""
+    import importlib
+
+    # dash.register_page (called at page-module import) requires an app
+    dash.Dash(__name__, use_pages=True, pages_folder="")
+    import odatix.gui.pages.jobs_config  # noqa: F401  (registers the page)
+
+    return _ModuleGroup([
+        importlib.import_module("odatix.gui.jobs_config." + name)
+        for name in JOBS_CONFIG_MODULES
+    ])
+
+######################################
 # Icons
 ######################################
 
@@ -188,9 +234,7 @@ class TestNavigation:
         assert len(app.callback_map) >= 3
 
     def test_choose_targets_link_follows_url_tool(self):
-        # dash.register_page (called at page-module import) requires an app
-        dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
         href, _cls = jobs_config.update_choose_targets_link("?type=fmax&tool=openlane")
         assert href == "/select_targets?tool=openlane"
@@ -204,7 +248,7 @@ class TestNavigation:
         # RTL analysis does not use target definition files: the "Choose
         # Targets" button is hidden for ?type=analyze, unlike every other run mode.
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
         _href, cls = jobs_config.update_choose_targets_link("?type=analyze&tool=vivado")
         assert cls == "hidden"
@@ -222,9 +266,7 @@ class TestNavigation:
 class TestRunContext:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self):
-        # dash.register_page (called at page-module import) requires an app
-        dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
         return jobs_config
 
@@ -272,7 +314,7 @@ class TestWildcardSelectionExpansion:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
         return jobs_config
 
@@ -312,18 +354,19 @@ class TestWildcardSelectionExpansion:
     def test_matches_real_generate_config_combinations_output(self, jobs_config_module, example_workspace):
         """
         The expanded strings must be byte-for-byte identical to what
-        workspace.generate_config_combinations() produces for the same
+        odatix.workspace.configs.combinations() produces for the same
         architecture, since that's what the preview checklist matches against.
         """
-        import odatix.components.workspace as workspace
+        from odatix.workspace.configs import combinations
 
-        arch_path = "odatix_userconfig/architectures"
         arch_name = "Example_Rom_Chisel"
+        architecture = architecture_collection("odatix_userconfig/architectures")[arch_name]
         domains_configs = {
-            domain: [cfg[:-4] for cfg in workspace.get_config_files(arch_path, arch_name, domain)]
-            for domain in workspace.get_param_domains(arch_path, arch_name)
+            domain.name: domain.configs.names()
+            for domain in architecture.domains
+            if not domain.is_main
         }
-        real_combos = {" + ".join(c) for c in workspace.generate_config_combinations(domains_configs, arch_name)}
+        real_combos = {" + ".join(c) for c in combinations(domains_configs, arch_name)}
 
         expanded = jobs_config_module._expand_wildcard_selection(
             f"{arch_name} + addr/* + data/*", domains_configs, arch_name
@@ -342,7 +385,7 @@ class TestUpdateParamDomainsWithWildcards:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self, monkeypatch):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
         from types import SimpleNamespace
 
         monkeypatch.setattr(jobs_config, "ctx", SimpleNamespace(triggered_id=None))
@@ -448,7 +491,7 @@ class TestSavedBaselineOnLoad:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self, monkeypatch):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
         from types import SimpleNamespace
 
         monkeypatch.setattr(jobs_config, "ctx", SimpleNamespace(triggered_id="test-trigger"))
@@ -494,8 +537,8 @@ class TestSavedBaselineOnLoad:
         # The Job Settings widgets live in the form (rendered by init_form, not
         # update_param_domains); recreate their loaded values the same way
         # job_settings_form() does, so "current" matches the emitted baseline.
-        import odatix.components.workspace as workspace
-        file_settings = workspace.load_arch_selection_settings(settings_path)
+        from odatix.workspace.yaml_io import read_yaml
+        file_settings = read_yaml(settings_path, default={})
         js = jobs_config_module._job_settings_baseline(file_settings)
         overwrite_w = [True] if js["overwrite"] else []
         fst_w = [True] if js["force_single_thread"] else []
@@ -548,7 +591,7 @@ class TestSavedBaselineOnLoad:
                 "  - Example_Counter_verilog/04bits\n"
                 "  - Example_Counter_verilog/08bits\n"
             )
-        import odatix.gui.pages.jobs_config as jc
+        jc = import_jobs_config()
         baseline = self._load_and_check(
             jc, "?type=fmax_synthesis", "fmax_synthesis_settings_file", settings_path
         )
@@ -569,7 +612,7 @@ class TestSavedBaselineOnLoad:
                 "  - Example_Counter_sv/04bits\n"
                 "  - Example_Counter_sv/08bits\n"
             )
-        import odatix.gui.pages.jobs_config as jc
+        jc = import_jobs_config()
         # the tools checklist is initialized (init_form) from file tools + url tool
         analysis_tools = jc._analysis_tools_selection("?type=analyze&tool=vivado", settings_path)
         assert analysis_tools == ["vivado"]  # sanity: matches the reported "current"
@@ -590,7 +633,7 @@ class TestSavedBaselineOnLoad:
                 "architectures:\n"
                 "  - Example_Rom_Chisel + addr/* + data/*\n"
             )
-        import odatix.gui.pages.jobs_config as jc
+        jc = import_jobs_config()
         baseline = self._load_and_check(
             jc, "?type=fmax_synthesis", "fmax_synthesis_settings_file", settings_path
         )
@@ -599,7 +642,7 @@ class TestSavedBaselineOnLoad:
     def test_job_settings_change_is_detected_as_unsaved(self, example_workspace):
         # Changing a Job Settings field (here nb_jobs) must switch the button to
         # "Unsaved changes!" (previously these fields were not wired at all).
-        import odatix.gui.pages.jobs_config as jc
+        jc = import_jobs_config()
 
         settings_path = "odatix_userconfig/fmax_synthesis_settings.yml"
         with open(settings_path, "w") as f:
@@ -639,7 +682,7 @@ class TestSavedBaselineOnLoad:
         # callback before update_param_domains (slower) has set the baseline
         # store. While the store is still None, the callback must NOT flash
         # "Unsaved changes!" -- it leaves the button untouched (no_update).
-        import odatix.gui.pages.jobs_config as jc
+        jc = import_jobs_config()
         import dash as _dash
 
         settings_path = "odatix_userconfig/analysis_settings.yml"
@@ -685,7 +728,7 @@ class TestWorkflowCheckSettings:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
         # Isolate module-level prepare state between tests
         jobs_config._prepare_log_buffer = jobs_config._ThreadSafeBuffer()
@@ -757,6 +800,20 @@ class TestWorkflowCheckSettings:
         assert "prepare_job" in called
 
 
+def workflow_collection(path):
+    """The workflows of a directory, as the jobs config page works on them."""
+    from odatix.workspace.workflows import WorkflowCollection
+
+    return WorkflowCollection(None, path)
+
+
+def architecture_collection(path):
+    """The architectures of a directory, as the jobs config page works on them."""
+    from odatix.workspace.architectures import ArchitectureCollection
+
+    return ArchitectureCollection(None, path)
+
+
 class TestWorkflowVirtualParamDomains:
     """
     Workflows can define command-placeholder variables ("virtual" parameter
@@ -773,13 +830,13 @@ class TestWorkflowVirtualParamDomains:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
         return jobs_config
 
     def test_workflow_without_variables_returns_nothing(self, jobs_config_module, example_workspace):
         combos, domain_values, error = jobs_config_module._virtual_variant_tokens(
-            "odatix_userconfig/workflows", "cli_profile", "workflow"
+            workflow_collection("odatix_userconfig/workflows"), "cli_profile", "workflow"
         )
         assert combos == []
         assert domain_values == {}
@@ -787,7 +844,7 @@ class TestWorkflowVirtualParamDomains:
 
     def test_workflow_with_variables_generates_all_combos(self, jobs_config_module, example_workspace):
         combos, domain_values, error = jobs_config_module._virtual_variant_tokens(
-            "odatix_userconfig/workflows", "param_domains_cli_variables", "workflow"
+            workflow_collection("odatix_userconfig/workflows"), "param_domains_cli_variables", "workflow"
         )
         assert error is None
         # 3 max_speed x 2 num_vehicles x 2 signal_timing x 2 road_length = 24
@@ -805,16 +862,17 @@ class TestWorkflowVirtualParamDomains:
 
     def test_combos_are_accepted_by_run_workflow_check_settings(self, jobs_config_module, example_workspace):
         """The exact strings offered in the GUI must resolve to real instances."""
-        import odatix.components.workspace as workspace
         import odatix.components.run_workflow as run_workflow
+        from odatix.gui.jobs_config.settings_io import write_run_settings
+        from odatix.workspace.yaml_io import read_yaml
 
         combos, _, _ = jobs_config_module._virtual_variant_tokens(
-            "odatix_userconfig/workflows", "param_domains_cli_variables", "workflow"
+            workflow_collection("odatix_userconfig/workflows"), "param_domains_cli_variables", "workflow"
         )
         selection = " + ".join(["param_domains_cli_variables"] + combos[0])
         path = "odatix_userconfig/workflow_settings.yml"
-        base = workspace.load_arch_selection_settings(path)
-        workspace.save_architecture_selection(path, {**base, "workflows": [selection]}, run_mode="workflow")
+        base = read_yaml(path, default={})
+        write_run_settings(path, {**base, "workflows": [selection]}, "workflow")
 
         instances, *_ = run_workflow.check_settings(
             run_config_settings_filename=path,
@@ -838,7 +896,7 @@ class TestWorkflowVirtualParamDomains:
             "generate_configurations_settings:\n  variables:\n    v1:\n      type: bogus\n"
         )
         combos, domain_values, error = jobs_config_module._virtual_variant_tokens(
-            str(tmp_path / "workflows"), "bad_workflow", "workflow"
+            workflow_collection(str(tmp_path / "workflows")), "bad_workflow", "workflow"
         )
         assert combos == []
         assert error is None
@@ -887,7 +945,7 @@ class TestAnalysisToolsTile:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
         return jobs_config
 
@@ -1072,7 +1130,7 @@ class TestPrepareProgressBar:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
         from odatix.components import run_common
 
         run_common.reset_prepare_progress()
@@ -1329,7 +1387,7 @@ class TestStepSelectionReachesTheRun:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
         jobs_config._prepare_log_buffer = jobs_config._ThreadSafeBuffer()
         jobs_config._prepare_status = {"status": "checking", "error": None}
@@ -1545,7 +1603,7 @@ class TestSimulationRunMode:
     @pytest.fixture(autouse=True)
     def jobs_config_module(self, monkeypatch):
         dash.Dash(__name__, use_pages=True, pages_folder="")
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
         from types import SimpleNamespace
 
         monkeypatch.setattr(jobs_config, "ctx", SimpleNamespace(triggered_id="test-trigger"))
@@ -1624,8 +1682,9 @@ class TestSimulationRunMode:
         assert selection == {"S1": ["A/1"]}
 
     def test_selection_round_trips_through_the_settings_file(self, jobs_config_module, example_workspace):
-        import odatix.components.workspace as workspace
+        from odatix.gui.jobs_config.settings_io import write_run_settings
         from odatix.lib.run_settings import get_sim_settings
+        from odatix.workspace.jobs import job_config
 
         settings = jobs_config_module._collect_run_settings(
             "simulation", "simulations",
@@ -1640,8 +1699,8 @@ class TestSimulationRunMode:
         assert settings["simulations"] == expected
 
         path = "odatix_userconfig/tmp_simulations_settings.yml"
-        workspace.save_architecture_selection(path, settings, run_mode="simulation")
-        assert workspace.load_simulation_selection(path) == expected
+        write_run_settings(path, settings, "simulation")
+        assert job_config(path, "simulation").settings.simulations == expected
         # And "odatix sim" must accept what the GUI writes.
         assert get_sim_settings(path)[-1] == [expected]
 
@@ -1673,9 +1732,9 @@ class TestSimulationRunMode:
 
     @staticmethod
     def _domains_configs(arch_path, arch_name):
-        import odatix.gui.pages.jobs_config as jobs_config
+        jobs_config = import_jobs_config()
 
-        return jobs_config._arch_domains_configs(arch_path, arch_name)
+        return jobs_config._arch_domains_configs(architecture_collection(arch_path), arch_name)
 
     def test_an_architecture_with_too_many_combinations_is_not_enumerated(
         self, jobs_config_module, example_workspace
@@ -1683,22 +1742,22 @@ class TestSimulationRunMode:
         # Parameter domains multiply: 11 domains of 8 values is 8**11 = 8.6e9
         # combinations. Enumerating them would hang the page and exhaust
         # memory, so past MAX_PREVIEW_COMBINATIONS none is generated.
-        import odatix.components.workspace as workspace
+        from odatix.workspace.configs import count_combinations
 
         name = self._make_huge_architecture()
         domains_configs = self._domains_configs("odatix_userconfig/architectures", name)
-        n_combos = workspace.count_combinations(domains_configs)
+        n_combos = count_combinations(domains_configs)
         assert n_combos > jobs_config_module.MAX_PREVIEW_COMBINATIONS
 
     def test_a_small_architecture_is_fully_enumerated(self, jobs_config_module, example_workspace):
-        import odatix.components.workspace as workspace
+        from odatix.workspace.configs import combinations, count_combinations
 
         domains_configs = self._domains_configs(
             "odatix_userconfig/architectures", "Example_Counter_vhdl"
         )
-        n_combos = workspace.count_combinations(domains_configs)
+        n_combos = count_combinations(domains_configs)
         assert n_combos <= jobs_config_module.MAX_PREVIEW_COMBINATIONS
-        combos = workspace.generate_config_combinations(domains_configs, "Example_Counter_vhdl")
+        combos = combinations(domains_configs, "Example_Counter_vhdl")
         assert ["Example_Counter_vhdl/04bits"] in combos
 
     def test_page_load_stays_cheap_with_a_huge_architecture(self, jobs_config_module, example_workspace):
@@ -1783,18 +1842,18 @@ class TestSimulationEditor:
         assert sim_editor_module.build_tasks_list([], [], [], [], []) == []
 
     def test_settings_round_trip(self, sim_editor_module, example_workspace):
-        import odatix.components.workspace as workspace
+        from odatix.workspace.simulations import SimulationCollection
 
-        settings = sim_editor_module.normalize_simulation_settings(
-            workspace.load_simulation_settings("odatix_userconfig/simulations", "TB_Example_Counter_GHDL")
-        )
+        simulations = SimulationCollection(None, "odatix_userconfig/simulations")
+        simulation = simulations["TB_Example_Counter_GHDL"]
+        settings = sim_editor_module.normalize_simulation_settings(simulation.settings.to_dict())
         assert settings["use_parameters"] is True
         assert settings["param_target_file"] == "tb/tb_counter.vhdl"
 
         settings["tasks"] = [{"name": "main", "commands": ["echo hello"]}]
-        workspace.save_simulation_settings("odatix_userconfig/simulations", "TB_Example_Counter_GHDL", settings)
+        simulation.update(settings)
         reloaded = sim_editor_module.normalize_simulation_settings(
-            workspace.load_simulation_settings("odatix_userconfig/simulations", "TB_Example_Counter_GHDL")
+            simulations["TB_Example_Counter_GHDL"].reload().settings.to_dict()
         )
         assert reloaded == settings
 
@@ -1821,15 +1880,16 @@ class TestSimulationMetricEditor:
         assert "/sim_editor?sim=TB_X" in str(title)
 
     def test_metrics_round_trip(self, metric_editor_module, example_workspace):
-        import odatix.components.workspace as workspace
+        from odatix.workspace.simulations import SimulationCollection
 
+        simulations = SimulationCollection(None, "odatix_userconfig/simulations")
         metrics = {"cycles": {"type": "csv", "settings": {"file": "results.csv", "key": "cycles"}}}
         metadata = {"run": {"type": "csv", "settings": {"file": "results.csv", "key": "run"}}}
-        workspace.save_simulation_metrics(
-            "odatix_userconfig/simulations", "TB_Example_Counter_GHDL", metrics, metadata
-        )
-        loaded_metrics, loaded_metadata = workspace.load_simulation_metrics(
-            "odatix_userconfig/simulations", "TB_Example_Counter_GHDL"
-        )
-        assert loaded_metrics == metrics
-        assert loaded_metadata == metadata
+        metrics_file = simulations["TB_Example_Counter_GHDL"].metrics
+        metrics_file.metrics = metrics
+        metrics_file.metadata = metadata
+        metrics_file.save()
+
+        reloaded = simulations["TB_Example_Counter_GHDL"].metrics
+        assert reloaded.metrics == metrics
+        assert reloaded.metadata == metadata
