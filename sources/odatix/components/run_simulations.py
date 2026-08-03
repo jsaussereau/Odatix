@@ -31,6 +31,7 @@ from odatix.components.run_common import (
     confirm_valid_jobs,
     abort_if_empty_job_list,
     replace_and_write_param_domains,
+    resolve_sim_param_target_file,
     run_prepare_loop,
     start_parallel_jobs as start_parallel_jobs_common,
 )
@@ -319,7 +320,9 @@ def check_settings(
         if sim_instance.architecture.use_parameters:
             if debug:
                 printc.subheader("Replace main parameters")
-            param_target_file = os.path.join(sim_instance.tmp_dir, sim_instance.architecture.param_target_filename)
+            param_target_file = resolve_sim_param_target_file(
+                sim_instance.tmp_dir, sim_instance.architecture.param_target_filename
+            )
             param_filename = os.path.join(arch_path, sim_instance.architecture.arch_name + '.txt')
             replace_params(
                 base_text_file=param_target_file,
@@ -340,12 +343,15 @@ def check_settings(
             default_target_filename=sim_instance.architecture.param_target_filename,
             target_filename_getter=lambda _param_domain: sim_instance.architecture.param_target_filename,
             debug=debug,
+            target_resolver=resolve_sim_param_target_file,
             timestamp=None,
         )
 
         # replace parameters again (override)
         if sim_instance.override_parameters:
-            param_target_file = os.path.join(sim_instance.tmp_dir, sim_instance.override_param_target_filename)
+            param_target_file = resolve_sim_param_target_file(
+                sim_instance.tmp_dir, sim_instance.override_param_target_filename
+            )
             param_file = os.path.join(sim_instance.tmp_dir, sim_instance.override_param_filename)
             replace_params(
                 base_text_file=param_target_file,

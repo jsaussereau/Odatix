@@ -753,7 +753,17 @@ class ArchitectureHandler:
             rtl_path = settings.rtl_path
 
         top_level = os.path.join(rtl_path, top_level_filename)
-        work_top_level = os.path.join(local_rtl_path, top_level_filename)
+
+        # The default target file for parameter replacement, written the way the
+        # user would have written it: relative to what the sources are copied
+        # from. Generating the RTL, that is "design_path", copied at the root of
+        # the work directory, so the generation output has to be named;
+        # otherwise it is "rtl_path", and the "rtl" subfolder it is copied into
+        # is added by the job itself (see run_common.resolve_param_target_file).
+        if generate_rtl:
+            work_top_level = os.path.join(local_rtl_path, top_level_filename)
+        else:
+            work_top_level = top_level_filename
 
         use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
         if use_parameters is None or start_delimiter is None or stop_delimiter is None or param_target_filename is None:

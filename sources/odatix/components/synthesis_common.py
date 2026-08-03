@@ -8,7 +8,7 @@ import yaml
 import shutil
 
 from odatix.components.replace_params import replace_params
-from odatix.components.run_common import normalize_run_settings, abort_if_empty_job_list, run_prepare_loop
+from odatix.components.run_common import normalize_run_settings, abort_if_empty_job_list, run_prepare_loop, resolve_param_target_file
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
@@ -449,7 +449,9 @@ def build_prepare_synthesis_job(
         if arch_instance.use_parameters:
             if debug:
                 printc.subheader("Replace main parameters")
-            param_target_file = os.path.join(arch_instance.tmp_dir, arch_instance.param_target_filename)
+            param_target_file = resolve_param_target_file(
+                arch_instance.tmp_dir, arch_instance.param_target_filename, arch_instance.generate_rtl
+            )
             param_filename = os.path.join(arch_path, arch_instance.arch_name + ".txt")
             replace_params(
                 base_text_file=param_target_file,
@@ -470,6 +472,7 @@ def build_prepare_synthesis_job(
             default_target_filename=arch_instance.param_target_filename,
             target_filename_getter=lambda param_domain: param_domain.param_target_file,
             debug=debug,
+            generate_rtl=arch_instance.generate_rtl,
             timestamp=timestamp,
         )
 

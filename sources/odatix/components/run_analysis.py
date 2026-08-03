@@ -43,7 +43,7 @@ from odatix.lib.check_tool import start_tool_check
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 
-from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, abort_if_empty_job_list, run_prepare_loop
+from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, abort_if_empty_job_list, run_prepare_loop, resolve_param_target_file
 from odatix.components.analyze_results import generate_analysis_summary
 from odatix.components.export_analysis import configure_analysis_job_exports
 import odatix.components.export_derived_metrics as exp_derived
@@ -404,7 +404,9 @@ def prepare_analysis(
       if arch_instance.use_parameters:
         if debug: 
           printc.subheader("Replace main parameters")
-        param_target_file = os.path.join(arch_instance.tmp_dir, arch_instance.param_target_filename)
+        param_target_file = resolve_param_target_file(
+          arch_instance.tmp_dir, arch_instance.param_target_filename, arch_instance.generate_rtl
+        )
         param_filename = os.path.join(arch_path, arch_instance.arch_name + ".txt")
         replace_params(
           base_text_file=param_target_file,
@@ -427,7 +429,9 @@ def prepare_analysis(
         domain_dict["__timestamp__"] = timestamp 
       for param_domain in arch_instance.param_domains:
         if param_domain.use_parameters:
-          param_target_file = os.path.join(arch_instance.tmp_dir, param_domain.param_target_file)
+          param_target_file = resolve_param_target_file(
+            arch_instance.tmp_dir, param_domain.param_target_file, arch_instance.generate_rtl
+          )
           if debug: 
             printc.subheader("Replace parameters for \"" + param_domain.domain + "/" + param_domain.domain_value+ "\"")
           success = replace_params(

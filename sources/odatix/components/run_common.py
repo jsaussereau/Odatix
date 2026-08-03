@@ -323,6 +323,36 @@ def abort_if_empty_job_list(job_list, script_name=None):
         raise SystemExit(-1)
 
 
+def resolve_param_target_file(tmp_dir, target_filename, generate_rtl):
+    """
+    Where a "param_target_file" is read from, inside a work directory.
+
+    The path is written against the sources, which is what the architecture
+    editor previews it against. When the RTL is generated, "design_path" is
+    copied whole at the root of the work directory, so the path is used as is.
+    Otherwise "rtl_path" is copied into the "rtl" subfolder, which is then the
+    directory the path is relative to.
+    """
+    if generate_rtl:
+        return os.path.join(tmp_dir, target_filename)
+    return os.path.join(tmp_dir, hard_settings.work_rtl_path, target_filename)
+
+
+def resolve_sim_param_target_file(tmp_dir, target_filename):
+    """
+    Same, for a simulation: its target file can be one of the simulation's own
+    sources, copied at the root of the work directory, as well as one of the
+    architecture's RTL files. Whichever is there is the one used.
+    """
+    at_root = os.path.join(tmp_dir, target_filename)
+    if os.path.isfile(at_root):
+        return at_root
+    in_rtl = os.path.join(tmp_dir, hard_settings.work_rtl_path, target_filename)
+    if os.path.isfile(in_rtl):
+        return in_rtl
+    return at_root
+
+
 def replace_and_write_param_domains(
     tmp_dir,
     arch_name,
@@ -330,6 +360,8 @@ def replace_and_write_param_domains(
     default_target_filename,
     target_filename_getter,
     debug,
+    generate_rtl=False,
+    target_resolver=None,
     timestamp=None,
 ):
     domain_dict = {}
@@ -341,7 +373,10 @@ def replace_and_write_param_domains(
     for param_domain in param_domains:
         if param_domain.use_parameters:
             target_filename = target_filename_getter(param_domain) or default_target_filename
-            param_target_file = os.path.join(tmp_dir, target_filename)
+            if target_resolver is not None:
+                param_target_file = target_resolver(tmp_dir, target_filename)
+            else:
+                param_target_file = resolve_param_target_file(tmp_dir, target_filename, generate_rtl)
             success = replace_params(
                 base_text_file=param_target_file,
                 replacement_text_file=param_domain.param_file,
