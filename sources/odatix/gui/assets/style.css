@@ -1123,6 +1123,10 @@ h3 {
 
 .tooltip {
     position: relative;
+    z-index: 4000;
+}
+.tooltip-icon {
+    z-index: 1;
 }
 
 .tooltip .icon {
@@ -1154,7 +1158,7 @@ h3 {
     background: var(--default-tooltip-background);
     color: var(--default-tooltip-text-color);
     border: var(--default-tooltip-border);
-    z-index: 10;
+    z-index: 4000;
 }
 .tooltip.delay::after {
     transition-delay: 0s;
@@ -1198,7 +1202,9 @@ h3 {
     color: var(--error-tooltip-text-color);
     border: var(--error-tooltip-border);
 }
-
+button.tooltip {
+    z-index: initial;
+}
 .tooltip:hover::after {
     opacity: 1;
     z-index: 999999!important;
