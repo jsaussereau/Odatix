@@ -103,7 +103,7 @@ def workspace_form(settings):
                     id="custom_freq_synthesis_settings_file",
                     value=defval("custom_freq_synthesis_settings_file", ""),
                     placeholder=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
-                    tooltip="The path to the settings file used by 'odatix freq' command.",
+                    tooltip="The path to the settings file used by 'odatix synth' command.",
                 ),
             ]),
             ui.panel(body=[

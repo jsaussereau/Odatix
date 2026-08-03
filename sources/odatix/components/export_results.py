@@ -987,7 +987,7 @@ def main(args, settings=None):
   if not os.path.isdir(input):
     printc.error('Could not find work directory "' + input + '"', script_name=script_name)
     printc.note("Run fmax synthesis using the 'odatix fmax' command before exporting the results", script_name=script_name)
-    printc.note("Or run custom frequency synthesis using the 'odatix freq' command before exporting the results", script_name=script_name)
+    printc.note("Or run custom frequency synthesis using the 'odatix synth' command before exporting the results", script_name=script_name)
     sys.exit(-1)
 
   if args.respath is not None:

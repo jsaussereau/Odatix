@@ -283,7 +283,7 @@ def architecture_form(settings):
                     id="custom_freq_synthesis_list",
                     value=", ".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))),
                     placeholder=", ".join(map(str, hard_settings.default_custom_freq_list)),
-                    tooltip="Comma-separated list of custom frequencies for synthesis (in MHz). The synthesis will be run for each frequency in this list ('odatix freq' command). Theses values can be overriden by the argument --at (ex: 'odatix freq --at 50 --at 100') or --from, --to and --step (ex: 'odatix freq --from 50 --to 200 --step 10').",
+                    tooltip="Comma-separated list of custom frequencies for synthesis (in MHz). The synthesis will be run for each frequency in this list ('odatix synth' command). Theses values can be overriden by the argument --at (ex: 'odatix synth --at 50 --at 100') or --from, --to and --step (ex: 'odatix synth --from 50 --to 200 --step 10').",
                     tooltip_options="secondary large",
                     type="text",
                 ),

@@ -768,7 +768,7 @@ def check_settings(
   """
   Validate the analysis settings of one or several eda tools and prepare (but
   do not build) their jobs, for the Odatix GUI. Mirrors
-  run_range_synthesis.check_settings so the GUI run flow can drive analysis
+  run_custom_synthesis.check_settings so the GUI run flow can drive analysis
   exactly like a synthesis, and mirrors the CLI run_analysis() multi-tool logic
   so several tools run in a single monitor session (the eda tool is shown like a
   target, "arch (tool)", in one merged global checklist).
@@ -776,7 +776,7 @@ def check_settings(
   Args:
       tool (str or list): eda tool(s) to run the analysis with.
 
-  Returns the same 8-tuple shape as run_range_synthesis.check_settings:
+  Returns the same 8-tuple shape as run_custom_synthesis.check_settings:
       (architecture_instances, prepare_job, job_list, tool_settings_file,
        arch_handler, exit_when_done, log_size_limit, nb_jobs)
 
@@ -901,7 +901,7 @@ def prepare_synthesis(
 ):
   """
   Build the analysis jobs and return a ParallelJobHandler ready to run/enqueue,
-  without running it. Mirrors run_range_synthesis.prepare_synthesis so the GUI
+  without running it. Mirrors run_custom_synthesis.prepare_synthesis so the GUI
   can enqueue analysis jobs into a daemon session.
 
   When ``export_output_dir`` and ``analysis_work_root`` are given, each job is

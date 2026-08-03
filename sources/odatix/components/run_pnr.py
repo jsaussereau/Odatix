@@ -27,7 +27,7 @@ synthesis jobs it starts from (see odatix.lib.pnr_source) and runs the place &
 route flow of the tool given by "--tool" on each of them, so Design Compiler +
 Innovus, Genus + ICC2 and any other pairing are just two commands:
 
-    odatix freq -t design_compiler
+    odatix synth -t design_compiler
     odatix pnr  -t innovus --from-tool design_compiler
 """
 

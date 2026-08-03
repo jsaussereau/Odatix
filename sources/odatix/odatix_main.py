@@ -32,7 +32,7 @@ sys.path.append(sources_dir)
 from odatix.components.motd import *
 import odatix.components.run_simulations as run_sim
 import odatix.components.run_fmax_synthesis as run_synth
-import odatix.components.run_range_synthesis as run_range
+import odatix.components.run_custom_synthesis as run_custom_synthesis_module
 import odatix.components.run_pnr as run_pnr_cmd
 import odatix.components.run_analysis as analyze
 import odatix.components.run_workflow as run_workflow
@@ -105,9 +105,9 @@ class ArgParser:
     ArgParser.fmax_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.fmax_parser)
 
-    # Define parser for the 'freq' command
-    ArgParser.range_parser = subparsers.add_parser("freq", help="run synthesis at custom frequencies", formatter_class=formatter)
-    run_range.add_arguments(ArgParser.range_parser)
+    # Define parser for the 'synth' command (formerly 'freq', kept as alias)
+    ArgParser.range_parser = subparsers.add_parser("synth", aliases=["synthesis", "freq"], help="run synthesis at custom frequencies", formatter_class=formatter)
+    run_custom_synthesis_module.add_arguments(ArgParser.range_parser)
     ArgParser.range_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.range_parser)
 
@@ -371,10 +371,10 @@ def run_fmax_synthesis(args):
     success = False
   return success
 
-def run_range_synthesis(args):
+def run_custom_synthesis(args):
   success = True
   try:
-    run_range.main(args)
+    run_custom_synthesis_module.main(args)
   except SystemExit as e:
     if e.code != EXIT_SUCCESS:
       success = False
@@ -639,7 +639,7 @@ def main(args=None):
   except AttributeError:
     args.nobanner = False
 
-  if args.command == "monitor" or args.command == "stop" or args.command == "ls":
+  if args.command in ("monitor", "stop", "ls"):
     args.nobanner = True
 
   # Display init dialog
@@ -667,8 +667,8 @@ def main(args=None):
     success = list_daemons(args)
   elif args.command == "fmax":
     success = run_fmax_synthesis(args)
-  elif args.command == "freq":
-    success = run_range_synthesis(args)
+  elif args.command in ("synth", "synthesis", "freq"):
+    success = run_custom_synthesis(args)
   elif args.command == "pnr":
     success = run_place_and_route(args)
   elif args.command == "analyze":

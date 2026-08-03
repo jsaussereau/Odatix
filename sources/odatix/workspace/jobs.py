@@ -209,7 +209,7 @@ class FmaxSynthesisJobSettings(JobSettings):
 
 
 class CustomFreqSynthesisJobSettings(JobSettings):
-    """Settings of an "odatix freq" run."""
+    """Settings of an "odatix synth" run."""
 
     selection_key = "architectures"
 
@@ -335,7 +335,7 @@ JOB_MODES = {
         "label": "custom frequency synthesis",
         "settings_class": CustomFreqSynthesisJobSettings,
         "settings_file": "custom_freq_synthesis_settings_file",
-        "command": "freq",
+        "command": "synth",
     },
     "pnr": {
         "label": "place & route",
@@ -367,6 +367,7 @@ JOB_MODES = {
 MODE_ALIASES = {
     "analyze": "analysis",
     "fmax": "fmax_synthesis",
+    "synth": "custom_freq_synthesis",
     "freq": "custom_freq_synthesis",
     "custom_freq": "custom_freq_synthesis",
     "sim": "simulation",

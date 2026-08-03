@@ -210,7 +210,7 @@ class CustomFreqSynthesisFlow(SynthesisFlow):
     work_path_setting = "custom_freq_synthesis_work_path"
 
     def module(self):
-        import odatix.components.run_range_synthesis as module
+        import odatix.components.run_custom_synthesis as module
 
         return module
 
