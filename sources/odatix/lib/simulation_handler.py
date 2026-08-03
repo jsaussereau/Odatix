@@ -20,10 +20,7 @@
 #
 
 import os
-import re
-import math
 import yaml
-import itertools
 
 from os.path import isfile
 from os.path import isdir
@@ -34,6 +31,7 @@ from odatix.lib.utils import *
 from odatix.lib.param_domain import ParamDomain
 import odatix.lib.param_domain as param_domain
 import odatix.lib.hard_settings as hard_settings
+import odatix.workspace.selection as selection
 
 script_name = os.path.basename(__file__)
 
@@ -191,55 +189,11 @@ class SimulationHandler:
         if sim_dict is not None:
           for sim, arch_list in sim_dict.items():
             if arch_list is not None and arch_list is not None:
-              # Handle wildcard
-              architectures = []
-              for arch in arch_list:
-                arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, "", False)
-                if arch.endswith("/*"):
-                  # get param dir (arch name before '/*')
-                  arch_param_dir = re.sub(r'/\*', '', arch)
-                  arch_param = self.arch_path + '/' + arch_param_dir
-
-                  # check if parameter dir exists
-                  if isdir(arch_param):
-                    files = [f[:-4] for f in os.listdir(arch_param) if os.path.isfile(os.path.join(arch_param, f)) and f.endswith(".txt")]
-                    joker_archs = [os.path.join(arch_param_dir, file) for file in sorted(files)]
-                else:
-                  joker_archs = [arch]
-                  arch_param = arch_param_dir
-                  
-                # Parameter domain wildcard
-                joker_param_domain = {}
-                if len(requested_param_domains) > 0:
-                  for requested_param_domain in requested_param_domains:
-                    if requested_param_domain.endswith("/*"):
-                      param_domain = re.sub(r'/\*', '', requested_param_domain)
-                      # get parameter domain dir
-                      arch_param = self.arch_path + '/' + arch_param_dir
-                      param_domain_dir = os.path.join(arch_param, param_domain)
-
-                      # check if parameter domain dir exists
-                      if isdir(param_domain_dir):
-                        files = [f[:-4] for f in os.listdir(param_domain_dir) if os.path.isfile(os.path.join(param_domain_dir, f)) and f.endswith(".txt")]
-                        joker_param_domain[param_domain] = sorted(files)
-                    else:
-                      param_domain = re.sub(r'/.*', '', requested_param_domain)
-                      value = re.sub(r'.*/', '', requested_param_domain)
-                      joker_param_domain[param_domain] = [value]
-
-                  # Generate combinations
-                  param_keys = list(joker_param_domain.keys())
-                  param_values = [joker_param_domain[key] if isinstance(joker_param_domain[key], list) else [joker_param_domain[key]] for key in param_keys]
-
-                  for arch_instance in joker_archs:
-                    for param_combination in itertools.product(*param_values):
-                      param_string = "+".join(f"{param_keys[i]}/{param_combination[i]}" for i in range(len(param_keys)))
-                      architectures.append(f"{arch_instance}+{param_string}")
-                else:
-                  architectures = architectures + joker_archs
-
-              # Remove duplicates
-              architectures = list(dict.fromkeys(architectures))
+              # What the simulation runs on is written exactly like what a
+              # synthesis runs on, wildcards included (see workspace.selection).
+              messages = []
+              architectures = selection.expand(arch_list, self.arch_path, messages=messages)
+              printc.messages(messages, script_name)
 
               # Configurations that only differ by a domain the simulation is
               # invariant to would all compute the same result: keep one.

@@ -29,25 +29,16 @@ from urllib.parse import quote
 import dash
 from dash import ctx, Input, Output, State
 
-import odatix.components.run_analysis as run_analysis
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.pnr_source as pnr_source
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.lib.parallel_job_handler import daemon_control
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.utils import AUTO_NB_JOBS_KEYWORD
 
 from odatix.gui.jobs_config import prepare_state
-from odatix.gui.jobs_config.checks import (
-    _run_check_analysis_settings,
-    _run_check_custom_freq_settings,
-    _run_check_fmax_settings,
-    _run_check_pnr_settings,
-    _run_check_simulation_settings,
-    _run_check_workflow_settings,
-    _run_prepare_synthesis,
-)
+from odatix.gui.jobs_config.checks import start_check, start_prepare
 from odatix.gui.jobs_config.common import (
     _checklist_enabled,
     _normalize_session_selector,
@@ -62,6 +53,10 @@ from odatix.gui.jobs_config.prepare_state import (
 )
 from odatix.gui.jobs_config.run_popup import _run_popup_body, _run_popup_render_key
 from odatix.gui.jobs_config.settings_io import _collect_run_settings, _write_temp_run_settings
+
+#: What the page can run. Every other job type is configured here but started
+#: from a terminal.
+RUNNABLE_MODES = ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analyze", "simulation", "workflow")
 
 # Open run popup
 @dash.callback(
@@ -257,251 +252,7 @@ def run_jobs(
         temp_settings_file = None
     prepare_state._prepare_temp_settings_file = temp_settings_file
 
-    if run_mode == "custom_freq_synthesis":
-        run_config_settings_filename = temp_settings_file or settings.get(
-            "custom_freq_synthesis_settings_file",
-            OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
-        )
-        work_path = os.path.join(
-            work_path_root,
-            settings.get("custom_freq_synthesis_work_path", OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH),
-        )
-
-        prepare_state._prepare_runtime_settings["export"] = {
-            "kind": "synthesis",
-            "result_type": "custom_freq_synthesis",
-            "work_path": work_path,
-            "tool": tool,
-            "flow": flow,
-            "output_dir": result_path,
-            "use_benchmark": export_use_benchmark,
-            "benchmark_file": export_benchmark_file,
-        }
-
-        prepare_state._prepare_thread = threading.Thread(
-            target=_run_check_custom_freq_settings,
-            args=(
-                run_config_settings_filename,
-                base_path,
-                tool,
-                flow,
-                until_step,
-                work_path,
-                target_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-                check_eda_tool,
-            ),
-            daemon=True,
-        )
-        prepare_state._prepare_thread.start()
-    elif run_mode == "pnr":
-        run_config_settings_filename = temp_settings_file or settings.get(
-            "pnr_settings_file",
-            OdatixSettings.DEFAULT_PNR_SETTINGS_FILE,
-        )
-        work_path = os.path.join(
-            work_path_root,
-            settings.get("pnr_work_path", OdatixSettings.DEFAULT_PNR_WORK_PATH),
-        )
-
-        prepare_state._prepare_runtime_settings["export"] = {
-            "kind": "synthesis",
-            "result_type": "pnr",
-            "work_path": work_path,
-            "tool": tool,
-            "flow": flow,
-            "output_dir": result_path,
-            "use_benchmark": export_use_benchmark,
-            "benchmark_file": export_benchmark_file,
-        }
-
-        prepare_state._prepare_thread = threading.Thread(
-            target=_run_check_pnr_settings,
-            args=(
-                run_config_settings_filename,
-                # A place & route run reads the synthesis jobs from the whole
-                # work tree, not from a single job type directory.
-                work_path_root,
-                tool,
-                flow,
-                until_step,
-                work_path,
-                target_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-                check_eda_tool,
-                {
-                    job_type: {"path": settings.get(f"{job_type}_work_path") or job_type}
-                    for job_type in pnr_source.SOURCE_JOB_TYPES
-                },
-            ),
-            daemon=True,
-        )
-        prepare_state._prepare_thread.start()
-    elif run_mode == "fmax_synthesis":
-        run_config_settings_filename = temp_settings_file or settings.get(
-            "fmax_synthesis_settings_file",
-            OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
-        )
-        work_path = os.path.join(
-            work_path_root,
-            settings.get("fmax_synthesis_work_path", OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH),
-        )
-
-        prepare_state._prepare_runtime_settings["export"] = {
-            "kind": "synthesis",
-            "result_type": "fmax_synthesis",
-            "work_path": work_path,
-            "tool": tool,
-            "flow": flow,
-            "output_dir": result_path,
-            "use_benchmark": export_use_benchmark,
-            "benchmark_file": export_benchmark_file,
-        }
-
-        continue_on_error = True
-
-        prepare_state._prepare_thread = threading.Thread(
-            target=_run_check_fmax_settings,
-            args=(
-                run_config_settings_filename,
-                base_path,
-                tool,
-                flow,
-                until_step,
-                work_path,
-                target_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-                continue_on_error,
-                check_eda_tool,
-            ),
-            daemon=True,
-        )
-        prepare_state._prepare_thread.start()
-    elif run_mode == "workflow":
-        run_config_settings_filename = temp_settings_file or settings.get(
-            "workflow_settings_file",
-            OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE,
-        )
-        work_path = os.path.join(
-            work_path_root,
-            settings.get("workflow_work_path", OdatixSettings.DEFAULT_WORKFLOW_WORK_PATH),
-        )
-
-        prepare_state._prepare_runtime_settings["export"] = {
-            "kind": "workflow",
-            "work_root": work_path,
-            "workflow_path": base_path,
-            "output_dir": result_path,
-        }
-
-        prepare_state._prepare_thread = threading.Thread(
-            target=_run_check_workflow_settings,
-            args=(
-                run_config_settings_filename,
-                base_path,
-                work_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-            ),
-            daemon=True,
-        )
-        prepare_state._prepare_thread.start()
-    elif run_mode == "simulation":
-        run_config_settings_filename = temp_settings_file or settings.get(
-            "simulation_settings_file",
-            OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
-        )
-        work_path = os.path.join(
-            work_path_root,
-            settings.get("simulation_work_path", OdatixSettings.DEFAULT_SIMULATION_WORK_PATH),
-        )
-
-        prepare_state._prepare_runtime_settings["export"] = {
-            "kind": "simulation",
-            "work_root": work_path,
-            "sim_path": base_path,
-            "output_dir": result_path,
-        }
-
-        prepare_state._prepare_thread = threading.Thread(
-            target=_run_check_simulation_settings,
-            args=(
-                run_config_settings_filename,
-                run_context["arch_path"],
-                base_path,
-                work_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-            ),
-            daemon=True,
-        )
-        prepare_state._prepare_thread.start()
-    elif run_mode == "analyze":
-        run_config_settings_filename = temp_settings_file or settings.get(
-            "analysis_settings_file",
-            OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE,
-        )
-        work_path = os.path.join(
-            work_path_root,
-            settings.get("analysis_work_path", OdatixSettings.DEFAULT_ANALYSIS_WORK_PATH),
-        )
-
-        prepare_state._prepare_runtime_settings["export"] = {
-            "kind": "analysis",
-            "analysis_work_root": work_path,
-            "output_dir": result_path,
-        }
-
-        # Tools selected in the "Tools" tile; fall back to the ?tool=... url tool.
-        # Equivalent to 'odatix analyze --tool <analysis_tool_list>'.
-        analysis_tool_list = [t for t in (analysis_tools or []) if t]
-        if not analysis_tool_list:
-            analysis_tool_list = [tool]
-
-        # The flow picked on /choose_eda_tool applies to every selected tool.
-        prepare_state._prepare_runtime_settings["export"]["flows"] = run_analysis.parse_flow_selection(
-            [flow] if flow else None, analysis_tool_list
-        )
-
-        prepare_state._prepare_thread = threading.Thread(
-            target=_run_check_analysis_settings,
-            args=(
-                run_config_settings_filename,
-                base_path,
-                analysis_tool_list,
-                flow,
-                work_path,
-                target_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-                check_eda_tool,
-            ),
-            daemon=True,
-        )
-        prepare_state._prepare_thread.start()
-
-    else:
+    if run_mode not in RUNNABLE_MODES:
         message = (
             "Running this type of job from the GUI is not available yet.\n"
             "Your selection is saved: launch it from a terminal."
@@ -509,38 +260,45 @@ def run_jobs(
         prepare_state._prepare_log_buffer.write(message)
         prepare_state._prepare_status = {"status": "error", "error": message}
         return {"status": "error", "type": run_mode, "tool": tool, "error": message}
-    # else:
-    #     run_config_settings_filename = settings.get(
-    #         "fmax_synthesis_settings_file",
-    #         OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
-    #     )
-    #     work_path = os.path.join(
-    #         work_path_root,
-    #         settings.get("fmax_synthesis_work_path", OdatixSettings.DEFAULT_FMAX_SYNTHESIS_WORK_PATH),
-    #     )
 
-    #     def _run():
-    #         run_fmax_synthesis.prepare_synthesis(
-    #             run_config_settings_filename,
-    #             arch_path,
-    #             tool,
-    #             work_path,
-    #             target_path,
-    #             overwrite_enabled,
-    #             noask,
-    #             exit_when_done_enabled,
-    #             log_size_val,
-    #             nb_jobs_val,
-    #             False,  # continue_on_error
-    #             check_eda_tool,
-    #             forced_fmax_lower_bound=None,
-    #             forced_fmax_upper_bound=None,
-    #             debug=False,
-    #             keep=False,
-    #         )
+    # Everywhere a path is needed, the workspace knows it: only what this run
+    # does differently from what it says is passed here.
+    run_options = dict(
+        settings_file=temp_settings_file,
+        tool=tool,
+        flow=flow,
+        until=until_step,
+        overwrite=overwrite_enabled,
+        noask=noask,
+        exit_when_done=exit_when_done_enabled,
+        log_size_limit=log_size_val,
+        nb_jobs=nb_jobs_val,
+        check_eda_tool=check_eda_tool,
+    )
 
-    # thread = threading.Thread(target=_run, daemon=True)
-    # thread.start()
+    if run_mode == "fmax_synthesis":
+        run_options["continue_on_error"] = True
+    elif run_mode == "pnr":
+        # Where each kind of job a place & route can start from keeps its
+        # results, under the work directory.
+        run_options["source_result_types"] = {
+            job_type: {"path": settings.get(f"{job_type}_work_path") or job_type}
+            for job_type in pnr_source.SOURCE_JOB_TYPES
+        }
+    elif run_mode == "analyze":
+        # Tools selected in the "Tools" tile; fall back to the ?tool=... url
+        # tool. Equivalent to 'odatix analyze --tool <analysis_tool_list>'.
+        run_options["tool"] = [t for t in (analysis_tools or []) if t] or [tool]
+        # The flow picked on /choose_eda_tool applies to every selected tool.
+        run_options["flow"] = [flow] if flow else None
+
+    prepare_state._prepare_thread = threading.Thread(
+        target=start_check,
+        args=(run_mode, get_workspace(settings)),
+        kwargs=run_options,
+        daemon=True,
+    )
+    prepare_state._prepare_thread.start()
 
     return {
         "status": "checking",
@@ -689,7 +447,7 @@ def confirm_prepare_jobs(n_clicks, run_status):
     prepare_state._prepare_status = {"status": "preparing", "error": None}
 
     prepare_state._prepare_exec_thread = threading.Thread(
-        target=_run_prepare_synthesis,
+        target=start_prepare,
         daemon=True,
     )
     prepare_state._prepare_exec_thread.start()

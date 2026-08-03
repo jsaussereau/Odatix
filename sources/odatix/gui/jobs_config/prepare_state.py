@@ -62,7 +62,9 @@ _prepare_log_buffer = _ThreadSafeBuffer()
 _prepare_status = {"status": "idle", "error": None}
 _prepare_parallel_jobs = None
 _prepare_monitor_href = None
-_prepare_check_data = None
+# The run itself (odatix.run.Run): what it would do, and what preparing it
+# produced. It is the same object between the check and the prepare phases.
+_prepare_run = None
 _prepare_messages = MessageLog()
 _prepare_runtime_settings = None
 _prepare_exec_thread = None
@@ -80,7 +82,7 @@ _prepare_temp_settings_file = None
 
 def _reset_prepare_state():
     global _prepare_cancel_event, _prepare_log_buffer, _prepare_status, _prepare_parallel_jobs, _prepare_monitor_href
-    global _prepare_check_data, _prepare_messages, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
+    global _prepare_run, _prepare_messages, _prepare_runtime_settings, _prepare_exec_thread, _prepare_synth_type, _prepare_enqueued
     global _prepare_tool_checks, _prepare_tool_check_reported, _prepare_temp_settings_file
     # Remove the previous run's temporary settings file, if any.
     if _prepare_temp_settings_file:
@@ -94,7 +96,7 @@ def _reset_prepare_state():
     _prepare_status = {"status": "checking", "error": None}
     _prepare_parallel_jobs = None
     _prepare_monitor_href = None
-    _prepare_check_data = None
+    _prepare_run = None
     _prepare_messages = MessageLog()
     _prepare_runtime_settings = None
     _prepare_exec_thread = None

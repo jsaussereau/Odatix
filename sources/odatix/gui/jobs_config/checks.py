@@ -19,429 +19,91 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""The two background phases of a run, one function per job type: checking the
-settings (which produces the run plan the popup displays), and preparing the
-jobs. Both are started in a thread by the run callbacks and publish their
-outcome through prepare_state."""
+"""
+The two background phases of a run: checking the settings (which produces the
+run plan the popup displays), and preparing the jobs.
+
+Both are one call into :class:`odatix.run.Run`, which is the same run a command
+line or a script would start. What is left here is what the page needs of it:
+its two phases started in a thread, everything it says collected for the popup,
+and its outcome published through prepare_state.
+"""
 
 import contextlib
 
-import odatix.components.run_analysis as run_analysis
-import odatix.components.run_fmax_synthesis as run_fmax_synthesis
-import odatix.components.run_pnr as run_pnr
-import odatix.components.run_range_synthesis as run_range_synthesis
-import odatix.components.run_simulations as run_simulations
-import odatix.components.run_workflow as run_workflow
 import odatix.lib.printc as printc
 
 from odatix.gui.jobs_config import prepare_state
 from odatix.gui.jobs_config.prepare_state import _collect_tool_check
+from odatix.run import Run, RunCancelled, RunError
 
-def _run_check_custom_freq_settings(
-    run_config_settings_filename,
-    arch_path,
-    tool,
-    flow,
-    until_step,
-    work_path,
-    target_path,
-    overwrite_enabled,
-    noask,
-    exit_when_done_enabled,
-    log_size_val,
-    nb_jobs_val,
-    check_eda_tool,
-    custom_freq_list=None,
-):
-    if custom_freq_list is None:
-        custom_freq_list = []
+
+@contextlib.contextmanager
+def _collected():
+    """
+    Everything the run says goes to the popup, not to a terminal nobody is
+    watching: the diagnostics as messages, the rest as the run log.
+    """
+    with printc.collect(prepare_state._prepare_messages.add):
+        with contextlib.redirect_stdout(prepare_state._prepare_log_buffer):
+            yield
+
+
+def start_check(mode, workspace, **options):
+    """
+    Work out what a run would do, without touching anything.
+
+    Args:
+        mode (str): the kind of run, as the url names it.
+        workspace (Workspace): the workspace it runs in, which is where every
+            path it needs comes from.
+        **options: what this run does differently from what its settings file
+            says (see :class:`odatix.run.RunOptions`), e.g. the eda tool picked
+            on the page and the temporary settings file its unsaved state was
+            written to.
+    """
     try:
-        with printc.collect(prepare_state._prepare_messages.add), contextlib.redirect_stdout(prepare_state._prepare_log_buffer):
-            prepare_state._prepare_check_data = run_range_synthesis.check_settings(
-                run_config_settings_filename,
-                arch_path,
-                tool,
-                flow,
-                until_step,
-                # Re-running an already completed step ("--rerun-from") is
-                # CLI-only: from the GUI a run always resumes where it stopped.
-                None,
-                work_path,
-                target_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-                check_eda_tool,
-                custom_freq_list=custom_freq_list,
-                debug=False,
-                keep=False,
-                cancel_event=prepare_state._prepare_cancel_event,
-                tool_check_sink=_collect_tool_check,
-            )
+        run = Run(
+            workspace, mode,
+            cancel_event=prepare_state._prepare_cancel_event,
+            # From the page a run always resumes where it stopped: re-running an
+            # already completed step ("--rerun-from") is a command line thing.
+            rerun_from=None,
+            **options
+        )
+        # The eda tool check keeps running in the background instead of blocking
+        # this phase, so the run plan shows up without waiting for the tool to
+        # start. Its outcome gates the Start button.
+        run.tool_check_sink = _collect_tool_check
+        prepare_state._prepare_run = run
+
+        with _collected():
+            run.check()
         prepare_state._prepare_status = {"status": "checked", "error": None}
-    except run_range_synthesis.SynthesisCancelled:
+    except RunCancelled:
         prepare_state._prepare_status = {"status": "canceled", "error": None}
-    except Exception as exc:
-        prepare_state._prepare_status = {"status": "error", "error": str(exc)}
+    except Exception as error:
+        prepare_state._prepare_status = {"status": "error", "error": str(error)}
 
-def _run_check_pnr_settings(
-    run_config_settings_filename,
-    source_work_root,
-    tool,
-    flow,
-    until_step,
-    work_path,
-    target_path,
-    overwrite_enabled,
-    noask,
-    exit_when_done_enabled,
-    log_size_val,
-    nb_jobs_val,
-    check_eda_tool,
-    source_result_types=None,
-):
-    try:
-        with printc.collect(prepare_state._prepare_messages.add), contextlib.redirect_stdout(prepare_state._prepare_log_buffer):
-            prepare_state._prepare_check_data = run_pnr.check_settings(
-                run_config_settings_filename=run_config_settings_filename,
-                source_work_root=source_work_root,
-                tool=tool,
-                flow=flow,
-                until_step=until_step,
-                # Re-running an already completed step ("--rerun-from") is
-                # CLI-only: from the GUI a run always resumes where it stopped.
-                rerun_from_step=None,
-                work_path=work_path,
-                target_path=target_path,
-                overwrite=overwrite_enabled,
-                noask=noask,
-                exit_when_done=exit_when_done_enabled,
-                log_size_limit=log_size_val,
-                nb_jobs=nb_jobs_val,
-                check_eda_tool=check_eda_tool,
-                source_result_types=source_result_types,
-                debug=False,
-                cancel_event=prepare_state._prepare_cancel_event,
-                tool_check_sink=_collect_tool_check,
-            )
-        prepare_state._prepare_status = {"status": "checked", "error": None}
-    except run_pnr.PnrCancelled:
-        prepare_state._prepare_status = {"status": "canceled", "error": None}
-    except Exception as exc:
-        prepare_state._prepare_status = {"status": "error", "error": str(exc)}
 
-def _run_check_fmax_settings(
-    run_config_settings_filename,
-    arch_path,
-    tool,
-    flow,
-    until_step,
-    work_path,
-    target_path,
-    overwrite_enabled,
-    noask,
-    exit_when_done_enabled,
-    log_size_val,
-    nb_jobs_val,
-    continue_on_error,
-    check_eda_tool,
-):
+def start_prepare():
+    """
+    Write the work directory of every job of the run that was checked. Nothing
+    is started: enqueueing is what the Start button does.
+    """
+    run = prepare_state._prepare_run
     try:
-        with printc.collect(prepare_state._prepare_messages.add), contextlib.redirect_stdout(prepare_state._prepare_log_buffer):
-            prepare_state._prepare_check_data = run_fmax_synthesis.check_settings(
-                run_config_settings_filename,
-                arch_path,
-                tool,
-                flow,
-                until_step,
-                # Re-running an already completed step ("--rerun-from") is
-                # CLI-only: from the GUI a run always resumes where it stopped.
-                None,
-                work_path,
-                target_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-                continue_on_error,
-                check_eda_tool,
-                forced_fmax_lower_bound=None,
-                forced_fmax_upper_bound=None,
-                debug=False,
-                keep=False,
-                cancel_event=prepare_state._prepare_cancel_event,
-                tool_check_sink=_collect_tool_check,
-            )
-        prepare_state._prepare_status = {"status": "checked", "error": None}
-    except run_fmax_synthesis.SynthesisCancelled:
-        prepare_state._prepare_status = {"status": "canceled", "error": None}
-    except Exception as exc:
-        prepare_state._prepare_status = {"status": "error", "error": str(exc)}
-
-def _run_check_analysis_settings(
-    run_config_settings_filename,
-    arch_path,
-    tool,
-    flow,
-    work_path,
-    target_path,
-    overwrite_enabled,
-    noask,
-    exit_when_done_enabled,
-    log_size_val,
-    nb_jobs_val,
-    check_eda_tool,
-):
-    try:
-        with printc.collect(prepare_state._prepare_messages.add), contextlib.redirect_stdout(prepare_state._prepare_log_buffer):
-            prepare_state._prepare_check_data = run_analysis.check_settings(
-                run_config_settings_filename,
-                arch_path,
-                tool,
-                work_path,
-                target_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-                check_eda_tool,
-                debug=False,
-                keep=False,
-                cancel_event=prepare_state._prepare_cancel_event,
-                tool_check_sink=_collect_tool_check,
-                flows=run_analysis.parse_flow_selection([flow] if flow else None, tool if isinstance(tool, (list, tuple)) else [tool]),
-            )
-        prepare_state._prepare_status = {"status": "checked", "error": None}
-    except run_analysis.AnalysisCancelled:
-        prepare_state._prepare_status = {"status": "canceled", "error": None}
-    except SystemExit:
-        # check_settings() calls sys.exit(-1) when there is no valid architecture
-        # to analyze: turn that into a normal error status.
-        prepare_state._prepare_status = {"status": "error", "error": "No valid architecture to analyze. See log above for details."}
-    except Exception as exc:
-        prepare_state._prepare_status = {"status": "error", "error": str(exc)}
-
-def _run_check_workflow_settings(
-    run_config_settings_filename,
-    workflow_path,
-    work_path,
-    overwrite_enabled,
-    noask,
-    exit_when_done_enabled,
-    log_size_val,
-    nb_jobs_val,
-):
-    try:
-        with printc.collect(prepare_state._prepare_messages.add), contextlib.redirect_stdout(prepare_state._prepare_log_buffer):
-            prepare_state._prepare_check_data = run_workflow.check_settings(
-                run_config_settings_filename,
-                workflow_path,
-                work_path,
-                overwrite_enabled,
-                noask,
-                exit_when_done_enabled,
-                log_size_val,
-                nb_jobs_val,
-                debug=False,
-                keep=False,
-            )
-        prepare_state._prepare_status = {"status": "checked", "error": None}
-    except SystemExit:
-        # check_settings() calls sys.exit(-1) on invalid workflow settings
-        # instead of raising: turn that into a normal error status.
-        prepare_state._prepare_status = {"status": "error", "error": "Invalid workflow settings. See log above for details."}
-    except Exception as exc:
-        prepare_state._prepare_status = {"status": "error", "error": str(exc)}
-
-def _run_check_simulation_settings(
-    run_config_settings_filename,
-    arch_path,
-    sim_path,
-    work_path,
-    overwrite_enabled,
-    noask,
-    exit_when_done_enabled,
-    log_size_val,
-    nb_jobs_val,
-):
-    try:
-        with printc.collect(prepare_state._prepare_messages.add), contextlib.redirect_stdout(prepare_state._prepare_log_buffer):
-            prepare_state._prepare_check_data = run_simulations.check_settings(
-                run_config_settings_filename=run_config_settings_filename,
-                arch_path=arch_path,
-                sim_path=sim_path,
-                work_path=work_path,
-                overwrite=overwrite_enabled,
-                noask=noask,
-                exit_when_done=exit_when_done_enabled,
-                log_size_limit=log_size_val,
-                nb_jobs=nb_jobs_val,
-                debug=False,
-                keep=False,
-            )
-        prepare_state._prepare_status = {"status": "checked", "error": None}
-    except SystemExit:
-        # check_settings() calls sys.exit(-1) on invalid simulation settings
-        # instead of raising: turn that into a normal error status.
-        prepare_state._prepare_status = {"status": "error", "error": "Invalid simulation settings. See log above for details."}
-    except Exception as exc:
-        prepare_state._prepare_status = {"status": "error", "error": str(exc)}
-
-def _run_prepare_synthesis():
-    try:
-        if not prepare_state._prepare_check_data:
+        if run is None:
             raise RuntimeError("Missing preparation settings")
-        # Per-job export context captured at run time (see the run callback);
-        # it lets prepare_* tag every job so the daemon exports results as jobs
-        # finish (au fil de l'eau).
-        export_ctx = {}
-        if isinstance(prepare_state._prepare_runtime_settings, dict):
-            export_ctx = prepare_state._prepare_runtime_settings.get("export") or {}
-        with printc.collect(prepare_state._prepare_messages.add), contextlib.redirect_stdout(prepare_state._prepare_log_buffer):
-            if prepare_state._prepare_synth_type == "simulation":
-                (
-                    simulation_instances,
-                    prepare_job,
-                    job_list,
-                    exit_when_done,
-                    log_size_limit,
-                    nb_jobs,
-                    _plan,
-                ) = prepare_state._prepare_check_data
-                prepare_state._prepare_parallel_jobs = run_simulations.prepare_simulations(
-                    simulation_instances=simulation_instances,
-                    prepare_job=prepare_job,
-                    job_list=job_list,
-                    exit_when_done=exit_when_done,
-                    log_size_limit=log_size_limit,
-                    nb_jobs=nb_jobs,
-                    export_output_dir=export_ctx.get("output_dir"),
-                    export_work_root=export_ctx.get("work_root"),
-                    export_sim_path=export_ctx.get("sim_path"),
-                )
-            elif prepare_state._prepare_synth_type == "workflow":
-                (
-                    workflow_instances,
-                    prepare_job,
-                    job_list,
-                    exit_when_done,
-                    log_size_limit,
-                    nb_jobs,
-                    _plan,
-                ) = prepare_state._prepare_check_data
-                prepare_state._prepare_parallel_jobs = run_workflow.prepare_workflows(
-                    workflow_instances=workflow_instances,
-                    prepare_job=prepare_job,
-                    job_list=job_list,
-                    exit_when_done=exit_when_done,
-                    log_size_limit=log_size_limit,
-                    nb_jobs=nb_jobs,
-                    export_output_dir=export_ctx.get("output_dir"),
-                    export_work_root=export_ctx.get("work_root"),
-                    export_workflow_path=export_ctx.get("workflow_path"),
-                )
-            else:
-                (
-                    architecture_instances,
-                    prepare_job,
-                    job_list,
-                    tool_settings_file,
-                    arch_handler,
-                    exit_when_done,
-                    log_size_limit,
-                    nb_jobs,
-                    _plan,
-                ) = prepare_state._prepare_check_data
-                if prepare_state._prepare_synth_type == "fmax_synthesis":
-                    prepare_state._prepare_parallel_jobs = run_fmax_synthesis.prepare_synthesis(
-                        architecture_instances=architecture_instances,
-                        prepare_job=prepare_job,
-                        job_list=job_list,
-                        tool_settings_file=tool_settings_file,
-                        arch_handler=arch_handler,
-                        exit_when_done=exit_when_done,
-                        log_size_limit=log_size_limit,
-                        nb_jobs=nb_jobs,
-                        cancel_event=prepare_state._prepare_cancel_event,
-                        export_output_dir=export_ctx.get("output_dir"),
-                        export_tool=export_ctx.get("tool"),
-                        export_flow=export_ctx.get("flow"),
-                        export_work_path=export_ctx.get("work_path"),
-                        use_benchmark=export_ctx.get("use_benchmark", False),
-                        benchmark_file=export_ctx.get("benchmark_file"),
-                    )
-                elif prepare_state._prepare_synth_type == "pnr":
-                    # Explicit rather than left to the fallback below: a place &
-                    # route batch sent to run_range_synthesis would be exported
-                    # as custom frequency synthesis results, writing wrong
-                    # records without ever failing.
-                    prepare_state._prepare_parallel_jobs = run_pnr.prepare_pnr(
-                        architecture_instances=architecture_instances,
-                        prepare_job=prepare_job,
-                        job_list=job_list,
-                        tool_settings_file=tool_settings_file,
-                        arch_handler=arch_handler,
-                        exit_when_done=exit_when_done,
-                        log_size_limit=log_size_limit,
-                        nb_jobs=nb_jobs,
-                        cancel_event=prepare_state._prepare_cancel_event,
-                        export_output_dir=export_ctx.get("output_dir"),
-                        export_tool=export_ctx.get("tool"),
-                        export_flow=export_ctx.get("flow"),
-                        export_work_path=export_ctx.get("work_path"),
-                        use_benchmark=export_ctx.get("use_benchmark", False),
-                        benchmark_file=export_ctx.get("benchmark_file"),
-                    )
-                elif prepare_state._prepare_synth_type == "analyze":
-                    prepare_state._prepare_parallel_jobs = run_analysis.prepare_synthesis(
-                        architecture_instances=architecture_instances,
-                        prepare_job=prepare_job,
-                        job_list=job_list,
-                        tool_settings_file=tool_settings_file,
-                        arch_handler=arch_handler,
-                        exit_when_done=exit_when_done,
-                        log_size_limit=log_size_limit,
-                        nb_jobs=nb_jobs,
-                        cancel_event=prepare_state._prepare_cancel_event,
-                        export_output_dir=export_ctx.get("output_dir"),
-                        analysis_work_root=export_ctx.get("analysis_work_root"),
-                        flows=export_ctx.get("flows"),
-                    )
-                else:
-                    prepare_state._prepare_parallel_jobs = run_range_synthesis.prepare_synthesis(
-                        architecture_instances=architecture_instances,
-                        prepare_job=prepare_job,
-                        job_list=job_list,
-                        tool_settings_file=tool_settings_file,
-                        arch_handler=arch_handler,
-                        exit_when_done=exit_when_done,
-                        log_size_limit=log_size_limit,
-                        nb_jobs=nb_jobs,
-                        cancel_event=prepare_state._prepare_cancel_event,
-                        export_output_dir=export_ctx.get("output_dir"),
-                        export_tool=export_ctx.get("tool"),
-                        export_flow=export_ctx.get("flow"),
-                        export_work_path=export_ctx.get("work_path"),
-                        use_benchmark=export_ctx.get("use_benchmark", False),
-                        benchmark_file=export_ctx.get("benchmark_file"),
-                    )
+        with _collected():
+            prepare_state._prepare_parallel_jobs = run.prepare()
         prepare_state._prepare_status = {"status": "prepared", "error": None}
-    except run_range_synthesis.SynthesisCancelled:
+    except RunCancelled:
         prepare_state._prepare_status = {"status": "canceled", "error": None}
-    except run_fmax_synthesis.SynthesisCancelled:
-        prepare_state._prepare_status = {"status": "canceled", "error": None}
-    except run_analysis.AnalysisCancelled:
-        prepare_state._prepare_status = {"status": "canceled", "error": None}
-    except run_pnr.PnrCancelled:
-        prepare_state._prepare_status = {"status": "canceled", "error": None}
-    except SystemExit:
-        # abort_if_empty_job_list() calls sys.exit(-1) when every selected job
-        # failed while being built (e.g. a missing design_path): turn that into
-        # a normal error status instead of silently launching an empty session.
-        prepare_state._prepare_status = {"status": "error", "error": "None of the selected jobs could be prepared. See log above for details."}
-    except Exception as exc:
-        prepare_state._prepare_status = {"status": "error", "error": str(exc)}
+    except RunError as error:
+        # Jobs that pass the checklist can still fail while their work directory
+        # is written (a missing design_path, for instance). When every one of
+        # them did, there is nothing left to enqueue.
+        prepare_state._prepare_status = {"status": "error", "error": str(error)}
+    except Exception as error:
+        prepare_state._prepare_status = {"status": "error", "error": str(error)}

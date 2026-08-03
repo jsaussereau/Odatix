@@ -46,12 +46,9 @@ MAX_SECTION_ITEMS = 200
 def _prepare_plan():
     """
     The JobPlan built by the check phase, or None while it has not run yet.
-    Every check_settings() returns it as the last element of its result.
     """
-    data = prepare_state._prepare_check_data
-    if not data:
-        return None
-    plan = data[-1]
+    run = prepare_state._prepare_run
+    plan = run.plan if run is not None and run.was_checked else None
     return plan if isinstance(plan, JobPlan) else None
 
 

@@ -101,6 +101,21 @@ def tip(message, script_name="", end="\n"):
     script_name = colors.GREY + "[" + script_name + "]" + colors.ENDC + " "
   print(script_name + colors.MAGENTA + "tip: " + message + colors.ENDC, end=end)
 
+def messages(message_list, script_name=""):
+  """
+  Print what a part of Odatix that does not print by itself has to say.
+
+  The workspace API reports through message objects (level, text and the hints
+  that follow it, see odatix.workspace.selection.Message) rather than printing,
+  so that the graphical interface and scripts can do something else with them.
+  This is how the command line says them out loud.
+  """
+  printers = {"error": error, "warning": warning, "note": note, "tip": tip}
+  for message in message_list or []:
+    printers.get(message.level, note)(message.text, script_name)
+    for hint in message.hints:
+      tip(hint, script_name)
+
 def header(message):
   print(colors.BOLD + colors.CYAN + message + colors.ENDC)
 

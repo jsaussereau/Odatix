@@ -47,6 +47,7 @@ import odatix.components.export_derived_metrics as exp_derived
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.job_steps as job_steps
+import odatix.run.cli as run_cli
 import odatix.lib.pnr_source as pnr_source
 import odatix.lib.printc as printc
 from odatix.lib.parallel_job_handler import ParallelJob
@@ -388,25 +389,19 @@ def run_pnr(
     detach=False,
     daemon_session=None,
 ):
-    (
-        architecture_instances,
-        prepare_job,
-        job_list,
-        tool_settings_file,
-        arch_handler,
-        exit_when_done,
-        log_size_limit,
-        nb_jobs,
-        _plan,
-    ) = check_settings(
-        run_config_settings_filename=run_config_settings_filename,
+    # See run_fmax_synthesis.run_synthesis: every run goes through odatix.run.
+    run_cli.execute(run_cli.command_run(
+        "pnr",
+        cancel_event=cancel_event,
+        settings_file=run_config_settings_filename,
         source_work_root=source_work_root,
+        target_path=target_path,
+        work_path=work_path,
+        result_path=export_output_dir,
         tool=tool,
         flow=flow,
-        until_step=until_step,
-        rerun_from_step=rerun_from_step,
-        work_path=work_path,
-        target_path=target_path,
+        until=until_step,
+        rerun_from=rerun_from_step,
         overwrite=overwrite,
         noask=noask,
         exit_when_done=exit_when_done,
@@ -418,29 +413,12 @@ def run_pnr(
         from_tool=from_tool,
         from_flow=from_flow,
         debug=debug,
-        cancel_event=cancel_event,
-    )
-
-    parallel_jobs = prepare_pnr(
-        architecture_instances=architecture_instances,
-        prepare_job=prepare_job,
-        job_list=job_list,
-        arch_handler=arch_handler,
-        tool_settings_file=tool_settings_file,
-        exit_when_done=exit_when_done,
-        log_size_limit=log_size_limit,
-        nb_jobs=nb_jobs,
-        cancel_event=cancel_event,
-        export_output_dir=export_output_dir,
-        export_tool=tool,
-        export_flow=flow,
-        export_work_path=work_path,
         use_benchmark=use_benchmark,
         benchmark_file=benchmark_file,
         custom_metrics_file=custom_metrics_file,
-    )
-
-    start_parallel_jobs(parallel_jobs, detach=detach, session=daemon_session)
+        detach=detach,
+        session=daemon_session,
+    ))
 
 
 ######################################

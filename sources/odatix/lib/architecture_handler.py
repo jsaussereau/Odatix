@@ -22,12 +22,8 @@
 import os
 import re
 import sys
-import math
 import yaml
 import copy
-import itertools
-
-from natsort import natsorted
 
 from os.path import isfile
 from os.path import isdir
@@ -42,6 +38,11 @@ from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.variables import replace_variables, Variables
 from odatix.lib.param_domain import ParamDomain
 import odatix.lib.virtual_param_domain as virtual_param_domain
+from odatix.run.planner import JobPlanner
+import odatix.workspace.architectures as workspace_architectures
+import odatix.workspace.selection as selection
+from odatix.workspace.errors import InvalidSettingsError
+from odatix.workspace.yaml_io import read_mapping
 
 script_name = os.path.basename(__file__)
 
@@ -245,11 +246,6 @@ class Architecture:
 
 class ArchitectureHandler:
 
-    DAEMON_RESTARTABLE_STATUSES = ("failed", "killed", "canceled", "cancelled")
-    # Statuses of a job a session is done with: re-enqueueing over one of them is
-    # allowed when the flow has steps left to run (see _get_daemon_job_decision).
-    DAEMON_FINISHED_STATUSES = ("success", "done", "finished")
-
     def __init__(
         self,
         work_path,
@@ -303,57 +299,77 @@ class ArchitectureHandler:
         self.forced_custom_freq_list = forced_custom_freq_list
         self.fallback_custom_freq_list = fallback_custom_freq_list
 
-        self.overwrite = overwrite
         self.continue_on_error = continue_on_error
         self.force_single_thread = force_single_thread
-        # Names of the flow steps this run covers, when the flow is split into
-        # steps (see odatix.lib.job_steps). Empty for a one shot flow.
-        self.requested_steps = list(requested_steps) if requested_steps else []
-        # Index of the step "--rerun-from" points at: everything from there on is
-        # re-run even when already recorded.
-        self.rerun_step_index = rerun_step_index
+
+        # What to do with a job directory that already exists is the same
+        # question for every job type, and is answered there.
+        self.planner = JobPlanner(
+            work_path=work_path,
+            work_log_path=work_log_path,
+            status_filename=fmax_status_filename,
+            valid_status=valid_status,
+            overwrite=overwrite,
+            requested_steps=requested_steps,
+            rerun_step_index=rerun_step_index,
+        )
 
         self.reset_lists()
 
         self.odatix_path = os.path.realpath(os.path.join(self.script_path, ".."))
 
+    ######################################
+    # What this run does with a job directory
+    ######################################
+
+    # The decisions themselves live in the planner; these keep the handler
+    # usable as it always was, from the run flows and from the GUI.
+
+    @property
+    def plan(self):
+        return self.planner.plan
+
+    @property
+    def overwrite(self):
+        return self.planner.overwrite
+
+    @overwrite.setter
+    def overwrite(self, value):
+        self.planner.overwrite = value
+
+    @property
+    def requested_steps(self):
+        return self.planner.requested_steps
+
+    @property
+    def rerun_step_index(self):
+        return self.planner.rerun_step_index
+
     def steps_decision(self, tmp_dir):
-        """
-        Cache decision for a flow split into steps, or None when the flow is not
-        stepped (the caller then falls back to the status file).
+        return self.planner.steps_decision(tmp_dir)
 
-        Returns "cached" when the directory already holds every step this run
-        asks for, "resume" when it holds some of them (the run picks up at the
-        first missing one), "new" otherwise.
+    def classify_job(self, tmp_dir, subject, job_noun="synthesis"):
+        return self.planner.classify_job(tmp_dir, subject, job_noun=job_noun)
 
-        This has to take precedence over the status file: a directory left by a
-        run that stopped at an earlier step holds a perfectly valid status file,
-        and must not be mistaken for a complete result.
-        """
-        if not self.requested_steps:
-            return None
+    @staticmethod
+    def _format_daemon_entry(entry):
+        return JobPlanner.format_daemon_entry(entry)
 
-        import odatix.lib.job_steps as job_steps
+    def _get_daemon_job_decision(self, tmp_dir, steps_decision=None):
+        return self.planner.daemon_decision(tmp_dir, steps_decision)
 
-        done = job_steps.resume_index(tmp_dir, self.requested_steps)
-        if self.rerun_step_index is not None:
-            done = min(done, self.rerun_step_index)
-        if done >= len(self.requested_steps):
-            return "cached"
-        return "resume" if done > 0 else "new"
+    def _refresh_daemon_jobs_index(self):
+        self.planner.refresh_daemon_jobs()
 
     def reset_lists(self):
         self.checked_arch_param = []
         self.banned_arch_param = []
-        # Single source of truth for the check outcome: the CLI checklist and
-        # the GUI run popup both read this plan.
-        self.plan = JobPlan()
+        self.planner.reset()
         # Architectures that passed *every* check. Not derivable from the plan:
         # an architecture is categorized (new, overwrite, ...) before the last
         # checks run, and may still be rejected afterwards.
         self.valid_archs = []
         self.deprecation_notice_archs = []
-        self._daemon_jobs_by_tmp_dir = None
 
     # Kept as read-only views so existing callers (and the CLI) keep working.
     @property
@@ -379,161 +395,6 @@ class ArchitectureHandler:
     @property
     def new_archs(self):
         return self.plan.names(Category.NEW)
-
-    @staticmethod
-    def _normalize_tmp_dir(tmp_dir):
-        if tmp_dir is None:
-            return ""
-        try:
-            return os.path.realpath(os.path.expanduser(str(tmp_dir)))
-        except Exception:
-            return str(tmp_dir)
-
-    @staticmethod
-    def _format_daemon_entry(entry):
-        status = str(entry.get("status", "unknown"))
-        session_id = str(entry.get("session_id", "")).strip()
-        if session_id == "":
-            return " {}(session status: {}){}".format(printc.colors.GREY, status, printc.colors.ENDC)
-        return " {}({} in session {}){}".format(printc.colors.GREY, status, session_id, printc.colors.ENDC)
-
-    def _refresh_daemon_jobs_index(self):
-        self._daemon_jobs_by_tmp_dir = {}
-        try:
-            daemon_jobs = list_daemon_jobs(workspace_root=self.work_path)
-        except Exception:
-            daemon_jobs = []
-
-        for job in daemon_jobs:
-            if not isinstance(job, dict):
-                continue
-
-            normalized_tmp_dir = ArchitectureHandler._normalize_tmp_dir(job.get("tmp_dir", ""))
-            if normalized_tmp_dir == "":
-                continue
-
-            status = str(job.get("status", "")).strip().lower()
-            if status == "":
-                status = "unknown"
-
-            self._daemon_jobs_by_tmp_dir.setdefault(normalized_tmp_dir, []).append(
-                {
-                    "status": status,
-                    "session_id": str(job.get("session_id", "")).strip(),
-                }
-            )
-
-    def _get_daemon_job_decision(self, tmp_dir, steps_decision=None):
-        """
-        Whether a job is already handled by a daemon session ("skip"), can be
-        re-enqueued over a failed one ("replace"), or is unknown to every
-        session ("none").
-
-        `steps_decision` is the step-level verdict for the same directory (see
-        steps_decision): a session that ran an earlier step of the flow reports
-        a successful job, which must not stand in the way of running the steps
-        left to do.
-        """
-        if self._daemon_jobs_by_tmp_dir is None:
-            self._refresh_daemon_jobs_index()
-
-        normalized_tmp_dir = ArchitectureHandler._normalize_tmp_dir(tmp_dir)
-        daemon_entries = self._daemon_jobs_by_tmp_dir.get(normalized_tmp_dir, [])
-        if len(daemon_entries) == 0:
-            return "none", None
-
-        # A job still queued or running belongs to its session whatever the
-        # steps say; a finished one does not when steps are left to run.
-        finished_is_restartable = steps_decision in ("resume", "new")
-
-        for entry in daemon_entries:
-            status = entry["status"]
-            if status in ArchitectureHandler.DAEMON_RESTARTABLE_STATUSES:
-                continue
-            if finished_is_restartable and status in ArchitectureHandler.DAEMON_FINISHED_STATUSES:
-                continue
-            return "skip", entry
-
-        return "replace", daemon_entries[0]
-
-    def classify_job(self, tmp_dir, subject, job_noun="synthesis"):
-        """
-        Decide what a run should do with a job directory, printing the notes and
-        warnings the checklist is built from.
-
-        The verdict comes from three sources, in order of precedence: the step
-        state of the directory (see steps_decision), its status file, then the
-        daemon sessions (a job another session already owns is not run again).
-
-        Args:
-            tmp_dir (str): the job directory.
-            subject (str): how to name the job in the messages, already quoted and
-                complete (e.g. '"Counter/8bits" @ 50 MHz with target "gf22"').
-            job_noun (str): what the previous run was, for the "not finished"
-                warning ("synthesis", "place & route", ...).
-
-        Returns:
-            tuple: (state, daemon_entry) where state is one of "cached",
-            "daemon", "overwrite", "incomplete", "resume" or "new". Mapping a
-            state to a plan category is left to the caller, which knows how it
-            names its jobs there.
-        """
-        state = "new"
-
-        status_file = os.path.join(tmp_dir, self.work_log_path, self.fmax_status_filename)
-        steps_decision = self.steps_decision(tmp_dir)
-
-        if steps_decision is not None:
-            if steps_decision == "cached":
-                if self.overwrite:
-                    printc.warning("Every requested step is already done for " + subject + ".", script_name)
-                    state = "overwrite"
-                else:
-                    printc.note("Every requested step is already done for " + subject + ". Skipping.", script_name)
-                    state = "cached"
-            elif steps_decision == "resume" and not self.overwrite:
-                state = "resume"
-        elif isdir(tmp_dir) and isfile(status_file):
-            # Check whether the previous run completed.
-            with open(status_file, "r") as sf:
-                completed = self.valid_status in sf.read()
-            if completed:
-                if self.overwrite:
-                    printc.warning("Found cached results for " + subject + ".", script_name)
-                    state = "overwrite"
-                else:
-                    printc.note("Found cached results for " + subject + ". Skipping.", script_name)
-                    state = "cached"
-            else:
-                printc.warning(
-                    "The previous " + job_noun + " for " + subject
-                    + " has not finished or the directory has been corrupted.",
-                    script_name,
-                )
-                state = "incomplete"
-
-        if state == "cached":
-            return "cached", None
-
-        daemon_decision, daemon_entry = self._get_daemon_job_decision(tmp_dir, steps_decision)
-        if daemon_decision == "skip":
-            daemon_status = str(daemon_entry.get("status", "unknown"))
-            daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
-            printc.note(
-                "Found existing daemon job for " + subject
-                + " (session \"" + daemon_session + "\", status \"" + daemon_status + "\"). Skipping.",
-                script_name,
-            )
-            return "daemon", daemon_entry
-        if daemon_decision == "replace":
-            daemon_status = str(daemon_entry.get("status", "unknown"))
-            printc.warning(
-                "Found previously failed/canceled daemon job for " + subject
-                + " (status \"" + daemon_status + "\"). Re-enqueueing.",
-                script_name,
-            )
-
-        return state, daemon_entry
 
     def get_architectures(self, architectures, targets, constraint_filename="", install_path="", run_mode="default", keep=False, timestamp="", allow_missing_target_file=False):
 
@@ -788,42 +649,29 @@ class ArchitectureHandler:
 
     @staticmethod
     def get_basic(arch, target="", only_one_target=True):
-        arch_full = arch.replace(" ", "")
+        """
+        Read a job selection entry ("counter/08bits+corner/tt").
 
-        parts = [part.strip() for part in arch_full.split('+')]
+        The grammar itself lives in odatix.workspace.selection, which every part
+        of Odatix reading a selection goes through. What is left here is the flat
+        tuple the run flows are written around, and the printing of what reading
+        the entry has to say.
+        """
+        request = selection.parse(arch)
+        for message in request.notes:
+            printc.note(message.text, script_name)
 
-        arch = parts[0]
-        requested_param_domains = parts[1:]
+        return (
+            request.path if request.has_configuration else request.entry,
+            request.entry,
+            request.configuration,
+            request.display_name(target, only_one_target),
+            request.entry,
+            request.work_dirname,
+            request.domains,
+        )
 
-        if arch.endswith(".txt"):
-            arch = arch[:-4] 
-            printc.note("'.txt' after the configuration name is not needed. Just use \"" + arch + "\"", script_name)
 
-        if arch.endswith("/"):
-            arch = arch[:-1] 
-
-        # get param dir (arch name before '/')
-        arch_param_dir = re.sub('/.*', '', arch)
-
-        if len(requested_param_domains) > 0: 
-            arch_param_dir_work = arch_param_dir
-            arch_display_name = arch + " [" + ", ".join(map(str, requested_param_domains)).replace("/", ":") + "]"
-        else:
-            arch_param_dir_work = arch_param_dir
-            arch_display_name = arch_full
-
-        if not only_one_target:
-            arch_display_name = arch_display_name + " (" + target + ")"
-
-        # get configuration (arch name after '/')
-        arch_config = re.sub('.*/', '', arch)
-        if len(requested_param_domains) > 0: 
-            arch_config_dir_work = arch_config + "+" + "+".join(map(str, requested_param_domains)).replace("/", "_")
-        else:
-            arch_config_dir_work = arch_config
-
-        return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains
-    
     def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp="", command_substitutions=None):
         
         arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
@@ -864,83 +712,56 @@ class ArchitectureHandler:
 
         # get settings variables
         settings_filename = os.path.join(self.arch_path, arch_param_dir, self.param_settings_filename)
-        with open(settings_filename, 'r') as f:
-            try:
-                settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-            except Exception as e:
-                printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
-                printc.cyan("error details: ", end="", script_name=script_name)
-                print(str(e))
-                self.banned_arch_param.append(arch_param_dir)
-                self.plan.add(arch_display_name, Category.ERROR)
-                return None # if an identifier is missing
-            try:
-                top_level_filename = read_from_list('top_level_file', settings_data, settings_filename, script_name=script_name)
-                top_level_module   = read_from_list('top_level_module', settings_data, settings_filename, script_name=script_name)
-                clock_signal       = read_from_list('clock_signal', settings_data, settings_filename, script_name=script_name)
-                reset_signal       = read_from_list('reset_signal', settings_data, settings_filename, script_name=script_name)
-            except (KeyNotInListError, BadValueInListError):
-                self.banned_arch_param.append(arch_param_dir)
-                self.plan.add(arch_display_name, Category.ERROR)
-                return None # if an identifier is missing
+        try:
+            settings_data = read_mapping(settings_filename)
+        except InvalidSettingsError as error:
+            printc.error(str(error), script_name)
+            for hint in error.hints:
+                printc.cyan(hint, script_name=script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.plan.add(arch_display_name, Category.ERROR)
+            return None
 
-            file_copy_enable, defined = get_from_dict('file_copy_enable', settings_data, settings_filename, type=bool, silent=True, default_value=False, script_name=script_name)
-            if defined:
-                file_copy_source, source_defined = get_from_dict('file_copy_source', settings_data, settings_filename, behavior=Key.MANTADORY, script_name=script_name)
-                file_copy_dest, dest_defined = get_from_dict('file_copy_dest', settings_data, settings_filename, behavior=Key.MANTADORY, script_name=script_name)
-                if not source_defined or not dest_defined:
-                    self.banned_arch_param.append(arch_param_dir)
-                    self.plan.add(arch_display_name, Category.ERROR)
-                    return None
-            else:
-                file_copy_source = ""
-                file_copy_dest = ""
-            
-            generate_command = ""
-            generate_rtl, defined = get_from_dict('generate_rtl', settings_data, settings_filename, type=bool, silent=True, script_name=script_name)
-            if not defined:
-                generate_rtl = False
+        # What the architecture has to say before a job can be built from it.
+        settings_messages = workspace_architectures.validate(settings_data, settings_filename)
+        if settings_messages:
+            printc.messages(settings_messages, script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.plan.add(arch_display_name, Category.ERROR)
+            return None
 
-            if generate_rtl:
-                local_rtl_path, _ = get_from_dict('generate_output', settings_data, settings_filename, default_value=self.work_rtl_path, script_name=script_name)
-                rtl_path = self.work_rtl_path 
-                generate_command, defined = get_from_dict('generate_command', settings_data, settings_filename, silent=True, script_name=script_name)
-                if defined:
-                    generate_rtl = True
-                else:
-                    printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-                    self.banned_arch_param.append(arch_param_dir)
-                    self.plan.add(arch_display_name, Category.ERROR)
-                    generate_rtl = False
-                    return None
-            else:
-                local_rtl_path = self.work_rtl_path 
-                rtl_path, defined = get_from_dict('rtl_path', settings_data, settings_filename, script_name=script_name)
-                if not defined:
-                    self.banned_arch_param.append(arch_param_dir)
-                    self.plan.add(arch_display_name, Category.ERROR)
-                    return None
+        settings = workspace_architectures.ArchitectureSettings.from_dict(settings_data)
 
-            top_level = os.path.join(rtl_path, top_level_filename)
-            work_top_level = os.path.join(local_rtl_path, top_level_filename)
+        top_level_filename = settings.top_level_file
+        top_level_module = settings.top_level_module
+        clock_signal = settings.clock_signal
+        reset_signal = settings.reset_signal
 
-            use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
-            if use_parameters is None or start_delimiter is None or stop_delimiter is None or param_target_filename is None:
-                return None
+        file_copy_enable = settings.file_copy_enable
+        file_copy_source = settings.file_copy_source if file_copy_enable else ""
+        file_copy_dest = settings.file_copy_dest if file_copy_enable else ""
 
-            design_path, design_path_defined = get_from_dict('design_path', settings_data, settings_filename, silent=True, script_name=script_name)
-            if not defined:
-                design_path = None
-                if generate_rtl:
-                    printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-                    self.banned_arch_param.append(arch_param_dir)
-                    return None
-            
-            design_path_whitelist, _ = get_from_dict("design_path_whitelist", settings_data, settings_filename, type=list, default_value=[], silent=True, script_name=script_name)
-            design_path_blacklist, _ = get_from_dict("design_path_blacklist", settings_data, settings_filename, type=list, default_value=[], silent=True, script_name=script_name)
-            # if param_target_file is None:
-            #   printc.error("Cannot find key \"param_target_file\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-            #   printc.note("\"param_target_file\" is the file in which parameters will be replaced before running the generate command", script_name)
+        generate_rtl = settings.generate_rtl
+        generate_command = settings.generate_command if generate_rtl else ""
+        if generate_rtl:
+            # The generation writes into the work directory, so that is where
+            # the design is read from, wherever the command puts it.
+            local_rtl_path = settings.generate_output or self.work_rtl_path
+            rtl_path = self.work_rtl_path
+        else:
+            local_rtl_path = self.work_rtl_path
+            rtl_path = settings.rtl_path
+
+        top_level = os.path.join(rtl_path, top_level_filename)
+        work_top_level = os.path.join(local_rtl_path, top_level_filename)
+
+        use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
+        if use_parameters is None or start_delimiter is None or stop_delimiter is None or param_target_filename is None:
+            return None
+
+        design_path = settings_data.get("design_path")
+        design_path_whitelist = settings.design_path_whitelist
+        design_path_blacklist = settings.design_path_blacklist
 
         if not generate_rtl:
             # check if rtl path exists
@@ -1288,6 +1109,11 @@ class ArchitectureHandler:
         """
         Retrieves frequency synthesis settings from the YAML configuration.
 
+        Which level of the settings file has the last word is the workspace
+        API's business (odatix.workspace.architectures.resolve_frequencies), so
+        that a script asking an architecture what it runs at gets the same
+        answer as a run. What is left here is the flat tuple the run flows use.
+
         Args:
                 arch_config (str): The architecture configuration.
                 target (str): The target FPGA/ASIC.
@@ -1299,277 +1125,41 @@ class ArchitectureHandler:
         Returns:
                 tuple: (fmax_lower_bound, fmax_upper_bound, custom_freq_list, warn_fmax_obsolete).
         """
+        resolved = workspace_architectures.resolve_frequencies(
+            settings_data,
+            target=target,
+            configuration=arch_config,
+            mode=run_mode,
+            fallback=fallback_custom_freq_list,
+        )
+        printc.messages(resolved.messages, script_name)
 
-        # Defaults
-        fmax_lower_bound = None
-        fmax_upper_bound = None
-        custom_freq_list = []
-        warn_fmax_obsolete = False
-
-        target_fmax_defined = False
-        target_custom_freq_defined = False
-        arch_specific_defined = False
-        arch_fmax_defined = False
-        arch_custom_freq_defined = False
-
-        # Retrieve general settings
-        global_fmax_data, global_fmax_defined =  get_from_dict("fmax_synthesis", settings_data, settings_filename, silent=True)
-        global_custom_freq_data, global_custom_freq_defined = get_from_dict("custom_freq_synthesis", settings_data, settings_filename, silent=True)
-
-        # Retrieve target-specific settings
-        target_specific_data, target_specific_defined = get_from_dict(target, settings_data, settings_filename, silent=True)
-        if target_specific_defined:
-            target_fmax_data, target_fmax_defined =  get_from_dict("fmax_synthesis", target_specific_data, settings_filename, silent=True)
-            target_custom_freq_data, target_custom_freq_defined = get_from_dict("custom_freq_synthesis", target_specific_data, settings_filename, silent=True)
-
-            # Retrieve architecture-specific settings
-            arch_specific_data, arch_specific_defined = get_from_dict(arch_config, target_specific_data, settings_filename, silent=True)
-            if arch_specific_defined:
-                arch_fmax_data, arch_fmax_defined =  get_from_dict("fmax_synthesis", arch_specific_data, settings_filename, silent=True)
-                arch_custom_freq_data, arch_custom_freq_defined = get_from_dict("custom_freq_synthesis", arch_specific_data, settings_filename, silent=True)
-
-        if run_mode == "custom_freq": # Custom frequency synthesis
-
-            # Get lower bound
-            lower_bound_defined = False
-            if arch_custom_freq_defined:
-                range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not lower_bound_defined and target_custom_freq_defined:
-                range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", target_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not lower_bound_defined and global_custom_freq_defined:
-                range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", global_custom_freq_data, settings_filename, default_value=None, silent=True)
-
-            # Get upper bound
-            upper_bound_defined = False
-            if arch_custom_freq_defined:
-                range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not upper_bound_defined and target_custom_freq_defined:
-                range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", target_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not upper_bound_defined and global_custom_freq_defined:
-                range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", global_custom_freq_data, settings_filename, default_value=None, silent=True)
-
-            # Get step
-            step_defined = False
-            if arch_custom_freq_defined:
-                range_step, step_defined = get_from_dict("step", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not step_defined and target_custom_freq_defined:
-                range_step, step_defined = get_from_dict("step", target_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not step_defined and global_custom_freq_defined:
-                range_step, step_defined = get_from_dict("step", global_custom_freq_data, settings_filename, default_value=None, silent=True)
-
-            # Get list
-            list_defined = False
-            list_defined_arch = False
-            list_defined_target = False
-            list_defined_global = False
-            list_append = False
-            if arch_custom_freq_defined:
-                custom_freq_list, list_defined_arch = get_from_dict("list", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
-                if list_defined_arch:
-                    list_append, _ = get_from_dict("list_append", arch_custom_freq_data, settings_filename, default_value=False, silent=True)
-            if target_custom_freq_defined:
-                tmp_list, list_defined_target = get_from_dict("list", target_custom_freq_data, settings_filename, default_value=None, silent=True)
-                if list_defined_target:
-                    if not list_defined_arch:
-                        custom_freq_list = tmp_list
-                    elif list_append:
-                        custom_freq_list = custom_freq_list + tmp_list
-                    list_append, _ = get_from_dict("list_append", target_custom_freq_data, settings_filename, default_value=False, silent=True)
-            if global_custom_freq_defined:
-                tmp_list, list_defined_global = get_from_dict("list", global_custom_freq_data, settings_filename, default_value=None, silent=True)
-                if list_defined_global:
-                    if not list_defined_target:
-                        custom_freq_list = tmp_list
-                    elif list_append:
-                        custom_freq_list = custom_freq_list + tmp_list
-
-            list_defined = list_defined_global or list_defined_target or list_defined_arch
-            if not list_defined:
-                custom_freq_list = []
-
-            if not step_defined or (step_defined and (range_step == 0 or range_step == False)): # Check if range is deactivated
-                range_list = []
-            else:
-                if lower_bound_defined and upper_bound_defined and step_defined:
-                    if ArchitectureHandler.check_bounds(range_lower_bound, range_upper_bound, range_step, synth_type="custom frequency synthesis"):
-                        range_list = ArchitectureHandler.create_list_from_range(range_lower_bound, range_upper_bound, range_step)
-                        custom_freq_list = custom_freq_list + range_list
-
-            # Check if a list is defined
-            if len(custom_freq_list) == 0:
-                # printc.error('Could not find any valid custom frequency definition in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
-                # printc.note('You can define custom synthesis frequencies like this:', script_name)
-                # printc.magenta("custom_freq_synthesis:")
-                # printc.magenta("  lower_bound: XXX")
-                # printc.magenta("  upper_bound: XXX")
-                # printc.magenta("  step: XXX")
-                # printc.cyan("or ")
-                # printc.magenta("custom_freq_synthesis:")
-                # printc.magenta("  step: No")
-                # printc.magenta("  list: [XXX, XXX, XXX]")
-                # printc.cyan("or ")
-                # printc.magenta("custom_freq_synthesis:")
-                # printc.magenta("  lower_bound: XXX")
-                # printc.magenta("  upper_bound: XXX")
-                # printc.magenta("  step: XXX")
-                # printc.magenta("  list: [XXX, XXX, XXX] # append to the list generated by range")
-                if fallback_custom_freq_list is not None and fallback_custom_freq_list != []:
-                    custom_freq_list = list(fallback_custom_freq_list)
-                else:
-                    custom_freq_list = hard_settings.default_custom_freq_list
-
-            return None, None, custom_freq_list, warn_fmax_obsolete
-
-        else: # fmax synthesis
-
-            # Legacy fallback for older odatix version
-            lower_defined = False
-            if target_specific_defined:
-                fmax_lower_bound, lower_defined = get_from_dict("fmax_lower_bound", target_specific_data, settings_filename, silent=True)
-            if not lower_defined and arch_specific_defined:
-                fmax_lower_bound, lower_defined = get_from_dict("fmax_lower_bound", arch_specific_data, settings_filename, silent=True)
-            upper_defined = False
-            if target_specific_defined:
-                fmax_upper_bound, upper_defined = get_from_dict("fmax_upper_bound", target_specific_data, settings_filename, silent=True)
-            if not upper_defined and arch_specific_defined:
-                fmax_upper_bound, upper_defined = get_from_dict("fmax_upper_bound", arch_specific_data, settings_filename, silent=True)
-            
-            # Deprecation warning
-            if lower_defined or upper_defined:
-                warn_fmax_obsolete = True
-
-            # Get lower bound
-            defined = False
-            if arch_fmax_defined:
-                fmax_lower_bound, defined = get_from_dict("lower_bound", arch_fmax_data, settings_filename, default_value=None, silent=True)
-            if not defined and target_fmax_defined:
-                fmax_lower_bound, defined = get_from_dict("lower_bound", target_fmax_data, settings_filename, default_value=None, silent=True)
-            if not defined and global_fmax_defined:
-                fmax_lower_bound, defined = get_from_dict("lower_bound", global_fmax_data, settings_filename, default_value=None, silent=True)
-
-            # Get upper bound
-            defined = False
-            if arch_fmax_defined:
-                fmax_upper_bound, defined = get_from_dict("upper_bound", arch_fmax_data, settings_filename, default_value=None, silent=True)
-            if not defined and target_fmax_defined:
-                fmax_upper_bound, defined = get_from_dict("upper_bound", target_fmax_data, settings_filename, default_value=None, silent=True)
-            if not defined and global_fmax_defined:
-                fmax_upper_bound, defined = get_from_dict("upper_bound", global_fmax_data, settings_filename, default_value=None, silent=True)
-
-            # Check if bounds are defined
-            if fmax_lower_bound is None:
-                fmax_lower_bound = hard_settings.default_fmax_lower_bound
-                # printc.error('Lower bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
-            if fmax_upper_bound is None:
-                fmax_upper_bound = hard_settings.default_fmax_upper_bound
-                # printc.error('Upper bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
-            # if fmax_lower_bound is None or fmax_upper_bound is None:
-            #     printc.note('You can define fmax synthesis frequency bounds like this:', script_name)
-            #     printc.magenta("fmax_synthesis:")
-            #     printc.magenta("  lower_bound: XXX")
-            #     printc.magenta("  upper_bound: XXX")
-            #     return None, None, None, warn_fmax_obsolete
-
-            return fmax_lower_bound, fmax_upper_bound, None, warn_fmax_obsolete
+        if run_mode == "custom_freq":
+            return None, None, resolved.frequencies, resolved.deprecated_bounds
+        return resolved.lower_bound, resolved.upper_bound, None, resolved.deprecated_bounds
 
     @staticmethod
     def configuration_wildcard(full_architectures, arch_path=OdatixSettings.DEFAULT_ARCH_PATH, target=""):
-        architectures = []
-        joker_archs = []
-        for arch_request in full_architectures:
-            arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch_request, target, False)
-            has_wildcard = False
-            added_count = 0
-            if arch.endswith("/*"):
-                has_wildcard = True
-                # get param dir (arch name before '/*')
-                arch_param_dir = re.sub(r'/\*', '', arch)
-                arch_param = os.path.join(arch_path, arch_param_dir)
-                # check if parameter dir exists
-                if os.path.isdir(arch_param):
-                    files = [f[:-4] for f in os.listdir(arch_param) if os.path.isfile(os.path.join(arch_param, f)) and f.endswith(".txt")]
-                    joker_archs = [os.path.join(arch_param_dir, file) for file in sorted(files)]
-                    if len(joker_archs) == 0:
-                        printc.warning(f"Wildcard \"{arch_request}\" did not match any configuration in \"{arch_param}\"", script_name)
-                else:
-                    printc.error(f"The architecture directory \"{arch_param}\" does not exist", script_name)
-            else:
-                joker_archs = [arch]
-                arch_param = arch_param_dir
-                
-            # Parameter domain wildcard
-            joker_param_domain = {}
-            if len(requested_param_domains) > 0:
-                for requested_param_domain in requested_param_domains:
-                    if requested_param_domain.endswith("/*"):
-                        has_wildcard = True
-                        param_domain = re.sub(r'/\*', '', requested_param_domain)
-                        # get parameter domain dir
-                        arch_param = os.path.join(arch_path, arch_param_dir)
-                        if not os.path.isdir(arch_param):
-                            printc.error(f"The architecture directory \"{arch_param}\" does not exist", script_name)
-                            continue
-                        param_domain_dir = os.path.join(arch_param, param_domain)  
-                        # check if parameter domain dir exists
-                        if os.path.isdir(param_domain_dir):
-                            files = [f[:-4] for f in os.listdir(param_domain_dir) if os.path.isfile(os.path.join(param_domain_dir, f)) and f.endswith(".txt")]
-                            joker_param_domain[param_domain] = sorted(files)
-                            if len(joker_param_domain[param_domain]) == 0:
-                                printc.warning(
-                                    f"Wildcard \"{requested_param_domain}\" did not match any configuration in \"{param_domain_dir}\"",
-                                    script_name,
-                                )
-                        else:
-                            printc.error(f"The parameter domain directory \"{param_domain_dir}\" does not exist", script_name)
-                            existing_domains = [d for d in os.listdir(arch_param) if os.path.isdir(os.path.join(arch_param, d))]
-                            if len(existing_domains) == 0:
-                                printc.tip(f"No parameter domains found in \"{arch_param}\"", script_name)
-                            else:
-                                printc.tip(f"Available parameter domains found in \"{arch_param}\": {', '.join(existing_domains)}", script_name)
-                            continue
-                    else:
-                        param_domain = re.sub(r'/.*', '', requested_param_domain)
-                        value = re.sub(r'.*/', '', requested_param_domain)
-                        joker_param_domain[param_domain] = [value]  
-                if len(joker_param_domain) == 0:
-                    return None  
-                # Generate combinations
-                param_keys = list(joker_param_domain.keys())
-                param_values = [joker_param_domain[key] if isinstance(joker_param_domain[key], list) else [joker_param_domain[key]] for key in param_keys]  
-                for arch_instance in joker_archs:
-                    for param_combination in itertools.product(*param_values):
-                        param_string = "+".join(f"{param_keys[i]}/{param_combination[i]}" for i in range(len(param_keys)))
-                        architectures.append(f"{arch_instance}+{param_string}")
-                        added_count += 1
-            else:
-                architectures = architectures + joker_archs
-                added_count += len(joker_archs)
+        """
+        Expand the wildcards of a job selection against what is on disk.
 
-            if has_wildcard and added_count == 0:
-                printc.warning(f"Wildcard \"{arch_request}\" did not match any configuration", script_name)
-        # Remove duplicates
-        architectures = natsorted(list(dict.fromkeys(architectures)))
+        The expansion itself lives in odatix.workspace.selection, and is what
+        the architectures, the workflows and the simulations all go through.
+        Here it only gets said out loud.
+        """
+        messages = []
+        architectures = selection.expand(full_architectures, arch_path, messages=messages)
+        printc.messages(messages, script_name)
         return architectures
 
     def create_list_from_range(lower_bound, upper_bound, step):
         return list(range(lower_bound, upper_bound + 1, step))
 
     def check_bounds(lower_bound, upper_bound, step=0, synth_type="fmax synthesis"):
-        success = True
-        if not isinstance(lower_bound, int):
-            printc.error('Lower bound for {} is "{}" which is a "{}" while it should be an integer'.format(synth_type, lower_bound, type(lower_bound).__name__), script_name)
-            success =  False
-        if not isinstance(upper_bound, int):
-            printc.error('Upper bound for {} is "{}" which is a "{}" while it should be an integer'.format(synth_type, upper_bound, type(upper_bound).__name__), script_name)
-            success =  False
-        if not isinstance(step, int):
-            printc.error('Step for {} is "{}" which is a "{}" while it should be an integer or "No"'.format(synth_type, upper_bound, type(upper_bound).__name__), script_name)
-            success =  False
-        if success:
-            if upper_bound <= lower_bound:
-                printc.error("The upper bound ({}) for {} must be strictly greater than the lower bound ({})".format(synth_type, upper_bound, lower_bound), script_name)
-                success =  False
-        return success
+        """Whether a frequency range can be run, saying what is wrong with it."""
+        messages = workspace_architectures.check_bounds(lower_bound, upper_bound, step, kind=synth_type)
+        printc.messages(messages, script_name)
+        return not messages
 
     def print_summary(self):
         self.plan.print_summary(noun="architectures")

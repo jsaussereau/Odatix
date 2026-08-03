@@ -38,6 +38,7 @@ import odatix.components.export_simulation_results as exp_sim_res
 import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.task_common as task_common
 import odatix.lib.printc as printc
+import odatix.run.cli as run_cli
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.virtual_param_domain as virtual_param_domain
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
@@ -177,11 +178,15 @@ def run_simulations(
     detach=False,
     daemon_session=None,
 ):
-    simulation_instances, prepare_job, job_list, exit_when_done, log_size_limit, nb_jobs, _plan = check_settings(
-        run_config_settings_filename=run_config_settings_filename,
+    # See run_fmax_synthesis.run_synthesis: every run goes through odatix.run.
+    run_cli.execute(run_cli.command_run(
+        "simulation",
+        settings_file=run_config_settings_filename,
         arch_path=arch_path,
         sim_path=sim_path,
         work_path=work_path,
+        result_path=output_dir,
+        output_filename=output_filename,
         overwrite=overwrite,
         noask=noask,
         exit_when_done=exit_when_done,
@@ -189,21 +194,10 @@ def run_simulations(
         nb_jobs=nb_jobs,
         debug=debug,
         keep=keep,
-    )
-    parallel_jobs = prepare_simulations(
-        simulation_instances=simulation_instances,
-        prepare_job=prepare_job,
-        job_list=job_list,
-        exit_when_done=exit_when_done,
-        log_size_limit=log_size_limit,
-        nb_jobs=nb_jobs,
         resume=resume,
-        export_output_dir=output_dir,
-        export_work_root=work_path,
-        export_sim_path=sim_path,
-        export_output_filename=output_filename,
-    )
-    start_parallel_jobs(parallel_jobs, detach=detach, session=daemon_session)
+        detach=detach,
+        session=daemon_session,
+    ))
 
 
 def check_settings(

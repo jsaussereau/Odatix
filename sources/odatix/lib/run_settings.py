@@ -19,196 +19,94 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+"""
+Reading the settings file of a run, for the command line.
+
+What the file holds, and what makes it valid, is the workspace API's business
+(:class:`odatix.workspace.JobConfig`). What is left here is the command line's
+own way of reacting to a file it cannot run from: report it the way every other
+Odatix message is reported, and exit.
+
+A script does not want that. It reads the same files through the API instead::
+
+    from odatix.workspace import Workspace
+
+    settings = Workspace.open().jobs.fmax_synthesis.load()
+    print(settings.nb_jobs, settings.architectures)
+
+which raises :class:`~odatix.workspace.InvalidSettingsError` rather than
+stopping the interpreter.
+"""
+
 import os
-import yaml
+import sys
 
 import odatix.lib.printc as printc
-from odatix.lib.utils import *
+from odatix.workspace.errors import InvalidSettingsError
+from odatix.workspace.jobs import JobSettings, job_config
 
 script_name = os.path.basename(__file__)
 
-DEFAULT_EXIT_WHEN_DONE = False
-DEFAULT_LOG_SIZE_LIMIT = 200
+DEFAULT_EXIT_WHEN_DONE = JobSettings.spec("exit_when_done").default
+DEFAULT_LOG_SIZE_LIMIT = JobSettings.spec("log_size_limit").default
 
-def read_nb_jobs(settings_data, settings_filename):
-  """
-  Read the "nb_jobs" key, accepting either an integer or the "auto" keyword
-  (compute the number of parallel jobs from the available CPUs).
-  """
-  value = read_from_list("nb_jobs", settings_data, settings_filename, script_name=script_name)
-  if is_auto_nb_jobs(value):
-    return value
-  if isinstance(value, bool) or not isinstance(value, int):
-    printc.error(
-      "Value \"" + str(value) + "\" for key \"nb_jobs\" in \"" + settings_filename
-      + "\" must be an integer or \"auto\".", script_name
+
+def read_job_settings(settings_filename, mode):
+    """
+    Read a run settings file, or exit.
+
+    Args:
+        settings_filename (str): the file to read.
+        mode (str): what the run is, one of :data:`odatix.workspace.JOB_MODES`.
+            It says which key holds what the run targets.
+
+    Returns:
+        tuple: (overwrite, ask_continue, exit_when_done, log_size_limit,
+        nb_jobs, selection), the selection being what the file holds under its
+        own key, exactly as written.
+    """
+    config = job_config(settings_filename, mode)
+    try:
+        settings = config.load()
+    except InvalidSettingsError as error:
+        printc.error(str(error), script_name)
+        for hint in error.hints:
+            printc.note(hint, script_name)
+        sys.exit(-1)
+
+    return (
+        settings.overwrite,
+        settings.ask_continue,
+        settings.exit_when_done,
+        settings.log_size_limit,
+        settings.nb_jobs,
+        config.raw_selection,
     )
-    raise BadValueInListError
-  return value
+
 
 def get_synth_settings(settings_filename):
-  # failsafe
-  if settings_filename is None:
-    printc.error("No settings file specified: get_synth_settings(settings_filename) -> settings_filename is None", script_name)
-    sys.exit(-1)
-
-  # get synth settings from yaml file
-  if not os.path.isfile(settings_filename):
-    printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
-    sys.exit(-1)
-
-  with open(settings_filename, 'r') as f:
-    try:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-    except Exception as e:
-      printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
-      print(str(e))
-      sys.exit(-1)
-    try:
-      overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
-      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      nb_jobs         = read_nb_jobs(settings_data, settings_filename)
-      architectures   = read_from_list("architectures", settings_data, settings_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      sys.exit(-1) # if a key is missing
-
-    # Optional keys
-    try:
-      exit_when_done  = read_from_list("exit_when_done", settings_data, settings_filename, optional=True, type=bool, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      exit_when_done = DEFAULT_EXIT_WHEN_DONE
-    try:
-      log_size_limit  = read_from_list("log_size_limit", settings_data, settings_filename, optional=True, type=int, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      log_size_limit = DEFAULT_LOG_SIZE_LIMIT
-      
-  return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, architectures
+    """Read the run settings of a synthesis or an RTL analysis run."""
+    return read_job_settings(settings_filename, "fmax_synthesis")
 
 
 def get_pnr_settings(settings_filename):
-  """
-  Read the run settings of a place & route run.
+    """
+    Read the run settings of a place & route run.
 
-  Same shape as get_synth_settings, except that what a pnr run selects is not
-  architectures but the completed synthesis jobs to start from ("sources"), each
-  written as
-  "<source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]"
-  with "*" accepted at every level (see odatix.lib.pnr_source).
-  """
-  # failsafe
-  if settings_filename is None:
-    printc.error("No settings file specified: get_pnr_settings(settings_filename) -> settings_filename is None", script_name)
-    sys.exit(-1)
-
-  if not os.path.isfile(settings_filename):
-    printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
-    sys.exit(-1)
-
-  with open(settings_filename, 'r') as f:
-    try:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-    except Exception as e:
-      printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
-      print(str(e))
-      sys.exit(-1)
-    try:
-      overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
-      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      nb_jobs         = read_nb_jobs(settings_data, settings_filename)
-      sources         = read_from_list("sources", settings_data, settings_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      sys.exit(-1) # if a key is missing
-
-    # Optional keys
-    try:
-      exit_when_done  = read_from_list("exit_when_done", settings_data, settings_filename, optional=True, type=bool, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      exit_when_done = DEFAULT_EXIT_WHEN_DONE
-    try:
-      log_size_limit  = read_from_list("log_size_limit", settings_data, settings_filename, optional=True, type=int, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      log_size_limit = DEFAULT_LOG_SIZE_LIMIT
-
-  return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, sources
+    Same shape as get_synth_settings, except that what a pnr run selects is not
+    architectures but the completed synthesis jobs to start from ("sources"), each
+    written as
+    "<source_type>/<source_tool>[@<source_flow>]/<target>/<architecture>/<configuration>[@<frequency>MHz]"
+    with "*" accepted at every level (see odatix.lib.pnr_source).
+    """
+    return read_job_settings(settings_filename, "pnr")
 
 
 def get_sim_settings(settings_filename):
-  # failsafe
-  if settings_filename is None:
-    printc.error("No settings file specified: get_sim_settings(settings_filename) -> settings_filename is None", script_name)
-    sys.exit(-1)
-
-  # get sim settings from yaml file
-  if not os.path.isfile(settings_filename):
-    printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
-    sys.exit(-1)
-
-  with open(settings_filename, 'r') as f:
-    try:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-    except Exception as e:
-      printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
-      print(str(e))
-      sys.exit(-1)
-    try:
-      overwrite       = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
-      ask_continue    = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      nb_jobs         = read_nb_jobs(settings_data, settings_filename)
-      simulations     = read_from_list("simulations", settings_data, settings_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      sys.exit(-1) # if a key is missing
-
-    # Optional keys
-    try:
-      exit_when_done  = read_from_list("exit_when_done", settings_data, settings_filename, optional=True, type=bool, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      exit_when_done = DEFAULT_EXIT_WHEN_DONE
-    try:
-      log_size_limit  = read_from_list("log_size_limit", settings_data, settings_filename, optional=True, type=int, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      log_size_limit = DEFAULT_LOG_SIZE_LIMIT
-
-  return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, simulations
+    """Read the run settings of a simulation run."""
+    return read_job_settings(settings_filename, "simulation")
 
 
 def get_workflow_settings(settings_filename):
-  # failsafe
-  if settings_filename is None:
-    printc.error("No settings file specified: get_workflow_settings(settings_filename) -> settings_filename is None", script_name)
-    sys.exit(-1)
-
-  # get workflow settings from yaml file
-  if not os.path.isfile(settings_filename):
-    printc.error("Settings file \"" + settings_filename + "\" does not exist", script_name)
-    sys.exit(-1)
-
-  with open(settings_filename, 'r') as f:
-    try:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-    except Exception as e:
-      printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
-      print(str(e))
-      sys.exit(-1)
-    try:
-      overwrite = read_from_list("overwrite", settings_data, settings_filename, type=bool, script_name=script_name)
-      ask_continue = read_from_list("ask_continue", settings_data, settings_filename, type=bool, script_name=script_name)
-      nb_jobs = read_nb_jobs(settings_data, settings_filename)
-      workflows = read_from_list("workflows", settings_data, settings_filename, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      sys.exit(-1)  # if a key is missing
-
-    # Optional keys
-    try:
-      exit_when_done = read_from_list("exit_when_done", settings_data, settings_filename, optional=True, type=bool, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      exit_when_done = DEFAULT_EXIT_WHEN_DONE
-    try:
-      log_size_limit = read_from_list("log_size_limit", settings_data, settings_filename, optional=True, type=int, script_name=script_name)
-    except (KeyNotInListError, BadValueInListError):
-      log_size_limit = DEFAULT_LOG_SIZE_LIMIT
-
-  return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs, workflows
+    """Read the run settings of a workflow run."""
+    return read_job_settings(settings_filename, "workflow")
