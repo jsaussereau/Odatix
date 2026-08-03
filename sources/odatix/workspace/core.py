@@ -88,13 +88,31 @@ class WorkspacePaths(object):
     def __init__(self, root, settings=None):
         self.root = root or "."
         settings = settings if isinstance(settings, dict) else {}
+        # The paths as the settings file writes them, before they are resolved
+        # against the workspace directory. The ones naming a sub-directory of
+        # the work directory are only meaningful that way (see :meth:`under`).
+        self._raw = {}
         for name, default_attribute in PATH_SETTINGS:
             value = settings.get(name)
             if not isinstance(value, str) or value.strip() == "":
                 value = getattr(OdatixSettings, default_attribute)
+            self._raw[name] = value
             setattr(self, name, self.resolve(value))
         #: Where a target file kept at the old default location is looked up.
         self.target_fallback_path = self.resolve(OdatixSettings.DEFAULT_TARGET_FALLBACK_PATH)
+
+    def under_work_path(self, name):
+        """
+        The work directory of one kind of job ("fmax_synthesis_work_path", ...).
+
+        Those settings name a sub-directory of the work directory, not a path of
+        their own, so they are joined to it rather than resolved against the
+        workspace like every other path.
+        """
+        value = self._raw.get(name, "")
+        if os.path.isabs(value):
+            return value
+        return os.path.join(self.work_path, value)
 
     def resolve(self, path):
         """A workspace path as an absolute-or-relative path usable from anywhere."""

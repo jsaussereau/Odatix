@@ -33,7 +33,9 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.workspace.configs import ConfigGeneration, combinations, count_combinations
 from odatix.workspace.domains import ParameterDomain, ParameterDomainCollection
 from odatix.workspace.entries import Collection, Entry
+from odatix.workspace.selection import Message
 from odatix.workspace.settings import Setting, Settings
+from odatix.workspace.yaml_io import parse_bool
 
 __all__ = [
     "FrequencyBounds",
@@ -41,6 +43,9 @@ __all__ = [
     "ArchitectureSettings",
     "Architecture",
     "ArchitectureCollection",
+    "ResolvedFrequencies",
+    "resolve_frequencies",
+    "check_bounds",
 ]
 
 
@@ -61,11 +66,33 @@ class FrequencyBounds(Settings):
 
 
 class CustomFrequencies(Settings):
-    """The frequencies a custom frequency synthesis runs at, in MHz."""
+    """
+    The frequencies a custom frequency synthesis runs at, in MHz.
+
+    They come as a list, as a range, or as both: a range is expanded and
+    appended to the list. A range whose step is missing, zero or "No" is off,
+    which is how a block keeps a range it does not currently use.
+    """
 
     frequencies = Setting(
         factory=list, type="int_list", key="list", style="flow", skip_if_empty=True,
         doc="Frequencies to synthesize at, in MHz.",
+    )
+    list_append = Setting(
+        False, type="bool", style="yesno", skip_if_empty=True,
+        doc="Whether this list adds to the one of the level above instead of replacing it.",
+    )
+    lower_bound = Setting(
+        None, type="optional_int", skip_if_empty=True, doc="First frequency of the range, in MHz.",
+    )
+    upper_bound = Setting(
+        None, type="optional_int", skip_if_empty=True, doc="Last frequency of the range, in MHz.",
+    )
+    # Taken as it comes: "No" (a boolean) is how a range is switched off, and
+    # telling that from a step of 0 is what the resolution does.
+    step = Setting(
+        None, type="any", skip_if_empty=True,
+        doc="Step between two frequencies of the range, in MHz. \"No\" to use no range.",
     )
 
 
@@ -151,6 +178,275 @@ class ArchitectureSettings(Settings):
         type=ConfigGeneration, when="generate_configurations", skip_if_empty=True,
         doc="Template, name and variables the configurations are generated from.",
     )
+
+    def frequencies(self, target="", configuration="", mode="fmax", fallback=None):
+        """
+        The frequencies a run uses, for one configuration on one target (see
+        :func:`resolve_frequencies`).
+        """
+        return resolve_frequencies(
+            self, target=target, configuration=configuration, mode=mode, fallback=fallback
+        )
+
+
+######################################
+# What a run needs
+######################################
+
+#: What an architecture has to say before a run can build a job from it,
+#: whatever that run does with it.
+REQUIRED_SETTINGS = ("top_level_file", "top_level_module", "clock_signal", "reset_signal")
+
+
+def validate(settings, path=""):
+    """
+    What keeps an architecture from being run, as a list of :class:`Message`
+    (empty when a run can build its jobs).
+
+    This is only about what the settings file says, not about what is on disk:
+    whether the RTL is where it says it is, and whether the top level really
+    holds the module and the signals it names, is checked by the run itself,
+    which is the only one knowing where its work directory is.
+
+    Args:
+        settings: the settings of the architecture, as an
+            :class:`ArchitectureSettings` or a plain mapping.
+        path (str): the settings file, for the messages.
+    """
+    data = settings.to_dict() if isinstance(settings, Settings) else (settings if isinstance(settings, dict) else {})
+    messages = []
+
+    def missing(key, because=""):
+        messages.append(Message("error", 'Cannot find key "{0}" in "{1}"{2}.'.format(key, path, because)))
+
+    for key in REQUIRED_SETTINGS:
+        if not data.get(key):
+            missing(key)
+
+    if parse_bool(data.get("generate_rtl"), False):
+        if not data.get("generate_command"):
+            missing("generate_command", " while generate_rtl=true")
+        # "design_path" is what the generation runs on, and is what a generated
+        # design normally needs, but it is not required here: architectures that
+        # generate their RTL without one have always been allowed to run.
+    elif not data.get("rtl_path"):
+        missing("rtl_path")
+
+    if parse_bool(data.get("file_copy_enable"), False):
+        for key in ("file_copy_source", "file_copy_dest"):
+            if not data.get(key):
+                missing(key, " while file_copy_enable=true")
+
+    return messages
+
+
+######################################
+# Frequency resolution
+######################################
+
+#: How the frequencies of a run are written, from the most general to the most
+#: specific. An architecture settings file can say them for every target and
+#: every configuration, for one target ("<target>:"), or for one configuration
+#: of one target ("<target>:" then "<configuration>:").
+FREQUENCY_LEVELS = ("global", "target", "configuration")
+
+
+class ResolvedFrequencies(object):
+    """
+    The frequencies one configuration of an architecture is run at on one
+    target, once every level of its settings file has had its say.
+
+    Attributes:
+        lower_bound (int): lowest frequency the fmax binary search tries.
+        upper_bound (int): highest frequency it tries.
+        frequencies (list): the frequencies a custom frequency synthesis runs
+            at, the range expanded.
+        deprecated_bounds (bool): the file still spells its bounds the old way
+            ("fmax_lower_bound" instead of a "fmax_synthesis" block).
+        messages (list): what the file has that a user should know about.
+    """
+
+    def __init__(self, lower_bound=None, upper_bound=None, frequencies=None,
+                 deprecated_bounds=False, messages=None):
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.frequencies = list(frequencies) if frequencies else []
+        self.deprecated_bounds = deprecated_bounds
+        self.messages = list(messages) if messages else []
+
+    def __repr__(self):
+        return "<ResolvedFrequencies {0}-{1} MHz, {2} frequencies>".format(
+            self.lower_bound, self.upper_bound, len(self.frequencies)
+        )
+
+
+def check_bounds(lower_bound, upper_bound, step=0, kind="fmax synthesis"):
+    """
+    What is wrong with a frequency range, as a list of :class:`Message` (empty
+    when it can be run).
+    """
+    messages = []
+    for name, value in (("Lower bound", lower_bound), ("Upper bound", upper_bound), ("Step", step)):
+        if isinstance(value, bool) or not isinstance(value, int):
+            messages.append(Message("error", '{0} for {1} is "{2}" which is a "{3}" while it should be an integer{4}'.format(
+                name, kind, value, type(value).__name__, ' or "No"' if name == "Step" else "",
+            )))
+    if messages:
+        return messages
+    if upper_bound <= lower_bound:
+        messages.append(Message("error", "The upper bound ({0}) for {1} must be strictly greater than the lower bound ({2})".format(
+            upper_bound, kind, lower_bound,
+        )))
+    return messages
+
+
+def _block(data, key, messages, where):
+    """One level of a settings file, or None when it says nothing."""
+    if not isinstance(data, dict) or key not in data:
+        return None
+    value = data[key]
+    if not isinstance(value, dict):
+        messages.append(Message("error", 'Key "{0}"{1} does not hold a list of settings.'.format(key, where)))
+        return None
+    return value
+
+
+def _cascade(blocks, key):
+    """
+    Read a key from the most specific level that holds it.
+
+    A level that is there but does not hold the key hands over to the next one,
+    which is what makes a target-wide setting apply to every configuration that
+    does not override it.
+    """
+    value = None
+    for block in blocks:
+        value = block.get(key)
+        if key in block:
+            return value, True
+    return value, False
+
+
+def resolve_frequencies(settings, target="", configuration="", mode="fmax", fallback=None):
+    """
+    The frequencies a run uses for one configuration of an architecture.
+
+    Args:
+        settings: the settings of the architecture, as an
+            :class:`ArchitectureSettings` or a plain mapping.
+        target (str): the synthesis target, which the file can single out.
+        configuration (str): the configuration, which it can single out too,
+            inside a target.
+        mode (str): "fmax" for a binary search, "custom_freq" for a synthesis at
+            given frequencies.
+        fallback (list): frequencies to use when the file names none. The
+            Odatix default when not given.
+
+    Returns:
+        ResolvedFrequencies
+    """
+    data = settings.to_dict() if isinstance(settings, Settings) else (settings if isinstance(settings, dict) else {})
+    messages = []
+
+    target_data = _block(data, target, messages, ' of "{0}"'.format(target)) if target else None
+    configuration_data = (
+        _block(target_data, configuration, messages, ' of "{0}/{1}"'.format(target, configuration))
+        if target_data and configuration else None
+    )
+
+    if mode == "custom_freq":
+        return _resolve_custom_frequencies(data, target_data, configuration_data, fallback, messages)
+    return _resolve_fmax_bounds(data, target_data, configuration_data, messages)
+
+
+def _frequency_blocks(data, target_data, configuration_data, key, messages):
+    """The "fmax_synthesis" (or "custom_freq_synthesis") blocks, most specific first."""
+    blocks = []
+    for level in (configuration_data, target_data, data):
+        block = _block(level, key, messages, "") if level else None
+        if block is not None:
+            blocks.append(block)
+    return blocks
+
+
+def _resolve_fmax_bounds(data, target_data, configuration_data, messages):
+    blocks = _frequency_blocks(data, target_data, configuration_data, "fmax_synthesis", messages)
+
+    # How the bounds were written before "fmax_synthesis" existed. They are
+    # still read, and still reported as deprecated, but a modern block wins.
+    lower_bound = upper_bound = None
+    deprecated = False
+    for key, name in (("fmax_lower_bound", "lower"), ("fmax_upper_bound", "upper")):
+        value, defined = _cascade([level for level in (target_data, configuration_data) if level], key)
+        if defined:
+            deprecated = True
+            if name == "lower":
+                lower_bound = value
+            else:
+                upper_bound = value
+
+    if blocks:
+        lower_bound, _ = _cascade(blocks, "lower_bound")
+        upper_bound, _ = _cascade(blocks, "upper_bound")
+
+    if lower_bound is None:
+        lower_bound = hard_settings.default_fmax_lower_bound
+    if upper_bound is None:
+        upper_bound = hard_settings.default_fmax_upper_bound
+
+    return ResolvedFrequencies(
+        lower_bound=lower_bound, upper_bound=upper_bound, deprecated_bounds=deprecated, messages=messages,
+    )
+
+
+def _resolve_custom_frequencies(data, target_data, configuration_data, fallback, messages):
+    blocks = _frequency_blocks(data, target_data, configuration_data, "custom_freq_synthesis", messages)
+
+    lower_bound, lower_defined = _cascade(blocks, "lower_bound")
+    upper_bound, upper_defined = _cascade(blocks, "upper_bound")
+    step, step_defined = _cascade(blocks, "step")
+
+    frequencies = _resolve_frequency_list(blocks)
+
+    # A step that is missing, zero, or "No" means the block keeps a range it
+    # does not currently use.
+    if step_defined and step not in (0, False) and lower_defined and upper_defined:
+        range_messages = check_bounds(lower_bound, upper_bound, step, kind="custom frequency synthesis")
+        messages.extend(range_messages)
+        if not range_messages:
+            frequencies = frequencies + list(range(lower_bound, upper_bound + 1, step))
+
+    if not frequencies:
+        frequencies = list(fallback) if fallback else list(hard_settings.default_custom_freq_list)
+
+    return ResolvedFrequencies(frequencies=frequencies, messages=messages)
+
+
+def _resolve_frequency_list(blocks):
+    """
+    The frequency list of the most specific level that holds one.
+
+    A level that sets "list_append" keeps the list of the level above it and
+    adds its own to it, which is how a target runs at a few frequencies more
+    than the ones every target runs at. Without it, the most specific list is
+    the whole set and the levels above are not read.
+    """
+    frequencies = None
+    appending = False
+    for block in blocks:  # most specific first
+        if "list" not in block:
+            continue
+        values = list(block.get("list") or [])
+        if frequencies is None:
+            frequencies = values
+        elif appending:
+            frequencies = frequencies + values
+        else:
+            break
+        appending = bool(block.get("list_append", False))
+        if not appending:
+            break
+    return frequencies if frequencies is not None else []
 
 
 ######################################
@@ -252,6 +548,15 @@ class Architecture(Entry):
     def count_combinations(self):
         """How many configuration combinations this architecture amounts to."""
         return count_combinations(self.parameter_domains())
+
+    def frequencies(self, target="", configuration="", mode="fmax", fallback=None):
+        """
+        The frequencies this architecture is run at, for one of its
+        configurations on one target (see :func:`resolve_frequencies`).
+        """
+        return self.settings.frequencies(
+            target=target, configuration=configuration, mode=mode, fallback=fallback
+        )
 
     def generate_configurations(self, overwrite=False, clear=False, domains=None):
         """

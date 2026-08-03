@@ -46,12 +46,27 @@ __all__ = [
     "ConfigurationCollection",
     "ConfigGeneration",
     "variable_definition",
+    "configuration_names",
     "count_combinations",
     "combinations",
     "CONFIG_EXTENSION",
 ]
 
 CONFIG_EXTENSION = ".txt"
+
+
+def configuration_names(path):
+    """
+    The configurations held by a directory, without their extension, in natural
+    order. A directory that does not exist holds none.
+    """
+    if not path or not os.path.isdir(path):
+        return []
+    return natsorted([
+        entry[:-len(CONFIG_EXTENSION)]
+        for entry in os.listdir(path)
+        if entry.endswith(CONFIG_EXTENSION) and os.path.isfile(os.path.join(path, entry))
+    ])
 
 
 ######################################
@@ -160,14 +175,7 @@ class ConfigurationCollection(object):
 
     def names(self):
         """Configuration names, without extension, in natural order."""
-        path = self.path
-        if not path or not os.path.isdir(path):
-            return []
-        return natsorted([
-            entry[:-len(CONFIG_EXTENSION)]
-            for entry in os.listdir(path)
-            if entry.endswith(CONFIG_EXTENSION) and os.path.isfile(os.path.join(path, entry))
-        ])
+        return configuration_names(self.path)
 
     def filenames(self):
         """Configuration file names, extension included."""

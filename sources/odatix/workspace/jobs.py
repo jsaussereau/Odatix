@@ -33,12 +33,13 @@ generated files carry say which flag overrides what.
 """
 
 import odatix.lib.hard_settings as hard_settings
-from odatix.workspace.errors import NotFoundError
+from odatix.workspace.errors import InvalidSettingsError, NotFoundError
 from odatix.workspace.settings import Setting, Settings, load_settings, save_settings
-from odatix.workspace.yaml_io import file_header
+from odatix.workspace.yaml_io import file_header, read_mapping
 
 __all__ = [
     "JOB_MODES",
+    "REQUIRED_KEYS",
     "FrequencyRange",
     "FrequenciesSettings",
     "FmaxBoundsSettings",
@@ -384,6 +385,50 @@ def resolve_mode(mode):
 
 
 ######################################
+# Reading a run settings file
+######################################
+
+#: Tells "the file said nothing" from "the file said nothing was selected".
+_UNSET = object()
+
+#: Keys a run settings file has to spell out, whatever it runs. They say what
+#: happens to results that already exist and how much of the machine the run
+#: takes: Odatix does not guess them, it refuses to start without them.
+REQUIRED_KEYS = ("overwrite", "ask_continue", "nb_jobs")
+
+
+def _require_bool(data, key, path):
+    value = data[key]
+    if not isinstance(value, bool):
+        raise InvalidSettingsError(
+            'Value "{0}" for key "{1}" in "{2}" is of type "{3}" while it should be a boolean.'.format(
+                value, key, path, type(value).__name__
+            ),
+            path=path,
+            key=key,
+        )
+    return value
+
+
+def _require_nb_jobs(data, path):
+    """The number of parallel jobs: an integer, or the "auto" keyword."""
+    from odatix.lib.utils import AUTO_NB_JOBS_KEYWORD, is_auto_nb_jobs
+
+    value = data["nb_jobs"]
+    if is_auto_nb_jobs(value):
+        return value
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise InvalidSettingsError(
+            'Value "{0}" for key "nb_jobs" in "{1}" must be an integer or "{2}".'.format(
+                value, path, AUTO_NB_JOBS_KEYWORD
+            ),
+            path=path,
+            key="nb_jobs",
+        )
+    return value
+
+
+######################################
 # Job configuration files
 ######################################
 
@@ -396,6 +441,7 @@ class JobConfig(object):
         self.workspace = workspace
         self.path = path
         self._settings = None
+        self._raw_selection = _UNSET
         try:
             self.mode = resolve_mode(mode)
         except NotFoundError:
@@ -448,8 +494,67 @@ class JobConfig(object):
     def settings(self, value):
         self._settings = value if isinstance(value, Settings) else self.settings_class.from_dict(value)
 
+    def load(self):
+        """
+        Read this run settings file the way a run needs it, and keep it.
+
+        :attr:`settings` reads a file the way the graphical interface edits it:
+        whatever it leaves out falls back on a default, and a file that does not
+        exist yet is simply an empty configuration. A run cannot work like that,
+        so this checks the file instead: it must exist, hold a mapping, spell
+        out every key of :data:`REQUIRED_KEYS` plus the one saying what to run,
+        and give them values of the right kind.
+
+        Returns:
+            Settings: the settings of this run, also kept as :attr:`settings`.
+
+        Raises:
+            InvalidSettingsError: the file cannot be run from.
+        """
+        data = read_mapping(self.path)
+
+        for key in REQUIRED_KEYS:
+            if key not in data:
+                raise InvalidSettingsError(
+                    'Cannot find key "{0}" in "{1}".'.format(key, self.path), path=self.path, key=key
+                )
+        _require_bool(data, "overwrite", self.path)
+        _require_bool(data, "ask_continue", self.path)
+        _require_nb_jobs(data, self.path)
+
+        if self.selection_key not in data:
+            raise InvalidSettingsError(
+                'Cannot find key "{0}" in "{1}".'.format(self.selection_key, self.path),
+                path=self.path,
+                key=self.selection_key,
+                hints=[
+                    'You must define what this {0} run targets in "{1}" before using this command.'.format(
+                        self.label, self.path
+                    )
+                ],
+            )
+
+        self._settings = self.settings_class.from_dict(data)
+        # What the file literally holds under the selection key. The typed
+        # setting reshapes it (a simulation selection becomes a mapping), which
+        # is not what every run flow expects to be handed.
+        self._raw_selection = data[self.selection_key]
+        return self._settings
+
+    @property
+    def raw_selection(self):
+        """
+        What the file holds under its selection key, exactly as written.
+
+        Reading a selection this way keeps the difference between "no entry"
+        (an empty list) and "the key is there but says nothing" (``None``),
+        which is what the run flows report as an empty run settings file.
+        """
+        return self.selection if self._raw_selection is _UNSET else self._raw_selection
+
     def reload(self):
         self._settings = None
+        self._raw_selection = _UNSET
         return self
 
     def save(self, regenerate=False):

@@ -90,6 +90,7 @@ from odatix.workspace.entries import Collection, Entry
 from odatix.workspace.errors import (
     AlreadyExistsError,
     InvalidNameError,
+    InvalidSettingsError,
     NotAWorkspaceError,
     NotFoundError,
     WorkspaceError,
@@ -107,6 +108,9 @@ from odatix.workspace.jobs import (
     WorkflowJobSettings,
 )
 from odatix.workspace.metrics import MetricsFile
+from odatix.workspace.selection import JobRequest, Message
+from odatix.workspace.selection import expand as expand_selection
+from odatix.workspace.selection import parse as parse_request
 from odatix.workspace.settings import Setting, Settings
 from odatix.workspace.simulations import (
     Simulation,
@@ -147,11 +151,17 @@ __all__ = [
     "AlreadyExistsError",
     "InvalidNameError",
     "NotAWorkspaceError",
+    "InvalidSettingsError",
     # Building blocks
     "Entry",
     "Collection",
     "Setting",
     "Settings",
+    # What a run targets
+    "JobRequest",
+    "Message",
+    "parse_request",
+    "expand_selection",
     # Architectures
     "Architecture",
     "ArchitectureCollection",

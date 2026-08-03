@@ -35,6 +35,7 @@ __all__ = [
     "AlreadyExistsError",
     "InvalidNameError",
     "NotAWorkspaceError",
+    "InvalidSettingsError",
 ]
 
 
@@ -61,3 +62,29 @@ class InvalidNameError(WorkspaceError, ValueError):
 
 class NotAWorkspaceError(WorkspaceError, ValueError):
     """The directory holds no Odatix settings file."""
+
+
+class InvalidSettingsError(WorkspaceError, ValueError):
+    """
+    A settings file cannot be used as it is: it is missing, it is not valid
+    YAML, or it holds a value of the wrong kind.
+
+    This is what reading a file *for a run* raises. Reading one to edit it never
+    does: a file being written is allowed to be incomplete.
+
+    Args:
+        message (str): what is wrong, as told to a user.
+        path (str): the file it is wrong in.
+        key (str): the key it is wrong at, when it is about one key.
+        hints (list): what a user can do about it, one line each.
+    """
+
+    def __init__(self, message, path=None, key=None, hints=None):
+        super(InvalidSettingsError, self).__init__(message)
+        self.message = message
+        self.path = path
+        self.key = key
+        self.hints = list(hints) if hints else []
+
+    def __str__(self):
+        return self.message

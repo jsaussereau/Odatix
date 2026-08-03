@@ -43,6 +43,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 __all__ = [
     "read_yaml",
+    "read_mapping",
     "read_document",
     "write_document",
     "new_document",
@@ -79,6 +80,44 @@ def read_yaml(path, default=None):
         return copy.deepcopy(default)
     if data is None:
         return copy.deepcopy(default)
+    return data
+
+
+def read_mapping(path):
+    """
+    Read a YAML file that has to hold a mapping, reporting what is wrong with it
+    instead of falling back on a default.
+
+    This is how a file is read when something is about to be done with it (a run
+    reading what it must run, for instance): a file that is missing or that
+    holds something else than the expected settings is an error there, while
+    :func:`read_yaml` treats it as "nothing configured yet".
+
+    Raises:
+        InvalidSettingsError: the file does not exist, is not valid YAML, or
+            does not hold a mapping of settings.
+    """
+    from odatix.workspace.errors import InvalidSettingsError
+
+    if not path:
+        raise InvalidSettingsError("No settings file specified.")
+    if not os.path.isfile(path):
+        raise InvalidSettingsError('Settings file "{0}" does not exist.'.format(path), path=path)
+    try:
+        with open(path, "r") as f:
+            data = yaml.safe_load(f)
+    except Exception as error:
+        raise InvalidSettingsError(
+            'Settings file "{0}" is not a valid YAML file.'.format(path),
+            path=path,
+            hints=["error details: " + str(error)],
+        )
+    if data is None:
+        raise InvalidSettingsError('Settings file "{0}" is empty.'.format(path), path=path)
+    if not isinstance(data, dict):
+        raise InvalidSettingsError(
+            'Settings file "{0}" does not hold a list of settings.'.format(path), path=path
+        )
     return data
 
 
