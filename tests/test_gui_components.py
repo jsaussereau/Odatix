@@ -733,55 +733,39 @@ class TestWorkflowCheckSettings:
         # Isolate module-level prepare state between tests
         jobs_config._prepare_log_buffer = jobs_config._ThreadSafeBuffer()
         jobs_config._prepare_status = {"status": "checking", "error": None}
-        jobs_config._prepare_check_data = None
+        jobs_config._prepare_run = None
         return jobs_config
 
-    def test_valid_selection_is_checked(self, jobs_config_module, example_workspace):
-        jobs_config_module._run_check_workflow_settings(
-            "odatix_userconfig/workflow_settings.yml",
-            "odatix_userconfig/workflows",
-            "work/workflows",
-            False,
-            True,
-            False,
-            300,
-            4,
+    def check(self, jobs_config_module, settings_file="odatix_userconfig/workflow_settings.yml"):
+        from odatix.workspace import Workspace
+
+        jobs_config_module.start_check(
+            "workflow",
+            Workspace.open(),
+            settings_file=settings_file,
+            overwrite=False,
+            noask=True,
+            exit_when_done=False,
+            log_size_limit=300,
+            nb_jobs=4,
         )
+        return jobs_config_module._prepare_run
+
+    def test_valid_selection_is_checked(self, jobs_config_module, example_workspace):
+        run = self.check(jobs_config_module)
         assert jobs_config_module._prepare_status == {"status": "checked", "error": None}
-        assert jobs_config_module._prepare_check_data is not None
-        # check_settings() returns a 7-tuple: instances, prepare_job, job_list,
-        # exit_when_done, log_size_limit, nb_jobs, plan
-        assert len(jobs_config_module._prepare_check_data) == 7
-        workflow_instances = jobs_config_module._prepare_check_data[0]
-        assert len(workflow_instances) > 0
+        assert run is not None and run.was_checked
+        assert len(run.jobs) > 0
 
     def test_missing_settings_file_is_reported_as_error(self, jobs_config_module, in_tmp_dir):
-        jobs_config_module._run_check_workflow_settings(
-            "nonexistent_workflow_settings.yml",
-            "workflows",
-            "work/workflows",
-            False,
-            True,
-            False,
-            300,
-            4,
-        )
-        # check_settings() calls sys.exit(-1) on a missing/invalid file; this
-        # must be turned into a normal "error" status, not crash the thread.
+        run = self.check(jobs_config_module, settings_file="nonexistent_workflow_settings.yml")
+        # The run reports a settings file it cannot read instead of stopping the
+        # process; the page turns that into a normal "error" status.
         assert jobs_config_module._prepare_status["status"] == "error"
-        assert jobs_config_module._prepare_check_data is None
+        assert not run.was_checked
 
     def test_prepare_dispatches_to_run_workflow(self, jobs_config_module, example_workspace, monkeypatch):
-        jobs_config_module._run_check_workflow_settings(
-            "odatix_userconfig/workflow_settings.yml",
-            "odatix_userconfig/workflows",
-            "work/workflows",
-            False,
-            True,
-            False,
-            300,
-            4,
-        )
+        self.check(jobs_config_module)
         assert jobs_config_module._prepare_status["status"] == "checked"
 
         called = {}
@@ -790,9 +774,11 @@ class TestWorkflowCheckSettings:
             called.update(kwargs)
             return "fake-parallel-jobs"
 
-        monkeypatch.setattr(jobs_config_module.run_workflow, "prepare_workflows", fake_prepare_workflows)
+        import odatix.components.run_workflow as run_workflow
+
+        monkeypatch.setattr(run_workflow, "prepare_workflows", fake_prepare_workflows)
         jobs_config_module._prepare_synth_type = "workflow"
-        jobs_config_module._run_prepare_synthesis()
+        jobs_config_module.start_prepare()
 
         assert jobs_config_module._prepare_status == {"status": "prepared", "error": None}
         assert jobs_config_module._prepare_parallel_jobs == "fake-parallel-jobs"
@@ -1391,24 +1377,30 @@ class TestStepSelectionReachesTheRun:
 
         jobs_config._prepare_log_buffer = jobs_config._ThreadSafeBuffer()
         jobs_config._prepare_status = {"status": "checking", "error": None}
-        jobs_config._prepare_check_data = None
+        jobs_config._prepare_run = None
         return jobs_config
 
-    def test_custom_freq_passes_the_last_step_to_the_runner(self, jobs_config_module, monkeypatch):
+    def check(self, jobs_config_module, mode, **options):
+        from odatix.workspace import Workspace
+
+        jobs_config_module.start_check(mode, Workspace.open(), **options)
+
+    def test_custom_freq_passes_the_last_step_to_the_runner(self, jobs_config_module, monkeypatch, in_tmp_dir):
+        import odatix.components.run_custom_synthesis as run_custom_synthesis
+
         called = {}
 
-        def fake_check_settings(settings_file, arch_path, tool, flow, until_step, rerun_from_step, *args, **kwargs):
+        def fake_check_settings(**kwargs):
             called.update(
-                tool=tool, flow=flow, until_step=until_step, rerun_from_step=rerun_from_step
+                tool=kwargs["tool"], flow=kwargs["flow"],
+                until_step=kwargs["until_step"], rerun_from_step=kwargs["rerun_from_step"],
             )
-            return ()
+            return (None,) * 9
 
-        monkeypatch.setattr(
-            jobs_config_module.run_range_synthesis, "check_settings", fake_check_settings
-        )
-        jobs_config_module._run_check_custom_freq_settings(
-            "settings.yml", "architectures", "vivado", "staged", "pnr",
-            "work", "targets", False, True, False, 300, 4, False,
+        monkeypatch.setattr(run_custom_synthesis, "check_settings", fake_check_settings)
+        self.check(
+            jobs_config_module, "custom_freq_synthesis",
+            tool="vivado", flow="staged", until="pnr", nb_jobs=4, log_size_limit=300,
         )
         assert called == {
             "tool": "vivado", "flow": "staged", "until_step": "pnr",
@@ -1416,19 +1408,19 @@ class TestStepSelectionReachesTheRun:
             "rerun_from_step": None,
         }
 
-    def test_fmax_passes_the_last_step_to_the_runner(self, jobs_config_module, monkeypatch):
+    def test_fmax_passes_the_last_step_to_the_runner(self, jobs_config_module, monkeypatch, in_tmp_dir):
+        import odatix.components.run_fmax_synthesis as run_fmax_synthesis
+
         called = {}
 
-        def fake_check_settings(settings_file, arch_path, tool, flow, until_step, rerun_from_step, *args, **kwargs):
-            called.update(until_step=until_step, rerun_from_step=rerun_from_step)
-            return ()
+        def fake_check_settings(**kwargs):
+            called.update(until_step=kwargs["until_step"], rerun_from_step=kwargs["rerun_from_step"])
+            return (None,) * 9
 
-        monkeypatch.setattr(
-            jobs_config_module.run_fmax_synthesis, "check_settings", fake_check_settings
-        )
-        jobs_config_module._run_check_fmax_settings(
-            "settings.yml", "architectures", "vivado", "standard", None,
-            "work", "targets", False, True, False, 300, 4, True, False,
+        monkeypatch.setattr(run_fmax_synthesis, "check_settings", fake_check_settings)
+        self.check(
+            jobs_config_module, "fmax_synthesis",
+            tool="vivado", flow="standard", until=None, nb_jobs=4, log_size_limit=300,
         )
         assert called == {"until_step": None, "rerun_from_step": None}
 
