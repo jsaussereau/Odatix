@@ -296,6 +296,59 @@ def architecture_form(settings):
 # Callbacks
 ######################################
 
+def normalize_form_settings(settings):
+    """
+    Keep only what the form can actually express, so that the settings stored at page
+    load can be compared with the ones rebuilt from the form inputs. The settings API
+    fills in every key with its default, while the form only ever produces the keys
+    the user can edit.
+    """
+    fmax = settings.get("fmax_synthesis") or {}
+    custom_freq = settings.get("custom_freq_synthesis") or {}
+    freq_list = custom_freq.get("list")
+    return {
+        **settings,
+        "fmax_synthesis": {
+            key: fmax[key]
+            for key in ("lower_bound", "upper_bound")
+            if fmax.get(key) not in (None, "")
+        },
+        "custom_freq_synthesis": {"list": freq_list} if freq_list else {},
+    }
+
+
+# The sub-settings the form knows about. Anything else in these sections belongs to
+# the file (or to Odatix' defaults) and must survive a save from the GUI.
+form_sub_settings = {
+    "fmax_synthesis": ("lower_bound", "upper_bound"),
+    "custom_freq_synthesis": ("list",),
+}
+
+
+def update_sub_settings(sub_settings, values, owned_keys):
+    """
+    Apply the form values to a sub-settings object, key by key: the keys the form
+    does not own are left untouched, and the ones it owns but did not fill are
+    reset to their default instead of keeping a stale value.
+    """
+    for key in owned_keys:
+        if key in values:
+            sub_settings[key] = values[key]
+        else:
+            del sub_settings[key]
+
+
+def apply_form_settings(architecture, settings_subset):
+    """Write the form values into an architecture without overwriting anything else."""
+    settings = architecture.settings
+    top_level = dict(settings_subset)
+    for key, owned_keys in form_sub_settings.items():
+        values = top_level.pop(key, None) or {}
+        update_sub_settings(settings[key], values, owned_keys)
+    settings.update(top_level)
+    architecture.save()
+
+
 @dash.callback(
     Output("arch-form-container", "children"),
     Output("architecture-initial-settings", "data"),
@@ -331,6 +384,7 @@ def init_form(search, page, odatix_settings):
             "fmax_synthesis": full_settings.get("fmax_synthesis", {}),
             "custom_freq_synthesis": full_settings.get("custom_freq_synthesis", {}),
         }
+        settings = normalize_form_settings(settings)
     else:
         settings = {}
     return architecture_form(settings), settings
@@ -413,12 +467,6 @@ def save_and_status(
         } if custom_freq_list != "" else {},
     }
 
-    if arch_name and arch_name in architectures:
-        current_settings = architectures.entry(arch_name).settings.to_dict()
-        current_settings.update(current_settings_subset)
-    else:
-        current_settings = current_settings_subset
-
     if not arch_title:
         return "color-button error-status icon-button tooltip bottom", "Architecture name cannot be empty", dash.no_update, saved_settings
     
@@ -450,8 +498,8 @@ def save_and_status(
 
         # Save settings
         try:
-            architecture.update(current_settings)
-            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", new_search, current_settings
+            apply_form_settings(architecture, current_settings_subset)
+            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", new_search, current_settings_subset
         except Exception as e:
             return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update
     else:

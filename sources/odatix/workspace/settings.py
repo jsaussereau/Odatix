@@ -525,7 +525,7 @@ def apply(settings, data):
         unchanged = key == spec.key and settings._unchanged(spec, value)
         if unchanged and key in data:
             continue
-        if (not settings.write_all_settings
+        if (not settings.write_all_settings and holds
                 and key not in data and not unchanged and value == spec.make_default()):
             # A default the file never mentioned: saying it explicitly would add
             # noise, and would freeze a value the user may want Odatix to own.
@@ -534,8 +534,13 @@ def apply(settings, data):
             apply(value, data[key])
         else:
             data[key] = spec.dump(value)
+    declared_keys = set()
+    for spec in settings.specs():
+        declared_keys.add(spec.key)
+        if spec.alt_key:
+            declared_keys.add(spec.alt_key)
     for key in settings._file_data:
-        if key not in settings.extra and key not in [spec.key for spec in settings.specs()]:
+        if key not in settings.extra and key not in declared_keys:
             data.pop(key, None)
     for key, value in settings.extra.items():
         if key in data and settings._file_data.get(key) == value:

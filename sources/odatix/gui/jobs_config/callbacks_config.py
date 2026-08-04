@@ -844,7 +844,13 @@ def save_architecture_selections(
                 **read_yaml(settings_path, default={}),
                 **current_settings,
             }
-            write_run_settings(settings_path, payload, run_mode, use_custom_freq_list, use_custom_freq_range)
+            write_run_settings(
+                settings_path,
+                payload,
+                run_mode,
+                _checklist_enabled(use_custom_freq_list),
+                _checklist_enabled(use_custom_freq_range),
+            )
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
