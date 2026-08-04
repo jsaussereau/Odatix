@@ -566,6 +566,10 @@ def prepare_analysis(
   return {
     "work_path": work_path,
     "tool_settings_file": tool_settings_file,
+    # Forwarded from the tool context: needed by the monitor (log formatter)
+    # and by the result export (flow name)
+    "format_settings_file": tool_context["format_settings_file"],
+    "flow": tool_context["flow"],
     "process_group": arch_handler.process_group,
     "arch_handler": arch_handler,
     "architecture_instances": architecture_instances,
