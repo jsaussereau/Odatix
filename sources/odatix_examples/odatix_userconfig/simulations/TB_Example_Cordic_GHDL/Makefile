@@ -34,15 +34,26 @@ TB_DIR  = $(WORK_DIR)/tb
 # Simulation Parameters
 ########################################################
 
-MODULE = counter
+MODULE = cordic
 TB_MODULE = tb_$(MODULE)
 VCD_FILE = $(VCD_DIR)/$(MODULE).vcd
 RESULT_FILE = $(WORK_DIR)/results.yml
-EXECUTABLE = $(MODULE)
-TMP_EXECUTABLE = $(MODULE)
+EXECUTABLE = $(TB_MODULE)
 PROGRESS_FILE = $(LOG_DIR)/progress.log
-CLOCK_SIGNAL =
-TOP_LEVEL_MODULE = $(MODULE)
+SIM_LOGFILE = $(LOG_DIR)/sim.log
+
+########################################################
+# Configuration
+########################################################
+
+# The testbench needs to know the parameters Odatix wrote in the RTL file, so
+# that it can build its reference model. They are read back from the generic
+# clause of the source and forwarded to the elaboration of the testbench.
+TOP_FILE = $(RTL_DIR)/$(MODULE).vhdl
+CFG_WIDTH := $(shell sed -n 's/.*WIDTH *: *integer *:= *\([0-9][0-9]*\).*/\1/p' $(TOP_FILE) | head -1)
+CFG_ITERATIONS := $(shell sed -n 's/.*ITERATIONS *: *integer *:= *\([0-9][0-9]*\).*/\1/p' $(TOP_FILE) | head -1)
+
+GHDL_GENERICS = -gWIDTH=$(CFG_WIDTH) -gITERATIONS=$(CFG_ITERATIONS)
 
 ########################################################
 # Tools Commands
@@ -50,12 +61,11 @@ TOP_LEVEL_MODULE = $(MODULE)
 
 GTKWAVE = gtkwave
 GHDL = ghdl
-GHDL_FLAGS  = --ieee=synopsys --warn-no-vital-generic --workdir=$(OBJ_DIR) 
+GHDL_FLAGS = --ieee=synopsys --warn-no-vital-generic --workdir=$(OBJ_DIR)
 
-# Simulation break condition
-#GHDL_SIM_OPT = --assert-level=error
-STOP_TIME = 500ns
-GHDL_SIM_OPT = --stop-time=$(STOP_TIME)
+# The testbench stops its own clock once it is done, so the simulation ends by
+# itself and needs no stop time.
+GHDL_SIM_OPT =
 
 ########################################################
 # Text formatting
@@ -91,19 +101,21 @@ view: $(VCD_FILE)
 	@$(GTKWAVE) $(VCD_FILE) -a gtkwave_setup.gtkw
 
 $(VCD_FILE): $(RTL_DIR)/* $(TB_DIR)/*
-	@echo "progress: 5%" > $(PROGRESS_FILE)
+	@echo "progress: 1%" > $(PROGRESS_FILE)
 	@printf "\n$(_BOLD)$(_CYAN)"
 	@printf "######################################\n"
 	@printf "              Simulating              \n"
 	@printf "######################################\n"
 	@printf "$(_END)\n"
+	@printf "WIDTH = $(CFG_WIDTH), ITERATIONS = $(CFG_ITERATIONS)\n"
 	@$(GHDL) -a $(GHDL_FLAGS) $(RTL_DIR)/*
-	@echo "progress: 25%" > $(PROGRESS_FILE)
+	@echo "progress: 2%" > $(PROGRESS_FILE)
 	@$(GHDL) -a $(GHDL_FLAGS) $(TB_DIR)/*
-	@echo "progress: 50%" > $(PROGRESS_FILE)
-	@$(GHDL) -e $(GHDL_FLAGS) $(TB_MODULE)
-	@echo "progress: 75%" > $(PROGRESS_FILE)
-	@$(GHDL) -r $(GHDL_FLAGS) $(TB_MODULE) --vcd=$(VCD_FILE) $(GHDL_SIM_OPT) | tee $(LOG_DIR)/sim.log
+	@echo "progress: 3%" > $(PROGRESS_FILE)
+	@$(GHDL) -e $(GHDL_FLAGS) -o $(EXECUTABLE) $(TB_MODULE)
+	@echo "progress: 5%" > $(PROGRESS_FILE)
+	@$(GHDL) -r $(GHDL_FLAGS) $(TB_MODULE) $(GHDL_GENERICS) --vcd=$(VCD_FILE) $(GHDL_SIM_OPT) \
+	| tee $(SIM_LOGFILE)
 	@echo "progress: 100%" > $(PROGRESS_FILE)
 
 .PHONY: clean

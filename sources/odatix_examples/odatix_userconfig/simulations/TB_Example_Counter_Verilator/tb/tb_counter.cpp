@@ -2,6 +2,10 @@
 #include <verilated_vcd_c.h>
 #include <getopt.h>
 #include <iostream>
+#include <fstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "Vcounter.h"
 
@@ -14,23 +18,57 @@ double sc_time_stamp() {
     return main_time;
 }
 
+// Write the testbench results as a flat yaml file, so that Odatix can extract
+// them as metrics (see _metrics.yml of this simulation)
+static void write_yaml_results(const std::string& path, vluint64_t cycles,
+                               const std::vector<std::pair<std::string, bool> >& checks) {
+    std::ofstream yaml(path.c_str());
+    if (!yaml.is_open()) {
+        std::cerr << "Error: Could not open result file '" << path << "'" << std::endl;
+        return;
+    }
+
+    int passed = 0;
+    for (size_t i = 0; i < checks.size(); i++) {
+        if (checks[i].second) {
+            passed++;
+        }
+    }
+
+    yaml << "cycles: " << cycles << std::endl;
+    yaml << "checks_total: " << checks.size() << std::endl;
+    yaml << "checks_passed: " << passed << std::endl;
+    yaml << "checks_failed: " << (int(checks.size()) - passed) << std::endl;
+    yaml << "status: " << (passed == int(checks.size()) ? "OK" : "KO") << std::endl;
+    for (size_t i = 0; i < checks.size(); i++) {
+        yaml << checks[i].first << ": " << (checks[i].second ? "OK" : "KO") << std::endl;
+    }
+
+    yaml.close();
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
 
     std::string vcd_file_path = "./waveform.vcd";
+    std::string result_file_path = "./results.yml";
 
     // Options
     int opt;
     static struct option long_options[] = {
         {"vcd_file", required_argument, 0, 'v'},
+        {"result_file", required_argument, 0, 'r'},
         {0, 0, 0, 0}
     };
 
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "v:", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "v:r:", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'v':
                 vcd_file_path = optarg;
+                break;
+            case 'r':
+                result_file_path = optarg;
                 break;
             default:
                 std::cerr << "Error: Invalid option '" << (char)opt << "'" << std::endl;
@@ -57,9 +95,13 @@ int main(int argc, char** argv) {
     bool increment_ok = true;
     bool decrement_ok = true;
     bool init_ok = true;
+    bool overflow_ok = false;
+    bool overflow_tracking = false;
+    vluint8_t prev_value = 0;
+    bool done = false;
 
     // Simulation loop
-    while (!Verilated::gotFinish() && cycle < 100) {
+    while (!Verilated::gotFinish() && cycle < 400) {
 
         // Toggle clock
         top->clock = !top->clock;
@@ -142,13 +184,26 @@ int main(int argc, char** argv) {
                     std::cout << "Initialization OK" << std::endl;
                 }
                 top->i_init = 0;    // Stop initialization
+                done = true;        // All checks performed, stop simulation
             }
+        }
+
+        if (done) {
+            break;
         }
 
 	    // Run half a period
         main_time++;
         cycle = main_time / 2; // Increment cycle every two main_time increments
     }
+
+    // Export the results
+    std::vector<std::pair<std::string, bool> > checks;
+    checks.push_back(std::make_pair("reset", reset_ok));
+    checks.push_back(std::make_pair("increment", increment_ok));
+    checks.push_back(std::make_pair("decrement", decrement_ok));
+    checks.push_back(std::make_pair("initialization", init_ok));
+    write_yaml_results(result_file_path, cycle + 1, checks);
 
     // Finalize simulation
     top->final();

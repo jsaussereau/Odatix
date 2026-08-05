@@ -2,12 +2,6 @@
 # Settings for this simulation
 ##############################################
 
-# delimiters for parameter files
-use_parameters: Yes
-param_target_file: "tb/tb_counter.vhdl"
-start_delimiter: "generic ("
-stop_delimiter: "  );"
-
 # What to do for this simulation. The "main" task is the entry point
 tasks:
 - name: main
@@ -19,7 +13,7 @@ progress:
   file: "log/progress.log"
   regex: "(.*): ([0-9]+)%(.*)"
 
-# Architectures this testbench is meant to run on. Only an indication: running
-# it on another one works, and only prints a warning.
+# Architectures this testbench runs on. Only an indication: running it on
+# another one works, and only prints a warning.
 architectures:
-- Example_Counter_vhdl
+- Example_Cordic_vhdl

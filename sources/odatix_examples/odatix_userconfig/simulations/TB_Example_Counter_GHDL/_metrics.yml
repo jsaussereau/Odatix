@@ -1,0 +1,65 @@
+##############################################
+# Metrics for this simulation
+##############################################
+# Extracted from "results.yml", written by the testbench itself
+# (see tb/tb_counter.vhdl).
+
+metrics:
+  cycles:
+    type: yaml
+    settings:
+      file: results.yml
+      key: cycles
+    unit: "cycles"
+    format: "%.0f"
+
+  checks_total:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_total
+    format: "%.0f"
+
+  checks_passed:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_passed
+    format: "%.0f"
+
+  checks_failed:
+    type: yaml
+    settings:
+      file: results.yml
+      key: checks_failed
+    format: "%.0f"
+
+  status:
+    type: yaml
+    settings:
+      file: results.yml
+      key: status
+
+  reset:
+    type: yaml
+    settings:
+      file: results.yml
+      key: reset
+
+  increment:
+    type: yaml
+    settings:
+      file: results.yml
+      key: increment
+
+  decrement:
+    type: yaml
+    settings:
+      file: results.yml
+      key: decrement
+
+  initialization:
+    type: yaml
+    settings:
+      file: results.yml
+      key: initialization

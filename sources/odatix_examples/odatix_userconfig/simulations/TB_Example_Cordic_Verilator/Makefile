@@ -36,7 +36,7 @@ ENV_SET = export LC_ALL=C; unset LANGUAGE;
 # Simulation Parameters
 ########################################################
 
-MODULE = counter
+MODULE = cordic
 VCD_FILE = $(VCD_DIR)/$(MODULE).vcd
 RESULT_FILE = $(WORK_DIR)/results.yml
 
@@ -47,21 +47,31 @@ RESULT_FILE = $(WORK_DIR)/results.yml
 VERILATOR_LOGFILE = verilator.log
 SIM_LOGFILE = sim.log
 
-# Compiler les fichiers SystemVerilog
 EXCLUDE_PREFIX = tb_
 RTL_FILES := $(shell find $(RTL_DIR) -name '*.sv' -not -name '$(EXCLUDE_PREFIX)*')
-SV_FILES := $(wildcard $(RTL_DIR)/**/*.sv)
+SV_FILES := $(wildcard $(RTL_DIR)/*.sv) $(wildcard $(RTL_DIR)/**/*.sv)
 
-# Compiler les fichiers C++
 CPP_FILES := $(wildcard $(TB_DIR)/*.cpp)
 
-# Définir les cibles pour les fichiers Verilated
 SIM_FILE = $(OBJ_DIR)/V$(MODULE)
 
 PROGRESS_FILE = $(LOG_DIR)/progress.log
 
+########################################################
+# Configuration
+########################################################
+
+# The testbench needs to know the parameters Odatix wrote in the RTL file, so
+# that it can build its reference model. They are read back from the source and
+# forwarded to the C++ compiler.
+TOP_FILE = $(RTL_DIR)/$(MODULE).sv
+CFG_WIDTH := $(shell sed -n 's/.*parameter *WIDTH *= *\([0-9][0-9]*\).*/\1/p' $(TOP_FILE) | head -1)
+CFG_ITERATIONS := $(shell sed -n 's/.*parameter *ITERATIONS *= *\([0-9][0-9]*\).*/\1/p' $(TOP_FILE) | head -1)
+
+TB_CFLAGS = -O2 -DCFG_WIDTH=$(CFG_WIDTH) -DCFG_ITERATIONS=$(CFG_ITERATIONS)
+
 # Options Verilator
-VERILATOR_FLAGS = -Wall --trace --x-assign unique --x-initial unique
+VERILATOR_FLAGS = -Wall -Wno-DECLFILENAME --trace --x-assign unique --x-initial unique
 
 ########################################################
 # Text formatting
@@ -116,8 +126,8 @@ $(VCD_FILE): $(SIM_FILE)
 	@printf "######################################\n"
 	@printf "$(_END)\n"
 	@$(SIM_FILE) --vcd_file "$(VCD_FILE)" --result_file "$(RESULT_FILE)" \
+	  --progress_file "$(PROGRESS_FILE)" \
 	| tee "$(LOG_DIR)/$(SIM_LOGFILE)" | sed "$(VERILATOR_COLOR)"
-#	+verilator+rand+reset+2 
 	@echo "progress: 100%" > $(PROGRESS_FILE)
 
 $(SIM_FILE): .stamp.verilate
@@ -127,23 +137,24 @@ $(SIM_FILE): .stamp.verilate
 	@printf "######################################\n"
 	@printf "$(_END)"
 	@make -C $(OBJ_DIR) -f V$(MODULE).mk V$(MODULE) MAKEFLAGS=s --no-print-directory
-	@echo "progress: 75%" > $(PROGRESS_FILE)
-
+	@echo "progress: 5%" > $(PROGRESS_FILE)
 
 .PHONY: verilate
 verilate: .stamp.verilate
 
 .stamp.verilate: makedir $(SV_FILES) $(CPP_FILES)
-	@echo "progress: 5%" > $(PROGRESS_FILE)
+	@echo "progress: 1%" > $(PROGRESS_FILE)
 	@printf "\n$(_BOLD)$(_CYAN)"
 	@printf "######################################\n"
 	@printf "              Verilating              \n"
 	@printf "######################################\n"
 	@printf "$(_END)\n"
-	@$(ENV_SET) verilator -Mdir $(OBJ_DIR) --top-module $(MODULE) $(VERILATOR_FLAGS) -cc $(RTL_FILES) --exe $(CPP_FILES) \
+	@printf "WIDTH = $(CFG_WIDTH), ITERATIONS = $(CFG_ITERATIONS)\n"
+	@$(ENV_SET) verilator -Mdir $(OBJ_DIR) --top-module $(MODULE) $(VERILATOR_FLAGS) -cc $(RTL_FILES) \
+	  --exe $(CPP_FILES) -CFLAGS "$(TB_CFLAGS)" \
 	2>&1 | tee "$(LOG_DIR)/$(VERILATOR_LOGFILE)" | sed "$(VERILATOR_COLOR)"
 	@touch .stamp.verilate
-	@echo "progress: 25%" > $(PROGRESS_FILE)
+	@echo "progress: 3%" > $(PROGRESS_FILE)
 
 .PHONY: lint
 lint: $(SV_FILES)
