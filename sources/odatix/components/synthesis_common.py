@@ -333,20 +333,78 @@ def build_job_variables(arch_instance, tool, **extra):
     )
 
 
-def build_job_command(command, steps, variables):
+def group_steps(steps):
+    """
+    Group the steps of a run into the processes that will run them.
+
+    Consecutive steps sharing a session of the tool are run by a single process:
+    the tool is opened once, sources what each of them adds, and exits. A step
+    declaring its whole command, or one whose session differs from its
+    neighbour's, starts a group of its own.
+
+    Returns a list of lists of steps, in order.
+    """
+    groups = []
+    for step in steps:
+        session = step.get("session")
+        if groups and session is not None and groups[-1][0].get("session") == session:
+            groups[-1].append(step)
+        else:
+            groups.append([step])
+    return groups
+
+
+def group_command(group):
+    """
+    The command running a group of steps: the step's own when it runs alone,
+    otherwise one session of the tool sourcing what each step of the group adds.
+    """
+    if len(group) == 1:
+        return group[0]["command"]
+    session = group[0]["session"]
+    command = list(session["command"]) + list(session.get("begin") or [])
+    for step in group:
+        command += list(step["args"])
+    return command + list(session.get("end") or [])
+
+
+def build_job_command(command, steps, variables, start_index=0):
     """
     Resolve what a job runs: a single command, or the ordered pipeline of a flow
     split into steps. Integer stage keys keep the declared order (see
     ParallelJobHandler._build_task_pipeline).
+
+    Only the steps left to do are built: `start_index` is where the job resumes
+    (see odatix.lib.job_steps), so the pipeline holds exactly what this run has
+    to execute, and a session covers exactly those steps.
+
+    Each task names the steps it covers ("steps"), since a task running a whole
+    session stands for several of them.
+
+    On top of the usual variables, a step (or the session running it) can use
+    $first_step, $last_step and $steps, which name the steps the process about to
+    run covers. A session writing its log to "$log_path/$first_step.log" gives
+    one log per run rather than one shared file a resuming run would overwrite.
     """
     def _flatten(value):
         return " ".join(map(str, value)) if isinstance(value, list) else value
 
+    def _replace_step_variables(text, names):
+        for key, value in (("$first_step", names[0]), ("$last_step", names[-1]), ("$steps", "-".join(names))):
+            text = text.replace(key, value)
+        return text
+
     if steps:
-        return {
-            index: [{"name": step["name"], "command": replace_variables(_flatten(step["command"]), variables)}]
-            for index, step in enumerate(steps)
-        }
+        remaining = steps[max(0, int(start_index or 0)):]
+        pipeline = {}
+        for index, group in enumerate(group_steps(remaining)):
+            names = [step["name"] for step in group]
+            pipeline[index] = [{
+                "name": " + ".join(names),
+                "steps": names,
+                "command": _replace_step_variables(replace_variables(_flatten(group_command(group)), variables), names),
+            }]
+        return pipeline
     return replace_variables(_flatten(command), variables)
 
 
@@ -381,8 +439,9 @@ def build_parallel_job(
     )
 
     if steps:
-        # Steps already completed in this directory are skipped, so asking for a
-        # further step resumes instead of redoing everything.
+        # The pipeline holds only what is left to do (see build_job_command);
+        # the full list of steps the run covers and where it resumes are what
+        # the progress of the run is scaled on.
         job.step_names = [step["name"] for step in steps]
         job.resume_step_index = resume_index
         job.step_tracking = {"tmp_dir": os.path.realpath(arch_instance.tmp_dir), "flow": flow}
@@ -516,7 +575,7 @@ def build_prepare_synthesis_job(
         rewrite_tcl_source_paths(arch_instance, check_cancel)
 
         variables = build_job_variables(arch_instance, tool)
-        command = build_job_command(arch_handler.command, steps, variables)
+        command = build_job_command(arch_handler.command, steps, variables, start_index=resume_index)
 
         running_arch = build_parallel_job(
             arch_instance,

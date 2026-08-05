@@ -213,7 +213,7 @@ def build_prepare_pnr_job(
             source_work_path=os.path.realpath(source.job_dir),
             source_tool=str(source.tool),
         )
-        command = build_job_command(arch_handler.command, steps, variables)
+        command = build_job_command(arch_handler.command, steps, variables, start_index=resume_index)
 
         running_job = build_parallel_job(
             arch_instance,

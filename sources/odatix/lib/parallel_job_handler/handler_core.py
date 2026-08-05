@@ -976,6 +976,17 @@ class ParallelJobHandler:
         cmdlines = [ln.lstrip().rstrip() for ln in cmdlines]
         return " && ".join([c[1:] if c.startswith("@") else c for c in cmdlines if c])
 
+    @staticmethod
+    def _task_steps(task):
+        """
+        The steps a task covers. A task running a whole session of the tool
+        covers several of them; any other one stands for itself.
+        """
+        steps = task.get("steps") if isinstance(task, dict) else getattr(task, "steps", None)
+        if isinstance(steps, list) and steps:
+            return [str(name) for name in steps]
+        return [ParallelJobHandler._task_name(task)]
+
     def _build_task_pipeline(self, job):
         pipeline = []
         for _, tasks in sorted(job.command.items(), key=lambda x: self._stage_sort_key(x[0])):
@@ -983,38 +994,51 @@ class ParallelJobHandler:
                 taskname = self._task_name(task)
                 full_command = self._task_full_command(task)
                 if full_command:
-                    pipeline.append((taskname, full_command))
+                    pipeline.append((taskname, full_command, self._task_steps(task)))
         return pipeline
 
     @staticmethod
     def _record_completed_step(job):
         """
-        Record the step a stepped job just completed, so a later run can resume
-        after it instead of redoing it. Jobs that did not opt in (workflows, and
-        flows that are not split into steps) are left alone.
+        Record the steps a stepped job just completed, so a later run can resume
+        after them instead of redoing them. A task running a whole session of the
+        tool completes several steps at once; the tool's own scripts may have
+        recorded them one by one already, which is what makes a session that dies
+        halfway resumable, and recording them again here is harmless. Jobs that
+        did not opt in (workflows, and flows that are not split into steps) are
+        left alone.
         """
         tracking = getattr(job, "step_tracking", None)
-        step_name = getattr(job, "_current_task_name", None)
-        if not isinstance(tracking, dict) or not step_name:
+        step_names = getattr(job, "_current_task_steps", None)
+        if not isinstance(tracking, dict) or not step_names:
             return
         tmp_dir = tracking.get("tmp_dir")
         if not tmp_dir:
             return
-        try:
-            import odatix.lib.job_steps as job_steps
+        for step_name in step_names:
+            try:
+                import odatix.lib.job_steps as job_steps
 
-            job_steps.record_completed_step(tmp_dir, step_name, flow=tracking.get("flow"))
-        except Exception as e:
-            job.log_history.append(
-                printc.colors.YELLOW + "warning: could not record step '" + str(step_name) + "': " + str(e) + printc.colors.ENDC
-            )
+                job_steps.record_completed_step(tmp_dir, step_name, flow=tracking.get("flow"))
+            except Exception as e:
+                job.log_history.append(
+                    printc.colors.YELLOW + "warning: could not record step '" + str(step_name) + "': " + str(e) + printc.colors.ENDC
+                )
 
     @staticmethod
     def _clear_task_pipeline(job):
-        for attr in ("_task_pipeline", "_task_index", "_current_task_name",
+        for attr in ("_task_pipeline", "_task_index", "_current_task_name", "_current_task_steps",
                      "current_step_index", "current_step_started_at"):
             if hasattr(job, attr):
                 delattr(job, attr)
+
+    @staticmethod
+    def _step_position_of(job, step_names, fallback):
+        """Where the steps a task covers start within the run's step list."""
+        all_steps = getattr(job, "step_names", None) or []
+        if step_names and step_names[0] in all_steps:
+            return all_steps.index(step_names[0])
+        return fallback
 
     def _start_next_task(self, job):
         pipeline = getattr(job, "_task_pipeline", None)
@@ -1025,12 +1049,15 @@ class ParallelJobHandler:
         if task_index >= len(pipeline):
             return False
 
-        taskname, full_command = pipeline[task_index]
+        taskname, full_command, step_names = pipeline[task_index]
         job._task_index = task_index + 1
         job._current_task_name = taskname
+        job._current_task_steps = step_names
         # Which step the progress read from the status files belongs to, and
-        # since when they speak for it (see ParallelJob._read_status_file).
-        job.current_step_index = task_index
+        # since when they speak for it (see ParallelJob._read_status_file). A
+        # task can cover several steps, so its position is that of the first one
+        # it runs rather than its own rank in the pipeline.
+        job.current_step_index = self._step_position_of(job, step_names, task_index)
         job.current_step_started_at = time.time()
 
         job.log_history.append(printc.colors.CYAN + "Run job task '" + taskname + "'" + printc.colors.ENDC)
@@ -1112,13 +1139,14 @@ class ParallelJobHandler:
                 self.set_nonblocking(process.stderr)
         elif isinstance(job.command, dict):
             if not hasattr(job, "_task_pipeline"):
+                # The pipeline is what is left to do: the steps already completed
+                # in the job directory were dropped when it was built (see
+                # odatix.components.synthesis_common.build_job_command).
                 job._task_pipeline = self._build_task_pipeline(job)
-                # Resume: the steps already completed in the job directory are
-                # skipped (see odatix.lib.job_steps).
+                job._task_index = 0
                 resume_index = int(getattr(job, "resume_step_index", 0) or 0)
-                job._task_index = max(0, min(resume_index, len(job._task_pipeline)))
-                if job._task_index > 0:
-                    skipped = ", ".join(name for name, _ in job._task_pipeline[: job._task_index])
+                if resume_index > 0:
+                    skipped = ", ".join((getattr(job, "step_names", None) or [])[:resume_index])
                     job.log_history.append(
                         printc.colors.CYAN + "Resuming: already done -> " + skipped + printc.colors.ENDC
                     )

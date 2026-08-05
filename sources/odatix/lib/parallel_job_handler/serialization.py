@@ -68,12 +68,16 @@ def serialize_command(command):
         for stage, tasks in sorted(command.items(), key=lambda item: _stage_sort_key(item[0])):
             stage_tasks = []
             for task in tasks:
-                stage_tasks.append(
-                    {
-                        "name": _task_name(task),
-                        "command": _task_command(task),
-                    }
-                )
+                entry = {
+                    "name": _task_name(task),
+                    "command": _task_command(task),
+                }
+                # A task running a whole session of the tool covers several
+                # steps: the daemon has to know which ones to record them.
+                steps = task.get("steps") if isinstance(task, dict) else getattr(task, "steps", None)
+                if isinstance(steps, list) and steps:
+                    entry["steps"] = [str(name) for name in steps]
+                stage_tasks.append(entry)
             stages.append(
                 {
                     "stage": stage,
@@ -117,12 +121,14 @@ def deserialize_command(payload):
             for task in tasks:
                 if not isinstance(task, dict):
                     raise ValueError("invalid task entry in pipeline command")
-                normalized_tasks.append(
-                    {
-                        "name": str(task.get("name", "task")),
-                        "command": str(task.get("command", "")),
-                    }
-                )
+                normalized = {
+                    "name": str(task.get("name", "task")),
+                    "command": str(task.get("command", "")),
+                }
+                steps = task.get("steps")
+                if isinstance(steps, list) and steps:
+                    normalized["steps"] = [str(name) for name in steps]
+                normalized_tasks.append(normalized)
 
             command[stage_key] = normalized_tasks
         return command

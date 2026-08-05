@@ -74,6 +74,25 @@ Being split into steps is a property of a flow, not a flow of its own: a flow
 declares "<job_type>_steps" (an ordered list of named commands) instead of
 "<job_type>_command", and every flow of the tool can be stepped.
 
+A step either declares the whole "command" it runs — it is then a process of its
+own — or only the "args" it adds to a session of the tool:
+
+    unix:
+      custom_freq_synthesis_session:
+        command: [vivado, -mode tcl, -log $log_path/synthesis.log]
+        end:     [-source $script_path/exit.tcl]
+      custom_freq_synthesis_steps:
+        - name: synthesis
+          args: [-source $script_path/step_synthesis.tcl]
+        - name: pnr
+          args: [-source $script_path/step_pnr.tcl]
+
+The steps of a run that share a session are then run by a *single* process: the
+tool is opened once, sources what each step adds, and exits — instead of being
+opened and closed once per step. What a run covers still starts at the first
+step left to do and stops where it was told to, so a session covers exactly the
+steps of that run.
+
 A flow starts from the default flow's declaration for each job type and changes
 only what it says:
 
@@ -84,8 +103,12 @@ only what it says:
     steps is kept, and steps the default flow does not have are appended. A flow
     changing only how the design is synthesized therefore declares that one
     step and inherits the rest.
-  * declaring neither means running the default flow's command (or steps) for
-    that job type.
+  * declaring "<job_type>_session" merges into the default flow's session **key
+    by key**: a flow changing what every session of a job type does (an extra
+    script to source, another log file) says that much and keeps the steps as
+    they are.
+  * declaring none of them means running the default flow's command (or steps)
+    for that job type.
 
 A flow supports a job type when, after that merge, it has a command or steps for
 it — which, since the default flow's declaration is inherited, is the case for
@@ -402,6 +425,19 @@ JOB_TYPE_STEPS_KEYS = {
   "pnr": "pnr_steps",
 }
 
+# Mapping from a job type to the tool.yml key that declares how to open a
+# session of the tool for it: the command launching the tool, and the arguments
+# framing whatever the steps add to it. Steps declaring "args" rather than a
+# whole "command" are fragments of such a session, which is what lets the steps
+# of a single run share one process (see _resolve_steps).
+JOB_TYPE_SESSION_KEYS = {
+  "fmax_synthesis": "fmax_synthesis_session",
+  "custom_freq_synthesis": "custom_freq_synthesis_session",
+  "analysis": "analysis_session",
+  "analyze": "analysis_session",
+  "pnr": "pnr_session",
+}
+
 
 def platform_key():
   """The tool.yml section holding the commands of the current platform."""
@@ -433,13 +469,25 @@ def _flow_commands(section):
   return {key: value for key, value in section.items() if key in command_keys}
 
 
+def _as_command_list(value):
+  """A command (or command fragment) as a list of words, or None when empty."""
+  if value is None or value == "":
+    return None
+  if isinstance(value, list):
+    parts = [str(item) for item in value if item is not None and str(item) != ""]
+    return parts if parts else None
+  return [str(value)]
+
+
 def _flow_steps(section):
   """
   Extract the {job_type_steps_key: [step, ...]} pairs of a platform section.
 
-  A step is a dict with a "name", a "command" and a "default" flag. Entries that
-  are not a list of named commands are ignored, so a malformed declaration never
-  turns into a silently truncated pipeline.
+  A step is a dict with a "name", a "default" flag, and what it runs: either a
+  whole "command" (the step is a process of its own) or "args" (the step is a
+  fragment of a session, see _flow_sessions). Entries declaring neither are
+  ignored, so a malformed declaration never turns into a silently truncated
+  pipeline.
 
   A step marked "default: true" is where a run stops when it is not told where to
   (see get_default_step): a flow can declare every step it knows how to run and
@@ -458,23 +506,68 @@ def _flow_steps(section):
         continue
       name = entry.get("name")
       command = entry.get("command")
-      if not isinstance(name, str) or name.strip() == "" or command in (None, ""):
+      args = _as_command_list(entry.get("args"))
+      if not isinstance(name, str) or name.strip() == "":
         continue
-      parsed.append({"name": name.strip(), "command": command, "default": bool(entry.get("default", False))})
+      if command in (None, "") and args is None:
+        continue
+      parsed.append({
+        "name": name.strip(),
+        "command": command if command not in (None, "") else None,
+        "args": args,
+        "default": bool(entry.get("default", False)),
+      })
     if parsed:
       steps[key] = parsed
   return steps
 
 
+def _flow_sessions(section):
+  """
+  Extract the {job_type_session_key: session} pairs of a platform section.
+
+  A session declares how to open the tool once for a job type:
+
+      custom_freq_synthesis_session:
+        command: [vivado, -mode tcl, -log $log_path/synthesis.log]
+        begin:   [-source $script_path/setup.tcl]   # optional
+        end:     [-source $script_path/exit.tcl]    # optional
+
+  What the steps of a run add to it goes between "begin" and "end", so the
+  steps of one run share a single process instead of opening and closing the
+  tool once per step.
+
+  Only the keys a section declares are kept, so a flow overriding a session says
+  just what it changes and inherits the rest (see _merge_session). A session left
+  without a "command" once merged is not runnable and is ignored.
+  """
+  if not isinstance(section, dict):
+    return {}
+  sessions = {}
+  for key in set(JOB_TYPE_SESSION_KEYS.values()):
+    declared = section.get(key)
+    if not isinstance(declared, dict):
+      continue
+    session = {}
+    for part in ("command", "begin", "end"):
+      if part in declared:
+        session[part] = _as_command_list(declared.get(part)) or []
+    if session:
+      sessions[key] = session
+  return sessions
+
+
 def _job_type_keys():
-  """The (command key, steps key) pair of every job type, without duplicates."""
-  pairs = []
+  """
+  The (command key, steps key, session key) triple of every job type, without
+  duplicates.
+  """
+  keys = []
   for job_type, command_key in JOB_TYPE_COMMAND_KEYS.items():
-    steps_key = JOB_TYPE_STEPS_KEYS.get(job_type)
-    pair = (command_key, steps_key)
-    if pair not in pairs:
-      pairs.append(pair)
-  return pairs
+    entry = (command_key, JOB_TYPE_STEPS_KEYS.get(job_type), JOB_TYPE_SESSION_KEYS.get(job_type))
+    if entry not in keys:
+      keys.append(entry)
+  return keys
 
 
 def _merge_steps(base, override):
@@ -493,23 +586,46 @@ def _merge_steps(base, override):
   return merged
 
 
-def _inherit_execution(base_commands, base_steps, commands, steps):
+def _merge_session(base, override):
+  """
+  Merge a flow's session into the one it inherits, key by key: a flow changing
+  only where the log goes, or adding a script every session must source, says
+  that much and inherits the rest.
+  """
+  if base is None:
+    return dict(override)
+  merged = dict(base)
+  merged.update(override)
+  return merged
+
+
+def _inherit_execution(base_commands, base_steps, base_sessions, commands, steps, sessions):
   """
   Resolve what a flow runs for each job type, starting from the default flow's
-  declaration (`base_*`) and applying the flow's own (`commands` / `steps`).
+  declaration (`base_*`) and applying the flow's own (`commands` / `steps` /
+  `sessions`).
 
-  A flow that declares neither for a job type runs the default flow's; one that
+  A flow that declares nothing for a job type runs the default flow's; one that
   declares a command runs it in one shot even if the default flow is stepped;
-  one that declares steps merges them into the inherited ones by name.
+  one that declares steps merges them into the inherited ones by name; one that
+  declares a session merges it into the inherited one key by key, which is how a
+  flow changes what every session of a job type does without touching its steps.
   """
   merged_commands = {}
   merged_steps = {}
+  merged_sessions = {}
 
-  for command_key, steps_key in _job_type_keys():
+  for command_key, steps_key, session_key in _job_type_keys():
     if command_key in commands:
       # An explicit one shot command replaces an inherited split into steps.
       merged_commands[command_key] = commands[command_key]
       continue
+
+    if session_key is not None:
+      if session_key in sessions:
+        merged_sessions[session_key] = _merge_session(base_sessions.get(session_key), sessions[session_key])
+      elif session_key in base_sessions:
+        merged_sessions[session_key] = dict(base_sessions[session_key])
 
     if steps_key is not None and steps_key in steps:
       inherited = base_steps.get(steps_key, [])
@@ -521,10 +637,10 @@ def _inherit_execution(base_commands, base_steps, commands, steps):
     if steps_key is not None and steps_key in base_steps:
       merged_steps[steps_key] = list(base_steps[steps_key])
 
-  return merged_commands, merged_steps
+  return merged_commands, merged_steps, merged_sessions
 
 
-def _make_flow(name, label=None, description=None, icon=None, commands=None, steps=None, metrics_file=None, tool_test_command=None, is_default=False):
+def _make_flow(name, label=None, description=None, icon=None, commands=None, steps=None, sessions=None, metrics_file=None, tool_test_command=None, is_default=False):
   return {
     "name": name,
     "label": label if isinstance(label, str) and label.strip() else name,
@@ -532,6 +648,7 @@ def _make_flow(name, label=None, description=None, icon=None, commands=None, ste
     "icon": icon if isinstance(icon, str) and icon.strip() else None,
     "commands": commands if commands else {},
     "steps": steps if steps else {},
+    "sessions": sessions if sessions else {},
     "metrics_file": metrics_file if isinstance(metrics_file, str) and metrics_file.strip() else None,
     # Unlike the job commands, this one is inherited from the tool: only a flow
     # running a different binary needs to override it.
@@ -567,11 +684,13 @@ def list_flows(tool, job_type=None, settings=None):
   base_test_command = base_section.get("tool_test_command")
   base_commands = _flow_commands(base_section)
   base_steps = _flow_steps(base_section)
+  base_sessions = _flow_sessions(base_section)
   if base_commands or base_steps:
     flows[default_name] = _make_flow(
       default_name,
       commands=base_commands,
       steps=base_steps,
+      sessions=base_sessions,
       metrics_file=data.get("default_metrics_file"),
       tool_test_command=base_test_command,
       is_default=True,
@@ -590,6 +709,7 @@ def list_flows(tool, job_type=None, settings=None):
       flow_section = spec.get(section) if isinstance(spec.get(section), dict) else {}
       commands = _flow_commands(flow_section)
       steps = _flow_steps(flow_section)
+      sessions = _flow_sessions(flow_section)
       # A flow running a different binary declares how to check for it;
       # otherwise the tool's own check applies.
       test_command = flow_section.get("tool_test_command", base_test_command)
@@ -599,8 +719,8 @@ def list_flows(tool, job_type=None, settings=None):
         existing["label"] = spec.get("label") if isinstance(spec.get("label"), str) and spec.get("label").strip() else existing["label"]
         existing["description"] = spec.get("description") if isinstance(spec.get("description"), str) else existing["description"]
         existing["icon"] = spec.get("icon") if isinstance(spec.get("icon"), str) and spec.get("icon").strip() else existing["icon"]
-        existing["commands"], existing["steps"] = _inherit_execution(
-          existing["commands"], existing["steps"], commands, steps
+        existing["commands"], existing["steps"], existing["sessions"] = _inherit_execution(
+          existing["commands"], existing["steps"], existing["sessions"], commands, steps, sessions
         )
         if flow_section.get("tool_test_command") is not None:
           existing["tool_test_command"] = flow_section.get("tool_test_command")
@@ -609,7 +729,9 @@ def list_flows(tool, job_type=None, settings=None):
       else:
         # A flow changes what the tool's default flow does: it starts from that
         # declaration and overrides only what it says.
-        flow_commands, flow_steps = _inherit_execution(base_commands, base_steps, commands, steps)
+        flow_commands, flow_steps, flow_sessions = _inherit_execution(
+          base_commands, base_steps, base_sessions, commands, steps, sessions
+        )
         flows[name] = _make_flow(
           name,
           label=spec.get("label"),
@@ -617,6 +739,7 @@ def list_flows(tool, job_type=None, settings=None):
           icon=spec.get("icon"),
           commands=flow_commands,
           steps=flow_steps,
+          sessions=flow_sessions,
           metrics_file=spec.get("metrics_file") or data.get("default_metrics_file"),
           tool_test_command=test_command,
           is_default=(name == default_name),
@@ -687,24 +810,81 @@ def get_flow_command(tool, flow=None, job_type="fmax_synthesis"):
   return resolved["commands"].get(command_key) if command_key is not None else None
 
 
-def get_flow_steps(tool, flow=None, job_type="fmax_synthesis"):
+def resolve_steps(flow, job_type):
   """
-  Ordered steps a tool runs for a job type with a given flow, as a list of
-  {"name", "command"} dicts, or None when the flow runs the job type in one shot
-  (a plain "<job_type>_command").
+  The steps of an already resolved flow for a job type, each one carrying the
+  full command it runs on its own, plus the session it belongs to when it is a
+  fragment of one.
 
-  Steps are run as separate processes, one after the other, and a job can be
-  resumed from the first step that has not completed yet (see
-  odatix.lib.job_steps).
+  A step declaring "args" runs inside the job type's session: its own command is
+  the session's ("command" + "begin" + its args + "end"), and consecutive steps
+  of a run sharing that session are run by a single process (see
+  odatix.components.synthesis_common.build_job_command). A step declaring a
+  whole "command" is a process of its own, whether the job type has a session or
+  not.
+
+  A step declaring "args" for a job type that has no session cannot be built
+  into anything runnable and is dropped.
+
+  Returns None when the flow runs the job type in one shot.
   """
-  resolved = get_flow(tool, flow=flow, job_type=job_type)
-  if resolved is None:
+  if flow is None:
     return None
   steps_key = JOB_TYPE_STEPS_KEYS.get(job_type)
   if steps_key is None:
     return None
-  steps = resolved["steps"].get(steps_key)
-  return list(steps) if steps else None
+  steps = flow["steps"].get(steps_key)
+  if not steps:
+    return None
+
+  session_key = JOB_TYPE_SESSION_KEYS.get(job_type)
+  session = flow.get("sessions", {}).get(session_key) if session_key is not None else None
+  if session is not None and not session.get("command"):
+    # Nothing to open the tool with: not a session anything can run in.
+    session = None
+
+  resolved = []
+  for step in steps:
+    item = dict(step)
+    if item.get("command") is None:
+      if session is None:
+        continue
+      item["session"] = session
+      item["command"] = (
+        list(session["command"]) + list(session.get("begin") or []) + list(item["args"]) + list(session.get("end") or [])
+      )
+    else:
+      # A step declaring its whole command opens a session of its own, even
+      # when the job type declares one.
+      item["session"] = None
+    resolved.append(item)
+
+  return resolved if resolved else None
+
+
+def get_flow_steps(tool, flow=None, job_type="fmax_synthesis"):
+  """
+  Ordered steps a tool runs for a job type with a given flow, as a list of
+  {"name", "command", "args", "session", "default"} dicts, or None when the flow
+  runs the job type in one shot (a plain "<job_type>_command").
+
+  A job can be resumed from the first step that has not completed yet (see
+  odatix.lib.job_steps). Steps sharing a session and run together are run by a
+  single process; the others are run one process each.
+  """
+  return resolve_steps(get_flow(tool, flow=flow, job_type=job_type), job_type)
+
+
+def get_flow_session(tool, flow=None, job_type="fmax_synthesis"):
+  """
+  How a tool opens a session for a job type with a given flow, as a
+  {"command", "begin", "end"} dict, or None when the flow declares none.
+  """
+  resolved = get_flow(tool, flow=flow, job_type=job_type)
+  if resolved is None:
+    return None
+  session_key = JOB_TYPE_SESSION_KEYS.get(job_type)
+  return resolved.get("sessions", {}).get(session_key) if session_key is not None else None
 
 
 def get_flow_step_names(tool, flow=None, job_type="fmax_synthesis"):

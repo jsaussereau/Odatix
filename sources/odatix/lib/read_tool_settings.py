@@ -53,8 +53,10 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
       - tool_test_command (list): The command to check if the tool is installed.
       - default_metrics_file (str): Path to the metrics file of the flow.
       - flow_name (str): The name of the flow that was resolved.
-      - steps (list | None): The ordered steps of the flow ({"name", "command"}),
-        or None when the flow runs the job type in one shot.
+      - steps (list | None): The ordered steps of the flow, resolved
+        ({"name", "command", "args", "session", "default"}, see
+        eda_tools.resolve_steps), or None when the flow runs the job type in one
+        shot.
 
   Raises:
     SystemExit: If the settings file does not exist, is invalid, or if the requested tool,
@@ -142,8 +144,9 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
   # A flow either runs the job type in one shot ("<job_type>_command") or as an
   # ordered list of steps ("<job_type>_steps") that can be run partially and
   # resumed.
-  steps_key = eda_tools.JOB_TYPE_STEPS_KEYS[synth_type]
-  steps = selected_flow["steps"].get(steps_key)
+  # Steps are resolved: a step declaring only the "args" it adds to the job
+  # type's session carries the full command of a session running it alone.
+  steps = eda_tools.resolve_steps(selected_flow, synth_type)
   synthesis_key = eda_tools.JOB_TYPE_COMMAND_KEYS[synth_type]
   synthesis_command = selected_flow["commands"].get(synthesis_key)
   if steps:
