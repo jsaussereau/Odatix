@@ -58,6 +58,7 @@ __all__ = [
     "METRIC_SECTIONS",
     "Step",
     "JobExecution",
+    "Session",
     "Flow",
     "ToolFormat",
     "ToolSettings",
@@ -121,26 +122,75 @@ def _as_marker_list(markers):
 ######################################
 
 class Step(object):
-    """One resumable step of a job type."""
+    """
+    One resumable step of a job type.
 
-    def __init__(self, name, command=None, default=False):
+    A step runs either a whole command of its own, or only the arguments it adds
+    to the job type's session (see :class:`Session`) — in which case the steps of
+    a run share a single process of the tool instead of one process each.
+    """
+
+    def __init__(self, name, command=None, default=False, args=None):
         self.name = str(name).strip()
         self.command = _as_command_list(command)
+        #: What this step adds to the session, when it is a fragment of one.
+        self.args = _as_command_list(args)
         #: Whether a run that is not told where to stop stops after this step.
         self.default = bool(default)
+
+    @property
+    def in_session(self):
+        """Whether this step runs inside the job type's session."""
+        return bool(self.args) and not self.command
 
     @classmethod
     def from_dict(cls, data):
         if isinstance(data, Step):
             return data
         data = data if isinstance(data, dict) else {}
-        return cls(data.get("name", ""), data.get("command"), data.get("default", False))
+        return cls(data.get("name", ""), data.get("command"), data.get("default", False), data.get("args"))
 
     def to_dict(self):
-        return {"name": self.name, "command": list(self.command), "default": self.default}
+        return {
+            "name": self.name,
+            "command": list(self.command),
+            "args": list(self.args),
+            "default": self.default,
+        }
 
     def __repr__(self):
         return "<Step {0!r}>".format(self.name)
+
+
+class Session(object):
+    """
+    How a job type opens the tool: the command launching it, and what frames
+    whatever its steps add to it.
+
+    The steps of one run that are fragments of a session are run by a single
+    process — the tool opens once, runs them, and exits.
+    """
+
+    def __init__(self, command=None, begin=None, end=None):
+        self.command = _as_command_list(command)
+        self.begin = _as_command_list(begin)
+        self.end = _as_command_list(end)
+
+    def declares_nothing(self):
+        return not (self.command or self.begin or self.end)
+
+    @classmethod
+    def from_dict(cls, data):
+        if isinstance(data, Session):
+            return data
+        data = data if isinstance(data, dict) else {}
+        return cls(data.get("command"), data.get("begin"), data.get("end"))
+
+    def to_dict(self):
+        return {"command": list(self.command), "begin": list(self.begin), "end": list(self.end)}
+
+    def __repr__(self):
+        return "<Session {0}>".format(" ".join(self.command) or "empty")
 
 
 class JobExecution(object):
@@ -149,25 +199,29 @@ class JobExecution(object):
 
     Three modes: "inherit" (nothing declared, the tool's default flow applies),
     "command" (a single command) and "steps" (a sequence of resumable steps).
+    Steps declaring only what they add to the tool's session come with that
+    session.
     """
 
-    def __init__(self, mode="inherit", command=None, steps=None):
+    def __init__(self, mode="inherit", command=None, steps=None, session=None):
         self.mode = mode if mode in ("inherit", "command", "steps") else "inherit"
         self.command = _as_command_list(command)
         self.steps = [Step.from_dict(step) for step in (steps or [])]
+        self.session = Session.from_dict(session)
 
     @classmethod
     def from_dict(cls, data):
         if isinstance(data, JobExecution):
             return data
         data = data if isinstance(data, dict) else {}
-        return cls(data.get("mode", "inherit"), data.get("command"), data.get("steps"))
+        return cls(data.get("mode", "inherit"), data.get("command"), data.get("steps"), data.get("session"))
 
     def to_dict(self):
         return {
             "mode": self.mode,
             "command": list(self.command),
             "steps": [step.to_dict() for step in self.steps],
+            "session": self.session.to_dict(),
         }
 
     def __repr__(self):
@@ -220,15 +274,23 @@ class Flow(object):
         self.platforms[platform][job_type] = JobExecution("command", command=command)
         return self
 
-    def set_steps(self, job_type, steps, platform="unix"):
+    def set_steps(self, job_type, steps, platform="unix", session=None):
         """
         Make a job type run a sequence of resumable steps. Each step is a
         ``{"name", "command", "default"}`` mapping or a :class:`Step`.
+
+        Steps declaring ``args`` rather than a ``command`` are fragments of
+        `session` (a ``{"command", "begin", "end"}`` mapping or a
+        :class:`Session`): the steps of a run then share one process of the tool.
         """
         if job_type not in STEPPED_JOB_TYPES:
             raise NotFoundError("Job type '{0}' cannot be split into steps.".format(job_type))
-        self.platforms[platform][job_type] = JobExecution("steps", steps=steps)
+        self.platforms[platform][job_type] = JobExecution("steps", steps=steps, session=session)
         return self
+
+    def session(self, job_type, platform="unix"):
+        """How a job type opens the tool, as a :class:`Session`."""
+        return self.execution(job_type, platform).session
 
     def inherit(self, job_type, platform="unix"):
         """Declare nothing for a job type, so the default flow's commands apply."""
@@ -280,7 +342,7 @@ class Flow(object):
             for execution in jobs.values():
                 if execution.mode == "command" and execution.command:
                     return False
-                if execution.mode == "steps" and execution.steps:
+                if execution.mode == "steps" and (execution.steps or not execution.session.declares_nothing()):
                     return False
         return True
 
@@ -305,8 +367,8 @@ def _read_platform_section(section):
                 name = str(entry.get("name", "") or "").strip()
                 if name == "":
                     continue
-                steps.append(Step(name, entry.get("command"), entry.get("default", False)))
-            jobs[job_type] = JobExecution("steps", steps=steps)
+                steps.append(Step(name, entry.get("command"), entry.get("default", False), entry.get("args")))
+            jobs[job_type] = JobExecution("steps", steps=steps, session=section.get(job_type + "_session"))
         else:
             jobs[job_type] = JobExecution("inherit")
     return jobs
@@ -329,16 +391,27 @@ def _write_platform_section(jobs):
         elif execution.mode == "steps" and job_type in STEPPED_JOB_TYPES:
             steps_seq = CommentedSeq()
             for step in execution.steps:
-                commands = _as_command_list(step.command)
-                if step.name == "" or not commands:
+                if step.name == "" or not (step.command or step.args):
                     continue
                 item = CommentedMap()
                 item["name"] = step.name
-                item["command"] = CommentedSeq(commands)
+                # A step running inside the session declares only what it adds
+                # to it; one running on its own declares its whole command.
+                if step.in_session:
+                    item["args"] = CommentedSeq(_as_command_list(step.args))
+                else:
+                    item["command"] = CommentedSeq(_as_command_list(step.command))
                 # Only the step the flow stops at by default says so.
                 if step.default:
                     item["default"] = True
                 steps_seq.append(item)
+            if not execution.session.declares_nothing():
+                session = CommentedMap()
+                for part in ("command", "begin", "end"):
+                    values = getattr(execution.session, part)
+                    if values:
+                        session[part] = CommentedSeq(list(values))
+                section[job_type + "_session"] = session
             if len(steps_seq) > 0:
                 section[job_type + "_steps"] = steps_seq
     return section
