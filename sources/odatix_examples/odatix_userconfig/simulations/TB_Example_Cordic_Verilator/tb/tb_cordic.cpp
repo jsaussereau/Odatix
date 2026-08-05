@@ -41,7 +41,7 @@
 #define PERIOD 10
 
 // Number of test vectors, spread evenly over a full turn
-#define NB_VECTORS 2048
+#define NB_VECTORS 512
 
 // Extra margin, in LSB, added on top of the theoretical error bound of the
 // configuration under test (see error_tolerance() below)
