@@ -1,0 +1,18 @@
+##############################################
+# Settings for Example_Cordic_vhdl - width
+##############################################
+# Datapath width of the CORDIC, written in the generic clause of
+# examples/cordic_vhdl/cordic.vhdl:
+#
+#   generic (
+#     WIDTH : integer := 16;
+#     ...
+
+# Delimiters for parameter files
+use_parameters: Yes
+param_target_file: ''
+start_delimiter: 'WIDTH : integer := '
+stop_delimiter: ';'
+
+# Configuration generation
+generate_configurations: No

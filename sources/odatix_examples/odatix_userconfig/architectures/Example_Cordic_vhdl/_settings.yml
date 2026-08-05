@@ -1,0 +1,30 @@
+##############################################
+# Settings for Example_Cordic_vhdl
+##############################################
+# Pipelined CORDIC rotation core, VHDL version.
+# The configurations sweep the datapath width and the number of rotation
+# stages, which trades accuracy for area and latency.
+#
+# Each generic has its own parameter domain (see the "width" and "iterations"
+# directories), so the two are swept independently.
+
+# Source files
+rtl_path: "examples/cordic_vhdl"
+top_level_file: "cordic.vhdl"
+top_level_module: "cordic"
+
+# Signals
+clock_signal: "clock"
+reset_signal: "reset"
+
+# The parameters are handled by the domains, not by the main configuration
+use_parameters: No
+start_delimiter: ""
+stop_delimiter: ""
+
+# Default frequencies (in MHz)
+fmax_synthesis:
+  lower_bound: 50
+  upper_bound: 800
+custom_freq_synthesis:
+  list: [50, 100, 200]
