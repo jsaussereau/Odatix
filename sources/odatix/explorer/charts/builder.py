@@ -409,6 +409,13 @@ def _apply_axis_scale(axis, log_on, zero_on):
   """
   if log_on:
     axis["type"] = "log"
+    axis["dtick"] = 1
+    axis["minor"] = dict(
+      showgrid=axis.get("showgrid", True),
+      gridcolor=axis.get("gridcolor"),
+      griddash="dot",
+      ticks="",
+    )
   elif zero_on:
     axis["rangemode"] = "tozero"
   return axis
