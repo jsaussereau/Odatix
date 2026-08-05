@@ -312,10 +312,12 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.55;
     display: flex;
     align-items: center;
     gap: 2px;
+}
+.odx-panel-caption > span {
+    opacity: 0.65;
 }
 .odx-panel.padded > .odx-panel-caption {
     margin-bottom: var(--space-3);
@@ -620,7 +622,7 @@
     box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
     box-sizing: border-box;
     min-width: 0;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    /* transition: border-color 0.18s ease, box-shadow 0.18s ease; */
 }
 .odx-card:hover {
     box-shadow: var(--theme-shadow-color) 0px 6px 16px -6px;
@@ -682,37 +684,15 @@
     font-weight: normal;
     resize: vertical;
 }
-/* "Add ..." card: dashed placeholder that matches the card grid. */
-.odx-add-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-1);
-    min-height: 120px;
-    padding: var(--space-4);
-    border: 1px dashed rgba(128, 128, 128, 0.45);
-    border-radius: var(--theme-normal-border-radius);
-    background: transparent;
-    color: var(--theme-text-color);
-    cursor: pointer;
-    box-sizing: border-box;
-    transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+
+.odx-add-card-plus{
+	font-size: 1.75em;
+	transform: translateY(-1px);
 }
-.odx-add-card:hover {
-    border-color: var(--theme-primary-color);
-    color: var(--theme-primary-color);
-    background: var(--theme-badge-background-color);
-}
-.odx-add-card-plus {
-    font-size: 26px;
-    line-height: 1;
-    font-weight: 300;
-}
+
 .odx-add-card-text {
-    font-size: 13px;
     font-weight: 600;
-}
+} 
 
 /* --- Status text ------------------------------------------------------- */
 .odx-status {
@@ -1001,11 +981,12 @@
     flex: 0 1 auto;
     min-width: 120px;
 }
+.tile.config .odx-field-row > .odx-field,
 .odx-flow-card .odx-field-row > .odx-field {
     flex: 1;
 }
 .odx-flow-add {
-    min-height: 84px;
+    height: 60px !important;
 }
 
 /* One job type of one platform: what it runs, and how. */
@@ -1044,6 +1025,22 @@
     resize: vertical;
 }
 
+/* How a job type opens the tool: one session for all the steps of a run,
+   rather than one process per step. Set apart from the steps it frames. */
+.odx-job-session {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--space-2);
+    border-radius: var(--theme-normal-border-radius);
+    border: 1px dashed rgba(128, 128, 128, 0.35);
+}
+.odx-job-session-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 /* A job type split into ordered, resumable steps. */
 .odx-jobsteps {
     display: flex;
@@ -1070,7 +1067,7 @@
 .odx-jobstep-add {
     align-self: flex-start;
     padding: 3px 12px;
-    border: 1px dashed rgba(128, 128, 128, 0.45);
+    border: var(--add-card-border);
     border-radius: 999px;
     background: transparent;
     color: var(--theme-text-color);
@@ -1079,8 +1076,14 @@
     font-weight: 600;
     cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
+	width: 100%;
+	height: 40px;
+	margin-top: 5px;
+	margin-bottom: 5px;
 }
 .odx-jobstep-add:hover {
+    background: var(--add-card-background-hover);
+    border: var(--add-card-border);
     border-color: var(--theme-primary-color);
     color: var(--theme-primary-color);
 }
@@ -1130,6 +1133,98 @@
 .odx-flow-card.locked textarea:disabled {
     opacity: 0.75;
     cursor: default;
+}
+
+/* --- Architectures of a simulation (/sim_editor) ------------------------ */
+/* One card per architecture the testbench is written for, each holding what the
+   simulation changes for it. Stacked and one tile wide, like the task cards of
+   the section below: the list reads top to bottom, in the same column as the
+   tiles of the sections around it. */
+.odx-arch-cards {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin: 0 auto var(--space-6);
+    width: 100%;
+    max-width: calc(2 * var(--tile-width) + var(--tile-gap));
+}
+.odx-arch-cards > * {
+    width: var(--tile-width);
+    max-width: 100%;
+}
+.odx-arch-card {
+    padding: var(--space-4);
+}
+/* Half a column is not much: the head wraps rather than squeezing the name. */
+.odx-arch-head {
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
+}
+/* Folded down to its head: no room left for a body that is not there. */
+.odx-arch-card.collapsed .odx-arch-head {
+    margin-bottom: 0;
+}
+/* The architecture the card is about: as wide as a name needs, no wider. */
+.odx-arch-name {
+    flex: 1 1 160px;
+    min-width: 120px;
+}
+.odx-arch-badge {
+    flex-shrink: 0;
+}
+.odx-arch-card .odx-field-row > .odx-field {
+    flex: 1;
+}
+.odx-add-card.horizontal {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 0;
+    padding: var(--space-3) var(--space-4);
+    align-self: stretch;
+    height: 71px;
+}
+
+/* The parameter domains this simulation substitutes differently. */
+.odx-domain-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+.odx-domain-row {
+    padding: var(--space-2);
+    border-radius: var(--theme-normal-border-radius);
+    /* background: var(--theme-tertiary-color); */
+    border: solid 1px var(--theme-border-color);
+}
+.odx-domain-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+/* The domain of the architecture this row is about. */
+.odx-domain-name {
+    flex: 1 1 130px;
+    min-width: 110px;
+    font-size: 13px;
+}
+.odx-domain-head .odx-chips label {
+    padding: 2px 10px;
+    font-size: 12px;
+}
+/* Nothing to override: said in the card, where a row would have been. */
+.odx-domain-empty {
+    font-size: 12px;
+    font-style: italic;
+    opacity: 0.5;
+    padding: 2px 0 4px;
 }
 
 /* What editing a built-in tool can and cannot change. */

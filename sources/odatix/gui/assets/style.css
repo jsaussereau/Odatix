@@ -528,12 +528,7 @@ textarea {
     border: var(--dropdown-border);
     border-radius: var(--dropdown-menu-border-radius);
     color: var(--theme-text-color);
-}
-
-/* Keep topbar dropdown menus above Plotly layers (modebar, graph overlays). */
-.navbar .Select,
-.navbar .Select-menu-outer {
-    z-index: 4000 !important;
+    z-index: 5000 !important;
 }
 
 .navbar .Select-menu-outer {
@@ -636,12 +631,7 @@ textarea {
     /* transition: all .2s cubic-bezier(0.175, 0.885, 0, 1); */
     box-sizing: border-box;
 }
-.tile.add,
-.card.add {
-    background: var(--add-card-background);
-    border: var(--add-card-border);
-    color: var(--card-text-color);
-}
+
 .card.configs {
     width: var(--tile-half-width);
     overflow: visible !important;
@@ -747,6 +737,22 @@ textarea {
     margin: 0 auto 32px auto;
 }
 
+.odx-add-card,
+.tile.add,
+.card.add {
+    background: var(--add-card-background);
+    border: var(--add-card-border);
+    color: var(--card-text-color);
+}
+.odx-add-card:hover,
+.card.add:hover,
+.tile.title.add:hover,
+.tile.config.add:hover {
+    background: var(--add-card-background-hover);
+    color: var(--theme-primary-color);
+    border-color: var(--theme-primary-color);
+}
+
 .page-header {
     text-align: center;
     margin: 28px auto 24px;
@@ -830,7 +836,7 @@ textarea {
     display: block;
     width: 80%;
     max-width: 500px;
-    margin-bottom: 16px;
+    margin-bottom: var(--tile-gap);
     padding: 18px 22px;
     box-sizing: border-box;
     background-color: var(--card-background);
@@ -855,6 +861,10 @@ textarea {
     justify-self: center;
     max-width: var(--tile-width);
     width: var(--tile-width);
+}
+.tile.config.collapsed {
+    padding-bottom: 0px;
+    height: fit-content;
 }
 
 .tile.title {
@@ -894,6 +904,12 @@ textarea {
     margin: auto;
     margin-top: 0px;
     margin-bottom: 30px;
+}
+.tiles-container.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--tile-width), 1fr));
+    gap: var(--tile-gap);
+    align-items: start;
 }
 
 .title-input {
@@ -2370,4 +2386,9 @@ input[type="checkbox"] {
     font-weight: 700;
     font-size: 15px;
     font-variant-numeric: tabular-nums;
+}
+
+.dropdown-up .Select-menu-outer {
+    bottom: 100%;
+    top: auto;
 }

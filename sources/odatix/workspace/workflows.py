@@ -67,8 +67,8 @@ class WorkflowSettings(Settings):
         doc="Whether the configurations of the main domain are substituted into a file.",
     )
     param_target_file = Setting("", type="str", skip_if_empty=True, doc="File the parameters are written into.")
-    start_delimiter = Setting("", type="str", skip_if_empty=True, doc="Text after which the parameters are written.")
-    stop_delimiter = Setting("", type="str", skip_if_empty=True, doc="Text before which the parameters are written.")
+    start_delimiter = Setting("", type="str", skip_if_empty=True, doc="Text after which the parameters are written. Escape sequences such as \\n are supported.")
+    stop_delimiter = Setting("", type="str", skip_if_empty=True, doc="Text before which the parameters are written. Escape sequences such as \\n are supported.")
 
     progress = Setting(
         type=ProgressSettings, skip_if_empty=True, section="Progress tracking",

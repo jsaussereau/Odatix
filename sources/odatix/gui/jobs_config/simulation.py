@@ -22,6 +22,7 @@
 from dash import dcc, html
 
 import odatix.gui.ui_components as ui
+import odatix.workspace.sim_architectures as sim_architectures
 from odatix.gui.icons import icon
 
 from odatix.gui.jobs_config.arch_widgets import _arch_config_widgets
@@ -50,33 +51,36 @@ from odatix.gui.jobs_config.common import _arch_badge_text, _simulation_badge_te
 # The union of what the nested previews have checked is mirrored into a
 # per-simulation store ("sim-selection"), which is what Save and Run read.
 #
-# A simulation only shows the architectures it declares itself compatible with
-# ("compatible_architectures" in its settings file), and a card is built for
+# A simulation only shows the architectures its settings file lists (under
+# "architectures", see odatix.workspace.sim_architectures), and a card is built for
 # those only: building one per architecture and hiding the rest made the page
 # grow as simulations x architectures, which is what made it slow. Adding one
-# back (the dropdown at the bottom of the card) builds its card on the spot, and
+# (the dropdown at the bottom of the card) builds its card on the spot, and
 # removing one (the cross next to its name) hides it, so it can be added back
-# without rebuilding. Either way the list is rewritten in the simulation's
-# settings file right away: it describes the simulation, not the run being
-# configured, so it does not wait for the page's Save.
+# without rebuilding. The list itself lives in a per-simulation store and is
+# only written to the settings files by the page's Save button, like every other
+# change the page makes.
 
 
-def _compatible_architectures(simulations, sim_name, architectures):
+def _listed_architectures(simulations, sim_name):
     """
-    The architectures a simulation card shows, and whether that is a choice or a
-    fallback.
+    The architectures a simulation card shows: the ones its settings file lists
+    under "architectures".
 
-    A simulation that lists none makes no claim: everything is shown, and
-    nothing is written to its settings file until the user removes something.
+    An empty list means the simulation lists none, not that they all apply: a
+    simulation that lists none shows none, and the dropdown is the way in.
     """
     try:
-        declared = list(simulations.entry(sim_name).settings.compatible_architectures)
+        entries = _architecture_entries(simulations, sim_name)
     except Exception:
-        declared = []
-    declared = [str(name) for name in declared if str(name).strip() != ""]
-    if not declared:
-        return list(architectures), False
-    return declared, True
+        entries = []
+    return [entry.name for entry in entries if entry.name.strip() != ""]
+
+
+def _architecture_entries(simulations, sim_name):
+    """The parsed "architectures" block of a simulation, entry objects included:
+    what the page rewrites has to keep the settings each entry carries."""
+    return sim_architectures.parse(simulations.entry(sim_name).settings.architectures)
 
 
 def _sim_entry_from_combo(combo: str) -> str:
@@ -145,7 +149,7 @@ def _sim_arch_card(architectures_collection, sim_name, arch_name, saved_values, 
                         id={"type": "sim-arch-remove", "sim": sim_name, "arch": arch_name},
                         n_clicks=0,
                         title="Remove " + arch_name + " from the architectures "
-                              + sim_name + " is compatible with",
+                              + sim_name + " runs on",
                         className="odx-mini-button small-button jobs-sim-arch-remove",
                     ),
                 ],
@@ -194,9 +198,10 @@ def _simulation_job_sections(context, selection_settings):
     same way they are picked for a synthesis.
 
     Returns:
-        tuple: (sections, baseline_selection) where baseline_selection is the
-        simulation -> entries mapping a fresh page load is equivalent to (used
-        as the "saved" baseline so nothing falsely reads as unsaved).
+        tuple: (sections, baseline_selection, baseline_listed), the
+        simulation -> entries and simulation -> listed architectures
+        mappings a fresh page load is equivalent to (used as the "saved"
+        baseline so nothing falsely reads as unsaved).
     """
     architectures_collection = context["workspace"].architectures
     simulations = context["instances"]
@@ -205,14 +210,13 @@ def _simulation_job_sections(context, selection_settings):
     architectures = architectures_collection.names()
 
     baseline_selection = {}
+    baseline_listed = {}
     sections = []
     for sim_name in simulations:
         sim_enabled = sim_name in selection_map
 
-        compatible, explicit = _compatible_architectures(
-            context["workspace"].simulations, sim_name, architectures
-        )
-        compatible_set = set(compatible)
+        listed = _listed_architectures(context["workspace"].simulations, sim_name)
+        listed_set = set(listed)
 
         # Group the saved entries by the architecture they belong to, converted
         # to the preview syntax _arch_config_widgets expects.
@@ -236,7 +240,7 @@ def _simulation_job_sections(context, selection_settings):
             arch_enabled = sim_enabled and arch_name in saved_by_arch
             # An architecture the simulation runs on is shown whatever the
             # compatibility list says: hiding a card would hide a selection.
-            arch_shown = arch_name in compatible_set or arch_enabled
+            arch_shown = arch_name in listed_set or arch_enabled
             # A card is built only for the architectures the simulation shows:
             # building the hidden ones too made the page grow as
             # simulations x architectures, for widgets nobody can see.
@@ -288,27 +292,39 @@ def _simulation_job_sections(context, selection_settings):
 
         # Where the cards of the architectures added from the dropdown below are
         # appended: they are built on demand rather than upfront (see
-        # update_compatible_architectures).
+        # update_listed_architectures).
         arch_cards.append(html.Div(id={"type": "sim-added-archs", "sim": sim_name}, children=[]))
+
+        # A simulation that lists no architecture runs nothing: say so
+        # rather than showing an empty card. Hidden as soon as one is added.
+        arch_cards.append(
+            html.Div(
+                "This simulation lists no architecture. Add one below.",
+                id={"type": "sim-no-arch", "sim": sim_name},
+                className="odx-panel-note",
+                style={} if not shown_architectures else {"display": "none"},
+            )
+        )
 
         # Names the simulation declares but this workspace does not offer: kept
         # so that adding or removing an architecture here never drops them.
-        missing_compatible = [name for name in compatible if name not in architectures]
-        compatible_data = shown_architectures + missing_compatible
+        missing_listed = [name for name in listed if name not in architectures]
+        listed_data = shown_architectures + missing_listed
+        baseline_listed[sim_name] = list(listed_data)
 
         arch_cards.append(
             html.Div(
                 children=[
                     dcc.Dropdown(
-                        id={"type": "sim-compatible-add", "sim": sim_name},
+                        id={"type": "sim-architecture-add", "sim": sim_name},
                         options=[
                             {"label": name, "value": name}
                             for name in architectures
                             if name not in shown_architectures
                         ],
-                        placeholder="Add a compatible architecture...",
+                        placeholder="Add an architecture...",
                         value=None,
-                        className="jobs-sim-arch-add",
+                        className="dropdown-up jobs-sim-arch-add",
                     ),
                 ],
                 className="jobs-sim-arch-add-row",
@@ -384,12 +400,12 @@ def _simulation_job_sections(context, selection_settings):
                         id={"type": "sim-orphan-entries", "sim": sim_name},
                         data=orphan_entries,
                     ),
-                    # The architectures this simulation says it runs on. Written
-                    # straight to its settings file when it changes, so it is
-                    # not part of what the page's Save button covers.
+                    # The architectures this simulation says it runs on. Edited
+                    # here and written to its settings file by Save, like the
+                    # rest of the page.
                     dcc.Store(
-                        id={"type": "sim-compatible", "sim": sim_name},
-                        data=compatible_data,
+                        id={"type": "sim-architectures", "sim": sim_name},
+                        data=listed_data,
                     ),
                     # What this simulation runs, kept in sync with the nested
                     # architecture cards and read by Save / Run.
@@ -403,7 +419,36 @@ def _simulation_job_sections(context, selection_settings):
             )
         )
 
-    return sections, baseline_selection
+    return sections, baseline_selection, baseline_listed
+
+def _collect_listed_architectures(listed_values, listed_ids) -> dict:
+    """The simulation -> listed architectures mapping the page describes."""
+    collected = {}
+    for value, cid in zip(listed_values or [], listed_ids or []):
+        sim_name = cid.get("sim") if isinstance(cid, dict) else None
+        if sim_name:
+            collected[sim_name] = [str(v) for v in (value or []) if v is not None]
+    return collected
+
+
+def _save_listed_architectures(workspace, listed, baseline):
+    """Write the architecture lists that changed to the simulations' own settings
+    files.
+
+    Only the simulations whose list actually changed are touched: saving the
+    page must not rewrite the settings file of every simulation it displays. What
+    an entry holds besides its name (its parameter domains, its metrics file) is
+    carried over, since this page does not edit any of it -- an architecture the
+    page adds back is written as a bare name only if it had nothing before.
+    """
+    for sim_name, names in (listed or {}).items():
+        if list(names) == list((baseline or {}).get(sim_name, [])):
+            continue
+        simulation = workspace.simulations.entry(sim_name)
+        kept = {entry.name: entry for entry in _architecture_entries(workspace.simulations, sim_name)}
+        entries = [kept.get(name) or sim_architectures.ArchitectureEntry(name) for name in names]
+        simulation.update(architectures=sim_architectures.to_yaml(entries))
+
 
 def _collect_simulation_selection(switch_values, switch_ids, selection_values, selection_ids) -> dict:
     """

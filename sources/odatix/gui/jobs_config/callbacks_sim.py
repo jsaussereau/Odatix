@@ -19,13 +19,10 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-import os
-
 import dash
 from dash import Input, Output, State
 
 from odatix.gui.utils import get_workspace
-from odatix.lib.utils import printc
 
 from odatix.gui.jobs_config.callbacks_config import (
     domain_select_all,
@@ -40,8 +37,6 @@ from odatix.gui.jobs_config.callbacks_config import (
 from odatix.gui.jobs_config.common import _simulation_badge_text
 from odatix.gui.jobs_config.simulation import _sim_arch_card, _sim_entry_from_combo
 
-script_name = os.path.basename(__file__)
-
 ######################################
 # Simulation callbacks
 ######################################
@@ -54,16 +49,17 @@ script_name = os.path.basename(__file__)
 
 
 @dash.callback(
-    Output({"type": "sim-compatible", "sim": dash.MATCH}, "data"),
+    Output({"type": "sim-architectures", "sim": dash.MATCH}, "data"),
     Output({"type": "sim-arch-card", "sim": dash.MATCH, "arch": dash.ALL}, "style"),
     Output({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
-    Output({"type": "sim-compatible-add", "sim": dash.MATCH}, "options"),
-    Output({"type": "sim-compatible-add", "sim": dash.MATCH}, "value"),
+    Output({"type": "sim-architecture-add", "sim": dash.MATCH}, "options"),
+    Output({"type": "sim-architecture-add", "sim": dash.MATCH}, "value"),
     Output({"type": "sim-metadata", "sim": dash.MATCH}, "data"),
     Output({"type": "sim-added-archs", "sim": dash.MATCH}, "children"),
+    Output({"type": "sim-no-arch", "sim": dash.MATCH}, "style"),
     Input({"type": "sim-arch-remove", "sim": dash.MATCH, "arch": dash.ALL}, "n_clicks"),
-    Input({"type": "sim-compatible-add", "sim": dash.MATCH}, "value"),
-    State({"type": "sim-compatible", "sim": dash.MATCH}, "data"),
+    Input({"type": "sim-architecture-add", "sim": dash.MATCH}, "value"),
+    State({"type": "sim-architectures", "sim": dash.MATCH}, "data"),
     State({"type": "sim-arch-card", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
     State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.ALL}, "data"),
     State({"type": "sim-metadata", "sim": dash.MATCH}, "data"),
@@ -71,13 +67,16 @@ script_name = os.path.basename(__file__)
     State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
-def update_compatible_architectures(
-    remove_clicks, added_arch, compatible, card_ids, arch_metadatas, sim_metadata,
+def update_listed_architectures(
+    remove_clicks, added_arch, listed, card_ids, arch_metadatas, sim_metadata,
     added_cards, odatix_settings
 ):
     """
-    Add or remove an architecture from the ones a simulation declares itself
-    compatible with, and write that list to the simulation's settings file.
+    Add or remove an architecture from the ones a simulation declares it runs
+    on. The list is only kept in the "sim-architectures" store here:
+    it reaches the simulation's settings file when the page is saved, so that
+    the Save button reflects the change like every other edit
+    (see _save_listed_architectures).
 
     The card of an architecture that is removed is hidden and its switch turned
     off, so the simulation stops running it; every other card is left untouched
@@ -93,7 +92,7 @@ def update_compatible_architectures(
         raise dash.exceptions.PreventUpdate
 
     arch_names = [cid.get("arch") for cid in (card_ids or []) if isinstance(cid, dict)]
-    compatible = [str(name) for name in (compatible or [])]
+    listed = [str(name) for name in (listed or [])]
     workspace = get_workspace(odatix_settings or {})
     all_arch_names = list(workspace.architectures.names())
 
@@ -109,21 +108,19 @@ def update_compatible_architectures(
         if not clicked:
             raise dash.exceptions.PreventUpdate
         removed = triggered.get("arch")
-        if removed not in compatible:
+        if removed not in listed:
             raise dash.exceptions.PreventUpdate
-        compatible = [name for name in compatible if name != removed]
+        listed = [name for name in listed if name != removed]
     else:
-        if not added_arch or added_arch in compatible:
+        if not added_arch or added_arch in listed:
             raise dash.exceptions.PreventUpdate
         # Keep the order the architectures are listed in, so the settings file
         # does not depend on the order things were clicked in.
-        compatible = [
-            name for name in all_arch_names if name in compatible or name == added_arch
-        ] + [name for name in compatible if name not in all_arch_names]
+        listed = [
+            name for name in all_arch_names if name in listed or name == added_arch
+        ] + [name for name in listed if name not in all_arch_names]
 
-    _save_compatible_architectures(odatix_settings, triggered.get("sim"), compatible)
-
-    shown = set(compatible)
+    shown = set(listed)
     styles = [
         {} if arch in shown else {"display": "none"}
         for arch in arch_names
@@ -154,26 +151,9 @@ def update_compatible_architectures(
     delta = n_configs.get(removed if removed is not None else added_arch, 0)
     metadata["n_entries"] = max(0, metadata.get("n_entries", 0) + (-delta if removed is not None else delta))
 
-    return compatible, styles, switches, options, None, metadata, new_children
+    note_style = {} if not listed else {"display": "none"}
 
-
-def _save_compatible_architectures(odatix_settings, sim_name, compatible):
-    """Write a simulation's compatibility list to its own settings file.
-
-    It describes the simulation rather than the run being configured, so it is
-    saved on the spot instead of waiting for the page's Save button.
-    """
-    if not sim_name:
-        return
-    try:
-        get_workspace(odatix_settings or {}).simulations.entry(sim_name).update(
-            compatible_architectures=list(compatible)
-        )
-    except Exception as e:
-        printc.error(
-            'Could not save the compatible architectures of "' + str(sim_name) + '": ' + str(e),
-            script_name,
-        )
+    return listed, styles, switches, options, None, metadata, new_children, note_style
 
 
 @dash.callback(
@@ -325,7 +305,7 @@ def sync_simulation_selection(
     Output({"type": "sim-count", "sim": dash.ALL}, "children"),
     Input({"type": "sim-selection", "sim": dash.ALL}, "data"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
-    # An Input rather than a State: adding or removing a compatible
+    # An Input rather than a State: adding or removing a listed
     # architecture changes the total the badge shows, and nothing else.
     Input({"type": "sim-metadata", "sim": dash.ALL}, "data"),
     State({"type": "sim-selection", "sim": dash.ALL}, "id"),

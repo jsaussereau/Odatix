@@ -72,8 +72,8 @@ class DomainSettings(Settings):
         "", type="str",
         doc="File the parameters are written into, relative to the design directory.",
     )
-    start_delimiter = Setting("", type="str", doc="Text after which the parameters are written.")
-    stop_delimiter = Setting("", type="str", doc="Text before which the parameters are written.")
+    start_delimiter = Setting("", type="str", doc="Text after which the parameters are written. Escape sequences such as \\n are supported.")
+    stop_delimiter = Setting("", type="str", doc="Text before which the parameters are written. Escape sequences such as \\n are supported.")
 
     generate_configurations = Setting(
         False, type="bool", style="yesno", section="Configuration generation",

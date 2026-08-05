@@ -59,6 +59,7 @@
 .jobs-arch-card.enabled {
     border-color: rgba(34, 139, 230, 0.45);
     box-shadow: var(--theme-shadow-color) 0px 4px 14px -6px;
+    overflow: visible;
 }
 .jobs-arch-header {
     display: flex;

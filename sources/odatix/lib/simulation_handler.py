@@ -32,11 +32,9 @@ from odatix.lib.param_domain import ParamDomain
 import odatix.lib.param_domain as param_domain
 import odatix.lib.hard_settings as hard_settings
 import odatix.workspace.selection as selection
+import odatix.workspace.sim_architectures as sim_architectures
 
 script_name = os.path.basename(__file__)
-
-# Key a simulation lists the architectures it is meant to run on under.
-COMPATIBLE_ARCHITECTURES_KEY = "compatible_architectures"
 
 class Simulation:
   def __init__(
@@ -129,65 +127,71 @@ class SimulationHandler:
     self._invariant_domains_cache[sim] = domains
     return domains
 
-  def get_compatible_architectures(self, sim):
+  def get_architecture_entries(self, sim):
     """
-    The architectures a simulation declares it is meant to run on.
+    The architectures a simulation declares it runs on, and what it changes for
+    each of them (see odatix.workspace.sim_architectures).
 
-    Purely indicative: an empty list (or no key at all) means the simulation
-    makes no claim, and running it on an architecture it does not list is only
-    warned about, never refused.
+    Read straight from the settings file, and cached: the compatibility warning
+    needs them before the configurations are expanded, and every job of the
+    simulation reads them again.
     """
-    if sim in self._compatible_architectures_cache:
-      return self._compatible_architectures_cache[sim]
+    if sim in self._architectures_cache:
+      return self._architectures_cache[sim]
 
-    compatible = []
+    entries = []
     settings_filename = os.path.join(self.sim_path, sim, self.sim_settings_filename)
     if isfile(settings_filename):
       try:
         with open(settings_filename, "r") as f:
           settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
         if isinstance(settings_data, dict):
-          value = settings_data.get(COMPATIBLE_ARCHITECTURES_KEY)
-          if isinstance(value, str):
-            compatible = [value]
-          elif isinstance(value, list):
-            compatible = [str(name) for name in value if name is not None]
+          messages = []
+          entries = sim_architectures.parse(
+            settings_data.get(sim_architectures.ARCHITECTURES_KEY),
+            messages=messages,
+            where='"' + sim_architectures.ARCHITECTURES_KEY + '" in "' + settings_filename + '"',
+          )
+          printc.messages(messages, script_name)
+          if any(message.level == "error" for message in messages):
+            entries = []
+            self.banned_sim_param.append(sim)
       except Exception:
         # An unreadable settings file is reported by get_simulation, which needs
         # to ban the simulation anyway. Nothing to add here.
-        compatible = []
+        entries = []
 
-    self._compatible_architectures_cache[sim] = compatible
-    return compatible
+    self._architectures_cache[sim] = entries
+    return entries
 
-  def check_compatible_architectures(self, sim, architectures):
+  def check_architectures(self, sim, architectures):
     """
-    Warn about the architectures a simulation is run on but does not list as
-    compatible. Once per architecture, whatever the number of configurations.
+    Warn about the architectures a simulation is run on but does not list. Once
+    per architecture, whatever the number of configurations.
     """
-    compatible = self.get_compatible_architectures(sim)
-    if not compatible:
+    entries = self.get_architecture_entries(sim)
+    if not entries:
       return
 
     for arch_full in architectures:
       arch_name = str(arch_full).split("+", 1)[0].split("/", 1)[0].strip()
-      if arch_name in compatible or (sim, arch_name) in self._warned_incompatible:
+      if sim_architectures.matches(entries, arch_name) or (sim, arch_name) in self._warned_unlisted:
         continue
-      self._warned_incompatible.add((sim, arch_name))
+      self._warned_unlisted.add((sim, arch_name))
       printc.warning(
-        "\"" + arch_name + "\" is not listed as a compatible architecture of \"" + sim + "\"",
+        "\"" + arch_name + "\" is not one of the architectures \"" + sim + "\" runs on",
         script_name,
       )
       printc.note(
-        "Add it to \"" + COMPATIBLE_ARCHITECTURES_KEY + "\" in \""
+        "Add it to \"" + sim_architectures.ARCHITECTURES_KEY + "\" in \""
         + os.path.join(self.sim_path, sim, self.sim_settings_filename) + "\" to silence this warning",
         script_name,
       )
 
   def reset_lists(self):
     self._invariant_domains_cache = {}
-    self._compatible_architectures_cache = {}
-    self._warned_incompatible = set()
+    self._architectures_cache = {}
+    self._warned_unlisted = set()
     self.no_settings_sims = []
     self.banned_sim_param = []
     # Single source of truth for the check outcome (see lib/run_report.py).
@@ -255,9 +259,9 @@ class SimulationHandler:
               architectures = selection.expand(arch_list, self.arch_path, messages=messages)
               printc.messages(messages, script_name)
 
-              # Running a simulation on an architecture it does not claim to
-              # support is allowed: only say so.
-              self.check_compatible_architectures(sim, architectures)
+              # Running a simulation on an architecture it does not list is
+              # allowed: only say so.
+              self.check_architectures(sim, architectures)
 
               # Configurations that only differ by a domain the simulation is
               # invariant to would all compute the same result: keep one.
@@ -321,7 +325,7 @@ class SimulationHandler:
     # Workflow-style execution graph. Empty means "use the legacy 'make sim'
     # rule", which is what every simulation defined before tasks existed does.
     tasks = []
-    progress_file = hard_settings.sim_progress_filename
+    progress_file = hard_settings.sim_progress_file
     progress_regex = hard_settings.sim_status_pattern.pattern
 
     # check if settings file exists
@@ -341,6 +345,20 @@ class SimulationHandler:
             self.banned_sim_param.append(sim)
             self.plan.add(sim_display_name, Category.ERROR)
             return None # if an identifier is missing
+
+          # Both moved under "architectures", which lists what the simulation runs on and
+          # what it changes for each. A file still written the old way would be read as
+          # having no override at all: say so rather than running something else.
+          for moved_key in ('param_domains', 'compatible_architectures'):
+            if moved_key in settings_data:
+              printc.error("\"" + moved_key + "\" in \"" + settings_filename + "\" is not read anymore", script_name)
+              printc.note(
+                "The architectures a simulation runs on, and what it changes for each of them, "
+                "are now listed under \"" + sim_architectures.ARCHITECTURES_KEY + "\"", script_name
+              )
+              self.banned_sim_param.append(sim)
+              self.plan.add(sim_display_name, Category.ERROR)
+              return None
 
           # get tasks (optional: without them the legacy "make sim" rule is used)
           try:
@@ -363,35 +381,39 @@ class SimulationHandler:
             if progress_regex_setting not in (False, None):
               progress_regex = progress_regex_setting
 
-          # get use_parameters, start_delimiter and stop_delimiter
-          use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, None, add_to_error_list=False)
-          if use_parameters is None:
-            self.banned_sim_param.append(sim)
-            self.plan.add(sim_display_name, Category.ERROR)
-            return None
-          elif start_delimiter is None or stop_delimiter is None:
-            self.plan.add(sim_display_name, Category.ERROR)
-            return None
+          # deprecated: "use_parameters" (and its delimiters/target file) at the top level of a
+          # simulation's settings only ever covered a single, non-domain parameter file. Prefer
+          # "param_domains" below, which can override (or add) any number of parameter domains.
+          if 'use_parameters' in settings_data:
+            printc.warning("\"use_parameters\" in \"" + settings_filename + "\" is deprecated, use \"param_domains\" instead", script_name)
 
-          # overwrite architecture settings
-          architecture.use_parameters = use_parameters
-          architecture.start_delimiter = start_delimiter
-          architecture.stop_delimiter = stop_delimiter
-
-          # get param_target_file
-          if use_parameters:
-            if param_target_filename is None:
+            # get use_parameters, start_delimiter and stop_delimiter
+            use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, None, add_to_error_list=False)
+            if use_parameters is None:
               self.banned_sim_param.append(sim)
               self.plan.add(sim_display_name, Category.ERROR)
               return None
-            else:
-              # check if param target file path exists
-              param_target_file_rtl = architecture.rtl_path + '/' + param_target_filename
-              param_target_file_sim = source_sim_dir + '/' + param_target_filename
-              #if not isfile(param_target_file_rtl) and not isfile(param_target_file_sim): 
-                #printc.warning("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
-              # overwrite architecture settings
-              architecture.param_target_filename = param_target_filename
+            elif start_delimiter is None or stop_delimiter is None:
+              self.plan.add(sim_display_name, Category.ERROR)
+              return None
+
+            # overwrite architecture settings
+            architecture.use_parameters = use_parameters
+            architecture.start_delimiter = start_delimiter
+            architecture.stop_delimiter = stop_delimiter
+
+            # get param_target_file
+            if use_parameters:
+              if param_target_filename is None:
+                self.banned_sim_param.append(sim)
+                self.plan.add(sim_display_name, Category.ERROR)
+                return None
+              else:
+                architecture.param_target_filename = param_target_filename
+          else:
+            # No deprecated block: the architecture's own parameter domains are the only
+            # source of substitution, adjusted by "param_domains" below.
+            architecture.use_parameters = False
 
           # get override_parameters (optional, defaults to no override)
           try:
@@ -400,6 +422,8 @@ class SimulationHandler:
             override_parameters = False
           if override_parameters is False or override_parameters is None:
             override_parameters = False
+          elif 'override_parameters' in settings_data:
+            printc.warning("\"override_parameters\" in \"" + settings_filename + "\" is deprecated, use \"param_domains\" instead", script_name)
 
           if override_parameters:
             # get override_param_target_file
@@ -454,6 +478,90 @@ class SimulationHandler:
               return None
           else:
             override_param_target_filename = "/dev/null"
+
+          # What the simulation changes for the architecture under test, taken from the
+          # "architectures" block (see odatix.workspace.sim_architectures): the entries
+          # matching this architecture, merged in the order they are written.
+          arch_settings = sim_architectures.settings_for(self.get_architecture_entries(sim), arch)
+          if sim in self.banned_sim_param:
+            self.plan.add(sim_display_name, Category.ERROR)
+            return None
+
+          # "param_domains" customizes the parameter substitution of this simulation for
+          # this architecture. A key matching one of the architecture's own domains (e.g.
+          # "width") overrides only the fields it lists, the rest is inherited from the
+          # architecture's domain settings. A key that does not match any architecture
+          # domain declares a standalone substitution of its own (a "param_file" is then
+          # mandatory), which subsumes what the deprecated "override_parameters"
+          # mechanism used to do.
+          if arch_settings.get("param_domains"):
+            for domain_name, domain_overrides in arch_settings["param_domains"].items():
+              domain_name = str(domain_name)
+              domain_id = arch + ": param_domains: " + domain_name
+              if not isinstance(domain_overrides, dict):
+                printc.error("\"architectures: " + domain_id + "\" in \"" + settings_filename + "\" must be a mapping", script_name)
+                self.banned_sim_param.append(sim)
+                self.plan.add(sim_display_name, Category.ERROR)
+                return None
+
+              existing_domain = next((pd for pd in architecture.param_domains if pd.domain == domain_name), None)
+
+              if existing_domain is not None:
+                if 'use_parameters' in domain_overrides:
+                  existing_domain.use_parameters = bool(domain_overrides['use_parameters'])
+                if 'start_delimiter' in domain_overrides:
+                  existing_domain.start_delimiter = domain_overrides['start_delimiter']
+                if 'stop_delimiter' in domain_overrides:
+                  existing_domain.stop_delimiter = domain_overrides['stop_delimiter']
+                if 'param_target_file' in domain_overrides:
+                  existing_domain.param_target_file = domain_overrides['param_target_file']
+                elif existing_domain.param_target_file == "":
+                  # The architecture had the domain switched off, so it never resolved a target
+                  # file for it. Re-enabling it here has to fall back to the top level, as the
+                  # architecture would have.
+                  existing_domain.param_target_file = architecture.top_level_filename
+                if existing_domain.use_parameters and (existing_domain.start_delimiter == "" or existing_domain.stop_delimiter == ""):
+                  printc.error("\"architectures: " + domain_id + "\" in \"" + settings_filename + "\" enables the replacement but no \"start_delimiter\"/\"stop_delimiter\" is defined, here or in the architecture", script_name)
+                  self.banned_sim_param.append(sim)
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                if 'param_file' in domain_overrides:
+                  domain_param_file = os.path.join(source_sim_dir, domain_overrides['param_file'])
+                  if not isfile(domain_param_file):
+                    printc.error("There is no parameter file \"" + domain_param_file + "\", referenced by \"architectures: " + domain_id + "\" in \"" + settings_filename + "\"", script_name)
+                    self.plan.add(sim_display_name, Category.ERROR)
+                    return None
+                  existing_domain.param_file = domain_param_file
+              else:
+                # Standalone override: not tied to any architecture domain, so everything
+                # needed to run a substitution has to be given here.
+                if 'param_file' not in domain_overrides:
+                  printc.error("Cannot find key \"param_file\" in \"architectures: " + domain_id + "\" in \"" + settings_filename + "\", required since \"" + domain_name + "\" is not a domain of this architecture", script_name)
+                  self.banned_sim_param.append(sim)
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                new_domain_param_file = os.path.join(source_sim_dir, domain_overrides['param_file'])
+                if not isfile(new_domain_param_file):
+                  printc.error("There is no parameter file \"" + new_domain_param_file + "\", referenced by \"architectures: " + domain_id + "\" in \"" + settings_filename + "\"", script_name)
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                new_domain_use_parameters = bool(domain_overrides.get('use_parameters', True))
+                new_domain_start_delimiter = domain_overrides.get('start_delimiter', '')
+                new_domain_stop_delimiter = domain_overrides.get('stop_delimiter', '')
+                if new_domain_use_parameters and (new_domain_start_delimiter == '' or new_domain_stop_delimiter == ''):
+                  printc.error("\"architectures: " + domain_id + "\" in \"" + settings_filename + "\" needs \"start_delimiter\" and \"stop_delimiter\", since it does not match any domain of this architecture", script_name)
+                  self.banned_sim_param.append(sim)
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                architecture.param_domains.append(ParamDomain(
+                  domain=domain_name,
+                  domain_value=str(domain_overrides.get('domain_value', '')),
+                  use_parameters=new_domain_use_parameters,
+                  start_delimiter=new_domain_start_delimiter,
+                  stop_delimiter=new_domain_stop_delimiter,
+                  param_target_file=domain_overrides.get('param_target_file', '') or architecture.top_level_filename,
+                  param_file=new_domain_param_file,
+                ))
 
     # Without tasks, the simulation is run through its Makefile's "sim" rule:
     # that Makefile is then mandatory. Task-based simulations do not need one.

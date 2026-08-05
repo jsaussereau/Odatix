@@ -396,6 +396,10 @@ class Settings(_SettingsBase):
         object.__setattr__(clone, "_file_data", dict(self._file_data))
         return clone
 
+    def file_keys(self):
+        """The keys the file these settings were read from actually holds."""
+        return set(self._file_data)
+
     def _mark_saved(self):
         """Take what is now in memory as the reference of what the file holds."""
         object.__setattr__(self, "_file_data", self.to_dict())

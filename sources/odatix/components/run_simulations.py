@@ -341,7 +341,7 @@ def check_settings(
             arch_name=sim_instance.architecture.arch_name,
             param_domains=sim_instance.architecture.param_domains,
             default_target_filename=sim_instance.architecture.param_target_filename,
-            target_filename_getter=lambda _param_domain: sim_instance.architecture.param_target_filename,
+            target_filename_getter=lambda param_domain: param_domain.param_target_file,
             debug=debug,
             target_resolver=resolve_sim_param_target_file,
             timestamp=None,
@@ -369,7 +369,7 @@ def check_settings(
 
         sim_progress_file = os.path.join(
             sim_instance.tmp_dir,
-            sim_instance.progress_file or os.path.join(hard_settings.work_log_path, hard_settings.sim_progress_filename),
+            sim_instance.progress_file or hard_settings.sim_progress_file,
         )
 
         running_sim = ParallelJob(

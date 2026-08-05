@@ -148,8 +148,8 @@ class ArchitectureSettings(Settings):
         "", type="str", skip_if_empty=True,
         doc="File the parameters are written into. The top level file, when empty.",
     )
-    start_delimiter = Setting("", type="str", doc="Text after which the parameters are written.")
-    stop_delimiter = Setting("", type="str", doc="Text before which the parameters are written.")
+    start_delimiter = Setting("", type="str", doc="Text after which the parameters are written. Escape sequences such as \\n are supported.")
+    stop_delimiter = Setting("", type="str", doc="Text before which the parameters are written. Escape sequences such as \\n are supported.")
 
     # Extra files copied into each work directory
     file_copy_enable = Setting(

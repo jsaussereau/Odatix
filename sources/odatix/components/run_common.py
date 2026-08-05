@@ -386,7 +386,9 @@ def replace_and_write_param_domains(
                 replace_all_occurrences=False,
                 silent=False if debug else True,
             )
-            if success:
+            # A domain with no value is one a job declared for itself rather than a dimension
+            # of the sweep, so it names nothing in the result record.
+            if success and param_domain.domain_value != "":
                 domain_dict[param_domain.domain] = param_domain.domain_value
 
     with open(os.path.join(tmp_dir, hard_settings.param_domains_filename), "w") as param_domains_file:

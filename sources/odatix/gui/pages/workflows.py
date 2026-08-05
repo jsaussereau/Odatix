@@ -118,7 +118,7 @@ def add_card(text: str):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em", "color": "var(--add-card-text-color)"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em"}),
                     html.Div(
                         "+",
                         style={
@@ -132,7 +132,6 @@ def add_card(text: str):
             ),
             id=btn_id,
             n_clicks=0,
-            style={"textDecoration": "none", "color": "var(--add-card-text-color)", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"},
         ),
         className="card add hover",
         style={

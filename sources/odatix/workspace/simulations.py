@@ -55,22 +55,35 @@ class SimulationSettings(Settings):
     Settings of a simulation ("<simulation>/_settings.yml").
     """
 
-    use_parameters = Setting(
-        True, type="bool", style="yesno", section="Delimiters for parameter files",
-        doc="Whether the parameters of the architecture are substituted into the testbench.",
+    architectures = Setting(
+        factory=list, type="list", skip_if_empty=True, section="Architectures",
+        doc="Architectures this simulation runs on, and what it changes for each of them: a list "
+            "of names, a name optionally holding \"param_domains\" (per-domain parameter "
+            "substitution) and \"metrics_file\" (the metrics file to extract with, instead of "
+            "\"_metrics.yml\"). Names accept wildcards, \"*\" standing for every architecture, and "
+            "entries matching the architecture under test are applied in the order they are "
+            "written. Listing an architecture is an indication, not a restriction: running the "
+            "simulation on one it does not list is allowed, and only prints a warning.",
     )
-    param_target_file = Setting("", type="str", doc="File the parameters are written into.")
-    start_delimiter = Setting("", type="str", doc="Text after which the parameters are written.")
-    stop_delimiter = Setting("", type="str", doc="Text before which the parameters are written.")
+
+    # Deprecated: superseded by "param_domains", which covers both of the blocks below and any
+    # number of domains instead of one. Still read so existing simulations keep running.
+    use_parameters = Setting(
+        True, type="bool", style="yesno", section="Delimiters for parameter files (deprecated, use param_domains)",
+        doc="Deprecated. Whether the parameters of the architecture are substituted into the testbench.",
+    )
+    param_target_file = Setting("", type="str", doc="Deprecated. File the parameters are written into.")
+    start_delimiter = Setting("", type="str", doc="Deprecated. Text after which the parameters are written. Escape sequences such as \\n are supported.")
+    stop_delimiter = Setting("", type="str", doc="Deprecated. Text before which the parameters are written. Escape sequences such as \\n are supported.")
 
     override_parameters = Setting(
-        False, type="bool", style="yesno", section="Parameter override",
-        doc="Whether this simulation substitutes parameters of its own on top of the architecture's.",
+        False, type="bool", style="yesno", section="Parameter override (deprecated, use param_domains)",
+        doc="Deprecated. Whether this simulation substitutes parameters of its own on top of the architecture's.",
     )
-    override_param_file = Setting("", type="str", when="override_parameters", doc="File holding the overriding parameters.")
-    override_param_target_file = Setting("", type="str", when="override_parameters", doc="File they are written into.")
-    override_start_delimiter = Setting("", type="str", when="override_parameters", doc="Text after which they are written.")
-    override_stop_delimiter = Setting("", type="str", when="override_parameters", doc="Text before which they are written.")
+    override_param_file = Setting("", type="str", when="override_parameters", doc="Deprecated. File holding the overriding parameters.")
+    override_param_target_file = Setting("", type="str", when="override_parameters", doc="Deprecated. File they are written into.")
+    override_start_delimiter = Setting("", type="str", when="override_parameters", doc="Deprecated. Text after which they are written. Escape sequences such as \\n are supported.")
+    override_stop_delimiter = Setting("", type="str", when="override_parameters", doc="Deprecated. Text before which they are written. Escape sequences such as \\n are supported.")
 
     invariant_domains = Setting(
         None, type="any", skip_if_empty=True, section="Invariant parameter domains",

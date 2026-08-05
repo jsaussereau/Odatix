@@ -38,7 +38,7 @@ from odatix.lib.utils import AUTO_NB_JOBS_KEYWORD, resolve_nb_jobs
 
 from odatix.gui.jobs_config.arch_widgets import _arch_config_widgets, _group_arch_selections
 from odatix.gui.jobs_config.common import (
-    COMPATIBLE_BASELINE_KEY,
+    ARCHITECTURES_BASELINE_KEY,
     RUN_MODE_LABELS,
     _JOB_SETTINGS_DEFAULTS,
     _analysis_tools_selection,
@@ -56,8 +56,8 @@ from odatix.gui.jobs_config.pnr import _pnr_job_sections, _pnr_sync_preview_valu
 from odatix.gui.jobs_config.settings_form import job_settings_form
 from odatix.gui.jobs_config.settings_io import _collect_run_settings, _job_settings_baseline, write_run_settings
 from odatix.gui.jobs_config.simulation import (
-    _collect_compatible_architectures,
-    _save_compatible_architectures,
+    _collect_listed_architectures,
+    _save_listed_architectures,
     _simulation_job_sections,
 )
 
@@ -155,7 +155,7 @@ def update_param_domains(
     # Simulations select architecture configurations rather than their own, so
     # they get their own sections (see _simulation_job_sections).
     if context["mode"] == "simulation":
-        job_sections, baseline_selection, baseline_compatible = _simulation_job_sections(
+        job_sections, baseline_selection, baseline_listed = _simulation_job_sections(
             context, selection_settings
         )
         if not job_sections:
@@ -169,8 +169,8 @@ def update_param_domains(
             context["selection_key"]: baseline_selection,
             # Lives in the simulations' own settings files rather than in the run
             # settings, but is edited here, so Save covers it too (see
-            # _save_compatible_architectures).
-            COMPATIBLE_BASELINE_KEY: baseline_compatible,
+            # _save_listed_architectures).
+            ARCHITECTURES_BASELINE_KEY: baseline_listed,
             **_job_settings_baseline(selection_settings),
         }
         return job_sections, context["title"], "Select the configurations each simulation runs on", saved_baseline
@@ -752,7 +752,7 @@ def update_preview_title(preview_value, arch_metadata):
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
     Input({"type": "sim-selection", "sim": dash.ALL}, "data"),
-    Input({"type": "sim-compatible", "sim": dash.ALL}, "data"),
+    Input({"type": "sim-architectures", "sim": dash.ALL}, "data"),
     Input("override-arch-frequencies", "value"),
     Input("use-custom-freq-list", "value"),
     Input("target_frequencies", "value"),
@@ -773,7 +773,7 @@ def update_preview_title(preview_value, arch_metadata):
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "preview-config-checklist", "arch": dash.ALL}, "id"),
     State({"type": "sim-selection", "sim": dash.ALL}, "id"),
-    State({"type": "sim-compatible", "sim": dash.ALL}, "id"),
+    State({"type": "sim-architectures", "sim": dash.ALL}, "id"),
     State("jobs-config-saved-selection", "data"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
@@ -785,7 +785,7 @@ def save_architecture_selections(
     switch_values,
     preview_values,
     sim_selection_values,
-    sim_compatible_values,
+    sim_listed_values,
     override_arch_frequencies,
     use_custom_freq_list,
     target_frequencies,
@@ -806,7 +806,7 @@ def save_architecture_selections(
     switch_ids,
     preview_ids,
     sim_selection_ids,
-    sim_compatible_ids,
+    sim_listed_ids,
     saved_selection,
     search,
     page,
@@ -853,8 +853,8 @@ def save_architecture_selections(
         saved_settings = {selection_key: saved_selection or []}
 
     # Not part of the run settings file: each simulation stores its own list.
-    current_compatible = _collect_compatible_architectures(sim_compatible_values, sim_compatible_ids)
-    saved_compatible = saved_settings.get(COMPATIBLE_BASELINE_KEY, {})
+    current_listed = _collect_listed_architectures(sim_listed_values, sim_listed_ids)
+    saved_listed = saved_settings.get(ARCHITECTURES_BASELINE_KEY, {})
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
         try:
@@ -870,11 +870,11 @@ def save_architecture_selections(
                 _checklist_enabled(use_custom_freq_list),
                 _checklist_enabled(use_custom_freq_range),
             )
-            _save_compatible_architectures(context["workspace"], current_compatible, saved_compatible)
+            _save_listed_architectures(context["workspace"], current_listed, saved_listed)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
-                {**current_settings, COMPATIBLE_BASELINE_KEY: current_compatible},
+                {**current_settings, ARCHITECTURES_BASELINE_KEY: current_listed},
             )
         except Exception:
             return (
@@ -897,7 +897,7 @@ def save_architecture_selections(
             dash.no_update,
         )
 
-    if isinstance(saved_selection, dict) and saved_compatible != current_compatible:
+    if isinstance(saved_selection, dict) and saved_listed != current_listed:
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",

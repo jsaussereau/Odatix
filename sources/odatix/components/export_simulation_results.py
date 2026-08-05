@@ -38,6 +38,7 @@ import argparse
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
 import odatix.lib.param_domain as param_domain
+import odatix.workspace.sim_architectures as sim_architectures
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 from odatix.components.export_common import parse_yaml, load_existing_results_file
@@ -135,6 +136,29 @@ def _declared_invariant_domains(simulation_definition_dir):
     )
 
 
+def _declared_metrics_file(simulation_definition_dir, architecture):
+    """
+    The metrics file a simulation declares for one architecture, if any.
+
+    A testbench shared by several designs does not necessarily report the same
+    figures for all of them, so an architecture entry may name a metrics file of
+    its own instead of the simulation's "_metrics.yml".
+    """
+    settings_file = os.path.join(str(simulation_definition_dir), SIMULATION_SETTINGS_FILENAME)
+    settings_data = parse_yaml(settings_file, error_if_missing=False)
+    if not isinstance(settings_data, dict):
+        return ""
+    messages = []
+    entries = sim_architectures.parse(
+        settings_data.get(sim_architectures.ARCHITECTURES_KEY), messages=messages
+    )
+    # An unusable "architectures" block is reported when the run is prepared, and
+    # again by every command that reads it. Exporting says nothing about it.
+    settings = sim_architectures.settings_for(entries, architecture)
+    metrics_file = settings.get("metrics_file")
+    return str(metrics_file) if metrics_file not in (None, "") else ""
+
+
 def _build_simulation_records(run_records, identity, run_dir):
     """Turn (meta_extra, metrics) tuples into v2 simulation records."""
     built = []
@@ -166,11 +190,23 @@ def _extract_records_for_run(run_dir, work_root, sim_path):
     """
     identity = _run_identity(run_dir, work_root, sim_path)
 
-    metrics_file = os.path.join(identity["simulation_definition_dir"], SIMULATION_METRICS_FILENAME)
+    declared_metrics_file = _declared_metrics_file(
+        identity["simulation_definition_dir"], identity["architecture"]
+    )
+    metrics_file = os.path.join(
+        identity["simulation_definition_dir"], declared_metrics_file or SIMULATION_METRICS_FILENAME
+    )
     if not os.path.isfile(metrics_file):
         # A simulation without a metrics file has nothing to export, which is a
         # normal setup (e.g. a testbench that checks itself through assertions
-        # and only has to succeed). That is not an export failure.
+        # and only has to succeed). That is not an export failure. A file the
+        # simulation explicitly asked for is another matter.
+        if declared_metrics_file:
+            printc.warning(
+                "There is no metrics file \"" + metrics_file + "\", declared by \""
+                + identity["simulation"] + "\" for \"" + identity["architecture"] + "\"",
+                script_name,
+            )
         return [], {}
 
     metrics_def, metadata_def = _load_metrics(metrics_file)

@@ -399,7 +399,7 @@ def check_settings(
             plan.add(workflow_display_name, Category.ERROR)
             continue
 
-        progress_file = hard_settings.sim_progress_filename
+        progress_file = hard_settings.sim_progress_file
         progress_regex = hard_settings.sim_status_pattern.pattern
         try:
             progress = read_from_list("progress", workflow_settings, workflow_settings_file, type=dict, optional=True, raise_if_missing=False, print_error=False)
@@ -407,11 +407,11 @@ def check_settings(
                 progress_file = read_from_list("file", progress, workflow_settings_file, parent="progress", optional=True, raise_if_missing=False, print_error=False)
                 progress_regex = read_from_list("regex", progress, workflow_settings_file, parent="progress", optional=True, raise_if_missing=False, print_error=False)
                 if progress_file in (False, None):
-                    progress_file = hard_settings.sim_progress_filename
+                    progress_file = hard_settings.sim_progress_file
                 if progress_regex in (False, None):
                     progress_regex = hard_settings.sim_status_pattern.pattern
         except (KeyNotInListError, BadValueInListError):
-            progress_file = hard_settings.sim_progress_filename
+            progress_file = hard_settings.sim_progress_file
             progress_regex = hard_settings.sim_status_pattern.pattern
 
         if first_progress_regex is None:

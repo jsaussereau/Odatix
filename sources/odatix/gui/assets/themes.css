@@ -115,6 +115,7 @@
     --tile-half-width: 355px;
     --tile-width: calc(var(--tile-half-width) * 2 + var(--tile-gap));
     --add-card-background: var(--theme-dimmed-element-background-color);
+    --add-card-background-hover: #228be61a;
     --add-card-border: 1px dashed #bbb;
     --add-card-text-color: var(--card-text-color);
 

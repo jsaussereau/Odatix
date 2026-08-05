@@ -19,24 +19,9 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Simulation Editor page (/sim_editor?sim=<name>).
-
-Edits a simulation's "_settings.yml": how the architecture parameters are
-replaced in the testbench sources, how the run reports its progress, and the
-tasks it runs.
-
-Simulations converged with workflows (see /workflow_editor): a simulation runs a
-task graph, not a single hard-coded command. A simulation that defines no task
-keeps running "make sim" through its Makefile, which is what every simulation
-written before tasks existed does -- the Tasks section then starts empty and
-says so.
-
-What a simulation does *not* have is its own configurations: it always runs on
-the configurations of the architectures it is paired with (chosen on
-/run_jobs?type=simulation), so this page has no configuration or variable
-section, unlike the Workflow Editor.
-"""
+import copy as copy_module
+import fnmatch
+import json
 
 import dash
 from dash import html, dcc, Input, Output, State, ctx
@@ -47,6 +32,7 @@ from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
+import odatix.workspace.sim_architectures as sim_architectures
 
 page_path = "/sim_editor"
 
@@ -105,6 +91,204 @@ def format_invariant_domains(domains):
     )
 
 
+PARAM_DOMAIN_TEXT_KEYS = ("param_target_file", "start_delimiter", "stop_delimiter", "param_file")
+
+# The text fields of a parameter domain row, by the suffix their component id
+# carries.
+FIELD_KEYS = {
+    "target-file": "param_target_file",
+    "start-delimiter": "start_delimiter",
+    "stop-delimiter": "stop_delimiter",
+    "param-file": "param_file",
+}
+
+# What a parameter domain row says about being substituted at all. "Inherit"
+# says nothing, which leaves the architecture's own setting for the domain
+# untouched.
+DOMAIN_MODE_OPTIONS = [
+    {"label": "Inherit", "value": "inherit"},
+    {"label": "Replace", "value": "yes"},
+    {"label": "No replacement", "value": "no"},
+]
+
+
+def normalize_param_domain(overrides):
+    """
+    Reduce one entry of "param_domains" to the keys this page edits.
+
+    Only the keys actually written are kept: an absent key means "inherit from
+    the architecture's own settings for that domain", which is not the same as
+    an empty one.
+    """
+    if not isinstance(overrides, dict):
+        return {}
+    normalized = {}
+    if "use_parameters" in overrides:
+        normalized["use_parameters"] = _parse_bool(overrides["use_parameters"], True)
+    for key in PARAM_DOMAIN_TEXT_KEYS:
+        if key in overrides and str(overrides[key] or "") != "":
+            normalized[key] = str(overrides[key])
+    return normalized
+
+
+def normalize_architectures(value):
+    """
+    Reduce the "architectures" block to the shape this page compares and writes:
+    a list of entries, in the order they are written, each holding its name and
+    what the simulation changes for it.
+
+    Everything an entry holds is kept, not only what this page edits: a metrics
+    file declared for one architecture must survive being edited here.
+    """
+    if isinstance(value, list) and all(
+        isinstance(entry, dict) and "name" in entry for entry in value
+    ):
+        # Already the shape this page works with, coming back from its own store
+        # or from what it just built out of the cards.
+        value = architectures_to_yaml(value)
+
+    messages = []
+    normalized = []
+    for entry in sim_architectures.parse(value, messages=messages):
+        settings = dict(entry.settings)
+        param_domains = settings.pop("param_domains", None)
+        if isinstance(param_domains, dict):
+            param_domains = {
+                str(domain): normalize_param_domain(overrides)
+                for domain, overrides in param_domains.items()
+                if str(domain).strip() != ""
+            }
+        else:
+            param_domains = {}
+        normalized.append(dict(settings, name=entry.name, param_domains=param_domains))
+    return normalized
+
+
+def architectures_to_yaml(architectures):
+    """Turn normalized entries back into what the settings file holds."""
+    return sim_architectures.to_yaml([
+        sim_architectures.ArchitectureEntry(
+            entry.get("name", ""),
+            {key: value for key, value in entry.items() if key != "name"},
+        )
+        for entry in architectures or []
+        if str(entry.get("name", "")).strip() != ""
+    ])
+
+
+# What an architecture card holds besides the settings the section edits: any
+# other key the entry carried is kept as it is, so a settings file is never
+# truncated by a version of the page that does not know a key yet.
+ARCH_CARD_KEYS = ("param_domains", "metrics_file")
+
+
+def arch_cards_from_settings(architectures):
+    """
+    Turn the normalized "architectures" entries into what the cards show: one
+    card per architecture, holding its parameter domains in the order they are
+    written and whatever else the entry carries.
+    """
+    cards = []
+    for entry in architectures or []:
+        if not isinstance(entry, dict):
+            continue
+        domains = [
+            dict(
+                normalize_param_domain(overrides),
+                name=str(domain),
+                mode=(
+                    "inherit" if not isinstance(overrides, dict) or "use_parameters" not in overrides
+                    else ("yes" if _parse_bool(overrides["use_parameters"], True) else "no")
+                ),
+            )
+            for domain, overrides in (entry.get("param_domains") or {}).items()
+        ]
+        cards.append({
+            "name": str(entry.get("name", "")),
+            "metrics_file": str(entry.get("metrics_file", "") or ""),
+            "extra": {
+                key: value for key, value in entry.items()
+                if key != "name" and key not in ARCH_CARD_KEYS
+            },
+            "domains": domains,
+            # A loaded architecture starts folded: the page opens on the list of
+            # what the simulation runs on, and a card is unfolded to work on it.
+            "collapsed": True,
+        })
+    return cards
+
+
+def arch_cards_to_settings(cards):
+    """
+    Turn what the cards hold back into "architectures" entries.
+
+    An architecture with nothing under it stays an architecture the simulation
+    runs on, and a domain with an empty name is one being filled in: neither is
+    written out as an override.
+    """
+    entries = []
+    for card in cards or []:
+        name = str(card.get("name", "") or "").strip()
+        if name == "":
+            continue
+
+        domains = {}
+        for domain in card.get("domains") or []:
+            domain_name = str(domain.get("name", "") or "").strip()
+            if domain_name == "":
+                continue
+            overrides = {}
+            if domain.get("mode") in ("yes", "no"):
+                overrides["use_parameters"] = domain.get("mode") == "yes"
+            for key in PARAM_DOMAIN_TEXT_KEYS:
+                value = str(domain.get(key, "") or "").strip()
+                if value != "":
+                    overrides[key] = value
+            domains[domain_name] = overrides
+
+        settings = {"name": name}
+        if domains:
+            settings["param_domains"] = domains
+        metrics_file = str(card.get("metrics_file", "") or "").strip()
+        if metrics_file != "":
+            settings["metrics_file"] = metrics_file
+        settings.update(card.get("extra") or {})
+        entries.append(settings)
+    return entries
+
+
+legacy_parameter_keys = (
+    "use_parameters", "param_target_file", "start_delimiter", "stop_delimiter",
+    "override_parameters", "override_param_file", "override_param_target_file",
+    "override_start_delimiter", "override_stop_delimiter",
+)
+
+
+def uses_legacy_parameters(settings):
+    """
+    Whether a simulation still relies on the pre-"param_domains" keys. They are
+    only shown when it does, so a simulation that has moved on is not offered a
+    deprecated way of doing the same thing.
+    """
+    if not isinstance(settings, dict):
+        return False
+    return any(key in settings for key in legacy_parameter_keys)
+
+
+def settings_as_written(settings):
+    """
+    The settings as a plain dict, minus the deprecated keys the settings file
+    does not actually hold: ``to_dict`` fills every declared key with its
+    default, which would make every simulation look like a legacy one.
+    """
+    data = settings.to_dict()
+    in_file = settings.file_keys()
+    for key in legacy_parameter_keys:
+        if key not in in_file:
+            data.pop(key, None)
+    return data
+
+
 def normalize_simulation_settings(settings):
     """
     Reduce a simulation settings file to the keys this page edits, with stable
@@ -135,8 +319,19 @@ def normalize_simulation_settings(settings):
     else:
         invariant_domains = {}
 
-    return {
+    normalized = {
         "invariant_domains": invariant_domains,
+        "architectures": normalize_architectures(settings.get("architectures")),
+        "progress": {
+            "file": str(progress.get("file", "") or ""),
+            "regex": str(progress.get("regex", "") or ""),
+        },
+        "tasks": tasks,
+    }
+
+    # The deprecated keys are only carried when the simulation actually sets them, so that
+    # editing a simulation that has moved on to "param_domains" does not write them back.
+    legacy = {
         "use_parameters": _parse_bool(settings.get("use_parameters", True), True),
         "param_target_file": str(settings.get("param_target_file", "") or ""),
         "start_delimiter": str(settings.get("start_delimiter", "") or ""),
@@ -146,12 +341,11 @@ def normalize_simulation_settings(settings):
         "override_param_target_file": str(settings.get("override_param_target_file", "") or ""),
         "override_start_delimiter": str(settings.get("override_start_delimiter", "") or ""),
         "override_stop_delimiter": str(settings.get("override_stop_delimiter", "") or ""),
-        "progress": {
-            "file": str(progress.get("file", "") or ""),
-            "regex": str(progress.get("regex", "") or ""),
-        },
-        "tasks": tasks,
     }
+    if uses_legacy_parameters(settings):
+        normalized.update(legacy)
+
+    return normalized
 
 def build_tasks_list(names, dependencies_vals, commands_vals, path_vals, platforms_vals):
     """
@@ -284,11 +478,20 @@ def sim_form(settings):
     use_parameters = True if defval("use_parameters", True) else False
     override_parameters = True if defval("override_parameters", False) else False
 
+    legacy_style = {} if uses_legacy_parameters(settings) else Style.hidden
+
     return html.Div(
         children=[
             html.Div(
                 [
-                    html.H3("Parameters Replacement"),
+                    html.H3("Parameters Replacement (deprecated)"),
+                    html.Div(
+                        "Superseded by the Architectures section below, which does the same per "
+                        "architecture and per parameter domain instead of once for all of them. "
+                        "Clear these fields once the architectures cover them.",
+                        className="odx-panel-note",
+                        style={"marginBottom": "12px"},
+                    ),
                     html.Div(
                         children=[
                             dcc.Checklist(
@@ -333,10 +536,18 @@ def sim_form(settings):
                     ),
                 ],
                 className="tile config",
+                style=legacy_style,
             ),
             html.Div(
                 [
-                    html.H3("Parameters Override"),
+                    html.H3("Parameters Override (deprecated)"),
+                    html.Div(
+                        "Superseded by the Architectures section below: under an architecture, a domain "
+                        "name matching none of its own declares a replacement of the simulation's own, "
+                        "which is what this did.",
+                        className="odx-panel-note",
+                        style={"marginBottom": "12px"},
+                    ),
                     html.Div(
                         children=[
                             dcc.Checklist(
@@ -386,6 +597,7 @@ def sim_form(settings):
                     ),
                 ],
                 className="tile config",
+                style=legacy_style,
             ),
             html.Div(
                 [
@@ -394,7 +606,7 @@ def sim_form(settings):
                         label="Progress File",
                         id="sim-progress-file",
                         value=progress.get("file", ""),
-                        placeholder=f"{hard_settings.work_log_path}/{hard_settings.sim_progress_filename}",
+                        placeholder=hard_settings.sim_progress_file,
                         tooltip="Path of the progress file written by the simulation.",
                     ),
                     sim_form_field(
@@ -414,7 +626,6 @@ def sim_form(settings):
                         label="Domains",
                         id="sim-invariant-domains",
                         value=format_invariant_domains(defval("invariant_domains", {})),
-                        placeholder="MEM/1024I_1024D, Voltage",
                         tooltip=(
                             "Parameter domains this simulation's result does not depend on. Only one value "
                             "of each is run instead of all of them, and the result carries no such dimension, "
@@ -430,6 +641,349 @@ def sim_form(settings):
         className="tiles-container config",
         style={"marginTop": "-10px", "marginBottom": "20px"},
     )
+
+def architecture_options(odatix_settings=None, current=""):
+    """
+    Options of the architecture dropdown of an architecture card: every
+    architecture of the workspace, with "All architectures" ("*") on top.
+
+    A value the file already held (a wildcard, or an architecture that no longer
+    exists) is kept as an option of its own so opening the page does not silently
+    drop it.
+    """
+    options = [{"label": "All architectures", "value": "*"}]
+    options.extend(
+        {"label": name, "value": name}
+        for name in workspace_architecture_names(odatix_settings)
+    )
+    return with_architecture_option(options, current)
+
+
+def workspace_architecture_names(odatix_settings=None):
+    """The architectures of the workspace, sorted, empty when there is no reading them."""
+    try:
+        return sorted(get_workspace(odatix_settings).architectures.names())
+    except Exception:
+        return []
+
+
+def with_architecture_option(options, arch):
+    """Same options, plus `arch` itself when the workspace does not list it."""
+    if not arch or arch in [option["value"] for option in options]:
+        return options
+    return options[:1] + [{"label": arch, "value": arch}] + options[1:]
+
+
+def architecture_domain_names(arch, odatix_settings=None):
+    """
+    The parameter domains of one architecture of the workspace, the main one
+    first. A wildcard entry applies to several architectures at once, so it gets
+    the domains of all of them.
+    """
+    try:
+        architectures = get_workspace(odatix_settings).architectures
+        if arch and "*" not in arch and "?" not in arch:
+            return architectures[arch].domains.names()
+        names = []
+        for name in sorted(architectures.names()):
+            if arch and not fnmatch.fnmatch(name, arch):
+                continue
+            for domain in architectures[name].domains.names():
+                if domain not in names:
+                    names.append(domain)
+        return names
+    except Exception:
+        return []
+
+
+def domain_options(arch, odatix_settings=None):
+    """
+    Options of the domain dropdown of a parameter domain row: the domains the
+    architecture of the card defines, named the way the config editor names them.
+    """
+    return [
+        {
+            "label": "Main parameter domain" if name == hard_settings.main_parameter_domain else name,
+            "value": name,
+        }
+        for name in architecture_domain_names(arch, odatix_settings)
+    ]
+
+
+def with_domain_option(options, domain):
+    """
+    Same options, plus `domain` itself when the architecture does not declare it:
+    a domain it no longer declares, or one the simulation substitutes on its own,
+    must not silently disappear when the page opens.
+    """
+    if not domain or domain in [option["value"] for option in options]:
+        return options
+    return list(options) + [{"label": domain, "value": domain}]
+
+
+def _uid(prefix, index):
+    return "{0}{1:03d}".format(prefix, index)
+
+
+def domain_row(arch_uid, domain_uid, domain, options=None):
+    """
+    One parameter domain of one architecture: what the simulation does with the
+    values that domain sets, instead of what the architecture says.
+
+    What a row leaves empty is inherited from the architecture's own settings for
+    that domain, which is not the same as clearing it. A row whose name matches
+    no domain of the architecture declares a replacement of the simulation's own,
+    which is what the parameter file is for.
+    """
+    name = str(domain.get("name", "") or "")
+
+    def field(label, key, placeholder="", tooltip=""):
+        return ui.form_field(
+            label,
+            {"type": "sim-domain-" + key, "arch": arch_uid, "domain": domain_uid},
+            value=str(domain.get(FIELD_KEYS[key], "") or ""),
+            placeholder=placeholder,
+            tooltip=tooltip,
+        )
+
+    return html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Div(
+                        dcc.Dropdown(
+                            id={"type": "sim-domain-name", "arch": arch_uid, "domain": domain_uid},
+                            options=with_domain_option(options or [], name),
+                            value=name or None,
+                            placeholder="Domain...",
+                            clearable=False,
+                        ),
+                        className="odx-domain-name",
+                    ),
+                    dcc.RadioItems(
+                        id={"type": "sim-domain-mode", "arch": arch_uid, "domain": domain_uid},
+                        options=DOMAIN_MODE_OPTIONS,
+                        value=domain.get("mode", "inherit"),
+                        className="odx-chips",
+                    ),
+                    ui.duplicate_button(
+                        id={"type": "sim-domain-duplicate", "arch": arch_uid, "domain": domain_uid},
+                        tooltip="Duplicate this parameter domain",
+                    ),
+                    ui.delete_button(
+                        id={"type": "sim-domain-delete", "arch": arch_uid, "domain": domain_uid},
+                        tooltip="Delete this parameter domain",
+                    ),
+                ],
+                className="odx-domain-head",
+            ),
+            html.Div(
+                children=[
+                    field(
+                        "Target file", "target-file", placeholder="tb/tb_cordic.sv",
+                        tooltip="File of the simulation sources the values are written into, "
+                                "instead of the one the architecture writes them into.",
+                    ),
+                    field(
+                        "Parameter file", "param-file", placeholder="sim_params.txt",
+                        tooltip="File of the simulation holding the values, instead of the "
+                                "configuration's. Required for a domain the architecture does not define.",
+                    ),
+                ],
+                className="odx-field-row",
+            ),
+            html.Div(
+                children=[
+                    field(
+                        "Start delimiter", "start-delimiter",
+                        tooltip="Start marker for replacement. Escape sequences such as \\n are supported.",
+                    ),
+                    field(
+                        "Stop delimiter", "stop-delimiter",
+                        tooltip="Stop marker for replacement. Escape sequences such as \\n are supported.",
+                    ),
+                ],
+                className="odx-field-row",
+            ),
+        ],
+        className="odx-domain-row",
+    )
+
+
+def arch_card(arch_uid, card, arch_options=None, odatix_settings=None):
+    """
+    One architecture the simulation runs on, and what it changes for it: the
+    parameter domains it substitutes differently, and the metrics file it exports
+    through.
+
+    A card can be folded down to its head, so a testbench running on a handful of
+    designs stays readable. Whether it is folded is held in the page like the
+    other states the server owns, so it survives the re-render a structural
+    change triggers.
+    """
+    name = str(card.get("name", "") or "")
+    domains = card.get("domains") or []
+    collapsed = bool(card.get("collapsed"))
+    options = arch_options if arch_options is not None else architecture_options(current=name)
+    # The domains to pick from are the architecture's own, so they follow the
+    # dropdown above them.
+    own_domains = domain_options(name, odatix_settings) if domains else []
+
+    head = html.Div(
+        children=[
+            ui.icon_button(
+                id={"type": "sim-arch-toggle", "arch": arch_uid},
+                icon=icon(
+                    "more",
+                    className="icon normal rotate" + ("" if collapsed else " rotated"),
+                    id={"type": "sim-arch-toggle-icon", "arch": arch_uid},
+                ),
+                color="default",
+                tooltip="Fold or unfold this architecture",
+                tooltip_options="bottom auto delay",
+            ),
+            dcc.Input(
+                id={"type": "sim-arch-collapsed", "arch": arch_uid},
+                value="1" if collapsed else "",
+                type="hidden",
+            ),
+            # Whatever else the entry carried, kept as it is so a key this page
+            # does not edit survives being saved from here.
+            dcc.Input(
+                id={"type": "sim-arch-extra", "arch": arch_uid},
+                value=json.dumps(card.get("extra") or {}),
+                type="hidden",
+            ),
+            html.Div(
+                dcc.Dropdown(
+                    id={"type": "sim-arch-name", "arch": arch_uid},
+                    options=with_architecture_option(options, name),
+                    value=name or None,
+                    placeholder="Architecture...",
+                    clearable=False,
+                ),
+                className="odx-arch-name",
+            ),
+            ui.badge(
+                "no override" if not domains
+                else ("1 domain" if len(domains) == 1 else "{0} domains".format(len(domains))),
+                className="odx-arch-badge",
+            ),
+            html.Div(style={"flex": "1"}),
+            ui.duplicate_button(
+                id={"type": "sim-arch-duplicate", "arch": arch_uid},
+                tooltip="Duplicate this architecture",
+            ),
+            ui.delete_button(
+                id={"type": "sim-arch-delete", "arch": arch_uid},
+                tooltip="Remove this architecture from the ones the simulation runs on",
+            ),
+        ],
+        className="odx-card-head odx-arch-head",
+    )
+
+    body = html.Div(
+        children=[
+            ui.form_field(
+                "Metrics file",
+                {"type": "sim-arch-metrics-file", "arch": arch_uid},
+                value=str(card.get("metrics_file", "") or ""),
+                placeholder="_metrics.yml",
+                tooltip="Metrics definition file used when exporting this simulation's results "
+                        "for this architecture, instead of the simulation's own.",
+            ),
+            ui.caption(
+                "Parameter domains",
+                tooltip="How this simulation substitutes the values of the architecture's parameter "
+                        "domains. A domain that is not listed is substituted the way the architecture "
+                        "declares it.",
+            ),
+            html.Div(
+                children=[
+                    domain_row(arch_uid, _uid("d", index), domain, options=own_domains)
+                    for index, domain in enumerate(domains)
+                ] or [
+                    html.Div(
+                        "Every parameter domain of this architecture is substituted the way the "
+                        "architecture declares it.",
+                        className="odx-domain-empty",
+                    )
+                ],
+                className="odx-domain-rows",
+            ),
+            html.Button(
+                "+ Add parameter domain rules",
+                id={"type": "sim-domain-new", "arch": arch_uid},
+                n_clicks=0,
+                className="odx-jobstep-add",
+            ),
+        ],
+        id={"type": "sim-arch-body", "arch": arch_uid},
+        className="animated-section" + (" hide" if collapsed else ""),
+    )
+
+    return html.Div(
+        children=[head, body],
+        id={"type": "sim-arch-card", "arch": arch_uid},
+        className="tile config" + (" collapsed" if collapsed else ""),
+    )
+
+
+def arch_no_entry_note():
+    """
+    Shown instead of architecture cards when the simulation lists none. Listing
+    them is an indication, not a restriction: running a simulation on an
+    architecture it does not list works, and only warns.
+    """
+    return html.Div(
+        [
+            html.Div("No architecture listed", style={"fontWeight": "bold", "marginBottom": "6px"}),
+            html.Div(
+                "This simulation says nothing about the designs it is written for. Add one to say "
+                "what it runs on, to substitute one of its parameter domains differently, or to "
+                "export its results through a metrics file of its own.",
+                className="odx-panel-note",
+            ),
+        ],
+        className="odx-panel padded odx-empty",
+    )
+
+
+def arch_cards(cards, odatix_settings=None):
+    """The whole Architectures section: one card per entry, plus the "add" card."""
+    options = architecture_options(odatix_settings)
+    children = [
+        arch_card(_uid("a", index), card, arch_options=options, odatix_settings=odatix_settings)
+        for index, card in enumerate(cards or [])
+    ]
+    if not children:
+        children.append(arch_no_entry_note())
+    children.append(ui.add_card(id="sim-arch-new", text="Add an architecture", className="horizontal tile config add hover"))
+    return children
+
+
+def new_arch_card(used, available):
+    """
+    An architecture the simulation runs on with nothing to change yet, folded:
+    listing an architecture is most of what an entry is for, and a card that has
+    nothing under it has nothing to show. It starts on the first architecture of
+    the workspace the simulation does not already list, and falls back to every
+    architecture at once when it already lists them all.
+    """
+    return {
+        "name": next((name for name in available or [] if name not in (used or [])), "*"),
+        "metrics_file": "",
+        "extra": {},
+        "domains": [],
+        "collapsed": True,
+    }
+
+
+def new_domain():
+    """A parameter domain override that changes nothing yet."""
+    return {"name": "", "mode": "inherit", "param_target_file": "", "start_delimiter": "",
+            "stop_delimiter": "", "param_file": ""}
+
 
 def sim_task_card(name="main", dependencies_value="", commands_value="", path_value="", platforms_value=""):
     is_main = str(name).strip() == "main"
@@ -458,7 +1012,7 @@ def sim_task_card(name="main", dependencies_value="", commands_value="", path_va
                 dcc.Input(
                     value=dependencies_value,
                     type="text",
-                    placeholder="task_a, task_b",
+                    placeholder="e.g., task_a, task_b",
                     id={"type": "sim-task-field-dependencies", "name": name},
                     className="value-input",
                     style={"width": "100%", "marginBottom": "8px"},
@@ -618,8 +1172,250 @@ def sim_cards_from_tasks(tasks):
 
 
 ######################################
+# Reading the architectures back from the page
+######################################
+# Every architecture card is rendered at once, so what the user typed lives in
+# the page and never has to be mirrored into a store. Component ids carry the
+# card (and, for a parameter domain, the row) they belong to: "a000" / "d000",
+# zero padded so the order dash returns pattern matching values in is the order
+# they are displayed in.
+
+def _by_arch(ids, values):
+    """{card uid: value} for a one-per-architecture pattern matching input."""
+    return {i.get("arch"): v for i, v in zip(ids or [], values or []) if isinstance(i, dict)}
+
+
+def gather_architectures(
+    arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
+    domain_ids, domain_names, domain_modes,
+    domain_target_files, domain_param_files, domain_start_delimiters, domain_stop_delimiters,
+):
+    """
+    Rebuild the architecture cards from what is currently in the page. Used both
+    to save and to re-render the section after a structural change, so an edit in
+    one card survives adding, duplicating or deleting another.
+    """
+    names = _by_arch(arch_ids, arch_names)
+    metrics_files = _by_arch(arch_ids, arch_metrics_files)
+    extras = _by_arch(arch_ids, arch_extras)
+    collapsed = _by_arch(arch_ids, arch_collapsed)
+
+    domains = {}
+    for domain_id, name, mode, target_file, param_file, start_delimiter, stop_delimiter in zip(
+        domain_ids or [], domain_names or [], domain_modes or [],
+        domain_target_files or [], domain_param_files or [],
+        domain_start_delimiters or [], domain_stop_delimiters or [],
+    ):
+        if not isinstance(domain_id, dict):
+            continue
+        domains.setdefault(domain_id.get("arch"), []).append((
+            domain_id.get("domain"),
+            {
+                "name": str(name or ""),
+                "mode": mode or "inherit",
+                "param_target_file": str(target_file or ""),
+                "param_file": str(param_file or ""),
+                "start_delimiter": str(start_delimiter or ""),
+                "stop_delimiter": str(stop_delimiter or ""),
+            },
+        ))
+
+    cards = []
+    for uid in sorted(names):
+        try:
+            extra = json.loads(extras.get(uid) or "{}")
+        except ValueError:
+            extra = {}
+        cards.append({
+            "uid": uid,
+            "name": str(names.get(uid) or ""),
+            "metrics_file": str(metrics_files.get(uid) or ""),
+            "extra": extra if isinstance(extra, dict) else {},
+            "collapsed": bool(collapsed.get(uid)),
+            "domains": [domain for _domain_uid, domain in sorted(domains.get(uid, []))],
+        })
+    return cards
+
+
+# The pattern matching dependencies holding the architecture cards, in the order
+# the callbacks using them take their arguments (dash hands them over in
+# declaration order). Ids and server owned values are always read as State;
+# `field_dep` says whether the rest wake the callback up: the structural callback
+# only reads them, while the save callback watches them to keep its dirty state
+# fresh.
+def arch_dependencies(field_dep):
+    domain_pattern = {"arch": dash.ALL, "domain": dash.ALL}
+    return [
+        State({"type": "sim-arch-name", "arch": dash.ALL}, "id"),
+        field_dep({"type": "sim-arch-name", "arch": dash.ALL}, "value"),
+        field_dep({"type": "sim-arch-metrics-file", "arch": dash.ALL}, "value"),
+        # Hidden, server owned values: they only ever change with a re-render.
+        State({"type": "sim-arch-extra", "arch": dash.ALL}, "value"),
+        State({"type": "sim-arch-collapsed", "arch": dash.ALL}, "value"),
+        State(dict(domain_pattern, type="sim-domain-name"), "id"),
+        field_dep(dict(domain_pattern, type="sim-domain-name"), "value"),
+        field_dep(dict(domain_pattern, type="sim-domain-mode"), "value"),
+        field_dep(dict(domain_pattern, type="sim-domain-target-file"), "value"),
+        field_dep(dict(domain_pattern, type="sim-domain-param-file"), "value"),
+        field_dep(dict(domain_pattern, type="sim-domain-start-delimiter"), "value"),
+        field_dep(dict(domain_pattern, type="sim-domain-stop-delimiter"), "value"),
+    ]
+
+
+def _arch_index(cards, uid):
+    for index, card in enumerate(cards):
+        if card.get("uid") == uid:
+            return index
+    return None
+
+
+def _domain_index(domain_ids, arch_uid, domain_uid):
+    """Position of a parameter domain in its card, from the ids in the page."""
+    uids = sorted(
+        i.get("domain") for i in domain_ids or []
+        if isinstance(i, dict) and i.get("arch") == arch_uid
+    )
+    return uids.index(domain_uid) if domain_uid in uids else None
+
+
+######################################
 # Callbacks
 ######################################
+
+@dash.callback(
+    Output({"type": "sim-arch-body", "arch": dash.MATCH}, "className"),
+    Output({"type": "sim-arch-toggle-icon", "arch": dash.MATCH}, "className"),
+    Output({"type": "sim-arch-card", "arch": dash.MATCH}, "className"),
+    Output({"type": "sim-arch-collapsed", "arch": dash.MATCH}, "value"),
+    Input({"type": "sim-arch-toggle", "arch": dash.MATCH}, "n_clicks"),
+    State({"type": "sim-arch-collapsed", "arch": dash.MATCH}, "value"),
+    State({"type": "sim-arch-card", "arch": dash.MATCH}, "className"),
+    prevent_initial_call=True,
+)
+def toggle_architecture(n_clicks, collapsed, card_class):
+    """
+    Fold an architecture card down to its head, or unfold it. The new state is
+    written back to the hidden value the card carries, so a re-render of the
+    section keeps every card as it was.
+    """
+    if not n_clicks:
+        return (dash.no_update,) * 4
+
+    collapsed = not collapsed
+    classes = [name for name in str(card_class or "").split() if name != "collapsed"]
+    if collapsed:
+        classes.append("collapsed")
+    return (
+        "animated-section hide" if collapsed else "animated-section",
+        "icon normal rotate" if collapsed else "icon normal rotate rotated",
+        " ".join(classes),
+        "1" if collapsed else "",
+    )
+
+
+@dash.callback(
+    Output({"type": "sim-domain-name", "arch": dash.MATCH, "domain": dash.ALL}, "options"),
+    Input({"type": "sim-arch-name", "arch": dash.MATCH}, "value"),
+    State({"type": "sim-domain-name", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def update_domain_options(arch, domains, odatix_settings):
+    """
+    A card pointed at another architecture overrides the domains of that one:
+    every domain dropdown of the card follows its architecture dropdown. A name
+    already picked is kept as an option, so changing the architecture does not
+    clear what the file holds.
+    """
+    options = domain_options(str(arch or ""), odatix_settings)
+    return [with_domain_option(options, str(domain or "")) for domain in domains or []]
+
+
+@dash.callback(
+    Output("sim-arch-container", "children", allow_duplicate=True),
+    # An architecture or a parameter domain added, duplicated or deleted changes
+    # the settings without any field changing, and the save callback cannot watch
+    # the section itself without closing a dependency cycle through the url: mark
+    # the button from here.
+    Output({"page": page_path, "action": "save-all"}, "className", allow_duplicate=True),
+    Output({"page": page_path, "action": "save-all"}, "data-tooltip", allow_duplicate=True),
+    Input("sim-arch-new", "n_clicks"),
+    Input({"type": "sim-arch-duplicate", "arch": dash.ALL}, "n_clicks"),
+    Input({"type": "sim-arch-delete", "arch": dash.ALL}, "n_clicks"),
+    Input({"type": "sim-domain-new", "arch": dash.ALL}, "n_clicks"),
+    Input({"type": "sim-domain-duplicate", "arch": dash.ALL, "domain": dash.ALL}, "n_clicks"),
+    Input({"type": "sim-domain-delete", "arch": dash.ALL, "domain": dash.ALL}, "n_clicks"),
+    *arch_dependencies(State),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def update_architectures(
+    new_click, duplicate_clicks, delete_clicks,
+    domain_new_clicks, domain_duplicate_clicks, domain_delete_clicks,
+    arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
+    domain_ids, domain_names, domain_modes,
+    domain_target_files, domain_param_files, domain_start_delimiters, domain_stop_delimiters,
+    odatix_settings,
+):
+    """
+    Apply a structural change (an architecture or one of its parameter domains
+    added, duplicated or deleted) and re-render the whole section from what the
+    page currently holds, so every unsaved edit is carried over.
+    """
+    trigger = ctx.triggered_id
+    # A click is only an action once the button has actually been clicked;
+    # a value of 0 is a button that was just rendered.
+    if not (ctx.triggered[0]["value"] if ctx.triggered else None):
+        return dash.no_update, dash.no_update, dash.no_update
+
+    action = trigger if isinstance(trigger, str) else (trigger or {}).get("type")
+    arch_uid = trigger.get("arch") if isinstance(trigger, dict) else None
+
+    cards = gather_architectures(
+        arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
+        domain_ids, domain_names, domain_modes,
+        domain_target_files, domain_param_files, domain_start_delimiters, domain_stop_delimiters,
+    )
+    index = _arch_index(cards, arch_uid) if arch_uid is not None else None
+
+    if action == "sim-arch-new":
+        cards.append(new_arch_card(
+            [card["name"] for card in cards], workspace_architecture_names(odatix_settings),
+        ))
+
+    elif action == "sim-arch-duplicate" and index is not None:
+        copy = copy_module.deepcopy(cards[index])
+        # The copy keeps the architecture it was made from: nothing is dropped
+        # behind the user's back, and pointing it at another design is one click
+        # away in its dropdown. It is folded exactly like the card it copies.
+        cards.insert(index + 1, copy)
+
+    elif action == "sim-arch-delete" and index is not None:
+        cards.pop(index)
+
+    elif action == "sim-domain-new" and index is not None:
+        cards[index]["domains"].append(new_domain())
+        cards[index]["collapsed"] = False
+
+    elif action in ("sim-domain-duplicate", "sim-domain-delete") and index is not None:
+        domains = cards[index]["domains"]
+        domain_index = _domain_index(domain_ids, arch_uid, trigger.get("domain"))
+        if domain_index is not None and domain_index < len(domains):
+            if action == "sim-domain-delete":
+                domains.pop(domain_index)
+            else:
+                copy = copy_module.deepcopy(domains[domain_index])
+                # Two rows for the same domain say nothing: the copy is there to
+                # be pointed at another one, so it starts with none picked.
+                copy["name"] = ""
+                domains.insert(domain_index + 1, copy)
+
+    return (
+        arch_cards(cards, odatix_settings),
+        "color-button warning icon-button tooltip bottom small",
+        "Unsaved changes!",
+    )
+
 
 @dash.callback(
     Output("sim-task-cards-row", "children", allow_duplicate=True),
@@ -721,22 +1517,28 @@ def update_sim_task_cards(
     Output("sim-form-container", "children"),
     Output("sim-initial-settings", "data"),
     Output("sim-task-cards-row", "children"),
+    Output("sim-arch-container", "children"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
 def init_form(search, page, odatix_settings):
     if page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     sim_name = get_key_from_url(search, "sim")
     if not sim_name:
         settings = normalize_simulation_settings({})
-        return sim_form(settings), settings, sim_cards_from_tasks([])
+    else:
+        simulations = get_workspace(odatix_settings).simulations
+        settings = normalize_simulation_settings(settings_as_written(simulations.entry(sim_name).settings))
 
-    simulations = get_workspace(odatix_settings).simulations
-    settings = normalize_simulation_settings(simulations.entry(sim_name).settings.to_dict())
-    return sim_form(settings), settings, sim_cards_from_tasks(settings.get("tasks", []))
+    return (
+        sim_form(settings),
+        settings,
+        sim_cards_from_tasks(settings.get("tasks", [])),
+        arch_cards(arch_cards_from_settings(settings.get("architectures")), odatix_settings),
+    )
 
 
 @dash.callback(
@@ -758,6 +1560,7 @@ def init_form(search, page, odatix_settings):
     Input("sim-progress-file", "value"),
     Input("sim-progress-regex", "value"),
     Input("sim-invariant-domains", "value"),
+    *arch_dependencies(Input),
     Input({"type": "sim-task-field-name", "name": dash.ALL}, "value"),
     Input({"type": "sim-task-field-dependencies", "name": dash.ALL}, "value"),
     Input({"type": "sim-task-field-commands", "name": dash.ALL}, "value"),
@@ -785,6 +1588,18 @@ def save_and_status(
     progress_file,
     progress_regex,
     invariant_domains,
+    arch_ids,
+    arch_names,
+    arch_metrics_files,
+    arch_extras,
+    arch_collapsed,
+    domain_ids,
+    domain_names,
+    domain_modes,
+    domain_target_files,
+    domain_param_files,
+    domain_start_delimiters,
+    domain_stop_delimiters,
     task_names,
     task_dependencies,
     task_commands,
@@ -805,8 +1620,28 @@ def save_and_status(
     else:
         reference_settings = normalize_simulation_settings(saved_settings)
 
-    current_settings = normalize_simulation_settings(
-        {
+    current_values = {
+        # The whole "architectures" block comes from the cards, including what
+        # this page does not edit: each card carries the keys its entry held.
+        "architectures": arch_cards_to_settings(gather_architectures(
+            arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
+            domain_ids, domain_names, domain_modes,
+            domain_target_files, domain_param_files, domain_start_delimiters, domain_stop_delimiters,
+        )),
+        "progress": {
+            "file": progress_file or "",
+            "regex": progress_regex or "",
+        },
+        "invariant_domains": parse_invariant_domains_text(invariant_domains),
+        "tasks": build_tasks_list(
+            task_names, task_dependencies, task_commands, task_paths, task_platforms
+        ),
+    }
+
+    # The deprecated fields are only written back for a simulation that already used them,
+    # so editing anything else does not resurrect them.
+    if uses_legacy_parameters(reference_settings):
+        current_values.update({
             "use_parameters": True if use_parameters else False,
             "param_target_file": param_target_file or "",
             "start_delimiter": start_delimiter or "",
@@ -816,16 +1651,9 @@ def save_and_status(
             "override_param_target_file": override_param_target_file or "",
             "override_start_delimiter": override_start_delimiter or "",
             "override_stop_delimiter": override_stop_delimiter or "",
-            "progress": {
-                "file": progress_file or "",
-                "regex": progress_regex or "",
-            },
-            "invariant_domains": parse_invariant_domains_text(invariant_domains),
-            "tasks": build_tasks_list(
-                task_names, task_dependencies, task_commands, task_paths, task_platforms
-            ),
-        }
-    )
+        })
+
+    current_settings = normalize_simulation_settings(current_values)
 
     sim_name = get_key_from_url(search, "sim")
     simulations = get_workspace(odatix_settings).simulations
@@ -872,7 +1700,9 @@ def save_and_status(
             simulation = simulations.create(sim_name)
 
         try:
-            simulation.update(current_settings)
+            simulation.update(
+                dict(current_settings, architectures=architectures_to_yaml(current_settings.get("architectures")))
+            )
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
@@ -967,6 +1797,33 @@ layout = html.Div(
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "sim-title-div"}, style={"marginTop": "20px"}),
         html.Div(id="sim-form-container"),
+        html.Div(
+            children=[
+                ui.title_tile(
+                    text="Architectures",
+                    id="sim-arch-title",
+                    tooltip=(
+                        "The architectures this testbench is written for, and what the simulation "
+                        "changes for each of them: how their parameter domains are substituted (where "
+                        "the values are written, whether they are written at all, or where they come "
+                        "from) and which metrics file its results are exported through. An architecture "
+                        "listed with nothing under it is simply one the simulation runs on. Listing "
+                        "them is an indication, not a restriction: running the simulation on an "
+                        "architecture it does not list works, and only warns. \"All architectures\" "
+                        "(\"*\") applies to every one of them, and the entries matching a design apply "
+                        "in the order they are written, so an architecture placed after a wildcard "
+                        "refines it."
+                    ),
+                ),
+                html.Div(
+                    id="sim-arch-container",
+                    children=[
+                        ui.add_card(id="sim-arch-new", text="Add an architecture", className="tile config")
+                    ],
+                    className="card-matrix configs wide",
+                ),
+            ],
+        ),
         html.Div(
             children=[
                 ui.title_tile(

@@ -35,6 +35,12 @@ page_path = "/run_jobs"
 
 MAX_PREVIEW_COMBINATIONS = 10000
 
+# Key the simulation -> listed architectures mapping is kept under in the
+# "saved" baseline store. It is not part of the run settings file (each
+# simulation stores its own list), it only rides along so that Save and the
+# "unsaved changes" state cover it like everything else the page edits.
+ARCHITECTURES_BASELINE_KEY = "__architectures__"
+
 # Display labels of the job types the page can be opened with (?type=...),
 # shown as a tag in the summary strip of the header.
 RUN_MODE_LABELS = {

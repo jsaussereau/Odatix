@@ -983,7 +983,7 @@ def flow_card(flow_uid, flow, lock_default=False):
 def flow_cards(flows, lock_default=False):
     """The whole flows section: one card per flow, plus the "add a flow" card."""
     cards = [flow_card(_uid("f", index), flow, lock_default=lock_default) for index, flow in enumerate(flows)]
-    cards.append(ui.add_card(id="tool-flow-new", text="Add a flow", className="odx-flow-add"))
+    cards.append(ui.add_card(id="tool-flow-new", text="Add a flow", className="odx-panel horizontal odx-flow-add"))
     return cards
 
 def new_flow(name):
