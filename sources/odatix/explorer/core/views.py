@@ -48,6 +48,7 @@ import odatix.explorer.charts.plot_themes as plot_themes
 from odatix.explorer.charts.spec import (
   CAPABILITIES,
   KIND_LABELS,
+  MULTI_CONTROLS,
   NONE_VALUE,
   OVERVIEW_LAYOUTS,
   TOGGLE_LABELS,
@@ -211,7 +212,25 @@ def sanitize_view(view, store):
   for key in CONTROL_KEYS:
     if key not in saved_controls or saved_controls[key] is None:
       continue
-    value = str(saved_controls[key])
+    saved = saved_controls[key]
+    if key in MULTI_CONTROLS:
+      # Multi controls hold a list of dimensions (a plain string in views saved
+      # when they were single-valued).
+      values = list(saved) if isinstance(saved, (list, tuple)) else [saved]
+      kept = []
+      for value in (str(value) for value in values):
+        if value == NONE_VALUE:
+          continue
+        if value in allowed[key]:
+          kept.append(value)
+        else:
+          warnings.append('"' + value + '" (' + key.replace("_", " ") + ") does not exist in this data")
+      if kept or not values:
+        controls[key] = kept
+      # else: every saved dimension is gone — leave the key out so the generic
+      # defaults pick one, as for the single-valued controls above.
+      continue
+    value = str(saved)
     if value in allowed[key]:
       controls[key] = value
     else:
@@ -323,6 +342,10 @@ def make_thumbnail(df, kind, x, y, color_by, dimensions):
 
   if df is None or df.empty or not y or y not in df.columns:
     return None
+
+  if isinstance(color_by, (list, tuple)):
+    # "Color by" can name several dimensions; the sketch only splits on the first
+    color_by = color_by[0] if color_by else None
 
   if color_by in df.columns and color_by in (dimensions or {}):
     values = dimensions[color_by]

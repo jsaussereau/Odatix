@@ -137,13 +137,20 @@ def axis_title(metric, units):
   return title
 
 
-def clean_configuration_name(configuration, dissociated_dimension):
+def clean_configuration_name(configuration, dissociated_dimensions):
   """
-  Remove the "+dimension/value" (or legacy "+dimension_value") segment of a
-  configuration name when that dimension is dissociated into separate traces.
+  Remove the "+dimension/value" (or legacy "+dimension_value") segments of a
+  configuration name for the dimensions dissociated into separate traces.
+
+  ``dissociated_dimensions`` is a dimension name or a list of them.
   """
-  if not dissociated_dimension:
+  if not dissociated_dimensions:
     return configuration
+  if isinstance(dissociated_dimensions, str):
+    dissociated_dimensions = [dissociated_dimensions]
   parts = str(configuration).split("+")
-  kept = [part for part in parts if not (part.startswith(dissociated_dimension + "/") or part.startswith(dissociated_dimension + "_"))]
+  kept = [
+    part for part in parts
+    if not any(part.startswith(dimension + "/") or part.startswith(dimension + "_") for dimension in dissociated_dimensions)
+  ]
   return "+".join(kept)

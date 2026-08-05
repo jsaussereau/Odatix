@@ -44,6 +44,13 @@ def filter_all_button_id(dimension, action):
   return {"type": "xp-filter-all", "dim": dimension, "action": action}
 
 
+def _single_dimension(value):
+  """The dimension a multi control names, when it names exactly one."""
+  if isinstance(value, (list, tuple)):
+    return value[0] if len(value) == 1 else None
+  return value
+
+
 def build_filter_panel(dimensions, global_dimensions, filter_state, color_by, symbol_by, palette, stable_index=True):
   """
   Build the filter panel sections.
@@ -53,10 +60,15 @@ def build_filter_panel(dimensions, global_dimensions, filter_state, color_by, sy
       global_dimensions (dict): {dimension: values} over all data, for stable
           glyph indices.
       filter_state (dict): {dimension: {value: bool}} remembered check states.
-      color_by / symbol_by (str): dimensions driving trace colors / symbols.
+      color_by / symbol_by: dimensions driving trace colors / symbols (name,
+          list of names, or NONE_VALUE). A glyph is only shown when a single
+          dimension drives the style: with several, a color (or symbol) belongs
+          to a combination of values, not to one value.
       palette (str): color palette name.
       stable_index (bool): index glyph colors on the global value lists.
   """
+  color_by = _single_dimension(color_by)
+  symbol_by = _single_dimension(symbol_by)
   filter_state = filter_state or {}
   sections = []
   for dimension, values in dimensions.items():

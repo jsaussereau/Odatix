@@ -114,6 +114,11 @@ def _dropdown(id, options=None, value=None, clearable=False, persist=True, **kwa
   return dcc.Dropdown(id=id, options=options or [], value=value, clearable=clearable, className="xp-dropdown", style={"width": "100%"}, **extra)
 
 
+def _multi_dropdown(id, **kwargs):
+  """Dimension picker accepting several dimensions (empty = none)."""
+  return _dropdown(id, multi=True, clearable=True, placeholder="None", **kwargs)
+
+
 # Sidebar tabs. Every control lives on every page in a fixed DOM (the single
 # figure callback needs a fixed set of inputs), so tabs must never remove their
 # panels from the DOM. Tab switching is done client-side by toggling a class on
@@ -179,7 +184,7 @@ def build_sidebar(kind):
         components.control_row("X axis" if not is_scatter else "X metric", _dropdown("xp-axis-x"), hidden="x" not in axes and not is_overview),
         components.control_row("Y metric", _dropdown("xp-axis-y"), hidden="y" not in axes),
         components.control_row("Z metric", _dropdown("xp-axis-z"), hidden="z" not in axes),
-        components.control_row("Dissociate", _dropdown("xp-dissociate-by"), tooltip="Split one dimension into separate traces"),
+        components.control_row("Dissociate", _multi_dropdown("xp-dissociate-by"), tooltip="Split one or more dimensions into separate traces"),
         components.control_row("Layout", _dropdown(
           "xp-overview-layout",
           options=[{"label": name, "value": name} for name in OVERVIEW_LAYOUTS],
@@ -192,8 +197,12 @@ def build_sidebar(kind):
   style_section = (
       # --- Style ---
       components.section("Style", [
-        components.control_row("Color by", _dropdown("xp-color-by")),
-        components.control_row("Pattern by" if kind == "columns" else "Symbol by", _dropdown("xp-symbol-by")),
+        components.control_row("Color by", _multi_dropdown("xp-color-by"), tooltip="One color per combination of the chosen dimensions"),
+        components.control_row(
+          "Pattern by" if kind == "columns" else "Symbol by",
+          _multi_dropdown("xp-symbol-by"),
+          tooltip="One pattern per combination of the chosen dimensions" if kind == "columns" else "One symbol per combination of the chosen dimensions",
+        ),
         components.control_row("Group legend by", _dropdown("xp-legend-group-by")),
         components.control_row("Palette", _dropdown(
           "xp-palette",

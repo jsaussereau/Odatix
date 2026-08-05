@@ -36,7 +36,7 @@ import odatix.gui.content_lib as content_lib
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.schema as schema
-from odatix.explorer.charts.spec import FigureSpec, NONE_VALUE, OVERVIEW_LAYOUTS, resolve_defaults
+from odatix.explorer.charts.spec import FigureSpec, OVERVIEW_LAYOUTS, resolve_defaults
 import odatix.explorer.charts.builder as builder
 import odatix.explorer.charts.app_theme_bridge as app_theme_bridge
 import odatix.explorer.ui.components as components
@@ -82,7 +82,7 @@ def _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, dissociate, 
     color_by=color_by,
     symbol_by=symbol_by,
     legend_group_by=legend_group_by,
-    dissociate=None if dissociate in (None, NONE_VALUE) else dissociate,
+    dissociate=dissociate,
     stable_index="stable_index" in (toggles or []),
     toggles=tuple(toggles or []),
   )

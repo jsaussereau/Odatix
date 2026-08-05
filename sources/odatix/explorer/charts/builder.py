@@ -70,9 +70,10 @@ def _auto_line_color_dimension(spec, dimensions):
   """
   if spec.kind != "lines":
     return None
-  for explicit in (spec.color_by, spec.symbol_by, spec.legend_group_by, spec.dissociate):
-    if explicit and explicit != NONE_VALUE:
-      return None
+  if spec.color_by or spec.symbol_by or spec.dissociate:
+    return None
+  if spec.legend_group_by and spec.legend_group_by != NONE_VALUE:
+    return None
   dimension = schema.COL_CONFIGURATION
   if dimension == spec.x or len(dimensions.get(dimension, [])) <= 1:
     return None
@@ -85,7 +86,8 @@ def identity_dimensions(spec, dimensions):
   auto_line = _auto_line_color_dimension(spec, dimensions)
   if auto_line and auto_line not in identity:
     identity.append(auto_line)
-  for extra in (spec.color_by, spec.symbol_by, spec.legend_group_by, spec.dissociate):
+  extras = list(spec.color_by or ()) + list(spec.symbol_by or ()) + list(spec.dissociate or ()) + [spec.legend_group_by]
+  for extra in extras:
     if extra and extra != NONE_VALUE and extra in dimensions and extra not in identity:
       identity.append(extra)
   # The x axis and point-label dimensions vary inside a trace
@@ -125,7 +127,7 @@ def trace_name(info, dimensions, spec, units):
       continue  # constant over the selection: no need to repeat it
     if str(value) == schema.MISSING_VALUE:
       continue  # dimension absent from this trace's records
-    if dim == spec.dissociate:
+    if dim in (spec.dissociate or ()):
       parts.append("[" + str(dim) + ": " + str(value) + "]")
     elif dim == schema.COL_FREQUENCY:
       if value == schema.FMAX_FREQUENCY_VALUE:
@@ -149,6 +151,30 @@ def _value_index(value, values):
     return -1
 
 
+def _combination_index(info, by_dimensions, reference, dimensions):
+  """Index of a trace among all value combinations of ``by_dimensions``.
+
+  Mixed-radix number over the dimensions' value lists, so every combination
+  gets its own index (and its own color / symbol). The first dimension is the
+  most significant one: neighboring values of the last dimension end up on
+  neighboring palette entries.
+
+  Returns -1 when a dimension is absent from the selection altogether (the
+  caller's palette then falls back), as the single-dimension code did.
+  """
+  index = 0
+  for dimension in by_dimensions:
+    values = reference.get(dimension, [])
+    if dimension in info:
+      position = max(_value_index(info[dimension], values), 0)
+    elif dimension not in dimensions:
+      return -1
+    else:
+      position = 0
+    index = index * max(len(values), 1) + position
+  return index
+
+
 def style_indices(info, spec, dimensions, global_dimensions, color_by=None):
   """(color index, symbol index) of a trace, from its dimension values.
 
@@ -157,17 +183,13 @@ def style_indices(info, spec, dimensions, global_dimensions, color_by=None):
   """
   reference = global_dimensions if spec.stable_index else dimensions
 
-  color_by = color_by or spec.color_by
-  color_index = 0
-  if color_by and color_by != NONE_VALUE:
-    if color_by in info:
-      color_index = _value_index(info[color_by], reference.get(color_by, []))
-    else:
-      color_index = -1 if color_by not in dimensions else 0
+  if color_by:
+    color_by = (color_by,) if isinstance(color_by, str) else tuple(color_by)
+  else:
+    color_by = spec.color_by or ()
 
-  symbol_index = 0
-  if spec.symbol_by and spec.symbol_by != NONE_VALUE and spec.symbol_by in info:
-    symbol_index = max(_value_index(info[spec.symbol_by], reference.get(spec.symbol_by, [])), 0)
+  color_index = _combination_index(info, color_by, reference, dimensions) if color_by else 0
+  symbol_index = max(_combination_index(info, spec.symbol_by or (), reference, dimensions), 0)
 
   return color_index, symbol_index
 

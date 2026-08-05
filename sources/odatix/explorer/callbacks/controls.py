@@ -30,7 +30,7 @@ from dash import Input, Output, State
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.schema as schema
-from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, resolve_defaults
+from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, normalize_dims, resolve_defaults
 
 
 def _options(names):
@@ -136,7 +136,7 @@ def register_callbacks():
       kind=kind if kind != "overview" else "lines",
       x=x, y=y, z=z,
       color_by=color_by, symbol_by=symbol_by, legend_group_by=legend_group_by,
-      dissociate=None if dissociate in (None, NONE_VALUE) else dissociate,
+      dissociate=dissociate,
     )
     resolve_defaults(spec, dimensions, metrics)
 
@@ -152,15 +152,18 @@ def register_callbacks():
       z_options = _options(metrics)
 
     dim_options = _dimension_options(dimensions)
+    # The multi dropdowns express "none" as an empty selection, so they have no
+    # "None" option of their own.
+    multi_options = _dimension_options(dimensions, include_none=False)
 
     return (
       x_options, spec.x,
       y_options, spec.y,
       z_options, spec.z,
-      dim_options, spec.color_by,
-      dim_options, spec.symbol_by,
+      multi_options, list(spec.color_by),
+      multi_options, list(spec.symbol_by),
       dim_options, spec.legend_group_by,
-      dim_options, spec.dissociate if spec.dissociate else NONE_VALUE,
+      multi_options, list(spec.dissociate),
     )
 
   # The controls below (unlike the axis/style dropdowns, which go through
@@ -219,12 +222,13 @@ def register_callbacks():
     prevent_initial_call=True,
   )
   def sync_color_with_dissociate(dissociate, color_by):
-    """Dissociating a dimension pulls it out of the x labels into its own traces;
-    coloring by that same dimension is almost always what the user wants, so keep
-    "Color by" in sync when a real dimension is chosen for "Dissociate"."""
-    if dissociate in (None, NONE_VALUE) or dissociate == color_by:
+    """Dissociating dimensions pulls them out of the x labels into their own traces;
+    coloring by those same dimensions is almost always what the user wants, so keep
+    "Color by" in sync when real dimensions are chosen for "Dissociate"."""
+    dissociate = normalize_dims(dissociate) or ()
+    if not dissociate or dissociate == (normalize_dims(color_by) or ()):
       raise dash.exceptions.PreventUpdate
-    return dissociate
+    return list(dissociate)
 
   @dash.callback(
     Output("xp-control-state", "data"),
