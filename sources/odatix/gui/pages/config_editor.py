@@ -20,6 +20,7 @@
 #
 
 import os
+import re
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 import uuid
@@ -447,12 +448,12 @@ def config_parameters_form(domain_uuid, settings, mode="arch"):
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Start Delimiter"),
-                        ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file."),
+                        ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file. Escape sequences such as \\n are supported."),
                         dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Stop Delimiter"),
-                        ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file."),
+                        ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file. Escape sequences such as \\n are supported."),
                         dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                 ],
@@ -503,59 +504,25 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             stop_delim=stop_delimiter, 
             replace_all_occurrences=False,
         )
+        start_delimiter = replace_params.unescape_delimiter(start_delimiter)
+        stop_delimiter = replace_params.unescape_delimiter(stop_delimiter)
         if not match_found:
-            preview_components=html.Span(base_text, style={"whiteSpace": "pre-wrap", "color": "#FA5252", "fontWeight": "800"}) 
+            preview_components=html.Span(base_text, style={"whiteSpace": "pre-wrap", "color": "#FA5252", "fontWeight": "800"})
         else:
-            start_line, start_charater = replace_params.get_first_appearance(new_content, start_delimiter)
-            stop_line, stop_charater = replace_params.get_first_appearance(new_content, stop_delimiter, start_line=start_line, start_char=start_charater+len(start_delimiter)+1)
-            lines = new_content.splitlines()
-            preview_start = 0
-            preview_stop = len(lines)
-            preview_lines = lines[preview_start:preview_stop]
-            preview_components = []
-            # preview_components.append(html.Span("[...]\n", style={"color": "#888"}))
-            for idx, line in enumerate(preview_lines):
-                line_idx = preview_start + idx
-                line_parts = []
-
-                # Case where start and stop are on the same line
-                if start_line == stop_line and line_idx == start_line - 1:
-                    s_idx = start_charater
-                    e_idx = stop_charater
-                    if s_idx > 0:
-                        line_parts.append(line[:s_idx])
-                    line_parts.append(html.Span(start_delimiter, className="text-highlight primary"))
-                    line_parts.append(html.Span(line[s_idx+len(start_delimiter):e_idx], className="text-highlight secondary"))
-                    line_parts.append(html.Span(stop_delimiter, className="text-highlight primary"))
-                    if e_idx + len(stop_delimiter) < len(line):
-                        line_parts.append(line[e_idx+len(stop_delimiter):])
-                # Start delimiter line
-                elif line_idx == start_line - 1:
-                    if start_charater != -1:
-                        if start_charater > 0:
-                            line_parts.append(line[:start_charater])
-                        line_parts.append(html.Span(start_delimiter, className="text-highlight primary"))
-                        line_parts.append(html.Span(line[start_charater+len(start_delimiter):], className="text-highlight secondary"))
-                    else:
-                        line_parts.append(line)
-                # Stop delimiter line
-                elif line_idx == stop_line - 1:
-                    if stop_charater != -1:
-                        if stop_charater > 0:
-                            line_parts.append(html.Span(line[:stop_charater], className="text-highlight secondary"))
-                        line_parts.append(html.Span(stop_delimiter, className="text-highlight primary"))
-                        if stop_charater + len(stop_delimiter) < len(line):
-                            line_parts.append(line[stop_charater+len(stop_delimiter):])
-                    else:
-                        line_parts.append(line)
-                # Replaced content lines
-                elif start_line-1 < line_idx < stop_line-1:
-                    line_parts.append(html.Span(line, className="text-highlight secondary"))
-                else:
-                    line_parts.append(line)
-                preview_components.extend(line_parts)
-                preview_components.append(html.Br())
-            # preview_components.append(html.Span("[...]", style={"color": "#888"}))
+            # Highlight the replaced section by character index, so delimiters may span several lines
+            pattern = re.escape(start_delimiter) + ".*?" + re.escape(stop_delimiter)
+            match = re.search(pattern, new_content, flags=re.DOTALL)
+            section_start = match.start()
+            section_stop = match.end()
+            content_start = section_start + len(start_delimiter)
+            content_stop = section_stop - len(stop_delimiter)
+            preview_components = [
+                new_content[:section_start],
+                html.Span(start_delimiter, className="text-highlight primary"),
+                html.Span(new_content[content_start:content_stop], className="text-highlight secondary"),
+                html.Span(stop_delimiter, className="text-highlight primary"),
+                new_content[section_stop:],
+            ]
 
         pane_content = html.Pre(
             children=preview_components,
