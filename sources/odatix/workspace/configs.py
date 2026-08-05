@@ -214,7 +214,8 @@ class ConfigurationCollection(object):
         return Configuration(self.domain, name).write(content)
 
     def delete(self, name):
-        return self[name].delete()
+        """Delete a configuration. Deleting one that is already gone does nothing."""
+        return Configuration(self.domain, name).delete()
 
     def rename(self, name, new_name):
         return self[name].rename(new_name)

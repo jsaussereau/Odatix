@@ -185,6 +185,15 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
         "verticalAlign": "top"
     })
 
+def card_index(cards, domain_uuid, config_uuid):
+    """Index of the config card of that uuid in a row of cards, -1 when it is not there anymore."""
+    for i, card in enumerate(cards):
+        card_id = card.get("props", {}).get("id") if isinstance(card, dict) else getattr(card, "id", None)
+        if isinstance(card_id, dict) and card_id.get("type") == "config-card" \
+                and card_id.get("domain_uuid") == domain_uuid and card_id.get("config_uuid") == config_uuid:
+            return i
+    return -1
+
 def add_card(text: str = "Add design configuration", domain_uuid: str = hard_settings.main_parameter_domain):
     return html.Div(
         html.Div(
@@ -926,9 +935,11 @@ def update_config_cards(
                     )
                 
                 # Delete config
-                if trig_type == "delete-config":
+                if trig_type == "delete-config" and trig_config_name:
                     instance_domain(instances, instance_name, trig_domain_name).configs.delete(trig_config_name)
-                    config_cards_row[trig_domain_idx].pop(trig_config_idx)
+                    card_idx = card_index(config_cards_row[trig_domain_idx], trig_domain_uuid, trig_config_uuid)
+                    if card_idx >= 0:
+                        config_cards_row[trig_domain_idx].pop(card_idx)
 
                 # Duplicate config
                 if trig_type == "duplicate-config":
@@ -1071,8 +1082,17 @@ def update_preview_all(
 def update_save_status(param_domains_section, title_values, content_values, initial_titles, initial_contents):
     save_classes = []
     tooltip_texts = []
-    for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
-        error = config_title_error(title, initial_titles, initial_title)
+    # Names are only taken within their own domain: two domains can each have a "12"
+    domain_uuids = [item.get("id", {}).get("domain_uuid", "") for item in (ctx.outputs_list[0] or [])]
+    for i, (title, content, initial_title, initial_content) in enumerate(
+        zip(title_values, content_values, initial_titles, initial_contents)
+    ):
+        domain_uuid = domain_uuids[i] if i < len(domain_uuids) else None
+        domain_titles = [
+            other for j, other in enumerate(initial_titles)
+            if domain_uuid is None or (j < len(domain_uuids) and domain_uuids[j] == domain_uuid)
+        ]
+        error = config_title_error(title, domain_titles, initial_title)
         if error:
             save_classes.append("color-button error-status icon-button tooltip delay bottom small")
             tooltip_texts.append(error)

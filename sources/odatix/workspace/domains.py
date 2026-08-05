@@ -426,7 +426,8 @@ class ParameterDomainCollection(object):
         return domain
 
     def delete(self, name):
-        return self[name].delete()
+        """Delete a domain. Deleting one that is already gone does nothing."""
+        return self._make(name).delete()
 
     def rename(self, name, new_name):
         return self[name].rename(new_name)

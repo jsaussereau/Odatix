@@ -248,8 +248,8 @@ class Collection(object):
         """Hook for subclasses: fill a freshly created entry."""
 
     def delete(self, name):
-        """Delete an entry. Raises if there is no such entry."""
-        return self[name].delete()
+        """Delete an entry. Deleting one that is already gone does nothing."""
+        return self._make(name).delete()
 
     def rename(self, name, new_name):
         """Rename an entry, and return it."""
