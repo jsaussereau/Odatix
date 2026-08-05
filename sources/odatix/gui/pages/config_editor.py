@@ -923,7 +923,7 @@ def update_config_cards(
                             config_old_title = config_new_title
                     if verbose:
                         print(f"Saving config '{config_old_title}' in domain '{trig_domain_name}'")
-                    instance_domain(instances, instance_name, trig_domain_name).configs.write(config_new_title, trig_config_content)
+                    instance_domain(instances, instance_name, trig_domain_name).configs.write(config_old_title, trig_config_content)
                     config_metadata[trig_config_idx]['config_content'] = trig_config_content
                     config_cards_row[trig_domain_idx][trig_config_idx] = config_card(
                         domain_uuid=trig_domain_uuid,
