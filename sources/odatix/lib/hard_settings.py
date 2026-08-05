@@ -49,6 +49,11 @@ frequency_search_filename = "frequency_search.log"
 param_domains_filename = "param_domains.yml"
 pnr_source_filename = "pnr.yml"
 
+# Where a simulation/workflow writes its progress, relative to the job's work
+# directory. Makefiles write it into the log directory they are handed, so the
+# default path must include it, not just the file name.
+sim_progress_file = work_log_path + "/" + sim_progress_filename
+
 # Handoff from a synthesis job to a place & route job run with another tool
 # ("odatix pnr"). A synthesis flow that wants to be usable as a pnr input writes
 # these three files in its result directory, under these exact names, whatever
