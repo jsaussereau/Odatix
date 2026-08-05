@@ -107,10 +107,10 @@
     --card-backdrop-filter: initial;
     --card-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
     --card-hover-transition: all 0.18s ease;
-    --card-hover-transform: translateY(-3px);
+    --card-hover-transform: none;
     --tile-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
     --tile-hover-transition: all 0.18s ease;
-    --tile-hover-transform: translateY(-2px);
+    --tile-hover-transform: none;
     --tile-gap: 15px;
     --tile-half-width: 355px;
     --tile-width: calc(var(--tile-half-width) * 2 + var(--tile-gap));
@@ -399,13 +399,20 @@
     --theme-border: none;
     --theme-overlay-background-color: #33383c3d;
     --theme-contrast-background-color: #0b0b0b;
+    --theme-shadow-color: rgba(29, 37, 79, 0.05);
 
     /* cards and tiles */
-    --card-box-shadow: rgba(11, 11, 15, 0.27) 0px 4px 24px 0px;
+    --card-box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    --card-border-radius: var(--theme-normal-border-radius);
+   	--card-border: 1px solid rgba(128, 128, 128, 0.16);
 
     /* buttons */
-    --button-background: var(--theme-tertiary-color);
+    --button-background: #ffffff05;
     --back-button-color: var(--theme-disabled-color);
+    --primary-button-background: #2585cd15;
+    --secondary-button-background: #2585cd15;
+    --warning-button-background: #D2712015;
+    --caution-button-background: #CA393915;
 
     /* inputs */
     --title-input-border: var(--theme-border-style) #ffffff00;
