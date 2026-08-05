@@ -153,6 +153,25 @@
 .jobs-arch-card.nested > .jobs-arch-header {
     padding: var(--space-2) var(--space-3);
 }
+/* Take an architecture out of the ones the simulation declares it runs on. */
+.jobs-sim-arch-remove {
+    line-height: 1;
+    padding: 2px 8px;
+    font-size: 15px;
+    opacity: 0.5;
+}
+.jobs-sim-arch-remove:hover {
+    opacity: 1;
+}
+/* ... and put one back. */
+.jobs-sim-arch-add-row {
+    display: flex;
+    justify-content: flex-start;
+    padding-top: var(--space-1);
+}
+.jobs-sim-arch-add {
+    min-width: 280px;
+}
 .jobs-arch-card.nested .jobs-arch-name {
     font-size: 14px;
 }

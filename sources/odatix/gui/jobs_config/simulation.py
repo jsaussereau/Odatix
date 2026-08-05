@@ -49,6 +49,34 @@ from odatix.gui.jobs_config.common import _arch_badge_text, _simulation_badge_te
 #
 # The union of what the nested previews have checked is mirrored into a
 # per-simulation store ("sim-selection"), which is what Save and Run read.
+#
+# A simulation only shows the architectures it declares itself compatible with
+# ("compatible_architectures" in its settings file), and a card is built for
+# those only: building one per architecture and hiding the rest made the page
+# grow as simulations x architectures, which is what made it slow. Adding one
+# back (the dropdown at the bottom of the card) builds its card on the spot, and
+# removing one (the cross next to its name) hides it, so it can be added back
+# without rebuilding. Either way the list is rewritten in the simulation's
+# settings file right away: it describes the simulation, not the run being
+# configured, so it does not wait for the page's Save.
+
+
+def _compatible_architectures(simulations, sim_name, architectures):
+    """
+    The architectures a simulation card shows, and whether that is a choice or a
+    fallback.
+
+    A simulation that lists none makes no claim: everything is shown, and
+    nothing is written to its settings file until the user removes something.
+    """
+    try:
+        declared = list(simulations.entry(sim_name).settings.compatible_architectures)
+    except Exception:
+        declared = []
+    declared = [str(name) for name in declared if str(name).strip() != ""]
+    if not declared:
+        return list(architectures), False
+    return declared, True
 
 
 def _sim_entry_from_combo(combo: str) -> str:
@@ -65,6 +93,98 @@ def _combo_from_sim_entry(entry: str) -> str:
 def _sim_entry_arch(entry: str) -> str:
     """The architecture a simulation settings entry runs on."""
     return str(entry).split("+", 1)[0].split("/", 1)[0].strip()
+
+
+def _sim_arch_card(architectures_collection, sim_name, arch_name, saved_values, arch_enabled, mode):
+    """One collapsible architecture sub-card of a simulation card.
+
+    Also used to build the card of an architecture added from the dropdown,
+    which is why it is a function of its own: cards are built only for the
+    architectures a simulation actually shows (see _simulation_job_sections).
+
+    Returns:
+        tuple: (card, info) with info as returned by _arch_config_widgets.
+    """
+    domain_tiles, preview_tile, info = _arch_config_widgets(
+        architectures_collection,
+        arch_name,
+        saved_values,
+        arch_enabled,
+        mode,
+        id_extra={"sim": sim_name},
+    )
+
+    card = html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Div(
+                        children=[
+                            dcc.Checklist(
+                                options=[{"label": "", "value": True}],
+                                value=[True] if arch_enabled else [],
+                                id={"type": "sim-arch-switch", "sim": sim_name, "arch": arch_name},
+                                className="checklist-switch",
+                            ),
+                            html.Span(arch_name, className="jobs-arch-name"),
+                            html.Span(
+                                _arch_badge_text(
+                                    info["n_combos"],
+                                    info["n_selected"],
+                                    info["default_selected"],
+                                    arch_enabled,
+                                ),
+                                id={"type": "arch-count", "sim": sim_name, "arch": arch_name},
+                                className="odx-badge",
+                            ),
+                        ],
+                        className="jobs-arch-headline",
+                    ),
+                    html.Button(
+                        "×",
+                        id={"type": "sim-arch-remove", "sim": sim_name, "arch": arch_name},
+                        n_clicks=0,
+                        title="Remove " + arch_name + " from the architectures "
+                              + sim_name + " is compatible with",
+                        className="odx-mini-button small-button jobs-sim-arch-remove",
+                    ),
+                ],
+                className="jobs-arch-header",
+            ),
+            html.Div(
+                children=html.Div(
+                    children=[
+                        html.Div(domain_tiles, className="jobs-domains"),
+                        preview_tile,
+                    ],
+                    className="jobs-arch-grid",
+                ),
+                id={"type": "sim-arch-body", "sim": sim_name, "arch": arch_name},
+                className="jobs-arch-body animated-section" + ("" if arch_enabled else " hide"),
+            ),
+            dcc.Store(
+                id={"type": "arch-metadata", "sim": sim_name, "arch": arch_name},
+                data={
+                    "arch_name": arch_name,
+                    "n_combos": info["n_combos"],
+                    "virtual_variants": info["virtual_variants"],
+                },
+            ),
+            dcc.Store(
+                id={"type": "domain-selections", "sim": sim_name, "arch": arch_name},
+                data=info["domains_configs"],
+            ),
+            # Saved entries no combination accounts for: kept aside
+            # and re-contributed to the selection as they are.
+            dcc.Store(
+                id={"type": "sim-arch-extra", "sim": sim_name, "arch": arch_name},
+                data=[_sim_entry_from_combo(value) for value in info["unmatched"]],
+            ),
+        ],
+        id={"type": "sim-arch-card", "sim": sim_name, "arch": arch_name},
+        className="jobs-arch-card nested" + (" enabled" if arch_enabled else ""),
+    )
+    return card, info
 
 
 def _simulation_job_sections(context, selection_settings):
@@ -89,6 +209,11 @@ def _simulation_job_sections(context, selection_settings):
     for sim_name in simulations:
         sim_enabled = sim_name in selection_map
 
+        compatible, explicit = _compatible_architectures(
+            context["workspace"].simulations, sim_name, architectures
+        )
+        compatible_set = set(compatible)
+
         # Group the saved entries by the architecture they belong to, converted
         # to the preview syntax _arch_config_widgets expects.
         saved_by_arch = {}
@@ -96,6 +221,7 @@ def _simulation_job_sections(context, selection_settings):
             saved_by_arch.setdefault(_sim_entry_arch(entry), []).append(_combo_from_sim_entry(entry))
 
         arch_cards = []
+        shown_architectures = []
         # Kept apart, and concatenated at the end in this exact order, so the
         # baseline matches how sync_simulation_selection() rebuilds the store:
         # the "unsaved changes" check compares the two lists element by element.
@@ -108,17 +234,25 @@ def _simulation_job_sections(context, selection_settings):
             # its sub-card is off, with everything pre-checked so that turning it
             # on is a single click (exactly like a disabled architecture card).
             arch_enabled = sim_enabled and arch_name in saved_by_arch
-            domain_tiles, preview_tile, info = _arch_config_widgets(
+            # An architecture the simulation runs on is shown whatever the
+            # compatibility list says: hiding a card would hide a selection.
+            arch_shown = arch_name in compatible_set or arch_enabled
+            # A card is built only for the architectures the simulation shows:
+            # building the hidden ones too made the page grow as
+            # simulations x architectures, for widgets nobody can see.
+            if not arch_shown:
+                continue
+            shown_architectures.append(arch_name)
+            card, info = _sim_arch_card(
                 architectures_collection,
+                sim_name,
                 arch_name,
                 saved_by_arch.get(arch_name, []),
                 arch_enabled,
                 context["mode"],
-                id_extra={"sim": sim_name},
             )
 
-            n_configs = info["n_combos"] + 1
-            n_total += n_configs
+            n_total += info["n_combos"] + 1
             selected = list(info["filtered_selected"])
             # Entries this architecture cannot enumerate (too many combinations)
             # or no longer offers are carried untouched so saving never silently
@@ -129,68 +263,7 @@ def _simulation_job_sections(context, selection_settings):
                 checked_entries.extend(_sim_entry_from_combo(value) for value in selected)
                 extra_entries.extend(_sim_entry_from_combo(value) for value in extra)
 
-            arch_cards.append(
-                html.Div(
-                    children=[
-                        html.Div(
-                            children=html.Div(
-                                children=[
-                                    dcc.Checklist(
-                                        options=[{"label": "", "value": True}],
-                                        value=[True] if arch_enabled else [],
-                                        id={"type": "sim-arch-switch", "sim": sim_name, "arch": arch_name},
-                                        className="checklist-switch",
-                                    ),
-                                    html.Span(arch_name, className="jobs-arch-name"),
-                                    html.Span(
-                                        _arch_badge_text(
-                                            info["n_combos"],
-                                            info["n_selected"],
-                                            info["default_selected"],
-                                            arch_enabled,
-                                        ),
-                                        id={"type": "arch-count", "sim": sim_name, "arch": arch_name},
-                                        className="odx-badge",
-                                    ),
-                                ],
-                                className="jobs-arch-headline",
-                            ),
-                            className="jobs-arch-header",
-                        ),
-                        html.Div(
-                            children=html.Div(
-                                children=[
-                                    html.Div(domain_tiles, className="jobs-domains"),
-                                    preview_tile,
-                                ],
-                                className="jobs-arch-grid",
-                            ),
-                            id={"type": "sim-arch-body", "sim": sim_name, "arch": arch_name},
-                            className="jobs-arch-body animated-section" + ("" if arch_enabled else " hide"),
-                        ),
-                        dcc.Store(
-                            id={"type": "arch-metadata", "sim": sim_name, "arch": arch_name},
-                            data={
-                                "arch_name": arch_name,
-                                "n_combos": info["n_combos"],
-                                "virtual_variants": info["virtual_variants"],
-                            },
-                        ),
-                        dcc.Store(
-                            id={"type": "domain-selections", "sim": sim_name, "arch": arch_name},
-                            data=info["domains_configs"],
-                        ),
-                        # Saved entries no combination accounts for: kept aside
-                        # and re-contributed to the selection as they are.
-                        dcc.Store(
-                            id={"type": "sim-arch-extra", "sim": sim_name, "arch": arch_name},
-                            data=[_sim_entry_from_combo(value) for value in extra],
-                        ),
-                    ],
-                    id={"type": "sim-arch-card", "sim": sim_name, "arch": arch_name},
-                    className="jobs-arch-card nested" + (" enabled" if arch_enabled else ""),
-                )
-            )
+            arch_cards.append(card)
 
         # Entries of a saved selection whose architecture does not exist anymore
         # have no sub-card to live in. They are still this simulation's, so they
@@ -205,13 +278,42 @@ def _simulation_job_sections(context, selection_settings):
             n_selected_total += len(orphan_entries)
             n_total += len(orphan_entries)
 
-        if not arch_cards:
+        if not architectures:
             arch_cards.append(
                 ui.panel(
                     title="Architectures",
                     body=html.Div(f"No architecture found in {architectures_collection.path}.", className="odx-panel-note"),
                 )
             )
+
+        # Where the cards of the architectures added from the dropdown below are
+        # appended: they are built on demand rather than upfront (see
+        # update_compatible_architectures).
+        arch_cards.append(html.Div(id={"type": "sim-added-archs", "sim": sim_name}, children=[]))
+
+        # Names the simulation declares but this workspace does not offer: kept
+        # so that adding or removing an architecture here never drops them.
+        missing_compatible = [name for name in compatible if name not in architectures]
+        compatible_data = shown_architectures + missing_compatible
+
+        arch_cards.append(
+            html.Div(
+                children=[
+                    dcc.Dropdown(
+                        id={"type": "sim-compatible-add", "sim": sim_name},
+                        options=[
+                            {"label": name, "value": name}
+                            for name in architectures
+                            if name not in shown_architectures
+                        ],
+                        placeholder="Add a compatible architecture...",
+                        value=None,
+                        className="jobs-sim-arch-add",
+                    ),
+                ],
+                className="jobs-sim-arch-add-row",
+            )
+        )
 
         sim_entries = list(dict.fromkeys(checked_entries + extra_entries + orphan_entries))
         if sim_enabled:
@@ -281,6 +383,13 @@ def _simulation_job_sections(context, selection_settings):
                     dcc.Store(
                         id={"type": "sim-orphan-entries", "sim": sim_name},
                         data=orphan_entries,
+                    ),
+                    # The architectures this simulation says it runs on. Written
+                    # straight to its settings file when it changes, so it is
+                    # not part of what the page's Save button covers.
+                    dcc.Store(
+                        id={"type": "sim-compatible", "sim": sim_name},
+                        data=compatible_data,
                     ),
                     # What this simulation runs, kept in sync with the nested
                     # architecture cards and read by Save / Run.

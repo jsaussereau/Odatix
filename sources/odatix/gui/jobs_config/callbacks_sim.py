@@ -19,8 +19,13 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+import os
+
 import dash
 from dash import Input, Output, State
+
+from odatix.gui.utils import get_workspace
+from odatix.lib.utils import printc
 
 from odatix.gui.jobs_config.callbacks_config import (
     domain_select_all,
@@ -33,7 +38,9 @@ from odatix.gui.jobs_config.callbacks_config import (
     update_preview_title,
 )
 from odatix.gui.jobs_config.common import _simulation_badge_text
-from odatix.gui.jobs_config.simulation import _sim_entry_from_combo
+from odatix.gui.jobs_config.simulation import _sim_arch_card, _sim_entry_from_combo
+
+script_name = os.path.basename(__file__)
 
 ######################################
 # Simulation callbacks
@@ -44,6 +51,129 @@ from odatix.gui.jobs_config.simulation import _sim_entry_from_combo
 # Dash matches patterns on the exact set of id keys, so they form callback groups
 # of their own: the callbacks below wire them up, delegating to the very same
 # implementations the architecture-keyed widgets use.
+
+
+@dash.callback(
+    Output({"type": "sim-compatible", "sim": dash.MATCH}, "data"),
+    Output({"type": "sim-arch-card", "sim": dash.MATCH, "arch": dash.ALL}, "style"),
+    Output({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
+    Output({"type": "sim-compatible-add", "sim": dash.MATCH}, "options"),
+    Output({"type": "sim-compatible-add", "sim": dash.MATCH}, "value"),
+    Output({"type": "sim-metadata", "sim": dash.MATCH}, "data"),
+    Output({"type": "sim-added-archs", "sim": dash.MATCH}, "children"),
+    Input({"type": "sim-arch-remove", "sim": dash.MATCH, "arch": dash.ALL}, "n_clicks"),
+    Input({"type": "sim-compatible-add", "sim": dash.MATCH}, "value"),
+    State({"type": "sim-compatible", "sim": dash.MATCH}, "data"),
+    State({"type": "sim-arch-card", "sim": dash.MATCH, "arch": dash.ALL}, "id"),
+    State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.ALL}, "data"),
+    State({"type": "sim-metadata", "sim": dash.MATCH}, "data"),
+    State({"type": "sim-added-archs", "sim": dash.MATCH}, "children"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def update_compatible_architectures(
+    remove_clicks, added_arch, compatible, card_ids, arch_metadatas, sim_metadata,
+    added_cards, odatix_settings
+):
+    """
+    Add or remove an architecture from the ones a simulation declares itself
+    compatible with, and write that list to the simulation's settings file.
+
+    The card of an architecture that is removed is hidden and its switch turned
+    off, so the simulation stops running it; every other card is left untouched
+    (dash.no_update), or turning one architecture off would reset the others.
+
+    Only the architectures a simulation shows have a card, so adding one that
+    never had one builds it here and appends it to the simulation's
+    "sim-added-archs" container; an architecture that was removed still has its
+    (hidden) card, and is simply shown again.
+    """
+    triggered = dash.ctx.triggered_id
+    if not isinstance(triggered, dict):
+        raise dash.exceptions.PreventUpdate
+
+    arch_names = [cid.get("arch") for cid in (card_ids or []) if isinstance(cid, dict)]
+    compatible = [str(name) for name in (compatible or [])]
+    workspace = get_workspace(odatix_settings or {})
+    all_arch_names = list(workspace.architectures.names())
+
+    removed = None
+    if triggered.get("type") == "sim-arch-remove":
+        # A card built after a removal starts at n_clicks=0 and would remove its
+        # own architecture again on the next render: only a real click counts.
+        clicked = {
+            cid.get("arch"): clicks
+            for clicks, cid in zip(remove_clicks or [], card_ids or [])
+            if isinstance(cid, dict)
+        }.get(triggered.get("arch"))
+        if not clicked:
+            raise dash.exceptions.PreventUpdate
+        removed = triggered.get("arch")
+        if removed not in compatible:
+            raise dash.exceptions.PreventUpdate
+        compatible = [name for name in compatible if name != removed]
+    else:
+        if not added_arch or added_arch in compatible:
+            raise dash.exceptions.PreventUpdate
+        # Keep the order the architectures are listed in, so the settings file
+        # does not depend on the order things were clicked in.
+        compatible = [
+            name for name in all_arch_names if name in compatible or name == added_arch
+        ] + [name for name in compatible if name not in all_arch_names]
+
+    _save_compatible_architectures(odatix_settings, triggered.get("sim"), compatible)
+
+    shown = set(compatible)
+    styles = [
+        {} if arch in shown else {"display": "none"}
+        for arch in arch_names
+    ]
+    switches = [
+        [] if (removed is not None and arch == removed) else dash.no_update
+        for arch in arch_names
+    ]
+    options = [{"label": name, "value": name} for name in all_arch_names if name not in shown]
+
+    # The simulation badge counts the configurations of the architectures it
+    # shows: a card appearing or disappearing changes that total.
+    n_configs = {
+        (data or {}).get("arch_name"): (data or {}).get("n_combos", 0) + 1
+        for data in (arch_metadatas or [])
+    }
+
+    new_children = dash.no_update
+    if removed is None and added_arch not in arch_names:
+        # First time this architecture is shown here: it has no card yet.
+        card, info = _sim_arch_card(
+            workspace.architectures, triggered.get("sim"), added_arch, [], False, "simulation"
+        )
+        new_children = list(added_cards or []) + [card]
+        n_configs[added_arch] = info["n_combos"] + 1
+
+    metadata = dict(sim_metadata or {})
+    delta = n_configs.get(removed if removed is not None else added_arch, 0)
+    metadata["n_entries"] = max(0, metadata.get("n_entries", 0) + (-delta if removed is not None else delta))
+
+    return compatible, styles, switches, options, None, metadata, new_children
+
+
+def _save_compatible_architectures(odatix_settings, sim_name, compatible):
+    """Write a simulation's compatibility list to its own settings file.
+
+    It describes the simulation rather than the run being configured, so it is
+    saved on the spot instead of waiting for the page's Save button.
+    """
+    if not sim_name:
+        return
+    try:
+        get_workspace(odatix_settings or {}).simulations.entry(sim_name).update(
+            compatible_architectures=list(compatible)
+        )
+    except Exception as e:
+        printc.error(
+            'Could not save the compatible architectures of "' + str(sim_name) + '": ' + str(e),
+            script_name,
+        )
 
 
 @dash.callback(
@@ -195,12 +325,14 @@ def sync_simulation_selection(
     Output({"type": "sim-count", "sim": dash.ALL}, "children"),
     Input({"type": "sim-selection", "sim": dash.ALL}, "data"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
+    # An Input rather than a State: adding or removing a compatible
+    # architecture changes the total the badge shows, and nothing else.
+    Input({"type": "sim-metadata", "sim": dash.ALL}, "data"),
     State({"type": "sim-selection", "sim": dash.ALL}, "id"),
     State({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "id"),
     State({"type": "sim-count", "sim": dash.ALL}, "id"),
-    State({"type": "sim-metadata", "sim": dash.ALL}, "data"),
 )
-def update_simulation_counts(selection_values, switch_values, selection_ids, switch_ids, count_ids, metadatas):
+def update_simulation_counts(selection_values, switch_values, metadatas, selection_ids, switch_ids, count_ids):
     """
     Keep every simulation's badge in sync with its selection and its switch.
 

@@ -35,6 +35,9 @@ import odatix.workspace.selection as selection
 
 script_name = os.path.basename(__file__)
 
+# Key a simulation lists the architectures it is meant to run on under.
+COMPATIBLE_ARCHITECTURES_KEY = "compatible_architectures"
+
 class Simulation:
   def __init__(
     self,
@@ -126,8 +129,65 @@ class SimulationHandler:
     self._invariant_domains_cache[sim] = domains
     return domains
 
+  def get_compatible_architectures(self, sim):
+    """
+    The architectures a simulation declares it is meant to run on.
+
+    Purely indicative: an empty list (or no key at all) means the simulation
+    makes no claim, and running it on an architecture it does not list is only
+    warned about, never refused.
+    """
+    if sim in self._compatible_architectures_cache:
+      return self._compatible_architectures_cache[sim]
+
+    compatible = []
+    settings_filename = os.path.join(self.sim_path, sim, self.sim_settings_filename)
+    if isfile(settings_filename):
+      try:
+        with open(settings_filename, "r") as f:
+          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        if isinstance(settings_data, dict):
+          value = settings_data.get(COMPATIBLE_ARCHITECTURES_KEY)
+          if isinstance(value, str):
+            compatible = [value]
+          elif isinstance(value, list):
+            compatible = [str(name) for name in value if name is not None]
+      except Exception:
+        # An unreadable settings file is reported by get_simulation, which needs
+        # to ban the simulation anyway. Nothing to add here.
+        compatible = []
+
+    self._compatible_architectures_cache[sim] = compatible
+    return compatible
+
+  def check_compatible_architectures(self, sim, architectures):
+    """
+    Warn about the architectures a simulation is run on but does not list as
+    compatible. Once per architecture, whatever the number of configurations.
+    """
+    compatible = self.get_compatible_architectures(sim)
+    if not compatible:
+      return
+
+    for arch_full in architectures:
+      arch_name = str(arch_full).split("+", 1)[0].split("/", 1)[0].strip()
+      if arch_name in compatible or (sim, arch_name) in self._warned_incompatible:
+        continue
+      self._warned_incompatible.add((sim, arch_name))
+      printc.warning(
+        "\"" + arch_name + "\" is not listed as a compatible architecture of \"" + sim + "\"",
+        script_name,
+      )
+      printc.note(
+        "Add it to \"" + COMPATIBLE_ARCHITECTURES_KEY + "\" in \""
+        + os.path.join(self.sim_path, sim, self.sim_settings_filename) + "\" to silence this warning",
+        script_name,
+      )
+
   def reset_lists(self):
     self._invariant_domains_cache = {}
+    self._compatible_architectures_cache = {}
+    self._warned_incompatible = set()
     self.no_settings_sims = []
     self.banned_sim_param = []
     # Single source of truth for the check outcome (see lib/run_report.py).
@@ -194,6 +254,10 @@ class SimulationHandler:
               messages = []
               architectures = selection.expand(arch_list, self.arch_path, messages=messages)
               printc.messages(messages, script_name)
+
+              # Running a simulation on an architecture it does not claim to
+              # support is allowed: only say so.
+              self.check_compatible_architectures(sim, architectures)
 
               # Configurations that only differ by a domain the simulation is
               # invariant to would all compute the same result: keep one.
