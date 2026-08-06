@@ -1,21 +1,3 @@
--- **********************************************************************
---                                Odatix
--- **********************************************************************
---
--- Testbench for the pipelined CORDIC rotation core (VHDL / GHDL).
---
--- The design is fed with one vector per clock cycle, covering the whole
--- [-180 deg, +180 deg[ angle range. Each output is compared against a real
--- (floating point) reference, and the testbench derives accuracy figures
--- (error in LSB, angular error, SNR, effective number of bits) as well as
--- timing figures (latency, throughput).
---
--- Those figures are written to "results.yml" so that Odatix can collect them
--- as metrics (see _metrics.yml of this simulation).
---
--- WIDTH and ITERATIONS are passed by the Makefile, which reads them back from
--- the generics of the RTL file configured by Odatix, and forwards them to the
--- elaboration of this testbench (ghdl -e -gWIDTH=... -gITERATIONS=...).
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

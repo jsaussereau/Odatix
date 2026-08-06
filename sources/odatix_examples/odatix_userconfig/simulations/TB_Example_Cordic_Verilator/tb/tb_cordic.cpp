@@ -1,20 +1,3 @@
-// **********************************************************************
-//                                Odatix
-// **********************************************************************
-//
-// Testbench for the pipelined CORDIC rotation core.
-//
-// The design is fed with one vector per clock cycle, covering the whole
-// [-180 deg, +180 deg[ angle range. Each output is compared against a double
-// precision reference, and the testbench derives accuracy figures (error in
-// LSB, angular error, SNR, effective number of bits) as well as timing figures
-// (latency, throughput, host runtime).
-//
-// Those figures are written to "results.yml" so that Odatix can collect them
-// as metrics (see _metrics.yml of this simulation).
-//
-// CFG_WIDTH and CFG_ITERATIONS are passed by the Makefile, which reads them
-// back from the parameters of the RTL file configured by Odatix.
 
 #include <verilated.h>
 #include <verilated_vcd_c.h>

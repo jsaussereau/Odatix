@@ -1,33 +1,4 @@
-########################################################################
-#                                Odatix                                #
-########################################################################
-#
-# Copyright (C) 2022 Jonathan Saussereau
-#
-# This file is part of Odatix.
-# Odatix is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Odatix is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
-#
-########################################################################
-#
-# ModelSim/QuestaSim script for the CORDIC simulation.
-#
-# It is deliberately language agnostic: it looks at what Odatix copied into
-# "rtl", compiles VHDL sources with vcom and Verilog/SystemVerilog sources
-# with vlog, and runs the very same SystemVerilog testbench on top of either.
-# The mixed language support of the simulator binds the testbench to the VHDL
-# entity or to the SystemVerilog module, whichever was compiled.
-#
+
 # Run with:
 #   vsim -c -do scripts/sim.do
 

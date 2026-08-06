@@ -1,6 +1,4 @@
 
-`timescale 1ns / 1ps
-
 module tb_cordic #(
   parameter int WIDTH = 16,
   parameter int ITERATIONS = 12
@@ -51,7 +49,7 @@ module tb_cordic #(
   // ------------------------------------------------------------------
   // Instantiated by name only: the very same instantiation binds either the
   // VHDL entity or the SystemVerilog module, whichever was compiled into the
-  // work library by scripts/sim.do.
+  // work library by scripts/sim.sh.
   cordic #(
     .WIDTH      (WIDTH),
     .ITERATIONS (ITERATIONS)
