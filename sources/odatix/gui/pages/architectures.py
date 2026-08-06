@@ -117,21 +117,22 @@ def add_card(text: str, card_type: str = "arch"):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em", "color": "var(--add-card-text-color)"}),
                     html.Div(
                         "+",
                         style={
                             "fontSize": "2em",
                             "lineHeight": "1",
-                            "marginTop": "8px",
+                            "marginTop": "-2px",
+                            "marginBottom": "8px",
                         }
                     ),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em"}),
                 ],
                 style={"textAlign": "center"}
             ),
             id=btn_id,
             n_clicks=0,
-            style={"textDecoration": "none", "color": "var(--add-card-text-color)", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"},
+            style={"textDecoration": "none", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"},
         ),
         className="card add hover",
         style={

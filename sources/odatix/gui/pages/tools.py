@@ -270,8 +270,8 @@ def add_card(text: str):
         html.Div(
             html.Div(
                 children=[
+                    html.Div("+", style={"fontSize": "2em", "lineHeight": "1", "marginTop": "-2px", "marginBottom": "8px"}),
                     html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em"}),
-                    html.Div("+", style={"fontSize": "2em", "lineHeight": "1", "marginTop": "8px"}),
                 ],
                 style={"textAlign": "center"},
             ),

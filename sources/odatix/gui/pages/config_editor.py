@@ -115,14 +115,12 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
                 id={"type": "config-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
                 className="title-input",
                 style={
-                    "width": "calc(100% - 20px)",
-                    "marginLeft": "5px",
-                    "marginRight": "5px",
+                    "boxSizing": "border-box",
+                    "width": "calc(100% - 10px)",
+                    "margin": "2px 0px 5px 5px",
                     "fontWeight": "bold",
                     "fontSize": "1.1em",
-                    "height": "10px",
-                    "marginTop": "-5px",
-                    "marginBottom": "2px",
+                    "height": "30px",
                     "textAlign": "center",
                 },
             )
@@ -200,16 +198,9 @@ def add_card(text: str = "Add design configuration", domain_uuid: str = hard_set
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingTop": "20px"}),
-                    html.Div(
-                        "+",
-                        style={
-                            "fontSize": "2.5em",
-                            "lineHeight": "80px",
-                            "height": "80px",
-                        }
-                    ),
-                ], 
+                    html.Div("+", style={"fontSize": "2.5em", "lineHeight": "80px", "height": "80px", "marginTop": "-2px", "marginBottom": "-16px"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingBottom": "20px"}),
+                ],
                 style={"textAlign": "center"}
             ),
             id={"type": "new-config", "domain_uuid": domain_uuid},
@@ -400,6 +391,7 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
 def add_parameter_domain_button(text:str="Main parameter domain"):
     return html.Div(
         [
+            html.Div("+", style={"fontSize": "1.5em", "transform": "translateY(-1px)"}),
             html.H3(text, style={"marginBottom": "0px"})
         ], 
         id={"type": "button", "action": "add-domain"}, 
@@ -407,8 +399,10 @@ def add_parameter_domain_button(text:str="Main parameter domain"):
         className="tile title add hover",
         style={
             "marginTop": "50px",
-            "textAlign": "center",
-            "border": "1px dashed #bbb",
+            "display": "flex",
+            "flexDirection": "row",
+            "justifyContent": "center",
+            "gap": "10px",
         },
     )
 

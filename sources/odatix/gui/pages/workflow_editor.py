@@ -512,15 +512,8 @@ def wf_add_card(prefix: str = "wf-variable", text: str = "Add new variable", mod
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingTop": "20px"}),
-                    html.Div(
-                        "+",
-                        style={
-                            "fontSize": "2.5em",
-                            "lineHeight": "80px",
-                            "height": "80px",
-                        }
-                    ),
+                    html.Div("+", style={"fontSize": "2.5em", "lineHeight": "80px", "height": "80px", "marginTop": "-2px", "marginBottom": "-16px"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingBottom": "20px"}),
                 ],
                 style={"display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"}
             ),

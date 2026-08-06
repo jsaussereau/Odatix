@@ -405,6 +405,7 @@
     --card-box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
     --card-border-radius: var(--theme-normal-border-radius);
    	--card-border: 1px solid rgba(128, 128, 128, 0.16);
+    --add-card-background-hover: #228be61a;
 
     /* buttons */
     --button-background: #ffffff05;
@@ -488,6 +489,7 @@
 
     /* cards and tiles */
     --card-box-shadow: none;
+    --add-card-background-hover: #cba6f71a;
 
     /* buttons */
     --hover-percentage: 95%;
@@ -565,6 +567,7 @@
 
     /* cards and tiles */
     --card-box-shadow: rgba(11, 11, 15, 0.27) 0px 4px 24px 0px;
+    --add-card-background-hover: #ff79c61a;
 
     /* highlights */
     --primary-highlight-text-color: var(--theme-contrast-text-color);
@@ -669,6 +672,9 @@
     --theme-large-border-radius: 50px;
     --theme-small-border-radius: 20px;
 
+    /* cards and tiles */
+    --add-card-background-hover: #a2cbee3d;
+
     /* buttons */
     --default-button-icon-color: var(--theme-text-color);
     --default-button-text-color: var(--theme-text-color);
@@ -709,6 +715,9 @@
     /* background */
     --theme-background: linear-gradient(135deg, #12002b 0%, #2b0057 50%, #531f62 100%) no-repeat fixed;
     /* --theme-background: url("nightsky.svg") no-repeat fixed center / cover; */
+
+    /* cards and tiles */
+    --add-card-background-hover: #7A5CFF3d;
 
     /* buttons */
     --default-button-icon-color: var(--theme-contrast-text-color);
@@ -809,8 +818,10 @@
     --card-box-shadow: none;
     --card-hover-transform: none;
     --card-hover-box-shadow: none;
+    --add-card-background-hover: var(--win95-face);
 
     /* buttons */
+    --back-button-color: var(--win95-face);
     --button-border-radius: 0px;
     --default-button-background: var(--win95-face);
     --primary-button-background: var(--win95-face);
@@ -826,10 +837,15 @@
     --caution-button-background: var(--win95-face);
     --caution-button-icon-color: var(--theme-caution-color);
     --caution-button-text-color: var(--theme-caution-color);
+    --disabled-button-background: #b6b6b6;
 
     /* dropdowns */
     --dropdown-background: var(--win95-face);
     --dropdown-menu-background: var(--win95-face);
+
+    /* inputs and textareas */
+    --input-background: #f6f0f0;
+    --textarea-background: #f6f0f0;
 
     /* popups */
     --overlay-backdrop-filter: none;
@@ -856,6 +872,9 @@
 }
 .theme.win95 .card,
 .theme.win95 .tile,
+.theme.win95 .xp-card,
+.theme.win95 .xp-source-card,
+.theme.win95 .xp-section-count,
 .theme.win95 .popup-odatix,
 .theme.win95 .Select-value,
 .theme.win95 .Select-arrow-zone,
@@ -871,7 +890,8 @@
 .theme.win95 input,
 .theme.win95 textarea,
 .theme.win95 .monitor-task-progress,
-.theme.win95 button:active {
+.theme.win95 button:active,
+.theme.win95 .error {
     border-top: 2px solid var(--win95-shadow) !important;
     border-left: 2px solid var(--win95-shadow) !important;
     border-bottom: 2px solid var(--win95-highlight) !important;
@@ -884,6 +904,15 @@
 .theme.win95 .Select-input input {
     border: none !important;
 }
+.theme.win95 .xp-source-card:hover {
+    transform: none;
+    box-shadow: initial;
+}
+.theme.win95 .xp-section-count {
+    border-radius: 0px !important;
+    background: var(--win95-face);
+}
+
 
 .theme.hangover {
 

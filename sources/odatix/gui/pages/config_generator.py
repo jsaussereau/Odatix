@@ -121,7 +121,7 @@ def config_parameters_form(settings):
                     id="generator-template",
                     value=defval("template", ""),
                     className="auto-resize-textarea",
-                    style={"width": "100%", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
+                    style={"width": "calc(100% - 12px)", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
                 ),
             ], style={"marginBottom": "12px"}),
             dcc.Store(id="generator-initial-settings", data=settings),
@@ -136,16 +136,9 @@ def add_card(text: str = "Add new variable"):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingTop": "20px"}),
-                    html.Div(
-                        "+",
-                        style={
-                            "fontSize": "2.5em",
-                            "lineHeight": "80px",
-                            "height": "80px",
-                        }
-                    ),
-                ], 
+                    html.Div("+", style={"fontSize": "2.5em", "lineHeight": "80px", "height": "80px", "marginTop": "-2px", "marginBottom": "-16px"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingBottom": "20px"}),
+                ],
                 style={"display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"}
             ),
             id="new-variable",
