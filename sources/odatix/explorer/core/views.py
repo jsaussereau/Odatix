@@ -42,6 +42,7 @@ import re
 import pandas as pd
 
 import odatix.explorer.core.query as query
+import odatix.explorer.core.rules as rules
 import odatix.explorer.core.schema as schema
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
@@ -250,6 +251,18 @@ def sanitize_view(view, store):
     if known:
       filter_state[dimension] = {value: False for value in known}
 
+  # --- Metric rules ---
+  # Absent from views saved before rules existed: normalize() then yields an
+  # empty set, which restores as "no rule".
+  rule_state = rules.normalize(view.get("rules"))
+  kept_rules = []
+  for rule in rule_state["rules"]:
+    if rule["metric"] and rule["metric"] not in metrics:
+      warnings.append('Rule metric "' + rule["metric"] + '" does not exist in this data')
+      continue
+    kept_rules.append(rule)
+  rule_state["rules"] = kept_rules
+
   # --- Style / display / export ---
   palette = view.get("palette")
   if palette not in palettes.PALETTES:
@@ -284,6 +297,7 @@ def sanitize_view(view, store):
     "sources": sources,
     "controls": controls,
     "filter_state": filter_state,
+    "rule_state": rule_state,
     "palette": palette,
     "plot_theme": plot_theme,
     "toggles": toggles,

@@ -262,7 +262,9 @@ def build_sidebar(kind):
 
   filters_panel = html.Div(
     [
-      # --- Filters ---
+      # --- Rules (metric value conditions) ---
+      html.Div(id="xp-rules-panel"),
+      # --- Filters (per-dimension checkboxes) ---
       html.Div(id="xp-filter-panel"),
     ],
     className="xp-tab-panel xp-tab-panel-filters",

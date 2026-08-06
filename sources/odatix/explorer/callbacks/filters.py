@@ -21,7 +21,8 @@
 
 """
 Filter panel callbacks: rebuild on data/style changes while preserving the
-user's selections, remember check states across pages, show/hide-all.
+user's selections, remember check states across pages, show/hide-all — plus
+the metric rule builder ("LUT < 1000 and Fmax > 100", see core/rules.py).
 """
 
 import dash
@@ -29,8 +30,10 @@ from dash import Input, Output, State, ALL, MATCH
 
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
+import odatix.explorer.core.rules as rules
 from odatix.explorer.charts.spec import NONE_VALUE
 import odatix.explorer.ui.filters as ui_filters
+import odatix.explorer.ui.rules as ui_rules
 
 
 def build_filters_dict(values, ids):
@@ -103,3 +106,73 @@ def register_callbacks():
     if triggered.get("action") == "show":
       return [option["value"] for option in options or []]
     return []
+
+  # ---------------------------------------------------------------- rules ---
+
+  @dash.callback(
+    Output("xp-rules-panel", "children"),
+    Input("xp-data-version", "data"),
+    Input("xp-source-select", "value"),
+    Input("xp-rule-state", "data"),
+    Input({"type": "xp-filter", "dim": ALL}, "value"),
+    State({"type": "xp-filter", "dim": ALL}, "id"),
+  )
+  def rebuild_rules_panel(_version, sources, rule_state, filter_values, filter_ids):
+    """Render the rule cards from the rule state, with a live match counter."""
+    filters = build_filters_dict(filter_values, filter_ids)
+    df = query.select_dataframe(STORE, sources=sources, filters=filters)
+    _dimensions, metrics = query.discover(df, STORE, sources)
+    matched = len(rules.apply_rules(df, rule_state)) if not df.empty else 0
+    return ui_rules.build_rules_section(metrics, rule_state, STORE.units(sources), matched=matched, total=len(df))
+
+  @dash.callback(
+    Output("xp-rule-state", "data"),
+    Input({"type": "xp-rule-field", "id": ALL, "field": ALL}, "value"),
+    Input({"type": "xp-rule-remove", "id": ALL}, "n_clicks"),
+    Input({"type": "xp-rule-action", "action": ALL}, "n_clicks"),
+    Input({"type": "xp-rule-match", "index": ALL}, "n_clicks"),
+    State({"type": "xp-rule-field", "id": ALL, "field": ALL}, "id"),
+    State("xp-rule-state", "data"),
+    prevent_initial_call=True,
+  )
+  def edit_rules(field_values, _remove_clicks, _action_clicks, _match_clicks, field_ids, rule_state):
+    """
+    Single entry point for every rule edit: field changes, add, remove, clear
+    and the and/or chip. The panel is rebuilt from the resulting state, which
+    also re-mounts the fields and fires this callback back with their values —
+    returning no_update on an unchanged state is what settles that loop.
+    """
+    state = rules.normalize(rule_state)
+    triggered = dash.callback_context.triggered_id
+    if not isinstance(triggered, dict):
+      raise dash.exceptions.PreventUpdate
+
+    kind = triggered.get("type")
+    # Rebuilding the panel remounts the buttons, which fires this callback with
+    # n_clicks back to 0: only a real click (non-zero) is an edit.
+    if kind != "xp-rule-field" and not dash.callback_context.triggered[0].get("value"):
+      raise dash.exceptions.PreventUpdate
+
+    if kind == "xp-rule-action" and triggered.get("action") == "add":
+      state["rules"].append(rules.new_rule(state))
+    elif kind == "xp-rule-action" and triggered.get("action") == "clear":
+      state["rules"] = []
+    elif kind == "xp-rule-remove":
+      state["rules"] = [rule for rule in state["rules"] if rule["id"] != triggered.get("id")]
+    elif kind == "xp-rule-match":
+      state["match"] = rules.MATCH_ANY if state["match"] == rules.MATCH_ALL else rules.MATCH_ALL
+    elif kind == "xp-rule-field":
+      # Apply the live field values to the rules they belong to. Fields of a
+      # rule that is no longer in the state (a stale panel about to be replaced)
+      # are ignored.
+      by_id = {rule["id"]: rule for rule in state["rules"]}
+      for value, id in zip(field_values or [], field_ids or []):
+        rule = by_id.get(id["id"])
+        if rule is not None:
+          rule[id["field"]] = value
+    else:
+      raise dash.exceptions.PreventUpdate
+
+    if state == rules.normalize(rule_state):
+      raise dash.exceptions.PreventUpdate
+    return state

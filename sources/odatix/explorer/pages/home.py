@@ -381,6 +381,7 @@ def update_home_views(_intervals, settings):
 @dash.callback(
   Output("xp-control-state", "data", allow_duplicate=True),
   Output("xp-filter-state", "data", allow_duplicate=True),
+  Output("xp-rule-state", "data", allow_duplicate=True),
   Output("xp-ui-state", "data", allow_duplicate=True),
   Output("xp-home-url", "pathname"),
   Input({"type": "xp-view-open", "name": ALL}, "n_clicks"),
@@ -404,4 +405,4 @@ def open_view_from_home(clicks, ui_state):
 
   ui_state = dict(ui_state or {})
   ui_state.update(ui_patch)
-  return payload["controls"], payload["filter_state"], ui_state, "/explorer/" + payload["kind"]
+  return payload["controls"], payload["filter_state"], payload["rule_state"], ui_state, "/explorer/" + payload["kind"]

@@ -361,6 +361,205 @@
     padding: 4px;
 }
 
+/* ---------- Rules (metric value conditions) ---------- */
+
+.xp-rule {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--theme-border-color);
+    border-left: 3px solid var(--theme-primary-color);
+    border-radius: var(--theme-small-border-radius, 10px);
+    background: var(--theme-background-color);
+    animation: xp-rule-appear 0.22s ease;
+}
+
+@keyframes xp-rule-appear {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.xp-rule-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.xp-rule-metric {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.xp-rule-body {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.xp-rule-op {
+    flex: 0 0 68px;
+    width: 68px;
+}
+
+.xp-rule-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 5px 8px;
+}
+
+/* Hide the number spinners: the arrows are useless on values in the thousands
+   and eat the little width the sidebar has. */
+.xp-rule-value::-webkit-outer-spin-button,
+.xp-rule-value::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.xp-rule-value {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.xp-rule-unit {
+    flex: 0 0 auto;
+    font-size: 12px;
+    opacity: 0.6;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.xp-rule-unit:empty {
+    display: none;
+}
+
+.xp-rule-remove {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--theme-text-color);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    opacity: 0.45;
+    font-family: inherit;
+    transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.xp-rule-remove:hover {
+    opacity: 1;
+    color: var(--theme-caution-color, #d9534f);
+    background: color-mix(in srgb, var(--theme-caution-color, #d9534f) 14%, transparent);
+}
+
+/* The and/or joiner between two rules, on a hairline that ties them together */
+.xp-rule-match-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin: 6px 0;
+}
+
+.xp-rule-match-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    border-top: 1px dashed var(--theme-border-color);
+}
+
+.xp-rule-match {
+    position: relative;
+    padding: 1px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--theme-primary-color);
+    background: var(--theme-element-background-color);
+    border: 1px solid var(--theme-border-color);
+    border-radius: 999px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.xp-rule-match:hover {
+    border-color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-primary-color) 12%, var(--theme-element-background-color));
+}
+
+.xp-rule-actions {
+    margin-top: 8px;
+}
+
+.xp-rule-add {
+    font-weight: 600;
+    color: var(--theme-primary-color);
+}
+
+.xp-mini-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.xp-rule-empty {
+    font-size: 12px;
+    opacity: 0.6;
+    line-height: 1.4;
+    padding: 2px 2px 4px 2px;
+}
+
+.xp-rule-expression {
+    margin-top: 8px;
+    padding: 6px 8px;
+    font-family: var(--theme-mono-font-family, monospace);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-primary-color) 8%, transparent);
+    border-radius: var(--theme-small-border-radius, 8px);
+}
+
+.xp-rule-count {
+    font-size: 12px;
+    opacity: 0.7;
+    padding: 2px;
+}
+
+.xp-rule-count-empty {
+    opacity: 1;
+    color: var(--theme-caution-color, #d9534f);
+}
+
+.xp-rule-badge {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+    color: var(--theme-contrast-text-color, #fff);
+    background: var(--theme-primary-color);
+    border-radius: 999px;
+}
+
 /* ---------- Overview ---------- */
 
 .xp-overview-area {

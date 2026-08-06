@@ -39,6 +39,7 @@ from dash import Input, Output, State, ALL, html
 
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
+import odatix.explorer.core.rules as rules
 import odatix.explorer.core.views as views
 from odatix.explorer.callbacks.filters import build_filters_dict
 
@@ -137,12 +138,13 @@ def register_callbacks():
     State("xp-filter-state", "data"),
     State({"type": "xp-filter", "dim": ALL}, "value"),
     State({"type": "xp-filter", "dim": ALL}, "id"),
+    State("xp-rule-state", "data"),
     prevent_initial_call=True,
   )
   def save_current_view(n_clicks, name, suggested, description, kind, sources, x, y, z, color_by, symbol_by,
                         legend_group_by, dissociate, palette, plot_theme, toggles,
                         overview_chart_type, overview_layout, dl_format, dl_background,
-                        filter_state, filter_values, filter_ids):
+                        filter_state, filter_values, filter_ids, rule_state):
     if not n_clicks:
       raise dash.exceptions.PreventUpdate
 
@@ -153,7 +155,7 @@ def register_callbacks():
       base_dimensions, _ = query.discover(base_df, STORE, sources)
 
       filters = build_filters_dict(filter_values, filter_ids)
-      df = query.select_dataframe(STORE, sources=sources, filters=filters)
+      df = query.select_dataframe(STORE, sources=sources, filters=filters, rule_state=rule_state)
       dimensions, _ = query.discover(df, STORE, sources)
 
       thumb_kind = overview_chart_type if kind == "overview" else kind
@@ -168,6 +170,7 @@ def register_callbacks():
           "legend_group_by": legend_group_by, "dissociate": dissociate,
         },
         "filters": views.filters_to_hidden(filter_state, base_dimensions),
+        "rules": rules.normalize(rule_state),
         "palette": palette,
         "plot_theme": plot_theme,
         "toggles": toggles or [],
@@ -185,6 +188,7 @@ def register_callbacks():
   @dash.callback(
     Output("xp-control-state", "data", allow_duplicate=True),
     Output("xp-filter-state", "data", allow_duplicate=True),
+    Output("xp-rule-state", "data", allow_duplicate=True),
     Output("xp-ui-state", "data", allow_duplicate=True),
     Output("xp-source-select", "value", allow_duplicate=True),
     Output("xp-palette", "value", allow_duplicate=True),
@@ -209,7 +213,7 @@ def register_callbacks():
       payload, ui_patch, warnings = restore_payload(name)
     except ValueError as e:
       status = [html.Div("⚠ Could not restore the view: " + str(e), className="xp-view-warning")]
-      return (dash.no_update,) * 11 + (status, dash.no_update, dash.no_update)
+      return (dash.no_update,) * 12 + (status, dash.no_update, dash.no_update)
 
     ui_state = dict(ui_state or {})
     ui_state.update(ui_patch)
@@ -223,6 +227,7 @@ def register_callbacks():
     return (
       payload["controls"],
       payload["filter_state"],
+      payload["rule_state"],
       ui_state,
       payload["sources"],
       payload["palette"],

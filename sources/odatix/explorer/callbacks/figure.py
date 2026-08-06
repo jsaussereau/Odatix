@@ -59,6 +59,7 @@ _FIGURE_DEPS = [
   Input("xp-toggles", "value"),
   Input({"type": "xp-filter", "dim": ALL}, "value"),
   State({"type": "xp-filter", "dim": ALL}, "id"),
+  Input("xp-rule-state", "data"),
   Input("theme-dropdown", "value"),
   Input("xp-dl-format", "value"),
   Input("xp-dl-background", "value"),
@@ -66,9 +67,9 @@ _FIGURE_DEPS = [
 ]
 
 
-def _selection(sources, filter_values, filter_ids):
+def _selection(sources, filter_values, filter_ids, rule_state=None):
   filters = build_filters_dict(filter_values, filter_ids)
-  df = query.select_dataframe(STORE, sources=sources, filters=filters)
+  df = query.select_dataframe(STORE, sources=sources, filters=filters, rule_state=rule_state)
   dimensions, metrics = query.discover(df, STORE, sources)
   full_df = STORE.dataframe()
   global_dimensions, _ = query.discover(full_df, STORE) if not full_df.empty else ({}, [])
@@ -214,12 +215,12 @@ def register_callbacks():
     *_FIGURE_DEPS,
   )
   def update_figure(version, sources, x, y, z, color_by, symbol_by, legend_group_by, dissociate,
-                    palette, plot_theme, toggles, filter_values, filter_ids, app_theme,
+                    palette, plot_theme, toggles, filter_values, filter_ids, rule_state, app_theme,
                     dl_format, dl_background, kind):
     if kind in (None, "overview"):
       raise dash.exceptions.PreventUpdate
     try:
-      df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids)
+      df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)
       spec = _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, dissociate, toggles, dimensions, metrics)
       chrome = app_theme_bridge.get_chrome(app_theme)
       units = STORE.units(sources)
@@ -239,12 +240,12 @@ def register_callbacks():
     *_FIGURE_DEPS,
   )
   def update_overview(chart_type, layout, version, sources, x, y, z, color_by, symbol_by, legend_group_by,
-                      dissociate, palette, plot_theme, toggles, filter_values, filter_ids, app_theme,
-                      dl_format, dl_background, kind):
+                      dissociate, palette, plot_theme, toggles, filter_values, filter_ids, rule_state,
+                      app_theme, dl_format, dl_background, kind):
     if kind != "overview":
       raise dash.exceptions.PreventUpdate
     try:
-      df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids)
+      df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)
       spec = _make_spec(chart_type or "lines", x, y, z, color_by, symbol_by, legend_group_by, dissociate, toggles, dimensions, metrics)
       spec = replace(spec, toggles=tuple(toggle for toggle in spec.toggles if toggle != "legend"))
       chrome = app_theme_bridge.get_chrome(app_theme)
@@ -308,14 +309,15 @@ def register_callbacks():
     Input("xp-source-select", "value"),
     Input({"type": "xp-filter", "dim": ALL}, "value"),
     State({"type": "xp-filter", "dim": ALL}, "id"),
+    Input("xp-rule-state", "data"),
     Input("theme-dropdown", "value"),
     State("xp-chart-kind", "data"),
   )
-  def update_table(columns, _version, sources, filter_values, filter_ids, _app_theme, kind):
+  def update_table(columns, _version, sources, filter_values, filter_ids, rule_state, _app_theme, kind):
     if kind != "table":
       raise dash.exceptions.PreventUpdate
     try:
-      df, dimensions, metrics, _global_dimensions = _selection(sources, filter_values, filter_ids)
+      df, dimensions, metrics, _global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)
       return build_data_table(df, columns, dimensions, metrics, STORE.units(sources))
     except Exception as e:
       return content_lib.generate_error_div(e)
@@ -326,13 +328,14 @@ def register_callbacks():
     State("xp-source-select", "value"),
     State({"type": "xp-filter", "dim": ALL}, "value"),
     State({"type": "xp-filter", "dim": ALL}, "id"),
+    State("xp-rule-state", "data"),
     State("xp-chart-kind", "data"),
     prevent_initial_call=True,
   )
-  def download_csv(n_clicks, sources, filter_values, filter_ids, kind):
+  def download_csv(n_clicks, sources, filter_values, filter_ids, rule_state, kind):
     if not n_clicks:
       raise dash.exceptions.PreventUpdate
     filters = build_filters_dict(filter_values, filter_ids)
-    df = query.select_dataframe(STORE, sources=sources, filters=filters)
+    df = query.select_dataframe(STORE, sources=sources, filters=filters, rule_state=rule_state)
     filename = "Odatix-" + "-".join((sources or ["results"])[:3] + [str(kind)]) + ".csv"
     return dcc.send_data_frame(df.to_csv, filename, index=False)
