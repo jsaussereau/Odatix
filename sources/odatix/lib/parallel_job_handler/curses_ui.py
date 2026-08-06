@@ -335,6 +335,95 @@ def on_quit_after_finished(handler):
         return
 
 
+FINISHED_POPUP_OPTIONS = [
+    ("Stay in the monitor", "stay"),
+    ("Close the session and quit", "close"),
+    ("Keep the session open and quit", "detach"),
+]
+
+# Without a session to keep alive (local run), quitting simply leaves the monitor.
+FINISHED_POPUP_OPTIONS_NO_SESSION = [
+    ("Stay in the monitor", "stay"),
+    ("Quit", "close"),
+]
+
+
+def finished_popup_options(handler):
+    if callable(getattr(handler, "on_quit_after_finished", None)):
+        return FINISHED_POPUP_OPTIONS
+    return FINISHED_POPUP_OPTIONS_NO_SESSION
+
+
+def update_finished_popup(popup_win, popup_width, popup_height, options, selected, retired_jobs_count, total_jobs_count):
+    popup_win.erase()
+    popup_win.box()
+
+    def addstr(y, x, text, attr=0):
+        if y < 1 or y > popup_height - 2:
+            return
+        try:
+            popup_win.addstr(y, x, text[: max(0, popup_width - x - 1)], attr)
+        except curses.error:
+            pass
+
+    title = " All jobs completed "
+    addstr(1, max(1, (popup_width - len(title)) // 2), title, curses.A_BOLD | curses.A_REVERSE)
+
+    if total_jobs_count > 0:
+        summary = "{}/{} job(s) finished".format(retired_jobs_count, total_jobs_count)
+        addstr(2, max(1, (popup_width - len(summary)) // 2), summary, curses.A_DIM)
+
+    for i, (label, _) in enumerate(options):
+        text = " {}. {} ".format(i + 1, label)
+        text = text.ljust(popup_width - 6)
+        attr = curses.A_BOLD | curses.color_pair(REVERSE) if i == selected else curses.color_pair(NORMAL)
+        addstr(4 + i, 3, text, attr)
+
+    hint = "Up/Down then Enter, or 1-{}".format(len(options))
+    addstr(popup_height - 2, max(1, (popup_width - len(hint)) // 2), hint, curses.A_DIM)
+    popup_win.refresh()
+
+
+def show_finished_popup(stdscr, options, retired_jobs_count, total_jobs_count):
+    """Blocking popup shown once every job is done.
+
+    Returns "stay", "detach" (quit, leave the session running) or "close"
+    (quit and shut the session down). The last option is the default.
+    """
+    height, width = stdscr.getmaxyx()
+    popup_height = min(4 + len(options) + 3, max(3, height - 2))
+    popup_width = min(56, max(24, width - 4))
+    start_y = max(0, (height - popup_height) // 2)
+    start_x = max(0, (width - popup_width) // 2)
+
+    try:
+        popup_win = curses.newwin(popup_height, popup_width, start_y, start_x)
+    except curses.error:
+        return "stay"
+
+    popup_win.keypad(True)
+    popup_win.timeout(-1)
+    curses.flushinp()
+
+    selected = 1
+    while True:
+        update_finished_popup(popup_win, popup_width, popup_height, options, selected, retired_jobs_count, total_jobs_count)
+        key = popup_win.getch()
+
+        if key == curses.KEY_UP:
+            selected = (selected - 1) % len(options)
+        elif key == curses.KEY_DOWN:
+            selected = (selected + 1) % len(options)
+        elif key in (curses.KEY_ENTER, 10, 13):
+            return options[selected][1]
+        elif ord("1") <= key < ord("1") + len(options):
+            return options[key - ord("1")][1]
+        elif key in (27, ord("q"), ord("Q")):
+            return "stay"
+        elif key == curses.KEY_RESIZE:
+            return "stay"
+
+
 def update_logs(handler, logs_win, selected_job, logs_height, width):
     history = selected_job.log_history
     log_length = len(history)
@@ -587,6 +676,9 @@ def curses_main(handler, stdscr):
     resize = False
     resize_hold = False
     help_static_drawn = False
+    finished_popup_shown = False
+    finished_popup_pending = False
+    finished_draw_cycles = 0
 
     handler.showing_help = False
 
@@ -649,6 +741,10 @@ def curses_main(handler, stdscr):
         active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now = get_runtime_counters()
         finished = finished or finished_now
 
+        # Completion is announced below, once the final progress/logs have been drawn.
+        if finished and total_jobs_count > 0 and not finished_popup_shown and not handler.auto_exit:
+            finished_popup_pending = True
+
         if not handler.showing_help:
             help_static_drawn = False
 
@@ -689,6 +785,34 @@ def curses_main(handler, stdscr):
         if not handler.showing_help and width != old_width:
             update_logs(handler, logs_win, selected_job, logs_height, width)
         old_width = width
+
+        # Announce completion once, and let the user pick what to do next.
+        # Wait for a couple of full redraw cycles so the final progress bars and
+        # log lines are visible behind the popup.
+        if finished_popup_pending and not handler.showing_help:
+            finished_draw_cycles += 1
+            if finished_draw_cycles >= 2:
+                finished_popup_pending = False
+                finished_popup_shown = True
+                choice = show_finished_popup(
+                    stdscr, finished_popup_options(handler), retired_jobs_count, total_jobs_count
+                )
+                if choice == "detach":
+                    return True
+                if choice == "close":
+                    on_quit_after_finished(handler)
+                    return True
+                # "stay": redraw the whole screen behind the popup.
+                try:
+                    stdscr.clear()
+                    stdscr.refresh()
+                except curses.error:
+                    pass
+                resize = True
+                help_static_drawn = False
+                stdscr.timeout(50)
+                curses.flushinp()
+                continue
 
         key = stdscr.getch()
 

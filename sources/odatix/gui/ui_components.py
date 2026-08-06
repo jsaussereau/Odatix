@@ -26,7 +26,7 @@ from dash.development.base_component import Component
 
 from odatix.gui.icons import icon, pictogram
 
-def icon_button(icon, color, text="", id=None, link=None, multiline=False, bold=True, width="115px", style={}, tooltip:str="", tooltip_options:str="bottom"):  
+def icon_button(icon, color, text="", id=None, link=None, multiline=False, bold=True, width="115px", center=False, style={}, tooltip:str="", tooltip_options:str="bottom"):  
     """
     Create a button with an icon and optional text.
     Args:
@@ -37,6 +37,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, bold=
         link (str | dict, optional): If provided, the button will be a link to this URL. Defaults to None.
         multiline (bool, optional): If True, adjust vertical alignment for multiline text. Defaults to False.
         bold (bool, optional): If True, make the text bold. Defaults to False.
+        center (bool, optional): If True, center the content. Defaults to False.
     """ 
     if text:
         style = {**style, "min-width": width}
@@ -53,11 +54,12 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, bold=
         )
     content = html.Button(
         html.Div(
+            className="icon-button-inner",
             children=inner_children,
             style={
                 "display": "flex",
                 "alignItems": "center",
-                "justifyContent": "flex-start" if text else "center",
+                "justifyContent": "center" if center or not text else "flex-start",
                 "width": "100%",
                 "gap": "0px",
             },

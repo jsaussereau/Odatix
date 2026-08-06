@@ -2392,3 +2392,151 @@ input[type="checkbox"] {
     bottom: 100%;
     top: auto;
 }
+
+/* Click-away layer behind a popup: the dialog sits above it (position: relative). */
+.popup-backdrop {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    cursor: default;
+}
+
+/* Monitor: "all jobs finished" dialog */
+.monitor-finished-popup {
+    width: 440px;
+    max-width: min(92vw, 460px);
+    padding: var(--space-6, 26px) var(--space-6, 26px) var(--space-5, 20px);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5, 20px);
+    animation: monitor-finished-in 180ms ease-out;
+}
+@keyframes monitor-finished-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .monitor-finished-popup { animation: none; }
+}
+
+/* Head: centered badge + title + subtitle */
+.monitor-finished-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3, 12px);
+}
+.monitor-finished-badge {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-primary-color) 14%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-primary-color) 7%, transparent);
+}
+.monitor-finished-badge .icon { stroke-width: 2.4; }
+.monitor-finished-badge.success {
+    color: var(--theme-success-color);
+    background: color-mix(in srgb, var(--theme-success-color) 14%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-success-color) 7%, transparent);
+}
+.monitor-finished-badge.failed {
+    color: var(--theme-caution-color);
+    background: color-mix(in srgb, var(--theme-caution-color) 14%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-caution-color) 7%, transparent);
+}
+.monitor-finished-popup h2 {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--theme-text-color);
+}
+.monitor-finished-message {
+    margin-top: -6px;
+    font-size: 14px;
+    opacity: 0.65;
+}
+
+/* Stats recap: one surface split by dividers, like the monitor header stats */
+.monitor-finished-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid rgba(128, 128, 128, 0.16);
+    border-radius: var(--theme-small-border-radius, 8px);
+    background: rgba(128, 128, 128, 0.05);
+    overflow: hidden;
+}
+.monitor-finished-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3, 12px) 4px;
+    border-right: 1px solid rgba(128, 128, 128, 0.14);
+}
+.monitor-finished-stat:last-child { border-right: none; }
+.monitor-finished-stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: var(--theme-text-color);
+}
+.monitor-finished-stat.time .monitor-finished-stat-value { font-size: 16px; }
+.monitor-finished-stat.done .monitor-finished-stat-value { color: var(--theme-success-color); }
+.monitor-finished-stat.failed .monitor-finished-stat-value { color: var(--theme-caution-color); }
+.monitor-finished-stat-label {
+    margin-top: 3px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    opacity: 0.5;
+}
+
+/* Actions: one primary call to action, two quiet alternatives below */
+.monitor-finished-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3, 12px);
+}
+.monitor-finished-actions-row {
+    display: flex;
+    gap: var(--space-2, 8px);
+}
+.monitor-finished-ghost {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    padding: 8px 10px;
+    background: transparent;
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    border-radius: var(--theme-small-border-radius, 8px);
+    color: var(--theme-text-color);
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0.8;
+    cursor: pointer;
+    transition: background 120ms ease, opacity 120ms ease, border-color 120ms ease;
+}
+.monitor-finished-ghost:hover {
+    background: rgba(128, 128, 128, 0.1);
+    border-color: rgba(128, 128, 128, 0.4);
+    opacity: 1;
+}
+.monitor-finished-error {
+    color: var(--theme-caution-color, #FA5252);
+    font-size: 13px;
+}
+.monitor-finished-error:empty { display: none; }
+
+@media screen and (max-width: 560px) {
+    .monitor-finished-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .monitor-finished-stat:nth-child(2) { border-right: none; }
+    .monitor-finished-stat:nth-child(-n+2) { border-bottom: 1px solid rgba(128, 128, 128, 0.14); }
+}

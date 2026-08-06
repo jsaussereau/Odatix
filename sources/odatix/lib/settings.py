@@ -154,7 +154,8 @@ class OdatixSettings:
             dict | None: Dictionary of settings if successful, None otherwise.
         """
         if not os.path.isfile(settings_filename):
-            printc.note("Odatix settings file \"" + settings_filename + "\" does not exist.", script_name=script_name)
+            if not silent:
+                printc.note("Odatix settings file \"" + settings_filename + "\" does not exist.", script_name=script_name)
             settings_data = {}
         else:
             with open(settings_filename, "r") as f:
