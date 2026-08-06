@@ -129,18 +129,22 @@ def register_callbacks():
     Output("xp-rule-state", "data"),
     Input({"type": "xp-rule-field", "id": ALL, "field": ALL}, "value"),
     Input({"type": "xp-rule-remove", "id": ALL}, "n_clicks"),
-    Input({"type": "xp-rule-action", "action": ALL}, "n_clicks"),
-    Input({"type": "xp-rule-match", "index": ALL}, "n_clicks"),
+    Input({"type": "xp-rule-action", "action": ALL, "group": ALL}, "n_clicks"),
+    Input({"type": "xp-rule-match", "group": ALL, "index": ALL}, "n_clicks"),
+    Input({"type": "xp-rule-operand", "id": ALL}, "n_clicks"),
     State({"type": "xp-rule-field", "id": ALL, "field": ALL}, "id"),
     State("xp-rule-state", "data"),
     prevent_initial_call=True,
   )
-  def edit_rules(field_values, _remove_clicks, _action_clicks, _match_clicks, field_ids, rule_state):
+  def edit_rules(
+    field_values, _remove_clicks, _action_clicks, _match_clicks, _operand_clicks, field_ids, rule_state
+  ):
     """
-    Single entry point for every rule edit: field changes, add, remove, clear
-    and the and/or chip. The panel is rebuilt from the resulting state, which
-    also re-mounts the fields and fires this callback back with their values —
-    returning no_update on an unchanged state is what settles that loop.
+    Single entry point for every rule edit: field changes, add rule, add group,
+    remove, clear, the and/or chips and the constant/metric switch. The panel is
+    rebuilt from the resulting state, which also re-mounts the fields and fires
+    this callback back with their values — returning no_update on an unchanged
+    state is what settles that loop.
     """
     state = rules.normalize(rule_state)
     triggered = dash.callback_context.triggered_id
@@ -153,23 +157,31 @@ def register_callbacks():
     if kind != "xp-rule-field" and not dash.callback_context.triggered[0].get("value"):
       raise dash.exceptions.PreventUpdate
 
-    if kind == "xp-rule-action" and triggered.get("action") == "add":
-      state["rules"].append(rules.new_rule(state))
-    elif kind == "xp-rule-action" and triggered.get("action") == "clear":
-      state["rules"] = []
+    if kind == "xp-rule-action":
+      action = triggered.get("action")
+      group_id = triggered.get("group", rules.ROOT_ID)
+      if action == "add_rule":
+        rules.add_child(state, group_id, rules.new_rule(state))
+      elif action == "add_group":
+        rules.add_child(state, group_id, rules.new_group(state))
+      elif action == "clear":
+        rules.remove(state, group_id)
+      else:
+        raise dash.exceptions.PreventUpdate
     elif kind == "xp-rule-remove":
-      state["rules"] = [rule for rule in state["rules"] if rule["id"] != triggered.get("id")]
+      rules.remove(state, triggered.get("id"))
     elif kind == "xp-rule-match":
-      state["match"] = rules.MATCH_ANY if state["match"] == rules.MATCH_ALL else rules.MATCH_ALL
+      rules.toggle_match(state, triggered.get("group", rules.ROOT_ID))
+    elif kind == "xp-rule-operand":
+      rule = rules.find(state, triggered.get("id"))
+      operand = rules.OPERAND_VALUE if rule and rule.get("operand") == rules.OPERAND_METRIC else rules.OPERAND_METRIC
+      rules.set_field(state, triggered.get("id"), "operand", operand)
     elif kind == "xp-rule-field":
       # Apply the live field values to the rules they belong to. Fields of a
       # rule that is no longer in the state (a stale panel about to be replaced)
       # are ignored.
-      by_id = {rule["id"]: rule for rule in state["rules"]}
       for value, id in zip(field_values or [], field_ids or []):
-        rule = by_id.get(id["id"])
-        if rule is not None:
-          rule[id["field"]] = value
+        rules.set_field(state, id["id"], id["field"], value)
     else:
       raise dash.exceptions.PreventUpdate
 

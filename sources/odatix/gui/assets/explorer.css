@@ -375,6 +375,12 @@
     animation: xp-rule-appear 0.22s ease;
 }
 
+/* .xp-rule-group {
+	animation: xp-section-reveal 0.28s ease;
+	border: 1px dashed var(--theme-border-color);
+	border-radius: var(--theme-small-border-radius);
+} */
+
 @keyframes xp-rule-appear {
     from {
         opacity: 0;
@@ -408,10 +414,45 @@
     width: 68px;
 }
 
+/* The right-hand side of the comparison: a constant (+ its unit), or a metric */
+.xp-rule-constant,
+.xp-rule-other {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.xp-rule-constant {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .xp-rule-value {
     flex: 1 1 auto;
     min-width: 0;
     padding: 5px 8px;
+}
+
+/* Switches that right-hand side between a constant and another metric */
+.xp-rule-operand {
+    flex: 0 0 auto;
+    padding: 3px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--theme-mono-font-family, monospace);
+    cursor: pointer;
+    color: var(--theme-text-color);
+    background: var(--theme-element-background-color);
+    border: 1px solid var(--theme-border-color);
+    border-radius: var(--theme-small-border-radius, 8px);
+    opacity: 0.7;
+    transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.xp-rule-operand:hover {
+    opacity: 1;
+    color: var(--theme-primary-color);
+    border-color: var(--theme-primary-color);
 }
 
 /* Hide the number spinners: the arrows are useless on values in the thousands
@@ -501,6 +542,40 @@
 .xp-rule-match:hover {
     border-color: var(--theme-primary-color);
     background: color-mix(in srgb, var(--theme-primary-color) 12%, var(--theme-element-background-color));
+}
+
+/* A nested group: its own frame, so the parentheses of the expression are
+   visible as a block rather than read from the text. */
+.xp-rule-group {
+    padding: 8px;
+    border: 1px dashed var(--theme-border-color);
+    border-radius: var(--theme-small-border-radius, 10px);
+    background: color-mix(in srgb, var(--theme-text-color) 4%, transparent);
+    animation: xp-rule-appear 0.22s ease;
+}
+
+.xp-rule-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.xp-rule-group-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.5;
+}
+
+/* Inside a group the buttons are secondary to the root ones */
+.xp-rule-group .xp-rule-actions {
+    margin-top: 6px;
+}
+
+.xp-rule-group .xp-mini-button {
+    font-size: 11px;
 }
 
 .xp-rule-actions {

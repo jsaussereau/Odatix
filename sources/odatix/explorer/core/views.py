@@ -160,6 +160,33 @@ def load_view(result_path, name):
 ######################################
 
 
+def _sanitize_rules(node, metrics, warnings):
+  """
+  Drop, recursively, the rules comparing a metric this data does not have, then
+  the groups left empty by that. Returns the pruned node.
+  """
+  if node.get("kind") != "group":
+    # "other" only matters while the rule compares two metrics: an unused
+    # leftover from the constant mode must not disqualify the rule.
+    fields = ("metric", "other") if node.get("operand") == rules.OPERAND_METRIC else ("metric",)
+    for field in fields:
+      metric = node.get(field)
+      if metric and metric not in metrics:
+        warnings.append('Rule metric "' + metric + '" does not exist in this data')
+        return None
+    return node
+
+  children = []
+  for child in node.get("children") or []:
+    kept = _sanitize_rules(child, metrics, warnings)
+    if kept is not None:
+      children.append(kept)
+  node["children"] = children
+  if not children and node["id"] != rules.ROOT_ID:
+    return None
+  return node
+
+
 def sanitize_view(view, store):
   """
   Check a loaded view against the current store content, repairing anything
@@ -254,14 +281,7 @@ def sanitize_view(view, store):
   # --- Metric rules ---
   # Absent from views saved before rules existed: normalize() then yields an
   # empty set, which restores as "no rule".
-  rule_state = rules.normalize(view.get("rules"))
-  kept_rules = []
-  for rule in rule_state["rules"]:
-    if rule["metric"] and rule["metric"] not in metrics:
-      warnings.append('Rule metric "' + rule["metric"] + '" does not exist in this data')
-      continue
-    kept_rules.append(rule)
-  rule_state["rules"] = kept_rules
+  rule_state = _sanitize_rules(rules.normalize(view.get("rules")), metrics, warnings)
 
   # --- Style / display / export ---
   palette = view.get("palette")
