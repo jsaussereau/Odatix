@@ -2487,7 +2487,11 @@ input[type="checkbox"] {
     font-variant-numeric: tabular-nums;
     color: var(--theme-text-color);
 }
-.monitor-finished-stat.time .monitor-finished-stat-value { font-size: 16px; }
+.monitor-finished-stat.time .monitor-finished-stat-value { 
+    height: 23.1px;
+    line-height: 23.1px;
+    font-size: 16px; 
+}
 .monitor-finished-stat.done .monitor-finished-stat-value { color: var(--theme-success-color); }
 .monitor-finished-stat.failed .monitor-finished-stat-value { color: var(--theme-caution-color); }
 .monitor-finished-stat-label {
