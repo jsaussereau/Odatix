@@ -457,6 +457,18 @@ def config_parameters_form(domain_uuid, settings, mode="arch"):
         ]
     )
 
+def show_newlines(text: str):
+    """Render text with a visible '↩' pilcrow before each newline, keeping the actual line break."""
+    if "\n" not in text:
+        return text
+    components = []
+    for i, line in enumerate(text.split("\n")):
+        if i:
+            components.append(html.Span("↩", className="newline-marker"))
+            components.append("\n")
+        components.append(line)
+    return components
+
 def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str):
     use_parameters = domain_settings.get("use_parameters", True)
     if not use_parameters:
@@ -512,9 +524,9 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             content_stop = section_stop - len(stop_delimiter)
             preview_components = [
                 new_content[:section_start],
-                html.Span(start_delimiter, className="text-highlight primary"),
+                html.Span(show_newlines(start_delimiter), className="text-highlight primary"),
                 html.Span(new_content[content_start:content_stop], className="text-highlight secondary"),
-                html.Span(stop_delimiter, className="text-highlight primary"),
+                html.Span(show_newlines(stop_delimiter), className="text-highlight primary"),
                 new_content[section_stop:],
             ]
 

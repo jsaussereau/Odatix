@@ -1137,6 +1137,11 @@ h3 {
     text-shadow: var(--secondary-highlight-text-shadow);
 }
 
+.newline-marker {
+    opacity: 0.55;
+    font-weight: bold;
+}
+
 .tooltip {
     position: relative;
     z-index: 4000;
