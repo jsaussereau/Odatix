@@ -472,14 +472,14 @@ def show_newlines(text: str):
 def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str):
     use_parameters = domain_settings.get("use_parameters", True)
     if not use_parameters:
-        return preview_div(html.Div("Parameter replacement disabled.", style={"color": "#888"}))
+        return html.Div("Parameter replacement disabled.", style={"color": "#888"})
     param_target_file = domain_settings.get("param_target_file", "")
 
     if mode == "workflow":
         sources = settings.get("sources", {})
         base_path = sources.get("path", "") if isinstance(sources, dict) else ""
         if not base_path:
-            return preview_div(html.Div("No source path specified in workflow settings. Unable to preview.", className="error"))
+            return html.Div("No source path specified in workflow settings. Unable to preview.", className="error")
         if param_target_file == "":
             param_target_file = settings.get("param_target_file", "")
     else:
@@ -488,13 +488,13 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         if generate_rtl:
             base_path = settings.get("design_path", "")
             if not base_path:
-                return preview_div(html.Div("No design path specified in architecture settings. Unable to preview.", className="error"))
+                return html.Div("No design path specified in architecture settings. Unable to preview.", className="error")
             if param_target_file == "":
                 param_target_file = settings.get("top_level_file", "")
         else:
             rtl_path = settings.get("rtl_path", "")
             if not rtl_path:
-                return preview_div(html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error"))
+                return html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error")
             base_path = rtl_path
             if param_target_file == "":
                 param_target_file = os.path.join(settings.get("top_level_file", ""))
@@ -556,14 +556,29 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         else:
             text = f"Preview file '{os.path.realpath(param_target_file)}' not found. Unable to preview."
         pane_content = html.Div(text, className="error")
-    return preview_div(pane_content)
+    return pane_content
 
-def preview_div(content):
+def preview_header(domain_uuid):
+    """Header of the preview tile: title + config selector."""
     return html.Div(
         children=[
-            html.H3("Preview Pane"),
-            content,
-        ], 
+            html.H3("Preview Pane", style={"margin": "0px"}),
+            dcc.Dropdown(
+                id={"type": "preview-config-select", "domain_uuid": domain_uuid},
+                options=[],
+                value=None,
+                clearable=False,
+                placeholder="No config",
+                style={"minWidth": "180px", "flex": "0 1 240px"},
+            ),
+        ],
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "space-between",
+            "gap": "10px",
+            "marginBottom": "8px",
+        },
     )
 
 def domain_section(domain: str, mode: str = "arch", instance_name: str = "", settings: dict = {}, domain_uuid=None):
@@ -597,7 +612,13 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                         ],
                         id={"type": "config-parameters", "domain_uuid": domain_uuid}, 
                         className="tile config"),
-                    html.Div(id={"type": "preview-pane", "domain_uuid": domain_uuid}, className="tile config"),
+                    html.Div(
+                        children=[
+                            preview_header(domain_uuid),
+                            html.Div(id={"type": "preview-pane", "domain_uuid": domain_uuid}),
+                        ],
+                        className="tile config",
+                    ),
                 ], 
                 className="card-matrix config",
             ),
@@ -989,6 +1010,36 @@ def update_config_cards(
     return config_cards_row
 
 @dash.callback(
+    Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "options"),
+    Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
+    Input("param-domains-section", "children"),
+    Input({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
+    Input({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
+    prevent_initial_call=True
+)
+def update_preview_config_select(_, config_cards_rows, config_titles, config_metadata, domain_metadata, current_values):
+    """Fill the preview config selector of each domain with its configs."""
+    options_out = []
+    values_out = []
+    for i, domain in enumerate(domain_metadata):
+        domain_uuid = domain.get("domain_uuid", "")
+        options = []
+        for j, config in enumerate(config_metadata):
+            if config.get("domain_uuid", "") != domain_uuid:
+                continue
+            title = config_titles[j] if j < len(config_titles) and config_titles[j] else config.get("config_name", "")
+            options.append({"label": title, "value": config.get("config_uuid", "")})
+        current = current_values[i] if i < len(current_values) else None
+        if current not in [option["value"] for option in options]:
+            current = options[0]["value"] if options else None
+        options_out.append(options)
+        values_out.append(current)
+    return options_out, values_out
+
+@dash.callback(
     Output({"type": "preview-pane", "domain_uuid": dash.ALL}, "children"),
     State("url", "search"),
     Input("param-domains-section", "children"),
@@ -999,6 +1050,7 @@ def update_config_cards(
     Input({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
     State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
@@ -1006,8 +1058,8 @@ def update_config_cards(
 )
 def update_preview_all(
     search, param_domains_update,
-    config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, 
-    config_metadata, domain_metadata, odatix_settings
+    config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list,
+    selected_configs, config_metadata, domain_metadata, odatix_settings
 ):
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name or instance_name not in instances:
@@ -1019,27 +1071,33 @@ def update_preview_all(
             ], className="error warning")
         ] * len(config_cards_rows)
 
-    # Group config contents by domain
+    # Group config contents by domain, keyed by config uuid
     contents_by_domain = []
-    domain_contents = []
     for domain in domain_metadata:
         domain_uuid = domain.get("domain_uuid", "")
-        indices = [i for i, config in enumerate(config_metadata) if config.get("domain_uuid", "") == domain_uuid]
-        domain_contents = [config_contents_list[i] for i in indices]
+        domain_contents = {
+            config.get("config_uuid", ""): config_contents_list[i]
+            for i, config in enumerate(config_metadata)
+            if config.get("domain_uuid", "") == domain_uuid and i < len(config_contents_list)
+        }
         contents_by_domain.append(domain_contents)
 
     # Generate previews for each domain
     results = []
     for i, domain in enumerate(domain_metadata):
         domain_uuid = domain.get("domain_uuid", "")
-        config_contents_list = contents_by_domain[i] if i < len(contents_by_domain) else []
+        domain_contents = contents_by_domain[i] if i < len(contents_by_domain) else {}
         settings = settings_list[0] if 0 < len(settings_list) and settings_list[0] is not None else {}
         domain_settings = settings_list[i] if i < len(settings_list) and settings_list[i] is not None else {}
         domain_settings["use_parameters"] = params_enables[i] if i < len(params_enables) else ""
         domain_settings["param_target_file"] = target_files[i] if i < len(target_files) else ""
         domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
         domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
-        replacement_text = config_contents_list[0] if config_contents_list else ""
+        selected_config = selected_configs[i] if i < len(selected_configs) else None
+        if selected_config in domain_contents:
+            replacement_text = domain_contents[selected_config]
+        else:
+            replacement_text = next(iter(domain_contents.values()), "")
         results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text))
     return results
 
