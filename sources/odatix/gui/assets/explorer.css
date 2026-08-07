@@ -275,7 +275,7 @@
     font-family: inherit;
     font-size: 13px;
     color: var(--theme-text-color);
-    background: var(--theme-background-color);
+    /* background: var(--theme-background-color); */
     border: 1px solid var(--theme-border-color);
     border-radius: var(--theme-small-border-radius, 10px);
 }

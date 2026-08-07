@@ -873,6 +873,8 @@
 .theme.win95 .card,
 .theme.win95 .tile,
 .theme.win95 .xp-card,
+.theme.win95 .xp-section,
+.theme.win95 .xp-view-switch-item,
 .theme.win95 .xp-source-card,
 .theme.win95 .xp-section-count,
 .theme.win95 .popup-odatix,
@@ -910,6 +912,10 @@
 }
 .theme.win95 .xp-section-count {
     border-radius: 0px !important;
+    background: var(--win95-face);
+}
+.theme.win95 .xp-tabs,
+.theme.win95 .xp-page {
     background: var(--win95-face);
 }
 
