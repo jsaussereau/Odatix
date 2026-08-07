@@ -127,6 +127,8 @@ def trace_name(info, dimensions, spec, units):
       continue  # constant over the selection: no need to repeat it
     if str(value) == schema.MISSING_VALUE:
       continue  # dimension absent from this trace's records
+    if dim == spec.legend_group_by:
+      continue  # already shown as the legend group title
     if dim in (spec.dissociate or ()):
       parts.append("[" + str(dim) + ": " + str(value) + "]")
     elif dim == schema.COL_FREQUENCY:
@@ -254,7 +256,9 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
     name = trace_name(info, dimensions, spec, units)
     legend_group = None
     if spec.has("legend_groups") and spec.legend_group_by and spec.legend_group_by != NONE_VALUE:
-      legend_group = info.get(spec.legend_group_by)
+      group_value = info.get(spec.legend_group_by)
+      if group_value is not None:
+        legend_group = str(spec.legend_group_by) + ": " + str(group_value)
 
     common = dict(
       name=name,
