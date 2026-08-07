@@ -338,6 +338,14 @@ def resolve_param_target_file(tmp_dir, target_filename, generate_rtl):
     return os.path.join(tmp_dir, hard_settings.work_rtl_path, target_filename)
 
 
+def resolve_workflow_param_target_file(tmp_dir, target_filename):
+    """
+    Same, for a workflow: it has no RTL, and its "sources" are copied whole at
+    the root of the work directory, so the path is used as is.
+    """
+    return os.path.join(tmp_dir, target_filename)
+
+
 def resolve_sim_param_target_file(tmp_dir, target_filename):
     """
     Same, for a simulation: its target file can be one of the simulation's own

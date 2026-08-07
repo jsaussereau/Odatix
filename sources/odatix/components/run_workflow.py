@@ -31,6 +31,7 @@ from odatix.components.run_common import (
     confirm_valid_jobs,
     abort_if_empty_job_list,
     replace_and_write_param_domains,
+    resolve_workflow_param_target_file,
     run_prepare_loop,
     start_parallel_jobs as start_parallel_jobs_common,
 )
@@ -610,6 +611,7 @@ def check_settings(
             param_domains=workflow_instance.param_domains,
             default_target_filename=workflow_instance.param_target_file,
             target_filename_getter=lambda param_domain: param_domain.param_target_file,
+            target_resolver=resolve_workflow_param_target_file,
             debug=debug,
             timestamp=None,
         )
