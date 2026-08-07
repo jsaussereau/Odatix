@@ -42,7 +42,7 @@ def _dimension_options(dimensions, include_none=True):
   return [{"label": "None" if name == NONE_VALUE else name, "value": name} for name in names]
 
 
-def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group_by, dissociate):
+def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, dissociate):
   """Store only controls supported by the current chart kind.
 
   The sidebar keeps all dropdowns mounted so figure callbacks have stable
@@ -59,6 +59,7 @@ def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group
     color_by=color_by,
     symbol_by=symbol_by,
     legend_group_by=legend_group_by,
+    sort_by=sort_by,
     dissociate=dissociate,
   )
   return state
@@ -99,6 +100,8 @@ def register_callbacks():
     Output("xp-symbol-by", "value"),
     Output("xp-legend-group-by", "options"),
     Output("xp-legend-group-by", "value"),
+    Output("xp-sort-by", "options"),
+    Output("xp-sort-by", "value"),
     Output("xp-dissociate-by", "options"),
     Output("xp-dissociate-by", "value"),
     Input("xp-data-version", "data"),
@@ -110,11 +113,12 @@ def register_callbacks():
     State("xp-color-by", "value"),
     State("xp-symbol-by", "value"),
     State("xp-legend-group-by", "value"),
+    State("xp-sort-by", "value"),
     State("xp-dissociate-by", "value"),
     State("xp-control-state", "data"),
     State("xp-chart-kind", "data"),
   )
-  def update_control_options(_version, sources, _restore, x, y, z, color_by, symbol_by, legend_group_by, dissociate, stored, kind):
+  def update_control_options(_version, sources, _restore, x, y, z, color_by, symbol_by, legend_group_by, sort_by, dissociate, stored, kind):
     # Values chosen on any chart page are remembered in xp-control-state (session
     # storage) so they survive switching chart kinds. On a fresh page the live
     # component values are empty (Dash persistence drops them while options are
@@ -126,6 +130,7 @@ def register_callbacks():
     color_by = stored.get("color_by", color_by)
     symbol_by = stored.get("symbol_by", symbol_by)
     legend_group_by = stored.get("legend_group_by", legend_group_by)
+    sort_by = stored.get("sort_by", sort_by)
     dissociate = stored.get("dissociate", dissociate)
 
     df = query.select_dataframe(STORE, sources=sources)
@@ -136,7 +141,7 @@ def register_callbacks():
       kind=kind if kind != "overview" else "lines",
       x=x, y=y, z=z,
       color_by=color_by, symbol_by=symbol_by, legend_group_by=legend_group_by,
-      dissociate=dissociate,
+      sort_by=sort_by, dissociate=dissociate,
     )
     resolve_defaults(spec, dimensions, metrics)
 
@@ -163,6 +168,7 @@ def register_callbacks():
       multi_options, list(spec.color_by),
       multi_options, list(spec.symbol_by),
       dim_options, spec.legend_group_by,
+      multi_options, list(spec.sort_by),
       multi_options, list(spec.dissociate),
     )
 
@@ -238,12 +244,13 @@ def register_callbacks():
     Input("xp-color-by", "value"),
     Input("xp-symbol-by", "value"),
     Input("xp-legend-group-by", "value"),
+    Input("xp-sort-by", "value"),
     Input("xp-dissociate-by", "value"),
     State("xp-control-state", "data"),
     State("xp-chart-kind", "data"),
     prevent_initial_call=True,
   )
-  def remember_control_state(x, y, z, color_by, symbol_by, legend_group_by, dissociate, state, kind):
+  def remember_control_state(x, y, z, color_by, symbol_by, legend_group_by, sort_by, dissociate, state, kind):
     """Remember the data-dependent control values across chart pages and reloads."""
     if x is None:
       # Transient state right after a page swap: the axis dropdowns are not
@@ -253,5 +260,5 @@ def register_callbacks():
       raise dash.exceptions.PreventUpdate
     return _merge_control_state(
       state, kind, x, y, z,
-      color_by, symbol_by, legend_group_by, dissociate,
+      color_by, symbol_by, legend_group_by, sort_by, dissociate,
     )

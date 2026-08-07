@@ -59,7 +59,7 @@ VIEWS_DIRNAME = "explorer_views"
 VIEW_SCHEMA_KEY = "odatix_explorer_view"
 VIEW_SCHEMA_VERSION = 1
 
-CONTROL_KEYS = ("x", "y", "z", "color_by", "symbol_by", "legend_group_by", "dissociate")
+CONTROL_KEYS = ("x", "y", "z", "color_by", "symbol_by", "legend_group_by", "sort_by", "dissociate")
 EXPORT_FORMATS = ("svg", "png", "jpeg", "webp")
 EXPORT_BACKGROUNDS = ("transparent", "white", "theme")
 OVERVIEW_CHART_TYPES = ("lines", "columns", "radar")
@@ -234,6 +234,7 @@ def sanitize_view(view, store):
     "color_by": dim_choices,
     "symbol_by": dim_choices,
     "legend_group_by": dim_choices,
+    "sort_by": dim_choices,
     "dissociate": dim_choices,
   }
   controls = {}

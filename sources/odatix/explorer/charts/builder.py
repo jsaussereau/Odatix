@@ -86,7 +86,7 @@ def identity_dimensions(spec, dimensions):
   auto_line = _auto_line_color_dimension(spec, dimensions)
   if auto_line and auto_line not in identity:
     identity.append(auto_line)
-  extras = list(spec.color_by or ()) + list(spec.symbol_by or ()) + list(spec.dissociate or ()) + [spec.legend_group_by]
+  extras = list(spec.color_by or ()) + list(spec.symbol_by or ()) + list(spec.dissociate or ()) + list(spec.sort_by or ()) + [spec.legend_group_by]
   for extra in extras:
     if extra and extra != NONE_VALUE and extra in dimensions and extra not in identity:
       identity.append(extra)
@@ -115,7 +115,10 @@ def group_traces(df, spec, dimensions):
       key = (key,)
     groups.append((dict(zip(identity, key)), sub_df))
 
-  groups.sort(key=lambda group: tuple(schema.sort_key(group[0][dim]) for dim in identity))
+  sort_by = [dim for dim in (spec.sort_by or ()) if dim in identity]
+  sort_order = sort_by + [dim for dim in identity if dim not in sort_by]
+
+  groups.sort(key=lambda group: tuple(schema.sort_key(group[0][dim]) for dim in sort_order))
   return groups
 
 

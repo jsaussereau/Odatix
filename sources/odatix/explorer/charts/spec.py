@@ -36,7 +36,7 @@ NONE_VALUE = "none"
 # Controls accepting several dimensions at once (multi dropdowns). Their spec
 # fields hold a tuple of dimensions: () means "none", None means "not set yet"
 # (resolve_defaults then picks a default).
-MULTI_CONTROLS = ("color_by", "symbol_by", "dissociate")
+MULTI_CONTROLS = ("color_by", "symbol_by", "sort_by", "dissociate")
 
 KINDS = ["lines", "columns", "scatter", "scatter3d", "radar"]
 
@@ -104,6 +104,7 @@ class FigureSpec:
   color_by: tuple = None        # dimensions, one color per value combination
   symbol_by: tuple = None       # dimensions, one symbol per value combination
   legend_group_by: str = None   # any dimension, or NONE_VALUE
+  sort_by: tuple = None          # dimensions taking priority when ordering traces, in priority order
   dissociate: tuple = None      # dimensions pulled out of x labels into trace identity
   label_by: str = None          # dimension used for point labels (scatter kinds)
   stable_index: bool = True     # color/symbol indices computed over all values (stable across filters)
@@ -178,6 +179,7 @@ def resolve_defaults(spec, dimensions, metrics):
   spec.symbol_by = resolve_multi(spec.symbol_by, lambda: pick([schema.COL_TARGET]))
   if spec.legend_group_by is None or (spec.legend_group_by != NONE_VALUE and spec.legend_group_by not in dimensions):
     spec.legend_group_by = pick([schema.COL_TARGET, schema.COL_SOURCE], NONE_VALUE)
+  spec.sort_by = resolve_multi(spec.sort_by, None)
   spec.dissociate = resolve_multi(spec.dissociate, None)
 
   return spec

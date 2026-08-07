@@ -204,6 +204,7 @@ def build_sidebar(kind):
           tooltip="One pattern per combination of the chosen dimensions" if kind == "columns" else "One symbol per combination of the chosen dimensions",
         ),
         components.control_row("Group legend by", _dropdown("xp-legend-group-by")),
+        components.control_row("Sort by", _multi_dropdown("xp-sort-by"), tooltip="Order traces globally by the chosen dimensions, in the order picked here"),
         components.control_row("Palette", _dropdown(
           "xp-palette",
           options=[{"label": name, "value": name} for name in palettes.PALETTES],
