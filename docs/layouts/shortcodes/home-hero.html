@@ -1,0 +1,108 @@
+{{ $eyebrow := .Get "eyebrow" }}
+{{ $headline := .Get "headline" }}
+{{ $highlight := .Get "highlight" }}
+{{ $headline_end := .Get "headline_end" }}
+{{ $sub_headline := .Get "sub_headline" }}
+{{ $primary_button_text := .Get "primary_button_text" }}
+{{ $primary_button_url := .Get "primary_button_url" }}
+{{ $secondary_button_text := .Get "secondary_button_text" }}
+{{ $secondary_button_url := .Get "secondary_button_url" }}
+{{ $image := .Get "image" }}
+{{ $image_caption := .Get "image_caption" }}
+{{ $tools := .Get "tools" }}
+{{ $arrow := .Get "arrow" | default "false" }}
+
+<section class="home-hero">
+    <div class="home-hero__inner">
+        <div class="home-hero__grid">
+            <div class="home-hero__copy">
+                {{ with $eyebrow }}
+                <span class="home-hero__eyebrow">
+                    <span class="home-hero__eyebrow-dot"></span>{{ . | safeHTML }}
+                </span>
+                {{ end }}
+
+                <h1 class="home-hero__title">
+                    {{ $headline | safeHTML }}{{ with $highlight }} <span class="home-hero__title-accent">{{ . | safeHTML }}</span>{{ end }}{{ with $headline_end }} {{ . | safeHTML }}{{ end }}
+                </h1>
+
+                <p class="home-hero__lead">{{ $sub_headline | safeHTML }}</p>
+
+                <div class="home-hero__actions">
+                    {{ if and $primary_button_text $primary_button_url }}
+                    <a href="{{ $primary_button_url }}" class="home-hero__btn home-hero__btn--primary">
+                        {{ $primary_button_text }}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/>
+                        </svg>
+                    </a>
+                    {{ end }}
+                    {{ if and $secondary_button_text $secondary_button_url }}
+                    <a href="{{ $secondary_button_url }}" class="home-hero__btn home-hero__btn--ghost" {{ if hasPrefix $secondary_button_url "http" }}target="_blank" rel="noopener"{{ end }}>
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/>
+                        </svg>
+                        {{ $secondary_button_text }}
+                    </a>
+                    {{ end }}
+                </div>
+
+                <div class="home-hero__terminal" aria-hidden="true">
+                    <div class="home-hero__terminal-bar">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <pre class="home-hero__terminal-body"><code><span class="t-prompt no-select">$ </span><span class="t-cmd">odatix</span> init --examples<span class="t-comment">       # create a workspace with examples</span>
+<span class="t-prompt no-select">$ </span><span class="t-cmd">odatix-gui</span><span class="t-comment">                   # start the graphical interface</span>
+<span class="t-prompt no-select">$ </span><span class="t-cmd">odatix</span> synth <span class="t-flag">--at 200 -j 16</span><span class="t-comment">  # 16 parallel synthesis at 200 MHz</span>
+<span class="t-prompt no-select">$ </span><span class="t-cmd">odatix</span> fmax <span class="t-flag">-j 16 -t genus</span><span class="t-comment">   # 16 parallel Fmax searches</span>
+<span class="t-prompt no-select">$ </span><span class="t-cmd">odatix-explorer</span><span class="t-comment">              # compare everything visually</span></code></pre>
+                </div>
+            </div>
+
+            <div class="home-hero__visual">
+                {{ with $image }}
+                <figure class="home-hero__window">
+                    <div class="home-hero__window-bar">
+                        <span class="home-hero__window-url">odatix explorer</span>
+                        <span class="home-hero__window-dots"><i></i><i></i><i></i></span>
+                    </div>
+                    <img src="{{ . | relURL }}" alt="{{ $image_caption | default "Odatix Explorer" }}" loading="eager">
+                </figure>
+                {{ end }}
+                <div class="home-hero__glow home-hero__glow--a"></div>
+                <div class="home-hero__glow home-hero__glow--b"></div>
+            </div>
+        </div>
+
+        {{ with $tools }}
+        <div class="home-hero__tools">
+            <span class="home-hero__tools-label">Drives your EDA tools</span>
+            <ul class="home-hero__tools-list">
+                {{ range split . "," }}<li>{{ trim . " " }}</li>{{ end }}
+            </ul>
+        </div>
+        {{ end }}
+    </div>
+
+    {{ if and $arrow (ne (printf "%v" $arrow) "false") }}
+    <a href="#" id="home-scroll-arrow" class="home-hero__arrow" aria-label="Scroll down">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </a>
+    <script>
+        (function () {
+            var arrow = document.getElementById('home-scroll-arrow');
+            if (!arrow) { return; }
+            arrow.addEventListener('click', function (event) {
+                event.preventDefault();
+                var hero = arrow.closest('section');
+                var next = hero ? hero.nextElementSibling : null;
+                while (next && next.tagName !== 'SECTION') { next = next.nextElementSibling; }
+                if (next) { next.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+                window.scrollTo({ top: Math.max(window.innerHeight - 80, 0), behavior: 'smooth' });
+            });
+        })();
+    </script>
+    {{ end }}
+</section>

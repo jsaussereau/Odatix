@@ -1,0 +1,35 @@
+methods:
+  - title: "From PyPI"
+    icon: "download"
+    accent: "#2563eb"
+    recommended: true
+    flag: "Recommended"
+    description: >-
+      The stable release, straight from the Python package index. One command to
+      install, one to upgrade — this is what the rest of the documentation assumes.
+    command: "pip install odatix"
+    audience: "Standard use · machine with internet access"
+    cta: "Install from PyPI"
+    url: "/install/pypi/"
+
+  - title: "Offline"
+    icon: "archive"
+    accent: "#0d9488"
+    description: >-
+      Download the package and its dependencies once on a connected machine, carry
+      the archive over, and install the same stable release with no network at all.
+    command: "pip install odatix*.whl"
+    audience: "Air-gapped or restricted machines"
+    cta: "Install offline"
+    url: "/install/offline/"
+
+  - title: "From sources"
+    icon: "code"
+    accent: "#7c3aed"
+    description: >-
+      Clone the repository and install it in editable mode: the latest unreleased
+      features, and a source tree you can read, patch and contribute back to.
+    command: "pip install -e ."
+    audience: "Developers · contributors"
+    cta: "Install from sources"
+    url: "/install/sources/"

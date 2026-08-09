@@ -1,0 +1,158 @@
+{{/* FAQ page: masthead, sticky category rail, searchable accordion and a
+     closing "ask us" card. Accepts the flat legacy payload
+
+       { "title": …, "description": …, "questions": [ { question, answer } ] }
+
+     as well as a grouped one, where every group carries its own heading:
+
+       { "categories": [ { "name": …, "icon": …, "questions": [ … ] } ] }
+*/}}
+{{ $data := .Inner | transform.Unmarshal }}
+{{ $groups := $data.categories }}
+{{ if not $groups }}
+  {{ $groups = slice (dict "name" "" "questions" $data.questions) }}
+{{ end }}
+
+{{ $total := 0 }}
+{{ range $groups }}{{ $total = add $total (len .questions) }}{{ end }}
+
+<section class="faq-hero">
+    <div class="faq-hero__inner">
+        <span class="faq-hero__eyebrow"><span class="faq-hero__eyebrow-dot"></span>{{ $data.eyebrow | default "Support" }}</span>
+        <h1 class="faq-hero__title">{{ $data.title | default "Frequently Asked Questions" }}</h1>
+        {{ with $data.description }}<p class="faq-hero__lead">{{ . | safeHTML }}</p>{{ end }}
+
+        <div class="faq-search">
+            <svg class="faq-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"/>
+                <path stroke-linecap="round" d="m20 20-3.5-3.5"/>
+            </svg>
+            <input type="search" id="faq-search" class="faq-search__input" placeholder="Search the {{ $total }} questions…" autocomplete="off" aria-label="Search the frequently asked questions">
+        </div>
+        <p class="faq-search__empty" id="faq-empty" hidden>No question matches your search. Try another keyword, or <a href="{{ site.Params.social.github | default "https://github.com/jsaussereau/odatix" }}/issues">ask us directly</a>.</p>
+    </div>
+</section>
+
+<section class="faq-body">
+    <div class="faq-layout">
+        {{ if $data.categories }}
+        <aside class="faq-rail" aria-label="Question categories">
+            <span class="faq-rail__label">Categories</span>
+            <nav class="faq-rail__nav">
+                {{ range $i, $g := $groups }}
+                <a class="faq-rail__link" href="#faq-group-{{ $i }}" data-faq-rail="{{ $i }}">
+                    <span>{{ $g.name }}</span>
+                    <span class="faq-rail__count">{{ len $g.questions }}</span>
+                </a>
+                {{ end }}
+            </nav>
+        </aside>
+        {{ end }}
+
+        <div class="faq-groups">
+            {{ range $i, $g := $groups }}
+            <section class="faq-group" id="faq-group-{{ $i }}" data-faq-group="{{ $i }}">
+                {{ with $g.name }}
+                <h2 class="faq-group__title">
+                    {{ with $g.icon }}<span class="faq-group__icon" aria-hidden="true">{{ . }}</span>{{ end }}
+                    {{ . }}
+                </h2>
+                {{ end }}
+                {{ with $g.description }}<p class="faq-group__desc">{{ . | safeHTML }}</p>{{ end }}
+
+                <div class="faq-list">
+                    {{ range $g.questions }}
+                    <details class="faq-item" data-faq-item>
+                        <summary class="faq-item__q">
+                            <span class="faq-item__text">{{ .question }}</span>
+                            <span class="faq-item__toggle" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" d="M12 5v14M5 12h14"/>
+                                </svg>
+                            </span>
+                        </summary>
+                        <div class="faq-item__a">
+                            <div class="faq-item__a-inner">{{ .answer | markdownify }}</div>
+                        </div>
+                    </details>
+                    {{ end }}
+                </div>
+            </section>
+            {{ end }}
+        </div>
+    </div>
+
+    {{ $cta := $data.cta }}
+    {{ if ne $cta false }}
+    <div class="faq-cta">
+        <div class="faq-cta__copy">
+            <h2 class="faq-cta__title">{{ with $cta }}{{ .title }}{{ end }}{{ if not $cta }}Still have a question?{{ end }}</h2>
+            <p class="faq-cta__text">{{ with $cta }}{{ .text | safeHTML }}{{ end }}{{ if not $cta }}Open an issue on GitHub, we answer as fast as we can. The documentation and the tutorials also cover most day-to-day workflows.{{ end }}</p>
+        </div>
+        <div class="faq-cta__actions">
+            <a class="faq-cta__btn faq-cta__btn--primary" href="{{ site.Params.social.github | default "https://github.com/jsaussereau/odatix" }}/issues/new" target="_blank" rel="noopener">
+                Ask on GitHub
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/>
+                </svg>
+            </a>
+            <a class="faq-cta__btn faq-cta__btn--ghost" href="/docs">Browse the documentation</a>
+        </div>
+    </div>
+    {{ end }}
+</section>
+
+<script>
+(function () {
+    var input = document.getElementById('faq-search');
+    if (!input) {
+        return;
+    }
+
+    var items = Array.prototype.slice.call(document.querySelectorAll('[data-faq-item]'));
+    var groups = Array.prototype.slice.call(document.querySelectorAll('[data-faq-group]'));
+    var empty = document.getElementById('faq-empty');
+
+    function filter() {
+        var query = input.value.trim().toLowerCase();
+
+        items.forEach(function (item) {
+            var match = !query || item.textContent.toLowerCase().indexOf(query) !== -1;
+            item.hidden = !match;
+            /* Opening on a match saves a click and shows where the words hit. */
+            item.open = Boolean(query) && match;
+        });
+
+        var visible = 0;
+        groups.forEach(function (group) {
+            var shown = group.querySelectorAll('[data-faq-item]:not([hidden])').length;
+            group.hidden = shown === 0;
+            visible += shown;
+        });
+
+        if (empty) {
+            empty.hidden = visible !== 0;
+        }
+    }
+
+    input.addEventListener('input', filter);
+    input.addEventListener('search', filter);
+
+    /* Highlight the category the reader is currently in. */
+    var links = Array.prototype.slice.call(document.querySelectorAll('[data-faq-rail]'));
+    if (links.length && 'IntersectionObserver' in window) {
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) {
+                    return;
+                }
+                var id = entry.target.getAttribute('data-faq-group');
+                links.forEach(function (link) {
+                    link.classList.toggle('is-active', link.getAttribute('data-faq-rail') === id);
+                });
+            });
+        }, { rootMargin: '-20% 0px -70% 0px' });
+        groups.forEach(function (group) { observer.observe(group); });
+    }
+})();
+</script>

@@ -1,0 +1,27 @@
+{{/* Install hub.
+
+     Same shape as the tutorials hub: a gradient masthead carrying the title,
+     the page description and a copyable quick-install line, then the prose of
+     _index.md (which places the install-methods cards). */}}
+{{ define "main" }}
+<div class="install-page">
+  <header class="install-hero">
+    <div class="install-hero__inner">
+      <p class="install-hero__eyebrow">{{ i18n "installEyebrow" | default "Installation" }}</p>
+      <h1 class="install-hero__title">{{ .Title }}</h1>
+      {{ with .Description }}<p class="install-hero__lead">{{ . }}</p>{{ end }}
+      {{ with .Params.quick_command }}
+      <div class="install-hero__command">
+        <span class="install-hero__prompt" aria-hidden="true">$</span>
+        <code>{{ . }}</code>
+      </div>
+      {{ with $.Params.quick_note }}<p class="install-hero__note">{{ . | markdownify }}</p>{{ end }}
+      {{ end }}
+    </div>
+  </header>
+
+  <div class="install-body">
+    <div class="prose prose-lg max-w-none">{{ .Content }}</div>
+  </div>
+</div>
+{{ end }}

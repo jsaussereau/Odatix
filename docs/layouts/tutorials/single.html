@@ -1,0 +1,100 @@
+{{/* A single tutorial: article look (masthead, byline, cover) inside the docs
+     shell, so the sidebar and the on-page table of contents stay available
+     while the page itself reads like a post rather than a reference entry. */}}
+{{ define "main" }}
+
+{{ $cat := "" }}
+{{ with .Params.categories }}
+  {{ range . }}{{ if ne . "Tutorial" }}{{ $cat = . }}{{ end }}{{ end }}
+  {{ if eq $cat "" }}{{ $cat = index . 0 }}{{ end }}
+{{ end }}
+{{ $accent := partial "tutorial-accent.html" $cat }}
+
+{{/* Byline: reading time, author, date */}}
+{{ $meta := slice }}
+{{ $meta = $meta | append (printf `<span class="tutorial-article__time">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg>
+    %d min</span>` (int (math.Max .ReadingTime 1))) }}
+{{ with .Params.author }}{{ $meta = $meta | append (printf `<span>%s</span>` .) }}{{ end }}
+{{ if not .Date.IsZero }}
+  {{ $meta = $meta | append (printf `Last updated: <time datetime="%s">%s</time>` (.Date.Format "2006-01-02") (.Date.Format "January 2, 2006")) }}
+{{ end }}
+
+{{ $crumbs := "" }}
+{{ $parent := .Parent }}
+{{ $root := site.GetPage "/tutorials" }}
+{{ with $root }}
+  {{ $crumbs = printf `<a href="%s">%s</a>` .RelPermalink .Title }}
+{{ end }}
+{{ if and $parent $root (ne $parent.RelPermalink $root.RelPermalink) }}
+  {{ $crumbs = printf `%s<span aria-hidden="true">/</span><a href="%s">%s</a>` $crumbs $parent.RelPermalink $parent.Title }}
+{{ end }}
+
+{{/* Cover sits beside the masthead text rather than above the body */}}
+{{ $cover := "" }}
+{{ with .Params.featured_image }}
+  {{ $cover = printf `<figure class="tutorial-article__cover"><img src="%s" alt="" loading="lazy" /></figure>` . }}
+{{ end }}
+
+{{/* Keep going: manually set via `next_tutorials` in front matter (list of paths),
+     falling back to the sibling tutorials of this one */}}
+{{ $siblings := slice }}
+{{ with .Params.next_tutorials }}
+  {{ range . }}
+    {{ with site.GetPage . }}{{ $siblings = $siblings | append . }}{{ end }}
+  {{ end }}
+{{ end }}
+{{ if not $siblings }}
+  {{ with $parent }}
+    {{ range .RegularPages }}
+      {{ if ne .RelPermalink $.RelPermalink }}{{ $siblings = $siblings | append . }}{{ end }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+{{ $next := "" }}
+{{ if $siblings }}
+  {{ $cards := "" }}
+  {{ range first 3 $siblings }}
+    {{ $cards = printf "%s%s" $cards (partial "tutorial-card.html" (dict "page" . "compact" true)) }}
+  {{ end }}
+  {{ $next = printf `
+  <aside class="tutorial-next not-prose">
+    <h2 class="tutorial-next__title">%s</h2>
+    <div class="tutorial-grid tutorial-grid--3">%s</div>
+  </aside>` (i18n "keepGoing" | default "Keep going") $cards }}
+{{ end }}
+
+{{ $body := printf `
+<div class="tutorial-page tutorial-article" style="--accent: %s">
+  <header class="tutorial-article__head">
+    <nav class="tutorial-article__crumbs">%s</nav>
+    <div class="tutorial-article__headline%s">
+      %s
+      <div class="tutorial-article__intro">
+        %s
+        <h1 class="tutorial-article__title">%s</h1>
+        %s
+        <div class="tutorial-article__meta">%s</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="tutorial-body">
+    <article class="prose prose-lg max-w-none tutorial-prose">%s</article>
+    %s
+  </div>
+</div>`
+  ($accent | safeCSS)
+  $crumbs
+  (cond (ne $cover "") " tutorial-article__headline--cover" "")
+  $cover
+  (cond (ne $cat "") (printf `<span class="tutorial-chip tutorial-chip--lg">%s</span>` $cat) "")
+  .Title
+  (cond (ne (string .Description) "")
+    (printf `<p class="tutorial-article__lead">%s</p>` .Description) "")
+  (delimit $meta `<span class="tutorial-article__dot" aria-hidden="true">&middot;</span>`)
+  .Content
+  $next }}
+
+{{ partial "docs-shell.html" (dict "page" . "main" $body "wide" true) }}
+{{ end }}

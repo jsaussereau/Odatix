@@ -1,0 +1,15 @@
+{{/* Line icons for the install methods. Context: the icon name. */}}
+{{ $c := `stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"` }}
+<svg viewBox="0 0 24 24" aria-hidden="true">
+  {{ if eq . "download" }}
+    <path {{ $c | safeHTMLAttr }} d="M12 3v11m0 0 4-4m-4 4-4-4"/>
+    <path {{ $c | safeHTMLAttr }} d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+  {{ else if eq . "archive" }}
+    <path {{ $c | safeHTMLAttr }} d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5v-9Z"/>
+    <path {{ $c | safeHTMLAttr }} d="m3 7.5 9 4.5 9-4.5M12 12v9"/>
+  {{ else if eq . "code" }}
+    <path {{ $c | safeHTMLAttr }} d="m8 8-4 4 4 4m8-8 4 4-4 4M14 5l-4 14"/>
+  {{ else }}
+    <circle {{ $c | safeHTMLAttr }} cx="12" cy="12" r="8"/>
+  {{ end }}
+</svg>

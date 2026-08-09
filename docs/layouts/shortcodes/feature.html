@@ -1,0 +1,57 @@
+{{/* Feature Shortcode (project override: supports escaped commas "\," inside feature items) */}}
+{{ $title := .Get "title" }}
+{{ $description := .Get "description" }}
+{{ $badge := .Get "badge" }}
+{{ $badgeColor := .Get "badgeColor" | default "#5573df" }}
+{{ $image := .Get "image" }}
+{{ $buttonText := .Get "buttonText" | default "Learn More" }}
+{{ $buttonLink := .Get "buttonLink" | default "#" }}
+{{ $imagePosition := .Get "imagePosition" | default "right" }}
+
+{{/* Split on commas, but keep "\," as a literal comma */}}
+{{ $sentinel := "" }}
+{{ $features := slice }}
+{{ range split (replace (.Get "features" | default "") "\\," $sentinel) "," }}
+    {{ $item := trim (replace . $sentinel ",") " " }}
+    {{ with $item }}{{ $features = $features | append $item }}{{ end }}
+{{ end }}
+
+<div class="grid lg:grid-cols-2 gap-12 items-center" style="--badge-color: {{ $badgeColor }}">
+    {{ if eq $imagePosition "left" }}
+    <div class="order-2 lg:order-1">
+        <img src="{{ $image | relURL }}" alt="{{ $title }}" class="rounded-xl shadow-elevation">
+    </div>
+    {{ end }}
+
+    <div class="space-y-6 {{ if eq $imagePosition "left" }}order-1 lg:order-2{{ end }}">
+        <style>
+            .badge {
+                background-color: color-mix(in srgb, var(--badge-color) 10%, transparent);
+                color: var(--badge-color);
+            }
+            .badge-icon {
+                color: var(--badge-color);
+            }
+        </style>
+        <div class="badge inline-block px-4 py-2 rounded-full font-medium">{{ $badge }}</div>
+        <h3 class="text-2xl md:text-3xl font-bold">{{ $title }}</h3>
+        <p class="text-lg text-gray-600">{{ $description }}</p>
+        <ul class="space-y-4">
+            {{ range $features }}
+            <li class="flex items-center space-x-3">
+                <svg class="badge-icon w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                <span>{{ . }}</span>
+            </li>
+            {{ end }}
+        </ul>
+        <a href="{{ $buttonLink }}" class="btn-primary inline-block">{{ $buttonText }}</a>
+    </div>
+
+    {{ if ne $imagePosition "left" }}
+    <div>
+        <img src="{{ $image | relURL }}" alt="{{ $title }}" class="rounded-xl shadow-elevation">
+    </div>
+    {{ end }}
+</div>

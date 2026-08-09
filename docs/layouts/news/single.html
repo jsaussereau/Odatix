@@ -1,0 +1,12 @@
+{{ define "main" }}
+<div class="bg-gray-50">
+  <div class="container mx-auto px-24 py-12 border-gray-200 bg-white" style="border-left-style: solid; border-left-width: 1px; border-right-style: solid; border-right-width: 1px; padding-left: 4em; padding-right: 4em;">
+    <main class="mx-auto">
+      <article class="prose prose-lg">
+        <h1 class="text-4xl font-bold mb-4 text-center">{{ .Title }}</h1>
+        {{ .Content }}
+      </article>
+    </main>
+  </div>
+</div>
+{{ end }}

@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" width="1000" height="460" role="img" aria-labelledby="wf-title wf-desc">
+  <title id="wf-title">How an Odatix workflow runs</title>
+  <desc id="wf-desc">Each configuration gets an isolated work directory. Inside it, a task graph is resolved like a makefile starting from the task named main, with independent branches running concurrently. Tasks report progress to the Job Monitor and their outputs are turned into metrics for Odatix Explorer.</desc>
+
+  <style>
+    .bg     { fill: #ffffff; }
+    .panel  { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 1; }
+    .card   { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; }
+    .task   { fill: #eef1fc; stroke: #99abec; stroke-width: 1.5; }
+    .entry  { fill: #425ad6; stroke: #283680; stroke-width: 1.5; }
+    .out    { fill: #faf5ff; stroke: #d8b4fe; stroke-width: 1; }
+    .edge   { fill: none; stroke: #778fe6; stroke-width: 2; }
+    .flow   { fill: none; stroke: #94a3b8; stroke-width: 1.5; }
+    .t      { font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif; fill: #0f172a; }
+    .kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.1px; fill: #64748b; }
+    .h      { font-size: 14px; font-weight: 700; }
+    .val    { font-size: 12.5px; fill: #334155; }
+    .mut    { font-size: 11.5px; fill: #64748b; }
+    .tsk    { font-size: 12.5px; font-weight: 700; fill: #283680; }
+    .mono   { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  </style>
+
+  <rect class="bg" width="1000" height="460"/>
+
+  <!-- ============ 1. one workflow, every configuration ============ -->
+  <text class="t kicker" x="28" y="34">1 · PER CONFIGURATION</text>
+  <rect class="panel" x="24" y="48" width="238" height="366" rx="14"/>
+
+  <rect class="card" x="40" y="66" width="206" height="52" rx="10"/>
+  <text class="t h" x="56" y="88" fill="#425ad6">sources</text>
+  <text class="t mut mono" x="56" y="106">copied per configuration</text>
+
+  <path class="flow" d="M143 126 V148" marker-end="url(#arrow)"/>
+
+  <!-- stacked isolated work dirs -->
+  <rect class="card" x="52" y="188" width="194" height="44" rx="10"/>
+  <rect class="card" x="46" y="180" width="194" height="44" rx="10"/>
+  <rect class="card" x="40" y="172" width="194" height="44" rx="10"/>
+  <text class="t val mono" x="56" y="192">04bits+Mul_Basic</text>
+  <text class="t mut mono" x="56" y="208">work/…/isolated dir</text>
+
+  <rect class="card" x="52" y="272" width="194" height="44" rx="10"/>
+  <rect class="card" x="46" y="264" width="194" height="44" rx="10"/>
+  <rect class="card" x="40" y="256" width="194" height="44" rx="10"/>
+  <text class="t val mono" x="56" y="276">64bits+Mul_Off</text>
+  <text class="t mut mono" x="56" y="292">work/…/isolated dir</text>
+
+  <text class="t mut" x="143" y="344" text-anchor="middle">all configurations run in parallel</text>
+  <text class="t mut" x="143" y="364" text-anchor="middle">no shared state between them</text>
+
+  <path class="flow" d="M270 216 H304" marker-end="url(#arrow)"/>
+
+  <!-- ============ 2. task graph ============ -->
+  <text class="t kicker" x="316" y="34">2 · TASK GRAPH, RESOLVED LIKE A MAKEFILE</text>
+  <rect class="panel" x="312" y="48" width="450" height="366" rx="14"/>
+
+  <!-- edges (drawn under the nodes) -->
+  <path class="edge" d="M472 126 H496" marker-end="url(#arrowb)"/>
+  <path class="edge" d="M472 226 H496" marker-end="url(#arrowb)"/>
+  <path class="edge" d="M620 126 H634 V176"/>
+  <path class="edge" d="M620 226 H634 V176"/>
+  <path class="edge" d="M634 176 H644" marker-end="url(#arrowb)"/>
+  <path class="edge" d="M688 198 V300" marker-end="url(#arrowb)"/>
+
+  <!-- independent branches: no dependency, so they start together -->
+  <rect class="task" x="336" y="104" width="136" height="44" rx="10"/>
+  <text class="t tsk mono" x="404" y="131" text-anchor="middle">generate_config</text>
+
+  <rect class="task" x="336" y="204" width="136" height="44" rx="10"/>
+  <text class="t tsk mono" x="404" y="231" text-anchor="middle">make_stimulus</text>
+
+  <rect class="task" x="496" y="104" width="124" height="44" rx="10"/>
+  <text class="t tsk mono" x="558" y="131" text-anchor="middle">build</text>
+
+  <rect class="task" x="496" y="204" width="124" height="44" rx="10"/>
+  <text class="t tsk mono" x="558" y="231" text-anchor="middle">simulate</text>
+
+  <!-- entry point -->
+  <rect class="entry" x="644" y="154" width="88" height="44" rx="10"/>
+  <text class="t mono" x="688" y="174" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">main</text>
+  <text class="t mono" x="688" y="190" text-anchor="middle" font-size="10.5" fill="#dde3f9">entry point</text>
+
+  <!-- artifacts produced -->
+  <rect class="card" x="624" y="300" width="128" height="44" rx="10"/>
+  <text class="t val mono" x="688" y="320" text-anchor="middle">output.txt</text>
+  <text class="t mut" x="688" y="336" text-anchor="middle" font-size="10.5">produced by your tasks</text>
+
+  <text class="t mut" x="470" y="300" text-anchor="middle">Execution starts at <tspan class="mono" fill="#425ad6">main</tspan>;</text>
+  <text class="t mut" x="470" y="318" text-anchor="middle">its dependencies run first, and</text>
+  <text class="t mut" x="470" y="336" text-anchor="middle">independent branches concurrently.</text>
+
+  <!-- ============ 3. what comes out ============ -->
+  <text class="t kicker" x="774" y="34">3 · WHAT COMES OUT</text>
+  <rect class="panel" x="770" y="48" width="206" height="366" rx="14"/>
+
+  <path class="flow" d="M762 130 H802" marker-end="url(#arrow)"/>
+  <rect class="out" x="786" y="102" width="174" height="88" rx="10"/>
+  <text class="t h" x="873" y="126" text-anchor="middle" fill="#7e22ce">Progress</text>
+  <text class="t mut mono" x="873" y="144" text-anchor="middle">progress.txt + regex</text>
+  <rect x="806" y="156" width="134" height="10" rx="5" fill="#e9d5ff"/>
+  <rect x="806" y="156" width="82" height="10" rx="5" fill="#a855f7"/>
+  <text class="t mut" x="873" y="182" text-anchor="middle">live in the Job Monitor</text>
+
+  <path class="flow" d="M756 322 H802" marker-end="url(#arrow)"/>
+  <rect class="out" x="786" y="238" width="174" height="136" rx="10"/>
+  <text class="t h" x="873" y="262" text-anchor="middle" fill="#7e22ce">Metrics</text>
+  <text class="t mut mono" x="873" y="280" text-anchor="middle">_metrics.yml rules</text>
+  <text class="t mut" x="873" y="300" text-anchor="middle">regex · CSV · JSON · XML</text>
+  <path class="flow" d="M873 312 V332" marker-end="url(#arrow)"/>
+  <rect class="card" x="806" y="336" width="134" height="26" rx="8"/>
+  <text class="t val" x="873" y="354" text-anchor="middle">Odatix Explorer</text>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="arrowb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#778fe6"/>
+    </marker>
+  </defs>
+</svg>

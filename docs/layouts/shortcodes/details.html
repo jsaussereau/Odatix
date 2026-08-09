@@ -1,0 +1,25 @@
+{{/* Collapsible section.
+     Usage: {{< details title="Interface" >}} ...markdown... {{< /details >}}
+     Add open="true" to have it expanded by default. */}}
+{{ $title := .Get "title" | default (.Get 0) | default "Details" }}
+{{ $open := eq (lower (printf "%v" (.Get "open" | default false))) "true" }}
+
+<details class="details-block my-6 rounded-lg border border-gray-200 bg-white"{{ if $open }} open{{ end }}>
+  <summary class="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-semibold text-gray-900 transition-colors duration-200 hover:text-primary-600">
+    <svg class="details-marker h-4 w-4 shrink-0 text-primary-600 transition-transform duration-200" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fill-rule="evenodd" d="M7.21 5.23a.75.75 0 011.06-.02l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 11-1.03-1.09L11.06 10 7.23 6.29a.75.75 0 01-.02-1.06z" clip-rule="evenodd" />
+    </svg>
+    <span>{{ $title | markdownify }}</span>
+  </summary>
+  <div class="details-content px-4 pb-4">
+    {{ .Inner | markdownify }}
+  </div>
+</details>
+
+<style>
+.details-block > summary::-webkit-details-marker { display: none; }
+.details-block[open] > summary .details-marker { transform: rotate(90deg); }
+.details-block[open] > summary { border-bottom: 1px solid rgb(229 231 235); }
+.details-content > :first-child { margin-top: 1rem; }
+.details-content > :last-child { margin-bottom: 0; }
+</style>

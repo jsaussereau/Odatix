@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 640 420"
+   width="640"
+   height="420"
+   fill="none"
+   role="img"
+   aria-label="Simulation and validation: waveforms and per-configuration pass results"
+   version="1.1"
+   id="svg26"
+   sodipodi:docname="simulation.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview26"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showguides="true"
+     inkscape:zoom="1.3619048"
+     inkscape:cx="-557.67481"
+     inkscape:cy="84.440557"
+     inkscape:window-width="5120"
+     inkscape:window-height="1355"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg26">
+    <sodipodi:guide
+       position="-373.74126,390.62937"
+       orientation="1,0"
+       id="guide26"
+       inkscape:locked="false" />
+  </sodipodi:namedview>
+  <defs
+     id="defs6">
+    <linearGradient
+       id="sm-accent"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#4ade80"
+         id="stop1" />
+      <stop
+         offset="1"
+         stop-color="#16a34a"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       id="sm-panel"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#ffffff"
+         id="stop3" />
+      <stop
+         offset="1"
+         stop-color="#f1f5f9"
+         id="stop4" />
+    </linearGradient>
+    <linearGradient
+       id="sm-glow"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#16a34a"
+         stop-opacity="0.18"
+         id="stop5" />
+      <stop
+         offset="1"
+         stop-color="#16a34a"
+         stop-opacity="0"
+         id="stop6" />
+    </linearGradient>
+  </defs>
+  <rect
+     x="24"
+     y="18"
+     width="592"
+     height="384"
+     rx="40"
+     fill="url(#sm-panel)"
+     id="rect6" />
+  <rect
+     x="24"
+     y="18"
+     width="592"
+     height="384"
+     rx="40"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="rect7" />
+  <circle
+     cx="110"
+     cy="370"
+     r="160"
+     fill="url(#sm-glow)"
+     id="circle7" />
+  <rect
+     x="64"
+     y="72"
+     width="512"
+     height="230"
+     rx="26"
+     fill="#ffffff"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="rect8-0" />
+  <!-- waveform viewer -->
+  <path
+     id="rect8"
+     style="fill:#f8fafc;fill-opacity:1;stroke:#e2e8f0;stroke-opacity:1;stroke-width:2;stroke-dasharray:none"
+     d="M 90 72 C 75.596 72 64 83.596 64 98 L 64 116.04297 L 576 116.04297 L 576 98 C 576 83.596 564.404 72 550 72 L 90 72 z " />
+  <g
+     id="g1" />
+  <g
+     fill="#cbd5e1"
+     id="g12"
+     transform="translate(420)">
+    <circle
+       cx="94"
+       cy="94"
+       r="6"
+       id="circle10" />
+    <circle
+       cx="114"
+       cy="94"
+       r="6"
+       id="circle11" />
+    <circle
+       cx="134"
+       cy="94"
+       r="6"
+       id="circle12" />
+  </g>
+  <rect
+     x="80"
+     y="89"
+     width="110"
+     height="10"
+     rx="5"
+     fill="#e2e8f0"
+     id="rect12" />
+  <!-- signal labels -->
+  <g
+     fill="#cbd5e1"
+     id="g15">
+    <rect
+       x="92"
+       y="146"
+       width="44"
+       height="9"
+       rx="4.5"
+       id="rect13" />
+    <rect
+       x="92"
+       y="192"
+       width="34"
+       height="9"
+       rx="4.5"
+       id="rect14" />
+    <rect
+       x="92"
+       y="238"
+       width="52"
+       height="9"
+       rx="4.5"
+       id="rect15" />
+  </g>
+  <path
+     d="M164 130v152"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="path15" />
+  <!-- clock -->
+  <path
+     d="M184 160v-18h26v18h26v-18h26v18h26v-18h26v18h26v-18h26v18h26v-18h26v18h26v-18h26v18h26v-18h26"
+     stroke="url(#sm-accent)"
+     stroke-width="4"
+     stroke-linejoin="round"
+     stroke-linecap="round"
+     fill="none"
+     id="path16" />
+  <!-- data -->
+  <path
+     d="m 184,206 h 52 v -18 h 51.32588 l 0.0649,18 h 52.19051 l 0.18357,-18 h 104.18747 v 18 h 77.96022"
+     stroke="#16a34a"
+     stroke-width="4"
+     stroke-linejoin="round"
+     stroke-linecap="round"
+     fill="none"
+     opacity="0.75"
+     id="path17"
+     sodipodi:nodetypes="cccccccccc" />
+  <path
+     d="m 183.99042,252.00958 h 52 v -18 h 156.01481 v 18 h 51.88307 v -18 l 78.0935,0"
+     stroke="#16a34a"
+     stroke-width="4"
+     stroke-linejoin="round"
+     stroke-linecap="round"
+     fill="none"
+     opacity="0.75"
+     id="path17-5"
+     style="fill:none;fill-opacity:1;stroke:#86efac;stroke-opacity:1"
+     sodipodi:nodetypes="cccccccc" />
+  <!-- bus -->
+  <!-- results -->
+  <g
+     font-family="Inter, system-ui, sans-serif"
+     font-size="14"
+     font-weight="600"
+     id="g26">
+    <g
+       id="g21">
+      <rect
+         x="64"
+         y="326"
+         width="160"
+         height="46"
+         rx="16"
+         fill="#ffffff"
+         stroke="#bbf7d0"
+         stroke-width="2"
+         id="rect20" />
+      <circle
+         cx="94"
+         cy="349"
+         r="13"
+         fill="#dcfce7"
+         id="circle20" />
+      <path
+         d="M88 349l5 5 9-10"
+         stroke="#16a34a"
+         stroke-width="3"
+         fill="none"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path21" />
+      <rect
+         x="118"
+         y="344"
+         width="76"
+         height="10"
+         rx="5"
+         fill="#e2e8f0"
+         id="rect21" />
+    </g>
+    <g
+       id="g23">
+      <rect
+         x="240"
+         y="326"
+         width="160"
+         height="46"
+         rx="16"
+         fill="#ffffff"
+         stroke="#bbf7d0"
+         stroke-width="2"
+         id="rect22" />
+      <circle
+         cx="270"
+         cy="349"
+         r="13"
+         fill="#dcfce7"
+         id="circle22" />
+      <path
+         d="M264 349l5 5 9-10"
+         stroke="#16a34a"
+         stroke-width="3"
+         fill="none"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path22" />
+      <rect
+         x="294"
+         y="344"
+         width="60"
+         height="10"
+         rx="5"
+         fill="#e2e8f0"
+         id="rect23" />
+    </g>
+    <g
+       id="g25">
+      <rect
+         x="416"
+         y="326"
+         width="160"
+         height="46"
+         rx="16"
+         fill="#ffffff"
+         stroke="#e2e8f0"
+         stroke-width="2"
+         id="rect24" />
+      <circle
+         cx="446"
+         cy="349"
+         r="13"
+         fill="#f1f5f9"
+         id="circle24" />
+      <path
+         d="M446 341v9l6 4"
+         stroke="#94a3b8"
+         stroke-width="3"
+         fill="none"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path24" />
+      <rect
+         x="470"
+         y="344"
+         width="86"
+         height="10"
+         rx="5"
+         fill="#e2e8f0"
+         id="rect25" />
+    </g>
+  </g>
+</svg>

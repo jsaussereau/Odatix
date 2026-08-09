@@ -1,0 +1,90 @@
+{{/* Navigation tree for the current top-level section (docs, tutorials, ...).
+     Context: the current page. Rendered twice (desktop aside + mobile drawer). */}}
+{{ $section := .Section }}
+{{ $rootDir := printf "%s/" $section }}
+{{ $sectionPage := .Site.GetPage $section }}
+<nav class="docs-nav text-sm">
+  <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3 px-3">
+    {{ with $sectionPage }}{{ .Title }}{{ else }}{{ title $section }}{{ end }}
+  </h3>
+  <ul class="space-y-0.5">
+    {{ $current := .RelPermalink }}
+
+    {{ $docsPages := where .Site.Pages "Section" $section }}
+    {{ $docsPages = where $docsPages ".IsHome" false }}
+
+    {{/* Top-level items: pages directly in the section root AND first-level sections */}}
+    {{ $topLevel := slice }}
+    {{ range $docsPages }}
+      {{ $dir := "" }}
+      {{ with .File }}{{ $dir = .Dir }}{{ end }}
+      {{ if eq .Kind "section" }}
+        {{ if ne $dir $rootDir }}
+          {{ $topLevel = $topLevel | append . }}
+        {{ end }}
+      {{ else if eq .Kind "page" }}
+        {{ if eq $dir $rootDir }}
+          {{ $topLevel = $topLevel | append . }}
+        {{ end }}
+      {{ end }}
+    {{ end }}
+
+    {{ range sort $topLevel "Weight" }}
+      {{ if .Title }}
+      {{ $isSection := eq .Kind "section" }}
+      {{ $sectionDir := "" }}
+      {{ with .File }}{{ $sectionDir = .Dir }}{{ end }}
+
+      {{/* Children of this section */}}
+      {{ $children := slice }}
+      {{ if $isSection }}
+        {{ range $docsPages }}
+          {{ if and (eq .Kind "page") .File }}
+            {{ if eq .File.Dir $sectionDir }}
+              {{ $children = $children | append . }}
+            {{ end }}
+          {{ end }}
+        {{ end }}
+      {{ end }}
+
+      {{/* Open the section when the current page is inside it */}}
+      {{ $inSection := eq .RelPermalink $current }}
+      {{ range $children }}
+        {{ if eq .RelPermalink $current }}{{ $inSection = true }}{{ end }}
+      {{ end }}
+
+      <li>
+        {{ if and $isSection $children }}
+        <details class="group" {{ if $inSection }}open{{ end }}>
+          <summary class="flex items-center justify-between gap-2 px-3 py-2 rounded-md cursor-pointer list-none select-none transition-colors duration-200
+                          {{ if eq .RelPermalink $current }}bg-indigo-50 text-indigo-600 font-medium{{ else }}text-gray-700 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+            <a href="{{ .RelPermalink }}" class="flex-1 min-w-0 truncate">{{ .Title }}</a>
+            <svg class="w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform duration-200 group-open:rotate-90"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </summary>
+          <ul class="ml-3 mt-0.5 space-y-0.5 border-l border-gray-200 pl-2">
+            {{ range sort $children "Weight" }}
+            <li>
+              <a href="{{ .RelPermalink }}"
+                 class="block px-3 py-1.5 rounded-md transition-colors duration-200
+                        {{ if eq .RelPermalink $current }}bg-indigo-50 text-indigo-600 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+                {{ .Title }}
+              </a>
+            </li>
+            {{ end }}
+          </ul>
+        </details>
+        {{ else }}
+        <a href="{{ .RelPermalink }}"
+           class="block px-3 py-2 rounded-md transition-colors duration-200
+                  {{ if eq .RelPermalink $current }}bg-indigo-50 text-indigo-600 font-medium{{ else }}text-gray-700 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+          {{ .Title }}
+        </a>
+        {{ end }}
+      </li>
+      {{ end }}
+    {{ end }}
+  </ul>
+</nav>

@@ -1,0 +1,75 @@
+{{/* Blog-style card for a single tutorial page.
+
+     Context: either the page, or a dict:
+       page     (required) the tutorial page
+       compact  (optional) drop the cover image — used inside section groups
+                           and in the "next steps" footer.
+       step     (optional) 1-based position, shown as a step badge when the
+                           tutorials of a section are meant to be followed in
+                           order.
+
+     The cover is the page's featured_image when it has one, and a generated
+     gradient plate carrying the category glyph when it has not, so that a
+     grid never looks half-empty. */}}
+{{ $page := . }}
+{{ $compact := false }}
+{{ $step := 0 }}
+{{ if reflect.IsMap . }}
+  {{ $page = .page }}
+  {{ $compact = .compact }}
+  {{ $step = int (.step | default 0) }}
+{{ end }}
+
+{{ with $page }}
+{{ $cat := "" }}
+{{ with .Params.categories }}
+  {{ range . }}{{ if ne . "Tutorial" }}{{ $cat = . }}{{ end }}{{ end }}
+  {{ if eq $cat "" }}{{ $cat = index . 0 }}{{ end }}
+{{ end }}
+{{ $accent := partial "tutorial-accent.html" $cat }}
+{{ $img := .Params.featured_image }}
+
+<a href="{{ .RelPermalink }}"
+   class="tutorial-card group not-prose{{ if $compact }} tutorial-card--compact{{ end }}"
+   style="--accent: {{ $accent | safeCSS }}">
+  {{ if not $compact }}
+  <div class="tutorial-card__cover">
+    {{ if $img }}
+    <img src="{{ $img }}" alt="" loading="lazy" />
+    {{ else }}
+    <span class="tutorial-card__glyph" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 6.5C10.6 5.2 8.8 4.5 6.8 4.5H4.5v13h2.8c1.9 0 3.6.7 4.7 1.8 1.1-1.1 2.8-1.8 4.7-1.8h2.8v-13h-2.3c-2 0-3.8.7-5.2 2z"/>
+        <path stroke-linecap="round" d="M12 6.5V19"/>
+      </svg>
+    </span>
+    {{ end }}
+  </div>
+  {{ end }}
+
+  <div class="tutorial-card__body">
+    {{ if gt $step 0 }}<span class="tutorial-card__step" aria-hidden="true">{{ $step }}</span>{{ end }}
+    <div class="tutorial-card__meta">
+      {{ with $cat }}<span class="tutorial-chip">{{ . }}</span>{{ end }}
+      <span class="tutorial-card__time">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/>
+        </svg>
+        {{ int (math.Max .ReadingTime 1) }} min
+      </span>
+    </div>
+
+    <h3 class="tutorial-card__title">{{ .Title }}</h3>
+
+    {{ with .Description }}<p class="tutorial-card__desc">{{ . }}</p>{{ end }}
+
+    <span class="tutorial-card__cta">
+      {{ i18n "readTutorial" | default "Follow the tutorial" }}
+      <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M4.25 10a.75.75 0 01.75-.75h8.19l-2.22-2.22a.75.75 0 111.06-1.06l3.5 3.5a.75.75 0 010 1.06l-3.5 3.5a.75.75 0 11-1.06-1.06l2.22-2.22H5a.75.75 0 01-.75-.75z" clip-rule="evenodd"/>
+      </svg>
+    </span>
+  </div>
+</a>
+{{ end }}

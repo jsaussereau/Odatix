@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.LanguageCode | default "en" }}" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Google Tag Manager -->
+    {{ partial "google-tag-manager" . }}
+
+    <!-- Google Analytics -->
+    {{ partial "google-analytics" . }}
+    
+    <!-- Title -->
+    <title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}</title>
+    
+    <!-- Meta Tags -->
+    <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ with .Site.Params.description }}{{ . }}{{ end }}{{ end }}">
+    <meta name="author" content="{{ .Site.Params.author | default .Site.Title }}">
+    <meta name="robots" content="{{ with .Params.robots }}{{ . }}{{ else }}index, follow{{ end }}">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}">
+    <meta property="og:description" content="{{ with .Description }}{{ . }}{{ else }}{{ with .Site.Params.description }}{{ . }}{{ end }}{{ end }}">
+    <meta property="og:type" content="{{ if .IsHome }}website{{ else }}article{{ end }}">
+    <meta property="og:url" content="{{ .Permalink }}">
+    <meta property="og:site_name" content="{{ .Site.Title }}">
+    {{ with .Params.image }}
+    <meta property="og:image" content="{{ . | absURL }}">
+    {{ else }}
+    {{ with .Site.Params.image }}
+    <meta property="og:image" content="{{ . | absURL }}">
+    {{ end }}
+    {{ end }}
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} | {{ .Site.Title }}{{ end }}">
+    <meta name="twitter:description" content="{{ with .Description }}{{ . }}{{ else }}{{ with .Site.Params.description }}{{ . }}{{ end }}{{ end }}">
+    {{ with .Site.Params.twitter }}
+    <meta name="twitter:site" content="@{{ . }}">
+    {{ end }}
+    {{ with .Params.image }}
+    <meta name="twitter:image" content="{{ . | absURL }}">
+    {{ else }}
+    {{ with .Site.Params.image }}
+    <meta property="twitter:image" content="{{ . | absURL }}">
+    {{ end }}
+    {{ end }}
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ .Site.Params.favicon | default "images/favicon.ico" | relURL }}">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="{{ .Permalink }}">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="preload" as="font" type="font/woff2" href="{{ "fonts/JetBrainsMono-Regular.woff2" | relURL }}" crossorigin>
+    
+    <!-- FontAwesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    
+    <!-- Main CSS -->
+    {{ $css := resources.Get "css/main.css" }}
+    {{ $css = $css | css.PostCSS }}
+    {{ if hugo.IsProduction }}
+        {{ $css = $css | minify | fingerprint | resources.PostProcess }}
+    {{ end }}
+    <link rel="stylesheet" href="{{ $css.RelPermalink }}">
+
+    <!-- Additional Meta Tags from Front Matter -->
+    {{ with .Params.customMeta }}
+        {{ range . }}
+        <meta {{ range $key, $value := . }} {{ $key }}="{{ $value }}"{{ end }}>
+        {{ end }}
+    {{ end }}
+
+    <!-- Custom Head Content -->
+    {{ partial "custom-head" . }}
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Google Tag Manager (noscript) -->
+    {{ if and hugo.IsProduction .Site.Params.googleTagManager }}
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ .Site.Params.googleTagManager }}"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    {{ end }}
+    <!-- End Google Tag Manager (noscript) -->
+    <!-- Header -->
+    <div class="fixed top-0 left-0 right-0 z-50">
+        {{ partial "header" . }}
+    </div>
+
+    <!-- Main Content -->
+    <div class="pt-20">
+        {{ block "main" . }}{{ end }}
+    </div>
+
+    <!-- Footer -->
+    {{ partial "footer" . }}
+
+    <!-- Language Preference Script -->
+    {{ if hugo.IsMultilingual }}
+    {{ if .Site.Params.visitorapi_pid }}
+    <script>
+        // Inject VisitorAPI project ID from Hugo config
+        window.HUGO_VISITOR_API_PID = "{{ .Site.Params.visitorapi_pid }}";
+    </script>
+    {{ end }}
+    <script src="{{ "js/language-preference.js" | relURL }}"></script>
+    {{ end }}
+
+    <!-- Mobile Menu Script -->
+    <script>
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        if (mobileMenuButton) {
+            mobileMenuButton.addEventListener('click', function() {
+                const mobileMenu = document.getElementById('mobile-menu');
+                if (mobileMenu) {
+                    mobileMenu.classList.toggle('hidden');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
