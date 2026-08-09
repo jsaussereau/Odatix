@@ -1416,7 +1416,9 @@ def _announce_finished(snapshot, announced, selected_session, daemon_state):
         badge = "monitor-finished-badge failed"
         glyph = icon("cross", className="icon", width="30px", height="30px")
         if total == 1:
-            message = "The task finished with an error."
+            message = "The task finished with an error!"
+        elif failed == total:
+            message = f"All {total} tasks finished with an error!"
         else:
             message = f"{total} tasks finished, {failed} of them failed."
     else:
