@@ -7,11 +7,10 @@ submodules:
   recursive: true
 
 build:
-  os: ubuntu-22.04
+  os: ubuntu-26.04
   tools:
     python: "3.12"
-  apt_packages:
-    - hugo
+    hugo: "0.154.5"
 
   commands:
     - hugo --source docs --destination $READTHEDOCS_OUTPUT/html
