@@ -731,6 +731,7 @@ def curses_main(handler, stdscr):
     resize = False
     resize_hold = False
     help_static_drawn = False
+    bottom_bar_drawn = False
     finished_popup_shown = False
     finished_popup_pending = False
     finished_draw_cycles = 0
@@ -784,6 +785,7 @@ def curses_main(handler, stdscr):
             old_height = height
             resize = False
             help_static_drawn = False
+            bottom_bar_drawn = False
 
         with handler._lock:
             handler._update_jobs_state(
@@ -1073,6 +1075,7 @@ def curses_main(handler, stdscr):
                         on_quit_after_finished(handler)
                         return True
                     ask_exit = True
+                    bottom_bar_drawn = False
 
         else:
             if key == curses.KEY_MOUSE:
@@ -1100,8 +1103,11 @@ def curses_main(handler, stdscr):
                     handler.terminate_all_jobs()
                     return False
                 ask_exit = False
-        else:
+        elif not bottom_bar_drawn:
+            # The bottom bar is static: redrawing it on every cycle would cancel
+            # any text selection the user is making in cursor mode.
             update_help(bottom_bar)
+            bottom_bar_drawn = True
 
         # Draw help popup last so it always stays above logs/progress redraws.
         if handler.showing_help:
@@ -1109,4 +1115,10 @@ def curses_main(handler, stdscr):
 
 
 def run(handler):
-    curses.wrapper(lambda stdscr: curses_main(handler, stdscr))
+    from odatix.lib.curses_helper import enable_selection
+
+    try:
+        curses.wrapper(lambda stdscr: curses_main(handler, stdscr))
+    finally:
+        # Make sure the terminal does not stay in mouse tracking mode after exit.
+        enable_selection()
