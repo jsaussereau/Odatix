@@ -27,7 +27,7 @@ import sys
 
 from odatix.lib.parallel_job_handler.ansi_to_curses import AnsiToCursesConverter
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
-from odatix.lib.utils import open_path_in_explorer
+from odatix.lib.utils import can_open_path_in_explorer, open_path_in_explorer
 import odatix.lib.printc as printc
 
 
@@ -551,10 +551,12 @@ def update_help_popup(popup_win, popup_width, popup_height):
         ("Space"      , "Pause selected job"),
         ("k"          , "Kill selected job"),
         ("s"          , "Start/resume selected job"),
-        ("o"          , "Open current job work path"),
         ("t"          , "Switch theme"),
         ("h         ?", "Show help"),
     ]
+
+    if can_open_path_in_explorer():
+        help_text.insert(-2, ("o", "Open current job work path"))
 
     if popup_height <= 7:
         popup_win.erase()
@@ -941,7 +943,7 @@ def curses_main(handler, stdscr):
                         selected_job = update_selected_job()
                         update_logs(handler, logs_win, selected_job, logs_height, width)
 
-                        if button & curses.BUTTON1_DOUBLE_CLICKED:
+                        if button & curses.BUTTON1_DOUBLE_CLICKED and can_open_path_in_explorer():
                             try:
                                 open_path_in_explorer(handler.job_list[job_index].tmp_dir)
                             except NotImplementedError:
@@ -1044,7 +1046,8 @@ def curses_main(handler, stdscr):
                 handler.start_or_resume_job(handler.selected_job_index)
 
             elif key == ord('o') or key == ord('O'):
-                handler.open_job_path(handler.selected_job_index)
+                if can_open_path_in_explorer():
+                    handler.open_job_path(handler.selected_job_index)
 
             elif key == ord("t") or key == ord("T"):
                 handler.next_theme()
