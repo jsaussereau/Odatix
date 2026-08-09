@@ -7,10 +7,16 @@ submodules:
   recursive: true
 
 build:
-  os: ubuntu-26.04
+  os: ubuntu-24.04
   tools:
     python: "3.12"
-    hugo: "0.154.5"
+
+  jobs:
+    post_checkout:
+      - wget https://github.com/gohugoio/hugo/releases/download/v0.128.0/hugo_extended_0.128.0_linux-amd64.tar.gz
+      - tar -zxvf hugo_extended_0.128.0_linux-amd64.tar.gz
+      - mkdir -p bin
+      - mv hugo bin/hugo
 
   commands:
-    - hugo --source docs --destination $READTHEDOCS_OUTPUT/html
+    - ./bin/hugo --source docs --destination $READTHEDOCS_OUTPUT/html
