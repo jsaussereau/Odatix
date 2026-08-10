@@ -1,6 +1,7 @@
 # Basic Configuration
-baseURL = "https://odatix.readthedocs.io/"
+baseURL = "https://odatix.readthedocs.io/en/latest/"
 title = "Odatix"
+canonifyURLs = true
 theme = "hugo-saasify-theme"
 defaultContentLanguage = "en"
 
