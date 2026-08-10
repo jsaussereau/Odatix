@@ -1,0 +1,185 @@
+{{ $background_color := .Get "background-color" }}
+<section class="section{{ if not $background_color }} bg-gray-50{{ end }}" {{ if $background_color }}style="background-color:{{ $background_color }};"{{ end }}>
+    <div class="container">
+        <div class="text-center max-w-3xl mx-auto mb-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-6">{{ .Get "title" | default (i18n "lovedByTeams") }}</h2>
+            <p class="text-xl text-gray-600">{{ .Get "description" | default (i18n "testimonialsDescription") }}</p>
+        </div>
+
+        <div class="testimonials-container overflow-hidden">
+            <div class="testimonials-track{{ if ne (.Get "animate" | default "true") "false" }} animate{{ end }}">
+                {{ range .Page.Params.testimonials }}
+                <div class="testimonial-card">
+                    <div class="flex space-x-4 mb-6">
+                    {{/*  <div class="flex items-center space-x-4 mb-6">  */}}
+                        <img src="{{ .avatar | relURL }}" alt="{{ .name }}" class="w-12 h-12 rounded-full">
+                        <div>
+                            <h4 class="font-bold">{{ .name }}</h4>
+                            <p class="text-gray-600">{{ .title }}</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600">{{ .quote }}</p>
+                </div>
+                {{ end }}
+                {{ if ne (.Get "animate" | default "true") "false" }}
+                    {{ range .Page.Params.testimonials }}
+                    <div class="testimonial-card" aria-hidden="true">
+                        <div class="flex space-x-4 mb-6">
+                        {{/*  <div class="flex items-center space-x-4 mb-6">  */}}
+                            <img src="{{ .avatar | relURL }}" alt="{{ .name }}" class="w-12 h-12 rounded-full">
+                            <div>
+                                <h4 class="font-bold">{{ .name }}</h4>
+                                <p class="text-gray-600">{{ .title }}</p>
+                            </div>
+                        </div>
+                        <p class="text-gray-600">{{ .quote }}</p>
+                    </div>
+                    {{ end }}
+                {{ end }}
+            </div>
+        </div>
+    </div>
+</section>
+
+{{ if ne (.Get "animate" | default "true") "false" }}
+<script>
+(function() {
+    // Wait for DOM to be ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTestimonialsScroll);
+    } else {
+        initTestimonialsScroll();
+    }
+    
+    function initTestimonialsScroll() {
+        const tracks = document.querySelectorAll('.testimonials-track.animate');
+        
+        tracks.forEach(track => {
+            // Remove CSS animation and use JS for smoother control
+            track.style.animation = 'none';
+            
+            const container = track.parentElement;
+            
+            // Calculate the width of one set of testimonials (50% of track)
+            const trackWidth = track.scrollWidth;
+            const halfWidth = trackWidth / 2;
+            
+            // Ensure track has valid dimensions before animating
+            if (trackWidth === 0 || halfWidth === 0) {
+                return;
+            }
+            
+            let position = 0; // Current position in pixels
+            let isPaused = false;
+            let lastTime = performance.now();
+            
+            // Check for mobile and set duration - responsive to window resize
+            function getDuration() {
+                return window.innerWidth <= 768 ? 15000 : 40000;
+            }
+            
+            // Speed in pixels per millisecond (recalculated on resize)
+            let speed = halfWidth / getDuration();
+            
+            function animate(currentTime) {
+                if (!isPaused) {
+                    const delta = currentTime - lastTime;
+                    position += speed * delta;
+                    
+                    // Reset position seamlessly when we've moved one full set
+                    if (position >= halfWidth) {
+                        position = position - halfWidth;
+                    }
+                    
+                    track.style.transform = `translateX(-${position}px)`;
+                }
+                
+                lastTime = currentTime;
+                requestAnimationFrame(animate);
+            }
+            
+            // Start animation
+            requestAnimationFrame(animate);
+            
+            // Pause on hover
+            container.addEventListener('mouseenter', () => {
+                isPaused = true;
+            });
+            
+            container.addEventListener('mouseleave', () => {
+                isPaused = false;
+                lastTime = performance.now(); // Reset lastTime to avoid jump
+            });
+            
+            // Handle window resize to adjust speed
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    speed = halfWidth / getDuration();
+                }, 250); // Debounce resize events
+            });
+        });
+    }
+})();
+</script>
+{{ end }}
+
+<style>
+.testimonials-container {
+    padding: 20px 0;
+    position: relative;
+}
+
+.testimonials-container.static {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    overflow: visible;
+}
+
+.testimonials-track {
+    display: flex;
+    gap: 2rem;
+    width: fit-content;
+}
+
+.testimonials-track.animate {
+    animation: 40s testimonials-scroll infinite linear;
+    will-change: transform;
+}
+
+.testimonial-card {
+    flex: 0 0 auto;
+    width: 300px;
+    background: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.testimonials-container.static .testimonial-card {
+    width: 100%;
+}
+
+@keyframes testimonials-scroll {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+.testimonials-container:hover .testimonials-track.animate {
+    animation-play-state: paused;
+}
+
+/* Mobile-specific animation speed */
+@media (max-width: 768px) {
+    .testimonials-track.animate {
+        animation: 15s testimonials-scroll infinite linear;
+        will-change: transform;
+    }
+}
+</style>

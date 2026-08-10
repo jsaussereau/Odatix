@@ -1,0 +1,78 @@
+{{ define "main" }}
+<article class="feature-page" style="--badge-color: {{ .Params.badgeColor }}">
+    <!-- Hero Section -->
+    <div class="relative isolate overflow-hidden">
+        <style>
+            .badge {
+                background-color: color-mix(in srgb, var(--badge-color) 10%, transparent);
+                color: var(--badge-color);
+            }
+            .gradient-bg {
+                background-image: linear-gradient(180deg, color-mix(in srgb, var(--badge-color) 5%, white), white);
+            }
+        </style>
+        <div class="absolute inset-x-0 top-0 h-96 gradient-bg opacity-75"></div>
+        <div class="relative pt-24 pb-16 sm:pt-32">
+            <div class="mx-auto max-w-7xl px-6 lg:px-8">
+                <div class="mx-auto max-w-2xl text-center">
+                    {{ with .Params.badge }}
+                    <div class="mb-6">
+                        <span class="badge inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium">
+                            {{ . }}
+                        </span>
+                    </div>
+                    {{ end }}
+                    <h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">{{ .Title }}</h1>
+                    <p class="mt-6 text-lg leading-8 text-gray-600">{{ .Description }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="mx-auto max-w-7xl px-6 lg:px-8">
+        <!-- Key Features Grid -->
+        {{ if .Params.features }}
+        <div class="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
+            <div class="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-2 xl:grid-cols-4">
+                {{ range .Params.features }}
+                <div class="flex flex-col bg-white rounded-2xl shadow-sm ring-1 ring-gray-200 p-8">
+                    <dt class="text-lg font-semibold leading-7 text-gray-900">
+                        {{ .title }}
+                    </dt>
+                    <dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+                        <p class="flex-auto">{{ .description }}</p>
+                    </dd>
+                </div>
+                {{ end }}
+            </div>
+        </div>
+        {{ end }}
+
+        <!-- Content Section -->
+        <div class="prose prose-lg mx-auto mt-16 pb-24">
+            {{ .Content }}
+        </div>
+
+        <!-- Demo Section -->
+        {{ if .Params.demo }}
+        <div class="bg-gray-50 -mx-6 px-6 py-24 sm:py-32">
+            <div class="mx-auto max-w-2xl lg:text-center">
+                <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">{{ i18n "seeItInAction" }}</h2>
+                <p class="mt-6 text-lg leading-8 text-gray-600">{{ .Params.demo.description }}</p>
+            </div>
+            <div class="mt-16 flex justify-center">
+                <div class="relative rounded-xl bg-white p-8 shadow-2xl ring-1 ring-gray-200">
+                    <img src="{{ .Params.demo.image }}" alt="Demo" class="rounded-lg">
+                </div>
+            </div>
+        </div>
+        {{ end }}
+    </div>
+
+    <!-- Global CTA -->
+    {{ if .Params.cta }}
+    {{ partial "components/cta.html" . }}
+    {{ end }}
+</article>
+{{ end }}

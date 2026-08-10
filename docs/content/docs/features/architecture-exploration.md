@@ -48,7 +48,7 @@ is swept by every other feature for free.
   measured consistently across a parameter range.
 - **Non-HDL sweeps.** The same mechanism drives [workflows](/docs/features/workflows/),
   so a script, a compiler flag or a training hyper-parameter sweeps identically.
-
+<!-- 
 ## How it works
 
 ### 1. Mark the parameter section of your design
@@ -122,7 +122,7 @@ hand, or **generate your RTL** from **Chisel** or **HLS**. For generated flows,
 the replacement targets the *source* file (via `param_target_file`) before the
 RTL is produced, so exploration works end to end. Parameters passed on a
 generation command line instead of edited into a file are covered by
-[virtual parameter domains](/docs/configurations/virtual_param_domains/).
+[virtual parameter domains](/docs/configurations/virtual_param_domains/). -->
 
 ## Working with the rest of Odatix
 
@@ -134,7 +134,7 @@ generation command line instead of edited into a file are covered by
 | [Simulation](/docs/features/simulation/) | Confirm every configuration still passes its testbench, not just the one you developed on. |
 | [Workflows](/docs/features/workflows/) | Reuse the same domains and generation rules on anything that runs from a shell. |
 | [Explorer](/docs/features/explorer/) | Every parameter domain becomes an axis you can plot metrics against. |
-
+<!-- 
 ## Using it
 
 ### From the configuration files and the CLI
@@ -190,7 +190,7 @@ bounds. The **Configuration Generator** builds a whole set of parameter files
 from a rule, previewing the values before writing them.
 
 From there, **Run Jobs** picks the configurations to launch. Everything the GUI
-writes is the same YAML described above — the two interfaces edit one workspace.
+writes is the same YAML described above — the two interfaces edit one workspace. -->
 
 ## Where to go next
 
