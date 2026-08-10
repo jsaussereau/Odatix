@@ -18,11 +18,6 @@ build:
     - tar -zxf hugo_extended_0.162.1_linux-amd64.tar.gz
     - mkdir -p bin && mv hugo bin/hugo
     # Build the documentation
-    - ./bin/hugo --source docs mod graph
-    - ./bin/hugo --source docs mod get -u
-    - ./bin/hugo --source docs mod tidy
-    - ./bin/hugo --source docs mod npm pack
-    - npm --prefix docs install
-    - npm --prefix docs audit fix
+    - npm --prefix docs ci
     - npm --prefix docs run css
     - ./bin/hugo --source docs --destination $READTHEDOCS_OUTPUT/html
