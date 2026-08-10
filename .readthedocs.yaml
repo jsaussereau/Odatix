@@ -20,4 +20,4 @@ build:
     # Build the documentation
     - npm --prefix docs ci
     - npm --prefix docs run css
-    - ./bin/hugo --source docs --destination $READTHEDOCS_OUTPUT/html
+    - ./bin/hugo --source docs --destination $READTHEDOCS_OUTPUT/html --baseURL $READTHEDOCS_CANONICAL_URL
