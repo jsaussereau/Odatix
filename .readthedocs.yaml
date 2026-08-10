@@ -10,11 +10,19 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.12"
+    nodejs: "22"
 
   commands:
-    # Install Hugo
-    - wget https://github.com/gohugoio/hugo/releases/download/v0.128.0/hugo_extended_0.128.0_linux-amd64.tar.gz
-    - tar -zxvf hugo_extended_0.128.0_linux-amd64.tar.gz
+    # Install Hugo (extended). Must be >= 0.140.0 (required by the submodules)
+    - wget -q https://github.com/gohugoio/hugo/releases/download/v0.162.1/hugo_extended_0.162.1_linux-amd64.tar.gz
+    - tar -zxf hugo_extended_0.162.1_linux-amd64.tar.gz
     - mkdir -p bin && mv hugo bin/hugo
     # Build the documentation
+    - ./bin/hugo --source docs mod graph
+    - ./bin/hugo --source docs mod get -u
+    - ./bin/hugo --source docs mod tidy
+    - ./bin/hugo --source docs mod npm pack
+    - npm --prefix docs install
+    - npm --prefix docs audit fix
+    - npm --prefix docs run css
     - ./bin/hugo --source docs --destination $READTHEDOCS_OUTPUT/html
