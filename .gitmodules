@@ -1,3 +1,6 @@
 [submodule "docs/themes/hugo-saasify-theme"]
 	path = docs/themes/hugo-saasify-theme
 	url = https://github.com/chaoming/hugo-saasify-theme.git
+[submodule "docs/themes/hugo-admonitions"]
+	path = docs/themes/hugo-admonitions
+	url = https://github.com/KKKZOZ/hugo-admonitions.git
