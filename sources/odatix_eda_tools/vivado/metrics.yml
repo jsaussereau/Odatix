@@ -23,8 +23,135 @@ custom_freq_synthesis_metrics:
     unit: MHz
 
 metrics:
+
+  # Synthesis metrics
+
+  LUT_count_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| (Slice|CLB) LUTs \\s*\\|\\s*([0-9]+).*"
+      group_id: 2
+    format: "%.0f"
+
+  Reg_count_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| (Slice|CLB) Registers \\s*\\|\\s*([0-9]+).*"
+      group_id: 2
+    format: "%.0f"
+
+  Reg_count_pnr:
+    type: regex
+    step: pnr
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| (Slice|CLB) Registers \\s*\\|\\s*([0-9]+).*"
+      group_id: 2
+    format: "%.0f"
+
+  LUT_percent_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| (?:Slice|CLB) LUTs .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      group_id: 1
+    format: "%.2f"
+
+  Reg_percent_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| (?:Slice|CLB) Registers .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      group_id: 1
+    format: "%.2f"
+
+  BRAM_count_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| Block RAM Tile (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+      group_id: 3
+    format: "%.0f"
+
+  BRAM_percent_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| Block RAM Tile .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      group_id: 1
+    format: "%.2f"
+
+  DSP_count_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)"
+      group_id: 3
+    format: "%.0f"
+
+  DSP_percent_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| DSPs .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      group_id: 1
+    format: "%.2f"
+
+  Static_Power_synth:
+    type: regex
+    step: synthesis
+    error_if_missing: No
+    settings:
+      file: report/$step/power.rep
+      pattern: "\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+      group_id: 3
+    format: "%.3f"
+    unit: W
+
+  Dynamic_Power_synth:
+    type: regex
+    step: synthesis
+    error_if_missing: No
+    settings:
+      file: report/$step/power.rep
+      pattern: "\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
+      group_id: 3
+    format: "%.3f"
+    unit: W
+
+  LUT+Reg_count_synth:
+    type: operation
+    step: synthesis
+    error_if_missing: No
+    settings:
+      op: LUT_count_synth + Reg_count_synth
+    format: "%.0f"
+
+  Total_Power_synth:
+    type: operation
+    step: synthesis
+    error_if_missing: No
+    settings:
+      op: Static_Power_synth + Dynamic_Power_synth
+    format: "%.3f"
+    unit: W
+
+
+  # PNR metrics
+
   LUT_count:
     type: regex
+    step: pnr
     settings:
       file: report/utilization.rep
       pattern: "\\| (Slice|CLB) LUTs \\s*\\|\\s*([0-9]+).*"
@@ -33,6 +160,7 @@ metrics:
 
   LUT_percent:
     type: regex
+    step: pnr
     settings:
       file: report/utilization.rep
       pattern: "\\| (?:Slice|CLB) LUTs .*\\|\\s*([0-9.]+)\\s*\\|.*"
@@ -41,6 +169,7 @@ metrics:
 
   Reg_count:
     type: regex
+    step: pnr
     settings:
       file: report/utilization.rep
       pattern: "\\| (Slice|CLB) Registers \\s*\\|\\s*([0-9]+).*"
@@ -49,6 +178,7 @@ metrics:
 
   Reg_percent:
     type: regex
+    step: pnr
     settings:
       file: report/utilization.rep
       pattern: "\\| (?:Slice|CLB) Registers .*\\|\\s*([0-9.]+)\\s*\\|.*"
@@ -57,12 +187,14 @@ metrics:
 
   LUT+Reg_count:
     type: operation
+    step: pnr
     settings:
       op: LUT_count + Reg_count
     format: "%.0f"
 
   BRAM_count:
     type: regex
+    step: pnr
     settings:
       file: report/utilization.rep
       pattern: "\\| Block RAM Tile (\\s*)\\|(\\s*)([0-9]+)(.*)"
@@ -71,6 +203,7 @@ metrics:
 
   BRAM_percent:
     type: regex
+    step: pnr
     settings:
       file: report/utilization.rep
       pattern: "\\| Block RAM Tile .*\\|\\s*([0-9.]+)\\s*\\|.*"
@@ -79,6 +212,7 @@ metrics:
 
   DSP_count:
     type: regex
+    step: pnr
     settings:
       file: report/utilization.rep
       pattern: "\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)"
@@ -87,6 +221,7 @@ metrics:
 
   DSP_percent:
     type: regex
+    step: pnr
     settings:
       file: report/utilization.rep
       pattern: "\\| DSPs .*\\|\\s*([0-9.]+)\\s*\\|.*"
@@ -95,6 +230,7 @@ metrics:
 
   Static_Power:
     type: regex
+    step: pnr
     settings:
       file: report/power.rep
       pattern: "\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
@@ -104,6 +240,7 @@ metrics:
 
   Dynamic_Power:
     type: regex
+    step: pnr
     settings:
       file: report/power.rep
       pattern: "\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
@@ -113,23 +250,30 @@ metrics:
 
   Total_Power:
     type: operation
+    step: pnr
     settings:
       op: Static_Power + Dynamic_Power
     format: "%.3f"
     unit: W
 
-  DMIPS_per_MHz:
-    type: benchmark
-    settings:
-      key: DMIPS_per_MHz
-    format: "%.3f"
-
-  DMIPS:
+  LUT_pnr_delta:
     type: operation
-    benchmark_only: True
+    step: pnr
+    error_if_missing: No
     settings:
-      op: DMIPS_per_MHz * Fmax
+      op: LUT_count - LUT_count_synth
     format: "%.0f"
+
+  Reg_pnr_delta:
+    type: operation
+    step: pnr
+    error_if_missing: No
+    settings:
+      op: Reg_count - Reg_count_synth
+    format: "%.0f"
+
+
+  # Always
 
   Param_Domains:
     type: yaml

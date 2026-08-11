@@ -25,6 +25,27 @@ if {[catch {
 
     set signature "<grey>\[synth_script.tcl\]<end>"
 
+    ######################################
+    # Flow options
+    ######################################
+    # Knobs a flow can override from its entry script (see the "flows" section
+    # of tool.yml). The defaults reproduce the historical behaviour, so a
+    # tool.yml without flows runs exactly as before. The "::" prefix is
+    # required: find_fmax.tcl sources this script from inside a proc.
+    if {![info exists ::odatix_synth_options]} {
+        set ::odatix_synth_options ""
+    }
+    if {![info exists ::odatix_power_opt]} {
+        set ::odatix_power_opt 0
+    }
+    # How far this run goes. "pnr" (the default) synthesizes and implements, as
+    # it always did; "synthesis" stops after logic optimization and reports on
+    # the synthesized netlist. An fmax search set to "synthesis" therefore
+    # searches on post-synthesis timing: much faster, and optimistic.
+    if {![info exists ::odatix_synth_depth]} {
+        set ::odatix_synth_depth "pnr"
+    }
+
     if {$single_thread == 1} {
         if {[catch {
             set_param synth.maxThreads 1
@@ -61,7 +82,7 @@ if {[catch {
     # Synthetize
     ######################################
     if {[catch {
-        synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO
+        synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO {*}$::odatix_synth_options
     } errmsg]} {
         puts "$signature <bold><red>error: failed design synth<end>"
         puts -nonewline "$signature tool says -> $errmsg"
@@ -88,11 +109,23 @@ if {[catch {
         puts -nonewline "$signature tool says -> $errmsg"
         puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
+    if {$::odatix_power_opt} {
+        if {[catch {
+            power_opt_design
+        } errmsg]} {
+            puts "$signature <bold><red>error: failed power optimization, skipping<end>"
+            puts -nonewline "$signature tool says -> $errmsg"
+            puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+        }
+    }
     report_progress 65 $synth_statusfile
 
     ######################################
     # Place and route
     ######################################
+    if {$::odatix_synth_depth eq "synthesis"} {
+        puts "$signature <cyan>stopping after synthesis: reports are post-synthesis estimates<end>"
+    } else {
     if {[catch {
         place_design -directive Explore
     } errmsg]} {
@@ -165,6 +198,7 @@ if {[catch {
             exit -1
         }
     }
+    }
     report_progress 98 $synth_statusfile
 
     ######################################
@@ -179,6 +213,17 @@ if {[catch {
         puts "$signature <bold><red>error: failed report, skipping...<end>"
         puts -nonewline "$signature tool says -> $errmsg"
         puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+    }
+
+    # Keep a copy of the reports under the depth this run went to, the same way
+    # the staged steps do (see odatix_write_reports in step_common.tcl). An fmax
+    # search searching on post-synthesis timing and one searching on post-route
+    # timing overwrite the same report files, so without this snapshot the
+    # first one's numbers would be lost as soon as the second runs.
+    set stage_path [file join $report_path $::odatix_synth_depth]
+    file mkdir $stage_path
+    foreach report [list $utilization_rep $utilization_h_rep $timing_rep $power_rep] {
+        catch {file copy -force $report $stage_path}
     }
 
     report_progress 100 $synth_statusfile

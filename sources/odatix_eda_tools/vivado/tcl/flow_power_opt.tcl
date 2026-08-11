@@ -1,0 +1,28 @@
+# ********************************************************************** #
+#                                Odatix                                  #
+# ********************************************************************** #
+#
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Odatix.
+# Odatix is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Odatix is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+#
+
+# Entry script of the "power_opt" flow: automatic clock gating at synthesis,
+# then a power optimization pass. Sourced before synth_script.tcl /
+# find_fmax.tcl, which read these variables (see the "flows" section of
+# tool.yml).
+
+set ::odatix_synth_options "-gated_clock_conversion auto"
+set ::odatix_power_opt 1
