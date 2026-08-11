@@ -1,13 +1,15 @@
 
 
 .PHONY: build
-build:
-	hugo mod graph
-	hugo mod get -u
-	hugo mod tidy
-	hugo mod npm pack
+build: install css
+
+.PHONY: install
+install:
 	npm install
-	npm audit fix
+
+.PHONY: css
+css:
+	npm run css
 
 .PHONY: run
 run: build
