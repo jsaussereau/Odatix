@@ -47,6 +47,25 @@ set work_path          $tmp_path/$local_work_path
 set source_rtl_path    ../../../rtl
 set source_arch_path   architectures
 
+# Handoff a synthesis flow writes for "odatix pnr" to pick up. A flow that wants
+# its results to be placeable & routable by another tool writes its netlist, its
+# constraints and its delays under these exact names, whatever the tool calls
+# them internally. Odatix looks for nothing else.
+set netlist_file       $result_path/netlist.v
+set sdc_file           $result_path/design.sdc
+set sdf_file           $result_path/design.sdf
+
+# The other end of that handoff, set by Odatix on place & route jobs only: the
+# synthesis job this one continues, and the files it left there. Empty for every
+# other job type.
+set source_work_path   ""
+set source_type        ""
+set source_tool        ""
+set source_flow        ""
+set source_netlist     ""
+set source_sdc         ""
+set source_sdf         ""
+
 set init_script        $script_path/init_script.tcl
 set analyze_script     $script_path/analyze_script.tcl
 set synth_script       $script_path/synth_script.tcl
@@ -99,6 +118,75 @@ proc report_progress {progress progressfile {comment ""}} {
         puts $progressfile_handler "In progress: $progress% $comment"
     }
     close $progressfile_handler
+}
+
+proc odatix_step_done {step {signature ""}} {
+    # Record that a step of the flow completed, in the file Odatix resumes from
+    # ("log/steps.yml", see odatix.lib.job_steps).
+    #
+    # Odatix records the steps of a task itself once the process it ran them
+    # with exits, which is enough as long as one process runs one step. A flow
+    # declaring a session runs several steps in a single process, and a session
+    # dying halfway would then lose every step it had already finished: calling
+    # this at the end of each step is what keeps such a run resumable. Recording
+    # a step twice is harmless — Odatix rewrites the file from the steps it ran
+    # anyway.
+    global log_path
+    set path [file join $log_path "steps.yml"]
+    file mkdir $log_path
+    if {![file exists $path]} {
+        set f [open $path w]
+        puts $f "completed:"
+        close $f
+    }
+    set timestamp [clock format [clock seconds] -format "%Y-%m-%d_%H-%M-%S"]
+    set f [open $path a]
+    puts $f "- name: $step"
+    puts $f "  timestamp: $timestamp"
+    close $f
+    puts "$signature <cyan>step '$step' done<end>"
+}
+
+proc odatix_publish_handoff {netlist sdc sdf {signature ""}} {
+    # Publish a synthesis result under the names "odatix pnr" looks for.
+    #
+    # Tools name their outputs as they please (Design Compiler writes
+    # "<design>_<run>.v", Genus "<top>_netlist.v"), so a synthesis flow calls
+    # this with whatever it just wrote and Odatix gets a stable handoff. Call it
+    # at the very end of a synthesis, once the netlist, the constraints and the
+    # delays are on disk.
+    global netlist_file sdc_file sdf_file
+    file mkdir [file dirname $netlist_file]
+    foreach {produced published} [list $netlist $netlist_file $sdc $sdc_file $sdf $sdf_file] {
+        if {$produced eq "" || ![file exists $produced]} {
+            puts "$signature <yellow>warning: no [file tail $published] to publish for place & route<end>"
+            continue
+        }
+        if {[file normalize $produced] ne [file normalize $published]} {
+            file copy -force $produced $published
+        }
+        puts "$signature published <cyan>[file tail $published]<end> for place & route"
+    }
+}
+
+proc odatix_require_source {{signature ""}} {
+    # Check that the synthesis a place & route job continues left what is needed.
+    #
+    # Odatix already checks this before running the job; a flow calls it anyway
+    # so that a directory cleaned in between fails with a clear message instead
+    # of the tool's own one.
+    global source_netlist source_sdc source_work_path source_tool
+    if {$source_work_path eq ""} {
+        puts "$signature <bold><red>error: this job has no source synthesis (is it running as a place & route job?)<end>"
+        exit -1
+    }
+    foreach required [list $source_netlist $source_sdc] {
+        if {$required eq "" || ![file exists $required]} {
+            puts "$signature <bold><red>error: missing $required from the source synthesis<end>"
+            exit -1
+        }
+    }
+    puts "$signature place & route of the netlist synthesized by <cyan>$source_tool<end>"
 }
 
 proc get_files_recursive {path patterns} {
