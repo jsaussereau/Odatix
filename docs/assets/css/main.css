@@ -3033,3 +3033,12 @@ details[open] > summary.admonition-header::before {
   line-height: 1.6;
   color: rgb(100 116 139);
 }
+
+:root:root {
+  --adm-warning: #df8e1d;
+  --adm-warning-rgb: 223, 142, 29;
+  --adm-caution: #e64553;
+  --adm-caution-rgb: 230, 69, 83;
+  --adm-info: #04a5e5;
+  --adm-info-rgb: 4, 165, 229;
+}
