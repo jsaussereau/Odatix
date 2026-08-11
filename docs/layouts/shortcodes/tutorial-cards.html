@@ -1,0 +1,28 @@
+{{/* Card grid of the tutorials of a section, placed anywhere in the markdown
+     so prose can flow around it.
+
+       {{< tutorial-cards >}}                        children of the current page
+       {{< tutorial-cards section="/tutorials/ssh" >}}   another section
+       {{< tutorial-cards cols="3" compact="true" >}}
+       {{< tutorial-cards only="pages" >}}     skip the sub-sections
+       {{< tutorial-cards numbered="true" >}}  badge the cards 1, 2, 3, ...
+
+     A page that uses this shortcode keeps full control of where the cards
+     land; a section index that does not use it gets the grid appended
+     automatically by the tutorials list layout. */}}
+{{ $page := .Page }}
+{{ with .Get "section" }}
+  {{ $target := site.GetPage . }}
+  {{ if $target }}
+    {{ $page = $target }}
+  {{ else }}
+    {{ errorf "[%s] %q: tutorial-cards: no page found at %q" site.Language.Lang $.Page.Path . }}
+  {{ end }}
+{{ end }}
+{{ .Page.Store.Set "tutorialCardsRendered" true }}
+{{ partial "tutorial-grid.html" (dict
+     "page" $page
+     "compact" (eq (.Get "compact") "true")
+     "cols" (.Get "cols" | default 2)
+     "only" (.Get "only" | default "")
+     "numbered" (eq (.Get "numbered") "true")) }}

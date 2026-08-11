@@ -1,0 +1,55 @@
+{{/* Docs section index.
+
+     Sub-sections keep the plain docs shell (sidebar + prose). The hub itself
+     — /docs/ — gets the masthead treatment the tutorials, install and FAQ
+     hubs already have, so the entry point of the documentation looks like a
+     landing page rather than a page of prose with a sidebar. */}}
+{{ define "main" }}
+
+{{ if .Parent.IsHome }}
+
+  {{ $count := len .RegularPagesRecursive }}
+  {{ $sections := 0 }}
+  {{ range .Sections }}{{ $sections = add $sections 1 }}{{ end }}
+
+  {{ $body := printf `
+<div class="docs-hub">
+  <header class="docs-hero">
+    <div class="docs-hero__inner">
+      <p class="docs-hero__eyebrow"><span class="docs-hero__eyebrow-dot"></span>%s</p>
+      <h1 class="docs-hero__title">%s</h1>
+      %s
+      <div class="docs-hero__actions">
+        <a class="docs-hero__btn docs-hero__btn--primary" href="/docs/getting-started/">%s
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a class="docs-hero__btn docs-hero__btn--ghost" href="/tutorials/">%s</a>
+      </div>
+      <div class="docs-hero__stats">
+        <span><strong>%d</strong> %s</span>
+        <span aria-hidden="true">&middot;</span>
+        <span><strong>%d</strong> %s</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="docs-hub__body">
+    <div class="prose prose-lg max-w-none">%s</div>
+  </div>
+</div>`
+    (i18n "docsEyebrow" | default "Reference &amp; guides")
+    .Title
+    (cond (ne (string .Description) "")
+      (printf `<p class="docs-hero__lead">%s</p>` .Description) "")
+    (i18n "docsStartHere" | default "Get started")
+    (i18n "docsBrowseTutorials" | default "Browse the tutorials")
+    $count (i18n "docsPagesCount" | default "documentation pages")
+    $sections (i18n "docsTopicsCount" | default "topics")
+    .Content }}
+
+  {{ partial "docs-shell.html" (dict "page" . "main" $body "wide" true) }}
+
+{{ else }}
+  {{ partial "docs-shell.html" . }}
+{{ end }}
+{{ end }}

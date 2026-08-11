@@ -1,0 +1,37 @@
+{{/* One topic card of the documentation hub.
+
+     Params:
+       title    (required) card heading
+       link     (required) destination
+       icon     (optional) name understood by partials/docs-icon.html
+       accent   (optional) card tint, defaults to the docs blue
+       badge    (optional) small label above the title, e.g. "Start here"
+       cta      (optional) link text, defaults to "Read"
+
+     The description is the shortcode's inner markdown, so the shortcode is
+     always used in its closing form. Meant to be placed inside the
+     doc-cards shortcode, but stands on its own too. */}}
+{{ $title := .Get "title" | default (.Get 0) }}
+{{ $link := .Get "link" | default (.Get 1) | default "#" }}
+{{ $icon := .Get "icon" | default "book" }}
+{{ $accent := .Get "accent" | default "#425ad6" }}
+{{ $badge := .Get "badge" }}
+{{ $cta := .Get "cta" | default (i18n "readMore" | default "Read") }}
+{{ $external := or (hasPrefix $link "http://") (hasPrefix $link "https://") }}
+
+<a href="{{ $link }}" class="doc-card not-prose{{ if $badge }} doc-card--featured{{ end }}"
+   style="--accent: {{ $accent | safeCSS }}"
+   {{ if $external }}target="_blank" rel="noopener noreferrer"{{ end }}>
+  <div class="doc-card__icon" aria-hidden="true">{{ partial "docs-icon.html" $icon }}</div>
+  <div class="doc-card__body">
+    {{ with $badge }}<div class="doc-card__badge">{{ . }}</div>{{ end }}
+    <h3 class="doc-card__title" style="margin-top: 0.25em;">{{ $title }}</h3>
+    <div class="doc-card__desc">{{ trim .Inner " \n\r\t" | markdownify }}</div>
+    <span class="doc-card__cta">
+      {{ $cta }}
+      <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M4.25 10a.75.75 0 01.75-.75h8.19l-2.22-2.22a.75.75 0 111.06-1.06l3.5 3.5a.75.75 0 010 1.06l-3.5 3.5a.75.75 0 11-1.06-1.06l2.22-2.22H5a.75.75 0 01-.75-.75z" clip-rule="evenodd"/>
+      </svg>
+    </span>
+  </div>
+</a>

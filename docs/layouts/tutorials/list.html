@@ -1,0 +1,71 @@
+{{/* Tutorials hub / section index.
+
+     Hybrid of the two looks the section used to have: the docs shell keeps
+     the sidebar (and the mobile drawer) for navigation, while the body is a
+     magazine-style page — a gradient masthead, the prose of the _index.md,
+     and blog cards for the tutorials themselves.
+
+     Cards are placed by the tutorial-cards shortcode when the page uses it,
+     and appended after the prose when it does not. */}}
+{{ define "main" }}
+
+{{ $content := .Content }}
+{{ $auto := "" }}
+{{ if not (.Store.Get "tutorialCardsRendered") }}
+  {{ $auto = partial "tutorial-grid.html" (dict "page" .) }}
+{{ end }}
+
+{{/* Breadcrumb back to the hub, for sub-sections only */}}
+{{ $crumb := "" }}
+{{ $root := site.GetPage "/tutorials" }}
+{{ if and $root (ne .RelPermalink $root.RelPermalink) }}
+  {{ $crumb = printf `<a href="%s" class="tutorial-hero__crumb">
+      <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M15.75 10a.75.75 0 01-.75.75H6.81l2.22 2.22a.75.75 0 11-1.06 1.06l-3.5-3.5a.75.75 0 010-1.06l3.5-3.5a.75.75 0 111.06 1.06L6.81 9.25H15a.75.75 0 01.75.75z" clip-rule="evenodd"/></svg>
+      %s</a>` $root.RelPermalink $root.Title }}
+{{ end }}
+
+{{ $count := 0 }}
+{{ $minutes := 0 }}
+{{ range .RegularPagesRecursive }}
+  {{ $count = add $count 1 }}
+  {{ $minutes = add $minutes (int (math.Max .ReadingTime 1)) }}
+{{ end }}
+
+{{ $stats := "" }}
+{{ if gt $count 0 }}
+  {{ $stats = printf `<div class="tutorial-hero__stats">
+      <span><strong>%d</strong> %s</span>
+      <span aria-hidden="true">&middot;</span>
+      <span><strong>~%d min</strong> %s</span>
+    </div>` $count (i18n "tutorialsCount" | default "hands-on guides")
+      $minutes (i18n "readingTimeTotal" | default "of reading in total") }}
+{{ end }}
+
+{{ $body := printf `
+<div class="tutorial-page">
+  <header class="tutorial-hero">
+    <div class="tutorial-hero__inner">
+      %s
+      <p class="tutorial-hero__eyebrow">%s</p>
+      <h1 class="tutorial-hero__title">%s</h1>
+      %s
+      %s
+    </div>
+  </header>
+
+  <div class="tutorial-body">
+    <div class="prose prose-lg max-w-none tutorial-prose">%s</div>
+    %s
+  </div>
+</div>`
+  $crumb
+  (i18n "tutorialsEyebrow" | default "Step by step")
+  .Title
+  (cond (ne (string .Description) "")
+    (printf `<p class="tutorial-hero__lead">%s</p>` .Description) "")
+  $stats
+  $content
+  $auto }}
+
+{{ partial "docs-shell.html" (dict "page" . "main" $body "wide" true) }}
+{{ end }}

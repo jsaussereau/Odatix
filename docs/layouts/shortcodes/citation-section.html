@@ -1,0 +1,115 @@
+{{ $title := .Get "title" | default "Citation" }}
+{{ $description := .Get "description" }}
+{{ $paper := .Get "paper" }}
+{{ $authors := .Get "authors" }}
+{{ $journal := .Get "journal" }}
+{{ $meta := .Get "meta" }}
+{{ $doi := .Get "doi" }}
+{{ $url := .Get "url" }}
+
+<section class="citation-section">
+    <div class="citation-section__inner">
+        <div class="citation-section__head">
+            <span class="citation-section__eyebrow">Published research</span>
+            <h2 class="citation-section__title">{{ $title | safeHTML }}</h2>
+            {{ with $description }}<p class="citation-section__desc">{{ . | safeHTML }}</p>{{ end }}
+        </div>
+
+        <!-- <div class="citation-grid"> -->
+            <article class="citation-card">
+                <div class="citation-panel" style="max-width: 440px;">
+                    <div class="citation-card__badges">
+                        {{ with $journal }}<span class="citation-badge citation-badge--journal">{{ . }}</span>{{ end }}
+                        <span class="citation-badge citation-badge--open">Open access</span>
+                    </div>
+
+                    {{ with $paper }}<h3 class="citation-card__title">{{ . | safeHTML }}</h3>{{ end }}
+                    {{ with $authors }}<p class="citation-card__authors">{{ . | safeHTML }}</p>{{ end }}
+
+                    {{ with $meta }}
+                    <ul class="citation-card__meta">
+                        {{ range split . "," }}<li>{{ trim . " " }}</li>{{ end }}
+                    </ul>
+                    {{ end }}
+
+                    {{ with $doi }}
+                    <button type="button" class="citation-card__doi" data-copy-doi="https://doi.org/{{ . }}" title="Copy the DOI link" aria-label="Copy the DOI link">
+                        <svg class="citation-card__doi-icon citation-card__doi-icon--link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/>
+                        </svg>
+                        <svg class="citation-card__doi-icon citation-card__doi-icon--check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <span>doi.org/{{ . }}</span>
+                        <span class="citation-card__doi-copied" aria-live="polite">Copied!</span>
+                    </button>
+                    {{ end }}
+
+                    {{ with $url }}
+                    <div class="citation-card__actions">
+                        <a class="citation-btn citation-btn--primary" href="{{ . }}" target="_blank" rel="noopener">
+                            Read the article
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/>
+                            </svg>
+                        </a>
+                    </div>
+                    {{ end }}
+                </div>
+                <div class="citation-panel">
+                    <div class="citation-formats">
+                        <span class="citation-formats__label">Ready-to-paste formats</span>
+                        {{ .Inner | safeHTML }}
+                    </div>
+                </div>
+            </article>
+        <!-- </div> -->
+    </div>
+</section>
+
+{{ if $doi }}
+<script>
+    (function () {
+        if (window.__odatixDoiCopyBound) {
+            return;
+        }
+        window.__odatixDoiCopyBound = true;
+
+        async function copyText(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+
+            var textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'absolute';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+
+        document.addEventListener('click', async function (event) {
+            var button = event.target.closest('[data-copy-doi]');
+            if (!button) {
+                return;
+            }
+
+            try {
+                await copyText(button.getAttribute('data-copy-doi'));
+                button.classList.add('is-copied');
+                window.clearTimeout(button.__copyTimer);
+                button.__copyTimer = window.setTimeout(function () {
+                    button.classList.remove('is-copied');
+                }, 2000);
+            } catch (error) {
+                console.error('Failed to copy DOI link:', error);
+            }
+        });
+    })();
+</script>
+{{ end }}

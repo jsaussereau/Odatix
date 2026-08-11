@@ -1,0 +1,24 @@
+{{/* Accent colour for a tutorial category. Returns a hex string.
+
+     Tutorials are colour-coded by topic so a grid reads at a glance; the
+     teal-leaning default is what sets the section apart from the indigo of
+     the reference docs. Context: the category name (string). */}}
+{{- $palette := dict
+      "Design"      "#2563eb"
+      "Analysis"    "#f59e0b"
+      "Synthesis"   "#7c3aed"
+      "Fmax"        "#0ea5e9"
+      "PNR"         "#0d9488"
+      "Simulation"  "#16a34a"
+      "Workflows"   "#ea580c"
+      "Explorer"    "#db2777"
+      "Server"      "#0369a1"
+      "Tutorial"    "#0d9488"
+      "EDA Tools"   "#fbbf24"
+      "Indigo"      "#4f46e5"
+      "Slate"       "#475569"
+      "Brick"       "#dc2626"
+      "Lime"        "#65a30d"
+      "Brown"       "#a16207"
+-}}
+{{- index $palette (string .) | default "#0d9488" -}}

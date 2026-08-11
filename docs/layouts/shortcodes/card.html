@@ -1,0 +1,48 @@
+{{ $title := .Get "title" | default (.Get 0) | default "Resource" }}
+{{ $link := .Get "link" | default (.Get 1) | default "#" }}
+{{ $width := .Get "width" | default "100%" }}
+{{ $description := .Get "description" | default (.Get 2) }}
+{{ $inner := strings.TrimSpace .Inner }}
+{{ if ne $inner "" }}
+  {{ $description = $inner }}
+{{ end }}
+{{ $isExternal := or (hasPrefix $link "http://") (hasPrefix $link "https://") }}
+{{ $noMargin := .Get "no-margin" | default (.Get 3) | default false }}
+
+{{ if $noMargin }}
+<div class="not-prose" style="width: {{ $width | safeCSS }}; max-width: 100%;">
+{{ else }}
+<div class="not-prose my-6" style="width: {{ $width | safeCSS }}; max-width: 100%;">
+{{ end }}
+  <a
+    href="{{ $link }}"
+    class="group block !no-underline"
+    {{ if $isExternal }}target="_blank" rel="noopener noreferrer"{{ end }}
+    aria-label="{{ $title }}"
+  >
+    <article class="card border border-gray-200 bg-white hover:border-primary-200 hover:shadow-lg transition-all duration-200">
+      <div class="flex items-start gap-4">
+        <div class="min-w-0 flex-1">
+          <h3 class="!my-0 text-lg font-semibold text-gray-900 transition-colors duration-200 group-hover:text-primary-600">{{ $title }}</h3>
+          {{ with $description }}
+          <div class="mt-2 text-sm leading-relaxed text-gray-600">{{ . | markdownify }}</div>
+          {{ end }}
+
+          <span class="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary-600">
+            Open resource
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M4.25 10a.75.75 0 01.75-.75h8.19l-2.22-2.22a.75.75 0 111.06-1.06l3.5 3.5a.75.75 0 010 1.06l-3.5 3.5a.75.75 0 11-1.06-1.06l2.22-2.22H5a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
+            </svg>
+          </span>
+        </div>
+
+        <span class="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600 transition-colors duration-200 group-hover:bg-primary-600 group-hover:text-white" aria-hidden="true">
+          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M12.5 3.25a.75.75 0 01.75-.75h3.5a.75.75 0 01.75.75v3.5a.75.75 0 11-1.5 0V5.06l-5.22 5.22a.75.75 0 11-1.06-1.06l5.22-5.22h-1.69a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
+            <path d="M5.5 4.5A2.5 2.5 0 003 7v8A2.5 2.5 0 005.5 17h8a2.5 2.5 0 002.5-2.5v-3a.75.75 0 00-1.5 0v3a1 1 0 01-1 1h-8a1 1 0 01-1-1V7a1 1 0 011-1h3a.75.75 0 000-1.5h-3z" />
+          </svg>
+        </span>
+      </div>
+    </article>
+  </a>
+</div>

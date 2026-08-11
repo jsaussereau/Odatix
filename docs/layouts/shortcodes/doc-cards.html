@@ -1,0 +1,12 @@
+{{/* Grid wrapper for doc-card shortcodes.
+
+     Params:
+       cols  (optional) 2 (default) or 3 columns on wide screens
+
+     Kept deliberately dumb: the nested doc-card shortcodes are already
+     rendered by the time we see them, this only sets the grid and escapes
+     the prose column. */}}
+{{ $cols := int (.Get "cols" | default 2) }}
+<div class="not-prose doc-cards{{ if eq $cols 3 }} doc-cards--3{{ end }}">
+  {{ .Inner | safeHTML }}
+</div>

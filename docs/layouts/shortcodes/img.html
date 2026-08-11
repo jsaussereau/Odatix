@@ -1,0 +1,79 @@
+{{- $classes := slice -}}
+{{- with .Get "align" -}}
+  {{- $classes = $classes | append . -}}
+{{- end -}}
+{{- with .Get "verticalMargin" -}}
+  {{- $classes = $classes | append "vertical-margin" -}}
+{{- end -}}
+{{- $rounded := false -}}
+{{- with .Get "rounded" -}}
+  {{- $roundedValue := lower (trim (printf "%v" .) " ") -}}
+  {{- if or (eq $roundedValue "1") (eq $roundedValue "true") (eq $roundedValue "yes") (eq $roundedValue "on") -}}
+    {{- $rounded = true -}}
+  {{- end -}}
+{{- end -}}
+{{- if $rounded -}}
+  {{- $classes = $classes | append "rounded" -}}
+{{- end -}}
+{{- $shadow := true -}}
+{{- with .Get "shadow" -}}
+  {{- $shadowValue := lower (trim (printf "%v" .) " ") -}}
+  {{- if or (eq $shadowValue "0") (eq $shadowValue "false") (eq $shadowValue "no") (eq $shadowValue "off") -}}
+    {{- $shadow = false -}}
+  {{- end -}}
+{{- end -}}
+{{- if not $shadow -}}
+  {{- $classes = $classes | append "no-image-shadow" -}}
+{{- end -}}
+{{- $srcDark := .Get "src_dark" -}}
+{{- $lightClasses := $classes -}}
+{{- $darkClasses := $classes -}}
+{{- if $srcDark -}}
+  {{- $lightClasses = $lightClasses | append "shortcode-light-image" -}}
+  {{- $darkClasses = $darkClasses | append "shortcode-dark-image" -}}
+{{- end -}}
+{{- $src := .Get "src" -}}
+{{- $title := .Get "title" -}}
+{{- $width := .Get "width" -}}
+{{- $height := .Get "height" -}}
+{{- $float := .Get "float" -}}
+
+{{- $lightAttrs := slice (printf "src=%q" $src) -}}
+{{- with $title -}}
+  {{- $lightAttrs = $lightAttrs | append (printf "alt=%q" .) -}}
+{{- end -}}
+{{- with $width -}}
+  {{- $lightAttrs = $lightAttrs | append (printf "width=%q" .) -}}
+{{- end -}}
+{{- with $height -}}
+  {{- $lightAttrs = $lightAttrs | append (printf "height=%q" .) -}}
+{{- end -}}
+{{- with $float -}}
+  {{- $lightAttrs = $lightAttrs | append (printf "style=%q" (printf "float: %s; margin: 5px 10px;" .)) -}}
+{{- end -}}
+{{- if gt (len $lightClasses) 0 -}}
+  {{- $lightAttrs = $lightAttrs | append (printf "class=%q" (delimit $lightClasses " ")) -}}
+{{- end -}}
+
+<img {{ delimit $lightAttrs " " | safeHTMLAttr }}>
+
+{{- if $srcDark -}}
+  {{- $darkAttrs := slice (printf "src=%q" $srcDark) -}}
+  {{- with $title -}}
+    {{- $darkAttrs = $darkAttrs | append (printf "alt=%q" .) -}}
+  {{- end -}}
+  {{- with $width -}}
+    {{- $darkAttrs = $darkAttrs | append (printf "width=%q" .) -}}
+  {{- end -}}
+  {{- with $height -}}
+    {{- $darkAttrs = $darkAttrs | append (printf "height=%q" .) -}}
+  {{- end -}}
+  {{- with $float -}}
+    {{- $darkAttrs = $darkAttrs | append (printf "style=%q" (printf "float: %s; margin: 5px 10px;" .)) -}}
+  {{- end -}}
+  {{- if gt (len $darkClasses) 0 -}}
+    {{- $darkAttrs = $darkAttrs | append (printf "class=%q" (delimit $darkClasses " ")) -}}
+  {{- end -}}
+
+  <img {{ delimit $darkAttrs " " | safeHTMLAttr }}>
+{{- end -}}

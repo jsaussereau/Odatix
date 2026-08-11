@@ -1,0 +1,75 @@
+{{/* Layout for the API reference pages ("layout: api" in the front matter).
+
+     Same shell as the rest of the docs, but with a wider prose column and a
+     sticky table of contents in the right gutter, which is what makes a long
+     list of classes navigable. */}}
+{{ define "main" }}
+{{ $style := `
+<style>
+  /* An API entry reads as code, not as prose. */
+  .api-reference .prose h3 > code,
+  .api-reference .prose h4 > code {
+    background: none;
+    padding: 0;
+    font-weight: 600;
+    color: inherit;
+    font-size: 1em;
+  }
+  .api-reference .prose h3 > code::before,
+  .api-reference .prose h3 > code::after,
+  .api-reference .prose h4 > code::before,
+  .api-reference .prose h4 > code::after { content: none; }
+
+  .api-reference .prose h2 {
+    margin-top: 3.5rem;
+    padding-top: 1.75rem;
+    border-top: 1px solid rgb(229 231 235);
+  }
+  .api-reference .prose h3 {
+    scroll-margin-top: 6rem;
+    font-size: 1.15em;
+  }
+  .api-reference .prose h4 { scroll-margin-top: 6rem; }
+
+  /* Member tables: dense, first column on one line. */
+  .api-reference .prose table {
+    font-size: 0.9rem;
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .api-reference .prose table td:first-child,
+  .api-reference .prose table th:first-child { white-space: nowrap; }
+  .api-reference .prose table td:first-child code { font-size: 0.85em; }
+  .api-reference .prose table td { vertical-align: top; }
+
+  .api-toc ul { list-style: none; padding-left: 0; margin: 0; }
+  .api-toc ul ul { padding-left: 0.75rem; }
+  .api-toc li { margin: 0.15rem 0; }
+  .api-toc a {
+    display: block;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: rgb(75 85 99);
+    padding: 0.1rem 0;
+  }
+  .api-toc a:hover { color: rgb(17 24 39); }
+</style>` }}
+{{ $article := printf `%s
+<div class="api-reference flex">
+  <div class="flex-1 min-w-0 px-5 sm:px-8 lg:px-12 py-8 lg:py-12">
+    <article class="prose prose-lg max-w-none">%s</article>
+  </div>
+  <div class="hidden xl:block shrink-0 w-72 border-l border-gray-200">
+    <nav class="sticky top-20 max-h-[calc(100vh-5rem)] overflow-y-auto px-5 py-8 api-toc">
+      <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">%s</div>
+      %s
+    </nav>
+  </div>
+</div>`
+  $style
+  (.Content | string)
+  (i18n "tableOfContents" | default "On this page")
+  (.TableOfContents | string) }}
+{{ partial "docs-shell.html" (dict "page" . "main" $article "wide" true) }}
+{{ end }}

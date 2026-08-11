@@ -1,0 +1,127 @@
+{{- $folderParam := .Get "folder" | default "images/logos" -}}
+{{- $folder := strings.TrimPrefix "/" $folderParam -}}
+{{- $folder = strings.TrimSuffix "/" $folder -}}
+{{- $title := .Get "title" | default "" -}}
+{{- $animate := ne (.Get "animate" | default "true") "false" -}}
+{{- $imgClass := .Get "imgClass" | default "h-20" -}}
+{{- $sectionClass := .Get "sectionClass" | default "border-y border-gray-100 overflow-hidden" -}}
+{{- $showWhenEmpty := eq (.Get "showWhenEmpty" | default "false") "true" -}}
+{{- $pageTop := eq (.Get "pageTop" | default "false") "true" -}}
+
+{{- if $pageTop }}
+  {{- $sectionClass = printf "%s page-top" $sectionClass -}}
+{{- end }}
+
+{{- $staticPath := printf "static/%s" $folder -}}
+{{- $images := slice -}}
+
+{{- if fileExists $staticPath -}}
+  {{- $entries := readDir $staticPath -}}
+  {{- range sort $entries "Name" -}}
+    {{- if not .IsDir -}}
+      {{- $name := .Name -}}
+      {{- $lowerName := lower $name -}}
+      {{- if or (hasSuffix $lowerName ".png") (hasSuffix $lowerName ".jpg") (hasSuffix $lowerName ".jpeg") (hasSuffix $lowerName ".svg") (hasSuffix $lowerName ".webp") (hasSuffix $lowerName ".gif") -}}
+        {{- $src := printf "/%s/%s" $folder $name | relURL -}}
+        {{- $alt := $name | strings.TrimSuffix (path.Ext $name) | replaceRE "[-_]+" " " | title -}}
+        {{- $images = $images | append (dict "src" $src "alt" $alt) -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- else -}}
+  {{- warnf "image-strip: folder not found: %s" $staticPath -}}
+{{- end -}}
+
+{{- if or (gt (len $images) 0) $showWhenEmpty -}}
+<section class="image-strip-widget {{ $sectionClass }}">
+  <div class="container mx-auto">
+    <div class="py-10">
+      {{- with $title }}
+      <p class="text-center text-3xl md:text-2xl font-bold mb-6">{{ . }}</p>
+      {{- end }}
+
+      <div class="logo-scroll{{ if not $animate }} static{{ end }}">
+        <div class="logos-slide{{ if $animate }} animate{{ end }}">
+          {{- range $images }}
+          <img src="{{ .src }}" class="{{ $imgClass }}" alt="{{ .alt }}" loading="lazy" decoding="async" />
+          {{- end }}
+          {{- if $animate }}
+            {{- range $images }}
+            <img src="{{ .src }}" class="{{ $imgClass }}" alt="{{ .alt }}" loading="lazy" decoding="async" aria-hidden="true" />
+            {{- end }}
+          {{- end }}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+.image-strip-widget.page-top {
+	margin-top: -50px;
+	margin-bottom: 50px;
+}
+.logo-scroll {
+    overflow: hidden;
+    padding: 0px 0px;
+    white-space: nowrap;
+    position: relative;
+}
+
+.logo-scroll.static {
+    display: flex;
+    justify-content: center;
+    overflow: visible;
+}
+
+.logo-scroll.static .logos-slide {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 40px;
+}
+
+.logos-slide {
+    display: inline-block;
+}
+
+.logos-slide.animate {
+    width: max-content;
+    animation: 40s slide infinite linear;
+}
+
+.logos-slide img {
+    box-shadow: none;
+    border-radius: 0;
+    max-height: 3rem;
+    margin: 0 40px;
+    display: inline-block;
+    vertical-align: middle;
+    opacity: 0.9;
+}
+
+.logo-scroll.static .logos-slide img {
+    margin: 0;
+}
+
+@keyframes slide {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(calc(-100% / 2));
+    }
+}
+
+.logo-scroll:hover .logos-slide.animate {
+    animation-play-state: paused;
+}
+
+/* Mobile-specific animation speed */
+@media (max-width: 768px) {
+    .logos-slide.animate {
+        animation: 15s slide infinite linear;
+    }
+}
+</style>
+{{- end -}}

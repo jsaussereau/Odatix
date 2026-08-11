@@ -1,0 +1,122 @@
+{{- /*
+  Renders a terminal capture with its colors.
+
+  Two input encodings are supported, and may be mixed:
+
+  1. ANSI escape sequences, as raw ESC bytes or as the readable text forms
+     "\e[32m", "\033[32m", "^[[32m" so that markdown sources stay editable.
+  2. The HTML produced by "copy as HTML" in GNOME Terminal & friends:
+     <font color="#8AE234">…</font>, <b>, <i>, <u>, optionally wrapped in <pre>.
+
+  Everything else is escaped: the input is never trusted as HTML.
+
+  Output: one <span class="line"><span class="cl">…</span></span> per line,
+          styles being closed and reopened at each line break.
+*/ -}}
+{{- $esc := "\x1b" -}}
+{{- $text := . -}}
+
+{{- /* Terminal HTML → internal escape sequences (39 = default fg, 22 = bold off) */ -}}
+{{- $isTermHTML := findRE `(?i)<(font|b|i|u|pre)\b` $text 1 -}}
+{{- if $isTermHTML -}}
+  {{- $text = replaceRE `(?i)</?pre[^>]*>` "" $text -}}
+  {{- $text = replaceRE `(?i)<font\s+color=["']?(#[0-9A-Fa-f]{6})["']?\s*>` (printf "%s[${1}m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)<font\b[^>]*>` (printf "%s[39m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)</font>` (printf "%s[39m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)<(b|strong)>` (printf "%s[1m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)</(b|strong)>` (printf "%s[22m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)<(i|em)>` (printf "%s[3m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)</(i|em)>` (printf "%s[23m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)<u>` (printf "%s[4m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)</u>` (printf "%s[24m" $esc) $text -}}
+  {{- $text = replaceRE `(?i)<br\s*/?>` "" $text -}}
+{{- end -}}
+{{- $text = replaceRE `\\e\[|\\033\[|\\x1b\[|\^\[\[` (printf "%s[" $esc) $text -}}
+
+{{- $fg := dict
+  "30" "ansi-black" "31" "ansi-red" "32" "ansi-green" "33" "ansi-yellow"
+  "34" "ansi-blue" "35" "ansi-magenta" "36" "ansi-cyan" "37" "ansi-white"
+  "90" "ansi-bright-black" "91" "ansi-bright-red" "92" "ansi-bright-green"
+  "93" "ansi-bright-yellow" "94" "ansi-bright-blue" "95" "ansi-bright-magenta"
+  "96" "ansi-bright-cyan" "97" "ansi-bright-white" -}}
+{{- $bg := dict
+  "40" "ansi-bg-black" "41" "ansi-bg-red" "42" "ansi-bg-green" "43" "ansi-bg-yellow"
+  "44" "ansi-bg-blue" "45" "ansi-bg-magenta" "46" "ansi-bg-cyan" "47" "ansi-bg-white"
+  "100" "ansi-bg-bright-black" "101" "ansi-bg-bright-red" "102" "ansi-bg-bright-green"
+  "103" "ansi-bg-bright-yellow" "104" "ansi-bg-bright-blue" "105" "ansi-bg-bright-magenta"
+  "106" "ansi-bg-bright-cyan" "107" "ansi-bg-bright-white" -}}
+
+{{- $lines := slice "" -}}
+{{- $st := dict "fg" "" "bg" "" "fgHex" "" "bgHex" "" "bold" false "dim" false "italic" false "underline" false -}}
+
+{{- range $i, $chunk := split $text $esc -}}
+  {{- $body := $chunk -}}
+  {{- if gt $i 0 -}}
+    {{- with findRE `^\[[#0-9;A-Fa-f]*m` $chunk 1 -}}
+      {{- $seq := index . 0 -}}
+      {{- $body = substr $chunk (len $seq) -}}
+      {{- range $code := split (trim $seq "[m") ";" -}}
+        {{- if hasPrefix $code "#" -}}
+          {{- $st = merge $st (dict "fgHex" $code "fg" "") -}}
+        {{- else if or (eq $code "0") (eq $code "") -}}
+          {{- $st = dict "fg" "" "bg" "" "fgHex" "" "bgHex" "" "bold" false "dim" false "italic" false "underline" false -}}
+        {{- else if eq $code "1" -}}{{- $st = merge $st (dict "bold" true) -}}
+        {{- else if eq $code "2" -}}{{- $st = merge $st (dict "dim" true) -}}
+        {{- else if eq $code "3" -}}{{- $st = merge $st (dict "italic" true) -}}
+        {{- else if eq $code "4" -}}{{- $st = merge $st (dict "underline" true) -}}
+        {{- else if eq $code "22" -}}{{- $st = merge $st (dict "bold" false "dim" false) -}}
+        {{- else if eq $code "23" -}}{{- $st = merge $st (dict "italic" false) -}}
+        {{- else if eq $code "24" -}}{{- $st = merge $st (dict "underline" false) -}}
+        {{- else if eq $code "39" -}}{{- $st = merge $st (dict "fg" "" "fgHex" "") -}}
+        {{- else if eq $code "49" -}}{{- $st = merge $st (dict "bg" "" "bgHex" "") -}}
+        {{- else if index $fg $code -}}{{- $st = merge $st (dict "fg" (index $fg $code) "fgHex" "") -}}
+        {{- else if index $bg $code -}}{{- $st = merge $st (dict "bg" (index $bg $code) "bgHex" "") -}}
+        {{- end -}}
+      {{- end -}}
+    {{- else -}}
+      {{- /* unsupported sequence (cursor moves, 256-color, …): drop the ESC only */ -}}
+    {{- end -}}
+  {{- end -}}
+
+  {{- if ne $body "" -}}
+    {{- /* Current style as a class list + inline style */ -}}
+    {{- $cls := slice -}}
+    {{- with $st.fg }}{{ $cls = $cls | append . }}{{ end -}}
+    {{- with $st.bg }}{{ $cls = $cls | append . }}{{ end -}}
+    {{- if $st.bold }}{{ $cls = $cls | append "ansi-bold" }}{{ end -}}
+    {{- if $st.dim }}{{ $cls = $cls | append "ansi-dim" }}{{ end -}}
+    {{- if $st.italic }}{{ $cls = $cls | append "ansi-italic" }}{{ end -}}
+    {{- if $st.underline }}{{ $cls = $cls | append "ansi-underline" }}{{ end -}}
+    {{- $style := slice -}}
+    {{- with $st.fgHex }}{{ $style = $style | append (printf "color:%s" .) }}{{ end -}}
+    {{- with $st.bgHex }}{{ $style = $style | append (printf "background-color:%s" .) }}{{ end -}}
+    {{- $attrs := "" -}}
+    {{- with $cls }}{{ $attrs = printf "%s class=\"%s\"" $attrs (delimit . " ") }}{{ end -}}
+    {{- with $style }}{{ $attrs = printf "%s style=\"%s\"" $attrs (delimit . ";") }}{{ end -}}
+
+    {{- /* Emit the text, one line at a time so styles never straddle a newline */ -}}
+    {{- range $j, $part := split $body "\n" -}}
+      {{- if gt $j 0 -}}
+        {{- $lines = $lines | append "" -}}
+      {{- end -}}
+      {{- if ne $part "" -}}
+        {{- $piece := htmlEscape $part -}}
+        {{- if ne $attrs "" -}}
+          {{- $piece = printf "<span%s>%s</span>" $attrs $piece -}}
+        {{- end -}}
+        {{- $idx := sub (len $lines) 1 -}}
+        {{- $lines = (first $idx $lines) | append (printf "%s%s" (index $lines $idx) $piece) -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- range $lines -}}
+  {{- $line := . -}}
+  {{- if $isTermHTML -}}
+    {{- /* the source was HTML: its entities got escaped twice, undo one level */ -}}
+    {{- $line = replaceRE `&amp;(amp|lt|gt|quot|apos|nbsp|#[0-9]+|#x[0-9A-Fa-f]+);` "&${1};" $line -}}
+  {{- end -}}
+<span class="line"><span class="cl">{{ $line | safeHTML }}
+</span></span>
+{{- end -}}

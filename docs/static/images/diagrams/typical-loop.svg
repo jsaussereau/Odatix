@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 220" width="1000" height="220" role="img" aria-labelledby="tl-title tl-desc">
+  <title id="tl-title">The typical Odatix loop</title>
+  <desc id="tl-desc">Define a design, define configurations, run jobs in parallel, export results, then explore them — five steps from an idea to a decision.</desc>
+
+  <style>
+    .bg      { fill: #ffffff; }
+    .card    { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; }
+    .step    { fill: #eef1fc; stroke: #99abec; stroke-width: 1.5; }
+    .out     { fill: #faf5ff; stroke: #d8b4fe; stroke-width: 1.5; }
+    .flow    { fill: none; stroke: #94a3b8; stroke-width: 1.5; }
+    .t       { font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif; fill: #0f172a; }
+    .num     { font-size: 11px; font-weight: 700; fill: #64748b; }
+    .h       { font-size: 13.5px; font-weight: 700; fill: #283680; }
+    .h2      { font-size: 13.5px; font-weight: 700; fill: #7e22ce; }
+    .mut     { font-size: 11px; fill: #64748b; }
+    .mono    { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  </style>
+
+  <rect class="bg" width="1000" height="220"/>
+
+  <!-- step 1: design -->
+  <rect class="step" x="20" y="72" width="168" height="76" rx="12"/>
+  <text class="t num" x="36" y="94">1</text>
+  <text class="t h" x="36" y="110">define design</text>
+  <text class="t h" x="36" y="126">or workflow</text>
+  <text class="t mut mono" x="36" y="142">_settings.yml</text>
+
+  <path class="flow" d="M188 110 H222" marker-end="url(#arrow)"/>
+
+  <!-- step 2: configurations -->
+  <rect class="step" x="222" y="72" width="176" height="76" rx="12"/>
+  <text class="t num" x="238" y="94">2</text>
+  <text class="t h" x="238" y="116">define configurations</text>
+  <text class="t mut mono" x="238" y="134">[config].txt</text>
+
+  <path class="flow" d="M398 110 H432" marker-end="url(#arrow)"/>
+
+  <!-- step 3: run jobs -->
+  <rect class="step" x="432" y="72" width="176" height="76" rx="12"/>
+  <text class="t num" x="448" y="94">3</text>
+  <text class="t h" x="448" y="116">run jobs in parallel</text>
+  <text class="t mut mono" x="448" y="134">odatix [jobtype] --tool</text>
+
+  <path class="flow" d="M608 110 H642" marker-end="url(#arrow)"/>
+
+  <!-- step 4: export results -->
+  <rect class="out" x="642" y="72" width="164" height="76" rx="12"/>
+  <text class="t num" x="658" y="94">4</text>
+  <text class="t h2" x="658" y="116">export results</text>
+  <text class="t mut mono" x="658" y="134">metrics.yml</text>
+
+  <path class="flow" d="M806 110 H840" marker-end="url(#arrow)"/>
+
+  <!-- step 5: explore -->
+  <rect class="out" x="840" y="72" width="140" height="76" rx="12"/>
+  <text class="t num" x="856" y="94">5</text>
+  <text class="t h2" x="856" y="116">explore</text>
+  <text class="t mut mono" x="856" y="134">odatix-explorer</text>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 440" width="1000" height="440" role="img" aria-labelledby="ae-title ae-desc">
+  <title id="ae-title">From parameter domains to implemented configurations</title>
+  <desc id="ae-desc">Three independent parameter domains are combined into every configuration, and each configuration is implemented by synthesis, place and route, simulation or a workflow, producing metrics in Odatix Explorer.</desc>
+
+  <style>
+    .bg      { fill: #ffffff; }
+    .panel   { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 1; }
+    .card    { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; }
+    .chip    { fill: #eef1fc; stroke: #bbc7f3; stroke-width: 1; }
+    .chip2   { fill: #faf5ff; stroke: #d8b4fe; stroke-width: 1; }
+    .flow    { fill: none; stroke: #94a3b8; stroke-width: 1.5; }
+    .t       { font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif; fill: #0f172a; }
+    .h       { font-size: 15px; font-weight: 700; letter-spacing: .2px; }
+    .kicker  { font-size: 11px; font-weight: 700; letter-spacing: 1.1px; fill: #64748b; }
+    .dom     { font-size: 13px; font-weight: 700; fill: #425ad6; }
+    .val     { font-size: 12px; fill: #334155; }
+    .cfg     { font-size: 11.5px; fill: #1b2456; }
+    .mut     { font-size: 12px; fill: #64748b; }
+    .op      { font-size: 22px; font-weight: 700; fill: #94a3b8; }
+    .eq      { font-size: 13px; font-weight: 700; fill: #425ad6; }
+    .mono    { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  </style>
+
+  <rect class="bg" width="1000" height="440"/>
+
+  <!-- ============================ 1. Parameter domains ============================ -->
+  <text class="t kicker" x="28" y="34">1 · PARAMETER DOMAINS</text>
+  <rect class="panel" x="24" y="48" width="264" height="336" rx="14"/>
+
+  <!-- domain: __main__ -->
+  <rect class="card" x="40" y="66" width="232" height="98" rx="10"/>
+  <text class="t dom mono" x="56" y="88">__main__</text>
+  <rect class="chip" x="56" y="98" width="56" height="22" rx="11"/><text class="t val mono" x="66" y="113">04bits</text>
+  <rect class="chip" x="118" y="98" width="56" height="22" rx="11"/><text class="t val mono" x="128" y="113">08bits</text>
+  <rect class="chip" x="180" y="98" width="56" height="22" rx="11"/><text class="t val mono" x="190" y="113">16bits</text>
+  <rect class="chip" x="56" y="126" width="56" height="22" rx="11"/><text class="t val mono" x="66" y="141">32bits</text>
+  <rect class="chip" x="118" y="126" width="56" height="22" rx="11"/><text class="t val mono" x="128" y="141">64bits</text>
+  <text class="t mut" x="184" y="141">5 values</text>
+
+  <text class="t op" x="150" y="188" text-anchor="middle">×</text>
+
+  <!-- domain: MEM -->
+  <rect class="card" x="40" y="198" width="232" height="70" rx="10"/>
+  <text class="t dom mono" x="56" y="220">MEM</text>
+  <rect class="chip" x="56" y="230" width="86" height="22" rx="11"/><text class="t val mono" x="66" y="245">256I_256D</text>
+  <rect class="chip" x="148" y="230" width="98" height="22" rx="11"/><text class="t val mono" x="158" y="245">1024I_1024D</text>
+
+  <text class="t op" x="150" y="292" text-anchor="middle">×</text>
+
+  <!-- domain: Mul -->
+  <rect class="card" x="40" y="302" width="232" height="66" rx="10"/>
+  <text class="t dom mono" x="56" y="324">Mul</text>
+  <rect class="chip" x="56" y="334" width="48" height="22" rx="11"/><text class="t val mono" x="66" y="349">Basic</text>
+  <rect class="chip" x="110" y="334" width="44" height="22" rx="11"/><text class="t val mono" x="120" y="349">Fast</text>
+  <rect class="chip" x="160" y="334" width="38" height="22" rx="11"/><text class="t val mono" x="170" y="349">Off</text>
+
+  <!-- arrow 1 -->
+  <path class="flow" d="M296 216 H336" marker-end="url(#arrow)"/>
+
+  <!-- ============================ 2. Configurations ============================ -->
+  <text class="t kicker" x="348" y="34">2 · GENERATED CONFIGURATIONS</text>
+  <rect class="panel" x="344" y="48" width="300" height="336" rx="14"/>
+
+  <rect class="chip" x="360" y="66" width="268" height="26" rx="8"/>
+  <text class="t cfg mono" x="372" y="84">04bits+MEM/256I_256D+Mul/Basic</text>
+  <rect class="chip" x="360" y="100" width="268" height="26" rx="8"/>
+  <text class="t cfg mono" x="372" y="118">04bits+MEM/256I_256D+Mul/Fast</text>
+  <rect class="chip" x="360" y="134" width="268" height="26" rx="8"/>
+  <text class="t cfg mono" x="372" y="152">04bits+MEM/256I_256D+Mul/Off</text>
+  <rect class="chip" x="360" y="168" width="268" height="26" rx="8"/>
+  <text class="t cfg mono" x="372" y="186">04bits+MEM/1024I_1024D+Mul/Basic</text>
+  <rect class="chip" x="360" y="202" width="268" height="26" rx="8"/>
+  <text class="t cfg mono" x="372" y="220">08bits+MEM/256I_256D+Mul/Basic</text>
+  <rect class="chip" x="360" y="236" width="268" height="26" rx="8"/>
+  <text class="t cfg mono" x="372" y="254">08bits+MEM/256I_256D+Mul/Fast</text>
+
+  <text class="t mut" x="494" y="286" text-anchor="middle">⋮</text>
+
+  <rect class="chip" x="360" y="296" width="268" height="26" rx="8"/>
+  <text class="t cfg mono" x="372" y="314">64bits+MEM/1024I_1024D+Mul/Off</text>
+
+  <rect x="360" y="336" width="268" height="32" rx="8" fill="#dde3f9"/>
+  <text class="t eq" x="494" y="357" text-anchor="middle">5 × 2 × 3 = 30 configurations</text>
+
+  <!-- arrow 2 -->
+  <path class="flow" d="M652 216 H692" marker-end="url(#arrow)"/>
+
+  <!-- ============================ 3. Run &amp; measure ============================ -->
+  <text class="t kicker" x="704" y="34">3 · RUN ON EVERY CONFIGURATION</text>
+  <rect class="panel" x="700" y="48" width="276" height="336" rx="14"/>
+
+  <rect class="card" x="716" y="66" width="244" height="34" rx="9"/>
+  <text class="t val" x="732" y="88"><tspan class="mono" fill="#425ad6" font-weight="700">fmax</tspan> · <tspan class="mono" fill="#425ad6" font-weight="700">freq</tspan>   logic synthesis</text>
+  <rect class="card" x="716" y="108" width="244" height="34" rx="9"/>
+  <text class="t val" x="732" y="130"><tspan class="mono" fill="#425ad6" font-weight="700">pnr</tspan>   place &amp; route</text>
+  <rect class="card" x="716" y="150" width="244" height="34" rx="9"/>
+  <text class="t val" x="732" y="172"><tspan class="mono" fill="#425ad6" font-weight="700">sim</tspan>   simulation</text>
+  <rect class="card" x="716" y="192" width="244" height="34" rx="9"/>
+  <text class="t val" x="732" y="214"><tspan class="mono" fill="#425ad6" font-weight="700">analyze</tspan>   RTL analysis</text>
+  <rect class="card" x="716" y="234" width="244" height="34" rx="9"/>
+  <text class="t val" x="732" y="256"><tspan class="mono" fill="#425ad6" font-weight="700">workflow</tspan>   any pipeline</text>
+
+  <path class="flow" d="M838 280 V304" marker-end="url(#arrow)"/>
+
+  <rect class="chip2" x="716" y="310" width="244" height="58" rx="10"/>
+  <text class="t h" x="838" y="334" text-anchor="middle" fill="#7e22ce">Metrics per configuration</text>
+  <text class="t mut" x="838" y="354" text-anchor="middle">Fmax · area · power · anything you extract</text>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+</svg>

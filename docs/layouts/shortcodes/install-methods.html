@@ -1,0 +1,34 @@
+{{/* Install methods.
+
+     Three linked cards, one per installation source. Not a plan comparison:
+     each card states what it is, the command it boils down to, and who it is
+     for. The recommended one carries the accent, the others stay quiet.
+
+     Data comes from data/install_methods.yaml, or from the `methods` param. */}}
+
+{{ $methods := .Site.Data.install_methods.methods }}
+
+<div class="not-prose install-methods">
+  {{ range $i, $m := $methods }}
+  {{ $accent := $m.accent | default "#425ad6" }}
+  <a href="{{ $m.url }}" class="install-method{{ if $m.recommended }} install-method--featured{{ end }}" style="--accent: {{ $accent }}">
+    <span class="install-method__index" aria-hidden="true">{{ printf "%02d" (add $i 1) }}</span>
+    <span class="install-method__icon" aria-hidden="true">
+      {{ partial "install-icon.html" $m.icon }}
+    </span>
+    {{ if $m.recommended }}<span class="install-method__flag">{{ $m.flag | default "Recommended" }}</span>{{ end }}
+    <h3 class="install-method__title">{{ $m.title }}</h3>
+    <p class="install-method__text">{{ $m.description }}</p>
+    {{ with $m.command }}
+    <span class="install-method__command"><span aria-hidden="true">$</span> <code>{{ . }}</code></span>
+    {{ end }}
+    {{ with $m.audience }}
+    <span class="install-method__meta">{{ . }}</span>
+    {{ end }}
+    <span class="install-method__cta">
+      {{ $m.cta | default "Read the guide" }}
+      <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4.25 10a.75.75 0 01.75-.75h8.19l-2.22-2.22a.75.75 0 111.06-1.06l3.5 3.5a.75.75 0 010 1.06l-3.5 3.5a.75.75 0 11-1.06-1.06l2.22-2.22H5a.75.75 0 01-.75-.75z" clip-rule="evenodd"/></svg>
+    </span>
+  </a>
+  {{ end }}
+</div>

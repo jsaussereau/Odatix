@@ -1,0 +1,30 @@
+{{ $icon := .Get "icon" }}
+{{ $buttonText := .Get "buttonText" }}
+{{ $buttonLink := .Get "buttonLink" }}
+{{ $openInNewTab := .Get "openInNewTab" | default "false" }}
+
+<div class="project-card bg-white p-8 rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col h-full min-h-0">
+    <div class="mb-4 flex justify-center">
+        {{ if $icon }}
+        <img src="{{ $icon }}" alt="{{ .Get "title" }} icon" class="h-12 w-12 object-contain" loading="lazy">
+        {{ end }}
+    </div>
+    <h3 class="text-xl font-bold mb-2 text-center">{{ .Get "title" }}</h3>
+    <p class="text-gray-600">{{ .Get "description" }}</p>
+    {{ if or $buttonText $buttonLink }}
+    {{ $resolvedButtonText := $buttonText | default "Learn More" }}
+    {{ $resolvedButtonLink := $buttonLink | default "#" }}
+    <div class="flex justify-center button-container" > 
+    <a href="{{ $resolvedButtonLink }}" {{ if eq (lower $openInNewTab) "true" }} target="_blank" rel="noopener noreferrer" {{ end }} class="btn-primary flex justify-center" style="">{{ $resolvedButtonText }}</a>
+    </div>
+    {{ end }}
+</div>
+
+<style>
+    .project-card .button-container {
+        margin-top: 25px;
+        flex-direction: column;
+        justify-content: flex-end;
+        height: 100%;
+    }
+</style>

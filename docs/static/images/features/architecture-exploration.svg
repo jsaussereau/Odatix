@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" width="640" height="420" fill="none" role="img" aria-label="Architecture exploration: one parametrized design expanded into a matrix of configurations">
+  <defs>
+    <linearGradient id="ae-accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="ae-panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="ae-glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#2563eb" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="24" y="18" width="592" height="384" rx="40" fill="url(#ae-panel)"/>
+  <rect x="24" y="18" width="592" height="384" rx="40" stroke="#e2e8f0" stroke-width="2"/>
+  <circle cx="560" cy="70" r="150" fill="url(#ae-glow)"/>
+
+  <!-- source design -->
+  <rect x="62" y="150" width="150" height="120" rx="22" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="62" y="150" width="150" height="34" rx="17" fill="url(#ae-accent)"/>
+  <rect x="80" y="163" width="70" height="8" rx="4" fill="#ffffff" opacity="0.85"/>
+  <g stroke="#94a3b8" stroke-width="7" stroke-linecap="round">
+    <path d="M84 208h44"/><path d="M84 230h64"/><path d="M84 252h34"/>
+  </g>
+  <g fill="#2563eb">
+    <circle cx="168" cy="208" r="5"/><circle cx="188" cy="230" r="5"/><circle cx="158" cy="252" r="5"/>
+  </g>
+
+  <!-- fan-out links -->
+  <g stroke="#93c5fd" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M212 210C260 210 258 106 300 106"/>
+    <path d="M212 210C260 210 262 172 300 172"/>
+    <path d="M212 210C262 210 262 238 300 238"/>
+    <path d="M212 210C260 210 258 304 300 304"/>
+  </g>
+
+  <!-- generated configurations -->
+  <g>
+    <rect x="300" y="78" width="256" height="56" rx="18" fill="#ffffff" stroke="#bfdbfe" stroke-width="2"/>
+    <rect x="316" y="98" width="16" height="16" rx="5" fill="url(#ae-accent)"/>
+    <rect x="346" y="100" width="96" height="10" rx="5" fill="#cbd5e1"/>
+    <rect x="456" y="100" width="42" height="10" rx="5" fill="#bfdbfe"/>
+    <rect x="510" y="100" width="30" height="10" rx="5" fill="#bfdbfe"/>
+  </g>
+  <g>
+    <rect x="300" y="144" width="256" height="56" rx="18" fill="#ffffff" stroke="#bfdbfe" stroke-width="2"/>
+    <rect x="316" y="164" width="16" height="16" rx="5" fill="url(#ae-accent)"/>
+    <rect x="346" y="166" width="72" height="10" rx="5" fill="#cbd5e1"/>
+    <rect x="432" y="166" width="60" height="10" rx="5" fill="#bfdbfe"/>
+    <rect x="504" y="166" width="36" height="10" rx="5" fill="#bfdbfe"/>
+  </g>
+  <g>
+    <rect x="300" y="210" width="256" height="56" rx="18" fill="#ffffff" stroke="#bfdbfe" stroke-width="2"/>
+    <rect x="316" y="230" width="16" height="16" rx="5" fill="url(#ae-accent)"/>
+    <rect x="346" y="232" width="110" height="10" rx="5" fill="#cbd5e1"/>
+    <rect x="470" y="232" width="34" height="10" rx="5" fill="#bfdbfe"/>
+    <rect x="516" y="232" width="24" height="10" rx="5" fill="#bfdbfe"/>
+  </g>
+  <g>
+    <rect x="300" y="276" width="256" height="56" rx="18" fill="#ffffff" stroke="#bfdbfe" stroke-width="2"/>
+    <rect x="316" y="296" width="16" height="16" rx="5" fill="url(#ae-accent)"/>
+    <rect x="346" y="298" width="84" height="10" rx="5" fill="#cbd5e1"/>
+    <rect x="444" y="298" width="48" height="10" rx="5" fill="#bfdbfe"/>
+    <rect x="504" y="298" width="36" height="10" rx="5" fill="#bfdbfe"/>
+  </g>
+
+  <g fill="#64748b" font-family="Inter, system-ui, sans-serif" font-size="15" font-weight="600">
+    <text x="62" y="126">design + parameters</text>
+    <text x="300" y="60">generated configurations</text>
+  </g>
+</svg>

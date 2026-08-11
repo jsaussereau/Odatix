@@ -1,28 +1,23 @@
-
 # Required
 version: 2
 
-# Set the OS, Python version and other tools you might need
+# Git submodules
+submodules:
+  include: all
+  recursive: true
+
 build:
-  os: ubuntu-22.04
+  os: ubuntu-24.04
   tools:
     python: "3.12"
-    # You can also specify other tool versions:
-    # nodejs: "19"
-    # rust: "1.64"
-    # golang: "1.19"
+    nodejs: "22"
 
-# Build documentation in the "docs/" directory with Sphinx
-sphinx:
-  configuration: docs/source/conf.py
-
-# Optionally build your docs in additional formats such as PDF and ePub
-# formats:
-#    - pdf
-#    - epub
-
-# Optional but recommended, declare the Python requirements required
-# to build your documentation
-python:
-  install:
-    - requirements: docs/requirements.txt
+  commands:
+    # Install Hugo (extended). Must be >= 0.140.0 (required by the submodules)
+    - wget -q https://github.com/gohugoio/hugo/releases/download/v0.162.1/hugo_extended_0.162.1_linux-amd64.tar.gz
+    - tar -zxf hugo_extended_0.162.1_linux-amd64.tar.gz
+    - mkdir -p bin && mv hugo bin/hugo
+    # Build the documentation
+    - npm --prefix docs ci
+    - npm --prefix docs run css
+    - ./bin/hugo --source docs --destination $READTHEDOCS_OUTPUT/html --baseURL $READTHEDOCS_CANONICAL_URL
