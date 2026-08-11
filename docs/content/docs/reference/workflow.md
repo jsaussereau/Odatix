@@ -109,6 +109,17 @@ resolved configuration:
 | `${<workflow_name>}` | The workflow's own configuration value (its parameter file's content). |
 | `${<domain>}` | One per [parameter domain](/docs/configurations/param_domains/) of the workflow. |
 | `${<variable>}` | One per inline [variable](/docs/configurations/virtual_param_domains/). |
+| `${workflow}` | Name of this workflow. |
+| `${configuration}` | Configuration being run. |
+| `${workflow_full}` | Full name of the variant, domains included. |
+| `${work_path}` | The workflow's work directory. |
+| `${log_path}` | Directory logs are expected in. |
+| `${workflow_path}` | This workflow's definition directory. |
+| `${source_path}` | Directory the workflow's sources are copied from. |
+| `${odatix_path}` | Odatix installation directory. |
+
+A parameter domain or a variable named like a built-in placeholder wins over it,
+so declaring one never silently changes what a command already did.
 
 A placeholder that resolves to nothing is left unchanged, so environment
 variables still reach the shell. Environment tokens (`$env(VAR)`, `$VAR`,

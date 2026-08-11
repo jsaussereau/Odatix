@@ -86,11 +86,11 @@ tasks:
     dependencies:
       - compile
     commands:
-      - ./obj_dir/sim | tee ${log_dir}/sim.log
+      - ./obj_dir/sim | tee ${log_path}/sim.log
 {{< /code >}}
 
 Commands can use `${architecture}`, `${configuration}`, `${top_level_module}`,
-`${clock_signal}`, `${rtl_dir}`, `${log_dir}` and one placeholder per parameter
+`${clock_signal}`, `${rtl_path}`, `${log_path}` and one placeholder per parameter
 domain of the design — the full list is in the
 [simulation settings reference](/docs/reference/simulation/#placeholders-available-in-commands).
 
@@ -215,7 +215,7 @@ Jobs** → **Simulation** maps it to configurations and launches.
 
 | Symptom | Likely cause |
 |---------|--------------|
-| The testbench cannot find the RTL | Use `${rtl_dir}`; the copied design is not where it is in your source tree. |
+| The testbench cannot find the RTL | Use `${rtl_path}`; the copied design is not where it is in your source tree. |
 | Every configuration produces the same numbers | Parameter replacement is not reaching the testbench — check `param_target_file` and the delimiters. |
 | Nothing appears in Explorer | No `_metrics.yml`, or the file a metric reads was never written. |
 | Jobs are skipped | They already have results; add `-o/--overwrite`. |

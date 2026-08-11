@@ -89,6 +89,12 @@ of a [tool definition](/docs/reference/tools/):
 | `$tool_install_path` | The `tool_install_path` of this file. |
 | `$script_path` | The job's script directory. |
 | `$log_path` | The job's log directory. |
+| `$rtl_path` | The job's RTL directory, holding the copied sources. |
+| `$report_path` | The job's report directory. |
+| `$result_path` | The job's result directory. |
+| `$architecture` | Design being run, configuration included. |
+| `$target` | Target this job runs on. |
+| `$tool` | Name of this tool. |
 | `$clock_signal` | Clock signal of the design being run. |
 | `$top_level_module` | Its top level. |
 | `$lib_name` | Library name used by the flow. |

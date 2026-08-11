@@ -59,10 +59,19 @@ tasks:
 | `${arch_full}` | Full name of the variant, domains included. |
 | `${top_level_module}` | Top-level module of the design. |
 | `${clock_signal}` | Its clock signal. |
-| `${rtl_dir}` | Directory holding the copied RTL. |
-| `${log_dir}` | Directory logs are expected in. |
-| `${odatix_dir}` | Odatix installation directory. |
+| `${work_path}` | The simulation's work directory. |
+| `${rtl_path}` | Directory holding the copied RTL. |
+| `${log_path}` | Directory logs are expected in. |
+| `${script_path}` | The simulation's script directory. |
+| `${sim_path}` | This simulation's definition directory. |
+| `${design_path}` | Source directory of the design under test. |
+| `${odatix_path}` | Odatix installation directory. |
 | `${<domain>}` | One placeholder per parameter domain of the design under test. |
+
+`${rtl_dir}`, `${log_dir}` and `${odatix_dir}` are the former names of
+`${rtl_path}`, `${log_path}` and `${odatix_path}`. They still work, but the new
+ones match the variables of the [EDA tools](/docs/reference/tool/) and are what
+the editors offer.
 
 ## Progress reporting
 
