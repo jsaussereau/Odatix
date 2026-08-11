@@ -41,7 +41,7 @@ Define parametrizable designs, parameter domains and automatic configuration gen
 Job execution in daemon sessions, terminal and graphical job monitors.
 {{< /doc-card >}}
 
-{{< doc-card title="Custom tools and flows" link="/docs/custom_tools/" icon="wrench" accent="#fbbf24" >}}
+{{< doc-card title="Tools and flows" link="/docs/tools/" icon="wrench" accent="#fbbf24" >}}
 Add your own EDA tools to Odatix, and your own ways of running the ones it ships.
 {{< /doc-card >}}
 
@@ -49,8 +49,8 @@ Add your own EDA tools to Odatix, and your own ways of running the ones it ships
 How results are stored, exported, and consumed by Odatix Explorer.
 {{< /doc-card >}}
 
-{{< doc-card title="Example designs" link="/docs/examples/" icon="blocks" accent="#65a30d" >}}
-Ready-to-run designs shipped with Odatix — counter, ALU, CORDIC, ROM and more, with their configurations and workflows.
+{{< doc-card title="Examples" link="/docs/examples/" icon="blocks" accent="#65a30d" >}}
+Ready-to-run examples shipped with Odatix — six architectures, from counter to CORDIC, and nine workflows, each isolating one mechanism.
 {{< /doc-card >}}
 
 {{< doc-card title="Python API" link="/docs/python_api/" icon="code" accent="#006dad" >}}

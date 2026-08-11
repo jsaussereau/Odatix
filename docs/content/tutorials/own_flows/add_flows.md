@@ -165,6 +165,6 @@ what your script changed, on every configuration at once.
 
 ## Next steps
 
-- The full reference: [Run your own flows and scripts](/docs/custom_tools/add_flows/)
+- The full reference: [Run your own flows and scripts](/docs/tools/add_flows/)
 - No tool to attach a flow to? [Add an unsupported tool](/tutorials/own_flows/add_tools/)
 - [Commands](/docs/commands/#selecting-a-flow) · [Configuration reference](/docs/reference/tools/)

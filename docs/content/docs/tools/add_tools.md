@@ -63,7 +63,7 @@ Nothing else is registered anywhere: dropping this directory in
 | `target_file` | string | `target_<tool>.yml` | Name of the [target definition file](#target-definition-file). |
 | `default_flow` | string | `default` | Name the commands of the platform sections are known under. |
 | `unix` / `windows` | dict | — | What the tool runs on that platform — the commands of the default flow. |
-| `flows` | dict | — | Additional flows. See [Run your own flows and scripts](/docs/custom_tools/add_flows/). |
+| `flows` | dict | — | Additional flows. See [Run your own flows and scripts](/docs/tools/add_flows/). |
 | `format` | dict | — | [Log formatting](#log-formatting) rules for the Job Monitor. |
 
 ### Platform sections
@@ -379,5 +379,5 @@ written, and each section has a button putting it back to the built-in state.
 ## See also
 
 - Tutorial: [Add an unsupported tool](/tutorials/own_flows/add_tools/)
-- [Run your own flows and scripts](/docs/custom_tools/add_flows/) — flows, steps and inheritance
+- [Run your own flows and scripts](/docs/tools/add_flows/) — flows, steps and inheritance
 - [Metrics](/docs/results/metrics/) · [Configuration reference](/docs/reference/) · [Commands reference](/docs/commands/)

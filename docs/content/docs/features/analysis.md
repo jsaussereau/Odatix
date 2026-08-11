@@ -79,7 +79,7 @@ Whether a tool supports analysis is a property of the tool: a
 | [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) · [Custom-frequency synthesis](/docs/features/rtl_synthesis/) | The natural step before them: analysis is the cheap subset of what they do. |
 | [Simulation](/docs/features/simulation/) | Complementary verdicts — analysis says the RTL is *valid*, simulation says it is *correct*. |
 | [Explorer](/docs/features/explorer/) | A dedicated dashboard groups configurations by status, with the actual errors and warnings behind each. |
-| [Custom tools](/docs/custom_tools/add_tools/) | Declare `analysis_command` and your own tool joins the same comparison. |
+| [Tools](/docs/tools/add_tools/) | Declare `analysis_command` and your own tool joins the same comparison. |
 
 ## Using it
 

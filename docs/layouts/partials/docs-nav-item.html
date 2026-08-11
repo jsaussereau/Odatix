@@ -1,0 +1,55 @@
+{{/* One entry of the sidebar tree, recursing into its children.
+
+     A leaf renders as a plain link. A branch renders as a <details> whose
+     summary links to the section landing page, expanded when the current page
+     is inside it. Nesting is unbounded: a sub-section of a sub-section renders
+     the same way, one indent deeper.
+
+     Context: dict
+       page    (required) the page or section to render
+       current (required) RelPermalink of the page being rendered
+       depth   (required) 0 for top-level entries, incremented per level */}}
+{{ $page := .page }}
+{{ $current := .current }}
+{{ $depth := .depth }}
+
+{{ $children := slice }}
+{{ if eq $page.Kind "section" }}
+  {{ range $page.Pages }}
+    {{ if .Title }}{{ $children = $children | append . }}{{ end }}
+  {{ end }}
+{{ end }}
+
+{{ $isCurrent := eq $page.RelPermalink $current }}
+{{/* Open whenever the current page lives under this section */}}
+{{ $inSection := hasPrefix $current $page.RelPermalink }}
+
+{{ $activeClass := "bg-indigo-50 text-indigo-600 font-medium" }}
+{{ $idleClass := cond (eq $depth 0) "text-gray-700 hover:bg-gray-50 hover:text-gray-900" "text-gray-600 hover:bg-gray-50 hover:text-gray-900" }}
+{{ $padY := cond (eq $depth 0) "py-2" "py-1.5" }}
+
+<li>
+  {{ if $children }}
+  <details class="group" {{ if $inSection }}open{{ end }}>
+    <summary class="flex items-center justify-between gap-2 px-3 {{ $padY }} rounded-md cursor-pointer list-none select-none transition-colors duration-200
+                    {{ if $isCurrent }}{{ $activeClass }}{{ else }}{{ $idleClass }}{{ end }}">
+      <a href="{{ $page.RelPermalink }}" class="flex-1 min-w-0 truncate">{{ $page.Title }}</a>
+      <svg class="w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform duration-200 group-open:rotate-90"
+           fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+    </summary>
+    <ul class="ml-3 mt-0.5 space-y-0.5 border-l border-gray-200 pl-2">
+      {{ range sort $children "Weight" }}
+        {{ partial "docs-nav-item.html" (dict "page" . "current" $current "depth" (add $depth 1)) }}
+      {{ end }}
+    </ul>
+  </details>
+  {{ else }}
+  <a href="{{ $page.RelPermalink }}"
+     class="block px-3 {{ $padY }} rounded-md transition-colors duration-200
+            {{ if $isCurrent }}{{ $activeClass }}{{ else }}{{ $idleClass }}{{ end }}">
+    {{ $page.Title }}
+  </a>
+  {{ end }}
+</li>

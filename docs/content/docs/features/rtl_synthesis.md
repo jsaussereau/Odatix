@@ -150,5 +150,5 @@ shows up too, since there is one daemon for both.
 
 - **Tutorial** — [Custom-frequency synthesis](/tutorials/run_examples/synthesis/), on the bundled examples.
 - **Reference** — [Architecture settings](/docs/reference/architecture/) · [Run settings files](/docs/reference/run_settings/) · [Target files](/docs/reference/targets/) · [Tool definitions](/docs/reference/tools/)
-- **Guides** — [Commands](/docs/commands/) · [Custom tools and flows](/docs/custom_tools/)
+- **Guides** — [Commands](/docs/commands/) · [Tools and flows](/docs/tools/)
 - **Next feature** — [Maximum frequency search](/docs/features/rtl_fmax_synthesis/).

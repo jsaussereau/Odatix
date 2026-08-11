@@ -64,7 +64,7 @@ description: "Meet the team behind Odatix, a group of researchers and PhD studen
 <div class="max-w-6xl mx-auto">
     <h2 class="text-3xl font-bold text-center mb-5">Contributions</h2>
     <p class="text-lg text-gray-600 text-center">
-    <img src="/images/contribution.svg" class="w-64 mx-auto mb-6">      
+    <!-- <img src="/images/contribution.svg" class="w-64 mx-auto mb-6">       -->
     Contributions are welcome! If you would like to contribute to Odatix, please visit our GitHub repository and submit a pull request. We appreciate your support in improving Odatix and making it even better for the community.
     </p>
 </div>

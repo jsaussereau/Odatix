@@ -6,7 +6,7 @@ weight: 5
 
 # Sine ROM (Chisel)
 
-The ROM example sweeps a **generated** sine lookup table over two independent dimensions: how many entries it has, and how wide each entry is. It sits between the [counter](/docs/examples/counter/) and the [Cordic](/docs/examples/cordic/) in complexity, and it is the example to read to understand [parameter domains](/docs/configurations/param_domains/) whose configurations are **not written by hand**.
+The ROM example sweeps a **generated** sine lookup table over two independent dimensions: how many entries it has, and how wide each entry is. It sits between the [counter](/docs/examples/architectures/counter/) and the [Cordic](/docs/examples/architectures/cordic/) in complexity, and it is the example to read to understand [parameter domains](/docs/configurations/param_domains/) whose configurations are **not written by hand**.
 
 Everything about it is generated twice over: the ROM content is computed in Scala at elaboration time, and the configuration list is computed by Odatix from a variable declaration.
 
@@ -78,7 +78,7 @@ Storing a quarter period and reconstructing the rest by symmetry is the classic 
 The two are a genuine trade-off, and not redundant: total storage is `2^addr_bits × data_bits` bits, so the two axes cost very differently. Adding one address bit doubles the ROM; adding one data bit grows it by about 10%. Whether that buys anything depends on which error dominates — angular or amplitude — which is exactly what a two-dimensional sweep is for.
 
 > [!TIP]
-> This is the same shape of question as the [Cordic](/docs/examples/cordic/)'s `WIDTH` vs `ITERATIONS`, on a design that stores its answers instead of computing them. Running both and comparing area at equal accuracy is the classic ROM-versus-CORDIC argument.
+> This is the same shape of question as the [Cordic](/docs/examples/architectures/cordic/)'s `WIDTH` vs `ITERATIONS`, on a design that stores its answers instead of computing them. Running both and comparing area at equal accuracy is the classic ROM-versus-CORDIC argument.
 
 ## Files
 
@@ -127,7 +127,7 @@ reset_signal: "reset"
 use_parameters: No
 {{< /code >}}
 
-`use_parameters: No` is the same choice the [Cordic](/docs/examples/cordic/) makes: **both** parameters live in their own [parameter domain](/docs/configurations/param_domains/), so Odatix sweeps them independently and combines them automatically instead of requiring one file per (depth, width) pair.
+`use_parameters: No` is the same choice the [Cordic](/docs/examples/architectures/cordic/) makes: **both** parameters live in their own [parameter domain](/docs/configurations/param_domains/), so Odatix sweeps them independently and combines them automatically instead of requiring one file per (depth, width) pair.
 
 ## The parameter domains
 
@@ -239,6 +239,7 @@ $ odatix fmax -t vivado -a "Example_Rom_Chisel + addr/12bits + data/*"
 
 ## Where to go next
 
-- [Variables](/docs/configurations/variables/) — the full variable-type reference, and the [dedicated example](/docs/examples/config_generation/) that walks through every one of them.
+- [Variables](/docs/configurations/variables/) — the full variable-type reference, and the [dedicated example](/docs/examples/architectures/config_generation/) that walks through every one of them.
 - [Parameter domains](/docs/configurations/param_domains/) — the mechanism that combines `addr` and `data`.
-- [Cordic](/docs/examples/cordic/) — the same two-dimensional trade-off, computed instead of stored.
+- [Cordic](/docs/examples/architectures/cordic/) — the same two-dimensional trade-off, computed instead of stored.
+- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.

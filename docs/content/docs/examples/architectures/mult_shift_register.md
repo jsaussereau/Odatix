@@ -84,7 +84,7 @@ start_delimiter: "#("
 stop_delimiter: ")("
 {{< /code >}}
 
-The delimiters are the same `#(` / `)(` as the [ALU](/docs/examples/alu/) — and here they are unambiguous, since the file contains a single module and no instantiation.
+The delimiters are the same `#(` / `)(` as the [ALU](/docs/examples/architectures/alu/) — and here they are unambiguous, since the file contains a single module and no instantiation.
 
 ### The Chisel version
 
@@ -139,7 +139,7 @@ A registered `BITS` × `BITS` multiplier, truncated back to `BITS` bits:
   end
 {{< /code >}}
 
-Both ends are registered, for the same reason as in the [ALU](/docs/examples/alu/): the timing report must measure the multiplier array and nothing else. Latency is 2 cycles.
+Both ends are registered, for the same reason as in the [ALU](/docs/examples/architectures/alu/): the timing report must measure the multiplier array and nothing else. Latency is 2 cycles.
 
 {{< details title="Interface" >}}
 | Port | Direction | Width | Role |
@@ -237,6 +237,7 @@ Then open the [Explorer](/docs/features/explorer/) and plot fmax and area agains
 
 ## Where to go next
 
-- [ALU](/docs/examples/alu/) — the third curve of the comparison, and where the `#(` delimiter needs more care.
-- [Counter](/docs/examples/counter/) — the reference sweep, in four languages.
+- [ALU](/docs/examples/architectures/alu/) — the third curve of the comparison, and where the `#(` delimiter needs more care.
+- [Counter](/docs/examples/architectures/counter/) — the reference sweep, in four languages.
 - [Explorer](/docs/features/explorer/) — where these curves are meant to end up.
+- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.

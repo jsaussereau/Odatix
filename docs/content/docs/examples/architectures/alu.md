@@ -8,7 +8,7 @@ weight: 3
 
 The ALU is the first example with **more than one source file**. It is a small arithmetic and logic unit — twelve operations, one result register — described in SystemVerilog and in Chisel, and swept over its datapath width.
 
-What it adds over the [counter](/docs/examples/counter/) is structure: a package holding the opcode enumeration, a submodule doing the work, and a top level whose only job is to register the inputs. That is enough to show how Odatix handles a design that is not a single file, and why the module a sweep targets is not always the module a designer would consider the main one.
+What it adds over the [counter](/docs/examples/architectures/counter/) is structure: a package holding the opcode enumeration, a submodule doing the work, and a top level whose only job is to register the inputs. That is enough to show how Odatix handles a design that is not a single file, and why the module a sweep targets is not always the module a designer would consider the main one.
 
 {{< details title="What this example demonstrates" >}}
 - **A multi-file design** — Odatix copies the whole `rtl_path` directory, so packages and submodules follow without being listed anywhere.
@@ -74,7 +74,7 @@ endpackage
 {{< /code >}}
 
 > [!TIP]
-> That wrapper is not decoration, it is what makes the numbers meaningful. Without it, the critical path reported by the tool would start at an input port and end at a flip-flop, and would depend on how the tool chose to constrain the boundary rather than on the ALU itself. **Registering both ends of the design under test is the reliable way to measure logic depth** — the same reason the [multiplier](/docs/examples/mult_shift_register/) registers its operands.
+> That wrapper is not decoration, it is what makes the numbers meaningful. Without it, the critical path reported by the tool would start at an input port and end at a flip-flop, and would depend on how the tool chose to constrain the boundary rather than on the ALU itself. **Registering both ends of the design under test is the reliable way to measure logic depth** — the same reason the [multiplier](/docs/examples/architectures/mult_shift_register/) registers its operands.
 
 {{< details title="Interface" >}}
 | Port | Direction | Width | Role |
@@ -179,7 +179,7 @@ module alu_top
 Only the **first** match is substituted, which is the module header — so the sweep works. The `alu` instantiation is left alone, and `BITS` reaches the submodule the normal way, through the port map.
 
 > [!WARNING]
-> Short delimiters are convenient but fragile: they depend on where in the file the first match happens to be. Prefer a delimiter that can only match one place, as the [Cordic](/docs/examples/cordic/) example does with `parameter WIDTH = `. Here the shorter form is kept because it lets `Example_ALU_sv` and `Example_Shift_Register_sv` share the exact same configuration files.
+> Short delimiters are convenient but fragile: they depend on where in the file the first match happens to be. Prefer a delimiter that can only match one place, as the [Cordic](/docs/examples/architectures/cordic/) example does with `parameter WIDTH = `. Here the shorter form is kept because it lets `Example_ALU_sv` and `Example_Shift_Register_sv` share the exact same configuration files.
 
 The configuration file holds the fragment to write between the delimiters:
 
@@ -283,6 +283,7 @@ Running both architectures side by side and opening the [Explorer](/docs/feature
 
 ## Where to go next
 
-- [Multiplier & Shift Register](/docs/examples/mult_shift_register/) — two more `BITS` sweeps, sharing the same configuration files, whose curves make a good three-way comparison with the ALU.
-- [Counter](/docs/examples/counter/) — the same architecture settings, one file and one always block.
-- [Cordic](/docs/examples/cordic/) — where one parameter is no longer enough.
+- [Multiplier & Shift Register](/docs/examples/architectures/mult_shift_register/) — two more `BITS` sweeps, sharing the same configuration files, whose curves make a good three-way comparison with the ALU.
+- [Counter](/docs/examples/architectures/counter/) — the same architecture settings, one file and one always block.
+- [Cordic](/docs/examples/architectures/cordic/) — where one parameter is no longer enough.
+- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.

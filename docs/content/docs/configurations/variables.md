@@ -281,7 +281,7 @@ variables:
 `source` is a template substituted with the current values, `format` an optional
 printf-style format applied to the result. The classic use is zero-padding so that
 generated names sort correctly — `04bits`, `06bits`, `08bits`, `10bits` instead of
-`4bits`, `6bits`, `8bits`, `10bits` (see the [Sine ROM example](/docs/examples/rom/)).
+`4bits`, `6bits`, `8bits`, `10bits` (see the [Sine ROM example](/docs/examples/architectures/rom/)).
 
 ## Optional per-variable keys
 
@@ -430,4 +430,4 @@ Full guide: [Virtual parameter domains](/docs/configurations/virtual_param_domai
 - [Configuration generation](/docs/configurations/config_generation/) — writing parameter files from variables
 - [Virtual parameter domains](/docs/configurations/virtual_param_domains/) — variables as domains for workflows and generated RTL
 - [Parameter domains](/docs/configurations/param_domains/) — file-based domains
-- [Configuration generation example](/docs/examples/config_generation/) — a catalogue architecture demonstrating each type
+- [Configuration generation example](/docs/examples/architectures/config_generation/) — a catalogue architecture demonstrating each type

@@ -90,7 +90,7 @@ variables:
       step: 10
 {{< /code >}}
 
-Generates `config_10`, `config_20`, … `config_100` — ten configurations. `step` defaults to 1; the `data` domain of the [ROM example](/docs/examples/rom/) uses `from: 8, to: 14` with no step at all.
+Generates `config_10`, `config_20`, … `config_100` — ten configurations. `step` defaults to 1; the `data` domain of the [ROM example](/docs/examples/architectures/rom/) uses `from: 8, to: 14` with no step at all.
 
 ### `power_of_two` — exponentially spaced values
 
@@ -307,7 +307,7 @@ Two `range` variables of three values each give **nine** configurations; the two
 
 Generation is the right answer when the configuration list is **derivable** — a regular progression, a constrained set, or two parameters tied by a formula. It keeps the intent in the file, and adding a value means changing one number.
 
-Hand-written `.txt` files stay the better answer when the list is short, irregular, and unlikely to change — the seven `04bits.txt … 64bits.txt` files of the [counter](/docs/examples/counter/) are clearer as files than as a generator.
+Hand-written `.txt` files stay the better answer when the list is short, irregular, and unlikely to change — the seven `04bits.txt … 64bits.txt` files of the [counter](/docs/examples/architectures/counter/) are clearer as files than as a generator.
 
 And when the design already accepts the parameter on its command line, neither is needed: see [virtual parameter domains](/docs/configurations/virtual_param_domains/) and the CLI variant of the counter.
 
@@ -315,5 +315,6 @@ And when the design already accepts the parameter on its command line, neither i
 
 - [Variables](/docs/configurations/variables/) — the full reference for every variable type shown here, plus the ones this example does not cover (`bool`, `conversion`, filtering, `group`).
 - [Configuration generation](/docs/configurations/config_generation/) — how those variables become parameter files.
-- [Sine ROM](/docs/examples/rom/) — generation used for real, inside two parameter domains, with a `format` variable for readable names.
+- [Sine ROM](/docs/examples/architectures/rom/) — generation used for real, inside two parameter domains, with a `format` variable for readable names.
 - [Parameter domains](/docs/configurations/param_domains/) — how generated configurations combine across dimensions.
+- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.

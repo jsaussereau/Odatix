@@ -104,7 +104,7 @@ for `odatix fmax` or `odatix synth`.
 | [Custom-frequency synthesis](/docs/features/rtl_synthesis/) · [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | Where the source jobs come from — a place & route run has nothing to do without one. |
 | [Architecture exploration](/docs/features/architecture-exploration/) | The source selector accepts wildcards, so a whole set of configurations is implemented in one command. |
 | [Explorer](/docs/features/explorer/) | Compare post-route reality against the synthesis estimate that predicted it. |
-| [Custom tools](/docs/custom_tools/add_tools/) | Adding a place & route tool is declaring `pnr_steps` in a `tool.yml`. |
+| [Tools](/docs/tools/add_tools/) | Adding a place & route tool is declaring `pnr_steps` in a `tool.yml`. |
 
 ## Using it
 
@@ -163,5 +163,5 @@ enqueues into the same daemon as the CLI.
 
 - **Tutorial** — [Place & route a synthesized design](/tutorials/run_examples/pnr/).
 - **Reference** — [Run settings files](/docs/reference/run_settings/#sources--place--route-inputs) · [Tool definitions](/docs/reference/tools/#steps) · [Target files](/docs/reference/targets/)
-- **Guides** — [Custom tools and flows](/docs/custom_tools/) · [Results & export](/docs/results/) · [Commands](/docs/commands/)
+- **Guides** — [Tools and flows](/docs/tools/) · [Results & export](/docs/results/) · [Commands](/docs/commands/)
 - **Related feature** — [Automated RTL synthesis](/docs/features/rtl_synthesis/), where the source jobs come from.

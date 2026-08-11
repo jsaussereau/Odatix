@@ -420,6 +420,7 @@ $ odatix sim
 
 ## Where to go next
 
-- [Cordic](/docs/examples/cordic/) — the same ideas, with two independent parameter domains and four simulators.
-- [Multiplier & Shift Register](/docs/examples/mult_shift_register/) — two more one-parameter designs, whose curves are worth comparing against the counter's.
+- [Cordic](/docs/examples/architectures/cordic/) — the same ideas, with two independent parameter domains and four simulators.
+- [Multiplier & Shift Register](/docs/examples/architectures/mult_shift_register/) — two more one-parameter designs, whose curves are worth comparing against the counter's.
 - [Virtual parameter domains](/docs/configurations/virtual_param_domains/) — the mechanism behind `Example_Counter_chisel_cli`.
+- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.

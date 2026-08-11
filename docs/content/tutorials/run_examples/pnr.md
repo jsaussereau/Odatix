@@ -147,7 +147,7 @@ the settings file:
 Adding another place & route tool is the same work as adding any other tool:
 declare `pnr_steps` in a `tool.yml`. Your scripts reach the source job through
 `$source_netlist`, `$source_sdc`, `$source_sdf` and `$source_work_path`. See
-[Add non supported tools](/docs/custom_tools/add_tools/).
+[Add non supported tools](/docs/tools/add_tools/).
 
 ### Step 7 — Compare estimate against reality
 
@@ -179,5 +179,5 @@ card runs up to that step.
 
 - **Feature** — [Place & route](/docs/features/pnr/).
 - **Reference** — [Run settings files](/docs/reference/run_settings/#sources--place--route-inputs) · [Tool definitions](/docs/reference/tools/#steps) · [Target files](/docs/reference/targets/)
-- **Guides** — [Custom tools and flows](/docs/custom_tools/) · [Commands](/docs/commands/)
+- **Guides** — [Tools and flows](/docs/tools/) · [Commands](/docs/commands/)
 - **Related tutorial** — [Custom-frequency synthesis](/tutorials/run_examples/synthesis/), which produces the source jobs.

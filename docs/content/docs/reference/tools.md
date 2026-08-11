@@ -15,7 +15,7 @@ Verilator, Innovus and IC Compiler II. Your own go in `tools_path` (default
 `odatix_userconfig/tools/<tool>/`).
 
 This page is the schema. For the walkthrough, see
-[Add non supported tools](/docs/custom_tools/add_tools/) and its
+[Add non supported tools](/docs/tools/add_tools/) and its
 [tutorial](/tutorials/own_flows/add_tools/).
 
 {{< toc >}}
@@ -320,7 +320,7 @@ file, all writing this YAML. See [The Odatix GUI](/docs/gui/app/).
 
 ## See also
 
-- Guide: [Add non supported tools](/docs/custom_tools/add_tools/) · [Add your own flows](/docs/custom_tools/add_flows/)
+- Guide: [Add non supported tools](/docs/tools/add_tools/) · [Add your own flows](/docs/tools/add_flows/)
 - Tutorials: [Add unsupported tools](/tutorials/own_flows/add_tools/) · [Add your own flows](/tutorials/own_flows/add_flows/)
 - [Target files](/docs/reference/targets/) — the devices a tool implements for.
 - [Metrics files](/docs/reference/metrics/) — what a tool extracts from its reports.

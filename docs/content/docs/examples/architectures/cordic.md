@@ -273,3 +273,10 @@ The reported metrics fall into four groups:
 
 Each run sweeps 512 test vectors spread evenly over a full turn, compares them against a floating-point reference, and checks the error against the **theoretical bound of that configuration** (residual angle after the last rotation, plus the truncation of the per-stage shifts) with a small margin. A configuration is therefore not judged against a fixed threshold, but against what it can legitimately be expected to achieve.
 
+## Where to go next
+
+- [Counter](/docs/examples/architectures/counter/) — the same substitution mechanism, on the shortest possible design.
+- [Sine ROM](/docs/examples/architectures/rom/) — the same two-dimensional trade-off, stored instead of computed.
+- [Parameter domains](/docs/configurations/param_domains/) — how `WIDTH` and `ITERATIONS` combine.
+- [Simulation](/docs/features/simulation/) — the feature behind the four simulator flows.
+- [All architecture examples](/docs/examples/architectures/) — the six designs and what each one adds.

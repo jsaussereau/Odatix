@@ -15,4 +15,4 @@ from the GUI or from a short YAML file.
 > no clock and no target — is a [workflow](/docs/features/workflows/), not a tool.
 
 For the complete reference behind these two tutorials, see
-[Custom tools and flows](/docs/custom_tools/).
+[Tools and flows](/docs/tools/).

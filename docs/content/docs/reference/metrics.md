@@ -46,6 +46,7 @@ Simulation and workflow files use a single `metrics` section, plus an optional
 | `format` | No | Numeric formatting string, e.g. `"%.2f"`. |
 | `unit` | No | Unit label exported with the value, e.g. `MHz`. |
 | `error_if_missing` | No | Default `true`. Set to `false` when a value may legitimately be absent. |
+| `step` | No | Synthesis only. Name of the [flow step](/docs/tools/add_flows/) the metric is extracted from. `$step` in `settings.file` resolves to it, and the metric is left out of the record when the job did not reach that step. |
 | `benchmark_only` | No | Synthesis only. Extract only when benchmark export is enabled. |
 | `multiple` | No | Workflows and simulations only. Default `false`; `true` extracts every match and expands the run into one record per row. Supported by `regex`, `csv` and `xml`. |
 

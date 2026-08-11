@@ -215,6 +215,6 @@ colors in the Job Monitor.
 
 ## Next steps
 
-- The full reference: [Add non supported tools](/docs/custom_tools/add_tools/)
-- [Run your own flows and scripts](/docs/custom_tools/add_flows/) — several ways to run the same tool
+- The full reference: [Add non supported tools](/docs/tools/add_tools/)
+- [Run your own flows and scripts](/docs/tools/add_flows/) — several ways to run the same tool
 - Not a synthesis at all? [Workflows](/docs/features/workflows/) run arbitrary task graphs

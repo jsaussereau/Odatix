@@ -1,5 +1,5 @@
 ---
-title: "Run your own flows and scripts"
+title: "Custom flows and scripts"
 description: "Declare flows in tool.yml, split them into resumable steps, and add flows of your own to the tools Odatix ships."
 weight: 3
 ---
@@ -303,8 +303,74 @@ by the `flow` meta key — which is what lets Odatix Explorer plot them against
 each other. The flow is also written into the job directory (`flow.txt`), so a
 full re-export (`odatix res_synth`) keeps the flow of results produced earlier.
 
-`flow` is a dimension; `step` is not. A job resumed to a further step replaces
-its own record, since its metrics are refreshed in place.
+`flow` is a dimension; `step` is not. A result record is identified by the run it
+comes from — its architecture, its configuration, its target, its tool and its
+flow — so running the same configuration under two flows leaves **two records**,
+side by side, which is exactly what makes them comparable.
+
+`step` is recorded on the result, but it is not part of that identity. Running a
+job `--until synthesis` and later resuming it to `pnr` therefore **replaces the
+first record** instead of adding a second one. That is the intended behaviour:
+the two runs do not describe two designs, they describe the same one measured
+twice, the second time more accurately — post-synthesis estimates give way to
+post-route numbers. Keeping both would mean two points where there is one, one of
+them known to be obsolete, so the latest wins.
+
+In short: to compare, use flows; going further into the steps of a flow refines a
+result, it does not add one.
+
+### Comparing the steps of a run
+
+That leaves one question open: what if you *do* want to see what place & route
+did to the post-synthesis estimate? Since both numbers belong to the same run,
+they belong to the same record — as two metrics, not two records.
+
+A metric can name the step it is extracted from. `$step` in its file then
+resolves to the report directory that step wrote, and the metric is simply left
+out when the job never reached that step: a run stopped at synthesis is not
+missing its post-route numbers, it has not produced them.
+
+{{< code lang=yaml filename="tools/vivado/metrics.yml" >}}
+metrics:
+  LUT_count_synth:
+    type: regex
+    step: synthesis
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| (Slice|CLB) LUTs \\s*\\|\\s*([0-9]+).*"
+      group_id: 2
+    format: "%.0f"
+
+  LUT_count_pnr:
+    type: regex
+    step: pnr
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| (Slice|CLB) LUTs \\s*\\|\\s*([0-9]+).*"
+      group_id: 2
+    format: "%.0f"
+
+  # Only defined on a job that ran both steps, hence error_if_missing
+  LUT_pnr_delta:
+    type: operation
+    step: pnr
+    error_if_missing: false
+    settings:
+      op: LUT_count_pnr - LUT_count_synth
+    format: "%.0f"
+{{< /code >}}
+
+For this to work the tool's scripts have to keep a copy of the reports per step,
+since each step overwrites the report files of the one before. Vivado's steps do
+it through `odatix_write_reports <step>` (`step_common.tcl`), which writes the
+usual `report/utilization.rep` *and* a snapshot under `report/<step>/`. The
+built-in Vivado metrics use this to expose `LUT_count_synth` / `LUT_count_pnr`
+and `Reg_count_synth` / `Reg_count_pnr` out of the box.
+
+Both values end up on the same record, so Odatix Explorer plots one against the
+other directly. A job resumed from synthesis to place & route keeps its
+post-synthesis columns — they live in `report/synthesis/`, which place & route
+does not touch — and gains the post-route ones.
 
 > [!NOTE]
 > A flow name becomes part of a directory name, so it cannot contain `@` (the
@@ -354,6 +420,6 @@ from one that already works.
 ## See also
 
 - Tutorial: [Add a flow of your own](/tutorials/own_flows/add_flows/)
-- [Add non supported tools](/docs/custom_tools/add_tools/) — when there is no tool to add a flow to
+- [Add non supported tools](/docs/tools/add_tools/) — when there is no tool to add a flow to
 - [Configuration reference](/docs/reference/tools/#steps) — condensed schema, `--until` / `--rerun-from` semantics
 - [Commands reference](/docs/commands/#selecting-a-flow)
