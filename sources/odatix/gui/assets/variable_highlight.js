@@ -29,13 +29,17 @@
  * colored spans. The field is made transparent (text + background) and sits on
  * top, so the user still types normally while seeing the colors of the mirror.
  *
- * Three colors, by where the ${name} resolves:
+ * Four colors, by where the ${name} resolves:
  *   - defined variable  : a variable of the instance, either a variable card on
  *                         the page (read live from the DOM) or a window global
  *                         pushed from Python via a clientside callback
  *   - parameter domain  : a physical domain of the instance (window global,
  *                         pushed from Python via a clientside callback)
- *   - not found         : neither
+ *   - built-in variable : one Odatix substitutes itself ($work_path,
+ *                         ${rtl_dir}, ...), declared by the page (see
+ *                         odatix.gui.builtin_variables) with its description,
+ *                         which the hover tooltip shows
+ *   - not found         : none of them
  */
 
 (function () {
@@ -80,11 +84,23 @@
     return names;
   }
 
+  // The element a page declares its built-in variables in, if any.
+  function builtinElement() {
+    return document.querySelector("[data-odatix-hl-builtins]");
+  }
+
+  // The window globals hold what the last page pushing them left there: a page
+  // saying it pushes none of its own must not inherit them.
+  function usesGlobals() {
+    var element = builtinElement();
+    return !(element && element.hasAttribute("data-odatix-hl-no-globals"));
+  }
+
   function definedVariableNames() {
     // The variable cards' title inputs; read live so renaming a variable
     // recolors the commands without a save. Pages without variable cards (the
     // architecture editor) push their variable names from Python instead.
-    var names = nameSet(window.__odatixHlVariables);
+    var names = nameSet(usesGlobals() ? window.__odatixHlVariables : []);
     document.querySelectorAll('input[id*="variable-title"]').forEach(function (input) {
       var value = (input.value || "").trim();
       if (value) {
@@ -95,10 +111,25 @@
   }
 
   function paramDomainNames() {
-    return nameSet(window.__odatixHlParamDomains);
+    return nameSet(usesGlobals() ? window.__odatixHlParamDomains : []);
   }
 
-  // Class + hover description for each kind of ${...} token.
+  // {name: description} of the variables Odatix substitutes itself, declared by
+  // the page in a hidden element (see odatix.gui.builtin_variables).
+  function builtinVariables() {
+    var element = builtinElement();
+    if (!element) {
+      return {};
+    }
+    try {
+      return JSON.parse(element.getAttribute("data-odatix-hl-builtins")) || {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  // Class + hover description for each kind of ${...} token. A built-in one
+  // describes itself, so it has no entry here.
   var KINDS = {
     "wf-hl-var": "user defined variable",
     "wf-hl-domain": "parameter domain",
@@ -107,7 +138,9 @@
       + "otherwise define it as a variable below",
   };
 
-  function classFor(name, variables, domains) {
+  var TOKEN_CLASSES = ["wf-hl-var", "wf-hl-domain", "wf-hl-builtin", "wf-hl-unknown"];
+
+  function classFor(name, variables, domains, builtins) {
     var key = name.trim();
     if (variables.has(key)) {
       return "wf-hl-var";
@@ -115,10 +148,13 @@
     if (domains.has(key)) {
       return "wf-hl-domain";
     }
+    if (Object.prototype.hasOwnProperty.call(builtins, key)) {
+      return "wf-hl-builtin";
+    }
     return "wf-hl-unknown";
   }
 
-  function buildHtml(text, variables, domains) {
+  function buildHtml(text, variables, domains, builtins) {
     var html = "";
     var lastIndex = 0;
     var match;
@@ -126,9 +162,10 @@
     while ((match = VAR_PATTERN.exec(text)) !== null) {
       html += escapeHtml(text.slice(lastIndex, match.index));
       var rawName = match[1] !== undefined ? match[1] : match[2];
-      var cls = classFor(rawName, variables, domains);
+      var cls = classFor(rawName, variables, domains, builtins);
       var name = rawName.trim();
-      var tip = (name ? name + ": " : "") + KINDS[cls];
+      var tip = (name ? name + ": " : "")
+        + (cls === "wf-hl-builtin" ? builtins[name] : KINDS[cls]);
       html +=
         '<span class="wf-hl-token ' + cls + '" data-wf-hl-tip="' + escapeHtml(tip) + '">'
         + escapeHtml(match[0])
@@ -193,9 +230,9 @@
     return mirror;
   }
 
-  function refreshTextarea(textarea, variables, domains) {
+  function refreshTextarea(textarea, variables, domains, builtins) {
     var mirror = ensureMirror(textarea);
-    mirror.innerHTML = buildHtml(textarea.value || "", variables, domains);
+    mirror.innerHTML = buildHtml(textarea.value || "", variables, domains, builtins);
 
     var computed = window.getComputedStyle(textarea);
     COPIED_STYLES.forEach(function (prop) {
@@ -217,8 +254,9 @@
     }
     var variables = definedVariableNames();
     var domains = paramDomainNames();
+    var builtins = builtinVariables();
     textareas.forEach(function (textarea) {
-      refreshTextarea(textarea, variables, domains);
+      refreshTextarea(textarea, variables, domains, builtins);
     });
   }
 
@@ -326,8 +364,10 @@
     var tip = getTooltip();
     tip.textContent = hit.token.getAttribute("data-wf-hl-tip") || "";
     // Match the tooltip color to the token kind.
-    tip.classList.remove("wf-hl-var", "wf-hl-domain", "wf-hl-unknown");
-    ["wf-hl-var", "wf-hl-domain", "wf-hl-unknown"].forEach(function (cls) {
+    TOKEN_CLASSES.forEach(function (cls) {
+      tip.classList.remove(cls);
+    });
+    TOKEN_CLASSES.forEach(function (cls) {
       if (hit.token.classList.contains(cls)) {
         tip.classList.add(cls);
       }

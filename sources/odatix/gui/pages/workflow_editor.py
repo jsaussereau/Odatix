@@ -29,6 +29,7 @@ from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
+import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 import odatix.gui.variable_editor as ve
 from odatix.lib.config_generator import get_variables
@@ -1162,7 +1163,11 @@ layout = html.Div(
         html.Div(id="workflow-form-container"),
         html.Div(
             children=[
-                ui.title_tile(text="Task Definition", id="wf-task-title", tooltip="Tasks can be used to define the steps of the workflow."),
+                ui.title_tile(
+                    text="Task Definition", id="wf-task-title",
+                    tooltip="Tasks can be used to define the steps of the workflow.",
+                    buttons=builtin_variables.variable_list("workflow", id="wf-builtin-variables"),
+                ),
                 html.Div([
                     html.Div(
                         id="wf-task-cards-row",
@@ -1189,6 +1194,9 @@ layout = html.Div(
         # variables (which it reads live from the variable cards).
         dcc.Store(id="wf-hl-param-domains", data=[]),
         dcc.Store(id="wf-hl-dummy", data=""),
+        # A workflow command has no built-in variable, but declaring the (empty)
+        # list keeps a stale one from another editor out of this page.
+        builtin_variables.highlight_data("workflow", id="wf-hl-builtins", declares_variables=True),
     ],
     className="page-content",
     style={

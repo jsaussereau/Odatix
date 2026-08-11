@@ -31,6 +31,7 @@ from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
+import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 import odatix.workspace.sim_architectures as sim_architectures
 
@@ -1831,9 +1832,10 @@ layout = html.Div(
                     id="sim-task-title",
                     tooltip=(
                         "Tasks define the steps of the simulation. Without any task, the simulation runs "
-                        '"make sim" from its Makefile. Commands can use ${architecture}, ${configuration}, '
-                        "${top_level_module}, ${clock_signal}, ${rtl_dir} and one placeholder per parameter domain."
+                        '"make sim" from its Makefile. Commands can use the built-in placeholders listed '
+                        'under "Variables", and one placeholder per parameter domain.'
                     ),
+                    buttons=builtin_variables.variable_list("simulation", id="sim-builtin-variables"),
                 ),
                 html.Div([
                     html.Div(
@@ -1854,6 +1856,8 @@ layout = html.Div(
         ),
         dcc.Store(id="sim-initial-settings", data=None),
         dcc.Store(id="sim-saved-settings", data=None),
+        # What the command highlighter colors as built-in variables.
+        builtin_variables.highlight_data("simulation", id="sim-hl-builtins"),
     ],
     className="page-content",
     style={

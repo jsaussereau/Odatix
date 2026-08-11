@@ -64,6 +64,7 @@ from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
+import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 
@@ -736,7 +737,7 @@ def step_row(flow_uid, platform, job, step_uid, name="", command="", is_default=
                     "One argument per line, added to the session"
                     if kind == "args" else "One argument per line"
                 ),
-                className="auto-resize-textarea",
+                className="auto-resize-textarea odatix-command-field",
                 disabled=locked,
             ),
         ],
@@ -761,7 +762,7 @@ def session_editor(flow_uid, platform, job, session, locked=False):
                     id={"type": "tool-session-" + kind, "flow": flow_uid, "platform": platform, "job": job},
                     value=_as_lines(value),
                     placeholder="One argument per line",
-                    className="auto-resize-textarea",
+                    className="auto-resize-textarea odatix-command-field",
                     disabled=locked,
                 ),
             ],
@@ -804,7 +805,7 @@ def job_editor(flow_uid, platform, job, label, tooltip, supports_steps, spec, is
                 id={"type": "tool-cmd", "flow": flow_uid, "platform": platform, "job": job},
                 value=_as_lines(spec.get("command", [])),
                 placeholder="One argument per line",
-                className="auto-resize-textarea",
+                className="auto-resize-textarea odatix-command-field",
                 disabled=locked,
             ),
             style=_hidden(mode == "command"),
@@ -1881,6 +1882,7 @@ layout = html.Div(
                     tooltip="The ways this tool can be run. Each flow declares, per platform and per job type, "
                             "either a single command or an ordered list of resumable steps; a flow that declares "
                             "nothing runs what the default flow does.",
+                    buttons=builtin_variables.variable_list("tool", id="tool-builtin-variables"),
                 ),
                 html.Div(id="tool-flows-container", className="odx-flows"),
                 ui.title_tile(text="Log Formatting", id="tool-format-title", tooltip="Tags and markers used to colorize the tool output in the job monitor."),
@@ -1902,6 +1904,8 @@ layout = html.Div(
         dcc.Store(id="tool-builtin-settings", data=None),
         dcc.Store(id="tool-initial-settings", data=None),
         dcc.Store(id="tool-saved-settings", data=None),
+        # What the command highlighter colors as built-in variables.
+        builtin_variables.highlight_data("tool", id="tool-hl-builtins"),
     ],
     className="page-content",
     style={
