@@ -1,7 +1,7 @@
 ---
 title: "Design configurations (variants)"
 description: "Define parametrizable designs, organize parameters into domains, and generate configurations automatically."
-weight: 2
+weight: 4
 ---
 
 # Configurations
@@ -19,6 +19,7 @@ Odatix builds configurations from three mechanisms that stack on top of each oth
 | **Parameter files** | One file per configuration, splicing values into the delimited section of your top level. | You have a handful of variants to compare. |
 | **[Parameter domains](/docs/configurations/param_domains/)** | Independent groups of parameters combined with `+`. | Parameters are independent (memory depth, ISA extensions, multiplier type…). |
 | **[Configuration generation](/docs/configurations/config_generation/)** | Rules that create the parameter files for you. | The value set follows a pattern — ranges, powers of two, lists, functions. |
+| **[Variables](/docs/configurations/variables/)** | The value sets behind those rules, shared with [virtual parameter domains](/docs/configurations/virtual_param_domains/). | You need the exhaustive list of types and options. |
 
 ## Defining a design
 
@@ -97,6 +98,10 @@ a configuration file simply provides the replacement:
 
 Create as many files as you want. The only constraint is a strict correspondence — in names and count — between the parameter files and the parameter section of your top level.
 
+> [!TIP]
+> If you don't want to write the files by hand, use [parameter domains](/docs/configurations/param_domains/) or [configuration generation](/docs/configurations/config_generation/) to produce them automatically. You can also use the [Python API](/docs/python_api/) to generate them programmatically.
+
+<!-- 
 ## Test a replacement on its own
 
 `odatix replace` is useful when preparing a new design: it applies the same
@@ -114,11 +119,24 @@ $ odatix replace \
 
 By default, the first delimited block is replaced. Add `--all` when every
 matching block must receive the same replacement. The command keeps the
-delimiter text itself, so the output remains suitable for a later Odatix run.
+delimiter text itself, so the output remains suitable for a later Odatix run. -->
 
-## Scaling up
+## In this section
 
-Writing files by hand does not scale to large design spaces. The next two pages remove that work:
+{{< doc-cards cols="4" >}}
+{{< doc-card title="Parameter domains" link="/docs/configurations/param_domains/" icon="domains" accent="#425ad6" >}}
+Combine independent parameters automatically.
+{{< /doc-card >}}
 
-- **[Parameter domains](/docs/configurations/param_domains/)** — combine independent parameters automatically.
-- **[Configuration generation](/docs/configurations/config_generation/)** — generate the parameter files from compact rules.
+{{< doc-card title="Variables" link="/docs/configurations/variables/" icon="variables" accent="#425ad6" >}}
+The exhaustive reference of the value sets used by generation, workflows and generated-RTL architectures.
+{{< /doc-card >}}
+
+{{< doc-card title="Configuration generation" link="/docs/configurations/config_generation/" icon="generate" accent="#425ad6" >}}
+Generate parameter files from compact rules.
+{{< /doc-card >}}
+
+{{< doc-card title="Virtual Parameter Domains" link="/docs/configurations/virtual_param_domains/" icon="virtual" accent="#425ad6" >}}
+Create virtual parameter domains for more complex design spaces.
+{{< /doc-card >}}
+{{< /doc-cards >}}

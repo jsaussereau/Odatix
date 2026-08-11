@@ -44,7 +44,7 @@ design and **each target** you selected.
   or on two technology nodes, each with its own bounds.
 - **Feeding derived metrics.** Fmax is the denominator of real runtime: cycles
   from a simulation divided by Fmax from here. See
-  [derived metrics](/docs/metrics/derived/).
+  [derived metrics](/docs/results/derived_metrics/).
 
 ## How it works
 

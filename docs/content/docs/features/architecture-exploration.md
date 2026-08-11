@@ -107,12 +107,13 @@ generate_configurations: Yes
 generate_configurations_settings:
   template: "parameter BITS = $var;"
   name: "config_${var}"
-  variables:
-    var:
-      type: power_of_two
-      settings:
-        from: 8
-        to: 1024
+
+variables:
+  var:
+    type: power_of_two
+    settings:
+      from: 8
+      to: 1024
 {{< /code >}}
 
 ### Works with any HDL — even generated RTL

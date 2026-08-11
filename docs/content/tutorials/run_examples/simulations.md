@@ -185,7 +185,7 @@ $ odatix-explorer
 
 ## Going further
 
-Because simulation metrics live next to synthesis metrics, you can answer questions that need both — such as *which configuration has the best benchmark score per watt/usage/area.* Computing a value from both, such as a runtime, is what [derived metrics](/docs/metrics/derived/) are for.
+Because simulation metrics live next to synthesis metrics, you can answer questions that need both — such as *which configuration has the best benchmark score per watt/usage/area.* Computing a value from both, such as a runtime, is what [derived metrics](/docs/results/derived_metrics/) are for.
 
 For validation pipelines with several steps, dependencies or non-HDL tools, use [workflows](/docs/features/workflows/) instead of `sim`.
 

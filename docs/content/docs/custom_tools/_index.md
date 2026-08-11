@@ -127,6 +127,6 @@ The full anatomy of a tool directory: `tool.yml`, variables, the job directory c
 - Tutorials: [Add a flow of your own](/tutorials/own_flows/add_flows/) ·
   [Add an unsupported tool](/tutorials/own_flows/add_tools/)
 - [Configuration reference](/docs/reference/tools/) — the condensed `tool.yml` schema
-- [Metrics](/docs/metrics/) — what a tool measures
+- [Metrics](/docs/results/) — what a tool measures
 - [Simulations](/docs/features/simulation/) · [RTL analysis](/docs/features/analysis/) · [Place & route](/docs/features/pnr/)
 - [Commands reference](/docs/commands/#selecting-a-flow) — `--flow`, `--until`, `--rerun-from`

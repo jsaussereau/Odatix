@@ -72,7 +72,7 @@ document.
 | [Place & route](/docs/features/pnr/) | Put synthesis estimates and post-route reality side by side. |
 | [Simulation](/docs/features/simulation/) | Benchmark numbers live next to area and timing, so throughput-per-LUT is one chart away. |
 | [Workflows](/docs/features/workflows/) | Any metric a workflow extracts is chartable and correlatable like the rest. |
-| [Derived metrics](/docs/metrics/derived/) | Compute what you actually want to plot — runtime, energy, efficiency — from metrics several job types produced. |
+| [Derived metrics](/docs/results/derived_metrics/) | Compute what you actually want to plot — runtime, energy, efficiency — from metrics several job types produced. |
 
 ## Using it
 
@@ -114,4 +114,4 @@ workstation.
 
 - **Tutorial** — [Explore your results](/tutorials/run_examples/rtl_analysis/).
 - **Reference** — [Metrics files](/docs/reference/metrics/) · [Commands](/docs/commands/)
-- **Guides** — [Odatix Explorer](/docs/gui/explorer/) · [Results & export](/docs/results/) · [Derived metrics](/docs/metrics/derived/)
+- **Guides** — [Odatix Explorer](/docs/gui/explorer/) · [Results & export](/docs/results/) · [Derived metrics](/docs/results/derived_metrics/)

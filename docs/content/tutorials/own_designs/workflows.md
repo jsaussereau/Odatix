@@ -80,12 +80,11 @@ Two things to know:
 parameter files:
 
 {{< code lang=yaml filename="workflows/Experiment/_settings.yml (continued)" >}}
-generate_configurations_settings:
-  variables:
-    threads:
-      type: list
-      settings:
-        list: [1, 2, 4, 8]
+variables:
+  threads:
+    type: list
+    settings:
+      list: [1, 2, 4, 8]
 {{< /code >}}
 
 Odatix will run the workflow once per value. With a second variable, it runs the
@@ -119,7 +118,7 @@ metrics:
 {{< /code >}}
 
 Other extraction types read a CSV column, a JSON or YAML key, or an XML element —
-see [Base metrics](/docs/metrics/base/).
+see [Base metrics](/docs/results/metrics/).
 
 ## Step 5 — Run one configuration
 
@@ -183,7 +182,7 @@ $ odatix res_workflow
 | Patch a value **inside** a source file instead of a command line | Set `use_parameters: Yes` with `param_target_file`, `start_delimiter`, `stop_delimiter`, and one `.txt` per configuration. |
 | Run several stages | Add tasks and list them in `dependencies`; independent branches run in parallel. |
 | Support Linux and Windows | Declare the same task name twice with different `platforms`. |
-| Produce a curve, not one number | Use `multiple: true` and a `metadata` section — see [Base metrics](/docs/metrics/base/#expanding-one-run-into-several-records). |
+| Produce a curve, not one number | Use `multiple: true` and a `metadata` section — see [Base metrics](/docs/results/metrics/#expanding-one-run-into-several-records). |
 | Set up an environment once | Make it a task the others depend on, like the shipped `tensorflow` example. |
 
 ## Doing it from the GUI
@@ -197,5 +196,5 @@ it writes are the ones above.
 
 - **Feature** — [Custom workflows](/docs/features/workflows/).
 - **Reference** — [Workflow settings](/docs/reference/workflow/) · [Metrics files](/docs/reference/metrics/) · [Run settings files](/docs/reference/run_settings/)
-- **Guides** — [Define a workflow](/docs/reference/workflow/) · [Virtual parameter domains](/docs/configurations/virtual_param_domains/) · [Derived metrics](/docs/metrics/derived/)
+- **Guides** — [Define a workflow](/docs/reference/workflow/) · [Virtual parameter domains](/docs/configurations/virtual_param_domains/) · [Derived metrics](/docs/results/derived_metrics/)
 - **Related tutorial** — [Run the workflow examples](/tutorials/run_examples/workflows/).

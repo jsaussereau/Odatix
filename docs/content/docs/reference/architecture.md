@@ -196,25 +196,28 @@ generate them from a rule.
 | Key | Type | Description |
 |-----|------|-------------|
 | `generate_configurations` | bool | Enable generation for this design or domain. |
-| `generate_configurations_settings` | mapping | The rule: `template`, `name`, and `variables`. |
+| `generate_configurations_settings` | mapping | The rule: `template` and `name`. |
+| `variables` | mapping | The value sets the rule is applied to. A root key, since variables are not specific to generation. |
 
 {{< code lang=yaml filename="_settings.yml" >}}
 generate_configurations: Yes
 generate_configurations_settings:
   template: "parameter BITS = $var;"
   name: "config_${var}"
-  variables:
-    var:
-      type: power_of_two
-      settings:
-        from: 8
-        to: 1024
+
+variables:
+  var:
+    type: power_of_two
+    settings:
+      from: 8
+      to: 1024
 {{< /code >}}
 
-Every variable type (`range`, `list`, `power_of_two`, `multiples`, `function`,
-set operations) is documented on
-[Configuration generation](/docs/configurations/config_generation/). Variables
-declared without `generate_configurations` and referenced in a
+Every variable type (`bool`, `range`, `list`, `power_of_two`, `multiples`,
+`function`, `conversion`, `format`, set operations) is documented on
+[Variables](/docs/configurations/variables/). A `variables` block written inside
+`generate_configurations_settings`, where it used to be declared, is still read.
+Variables declared without `generate_configurations` and referenced in a
 `generate_command` become
 [virtual parameter domains](/docs/configurations/virtual_param_domains/) instead.
 

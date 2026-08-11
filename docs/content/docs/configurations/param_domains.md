@@ -1,7 +1,7 @@
 ---
 title: "Parameter Domains"
 description: "Split independent parameters into domains and combine them automatically to cover a full design space."
-weight: 3
+weight: 1
 ---
 
 
@@ -92,13 +92,14 @@ generate_configurations: Yes
 generate_configurations_settings:
   template: "\n  parameter p_dmem_depth_pw2 = $mem_depth,\n"
   name: "${mem_depth_pw2}"
-  variables:
-    mem_depth:
-      type: range
-      settings: { from: 8, to: 12 }
-    mem_depth_pw2:
-      type: function
-      settings: { op: 2^$mem_depth }
+
+variables:
+  mem_depth:
+    type: range
+    settings: { from: 8, to: 12 }
+  mem_depth_pw2:
+    type: function
+    settings: { op: 2^$mem_depth }
 {{< /code >}}
 
 ## Running jobs with parameter domains

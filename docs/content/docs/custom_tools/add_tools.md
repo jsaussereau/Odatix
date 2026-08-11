@@ -282,7 +282,7 @@ metrics:          # extracted whatever the job type
 {{< /code >}}
 
 `regex`, `csv`, `yaml`, `json`, `xml` and computed `operation` extractors are all
-available — see [Metrics](/docs/metrics/base/) for the full reference, and the
+available — see [Metrics](/docs/results/metrics/) for the full reference, and the
 **Metrics** button of the GUI for a graphical editor of this file.
 
 A flow can override the file with its own `metrics_file` — useful when one flow
@@ -380,4 +380,4 @@ written, and each section has a button putting it back to the built-in state.
 
 - Tutorial: [Add an unsupported tool](/tutorials/own_flows/add_tools/)
 - [Run your own flows and scripts](/docs/custom_tools/add_flows/) — flows, steps and inheritance
-- [Metrics](/docs/metrics/base/) · [Configuration reference](/docs/reference/) · [Commands reference](/docs/commands/)
+- [Metrics](/docs/results/metrics/) · [Configuration reference](/docs/reference/) · [Commands reference](/docs/commands/)

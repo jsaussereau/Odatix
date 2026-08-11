@@ -424,17 +424,32 @@ How the configurations of a domain are
 |---|---|---|
 | `name` | str | Name given to each generated configuration, e.g. `"${width}bits"`. |
 | `template` | any | Text written in each generated configuration file. |
-| `variables` | dict | Definition of each variable, by name. |
+| `variables` | dict | Former location of the variables, read for backward compatibility. |
 
-| Method | What it does |
+The values themselves are the [variables](/docs/configurations/variables/) of the
+architecture, of the workflow or of the domain, declared at the root of its
+settings file rather than here.
+
+### Variables
+
+Every settings class that can be swept — `ArchitectureSettings`,
+`WorkflowSettings` and `DomainSettings` — carries the `variables` mapping and the
+methods to edit it.
+
+| Setting / Method | What it does |
 |---|---|
-| `set_variable(name, type, settings, format=None, group=None)` | Declare a variable, replacing any declaration of the same name. `type` is `"range"`, `"list"` or `"function"`; `settings` is what that type needs, e.g. `{"from": 1, "to": 8}` or `{"list": [1, 2, 4]}`. `format` is applied to the values; variables sharing a `group` are zipped together value by value instead of being crossed. |
+| `variables` | dict — definition of each variable, by name. |
+| `set_variable(name, type, settings, format=None, group=None)` | Declare a variable, replacing any declaration of the same name. `type` is `"range"`, `"list"`, `"function"`… ; `settings` is what that type needs, e.g. `{"from": 1, "to": 8}` or `{"list": [1, 2, 4]}`. `format` is applied to the values; variables sharing a `group` are zipped together value by value instead of being crossed. |
 | `remove_variable(name)` | |
 | `variable_names()` | |
 
 `variable_definition(name, type, settings, format=None, group=None)` builds a
-single `{name: definition}` mapping, for callers assembling a generation block
+single `{name: definition}` mapping, for callers assembling a variables block
 themselves.
+
+Reading settings written before variables moved to the root of the file still
+works: they are read from `generate_configurations_settings`, and written back at
+the root the next time the file is saved.
 
 ### `combinations`, `count_combinations`
 
@@ -455,9 +470,7 @@ width.settings.stop_delimiter = ")"
 width.settings.generate_configurations = True
 width.settings.generate_configurations_settings.name = "${width}bits"
 width.settings.generate_configurations_settings.template = "WIDTH = ${width}"
-width.settings.generate_configurations_settings.set_variable(
-    "width", "range", {"from": 8, "to": 64, "step": 8}
-)
+width.settings.set_variable("width", "range", {"from": 8, "to": 64, "step": 8})
 width.save()
 
 width.preview_configurations()                  # {name: content}, writes nothing
@@ -802,7 +815,7 @@ which keeps the comments and the keys the API does not own.
 
 ### `DerivedMetricsFile`
 
-The [derived metrics](/docs/metrics/) file of a workspace
+The [derived metrics](/docs/results/) file of a workspace
 (`ws.derived_metrics`).
 
 | Member | What it does |

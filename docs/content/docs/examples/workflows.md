@@ -16,7 +16,7 @@ The nine shipped examples use throwaway Python — a string manipulator, a traff
 - **Command placeholders** — `${name}` in a command, filled from a configuration, a parameter domain, or a variable.
 - **[Virtual parameter domains](/docs/configurations/virtual_param_domains/)** — sweeps declared as variables, with no directory behind them.
 - **Paired variables** — values zipped together instead of cross-combined, so two parameters move as one.
-- **[Metrics](/docs/metrics/) from JSON, CSV and regex** — and `operation` metrics computed from the others.
+- **[Metrics](/docs/results/) from JSON, CSV and regex** — and `operation` metrics computed from the others.
 - **Multi-row metrics** — one run producing many result records, one per row of a CSV.
 - **Environment bootstrapping** — a task that builds a virtualenv, with a fallback if it fails.
 {{< /details >}}
@@ -317,30 +317,29 @@ tasks:
     commands:
       - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing} --road_length ${road_length}
 
-generate_configurations_settings:
-  variables:
-    max_speed:
-      type: list
-      unit: kmh
-      settings:
-        list: [35, 45, 55]
+variables:
+  max_speed:
+    type: list
+    unit: kmh
+    settings:
+      list: [35, 45, 55]
 
-    num_vehicles:
-      type: list
-      settings:
-        list: [100, 300]
+  num_vehicles:
+    type: list
+    settings:
+      list: [100, 300]
 
-    signal_timing:
-      type: list
-      unit: s
-      settings:
-        list: [15, 45]
+  signal_timing:
+    type: list
+    unit: s
+    settings:
+      list: [15, 45]
 
-    road_length:
-      type: list
-      unit: km
-      settings:
-        list: [1, 5]
+  road_length:
+    type: list
+    unit: km
+    settings:
+      list: [1, 5]
 {{< /code >}}
 
 Selected the same way, with `+ max_speed/*`, and named the same way — `unit: kmh` produces `max_speed/35kmh`, reproducing by declaration what the directory version encoded in its file names. This is the [virtual parameter domain](/docs/configurations/virtual_param_domains/) mechanism, and reading the two workflows side by side is the fastest way to understand it.
@@ -357,32 +356,31 @@ Cross-combining every variable is not always what you want. Here, `max_speed` an
 Giving them the same `group` label zips them instead:
 
 {{< code lang=yaml filename="workflows/param_domains_paired_variables/_settings.yml" >}}
-generate_configurations_settings:
-  variables:
-    max_speed:
-      type: list
-      unit: kmh
-      group: road_profile
-      settings:
-        list: [35, 90]
+variables:
+  max_speed:
+    type: list
+    unit: kmh
+    group: road_profile
+    settings:
+      list: [35, 90]
 
-    road_length:
-      type: list
-      unit: km
-      group: road_profile
-      settings:
-        list: [1, 10]
+  road_length:
+    type: list
+    unit: km
+    group: road_profile
+    settings:
+      list: [1, 10]
 
-    num_vehicles:
-      type: list
-      settings:
-        list: [100, 300]
+  num_vehicles:
+    type: list
+    settings:
+      list: [100, 300]
 
-    signal_timing:
-      type: list
-      unit: s
-      settings:
-        list: [15, 45]
+  signal_timing:
+    type: list
+    unit: s
+    settings:
+      list: [15, 45]
 {{< /code >}}
 
 `35 kmh` pairs with `1 km` and `90 kmh` with `10 km`, position by position — two coherent road profiles, urban and highway. The ungrouped variables still cross-combine normally with them:
@@ -449,12 +447,11 @@ tasks:
     commands:
       - python3 simulate_ber.py --channel_gain ${channel_gain} --ebno_from 1 --ebno_to 3 --ebno_step 0.5
 
-generate_configurations_settings:
-  variables:
-    channel_gain:
-      type: list
-      settings:
-        list: [0.5, 1.0]
+variables:
+  channel_gain:
+    type: list
+    settings:
+      list: [0.5, 1.0]
 {{< /code >}}
 
 Two configurations, five Eb/N0 points each. Taking the first row of the CSV and discarding the rest would throw away most of the run, so `multiple: true` extracts **every** row, and a `metadata` block tags each one with the value it belongs to:
@@ -548,13 +545,14 @@ generate_configurations: Yes
 generate_configurations_settings:
   template: "${epochs}"
   name: "${epochs}"
-  variables:
-    epochs:
-      type: range
-      settings:
-        from: 5
-        to: 50
-        step: 5
+
+variables:
+  epochs:
+    type: range
+    settings:
+      from: 5
+      to: 50
+      step: 5
 {{< /code >}}
 
 The metrics end on an `operation` that answers the actual question of the sweep — is the model overfitting?
@@ -587,5 +585,5 @@ Plotting `generalization_gap` against `epochs` in the [Explorer](/docs/features/
 
 - [Workflows](/docs/features/workflows/) — the feature reference.
 - [Workflow settings](/docs/reference/workflow/) — every setting these examples use, and the ones they do not.
-- [Metrics](/docs/metrics/) — the extractor types (`regex`, `json`, `csv`, `yaml`, `operation`) and what `multiple` and `metadata` do.
+- [Metrics](/docs/results/) — the extractor types (`regex`, `json`, `csv`, `yaml`, `operation`) and what `multiple` and `metadata` do.
 - [Virtual parameter domains](/docs/configurations/virtual_param_domains/) — variables, units, and grouping.

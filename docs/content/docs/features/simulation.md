@@ -38,7 +38,7 @@ or a Makefile of your own all fit.
   performance becomes a chartable dimension rather than a number in a log.
 - **Real runtime, not just Fmax.** Cycles from a simulation divided by Fmax from
   a synthesis is what a design actually takes. That is one
-  [derived metric](/docs/metrics/derived/) away.
+  [derived metric](/docs/results/derived_metrics/) away.
 - **Guarding a sweep.** Before implementing 200 configurations, confirm they are
   functionally worth implementing.
 - **Sweeping testbench parameters.** A shorter run time, a seed, a stimulus
@@ -83,7 +83,7 @@ Two mechanisms are specific to simulations:
 |-----------------|-----|
 | [Architecture exploration](/docs/features/architecture-exploration/) | The testbench is swept across every configuration, using the same domains as synthesis. |
 | [RTL analysis](/docs/features/analysis/) | Complementary verdicts: analysis says the RTL is valid, simulation says it is correct. |
-| [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | Cycles here + Fmax there = runtime, through [derived metrics](/docs/metrics/derived/). |
+| [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | Cycles here + Fmax there = runtime, through [derived metrics](/docs/results/derived_metrics/). |
 | [Workflows](/docs/features/workflows/) | For validation pipelines that go beyond one testbench — several tools, several stages, non-HDL steps. |
 | [Explorer](/docs/features/explorer/) | Benchmark figures sit next to area and timing, so throughput-per-LUT is one chart. |
 
@@ -160,5 +160,5 @@ launches into the same daemon.
 
 - **Tutorials** — [Run the example simulations](/tutorials/run_examples/simulations/) · [Simulate your own RTL](/tutorials/own_designs/simulations/)
 - **Reference** — [Simulation settings](/docs/reference/simulation/) · [Run settings files](/docs/reference/run_settings/#simulations--testbench-to-configurations) · [Metrics files](/docs/reference/metrics/)
-- **Reference** — [`simulations/<sim>/_settings.yml`](/docs/reference/simulation/) · [Derived metrics](/docs/metrics/derived/)
+- **Reference** — [`simulations/<sim>/_settings.yml`](/docs/reference/simulation/) · [Derived metrics](/docs/results/derived_metrics/)
 - **Next feature** — [Custom workflows](/docs/features/workflows/), for pipelines a single testbench cannot express.

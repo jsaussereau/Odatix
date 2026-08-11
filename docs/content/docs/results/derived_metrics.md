@@ -179,7 +179,7 @@ If no source result matches, Odatix warns once per metric, naming a few of the a
 
 ## See also
 
-- [Base metrics](/docs/metrics/base/) — extracting values from a job's own outputs.
+- [Base metrics](/docs/results/metrics/) — extracting values from a job's own outputs.
 - [Parameter domains](/docs/configurations/param_domains/) — the dimensions a join runs on.
 - [Results & export](/docs/results/) — where derived metrics end up.
 - [Odatix Explorer](/docs/gui/explorer/) — plotting them.

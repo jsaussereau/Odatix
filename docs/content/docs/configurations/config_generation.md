@@ -21,20 +21,44 @@ generate_configurations: Yes
 generate_configurations_settings:
   template: "parameter VALUE = $var;"
   name: "config_${var}"
-  variables:
-    # one or more variable definitions (see below)
+
+variables:
+  # one or more variable definitions (see below)
 {{< /code >}}
 
-| Field | Purpose |
-|-------|---------|
-| `generate_configurations` | Turns generation on. |
-| `template` | How generated values are written into the configuration file. |
-| `name` | Naming convention for each generated configuration. |
-| `variables` | How values are generated (ranges, lists, functions…). |
+| Field | Where | Purpose |
+|-------|-------|---------|
+| `generate_configurations` | root | Turns generation on. |
+| `template` | `generate_configurations_settings` | How generated values are written into the configuration file. |
+| `name` | `generate_configurations_settings` | Naming convention for each generated configuration. |
+| `variables` | root | How values are generated (ranges, lists, functions…). |
 
-## Variable definition methods
+> [!NOTE]
+> `template` and `name` are specific to configuration generation, and live inside
+> `generate_configurations_settings`. `variables` is a general mechanism, also used to
+> sweep [workflows and generated-RTL architectures](/docs/configurations/virtual_param_domains/),
+> so it is declared at the **root** of the settings file.
+>
+> Declaring it the former way, inside `generate_configurations_settings`, still works:
+> Odatix reads it there when the root key is absent, and moves it to the root the next
+> time it writes the file.
 
-### Range
+## Variables
+
+Every value set is declared as a variable with a `type` and its `settings`:
+
+| Family | Types |
+|--------|-------|
+| Generators (each adds a dimension) | `bool`, `range`, `power_of_two`, `list`, `multiples` |
+| Set operations between variables | `union`, `disjunctive_union`, `intersection`, `difference` |
+| Derived values (add no dimension) | `function`, `conversion`, `format` |
+
+The [Variables](/docs/configurations/variables/) page is the exhaustive reference: every
+type, its settings, the `whitelist` / `blacklist` filters and the optional `format`,
+`unit` and `group` keys. The rest of this page shows how those variables turn into
+parameter files.
+
+### A typical example
 
 {{< code lang=yaml filename="_settings.yml" >}}
 variables:
@@ -46,44 +70,7 @@ variables:
       step: 10
 {{< /code >}}
 
-Generates `{10, 20, 30, …, 100}`.
-
-### Power of two
-
-{{< code lang=yaml filename="_settings.yml" >}}
-variables:
-  var:
-    type: power_of_two
-    settings:
-      from_2^: 5
-      to_2^: 10
-{{< /code >}}
-
-Generates `{2^5 … 2^10}` = `{32, 64, 128, 256, 512, 1024}`. You can also give the bounds directly with `from: 32` / `to: 1024`.
-
-### Explicit list
-
-{{< code lang=yaml filename="_settings.yml" >}}
-variables:
-  var:
-    type: list
-    settings:
-      list: [100, 225, 412, 803]
-{{< /code >}}
-
-### Multiples of a base
-
-{{< code lang=yaml filename="_settings.yml" >}}
-variables:
-  var:
-    type: multiples
-    settings:
-      base: 8
-      from: 8
-      to: 64
-{{< /code >}}
-
-Generates `{8, 16, 24, …, 64}`.
+Generates `{10, 20, 30, …, 100}` — hence ten configurations `config_10` … `config_100`.
 
 ### Computed values (functions)
 
@@ -94,44 +81,22 @@ generate_configurations: Yes
 generate_configurations_settings:
   template: "parameter VALUE_START = $var;\n parameter VALUE_END = ${var_func};"
   name: "config_${var}..${var_func}"
-  variables:
-    var:
-      type: multiples
-      settings: { from: 0, to: 56, base: 8 }
-    var_func:
-      type: function
-      settings:
-        op: ${var}+7
+
+variables:
+  var:
+    type: multiples
+    settings: { from: 0, to: 56, base: 8 }
+  var_func:
+    type: function
+    settings:
+      op: ${var}+7
 {{< /code >}}
 
 `var` → `{0, 8, 16, …, 56}`, `var_func` → `{7, 15, 23, …, 63}`, producing `config_0..7`, `config_8..15`, …
 
-## Operations between variables
-
-Variables can be combined with set operations via `sources`:
-
-| `type` | Result |
-|--------|--------|
-| `union` | All values from every source. |
-| `disjunctive_union` | Values in exactly one source (symmetric difference). |
-| `intersection` | Values present in **all** sources. |
-| `difference` | Values in the first source but not the others. |
-
-{{< code lang=yaml filename="_settings.yml — intersection example" >}}
-variables:
-  mult_3:
-    type: multiples
-    settings: { base: 3, from: 1, to: 50 }
-  mult_4:
-    type: multiples
-    settings: { base: 4, from: 1, to: 50 }
-  inter_var:
-    type: intersection
-    settings:
-      sources: [mult_3, mult_4]
-{{< /code >}}
-
-`inter_var` → common multiples of 3 and 4 in `[1:50]` = `{12, 24, 36, 48}`.
+Variables can also be combined with set operations (`union`, `intersection`…) so that a
+generated configuration list follows several constraints at once — see
+[Variables](/docs/configurations/variables/#set-operations-between-variables).
 
 ## Combining multiple parameters
 
@@ -142,19 +107,20 @@ generate_configurations: Yes
 generate_configurations_settings:
   template: "\n  parameter p_dmem_depth_pw2 = $dmem_depth,\n  parameter p_imem_depth_pw2 = $imem_depth,\n"
   name: "DMEM_${dmem_depth_pw2}-IMEM_${imem_depth_pw2}"
-  variables:
-    dmem_depth:
-      type: range
-      settings: { from: 8, to: 10 }
-    dmem_depth_pw2:
-      type: function
-      settings: { op: 2^$dmem_depth }
-    imem_depth:
-      type: range
-      settings: { from: 8, to: 10 }
-    imem_depth_pw2:
-      type: function
-      settings: { op: 2^$imem_depth }
+
+variables:
+  dmem_depth:
+    type: range
+    settings: { from: 8, to: 10 }
+  dmem_depth_pw2:
+    type: function
+    settings: { op: 2^$dmem_depth }
+  imem_depth:
+    type: range
+    settings: { from: 8, to: 10 }
+  imem_depth_pw2:
+    type: function
+    settings: { op: 2^$imem_depth }
 {{< /code >}}
 
 Produces `DMEM_256-IMEM_256`, `DMEM_256-IMEM_512`, … `DMEM_1024-IMEM_1024` (nine configurations).
@@ -169,5 +135,7 @@ Odatix lists every configuration it will create and asks for confirmation before
 
 ## See also
 
+- [Variables](/docs/configurations/variables/) — the exhaustive variable reference
 - [Parameter domains](/docs/configurations/param_domains/)
+- [Virtual parameter domains](/docs/configurations/virtual_param_domains/) — the same variables, used by workflows and generated-RTL architectures
 - [Configuration reference](/docs/reference/)

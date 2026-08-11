@@ -185,7 +185,7 @@ $ odatix res_simulation
 ## Step 8 — Combine with synthesis
 
 Cycle counts get much more useful next to an Fmax. Once you have run both a
-simulation and a synthesis, a [derived metric](/docs/metrics/derived/) computes
+simulation and a synthesis, a [derived metric](/docs/results/derived_metrics/) computes
 the runtime:
 
 {{< code lang=yaml filename="odatix_userconfig/derived_metrics.yml" >}}
@@ -224,5 +224,5 @@ Jobs** → **Simulation** maps it to configurations and launches.
 
 - **Feature** — [Simulation & validation](/docs/features/simulation/).
 - **Reference** — [Simulation settings](/docs/reference/simulation/) · [Metrics files](/docs/reference/metrics/) · [Run settings files](/docs/reference/run_settings/#simulations--testbench-to-configurations)
-- **Guides** — [Simulation reference](/docs/reference/simulation/) · [Derived metrics](/docs/metrics/derived/)
+- **Guides** — [Simulation reference](/docs/reference/simulation/) · [Derived metrics](/docs/results/derived_metrics/)
 - **Going further** — [Create your own workflow](/tutorials/own_designs/workflows/), when one testbench command is not enough.

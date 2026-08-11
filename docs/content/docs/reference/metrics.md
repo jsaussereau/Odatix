@@ -80,7 +80,7 @@ metrics:
 {{< /code >}}
 
 Every type, with worked examples and the `multiple`/`metadata` mechanism, is
-documented on **[Base metrics](/docs/metrics/base/)**.
+documented on **[Base metrics](/docs/results/metrics/)**.
 
 ## `derived_metrics.yml`
 
@@ -97,7 +97,7 @@ The two kinds are `import` (read a metric from a matching result of another
 kind, keyed by `from`) and `operation` (evaluate an `op` expression). Every key
 — `apply_to`, `for`, `where`, `source_where`, `on_multiple`, `match` and the
 dimension-joining rules — is documented on
-**[Derived metrics](/docs/metrics/derived/)**.
+**[Derived metrics](/docs/results/derived_metrics/)**.
 
 ## In the GUI
 
@@ -108,7 +108,7 @@ pattern — for a tool, a workflow or a simulation. **Derived Metrics**
 
 ## See also
 
-- [Base metrics](/docs/metrics/base/) — every extraction type, in full.
-- [Derived metrics](/docs/metrics/derived/) — combining results across job types.
+- [Base metrics](/docs/results/metrics/) — every extraction type, in full.
+- [Derived metrics](/docs/results/derived_metrics/) — combining results across job types.
 - [Results & export](/docs/results/) — where extracted metrics end up.
 - [Tool definitions](/docs/reference/tools/) — pointing a tool at its metrics file.

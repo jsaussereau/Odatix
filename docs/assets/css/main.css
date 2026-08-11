@@ -1339,41 +1339,211 @@
 }
 
 
+/* ---------------------------------------------------------------------------
+   Code blocks ("code" shortcode): copy button, output folding, shell prompt.
+   These live here rather than in the shortcode itself: a shortcode can be
+   rendered several times for the same page (RSS, summaries), so a
+   Page.Scratch "emit once" guard can consume its only chance on a render
+   whose output is not the HTML page, leaving the page unstyled.
+   --------------------------------------------------------------------------- */
+
 .copy-code-button {
-	position: relative;
-	background-color: #374252;
-	padding: 0.25rem 0.5rem;
-	line-height: 1.5;
-	border-radius: 5px;
-	border: none;
-	color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  color: #cbd5e1;
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
 
-  &:hover,
-  &:focus {
-    background-color: #0075bf !important;
-    color: #e4e4e7 !important;
-    @include transition();
-  }
+.copy-code-button:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.26);
+}
 
-  &:focus {
-    &::before {
-      content: 'Copied!';
-    	font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 0.75rem;
-      line-height: 1.5;
-      white-space: nowrap;
-      position: absolute;
-      top: calc(100% + 0.4rem);
-      right: 0;
-      z-index: 10;
-      padding: 0.2rem 0.5rem;
-      border-radius: 0.25em;
-      pointer-events: none;
-      background-color: get-light-color('accent-color') !important;
-      color: get-light-color('text-over-accent-color') !important;
-      @include transition();
-    }
-  }
+.copy-code-button:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.7);
+  outline-offset: 2px;
+}
+
+.copy-code-icon {
+  display: block;
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.copy-code-icon--done,
+.copy-code-button.is-copied .copy-code-icon--copy {
+  display: none;
+}
+
+.copy-code-button.is-copied,
+.copy-code-button.is-copied:hover {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.4);
+  background-color: rgba(74, 222, 128, 0.12);
+}
+
+.copy-code-button.is-copied .copy-code-icon--done {
+  display: block;
+}
+
+/* Visually hidden, still announced by screen readers */
+.code-copy-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Output folding ------------------------------------------------------------ */
+
+.toggle-output-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 1.75rem;
+  padding: 0 0.6rem;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #94a3b8;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.codeblock:hover .toggle-output-button {
+  color: #cbd5e1;
+}
+
+.toggle-output-button:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.toggle-output-button:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.7);
+  outline-offset: 2px;
+}
+
+.toggle-output-icon {
+  width: 0.6rem;
+  height: 0.6rem;
+  flex: none;
+  transition: transform 0.2s ease;
+}
+
+.toggle-output-button[aria-expanded="true"] .toggle-output-icon {
+  transform: rotate(180deg);
+}
+
+.toggle-output-count {
+  min-width: 1.25em;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: inherit;
+  background-color: rgba(255, 255, 255, 0.09);
+  border-radius: 0.25rem;
+}
+
+.output-folded .highlight .line {
+  display: none;
+}
+
+.output-folded .highlight .line.has-shell-prompt {
+  display: block;
+}
+
+/* ANSI terminal captures --------------------------------------------------- */
+
+/* Terminal capture: no syntax highlighting, ANSI colors only */
+.ansi-block {
+    --ansi-black: #3b4048;
+    --ansi-red: #e06c75;
+    --ansi-green: #98c379;
+    --ansi-yellow: #e5c07b;
+    --ansi-blue: #61afef;
+    --ansi-magenta: #c678dd;
+    --ansi-cyan: #56b6c2;
+    --ansi-white: #dcdfe4;
+    --ansi-bright-black: #7f848e;
+    --ansi-bright-red: #ff7b86;
+    --ansi-bright-green: #b1e18b;
+    --ansi-bright-yellow: #ffd68a;
+    --ansi-bright-blue: #8ac5ff;
+    --ansi-bright-magenta: #e29aef;
+    --ansi-bright-cyan: #6fd3de;
+    --ansi-bright-white: #ffffff;
+}
+
+.ansi-black { color: var(--ansi-black); }
+.ansi-red { color: var(--ansi-red); }
+.ansi-green { color: var(--ansi-green); }
+.ansi-yellow { color: var(--ansi-yellow); }
+.ansi-blue { color: var(--ansi-blue); }
+.ansi-magenta { color: var(--ansi-magenta); }
+.ansi-cyan { color: var(--ansi-cyan); }
+.ansi-white { color: var(--ansi-white); }
+.ansi-bright-black { color: var(--ansi-bright-black); }
+.ansi-bright-red { color: var(--ansi-bright-red); }
+.ansi-bright-green { color: var(--ansi-bright-green); }
+.ansi-bright-yellow { color: var(--ansi-bright-yellow); }
+.ansi-bright-blue { color: var(--ansi-bright-blue); }
+.ansi-bright-magenta { color: var(--ansi-bright-magenta); }
+.ansi-bright-cyan { color: var(--ansi-bright-cyan); }
+.ansi-bright-white { color: var(--ansi-bright-white); }
+
+.ansi-bg-black { background-color: var(--ansi-black); }
+.ansi-bg-red { background-color: var(--ansi-red); }
+.ansi-bg-green { background-color: var(--ansi-green); }
+.ansi-bg-yellow { background-color: var(--ansi-yellow); }
+.ansi-bg-blue { background-color: var(--ansi-blue); }
+.ansi-bg-magenta { background-color: var(--ansi-magenta); }
+.ansi-bg-cyan { background-color: var(--ansi-cyan); }
+.ansi-bg-white { background-color: var(--ansi-white); }
+.ansi-bg-bright-black { background-color: var(--ansi-bright-black); }
+.ansi-bg-bright-red { background-color: var(--ansi-bright-red); }
+.ansi-bg-bright-green { background-color: var(--ansi-bright-green); }
+.ansi-bg-bright-yellow { background-color: var(--ansi-bright-yellow); }
+.ansi-bg-bright-blue { background-color: var(--ansi-bright-blue); }
+.ansi-bg-bright-magenta { background-color: var(--ansi-bright-magenta); }
+.ansi-bg-bright-cyan { background-color: var(--ansi-bright-cyan); }
+.ansi-bg-bright-white { background-color: var(--ansi-bright-white); }
+
+.ansi-bold { font-weight: 700; }
+.ansi-dim { opacity: 0.65; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
+
+/* Shell prompt -------------------------------------------------------------- */
+
+.shell-prompt-enabled .highlight .line.has-shell-prompt .cl::before {
+  content: "$ ";
+  color: #e5e7eb42;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
 }
 
 .highlight .c1 {

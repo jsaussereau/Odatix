@@ -1,7 +1,7 @@
 ---
 title: "Graphical User Interface (GUI)"
 description: "The daemon, the Job Monitor, Odatix Explorer, and how to run them on a remote server."
-weight: 7
+weight: 3
 ---
 
 # Graphical User Interface (GUI)
@@ -18,16 +18,25 @@ Odatix has a graphical application, `odatix-gui`, covering the whole workflow: c
 
 | | `odatix-gui` | `odatix-explorer` |
 |---|---|---|
-| Explore results | ✅ | ✅ |
 | Configure the workspace | ✅ | ❌ |
 | Launch and monitor jobs | ✅ | ❌ |
+| Explore results | ✅ | ✅ |
 | Typical use | your own machine | shared/public result hosting |
 
 See **[Hosting on a server](/docs/gui/host_server/)** for how to expose either one over the network.
 
 ## In this section
 
-- **[The Odatix GUI](/docs/gui/app/)** — the application itself: configuring a workspace and launching jobs from the browser.
-- **[Job Monitor & sessions](/docs/gui/monitor/)** — track parallel jobs, and manage detached daemon sessions.
-- **[Odatix Explorer](/docs/gui/explorer/)** — the interactive results dashboard and its options.
-- **[Hosting on a server](/docs/gui/host_server/)** — run the monitor and Explorer on a remote machine and access them over the network.
+{{< doc-cards cols="3" >}}
+{{< doc-card title="Odatix GUI" link="/docs/gui/" icon="window" accent="#0284c7" >}}
+The GUI application, with workspace configuration, job monitor and results dashboard.
+{{< /doc-card >}}
+
+{{< doc-card title="Odatix Explorer" link="/docs/gui/explorer/" icon="chart" accent="#0284c7" >}}
+The results dashboard, with charts, exports and interactive filtering.
+{{< /doc-card >}}
+
+{{< doc-card title="Hosting a server" link="/docs/gui/host_server/" icon="server" accent="#0284c7" >}}
+How to expose Odatix GUI and Odatix Explorer over the network.
+{{< /doc-card >}}
+{{< /doc-cards >}}

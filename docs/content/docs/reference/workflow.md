@@ -148,17 +148,23 @@ stop_delimiter:    '"'
 Set `use_parameters: No` when parameters are passed on the command line instead
 — then use variables, below.
 
-## `generate_configurations_settings` — inline variables
+## `variables` — inline variables
 
 Declares variables swept without any parameter file, substituted into commands
 as `${name}`. Odatix runs the **cross-product** of every variable.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `generate_configurations_settings.variables` | mapping | One entry per variable. |
-| `…<name>.type` | string | Generation method: `list`, `range`, `power_of_two`, `multiples`, `function`, set operations. |
-| `…<name>.settings` | mapping | Type-specific settings (`list`, `from`/`to`, `op`…). |
-| `…<name>.unit` | string | Optional unit appended to the generated value's name. |
+| `variables` | mapping | One entry per variable, at the root of the file. |
+| `variables.<name>.type` | string | Generation method: `list`, `range`, `power_of_two`, `multiples`, `function`, set operations. |
+| `variables.<name>.settings` | mapping | Type-specific settings (`list`, `from`/`to`, `op`…). |
+| `variables.<name>.unit` | string | Optional unit appended to the generated value's name. |
+| `variables.<name>.group` | string | Optional pairing group: variables sharing it are zipped instead of crossed. |
+
+> [!NOTE]
+> `variables` used to be declared inside `generate_configurations_settings`. It is still
+> read there when the root key is absent, and moved to the root the next time Odatix
+> writes the file.
 
 {{< code lang=yaml filename="_settings.yml" >}}
 use_parameters: No
@@ -168,21 +174,20 @@ tasks:
     commands:
       - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles}
 
-generate_configurations_settings:
-  variables:
-    max_speed:
-      type: list
-      unit: kmh
-      settings:
-        list: [35, 45, 55]
-    num_vehicles:
-      type: list
-      settings:
-        list: [100, 300]
+variables:
+  max_speed:
+    type: list
+    unit: kmh
+    settings:
+      list: [35, 45, 55]
+  num_vehicles:
+    type: list
+    settings:
+      list: [100, 300]
 {{< /code >}}
 
-Every generation method is documented on
-[Configuration generation](/docs/configurations/config_generation/); the
+Every variable type and option is documented on
+[Variables](/docs/configurations/variables/); the
 mechanism itself on
 [Virtual parameter domains](/docs/configurations/virtual_param_domains/).
 
@@ -204,7 +209,7 @@ metrics:
 
 A run producing a *curve* rather than one number expands into one record per
 point with `multiple: true` and a `metadata` section — see
-[Base metrics](/docs/metrics/base/#expanding-one-run-into-several-records).
+[Base metrics](/docs/results/metrics/#expanding-one-run-into-several-records).
 
 ## In the GUI
 

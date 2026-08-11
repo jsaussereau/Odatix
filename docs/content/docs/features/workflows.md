@@ -85,7 +85,7 @@ percentage out of it, which is what fills the
 | [Architecture exploration](/docs/features/architecture-exploration/) | The same parameter domains and generation rules, applied to non-HDL work. |
 | [Simulation](/docs/features/simulation/) | Simulations run on the very same task engine — a workflow is where to go when one testbench command is not enough. |
 | [Explorer](/docs/features/explorer/) | Workflow metrics are ordinary records: chartable and correlatable against synthesis figures. |
-| [Derived metrics](/docs/metrics/derived/) | Combine a workflow's numbers with a synthesis's, across job types. |
+| [Derived metrics](/docs/results/derived_metrics/) | Combine a workflow's numbers with a synthesis's, across job types. |
 | [Job Monitor](/docs/gui/monitor/) | Progress, logs and session control, identical to a synthesis campaign. |
 
 ## Using it
@@ -173,5 +173,5 @@ launch, and enqueues them into the same daemon as the CLI.
 
 - **Tutorials** — [Run the workflow examples](/tutorials/run_examples/workflows/) · [Create your own workflow](/tutorials/own_designs/workflows/)
 - **Reference** — [Workflow settings](/docs/reference/workflow/) · [Run settings files](/docs/reference/run_settings/#workflows--workflows-and-their-parameters) · [Metrics files](/docs/reference/metrics/)
-- **Guides** — [Define a workflow](/docs/reference/workflow/) · [Virtual parameter domains](/docs/configurations/virtual_param_domains/) · [Base metrics](/docs/metrics/base/)
+- **Guides** — [Define a workflow](/docs/reference/workflow/) · [Virtual parameter domains](/docs/configurations/virtual_param_domains/) · [Base metrics](/docs/results/metrics/)
 - **Related feature** — [Results exploration](/docs/features/explorer/), where a workflow's metrics end up.

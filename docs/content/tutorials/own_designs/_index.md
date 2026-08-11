@@ -21,7 +21,7 @@ your design space becomes larger.
 	architecture definition and configuration files.
 2. [Simulate your own RTL](/tutorials/own_designs/simulations/) to connect a
 	testbench and capture validation data.
-3. Use [derived metrics](/docs/metrics/derived/) when simulation, synthesis or
+3. Use [derived metrics](/docs/results/derived_metrics/) when simulation, synthesis or
 	workflow results need to be compared together.
 
 For Chisel, HLS or another generated-RTL flow, use the same architecture layout

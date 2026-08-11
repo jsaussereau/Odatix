@@ -84,7 +84,7 @@ Two mechanisms shape *how* a tool is run:
 | [RTL analysis](/docs/features/analysis/) | Run it first: seconds of elaboration save hours of synthesis on a broken configuration. |
 | [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | Find the ceiling with `fmax`, then study behaviour below it with `synth`. |
 | [Place & route](/docs/features/pnr/) | Hand the netlist to a second tool for post-route numbers. |
-| [Simulation](/docs/features/simulation/) | Cycles from a testbench plus Fmax from a synthesis give real runtime, via [derived metrics](/docs/metrics/derived/). |
+| [Simulation](/docs/features/simulation/) | Cycles from a testbench plus Fmax from a synthesis give real runtime, via [derived metrics](/docs/results/derived_metrics/). |
 | [Explorer](/docs/features/explorer/) | Turns the resulting table into charts you can publish. |
 
 ## Using it

@@ -223,22 +223,6 @@ $ eval "$(register-python-argcomplete odatix-explorer)"
 
 ## Update
 
-#### Option #1: You installed Odatix in editable mode
-
-To get updates, pull the latest changes from the repository and reinstall Odatix:
-
-{{< code lang=bash filename="Terminal" prompt="true" >}}
-$ git pull
-{{< /code >}}
-
-#### Option #2: You installed Odatix without editable mode
-
-To get updates, pull the latest changes from the repository and reinstall Odatix:
-
-{{< code lang=bash filename="Terminal" prompt="true" >}}
-$ git pull
-$ python3 -m pip install --upgrade ./sources
-{{< /code >}}
 
 > [!TIP]
 > You don't remember if you installed Odatix in editable mode or not? Run the following command: 
@@ -247,3 +231,21 @@ $ python3 -m pip show odatix | grep -i Location
 {{< /code >}}
 If you have a key "Editable project location" pointing to the `sources` folder, you installed it in editable mode. If you have only a "Location" key pointing to the `site-packages` folder, you installed it without editable mode.
 
+
+#### Option #1: You installed Odatix in editable mode
+
+To get updates, simply pull the latest changes from the repository:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ git pull
+{{< /code >}}
+
+#### Option #2: You installed Odatix without editable mode
+
+To get updates, pull the latest changes from the repository and reinstall Odatix.  
+**After activating the virtual environment** (if applicable):
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ git pull
+$ python3 -m pip install --upgrade ./sources
+{{< /code >}}

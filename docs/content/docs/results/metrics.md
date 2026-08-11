@@ -10,7 +10,7 @@ A **base metric** is a value Odatix pulls out of a job's own output files — LU
 
 Odatix does not hard-code any metric. Everything is declared in **metrics definition files**, so you can measure whatever your tool or script happens to report.
 
-For values that come from *another* result rather than from the job's own files, see [Derived metrics](/docs/metrics/derived/).
+For values that come from *another* result rather than from the job's own files, see [Derived metrics](/docs/results/derived_metrics/).
 
 {{< toc >}}
 
@@ -18,7 +18,7 @@ For values that come from *another* result rather than from the job's own files,
 
 | Job type | File | Scope |
 |----------|------|-------|
-| Synthesis (`fmax`, `synth`) | `sources/odatix_eda_tools/<tool>/metrics.yml` | Per EDA tool |
+| Synthesis (`fmax`, `synth`) | `odatix_userconfig/tools/<tool>/metrics.yml` | Per EDA tool |
 | Workflows (`workflow`) | `odatix_userconfig/workflows/<name>/_metrics.yml` | Per workflow |
 | Simulations (`sim`) | `odatix_userconfig/simulations/<name>/_metrics.yml` | Per simulation |
 
@@ -217,7 +217,7 @@ If a value cannot be found, Odatix reports an error naming the metric and the fi
 
 ## See also
 
-- [Derived metrics](/docs/metrics/derived/) — values a result gets from another result.
+- [Derived metrics](/docs/results/derived_metrics/) — values a result gets from another result.
 - [Results & export](/docs/results/) — where extracted metrics end up.
 - [Define a workflow](/docs/reference/workflow/) — producing the outputs metrics read from.
 - [Configuration reference](/docs/reference/metrics/) — the condensed schema.

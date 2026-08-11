@@ -103,7 +103,7 @@ Check the relevant `metrics.yml` or `_metrics.yml` paths and patterns against
 the files in the job directory. Metrics are extracted during export, so fixing a
 pattern normally does not require repeating the EDA run.
 
-See [Results & export](/docs/results/) and [Base metrics](/docs/metrics/base/)
+See [Results & export](/docs/results/) and [Base metrics](/docs/results/metrics/)
 for the result formats and metric definitions.
 
 ## Remote access problems

@@ -66,4 +66,4 @@ If your results are on a remote machine, see [Hosting on a server](/docs/gui/hos
 
 - **Feature** — [Interactive results exploration](/docs/features/explorer/).
 - **Reference** — [Metrics files](/docs/reference/metrics/) — what gets extracted and charted · [Commands](/docs/commands/)
-- **Guides** — [Odatix Explorer](/docs/gui/explorer/) (every option) · [Results & export](/docs/results/) · [Derived metrics](/docs/metrics/derived/), to compute what you actually want to plot.
+- **Guides** — [Odatix Explorer](/docs/gui/explorer/) (every option) · [Results & export](/docs/results/) · [Derived metrics](/docs/results/derived_metrics/), to compute what you actually want to plot.

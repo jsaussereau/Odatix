@@ -272,13 +272,12 @@ generate_output: "rtl"
 # No parameter file: nothing is replaced in the sources
 use_parameters: No
 
-generate_configurations_settings:
-  variables:
-    width:
-      type: list
-      unit: bits  # only annotates the name of the run (width/16bits)
-      settings:
-        list: [4, 8, 16, 24, 32, 48, 64]
+variables:
+  width:
+    type: list
+    unit: bits  # only annotates the name of the run (width/16bits)
+    settings:
+      list: [4, 8, 16, 24, 32, 48, 64]
 {{< /code >}}
 
 `width` behaves exactly like a [parameter domain](/docs/configurations/param_domains/): the design is synthesized once per value, and results are labelled `width/04bits`, `width/08bits`, and so on — but the domain is **virtual**, with no directory and no file behind it.

@@ -13,7 +13,7 @@ The CORDIC example is one of the most complete design shipped with Odatix. The s
 - **Delimiter-based parameter substitution with no markers in the RTL** — the existing parameter/generic declarations serve as delimiters, so the source stays plain, synthesizable, and readable outside Odatix.
 - **The same design in two languages** — VHDL and SystemVerilog, with configurations that differ only by their delimiters, making cross-language comparison possible.
 - **[Simulations](/docs/features/simulation/) with four tools** — Verilator, GHDL, QuestaSim/ModelSim and Vivado, each with its own flow (Makefile, shell script, or `.do` script), all reporting progress the same way.
-- **[Metrics](/docs/metrics/) extraction from simulation results** — the testbench decides what is worth measuring and writes it.
+- **[Metrics](/docs/results/) extraction from simulation results** — the testbench decides what is worth measuring and writes it.
 - **A genuine two-dimensional trade-off to explore** — accuracy against area and latency, which makes it a good playground for the [Explorer](/docs/features/explorer/).
 {{< /details >}}
 

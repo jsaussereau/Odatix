@@ -28,20 +28,17 @@ Every YAML key Odatix reads, and how settings are resolved and overridden across
 ## By topic
 
 {{< doc-cards cols="3" >}}
-{{< doc-card title="Configurations" link="/docs/configurations/" icon="sliders" accent="#425ad6" >}}
-Define parametrizable designs, parameter domains and automatic configuration generation.
-{{< /doc-card >}}
 
 {{< doc-card title="Graphical User Interface" link="/docs/gui/" icon="window" accent="#0284c7" >}}
 Odatix GUI, Odatix Explorer, and how to host them on a server.
 {{< /doc-card >}}
 
-{{< doc-card title="Sessions and job monitor" link="/docs/sessions/" icon="activity" accent="#059669" >}}
-Job execution in daemon sessions, terminal and graphical job monitors.
+{{< doc-card title="Configurations" link="/docs/configurations/" icon="sliders" accent="#425ad6" >}}
+Define parametrizable designs, parameter domains and automatic configuration generation.
 {{< /doc-card >}}
 
-{{< doc-card title="Metrics" link="/docs/metrics/" icon="gauge" accent="#0d9488" >}}
-Define what Odatix measures — extract any value from your reports, and derive metrics that link simulation and synthesis results.
+{{< doc-card title="Sessions and job monitor" link="/docs/sessions/" icon="activity" accent="#059669" >}}
+Job execution in daemon sessions, terminal and graphical job monitors.
 {{< /doc-card >}}
 
 {{< doc-card title="Custom tools and flows" link="/docs/custom_tools/" icon="wrench" accent="#fbbf24" >}}

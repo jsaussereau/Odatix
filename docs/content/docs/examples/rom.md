@@ -142,17 +142,18 @@ generate_configurations: Yes
 generate_configurations_settings:
   template: "${bits}"
   name: "${formatted_bits}bits"
-  variables:
-    bits:
-      type: list
-      settings:
-        list: [4, 6, 8, 10, 12, 14, 16]
 
-    formatted_bits:
-      type: format
-      settings:
-        source: $bits
-        format: "%02d"
+variables:
+  bits:
+    type: list
+    settings:
+      list: [4, 6, 8, 10, 12, 14, 16]
+
+  formatted_bits:
+    type: format
+    settings:
+      source: $bits
+      format: "%02d"
 {{< /code >}}
 
 {{< code lang=yaml filename="architectures/Example_Rom_Chisel/data/_settings.yml" >}}
@@ -164,18 +165,19 @@ generate_configurations: Yes
 generate_configurations_settings:
   template: "${bits}"
   name: "${formatted_bits}bits"
-  variables:
-    bits:
-      type: range
-      settings:
-        from: 8
-        to: 14
 
-    formatted_bits:
-      type: format
-      settings:
-        source: $bits
-        format: "%02d"
+variables:
+  bits:
+    type: range
+    settings:
+      from: 8
+      to: 14
+
+  formatted_bits:
+    type: format
+    settings:
+      source: $bits
+      format: "%02d"
 {{< /code >}}
 
 Four things are happening here.
@@ -210,7 +212,7 @@ object Rom extends App {
 Without it, any alphabetical ordering — directory listings, legends, axis ticks in the [Explorer](/docs/features/explorer/) — puts `10bits` before `4bits`. It is a small thing that makes every plot downstream readable, and it is worth copying into your own domains.
 
 > [!INFO]
-> The two domains use different variable types for the same purpose: `list` for `addr` (because the values are not evenly spaced — 4, 6, 8, … 16 skips odd widths) and `range` for `data` (8 to 14, every value). See [configuration generation](/docs/configurations/config_generation/) for the full set of types.
+> The two domains use different variable types for the same purpose: `list` for `addr` (because the values are not evenly spaced — 4, 6, 8, … 16 skips odd widths) and `range` for `data` (8 to 14, every value). See [Variables](/docs/configurations/variables/) for the full set of types.
 
 ## Running the sweep
 
@@ -237,6 +239,6 @@ $ odatix fmax -t vivado -a "Example_Rom_Chisel + addr/12bits + data/*"
 
 ## Where to go next
 
-- [Configuration generation](/docs/configurations/config_generation/) — the full variable-type reference, and the [dedicated example](/docs/examples/config_generation/) that walks through every one of them.
+- [Variables](/docs/configurations/variables/) — the full variable-type reference, and the [dedicated example](/docs/examples/config_generation/) that walks through every one of them.
 - [Parameter domains](/docs/configurations/param_domains/) — the mechanism that combines `addr` and `data`.
 - [Cordic](/docs/examples/cordic/) — the same two-dimensional trade-off, computed instead of stored.

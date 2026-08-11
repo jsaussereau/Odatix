@@ -125,7 +125,7 @@ Configurations can be generated instead of written, from the same settings
 generation = width.settings.generate_configurations_settings
 generation.name = "${width}bits"
 generation.template = "WIDTH = ${width}"
-generation.set_variable("width", "range", {"from": 8, "to": 64, "step": 8})
+width.settings.set_variable("width", "range", {"from": 8, "to": 64, "step": 8})
 width.settings.generate_configurations = True
 width.save()
 

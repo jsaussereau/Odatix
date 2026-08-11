@@ -219,7 +219,7 @@ invariant_domains:
   MEM: 1024I_1024D                # run this one
 {{< /code >}}
 
-See [Derived metrics](/docs/metrics/derived/) for why this matters when
+See [Derived metrics](/docs/results/derived_metrics/) for why this matters when
 simulation and synthesis figures are combined.
 
 ## `_metrics.yml`

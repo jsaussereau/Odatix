@@ -158,17 +158,16 @@ tasks:
     commands:
       - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles}
 
-generate_configurations_settings:
-  variables:
-    max_speed:
-      type: list
-      unit: kmh
-      settings:
-        list: [35, 45, 55]
-    num_vehicles:
-      type: list
-      settings:
-        list: [100, 300]
+variables:
+  max_speed:
+    type: list
+    unit: kmh
+    settings:
+      list: [35, 45, 55]
+  num_vehicles:
+    type: list
+    settings:
+      list: [100, 300]
 {{< /code >}}
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}

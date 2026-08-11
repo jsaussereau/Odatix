@@ -56,7 +56,7 @@ If you start the GUI in a directory that is not a workspace yet, it offers to cr
 Two editors are worth knowing by name because they save real work:
 
 - The **Configuration Generator** turns a rule into a whole set of parameter files — ranges, powers of two, lists, functions — instead of writing them one by one. See [Configuration generation](/docs/configurations/config_generation/).
-- The **Metrics editors** build `metrics.yml` and `_metrics.yml` entries with the extraction type, file and pattern in a form. See [Base metrics](/docs/metrics/base/).
+- The **Metrics editors** build `metrics.yml` and `_metrics.yml` entries with the extraction type, file and pattern in a form. See [Base metrics](/docs/results/metrics/).
 
 A **save** button in the header turns to a warning colour as soon as something is unsaved, so you always know whether what you see is on disk.
 

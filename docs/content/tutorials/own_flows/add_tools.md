@@ -152,7 +152,7 @@ metrics:
 
 Paths are relative to the job directory. Beyond `regex`, metrics can be read from
 CSV, YAML, JSON and XML reports, or computed from other metrics — see
-[Metrics](/docs/metrics/base/). The **Metrics** button on the tool's card edits this
+[Metrics](/docs/results/metrics/). The **Metrics** button on the tool's card edits this
 same file graphically.
 
 ## Step 5 — Declare your targets

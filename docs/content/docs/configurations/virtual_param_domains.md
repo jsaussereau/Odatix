@@ -24,7 +24,7 @@ Use virtual parameter domains when:
 
 ## Define variables inline
 
-Declare the sweep directly under `generate_configurations_settings.variables`, using the same [generation methods](/docs/configurations/config_generation/) as file-based domains (`list`, `range`, `power_of_two`, `function`, set operations…). An optional `unit` annotates the value.
+Declare the sweep directly under `variables`, at the root of the settings file, using the very same [variables](/docs/configurations/variables/) as generated configurations (`list`, `range`, `power_of_two`, `function`, set operations…). Neither `template` nor `name` is needed here — the variable itself becomes the domain. An optional `unit` annotates the value, and `group` pairs variables instead of crossing them; see the [Variables reference](/docs/configurations/variables/) for every type and option.
 
 {{< code lang=yaml filename="workflows/traffic/_settings.yml" >}}
 use_parameters: No
@@ -34,22 +34,21 @@ tasks:
     commands:
       - python3 simulate_traffic.py --max_speed ${max_speed} --num_vehicles ${num_vehicles} --signal_timing ${signal_timing}
 
-generate_configurations_settings:
-  variables:
-    max_speed:
-      type: list
-      unit: kmh
-      settings:
-        list: [35, 45, 55]
-    num_vehicles:
-      type: list
-      settings:
-        list: [100, 300]
-    signal_timing:
-      type: list
-      unit: s
-      settings:
-        list: [15, 45]
+variables:
+  max_speed:
+    type: list
+    unit: kmh
+    settings:
+      list: [35, 45, 55]
+  num_vehicles:
+    type: list
+    settings:
+      list: [100, 300]
+  signal_timing:
+    type: list
+    unit: s
+    settings:
+      list: [15, 45]
 {{< /code >}}
 
 Odatix expands the **cross-product** of all variables — here `3 × 2 × 2 = 12` configurations — copies the sources into one work directory per configuration, substitutes each `${var}`, and runs the tasks in parallel.
@@ -80,13 +79,12 @@ generate_output: "rtl"
 
 use_parameters: No
 
-generate_configurations_settings:
-  variables:
-    width:
-      type: list
-      unit: bits
-      settings:
-        list: [4, 8, 16, 24, 32, 48, 64]
+variables:
+  width:
+    type: list
+    unit: bits
+    settings:
+      list: [4, 8, 16, 24, 32, 48, 64]
 {{< /code >}}
 
 Odatix runs the architecture once per value of `width`, exactly as if `width` were a
@@ -117,6 +115,7 @@ Sometimes a single configuration run produces *several* measurements (for exampl
 
 ## See also
 
+- [Variables](/docs/configurations/variables/) — every variable type and option
 - [Parameter domains](/docs/configurations/param_domains/) (file-based)
 - [Configuration generation](/docs/configurations/config_generation/)
 - [Define a workflow](/docs/reference/workflow/)
