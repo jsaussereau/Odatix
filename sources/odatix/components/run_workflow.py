@@ -154,7 +154,7 @@ def _normalize_workflow_requests_for_virtual_domain_wildcards(workflow_requests,
 
 def build_workflow_virtual_param_domain_variants(workflow_settings, workflow_settings_file, debug=False):
     """
-    Build workflow variants from generate_configurations_settings.variables.
+    Build workflow variants from the "variables" of the workflow settings.
 
     Variants are only generated when generate_configurations is not enabled.
     This preserves the existing meaning of generate_configurations while

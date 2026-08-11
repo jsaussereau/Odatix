@@ -45,6 +45,8 @@ __all__ = [
     "Configuration",
     "ConfigurationCollection",
     "ConfigGeneration",
+    "VariablesSetting",
+    "WithVariables",
     "variable_definition",
     "configuration_names",
     "count_combinations",
@@ -262,58 +264,93 @@ class ConfigGeneration(Settings):
     """
     How the configurations of a domain are generated ("generate_configurations_settings").
 
-    `template` is the text substituted into the design, `name` the name given to
-    each generated configuration, both written with ``${variable}``
-    placeholders; `variables` holds one definition per variable.
+    `template` is the text substituted into the design and `name` the name given
+    to each generated configuration, both written with ``${variable}``
+    placeholders.
+
+    The values behind those placeholders are the ``variables`` of the instance
+    or of the domain, declared at the root of its settings file, since they are
+    not specific to generation (see :class:`WithVariables`). ``variables`` is
+    still read here, where it used to be declared, and is moved to the root the
+    next time the file is written.
     """
 
     name = Setting("", type="str", doc="Name given to each generated configuration, e.g. \"${width}bits\".")
     # A template is usually a block of text, but a list of lines is accepted too
     # (the generator joins it), so it is taken as it comes.
     template = Setting("", type="any", doc="Text written in each generated configuration file.")
-    variables = VariablesSetting(factory=dict, type="dict", doc="Definition of each variable, by name.")
+    variables = VariablesSetting(
+        factory=dict, type="dict", skip_if_empty=True,
+        doc="Former location of the variables, read for backward compatibility.",
+    )
 
-    ######################################
-    # Variables
-    ######################################
+
+def variable_definition(name, type, settings, format=None, group=None):
+    """
+    Build a single ``{name: definition}`` variable mapping, for callers that
+    assemble a variables block themselves.
+    """
+    definition = {"type": type, "settings": settings if settings is not None else {}}
+    if format:
+        definition["format"] = format
+    if group:
+        definition["group"] = group
+    return {str(name): definition}
+
+
+class WithVariables(object):
+    """
+    Mixin of the settings that declare variables, i.e. those of an architecture,
+    of a workflow and of a parameter domain.
+
+    A variable is a named set of values. The same declaration serves three
+    purposes: generating the configurations of a domain
+    (``generate_configurations``), sweeping a workflow whose parameters are
+    passed on a command line, and sweeping an architecture whose RTL is
+    generated — in the last two cases each variable behaves as a *virtual*
+    parameter domain, substituted as ``${name}`` into the commands.
+
+    Variables therefore live at the root of the settings file, under
+    ``variables``. Files declaring them the former way, inside
+    ``generate_configurations_settings``, are still read: their variables are
+    moved to the root when the file is loaded, and thus written there the next
+    time it is saved.
+    """
+
+    @classmethod
+    def from_dict(cls, data):
+        settings = super(WithVariables, cls).from_dict(data)
+        if not settings.variables:
+            legacy = getattr(settings.generate_configurations_settings, "variables", None)
+            if legacy:
+                settings.variables = dict(legacy)
+                settings.generate_configurations_settings.variables = {}
+        return settings
 
     def set_variable(self, name, type, settings, format=None, group=None):
         """
         Declare a variable (replacing any declaration of the same name).
 
         Args:
-            name (str): name used as ``${name}`` in the template and the
-                configuration name.
-            type (str): "range", "list" or "function".
+            name (str): name used as ``${name}`` in a template, in a
+                configuration name or in a command.
+            type (str): "range", "list", "function"... see the documentation of
+                the variables for the complete list.
             settings (dict): what that type needs, e.g. ``{"from": 1, "to": 8}``
                 for a range, ``{"list": [1, 2, 4]}`` for a list.
             format (str): optional format applied to the values.
             group (str): optional pairing group. Variables sharing a group are
                 zipped together (value by value) instead of being crossed.
         """
-        definition = {"type": type, "settings": settings if settings is not None else {}}
-        if format:
-            definition["format"] = format
-        if group:
-            definition["group"] = group
-        self.variables[str(name)] = definition
-        return definition
+        definition = variable_definition(name, type, settings, format=format, group=group)
+        self.variables.update(definition)
+        return definition[str(name)]
 
     def remove_variable(self, name):
         self.variables.pop(name, None)
 
     def variable_names(self):
         return list(self.variables.keys())
-
-
-def variable_definition(name, type, settings, format=None, group=None):
-    """
-    Build a single ``{name: definition}`` variable mapping, for callers that
-    assemble a generation block themselves.
-    """
-    generation = ConfigGeneration()
-    definition = generation.set_variable(name, type, settings, format=format, group=group)
-    return {str(name): definition}
 
 
 ######################################

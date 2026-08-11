@@ -30,7 +30,13 @@ configurations of its parameter domains.
 import os
 
 import odatix.lib.hard_settings as hard_settings
-from odatix.workspace.configs import ConfigGeneration, combinations, count_combinations
+from odatix.workspace.configs import (
+    ConfigGeneration,
+    VariablesSetting,
+    WithVariables,
+    combinations,
+    count_combinations,
+)
 from odatix.workspace.domains import ParameterDomain, ParameterDomainCollection
 from odatix.workspace.entries import Collection, Entry
 from odatix.workspace.selection import Message
@@ -96,7 +102,7 @@ class CustomFrequencies(Settings):
     )
 
 
-class ArchitectureSettings(Settings):
+class ArchitectureSettings(WithVariables, Settings):
     """
     Settings of an architecture ("<architecture>/_settings.yml"), which are also
     the settings of its main parameter domain.
@@ -176,7 +182,14 @@ class ArchitectureSettings(Settings):
     )
     generate_configurations_settings = Setting(
         type=ConfigGeneration, when="generate_configurations", skip_if_empty=True,
-        doc="Template, name and variables the configurations are generated from.",
+        doc="Template and name the configurations are generated from.",
+    )
+
+    variables = VariablesSetting(
+        factory=dict, type="dict", section="Variables", skip_if_empty=True,
+        doc="Definition of each variable, by name. Variables are the values the "
+            "configurations are generated from, and, when nothing is generated, "
+            "virtual parameter domains substituted as \"${name}\" into commands.",
     )
 
     def frequencies(self, target="", configuration="", mode="fmax", fallback=None):

@@ -30,7 +30,7 @@ from odatix.gui.css_helper import Style
 from odatix.gui.utils import get_key_from_url, get_instance_mode, get_instance_collection_context
 from odatix.gui.icons import icon
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.config_generator import ConfigGenerator
+from odatix.lib.config_generator import ConfigGenerator, get_variables
 from odatix.workspace.domains import ParameterDomain
 import odatix.gui.variable_editor as ve
 
@@ -91,8 +91,8 @@ def get_gen_settings(
         "generate_configurations_settings": {
             "name": name,
             "template": template,
-            "variables": variables,
         },
+        "variables": variables,
     }
 
 ######################################
@@ -312,14 +312,15 @@ def update_form_and_variable_cards(
             return [], dash.no_update, dash.no_update, dash.no_update
 
         settings = ParameterDomain(instances.entry(instance_name), domain).settings.to_dict()
-        variables = {}
+        # Variables are declared at the root of the settings file, but the
+        # settings object also reads them from where they used to be declared.
+        variables, _legacy = get_variables(settings)
 
         generator_name = ""
         generator_template = ""
         gen_settings = {}
         if "generate_configurations_settings" in settings:
             gen_settings = settings["generate_configurations_settings"]
-            variables = gen_settings.get("variables", {})
             generator_name = gen_settings.get("name", "")
             generator_template = gen_settings.get("template", "")
             if isinstance(generator_template, list):
@@ -329,16 +330,16 @@ def update_form_and_variable_cards(
             # Default template
             generator_name = "config_${var1}${var2}"
             generator_template = "parameter VALUE1 = ${var1};\nparameter VALUE2 = ${var2};"
-            variables = {
-                "var1": {"type": "range", "settings": {"from": 1, "to": 3, "step": 1}},
-                "var2": {"type": "list", "settings": {"list": ["A", "B", "C", "D"]}},
-            }
+            if not variables:
+                variables = {
+                    "var1": {"type": "range", "settings": {"from": 1, "to": 3, "step": 1}},
+                    "var2": {"type": "list", "settings": {"list": ["A", "B", "C", "D"]}},
+                }
             # The defaults are what the form shows, so they are the reference the
             # save button compares against: nothing is modified yet.
             gen_settings = {
                 "name": generator_name,
                 "template": generator_template,
-                "variables": variables,
             }
 
 

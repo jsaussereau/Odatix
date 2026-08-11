@@ -65,8 +65,8 @@ def _group_arch_selections(architectures_setting) -> dict:
 def _virtual_variant_tokens(instances, name, mode):
     """
     Resolve the virtual parameter domains of a workflow or an architecture
-    (command-placeholder variables defined under
-    "generate_configurations_settings.variables" in its _settings.yml), by
+    (command-placeholder variables defined under "variables" in its
+    _settings.yml), by
     reusing the exact generation logic used at run time
     (run_workflow.check_settings() / ArchitectureHandler.expand_virtual_param_domains()).
 

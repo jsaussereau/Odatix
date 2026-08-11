@@ -31,7 +31,7 @@ extracts whatever metrics it declares from the result.
 import os
 
 from odatix.workspace.architectures import Architecture, ArchitectureCollection
-from odatix.workspace.configs import ConfigGeneration
+from odatix.workspace.configs import ConfigGeneration, VariablesSetting, WithVariables
 from odatix.workspace.metrics import METRICS_FILENAME, MetricsFile
 from odatix.workspace.settings import Setting, Settings
 from odatix.workspace.simulations import ProgressSettings
@@ -51,7 +51,7 @@ class SourcesSettings(Settings):
     blacklist = Setting(factory=list, type="list", style="flow", skip_if_empty=True, doc="What not to copy from it.")
 
 
-class WorkflowSettings(Settings):
+class WorkflowSettings(WithVariables, Settings):
     """
     Settings of a workflow ("<workflow>/_settings.yml"), which are also the
     settings of its main parameter domain.
@@ -85,7 +85,14 @@ class WorkflowSettings(Settings):
     )
     generate_configurations_settings = Setting(
         type=ConfigGeneration, when="generate_configurations", skip_if_empty=True,
-        doc="Template, name and variables the configurations are generated from.",
+        doc="Template and name the configurations are generated from.",
+    )
+
+    variables = VariablesSetting(
+        factory=dict, type="dict", section="Variables", skip_if_empty=True,
+        doc="Definition of each variable, by name. Variables are the values the "
+            "configurations are generated from, and, when nothing is generated, "
+            "virtual parameter domains substituted as \"${name}\" into commands.",
     )
 
 

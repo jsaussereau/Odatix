@@ -50,9 +50,7 @@ no path is ever passed around::
 
     width = counter.domains.create("width")
     width.settings.generate_configurations = True
-    width.settings.generate_configurations_settings.set_variable(
-        "width", "range", {"from": 8, "to": 32, "step": 8}
-    )
+    width.settings.set_variable("width", "range", {"from": 8, "to": 32, "step": 8})
     width.save()
     width.generate_configurations()
 

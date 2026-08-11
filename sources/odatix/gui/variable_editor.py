@@ -24,7 +24,7 @@ Shared configuration-variable editor used by both the Configuration Generator
 page and the Workflow Editor page.
 
 Every page renders the same variable cards (a type dropdown plus the fields of
-that type) and turns them into a ``generate_configurations_settings.variables``
+that type) and turns them into a ``variables``
 dict. The only thing that differs between the two pages is the id namespace, so
 every component id is built from a ``prefix`` argument ("" for the configuration
 generator, "wf-" for the workflow editor). Keeping this in one module means a
@@ -109,7 +109,7 @@ def build_variables_dict(
     sources_vals, format_vals, group_vals,
 ):
     """
-    Build a ``generate_configurations_settings.variables`` dict from the values
+    Build a ``variables`` dict from the values
     of the variable card fields (one entry per index).
     """
     variables = {}

@@ -39,7 +39,7 @@ from natsort import natsorted
 
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree
-from odatix.workspace.configs import ConfigGeneration, ConfigurationCollection
+from odatix.workspace.configs import ConfigGeneration, ConfigurationCollection, VariablesSetting, WithVariables
 from odatix.workspace.entries import check_name
 from odatix.workspace.errors import AlreadyExistsError, InvalidNameError, NotFoundError
 from odatix.workspace.settings import Setting, Settings, load_settings, save_settings
@@ -55,7 +55,7 @@ MAIN_DOMAIN = hard_settings.main_parameter_domain
 # Settings
 ######################################
 
-class DomainSettings(Settings):
+class DomainSettings(WithVariables, Settings):
     """
     Settings of a named parameter domain ("<instance>/<domain>/_settings.yml").
 
@@ -81,7 +81,14 @@ class DomainSettings(Settings):
     )
     generate_configurations_settings = Setting(
         type=ConfigGeneration, when="generate_configurations", skip_if_empty=True,
-        doc="Template, name and variables the configurations are generated from.",
+        doc="Template and name the configurations are generated from.",
+    )
+
+    variables = VariablesSetting(
+        factory=dict, type="dict", section="Variables", skip_if_empty=True,
+        doc="Definition of each variable, by name. Variables are the values the "
+            "configurations are generated from, and, when nothing is generated, "
+            "virtual parameter domains substituted as \"${name}\" into commands.",
     )
 
 

@@ -31,6 +31,7 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 import odatix.gui.variable_editor as ve
+from odatix.lib.config_generator import get_variables
 
 # Variable-editor id namespace for this page.
 VE_PREFIX = "wf-"
@@ -84,17 +85,13 @@ def normalize_workflow_settings(settings):
     if not isinstance(tasks, list):
         tasks = []
 
-    generate_configurations_settings = settings.get("generate_configurations_settings", {})
-    if not isinstance(generate_configurations_settings, dict):
-        generate_configurations_settings = {}
-    variables = generate_configurations_settings.get("variables", {})
-    if not isinstance(variables, dict):
-        variables = {}
-    generate_configurations_settings = {**generate_configurations_settings, "variables": variables}
+    # Variables are declared at the root of the settings file, but are still
+    # read from where they used to be declared.
+    variables, _legacy = get_variables(settings)
 
     try:
         vars_copy = {}
-        for vname, vcfg in generate_configurations_settings.get("variables", {}).items():
+        for vname, vcfg in variables.items():
             if not isinstance(vcfg, dict):
                 vars_copy[vname] = vcfg
                 continue
@@ -118,7 +115,7 @@ def normalize_workflow_settings(settings):
 
             vars_copy[vname] = new_vcfg
 
-        generate_configurations_settings["variables"] = vars_copy
+        variables = vars_copy
     except Exception:
         pass
 
@@ -137,7 +134,7 @@ def normalize_workflow_settings(settings):
             "regex": progress.get("regex", ""),
         },
         "tasks": tasks,
-        "generate_configurations_settings": generate_configurations_settings,
+        "variables": variables,
     }
 
 def format_tasks(tasks):
@@ -204,7 +201,7 @@ def wf_build_variables_dict(
     titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals
 ):
     """
-    Build a "generate_configurations_settings.variables" dict from the variable card field values.
+    Build a "variables" dict from the variable card field values.
     """
     return ve.build_variables_dict(
         titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals,
@@ -713,7 +710,7 @@ def init_form(search, page, odatix_settings):
 
     workflows = get_workspace(odatix_settings).workflows
     settings = normalize_workflow_settings(workflows.entry(workflow_name).settings.to_dict())
-    variables = settings.get("generate_configurations_settings", {}).get("variables", {})
+    variables = settings.get("variables", {})
     tasks = settings.get("tasks", [])
     return workflow_form(settings), settings, wf_cards_from_tasks(tasks), wf_cards_from_variables(variables)
 
@@ -862,8 +859,6 @@ def save_and_status(
         variable_step_vals, variable_op_vals, variable_list_vals, variable_source_vals, variable_sources_vals,
         variable_format_vals, variable_group_vals,
     )
-    generate_configurations_settings = dict(reference_settings.get("generate_configurations_settings", {}))
-    generate_configurations_settings["variables"] = variables
 
     current_settings = normalize_workflow_settings(
         {
@@ -880,7 +875,7 @@ def save_and_status(
                 "file": progress_file or "",
                 "regex": progress_regex or "",
             },
-            "generate_configurations_settings": generate_configurations_settings,
+            "variables": variables,
             "tasks": parsed_tasks,
         }
     )

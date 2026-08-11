@@ -24,10 +24,10 @@ Virtual parameter domains.
 
 A *physical* parameter domain is a subdirectory of an instance (architecture or
 workflow) holding one ``.txt`` configuration file per value. A *virtual*
-parameter domain is a variable declared in
-``generate_configurations_settings.variables``: it has no directory on disk, but
-every combination of its values still expands into its own job, and its value
-can be referenced as ``${variable}`` inside commands.
+parameter domain is a variable declared in the ``variables`` mapping of the
+settings file: it has no directory on disk, but every combination of its values
+still expands into its own job, and its value can be referenced as
+``${variable}`` inside commands.
 
 Virtual domains are only expanded when ``generate_configurations`` is disabled,
 so the original meaning of ``generate_configurations`` (generating ``.txt``
@@ -43,7 +43,7 @@ import yaml
 
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.config_generator import ConfigGenerator
+from odatix.lib.config_generator import ConfigGenerator, get_variables
 
 script_name = os.path.basename(__file__)
 
@@ -90,14 +90,7 @@ def get_virtual_domain_names(settings):
     """
     Names of the variables of an instance, which act as virtual parameter domains.
     """
-    if not isinstance(settings, dict):
-        return set()
-    generate_settings = settings.get("generate_configurations_settings")
-    if not isinstance(generate_settings, dict):
-        return set()
-    variables = generate_settings.get("variables")
-    if not isinstance(variables, dict):
-        return set()
+    variables, _legacy = get_variables(settings)
     return set(name for name in variables.keys() if isinstance(name, str) and name.strip() != "")
 
 
@@ -161,7 +154,7 @@ def load_instance_settings(base_path, param_dir, param_settings_filename=hard_se
 
 def build_variants(settings, settings_file, debug=False, script_name=script_name):
     """
-    Build the variants of an instance from generate_configurations_settings.variables.
+    Build the variants of an instance from its "variables".
 
     Returns a list of {"requested_param_domains": [...], "substitutions": {...}},
     an empty list when there is nothing to generate, or None on error.
@@ -170,12 +163,8 @@ def build_variants(settings, settings_file, debug=False, script_name=script_name
     if generate_enabled:
         return []
 
-    generate_settings = settings.get("generate_configurations_settings")
-    if not isinstance(generate_settings, dict):
-        return []
-
-    variables = generate_settings.get("variables")
-    if not isinstance(variables, dict) or len(variables) == 0:
+    variables, _legacy = get_variables(settings)
+    if len(variables) == 0:
         return []
 
     variable_names = [name for name in variables.keys() if isinstance(name, str) and name.strip() != ""]
@@ -183,7 +172,7 @@ def build_variants(settings, settings_file, debug=False, script_name=script_name
         printc.error(
             "Invalid variable settings in \""
             + settings_file
-            + "\": no valid variable names found in \"generate_configurations_settings.variables\".",
+            + "\": no valid variable names found in \"variables\".",
             script_name,
         )
         return None
@@ -196,14 +185,14 @@ def build_variants(settings, settings_file, debug=False, script_name=script_name
         "generate_configurations_settings": {
             "template": synthetic_template,
             "name": synthetic_name,
-            "variables": variables,
         },
+        "variables": variables,
     }
 
     generator = ConfigGenerator(data=generator_data, silent=True, debug=debug)
     if not generator.valid:
         printc.error(
-            "Invalid \"generate_configurations_settings.variables\" in settings file \"" + settings_file + "\".",
+            "Invalid \"variables\" in settings file \"" + settings_file + "\".",
             script_name,
         )
         return None
@@ -273,7 +262,7 @@ def build_variants(settings, settings_file, debug=False, script_name=script_name
         printc.note(
             "Generated "
             + str(len(variants))
-            + " variants from \"generate_configurations_settings.variables\" in \""
+            + " variants from \"variables\" in \""
             + settings_file
             + "\".",
             script_name,

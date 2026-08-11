@@ -28,6 +28,7 @@ from odatix.gui.utils import get_key_from_url, get_workspace
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
+from odatix.lib.config_generator import get_variables
 
 page_path = "/arch_editor"
 
@@ -542,11 +543,8 @@ def update_arch_highlight_names(search, page, odatix_settings):
         # configuration files instead of command values: they are not usable in
         # the generation command.
         if not settings.get("generate_configurations", False):
-            generate_settings = settings.get("generate_configurations_settings", {})
-            if isinstance(generate_settings, dict):
-                declared_variables = generate_settings.get("variables", {})
-                if isinstance(declared_variables, dict):
-                    variables = [name for name in declared_variables.keys() if str(name).strip()]
+            declared_variables, _legacy = get_variables(settings)
+            variables = [name for name in declared_variables.keys() if str(name).strip()]
     except Exception:
         variables = []
 
