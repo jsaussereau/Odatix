@@ -110,7 +110,27 @@ _read_command_parameter_value = virtual_param_domain.read_command_parameter_valu
 
 
 def _build_workflow_command_substitutions(workflow_instance):
-    substitutions = {}
+    """
+    Values a workflow task command can reference as ${name}: what the workflow
+    is, where it runs, and one entry per parameter domain and per variable.
+
+    The built-in names are put in first on purpose: a variable or a parameter
+    domain the user named the same way wins over them, so declaring one never
+    silently stops working.
+    """
+    substitutions = {
+        "workflow": workflow_instance.workflow_name,
+        "configuration": workflow_instance.workflow_config,
+        "workflow_full": workflow_instance.workflow_full,
+        "work_path": os.path.realpath(workflow_instance.tmp_dir),
+        "log_path": hard_settings.work_log_path,
+        "workflow_path": os.path.realpath(workflow_instance.workflow_definition_dir)
+        if workflow_instance.workflow_definition_dir
+        else "",
+        "source_path": os.path.realpath(workflow_instance.source_path) if workflow_instance.source_path else "",
+        "odatix_path": str(OdatixSettings.odatix_path),
+    }
+    substitutions = {name: str(value) for name, value in substitutions.items() if value is not None}
 
     if isinstance(workflow_instance.extra_command_substitutions, dict):
         for key, value in workflow_instance.extra_command_substitutions.items():

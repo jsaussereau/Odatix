@@ -119,10 +119,20 @@ def build_simulation_command_substitutions(sim_instance):
         "arch_full": sim_instance.arch_full,
         "top_level_module": str(architecture.top_level_module or ""),
         "clock_signal": str(architecture.clock_signal or ""),
-        "rtl_dir": hard_settings.work_rtl_path,
-        "log_dir": hard_settings.work_log_path,
-        "odatix_dir": str(OdatixSettings.odatix_path),
+        "work_path": os.path.realpath(sim_instance.tmp_dir),
+        "rtl_path": hard_settings.work_rtl_path,
+        "log_path": hard_settings.work_log_path,
+        "script_path": hard_settings.work_script_path,
+        "sim_path": os.path.realpath(sim_instance.source_sim_dir),
+        "design_path": str(architecture.design_path or ""),
+        "odatix_path": str(OdatixSettings.odatix_path),
     }
+    # The names these variables had before they were aligned on the tool ones.
+    # Still substituted so existing simulation settings keep working, but no
+    # longer offered by the editors (see odatix.gui.builtin_variables).
+    substitutions["rtl_dir"] = substitutions["rtl_path"]
+    substitutions["log_dir"] = substitutions["log_path"]
+    substitutions["odatix_dir"] = substitutions["odatix_path"]
 
     for param_domain in getattr(architecture, "param_domains", []) or []:
         value = virtual_param_domain.read_command_parameter_value(param_domain.param_file)

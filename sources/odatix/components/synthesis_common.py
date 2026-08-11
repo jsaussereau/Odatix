@@ -326,9 +326,15 @@ def build_job_variables(arch_instance, tool, **extra):
         tool_path=eda_tools.get_tool_dir(tool),
         script_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_script_path)),
         log_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path)),
+        rtl_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_rtl_path)),
+        report_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_report_path)),
+        result_path=os.path.realpath(os.path.join(arch_instance.tmp_dir, hard_settings.work_result_path)),
         clock_signal=arch_instance.clock_signal,
         top_level_module=arch_instance.top_level_module,
         lib_name=arch_instance.lib_name,
+        architecture=arch_instance.arch_display_name,
+        target=arch_instance.target,
+        tool=tool,
         **extra,
     )
 
