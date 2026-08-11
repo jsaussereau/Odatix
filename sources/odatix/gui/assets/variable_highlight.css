@@ -132,7 +132,7 @@
     align-items: center;
     gap: 7px;
     padding: 4px 10px;
-    border: 1px solid color-mix(in srgb, var(--wf-hl-builtin-color) 30%, transparent);
+    border: var(--default-button-border);
     border-radius: 999px;
     cursor: pointer;
     list-style: none;
@@ -148,12 +148,7 @@
 }
 .odx-varlist-summary:hover,
 .odx-varlist-panel[open] .odx-varlist-summary {
-    border-color: var(--button-border-color);
-    background: var(--button-background-color);
-}
-.odx-varlist-summary:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--wf-hl-builtin-color) 60%, transparent);
-    outline-offset: 2px;
+    border-color: var(--default-button-text-color-hover);
 }
 
 .odx-varlist-sigil {
@@ -190,7 +185,7 @@
     overscroll-behavior: contain;
     text-align: left;
     padding-bottom: 16px;
-    border: 1px solid color-mix(in srgb, var(--wf-hl-builtin-color) 22%, transparent);
+border: var(--card-border);
     border-radius: var(--card-border-radius, var(--theme-normal-border-radius));
     background: var(--theme-element-background-color);
     box-shadow: var(--theme-shadow-color) 0px 12px 28px -10px;
@@ -224,7 +219,7 @@
     letter-spacing: 0.07em;
     text-transform: uppercase;
     background: var(--theme-element-background-color);
-    border-bottom: 1px solid rgba(128, 128, 128, 0.14);
+    border-bottom: var(--card-border);
 }
 
 .odx-varlist-title > h4 {
