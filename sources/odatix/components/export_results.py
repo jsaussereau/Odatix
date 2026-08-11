@@ -173,6 +173,13 @@ def load_metrics_file(metrics_file):
 ######################################
 
 
+def resolve_step_path(file, step):
+  """Replace "$step"/"${step}" in the file of a metric by the step it declares."""
+  if not step or not isinstance(file, str):
+    return file
+  return file.replace("${step}", str(step)).replace("$step", str(step))
+
+
 def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis"):
   """
   Extract metrics from synthesis results based on tool-specific settings.
@@ -240,8 +247,18 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
   if common_metrics != False:
     metrics.update(common_metrics)
 
+  # A metric may declare the step of the flow it is extracted from ("step:").
+  # Such a metric only exists once that step has run: a job stopped earlier is
+  # not missing it, it has simply not produced it yet, so it is left out of the
+  # record instead of being reported as an error.
+  completed_steps = job_steps.completed_step_names(cur_path)
+
   for metric, content in metrics.items():
     if metric in banned_metrics:
+      continue
+
+    metric_step = content.get("step") if isinstance(content, dict) else None
+    if metric_step and str(metric_step) not in completed_steps:
       continue
 
     try:
@@ -266,7 +283,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_regex(os.path.join(cur_path, file), pattern, group_id, error_if_missing, error_prefix)
+      value = parse_regex(os.path.join(cur_path, resolve_step_path(file, metric_step)), pattern, group_id, error_if_missing, error_prefix)
     elif type == "csv":
       try:
         file = read_from_list( "file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -274,7 +291,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_csv(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+      value = parse_csv(os.path.join(cur_path, resolve_step_path(file, metric_step)), key, error_if_missing, error_prefix)
     elif type == "yaml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -282,7 +299,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_yaml(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+      value = parse_yaml(os.path.join(cur_path, resolve_step_path(file, metric_step)), key, error_if_missing, error_prefix)
     elif type == "json":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -290,7 +307,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_json(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+      value = parse_json(os.path.join(cur_path, resolve_step_path(file, metric_step)), key, error_if_missing, error_prefix)
     elif type == "xml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -298,7 +315,7 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_xml(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+      value = parse_xml(os.path.join(cur_path, resolve_step_path(file, metric_step)), key, error_if_missing, error_prefix)
     elif type == "benchmark":
       if not use_benchmark:
         banned_metrics.append(metric)
