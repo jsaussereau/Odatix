@@ -42,6 +42,10 @@ COL_FREQUENCY = "Frequency"
 COL_WORKFLOW = "Workflow"
 COL_SIMULATION = "Simulation"
 COL_TIMESTAMP = "Timestamp"
+COL_STEP = "Step"
+COL_STEP_SCOPE = "Step scope"
+STEP_SCOPE_LAST = "last"
+STEP_SCOPE_INTERMEDIATE = "intermediate"
 
 RESERVED_META_COLUMNS = {
   results_schema.META_TYPE: COL_TYPE,
@@ -52,10 +56,28 @@ RESERVED_META_COLUMNS = {
   results_schema.META_WORKFLOW: COL_WORKFLOW,
   results_schema.META_SIMULATION: COL_SIMULATION,
   results_schema.META_TIMESTAMP: COL_TIMESTAMP,
+  results_schema.META_STEP: COL_STEP,
 }
 
 # Preferred display order for the reserved dimension columns
-RESERVED_DIMENSION_ORDER = [COL_SOURCE, COL_TYPE, COL_TARGET, COL_FREQUENCY, COL_ARCHITECTURE, COL_WORKFLOW, COL_SIMULATION, COL_CONFIGURATION]
+RESERVED_DIMENSION_ORDER = [COL_SOURCE, COL_TYPE, COL_TARGET, COL_FREQUENCY, COL_ARCHITECTURE, COL_WORKFLOW, COL_SIMULATION, COL_STEP, COL_STEP_SCOPE, COL_CONFIGURATION]
+
+DEFAULT_UNSELECTED_VALUES = {COL_STEP_SCOPE: (STEP_SCOPE_INTERMEDIATE,)}
+
+
+def default_selected(dimension, value):
+  """Whether a dimension value is checked in the filter panel before the user says otherwise."""
+  return str(value) not in DEFAULT_UNSELECTED_VALUES.get(dimension, ())
+
+
+def step_scope(meta):
+  """
+  The "Step scope" of a record: "last" when it holds the furthest step its job
+  reached (or belongs to a job with no steps at all), "intermediate" otherwise.
+  """
+  if results_schema.META_LAST_STEP not in meta:
+    return STEP_SCOPE_LAST
+  return STEP_SCOPE_LAST if meta.get(results_schema.META_LAST_STEP) else STEP_SCOPE_INTERMEDIATE
 
 # Result type display names ("type" meta values)
 TYPE_DISPLAY_NAMES = {

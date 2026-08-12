@@ -247,6 +247,14 @@ class ResultStore:
           if column != schema.COL_TIMESTAMP and column not in source_dimensions:
             source_dimensions.append(column)
 
+        # A flow split into steps has one row per step: tell the finished result
+        # from the steps the job went past, so the filter panel can start on the
+        # former alone (see schema.DEFAULT_UNSELECTED_VALUES).
+        if results_schema.META_STEP in meta:
+          row[schema.COL_STEP_SCOPE] = schema.step_scope(meta)
+          if schema.COL_STEP_SCOPE not in source_dimensions:
+            source_dimensions.append(schema.COL_STEP_SCOPE)
+
         # Fmax rows have no fixed frequency: use a sentinel dimension value
         if schema.COL_FREQUENCY not in row and str(meta.get(results_schema.META_TYPE, "")) == results_schema.TYPE_FMAX:
           row[schema.COL_FREQUENCY] = schema.FMAX_FREQUENCY_VALUE

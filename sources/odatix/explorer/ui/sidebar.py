@@ -178,7 +178,7 @@ def build_sidebar(kind):
 
   toggles = [toggle for toggle in capabilities["toggles"]] + ["stable_index"]
   toggle_options = [{"label": TOGGLE_LABELS.get(toggle, toggle), "value": toggle} for toggle in toggles]
-  toggle_defaults = [toggle for toggle in toggles if toggle in DEFAULT_TOGGLES or toggle == "stable_index"]
+  toggle_defaults = [toggle for toggle in toggles if toggle in DEFAULT_TOGGLES]
 
   axes_section = (
       # --- Axes ---

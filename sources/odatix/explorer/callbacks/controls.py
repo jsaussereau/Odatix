@@ -25,7 +25,7 @@ repaired when they disappear from the selection.
 """
 
 import dash
-from dash import Input, Output, State
+from dash import ALL, Input, Output, State
 
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
@@ -265,6 +265,34 @@ def register_callbacks():
     if not dissociate or dissociate == (normalize_dims(color_by) or ()):
       raise dash.exceptions.PreventUpdate
     return list(dissociate)
+
+  @dash.callback(
+    Output("xp-dissociate-by", "value", allow_duplicate=True),
+    Input({"type": "xp-filter", "dim": ALL}, "value"),
+    State({"type": "xp-filter", "dim": ALL}, "id"),
+    State("xp-dissociate-by", "value"),
+    prevent_initial_call=True,
+  )
+  def sync_dissociate_with_step_scope(values, ids, dissociate):
+    """Showing the intermediate steps puts several records on the same
+    configuration: dissociate the step so they become separate traces instead of
+    stacking on one x label. Unchecking it again takes the step back out."""
+    triggered = dash.callback_context.triggered_id
+    if not isinstance(triggered, dict) or triggered.get("dim") != schema.COL_STEP_SCOPE:
+      raise dash.exceptions.PreventUpdate
+
+    scopes = next(
+      (value or [] for value, id in zip(values or [], ids or []) if id["dim"] == schema.COL_STEP_SCOPE),
+      [],
+    )
+    dissociate = list(normalize_dims(dissociate) or ())
+    if schema.STEP_SCOPE_INTERMEDIATE in scopes:
+      if schema.COL_STEP in dissociate:
+        raise dash.exceptions.PreventUpdate
+      return dissociate + [schema.COL_STEP]
+    if schema.COL_STEP not in dissociate:
+      raise dash.exceptions.PreventUpdate
+    return [dimension for dimension in dissociate if dimension != schema.COL_STEP]
 
   @dash.callback(
     Output("xp-control-state", "data"),

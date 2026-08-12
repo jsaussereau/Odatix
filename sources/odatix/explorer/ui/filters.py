@@ -33,6 +33,7 @@ from dash import dcc, html
 
 import odatix.explorer.charts.palettes as palettes
 from odatix.explorer.charts.spec import NONE_VALUE
+import odatix.explorer.core.schema as schema
 import odatix.explorer.ui.components as components
 
 
@@ -51,7 +52,7 @@ def _single_dimension(value):
   return value
 
 
-def build_filter_panel(dimensions, global_dimensions, filter_state, color_by, symbol_by, palette, stable_index=True):
+def build_filter_panel(dimensions, global_dimensions, filter_state, color_by, symbol_by, palette, stable_index=False):
   """
   Build the filter panel sections.
 
@@ -73,7 +74,7 @@ def build_filter_panel(dimensions, global_dimensions, filter_state, color_by, sy
   sections = []
   for dimension, values in dimensions.items():
     remembered = filter_state.get(dimension, {})
-    selected = [value for value in values if remembered.get(value, True)]
+    selected = [value for value in values if remembered.get(value, schema.default_selected(dimension, value))]
     reference = global_dimensions.get(dimension, values) if stable_index else values
 
     options = []
