@@ -1028,9 +1028,23 @@ class ParallelJobHandler:
     @staticmethod
     def _clear_task_pipeline(job):
         for attr in ("_task_pipeline", "_task_index", "_current_task_name", "_current_task_steps",
-                     "current_step_index", "current_step_started_at"):
+                     "current_step_index", "current_step_started_at", "_task_steps_recorded_before"):
             if hasattr(job, attr):
                 delattr(job, attr)
+
+    @staticmethod
+    def _recorded_step_count(job):
+        """How many steps the job directory has recorded so far, or None."""
+        tracking = getattr(job, "step_tracking", None)
+        tmp_dir = tracking.get("tmp_dir") if isinstance(tracking, dict) else None
+        if not tmp_dir:
+            return None
+        try:
+            import odatix.lib.job_steps as job_steps
+
+            return len(job_steps.completed_step_names(tmp_dir))
+        except Exception:
+            return None
 
     @staticmethod
     def _step_position_of(job, step_names, fallback):
@@ -1059,6 +1073,10 @@ class ParallelJobHandler:
         # it runs rather than its own rank in the pipeline.
         job.current_step_index = self._step_position_of(job, step_names, task_index)
         job.current_step_started_at = time.time()
+        # A task running several steps at once reports its progress once per
+        # step: how many steps were already recorded when it started is what
+        # lets the progress tell them apart (see ParallelJob._task_step_offset).
+        job._task_steps_recorded_before = self._recorded_step_count(job) if len(step_names or []) > 1 else None
 
         job.log_history.append(printc.colors.CYAN + "Run job task '" + taskname + "'" + printc.colors.ENDC)
         job.log_history.append(printc.colors.BOLD + " > " + full_command + printc.colors.ENDC)

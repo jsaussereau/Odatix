@@ -223,8 +223,34 @@ class ParallelJob:
         if span < 2:
             return None
 
-        current = max(first, min(int(current), total - 1))
+        current = max(first, min(int(current) + self._task_step_offset(), total - 1))
         return current - first, span
+
+    def _task_step_offset(self):
+        """
+        How many steps of the running task it has already finished.
+
+        A task can run several steps in a single process (a flow declaring a
+        session), and the status files then report 0-100 once per step. Odatix
+        records the steps of a task only when its process exits, but each such
+        step records itself as it ends ("odatix_step_done"), so the state file
+        is what tells the steps of a still running task apart.
+        """
+        task_steps = getattr(self, "_current_task_steps", None) or []
+        if len(task_steps) < 2:
+            return 0
+        recorded_before = getattr(self, "_task_steps_recorded_before", None)
+        tracking = getattr(self, "step_tracking", None)
+        tmp_dir = tracking.get("tmp_dir") if isinstance(tracking, dict) else None
+        if recorded_before is None or not tmp_dir:
+            return 0
+        try:
+            import odatix.lib.job_steps as job_steps
+
+            recorded_now = len(job_steps.completed_step_names(tmp_dir))
+        except Exception:
+            return 0
+        return max(0, min(recorded_now - int(recorded_before), len(task_steps) - 1))
 
     def _scale_to_run(self, progress):
         """Map the progress of the running step (0-100) onto the whole run."""
