@@ -29,67 +29,80 @@ if {[catch {
     # Read source files
     ######################################
 
+    # Steps sharing a session each source this script, so that any of them can
+    # also be the first one of a process and start from the RTL. Reading the
+    # same sources twice into the same process would define every module twice:
+    # once is enough, whichever step got there first.
+    if {[info exists ::odatix_sources_read]} {
 
-    if {[file exists "$rtl_path/filelist.f"]} {
-
-        puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
-
-        set fp [open "$rtl_path/filelist.f" r]
-
-        while {[gets $fp line] >= 0} {
-            set line [string trim $line]
-            if {$line eq ""} {
-                continue
-            }
-            if {[string match "*.v" $line]} {
-                read_verilog $line
-            } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {
-                read_verilog $line
-            } elseif {[string match "*.vhd" $line]} {
-                read_vhdl $line
-            }
-        }
-        close $fp
+        puts "$signature <cyan>source files already read in this session<end>"
 
     } else {
 
-        set rtl_path [file normalize $rtl_path]
+        set ::odatix_sources_read 1
 
-        set verilog_error 0
-        set sverilog_error 0
 
-        # read verilog source files
-        set verilog_filenames [get_files_recursive $rtl_path {*.v *.sv}]
-        puts "$signature <cyan>Verilog/SystemVerilog files:<end>"
-        foreach file $verilog_filenames {
-            puts "  - $file"
-        }
-        if {[catch {read_verilog $verilog_filenames} errmsg]} {
-            if {$verilog_filenames == ""} {
-                puts "$signature <cyan>note: no verilog file in source directory<end>"
-            } else {
-                puts "$signature <bold><red>error: failed reading verilog source files<end>"
-                puts "$signature tool says -> $errmsg"
+        if {[file exists "$rtl_path/filelist.f"]} {
+
+            puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
+
+            set fp [open "$rtl_path/filelist.f" r]
+
+            while {[gets $fp line] >= 0} {
+                set line [string trim $line]
+                if {$line eq ""} {
+                    continue
+                }
+                if {[string match "*.v" $line]} {
+                    read_verilog $line
+                } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {
+                    read_verilog $line
+                } elseif {[string match "*.vhd" $line]} {
+                    read_vhdl $line
+                }
             }
-            set verilog_error 1
-        }
+            close $fp
 
-        # read vhdl source files
-        set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
-        puts "$signature <cyan>VHDL files:<end>"
-        foreach file $vhdl_filenames {
-            puts "  - $file"
-        }
-        if {[catch {read_vhdl $vhdl_filenames} errmsg]} {
-            if {$vhdl_filenames == ""} {
-                puts "$signature <cyan>note: no vhdl file in source directory<end>"
-            } else {
-                puts "$signature <bold><red>error: failed reading vhdl source files<end>"
-                puts "$signature tool says -> $errmsg"
+        } else {
+
+            set rtl_path [file normalize $rtl_path]
+
+            set verilog_error 0
+            set sverilog_error 0
+
+            # read verilog source files
+            set verilog_filenames [get_files_recursive $rtl_path {*.v *.sv}]
+            puts "$signature <cyan>Verilog/SystemVerilog files:<end>"
+            foreach file $verilog_filenames {
+                puts "  - $file"
             }
-            if {$verilog_error == 1} {
-                puts "$signature <red>error: failed reading both verilog and vhdl source files, exiting"
-                exit -1
+            if {[catch {read_verilog $verilog_filenames} errmsg]} {
+                if {$verilog_filenames == ""} {
+                    puts "$signature <cyan>note: no verilog file in source directory<end>"
+                } else {
+                    puts "$signature <bold><red>error: failed reading verilog source files<end>"
+                    puts "$signature tool says -> $errmsg"
+                }
+                set verilog_error 1
+            }
+
+            # read vhdl source files
+            set vhdl_filenames [get_files_recursive $rtl_path {*.vhd *.vhdl}]
+            puts "$signature <cyan>VHDL files:<end>"
+            foreach file $vhdl_filenames {
+                puts "  - $file"
+            }
+            if {[catch {read_vhdl $vhdl_filenames} errmsg]} {
+                if {$vhdl_filenames == ""} {
+                    puts "$signature <cyan>note: no vhdl file in source directory<end>"
+                } else {
+                    puts "$signature <bold><red>error: failed reading vhdl source files<end>"
+                    puts "$signature tool says -> $errmsg"
+                }
+                if {$verilog_error == 1} {
+                    puts "$signature <red>error: failed reading both verilog and vhdl source files, exiting"
+                    exit -1
+                }
             }
         }
     }

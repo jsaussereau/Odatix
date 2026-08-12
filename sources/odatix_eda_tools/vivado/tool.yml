@@ -31,6 +31,7 @@ unix:
     - &source_flow_power_opt_unix -source $script_path/flow_power_opt.tcl
     - &vivado_pnr_opt_unix -log $log_path/pnr.log
     - &vivado_bitstream_opt_unix -log $log_path/bitstream.log
+    - &source_step_elaboration_unix -source $script_path/step_elaboration.tcl
     - &source_step_synthesis_unix -source $script_path/step_synthesis.tcl
     - &source_step_pnr_unix -source $script_path/step_pnr.tcl
     - &source_step_bitstream_unix -source $script_path/step_bitstream.tcl
@@ -102,11 +103,21 @@ unix:
     end:
       - *source_exit_script_unix
 
-  # Steps of a custom frequency synthesis. Each one continues from the design
-  # the previous one left: in memory when they run in the same session, from the
-  # design checkpoint it wrote when the run stopped in between. Nothing is
-  # synthesized twice either way.
+  # Steps of a custom frequency synthesis. From "synthesis" on, each one
+  # continues from the design the previous one left: in memory when they run in
+  # the same session, from the design checkpoint it wrote when the run stopped
+  # in between. Nothing is synthesized twice either way.
+  #
+  # "elaboration" stands apart: it only elaborates the RTL, for a count of the
+  # operators and registers it infers, obtained in seconds ("--until
+  # elaboration"), and hands nothing over — synthesis starts from the sources
+  # whatever it leaves behind.
   custom_freq_synthesis_steps:
+    - name: elaboration
+      args:
+        - *source_init_script_unix
+        - *source_analyze_script_unix
+        - *source_step_elaboration_unix
     - name: synthesis
       args:
         - *source_init_script_unix

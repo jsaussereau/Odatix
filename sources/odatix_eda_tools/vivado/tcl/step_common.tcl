@@ -78,25 +78,130 @@ proc odatix_open_checkpoint {name signature previous_step} {
 # step that produces meaningful numbers writes the reports the metrics are read
 # from. The standard files always hold the latest numbers; a copy is kept per
 # step so the post-synthesis estimates survive place & route.
-proc odatix_write_reports {stage signature} {
+#
+# "kinds" selects what a step can report. Each report is written on its own —
+# one the tool refuses to produce does not cost the others.
+proc odatix_write_reports {stage signature {kinds {utilization timing power}}} {
     global report_path utilization_rep utilization_h_rep timing_rep power_rep
 
-    if {[catch {
-        report_utilization > $utilization_rep
-        report_utilization -hierarchical > $utilization_h_rep
-        report_timing > $timing_rep
-        report_power > $power_rep
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed report, skipping...<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        return
+    set written [list]
+    foreach {kind command report} [list \
+        utilization {report_utilization}               $utilization_rep \
+        utilization {report_utilization -hierarchical} $utilization_h_rep \
+        timing      {report_timing}                    $timing_rep \
+        power       {report_power}                     $power_rep \
+    ] {
+        if {[lsearch -exact $kinds $kind] < 0} {
+            continue
+        }
+        if {[catch {
+            eval $command > $report
+        } errmsg]} {
+            puts "$signature <bold><red>error: failed report $report, skipping...<end>"
+            puts -nonewline "$signature tool says -> $errmsg"
+            continue
+        }
+        lappend written $report
     }
 
     set stage_path [file join $report_path $stage]
     file mkdir $stage_path
-    foreach report [list $utilization_rep $utilization_h_rep $timing_rep $power_rep] {
+    foreach report $written {
         catch {file copy -force $report $stage_path}
     }
+}
+
+# An elaborated design is not mapped to the device, so the tool refuses every
+# utilization, timing and power report: "report_utilization can be run only
+# after synthesis has successfully completed". What an elaborated design does
+# hold is the operators and the registers inferred from the RTL, as cells of the
+# RTL netlist — counting them is the estimate available at that point, and the
+# one this writes.
+#
+# The numbers are technology independent: they say how much arithmetic, memory
+# and state the RTL describes, not how many LUTs it will take. They are there to
+# compare configurations of a design space with each other in seconds, not to
+# stand in for post-synthesis utilization.
+proc odatix_write_rtl_resources {stage signature} {
+    global report_path
+
+    set arithmetic {RTL_ADD RTL_SUB RTL_MULT RTL_DIV RTL_MOD RTL_NEG RTL_ABS}
+
+    array set per_cell {}
+    set registers 0
+    set memories 0
+    set operators_arithmetic 0
+    set operators_mux 0
+    set operators_other 0
+
+    foreach cell [get_cells -quiet -hierarchical] {
+        # Vivado names an RTL cell after both the operator it inferred and the
+        # shape it took ("RTL_REG__BREG_1"); the operator alone is counted.
+        set ref [get_property -quiet REF_NAME $cell]
+        regsub {__.*$} $ref "" ref
+        if {$ref eq ""} {
+            continue
+        }
+        if {[info exists per_cell($ref)]} {
+            incr per_cell($ref)
+        } else {
+            set per_cell($ref) 1
+        }
+
+        switch -- [get_property -quiet PRIMITIVE_GROUP $cell] {
+            RTL_REGISTER { incr registers }
+            RTL_MEMORY   { incr memories }
+            RTL_OPERATOR {
+                if {[lsearch -exact $arithmetic $ref] >= 0} {
+                    incr operators_arithmetic
+                } elseif {$ref eq "RTL_MUX"} {
+                    incr operators_mux
+                } else {
+                    incr operators_other
+                }
+            }
+        }
+    }
+
+    set stage_path [file join $report_path $stage]
+    file mkdir $stage_path
+    set path [file join $stage_path rtl_resources.rep]
+    if {[catch {set f [open $path w]} errmsg]} {
+        puts "$signature <bold><red>error: failed report $path, skipping...<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        return
+    }
+
+    puts $f "RTL Resources"
+    puts $f "-------------"
+    puts $f ""
+    puts $f "Estimated from the elaborated RTL netlist, before any mapping to the"
+    puts $f "device: these are inferred operators and registers, not device resources."
+    puts $f ""
+    puts $f "+--------------------------+--------+"
+    puts $f "| Site Type                |   Used |"
+    puts $f "+--------------------------+--------+"
+    foreach {label value} [list \
+        "Registers"            $registers \
+        "Memories"             $memories \
+        "Arithmetic Operators" $operators_arithmetic \
+        "Multiplexers"         $operators_mux \
+        "Other Operators"      $operators_other \
+    ] {
+        puts $f [format "| %-24s | %6d |" $label $value]
+    }
+    puts $f "+--------------------------+--------+"
+    puts $f ""
+    puts $f "+--------------------------+--------+"
+    puts $f "| RTL Cell                 |   Used |"
+    puts $f "+--------------------------+--------+"
+    foreach ref [lsort [array names per_cell]] {
+        puts $f [format "| %-24s | %6d |" $ref $per_cell($ref)]
+    }
+    puts $f "+--------------------------+--------+"
+    close $f
+
+    puts "$signature <cyan>wrote report $path<end>"
 }
 
 proc odatix_single_thread {signature} {

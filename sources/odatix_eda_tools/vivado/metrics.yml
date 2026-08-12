@@ -96,6 +96,53 @@ metrics:
       group_id: 1
     format: "%.2f"
 
+  # RTL estimates (elaboration step only)
+  #
+  # An elaborated design is not mapped to the device, so it has no utilization,
+  # no timing and no power. What it has is the operators and the registers
+  # inferred from the RTL: these count them, from a report only the elaboration
+  # step writes.
+
+  RTL_Reg_count:
+    type: regex
+    step: elaboration
+    error_if_missing: No
+    settings:
+      file: report/$step/rtl_resources.rep
+      pattern: "\\| Registers\\s*\\|\\s*([0-9]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  RTL_Mem_count:
+    type: regex
+    step: elaboration
+    error_if_missing: No
+    settings:
+      file: report/$step/rtl_resources.rep
+      pattern: "\\| Memories\\s*\\|\\s*([0-9]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  RTL_Arith_count:
+    type: regex
+    step: elaboration
+    error_if_missing: No
+    settings:
+      file: report/$step/rtl_resources.rep
+      pattern: "\\| Arithmetic Operators\\s*\\|\\s*([0-9]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  RTL_Mux_count:
+    type: regex
+    step: elaboration
+    error_if_missing: No
+    settings:
+      file: report/$step/rtl_resources.rep
+      pattern: "\\| Multiplexers\\s*\\|\\s*([0-9]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
   # Power
 
   Static_Power:
