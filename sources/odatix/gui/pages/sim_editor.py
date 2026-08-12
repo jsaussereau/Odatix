@@ -1333,6 +1333,48 @@ def update_domain_options(arch, domains, odatix_settings):
 
 
 @dash.callback(
+    Output("sim-hl-param-domains", "data"),
+    Input({"type": "sim-arch-name", "arch": dash.ALL}, "value"),
+    State("odatix-settings", "data"),
+)
+def update_sim_param_domains(arch_names, odatix_settings):
+    """
+    The parameter domains the commands of this simulation can use: Odatix
+    substitutes one variable per parameter domain of the architecture under
+    test, so they are those of the architectures listed in the Architectures
+    section, not of the simulation itself.
+
+    A simulation listing no architecture may still run on any of them, so it
+    gets the domains of all the architectures of the workspace.
+    """
+    names = [str(name or "") for name in arch_names or [] if str(name or "")]
+    if not names:
+        names = ["*"]
+    domains = []
+    for arch in names:
+        for domain in architecture_domain_names(arch, odatix_settings):
+            if domain not in domains:
+                domains.append(domain)
+    return domains
+
+
+# Push the parameter domains to the client and ask the highlighter to redraw.
+dash.clientside_callback(
+    """
+    function(domains) {
+        window.__odatixHlParamDomains = domains || [];
+        // A simulation defines no variable of its own.
+        window.__odatixHlVariables = [];
+        document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
+        return "";
+    }
+    """,
+    Output("sim-hl-dummy", "data"),
+    Input("sim-hl-param-domains", "data"),
+)
+
+
+@dash.callback(
     Output("sim-arch-container", "children", allow_duplicate=True),
     # An architecture or a parameter domain added, duplicated or deleted changes
     # the settings without any field changing, and the save callback cannot watch
@@ -1856,8 +1898,12 @@ layout = html.Div(
         ),
         dcc.Store(id="sim-initial-settings", data=None),
         dcc.Store(id="sim-saved-settings", data=None),
+        # The parameter domains of the architectures the simulation runs on,
+        # pushed to the command highlighter.
+        dcc.Store(id="sim-hl-param-domains", data=[]),
+        dcc.Store(id="sim-hl-dummy", data=""),
         # What the command highlighter colors as built-in variables.
-        builtin_variables.highlight_data("simulation", id="sim-hl-builtins"),
+        builtin_variables.highlight_data("simulation", id="sim-hl-builtins", declares_variables=True),
     ],
     className="page-content",
     style={
