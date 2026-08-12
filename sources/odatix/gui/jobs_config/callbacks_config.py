@@ -286,11 +286,12 @@ def update_param_domains(
                         "arch_name": arch_name,
                         "n_combos": n_combos,
                         "virtual_variants": info["virtual_variants"],
+                        "virtual_domains": info["virtual_domains"],
                     },
                 ),
                 dcc.Store(
                     id={"type": "domain-selections", "arch": arch_name},
-                    data=domains_configs,
+                    data=info["initial_selections"],
                 ),
             ],
             id={"type": "job-section", "arch": arch_name},
@@ -646,13 +647,32 @@ def sync_preview_values(
     preview_set = set(current_preview_values or [])
 
     # Helper: generate all complete combinations from current_domains. Virtual
-    # parameter domains have no checklist of their own (they are generated, not
-    # picked), but they still multiply every combination, exactly like in
+    # parameter domains have chips of their own, but their values are generated
+    # as whole variants (a variant may tie several variables together), so they
+    # are not expanded as a cartesian product: the selection filters the
+    # variants instead, then every kept variant multiplies every physical
+    # combination -- including the bare architecture, exactly like in
     # _arch_config_widgets.
-    all_combos = combinations(current_domains, arch_name)
     virtual_variants = (arch_metadata or {}).get("virtual_variants") or []
+    virtual_domains = set((arch_metadata or {}).get("virtual_domains") or [])
+    physical_domains = {d: v for d, v in current_domains.items() if d not in virtual_domains}
+
+    all_combos = combinations(physical_domains, arch_name)
     if virtual_variants:
-        all_combos = [combo + list(tokens) for combo in all_combos for tokens in virtual_variants]
+        kept_variants = [
+            tokens
+            for tokens in virtual_variants
+            if all(
+                token.partition("/")[2] in current_domains.get(token.partition("/")[0], [])
+                for token in tokens
+                if token.partition("/")[0] in virtual_domains
+            )
+        ]
+        all_combos = [
+            base + list(tokens)
+            for base in [[arch_name]] + all_combos
+            for tokens in kept_variants
+        ]
     all_combo_strings = {" + ".join(c) for c in all_combos}
 
     # Values are domain-scoped in combos as "<domain>/<cfg>" (or "<arch_name>/<cfg>" for main).

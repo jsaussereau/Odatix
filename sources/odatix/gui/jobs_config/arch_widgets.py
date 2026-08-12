@@ -214,6 +214,7 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
 
     selected_domain_values = _extract_domain_values(arch_name, selected_values) if arch_enabled else {}
     domain_tiles = []
+    initial_selections = {}
     for domain, configurations in domains_configs.items():
         if arch_enabled:
             domain_selected = selected_domain_values.get(domain, set())
@@ -226,6 +227,8 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
                 checklist_values = [cfg for cfg in configurations if cfg in domain_selected]
         else:
             checklist_values = list(configurations)
+        if checklist_values:
+            initial_selections[domain] = checklist_values
         checklist = dcc.Checklist(
             options=[{"label": cfg, "value": cfg} for cfg in configurations],
             id={"type": "domain-config-checklist", "arch": arch_name, "domain": domain, **id_extra},
@@ -246,7 +249,7 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
         )
 
     # Virtual parameter domains (command-placeholder variables)
-    virtual_panel_title = "Workflow variables" if mode == "workflow" else "Variables"
+    virtual_panel_title = "Variable"
     virtual_variants, virtual_domain_values, virtual_error = _virtual_variant_tokens(instances, arch_name, mode)
     if virtual_error:
         domain_tiles.append(
@@ -256,21 +259,34 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
             )
         )
     elif virtual_domain_values:
-        domain_tiles.append(
-            ui.panel(
-                title=virtual_panel_title,
-                body=[
-                    html.Div(
-                        [
-                            html.Span(f"{domain}:", className="jobs-var-name"),
-                            html.Span(", ".join(values)),
-                        ],
-                        className="jobs-var-line",
-                    )
-                    for domain, values in virtual_domain_values.items()
-                ],
+        for domain, values in virtual_domain_values.items():
+            if arch_enabled:
+                domain_selected = selected_domain_values.get(domain, set())
+                if "*" in domain_selected:
+                    checklist_values = list(values)
+                else:
+                    checklist_values = [value for value in values if value in domain_selected]
+            else:
+                checklist_values = list(values)
+            if checklist_values:
+                initial_selections[domain] = checklist_values
+            domain_tiles.append(
+                ui.panel(
+                    title=[
+                        html.Span(f"{virtual_panel_title}: {domain}"),
+                        html.Span(f"{len(values)}", className="odx-badge"),
+                    ],
+                    tools=_select_all_buttons(
+                        "domain-config-select-all", {"arch": arch_name, "domain": domain, **id_extra}
+                    ),
+                    body=dcc.Checklist(
+                        options=[{"label": value, "value": value} for value in values],
+                        id={"type": "domain-config-checklist", "arch": arch_name, "domain": domain, **id_extra},
+                        value=checklist_values,
+                        className="odx-chips",
+                    ),
+                )
             )
-        )
 
     # Compute the preview data up-front so the "Default Configuration" tile
     # and the preview stay consistent about whether the default config
@@ -377,5 +393,7 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
         "unmatched": unmatched,
         "too_many": too_many,
         "virtual_variants": virtual_variants,
+        "virtual_domains": list(virtual_domain_values or {}),
+        "initial_selections": initial_selections,
     }
     return domain_tiles, preview_tile, info

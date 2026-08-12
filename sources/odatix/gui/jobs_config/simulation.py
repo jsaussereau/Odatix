@@ -172,11 +172,12 @@ def _sim_arch_card(architectures_collection, sim_name, arch_name, saved_values, 
                     "arch_name": arch_name,
                     "n_combos": info["n_combos"],
                     "virtual_variants": info["virtual_variants"],
+                    "virtual_domains": info["virtual_domains"],
                 },
             ),
             dcc.Store(
                 id={"type": "domain-selections", "sim": sim_name, "arch": arch_name},
-                data=info["domains_configs"],
+                data=info["initial_selections"],
             ),
             # Saved entries no combination accounts for: kept aside
             # and re-contributed to the selection as they are.
