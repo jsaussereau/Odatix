@@ -9,7 +9,7 @@ description: "Odatix is a free and open-source design automation toolbox for the
     highlight="automatically"
     sub_headline="Odatix generates every configuration of your parametrizable design, runs synthesis, place &amp; route and simulation jobs in parallel on the EDA tools you already use, and gathers every metric in one interactive dashboard."
     primary_button_text="Get started"
-    primary_button_url="/install"
+    primary_button_url="/docs"
     secondary_button_text="View on GitHub"
     secondary_button_url="https://github.com/jsaussereau/odatix"
     image="/images/screenshots/explorer-overview.png"
