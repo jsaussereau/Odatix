@@ -128,6 +128,8 @@ def register_callbacks():
     State("xp-symbol-by", "value"),
     State("xp-legend-group-by", "value"),
     State("xp-sort-by", "value"),
+    State("xp-sort-x-by", "value"),
+    State("xp-sort-x-order", "value"),
     State("xp-dissociate-by", "value"),
     State("xp-palette", "value"),
     State("xp-plot-theme", "value"),
@@ -143,7 +145,7 @@ def register_callbacks():
     prevent_initial_call=True,
   )
   def save_current_view(n_clicks, name, suggested, description, kind, sources, x, y, z, color_by, symbol_by,
-                        legend_group_by, sort_by, dissociate, palette, plot_theme, toggles,
+                        legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, palette, plot_theme, toggles,
                         overview_chart_type, overview_layout, dl_format, dl_background,
                         filter_state, filter_values, filter_ids, rule_state):
     if not n_clicks:
@@ -168,7 +170,8 @@ def register_callbacks():
         "controls": {
           "x": x, "y": y, "z": z,
           "color_by": color_by, "symbol_by": symbol_by,
-          "legend_group_by": legend_group_by, "sort_by": sort_by, "dissociate": dissociate,
+          "legend_group_by": legend_group_by, "sort_by": sort_by,
+          "sort_x_by": sort_x_by, "sort_x_order": sort_x_order, "dissociate": dissociate,
         },
         "filters": views.filters_to_hidden(filter_state, base_dimensions),
         "rules": rules.normalize(rule_state),

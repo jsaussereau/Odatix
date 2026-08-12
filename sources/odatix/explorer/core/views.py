@@ -53,13 +53,14 @@ from odatix.explorer.charts.spec import (
   NONE_VALUE,
   OVERVIEW_LAYOUTS,
   TOGGLE_LABELS,
+  X_ORDERS,
 )
 
 VIEWS_DIRNAME = "explorer_views"
 VIEW_SCHEMA_KEY = "odatix_explorer_view"
 VIEW_SCHEMA_VERSION = 1
 
-CONTROL_KEYS = ("x", "y", "z", "color_by", "symbol_by", "legend_group_by", "sort_by", "dissociate")
+CONTROL_KEYS = ("x", "y", "z", "color_by", "symbol_by", "legend_group_by", "sort_by", "sort_x_by", "sort_x_order", "dissociate")
 EXPORT_FORMATS = ("svg", "png", "jpeg", "webp")
 EXPORT_BACKGROUNDS = ("transparent", "white", "theme")
 OVERVIEW_CHART_TYPES = ("lines", "columns", "radar")
@@ -235,6 +236,8 @@ def sanitize_view(view, store):
     "symbol_by": dim_choices,
     "legend_group_by": dim_choices,
     "sort_by": dim_choices,
+    "sort_x_by": dim_choices,
+    "sort_x_order": set(X_ORDERS),
     "dissociate": dim_choices,
   }
   controls = {}

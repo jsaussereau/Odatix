@@ -34,7 +34,7 @@ import plotly.graph_objects as go
 import odatix.explorer.core.schema as schema
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
-from odatix.explorer.charts.spec import NONE_VALUE
+from odatix.explorer.charts.spec import NONE_VALUE, x_is_symbolic
 
 TRANSPARENT = "rgba(0,0,0,0)"
 
@@ -248,7 +248,7 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
     _apply_layout(fig, spec, [], units, chrome, height, plot_theme)
     return fig
 
-  x_is_metric = spec.kind in ("scatter", "scatter3d") or (spec.x in metrics and spec.x not in dimensions)
+  x_is_metric = not x_is_symbolic(spec.kind, spec.x, dimensions, metrics)
   categories = [] if x_is_metric else _x_categories(df, spec)
 
   auto_color_by = _auto_line_color_dimension(spec, dimensions)
@@ -285,8 +285,46 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
 
 
 def _x_categories(df, spec):
-  values = _dimension_series(df, spec.x).unique() if spec.x in df.columns else []
-  return schema.sort_values(values)
+  """Order of the categories of a symbolic x axis.
+
+  By default the values are ordered naturally (numeric-aware). "Sort X by"
+  dimensions take priority over that, in the order picked, exactly as "Sort by"
+  does for traces; the x order then decides the last key (the value itself, or
+  its y value) and whether the whole order is reversed.
+  """
+  if spec.x not in df.columns:
+    return []
+  values = _dimension_series(df, spec.x)
+  categories = schema.sort_values(values.unique())
+
+  order = spec.sort_x_order or "natural"
+  sort_dims = [dim for dim in (spec.sort_x_by or ()) if dim in df.columns and dim != spec.x]
+  by_y = order in ("y_asc", "y_desc")
+  if not sort_dims and not by_y and order != "reverse":
+    return categories
+
+  frame = pd.DataFrame({dim: _dimension_series(df, dim) for dim in sort_dims})
+  frame["__x"] = values
+  if by_y:
+    frame["__y"] = pd.to_numeric(df[spec.y], errors="coerce") if spec.y in df.columns else float("nan")
+
+  natural_rank = {category: rank for rank, category in enumerate(categories)}
+  keys = {}
+  for category, sub in frame.groupby("__x", sort=False):
+    # A category can span several rows: rank it by its first dimension values
+    # and by its mean y, so the order stays defined whatever the traces are.
+    dim_key = tuple(min(schema.sort_key(value) for value in sub[dim]) for dim in sort_dims)
+    if by_y:
+      mean = sub["__y"].mean()
+      last = (1, 0.0) if pd.isna(mean) else (0, float(mean))  # missing y goes last
+    else:
+      last = (0, natural_rank.get(category, 0))
+    keys[category] = (dim_key, last)
+
+  ordered = sorted(categories, key=lambda category: keys[category])
+  if order in ("reverse", "y_desc"):
+    ordered.reverse()
+  return ordered
 
 
 def _x_label(category, spec):
@@ -295,17 +333,28 @@ def _x_label(category, spec):
   return str(category)
 
 
+def _x_labels(categories, spec):
+  """The x axis labels, in order and without duplicates.
+
+  Dissociated dimensions are stripped from the labels, so several categories
+  ("...+partition_none", "...+partition_cyclic") collapse into a single label:
+  that is exactly the point of dissociating, each trace then holding one point
+  per label instead of one point and holes where the other traces sit.
+  """
+  return list(dict.fromkeys(_x_label(category, spec) for category in categories))
+
+
 def _categorical_xy(sub_df, spec, categories):
-  """Align a trace on the shared x categories (None where a category has no value)."""
+  """Align a trace on the shared x labels (None where a label has no value)."""
   series = pd.to_numeric(sub_df[spec.y], errors="coerce") if spec.y in sub_df.columns else pd.Series(dtype=float)
-  by_category = {}
+  by_label = {}
   if spec.x in sub_df.columns:
     x_values = _dimension_series(sub_df, spec.x)
     for x_value, y_value in zip(x_values, series):
       if pd.notna(y_value):
-        by_category[x_value] = y_value
-  x = [_x_label(category, spec) for category in categories]
-  y = [by_category.get(category) for category in categories]
+        by_label[_x_label(x_value, spec)] = y_value
+  x = _x_labels(categories, spec)
+  y = [by_label.get(label) for label in x]
   return x, y
 
 
@@ -504,7 +553,7 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
     xaxis = dict(title=str(spec.x) if categories else schema.axis_title(spec.x, units), **grid)
     if categories:
       xaxis["categoryorder"] = "array"
-      xaxis["categoryarray"] = [_x_label(category, spec) for category in categories]
+      xaxis["categoryarray"] = _x_labels(categories, spec)
     else:
       # Numeric x axis only: log scale / start-at-zero (ignored for categorical x).
       zero_x = spec.has("zero_x") or (spec.kind != "scatter" and spec.has("zero_y"))

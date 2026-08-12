@@ -33,7 +33,15 @@ from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line
 
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
-from odatix.explorer.charts.spec import CAPABILITIES, TOGGLE_LABELS, DEFAULT_TOGGLES, OVERVIEW_LAYOUTS
+from odatix.explorer.charts.spec import (
+  CAPABILITIES,
+  DEFAULT_TOGGLES,
+  DEFAULT_X_ORDER,
+  OVERVIEW_LAYOUTS,
+  TOGGLE_LABELS,
+  X_ORDERS,
+  X_ORDER_LABELS,
+)
 import odatix.explorer.ui.components as components
 
 _PERSIST = dict(persistence=True, persistence_type="session")
@@ -184,6 +192,26 @@ def build_sidebar(kind):
         components.control_row("X axis" if not is_scatter else "X metric", _dropdown("xp-axis-x"), hidden="x" not in axes and not is_overview),
         components.control_row("Y metric", _dropdown("xp-axis-y"), hidden="y" not in axes),
         components.control_row("Z metric", _dropdown("xp-axis-z"), hidden="z" not in axes),
+        # Only meaningful when the x axis is symbolic: hidden here, then shown by
+        # toggle_x_order_rows when the chosen x axis turns out to be categorical.
+        components.control_row(
+          "Sort X by",
+          _multi_dropdown("xp-sort-x-by"),
+          tooltip="Order the symbolic x values by the chosen dimensions, in the order picked here",
+          hidden=True,
+          id="xp-row-sort-x-by",
+        ),
+        components.control_row(
+          "X order",
+          _dropdown(
+            "xp-sort-x-order",
+            options=[{"label": X_ORDER_LABELS[order], "value": order} for order in X_ORDERS],
+            value=DEFAULT_X_ORDER,
+          ),
+          tooltip="Order of the symbolic x values (last criterion after \"Sort X by\")",
+          hidden=True,
+          id="xp-row-sort-x-order",
+        ),
         components.control_row("Dissociate", _multi_dropdown("xp-dissociate-by"), tooltip="Split one or more dimensions into separate traces"),
         components.control_row("Layout", _dropdown(
           "xp-overview-layout",
@@ -204,7 +232,7 @@ def build_sidebar(kind):
           tooltip="One pattern per combination of the chosen dimensions" if kind == "columns" else "One symbol per combination of the chosen dimensions",
         ),
         components.control_row("Group legend by", _dropdown("xp-legend-group-by")),
-        components.control_row("Sort by", _multi_dropdown("xp-sort-by"), tooltip="Order traces globally by the chosen dimensions, in the order picked here"),
+        components.control_row("Sort legend by", _multi_dropdown("xp-sort-by"), tooltip="Order traces globally by the chosen dimensions, in the order picked here"),
         components.control_row("Palette", _dropdown(
           "xp-palette",
           options=[{"label": name, "value": name} for name in palettes.PALETTES],

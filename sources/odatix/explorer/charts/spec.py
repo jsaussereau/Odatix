@@ -36,7 +36,19 @@ NONE_VALUE = "none"
 # Controls accepting several dimensions at once (multi dropdowns). Their spec
 # fields hold a tuple of dimensions: () means "none", None means "not set yet"
 # (resolve_defaults then picks a default).
-MULTI_CONTROLS = ("color_by", "symbol_by", "sort_by", "dissociate")
+MULTI_CONTROLS = ("color_by", "symbol_by", "sort_by", "sort_x_by", "dissociate")
+
+# Ordering of a categorical (symbolic) x axis. "natural" is the numeric-aware
+# ordering of the values themselves; the y orders rank the categories by their
+# y value (mean over the selection).
+X_ORDERS = ("natural", "reverse", "y_asc", "y_desc")
+X_ORDER_LABELS = {
+  "natural": "Natural",
+  "reverse": "Reversed",
+  "y_asc": "Y ascending",
+  "y_desc": "Y descending",
+}
+DEFAULT_X_ORDER = "natural"
 
 KINDS = ["lines", "columns", "scatter", "scatter3d", "radar"]
 
@@ -105,6 +117,8 @@ class FigureSpec:
   symbol_by: tuple = None       # dimensions, one symbol per value combination
   legend_group_by: str = None   # any dimension, or NONE_VALUE
   sort_by: tuple = None          # dimensions taking priority when ordering traces, in priority order
+  sort_x_by: tuple = None       # dimensions taking priority when ordering a categorical x axis
+  sort_x_order: str = None      # ordering of a categorical x axis (see X_ORDERS)
   dissociate: tuple = None      # dimensions pulled out of x labels into trace identity
   label_by: str = None          # dimension used for point labels (scatter kinds)
   stable_index: bool = True     # color/symbol indices computed over all values (stable across filters)
@@ -112,6 +126,17 @@ class FigureSpec:
 
   def has(self, toggle):
     return toggle in self.toggles
+
+
+def x_is_symbolic(kind, x, dimensions, metrics):
+  """Whether the x axis holds categories rather than numbers.
+
+  Scatter kinds always plot metrics on x; elsewhere x accepts any dimension, and
+  is numeric only when the chosen name is a metric and nothing else.
+  """
+  if kind in ("scatter", "scatter3d"):
+    return False
+  return not (x in metrics and x not in dimensions)
 
 
 def normalize_dims(value, dimensions=None):
@@ -180,6 +205,9 @@ def resolve_defaults(spec, dimensions, metrics):
   if spec.legend_group_by is None or (spec.legend_group_by != NONE_VALUE and spec.legend_group_by not in dimensions):
     spec.legend_group_by = pick([schema.COL_TARGET, schema.COL_SOURCE], NONE_VALUE)
   spec.sort_by = resolve_multi(spec.sort_by, None)
+  spec.sort_x_by = resolve_multi(spec.sort_x_by, None)
+  if spec.sort_x_order not in X_ORDERS:
+    spec.sort_x_order = DEFAULT_X_ORDER
   spec.dissociate = resolve_multi(spec.dissociate, None)
 
   return spec
