@@ -93,6 +93,7 @@ TOGGLE_LABELS = {
   "log_x": "Log scale X axis",
   "log_y": "Log scale Y axis",
   "log_z": "Log scale Z axis",
+  "stable_index": "Stable colors and symbols",
 }
 
 DEFAULT_TOGGLES = ["legend", "legend_groups", "title", "lines", "connect_gaps", "close_line", "labels", "zero_x", "zero_y", "zero_axis"]
@@ -121,7 +122,7 @@ class FigureSpec:
   sort_x_order: str = None      # ordering of a categorical x axis (see X_ORDERS)
   dissociate: tuple = None      # dimensions pulled out of x labels into trace identity
   label_by: str = None          # dimension used for point labels (scatter kinds)
-  stable_index: bool = True     # color/symbol indices computed over all values (stable across filters)
+  stable_index: bool = False    # color/symbol indices computed over all values (stable across filters)
   toggles: tuple = field(default_factory=tuple)
 
   def has(self, toggle):
