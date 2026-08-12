@@ -517,6 +517,17 @@
     flex-wrap: wrap;
     gap: 6px;
 }
+/* Chips sitting on a row of their own controls (the head of a step), where they
+   are one choice among several and should not weigh more than the rest. */
+.odx-chips.small {
+    flex-wrap: nowrap;
+    gap: 4px;
+}
+.odx-chips.small label {
+    padding: 2px 9px;
+    font-size: 12px;
+    white-space: nowrap;
+}
 /* dcc.Checklist writes an inline "display: block" on every label, hence the
    !important here and in .odx-check-list. */
 .odx-chips label {

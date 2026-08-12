@@ -108,6 +108,16 @@ MODE_OPTIONS_FLOW = [
     {"label": "Steps", "value": "steps"},
 ]
 
+# How a step is run: inside the session the job type opens (it then declares only
+# what it adds to it, and the steps of a run share a single process of the tool),
+# or as a process of its own (it then declares the whole command it runs). Tools
+# driven by a single binary are served by the first, tools running a different
+# binary per step by the second.
+STEP_KIND_OPTIONS = [
+    {"label": "In session", "value": "args"},
+    {"label": "Own command", "value": "command"},
+]
+
 # Log levels shown in the formatting section, with their display label.
 LOG_LEVELS = [
     ("error", "Error"),
@@ -679,8 +689,10 @@ def step_row(flow_uid, platform, job, step_uid, name="", command="", is_default=
 
     A step is either a process of its own ("command") or a fragment of the job
     type's session ("args"), which is what lets the steps of a run share a single
-    process of the tool. Which one it is is a hidden value: it comes from the
-    file, and a step added to a job type that opens a session joins it.
+    process of the tool. Which one it is is the step's own choice: a tool driven
+    by a single binary has its steps share a session, one needing a different
+    binary per step gives each of them its whole command. A step added to a job
+    type that opens a session joins it, and can be taken out of it here.
     """
     return html.Div(
         children=[
@@ -701,10 +713,11 @@ def step_row(flow_uid, platform, job, step_uid, name="", command="", is_default=
                         value="1" if is_default else "",
                         type="hidden",
                     ),
-                    dcc.Input(
+                    dcc.RadioItems(
                         id={"type": "tool-step-kind", "flow": flow_uid, "platform": platform, "job": job, "step": step_uid},
+                        options=[dict(option, disabled=True) for option in STEP_KIND_OPTIONS] if locked else STEP_KIND_OPTIONS,
                         value=kind,
-                        type="hidden",
+                        className="odx-chips small",
                     ),
                     html.Button(
                         "Default",
@@ -1137,9 +1150,10 @@ def gather_flows(
 # callbacks using them take their arguments (dash hands them over in
 # declaration order). Ids and server owned values are always read as State;
 # `text_dep` and `choice_dep` say which of the rest wake the callback up: the
-# structural callback only re-renders when a job type is switched between a
-# command and steps, while the save callback watches everything to keep its
-# dirty state fresh.
+# structural callback only re-renders on the choices that change what is shown
+# (a job type switched between a command and steps, a step switched between the
+# session and a command of its own), while the save callback watches everything
+# to keep its dirty state fresh.
 def flow_dependencies(text_dep, choice_dep):
     job_pattern = {"flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL}
     step_pattern = dict(job_pattern, step=dash.ALL)
@@ -1164,7 +1178,7 @@ def flow_dependencies(text_dep, choice_dep):
         text_dep(dict(step_pattern, type="tool-step-name"), "value"),
         text_dep(dict(step_pattern, type="tool-step-cmd"), "value"),
         State(dict(step_pattern, type="tool-step-default"), "value"),
-        State(dict(step_pattern, type="tool-step-kind"), "value"),
+        choice_dep(dict(step_pattern, type="tool-step-kind"), "value"),
     ]
 
 
