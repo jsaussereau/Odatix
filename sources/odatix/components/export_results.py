@@ -340,7 +340,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       value = calculate_operation(op, results, error_if_missing, error_prefix)
     else:
       printc.error(
-        'Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + metrics_file + '"',
+        # type can be None when the metric declares an empty "type:" key
+        'Unsupported metric type "' + str(type) + '" specified for metric "' + metric + '" in "' + metrics_file + '"',
         script_name=script_name,
       )
       banned_metrics.append(metric)
