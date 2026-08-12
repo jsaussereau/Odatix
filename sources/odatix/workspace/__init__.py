@@ -76,6 +76,13 @@ from odatix.workspace.configs import (
     combinations,
     count_combinations,
 )
+from odatix.workspace.clean import (
+    DANGEROUS_PATHS,
+    CleanResult,
+    CleanSettingsFile,
+    PathRemoval,
+    remove_path,
+)
 from odatix.workspace.core import Workspace, WorkspacePaths
 from odatix.workspace.derived import DerivedMetricsFile
 from odatix.workspace.domains import (
@@ -199,6 +206,12 @@ __all__ = [
     # Metrics
     "MetricsFile",
     "DerivedMetricsFile",
+    # Cleaning
+    "CleanSettingsFile",
+    "CleanResult",
+    "PathRemoval",
+    "DANGEROUS_PATHS",
+    "remove_path",
     # Runs
     "JOB_MODES",
     "JobConfig",

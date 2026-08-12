@@ -37,6 +37,7 @@ import os
 
 from odatix.lib.settings import OdatixSettings
 from odatix.workspace.architectures import ArchitectureCollection
+from odatix.workspace.clean import CleanSettingsFile
 from odatix.workspace.derived import DerivedMetricsFile
 from odatix.workspace.errors import NotAWorkspaceError
 from odatix.workspace.jobs import JobConfigCollection
@@ -302,6 +303,11 @@ class Workspace(object):
     def derived_metrics(self):
         """The metrics this workspace computes from the ones its runs produce."""
         return DerivedMetricsFile(self.paths.derived_metrics_file)
+
+    @property
+    def clean_settings(self):
+        """What "odatix clean" removes from this workspace."""
+        return CleanSettingsFile(self.paths.clean_settings_file, root=self.root)
 
     ######################################
     # Display

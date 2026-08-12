@@ -67,8 +67,9 @@ nav_groups = [
         ("Overview", "/explorer/overview"),
         ("RTL Analysis", "/explorer/analysis"),
     ]),
-    ("Settings", "/workspace", [
-        ("Workspace", "/workspace"),
+    ("Workspace", "", [
+        ("Clean", "/clean"),
+        ("Settings", "/workspace"),
     ]),
 ]
 
