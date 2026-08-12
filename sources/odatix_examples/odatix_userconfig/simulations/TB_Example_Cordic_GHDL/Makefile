@@ -47,11 +47,11 @@ SIM_LOGFILE = $(LOG_DIR)/sim.log
 ########################################################
 
 # The testbench needs to know the parameters Odatix wrote in the RTL file, so
-# that it can build its reference model. They are read back from the generic
-# clause of the source and forwarded to the elaboration of the testbench.
-TOP_FILE = $(RTL_DIR)/$(MODULE).vhdl
-CFG_WIDTH := $(shell sed -n 's/.*WIDTH *: *integer *:= *\([0-9][0-9]*\).*/\1/p' $(TOP_FILE) | head -1)
-CFG_ITERATIONS := $(shell sed -n 's/.*ITERATIONS *: *integer *:= *\([0-9][0-9]*\).*/\1/p' $(TOP_FILE) | head -1)
+# that it can build its reference model. Odatix passes the value of each
+# parameter domain of the architecture to the command in _settings.yml
+# (${width} and ${iterations}), so nothing has to be read back from the source.
+CFG_WIDTH ?=
+CFG_ITERATIONS ?=
 
 GHDL_GENERICS = -gWIDTH=$(CFG_WIDTH) -gITERATIONS=$(CFG_ITERATIONS)
 
@@ -89,7 +89,15 @@ help:
 	@printf "\t$(_BOLD)make help$(_END): display a list of useful commands\n"
 
 .PHONY: sim
-sim: makedir $(VCD_FILE)
+sim: check_config makedir $(VCD_FILE)
+
+.PHONY: check_config
+check_config:
+	@test -n "$(CFG_WIDTH)" -a -n "$(CFG_ITERATIONS)" || { \
+	  printf "Error: CFG_WIDTH and CFG_ITERATIONS must be set\n"; \
+	  printf "       (Odatix passes them from the \"width\" and \"iterations\" parameter domains)\n"; \
+	  exit 1; \
+	}
 
 .PHONY: view
 view: $(VCD_FILE)

@@ -37,29 +37,6 @@ die() {
   exit 1
 }
 
-# Read back a parameter Odatix wrote in the RTL file. Both the VHDL generic
-# form ("WIDTH : integer := 16") and the Verilog parameter form
-# ("parameter WIDTH = 16") are accepted, so that the same script serves both
-# versions of the design.
-read_parameter() {
-  local file="$1"
-  local name="$2"
-  local value
-
-  # VHDL: WIDTH : integer := 16
-  value=$(grep -oE "${name}[[:space:]]*:[[:space:]]*[a-zA-Z_]+[[:space:]]*:=[[:space:]]*[0-9]+" "${file}" \
-    | head -n1 | grep -oE "[0-9]+$")
-  if [ -n "${value}" ]; then
-    echo "${value}"
-    return
-  fi
-
-  # Verilog / SystemVerilog: parameter [type] WIDTH = 16
-  value=$(grep -oE "parameter[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*[[:space:]]+)?${name}[[:space:]]*=[[:space:]]*[0-9]+" "${file}" \
-    | head -n1 | grep -oE "[0-9]+$")
-  echo "${value}"
-}
-
 ########################################################
 # Setup
 ########################################################
@@ -81,31 +58,20 @@ if [ "${#vhdl_sources[@]}" -eq 0 ] && [ "${#vlog_sources[@]}" -eq 0 ]; then
   die "no source file found in '${RTL_DIR}'"
 fi
 
-# The top level file, used to read the configuration back
-top_file=""
-for f in "${vhdl_sources[@]}" "${vlog_sources[@]}"; do
-  base=$(basename "${f}")
-  if [ "${base%.*}" = "${MODULE}" ]; then
-    top_file="${f}"
-    break
-  fi
-done
-if [ -z "${top_file}" ]; then
-  die "could not find the top level file of '${MODULE}' in '${RTL_DIR}'"
-fi
-
 ########################################################
 # Configuration
 ########################################################
 
 # The testbench needs to know the parameters Odatix wrote in the RTL file, so
-# that it can build its reference model. They are read back from the source
-# and forwarded to the elaboration of the testbench.
-cfg_width=$(read_parameter "${top_file}" "WIDTH")
-cfg_iterations=$(read_parameter "${top_file}" "ITERATIONS")
+# that it can build its reference model. Odatix substitutes the value of each
+# parameter domain of the architecture in the command of _settings.yml
+# (${width} and ${iterations}), which passes them here as environment
+# variables, so nothing has to be read back from the source.
+cfg_width="${CFG_WIDTH:-}"
+cfg_iterations="${CFG_ITERATIONS:-}"
 
 if [ -z "${cfg_width}" ] || [ -z "${cfg_iterations}" ]; then
-  die "could not read WIDTH/ITERATIONS back from '${top_file}'"
+  die "CFG_WIDTH and CFG_ITERATIONS must be set (Odatix passes them from the \"width\" and \"iterations\" parameter domains)"
 fi
 
 {
@@ -114,7 +80,6 @@ fi
   echo "              Compiling               "
   echo "######################################"
   echo ""
-  echo "top level file = ${top_file}"
   echo "WIDTH = ${cfg_width}, ITERATIONS = ${cfg_iterations}"
 } | tee -a "${TRANSCRIPT_FILE}"
 

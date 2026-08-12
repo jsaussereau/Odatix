@@ -63,26 +63,6 @@ proc find_files {dir patterns} {
   return $found
 }
 
-# Read back a parameter Odatix wrote in the RTL file. Both the VHDL generic
-# form ("WIDTH : integer := 16") and the Verilog parameter form
-# ("parameter WIDTH = 16") are accepted, so that the same script serves both
-# versions of the design.
-proc read_parameter {file name} {
-  set fh [open $file "r"]
-  set content [read $fh]
-  close $fh
-
-  # VHDL: WIDTH : integer := 16
-  if {[regexp -line "$name\\s*:\\s*\[a-zA-Z_\]+\\s*:=\\s*(\[0-9\]+)" $content -> value]} {
-    return $value
-  }
-  # Verilog / SystemVerilog: parameter [type] WIDTH = 16
-  if {[regexp -line "parameter\\s+(?:\[a-zA-Z_\]\[a-zA-Z0-9_\]*\\s+)?$name\\s*=\\s*(\[0-9\]+)" $content -> value]} {
-    return $value
-  }
-  return ""
-}
-
 ########################################################
 # Setup
 ########################################################
@@ -108,30 +88,26 @@ if {[llength $vhdl_sources] == 0 && [llength $vlog_sources] == 0} {
   die "no source file found in '$rtl_dir'"
 }
 
-# The top level file, used to read the configuration back
-set top_file ""
-foreach f [concat $vhdl_sources $vlog_sources] {
-  if {[file rootname [file tail $f]] eq $module} {
-    set top_file $f
-    break
-  }
-}
-if {$top_file eq ""} {
-  die "could not find the top level file of '$module' in '$rtl_dir'"
-}
-
 ########################################################
 # Configuration
 ########################################################
 
 # The testbench needs to know the parameters Odatix wrote in the RTL file, so
-# that it can build its reference model. They are read back from the source and
-# forwarded to the elaboration of the testbench.
-set cfg_width      [read_parameter $top_file "WIDTH"]
-set cfg_iterations [read_parameter $top_file "ITERATIONS"]
+# that it can build its reference model. Odatix substitutes the value of each
+# parameter domain of the architecture in the command of _settings.yml
+# (${width} and ${iterations}), which passes them here as environment
+# variables, so nothing has to be read back from the source.
+set cfg_width ""
+set cfg_iterations ""
+if {[info exists ::env(CFG_WIDTH)]} {
+  set cfg_width $::env(CFG_WIDTH)
+}
+if {[info exists ::env(CFG_ITERATIONS)]} {
+  set cfg_iterations $::env(CFG_ITERATIONS)
+}
 
 if {$cfg_width eq "" || $cfg_iterations eq ""} {
-  die "could not read WIDTH/ITERATIONS back from '$top_file'"
+  die "CFG_WIDTH and CFG_ITERATIONS must be set (Odatix passes them from the \"width\" and \"iterations\" parameter domains)"
 }
 
 puts ""
@@ -139,7 +115,6 @@ puts "######################################"
 puts "              Compiling               "
 puts "######################################"
 puts ""
-puts "top level file = $top_file"
 puts "WIDTH = $cfg_width, ITERATIONS = $cfg_iterations"
 
 ########################################################

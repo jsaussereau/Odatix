@@ -6,7 +6,7 @@
 tasks:
 - name: main
   commands:
-  - vsim -c -do scripts/sim.do
+  - CFG_WIDTH=${width} CFG_ITERATIONS=${iterations} vsim -c -do scripts/sim.do
 
 # Where Odatix should look for progress information, and how to parse it
 progress:

@@ -6,7 +6,7 @@
 tasks:
 - name: main
   commands:
-  - make sim --no-print-directory
+  - make sim CFG_WIDTH=${width} CFG_ITERATIONS=${iterations} --no-print-directory
 
 # Where Odatix should look for progress information, and how to parse it
 progress:
