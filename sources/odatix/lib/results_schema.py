@@ -35,7 +35,7 @@ Format v2 (current):
         type: fmax_synthesis          # fmax_synthesis | custom_freq_synthesis | pnr | workflow | simulation | ...
         tool: vivado                  # eda tool the job ran with
         flow: standard                # flow of that tool the job ran with
-        step: pnr                     # last step of that flow the job reached
+        step: pnr                     # step of that flow this record holds
         target: xc7a100t-csg324-1
         architecture: Example_Counter_verilog
         configuration: 04bits         # full configuration name (incl. "+domain/value" segments)
@@ -45,7 +45,9 @@ Format v2 (current):
         source_type: custom_freq_synthesis  # pnr only
         timestamp: 2025-08-27_07-50-09
         main: 04bits                  # parameter domains are flattened into meta
-        _run_dir: /abs/path           # "_" prefix = informational, not a dimension
+        _step_index: 1                # "_" prefix = informational, not a dimension
+        _last_step: true              # this is the last step the job reached
+        _run_dir: /abs/path
       metrics:
         Fmax: 450
         LUT_count: 3
@@ -85,6 +87,11 @@ META_TIMESTAMP = "timestamp"
 META_SOURCE_TYPE = "source_type"
 META_SOURCE_TOOL = "source_tool"
 META_SOURCE_FLOW = "source_flow"
+
+# Informational step keys, "_"-prefixed so they stay out of the record identity,
+# of the dimensions a chart offers and of the joins derived metrics run on.
+META_STEP_INDEX = "_step_index"
+META_LAST_STEP = "_last_step"
 
 RESERVED_META_KEYS = (
   META_TYPE,
@@ -166,50 +173,87 @@ def make_record(meta, metrics):
 
 
 # Meta keys that describe a record without telling it apart from another one.
-# The timestamp changes on every run, and the step is how far a job got: a job
-# resumed to a further step refines its own record instead of adding one.
-# The flow, on the other hand, *is* a dimension: two flows of the same tool run
-# in separate work directories and are meant to be compared.
-NON_IDENTITY_META_KEYS = (META_TIMESTAMP, META_STEP)
+# The timestamp changes on every run. The step, on the other hand, *is* part of
+# the identity: a job resumed to a further step adds the record of that step
+# next to the ones it already produced. The flow is a dimension too: two flows
+# of the same tool run in separate work directories and are meant to be compared.
+NON_IDENTITY_META_KEYS = (META_TIMESTAMP,)
+
+# On top of that, what identifies the *job* a record comes from ignores the step:
+# every record sharing a job identity was produced by the same job directory.
+NON_JOB_IDENTITY_META_KEYS = NON_IDENTITY_META_KEYS + (META_STEP,)
 
 
-def record_identity(meta):
-  """
-  Identity of a record, used to deduplicate/replace records on incremental
-  exports. The timestamp, the step and informational ("_"-prefixed) keys are
-  excluded: re-running the same job replaces its previous record.
-  """
+def _identity(meta, ignored_keys):
   if not isinstance(meta, dict):
     return tuple()
   return tuple(
     sorted(
       (str(key), str(value))
       for key, value in meta.items()
-      if str(key) not in NON_IDENTITY_META_KEYS and not str(key).startswith("_")
+      if str(key) not in ignored_keys and not str(key).startswith("_")
     )
   )
 
 
+def record_identity(meta):
+  """
+  Identity of a record, used to deduplicate/replace records on incremental
+  exports. The timestamp and informational ("_"-prefixed) keys are excluded:
+  re-exporting the same step of the same job replaces its previous record.
+  """
+  return _identity(meta, NON_IDENTITY_META_KEYS)
+
+
+def job_identity(meta):
+  """
+  Identity of the job a record comes from: its record identity without the step.
+  Every record of a job shares it.
+  """
+  return _identity(meta, NON_JOB_IDENTITY_META_KEYS)
+
+
 def upsert_records(existing, new):
   """
-  Merge new records into an existing record list: a new record replaces any
-  existing record with the same identity (in place), otherwise it is appended.
+  Merge new records into an existing record list.
+
+  An export always produces *all* the records of the jobs it covers (one per
+  step, see the module docstring), so the records of a job are replaced as a
+  whole: what the new export does not mention, the job no longer holds. That is
+  what drops the records of steps invalidated by a re-run, and what clears the
+  "_last_step" flag of a step a resumed job has gone past. Records of the other
+  jobs keep their place.
 
   Returns:
       list: The merged record list.
   """
-  merged = list(existing) if existing else []
-  index_by_identity = {record_identity(record.get("meta", {})): i for i, record in enumerate(merged) if isinstance(record, dict)}
+  new = [record for record in new if isinstance(record, dict)]
+  merged = [record for record in (existing or []) if isinstance(record, dict)]
+
+  replaced_jobs = set(job_identity(record.get("meta", {})) for record in new)
+  if not replaced_jobs:
+    return merged
+
+  # Records of a replaced job land where its first record was, so that a
+  # re-export does not shuffle the file around.
+  new_by_job = {}
   for record in new:
-    if not isinstance(record, dict):
+    new_by_job.setdefault(job_identity(record.get("meta", {})), []).append(record)
+
+  result = []
+  emitted = set()
+  for record in merged:
+    job = job_identity(record.get("meta", {}))
+    if job not in replaced_jobs:
+      result.append(record)
       continue
-    identity = record_identity(record.get("meta", {}))
-    if identity in index_by_identity:
-      merged[index_by_identity[identity]] = record
-    else:
-      index_by_identity[identity] = len(merged)
-      merged.append(record)
-  return merged
+    if job not in emitted:
+      emitted.add(job)
+      result += new_by_job[job]
+  for job in new_by_job:
+    if job not in emitted:
+      result += new_by_job[job]
+  return result
 
 
 def flatten_param_domains(param_domains, meta):

@@ -180,7 +180,57 @@ def resolve_step_path(file, step):
   return file.replace("${step}", str(step)).replace("$step", str(step))
 
 
-def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis"):
+def metrics_definitions(metrics_data, metrics_file, type="fmax_synthesis"):
+  """
+  The metric definitions that apply to a result type: the section of that type,
+  completed by the common "metrics" section.
+  """
+  metrics = {}
+  section = {
+    "fmax_synthesis": "fmax_synthesis_metrics",
+    "custom_freq_synthesis": "custom_freq_synthesis_metrics",
+    "pnr": "pnr_metrics",
+  }.get(type)
+
+  for key in ([section] if section else []) + ["metrics"]:
+    definitions = read_from_list(key, metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
+    if definitions != False:
+      metrics.update(definitions)
+
+  return metrics
+
+
+def metric_step(content):
+  """The step a metric definition declares ("step:"), or None when it declares none."""
+  step = content.get("step") if isinstance(content, dict) else None
+  return str(step) if step else None
+
+
+def is_step_scoped(file):
+  """Whether the file a metric reads is written per step (it holds "$step")."""
+  return isinstance(file, str) and ("$step" in file or "${step}" in file)
+
+
+def step_file(cur_path, file, step):
+  """Path of the file a metric reads, for the step being exported."""
+  return os.path.join(cur_path, resolve_step_path(file, step))
+
+
+def missing_is_an_error(file, path, error_if_missing):
+  """
+  Whether a missing file must be reported for this metric.
+
+  A report written per step ("$step" in its path) that a step did not write is
+  not a missing file: that step simply produces nothing for this metric, the way
+  writing a bitstream produces no utilization report. Only the metrics reading a
+  file the whole job shares are held to "error_if_missing".
+  """
+  if is_step_scoped(file) and not os.path.isfile(path):
+    return False
+  return error_if_missing
+
+
+def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis", step=None):
   """
   Extract metrics from synthesis results based on tool-specific settings.
 
@@ -199,13 +249,21 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       benchmark_file (str): Path to the benchmark YAML file.
       type (str): Type of synthesis (e.g., "fmax_synthesis" or "custom_freq_synthesis").
                   Defaults to "fmax_synthesis".
+      step (str | None): Step of the flow being exported, None for a job whose
+                  flow has none. A metric declaring a step ("step:") belongs to
+                  that step alone; a metric declaring none is extracted for every
+                  step, "$step" in the file it reads resolving to this one.
 
   Returns:
-      tuple: 
+      tuple:
           - results (dict): A dictionary containing extracted metric values.
             Keys are metric names, and values are the corresponding extracted results.
           - units (dict): A dictionary mapping metric names to their units, if specified.
             If no unit is defined for a metric, it is omitted from this dictionary.
+          - measured (bool): Whether at least one value belongs to this step in
+            particular — a metric declared for it, or one read from a report the
+            step wrote of its own. A step that measured nothing new adds no
+            record of its own (see process_configuration).
 
   Raises:
       KeyNotInListError: If a required key is missing in `metrics_data`.
@@ -213,53 +271,43 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       ValueError: When parsing or formatting a metric value fails.
 
   Notes:
-      - Metrics are extracted from files (regex, CSV, or YAML) defined in the tool 
+      - Metrics are extracted from files (regex, CSV, or YAML) defined in the tool
         settings. Each metric can specify its own type and extraction settings.
       - Metrics marked as "benchmark_only" are only included if `use_benchmark` is True.
       - Global lists `banned_metrics` and `banned_arch` are updated to exclude metrics
         or architectures that encounter errors during extraction.
+      - An "operation" metric reads the values extracted for the same record, so
+        it may combine a stepless metric with a metric of the step being
+        exported, but not metrics of two different steps.
 
   Examples:
-      For `type="fmax_synthesis"`, metrics defined under "fmax_synthesis_metrics" 
-      in the `metrics_data` file are prioritized. Common metrics (defined under 
+      For `type="fmax_synthesis"`, metrics defined under "fmax_synthesis_metrics"
+      in the `metrics_data` file are prioritized. Common metrics (defined under
       "metrics") are always included.
   """
   global banned_metrics
   results = {}
   units = {}
+  # Whether anything read here belongs to this step in particular, rather than
+  # to the job as a whole: see the "measured" return value.
+  measured = False
   error_prefix =  arch_path + " => "
-  metrics = {}
-  
-  if type == "fmax_synthesis":
-    fmax_metrics = read_from_list("fmax_synthesis_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
-    if fmax_metrics != False:
-      metrics.update(fmax_metrics)
-  elif type == "custom_freq_synthesis":
-    range_metrics = read_from_list("custom_freq_synthesis_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
-    if range_metrics != False:
-      metrics.update(range_metrics)
-  elif type == "pnr":
-    pnr_metrics = read_from_list("pnr_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
-    if pnr_metrics != False:
-      metrics.update(pnr_metrics)
-
-  common_metrics = read_from_list("metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
-  if common_metrics != False:
-    metrics.update(common_metrics)
-
-  # A metric may declare the step of the flow it is extracted from ("step:").
-  # Such a metric only exists once that step has run: a job stopped earlier is
-  # not missing it, it has simply not produced it yet, so it is left out of the
-  # record instead of being reported as an error.
-  completed_steps = job_steps.completed_step_names(cur_path)
+  metrics = metrics_definitions(metrics_data, metrics_file, type)
 
   for metric, content in metrics.items():
     if metric in banned_metrics:
       continue
 
-    metric_step = content.get("step") if isinstance(content, dict) else None
-    if metric_step and str(metric_step) not in completed_steps:
+    # A metric may declare the step of the flow it belongs to ("step:"), and
+    # then belongs to the record of that step and to no other one. Most metrics
+    # declare none: they are extracted for every step of the job, from that
+    # step's own report ("$step" in the file they read), which is what makes the
+    # same metric comparable from one step to the next.
+    this_step = metric_step(content)
+    if this_step is not None and this_step != step:
       continue
+
+    file = None  # the file this metric reads, when it reads one
 
     try:
       type = read_from_list("type", content, metrics_file, parent=metric, script_name=script_name)
@@ -283,7 +331,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_regex(os.path.join(cur_path, resolve_step_path(file, metric_step)), pattern, group_id, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_regex(path, pattern, group_id, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "csv":
       try:
         file = read_from_list( "file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -291,7 +340,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_csv(os.path.join(cur_path, resolve_step_path(file, metric_step)), key, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_csv(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "yaml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -299,7 +349,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_yaml(os.path.join(cur_path, resolve_step_path(file, metric_step)), key, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_yaml(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "json":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -307,7 +358,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_json(os.path.join(cur_path, resolve_step_path(file, metric_step)), key, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_json(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "xml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -315,7 +367,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_xml(os.path.join(cur_path, resolve_step_path(file, metric_step)), key, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_xml(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "benchmark":
       if not use_benchmark:
         banned_metrics.append(metric)
@@ -359,10 +412,14 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       results[metric] = value
       if "unit" in content:
         units[metric] = content["unit"]
+      # A value read from this step alone: either the metric is declared for it,
+      # or it comes from a report this step wrote of its own.
+      if this_step is not None or is_step_scoped(file):
+        measured = True
     else:
       results[metric] = None
 
-  return results, units
+  return results, units, measured
 
 
 ######################################
@@ -462,8 +519,9 @@ def process_configuration(input, target, architecture, configuration, frequency,
       flow (str | None): flow of that tool the job ran with, written to the record meta.
 
   Returns:
-      dict | None: The extracted result record, or None if the synthesis
-      directory is incomplete or corrupted.
+      list | None: The extracted result records, one per step of the job (see
+      the "completed" steps of log/steps.yml), or None if the directory is incomplete or
+      corrupted.
 
   Notes:
       - This function ensures the synthesis status is checked before attempting
@@ -499,9 +557,10 @@ def process_configuration(input, target, architecture, configuration, frequency,
     os.path.join(cur_path, "log", status_filenames[0]),
   )
 
-  # A flow split into steps can stop early (e.g. implemented but no bitstream):
-  # record how far this job went, so partial results stay distinguishable.
-  step = job_steps.last_completed_step(cur_path)
+  # A flow split into steps writes one record per step, and can stop early (e.g.
+  # implemented but no bitstream): the steps this job actually completed are what
+  # it has results for.
+  completed_steps = job_steps.completed_step_names(cur_path)
 
   if not flow:
     # A full re-export does not know which flow ran: read it back from the
@@ -533,28 +592,23 @@ def process_configuration(input, target, architecture, configuration, frequency,
       corrupted_directory(arch_path)
       return None
 
-  # Get values
-  metrics, cur_units = extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
-
-  # Build the result record
-  meta = {
+  # Common part of the meta, shared by every record of this job
+  base_meta = {
     results_schema.META_TYPE: str(result_key),
     results_schema.META_TARGET: str(target),
     results_schema.META_ARCHITECTURE: str(architecture),
     results_schema.META_CONFIGURATION: str(configuration),
   }
   if tool:
-    meta[results_schema.META_TOOL] = str(tool)
+    base_meta[results_schema.META_TOOL] = str(tool)
   if flow:
-    meta[results_schema.META_FLOW] = str(flow)
-  if step:
-    meta[results_schema.META_STEP] = str(step)
+    base_meta[results_schema.META_FLOW] = str(flow)
   if frequency is not None:
     frequency_value = results_schema.parse_frequency_label(frequency)
     if frequency_value is not None:
-      meta[results_schema.META_FREQUENCY] = frequency_value
+      base_meta[results_schema.META_FREQUENCY] = frequency_value
     elif str(frequency) != hard_settings.pnr_fmax_dirname:
-      meta[results_schema.META_FREQUENCY] = str(frequency)
+      base_meta[results_schema.META_FREQUENCY] = str(frequency)
     # A place & route job whose source is an fmax search has no target
     # frequency: the one it reached is a metric, not a dimension.
 
@@ -566,13 +620,40 @@ def process_configuration(input, target, architecture, configuration, frequency,
     ):
       value = source.get(meta_key)
       if value:
-        meta[meta_key] = str(value)
-  param_domains = metrics.pop(results_schema.PARAM_DOMAINS_KEY, None)
-  results_schema.flatten_param_domains(param_domains, meta)
+        base_meta[meta_key] = str(value)
 
-  # Update units
-  units.update(cur_units)
-  return results_schema.make_record(meta, metrics)
+  # One record per step, so that the same metric of two steps is two values of
+  # one dimension rather than two differently named metrics.
+  records = []
+  for step in (completed_steps if completed_steps else [None]):
+    metrics, cur_units, measured = extract_metrics(
+      metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type, step=step
+    )
+
+    param_domains = metrics.pop(results_schema.PARAM_DOMAINS_KEY, None)
+
+    last_step = step is None or step == completed_steps[-1]
+    # A step that measured nothing of its own gets no record: it would repeat
+    # the metrics of the whole job under another step name. The last step always
+    # keeps its record, so how far the job went stays readable.
+    if not last_step and not measured:
+      continue
+
+    meta = dict(base_meta)
+    if step is not None:
+      meta[results_schema.META_STEP] = str(step)
+      meta[results_schema.META_STEP_INDEX] = completed_steps.index(step)
+      # Always written, including when false: "no flag" means "this job has no
+      # steps at all", which is not the same as "this is not the last one".
+      meta[results_schema.META_LAST_STEP] = last_step
+
+    results_schema.flatten_param_domains(param_domains, meta)
+
+    # Update units
+    units.update(cur_units)
+    records.append(results_schema.make_record(meta, metrics))
+
+  return records
 
 
 def export_results(input, output, tools, format, use_benchmark, benchmark_file, result_types, custom_metrics_file=None):
@@ -692,13 +773,13 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
 
         for job_root in job_roots:
           for target, architecture, configuration, frequency in _walk_configurations(job_root, has_frequency_level):
-            record = process_configuration(
+            job_records = process_configuration(
               job_root, target, architecture, configuration, frequency,
               result_type, result_key, units, metrics_data, metrics_file,
               use_benchmark, benchmark_file, tool=tool, flow=flow,
             )
-            if record is not None:
-              records.append(record)
+            if job_records is not None:
+              records += job_records
 
     # Export to the desired format
     output_file = os.path.join(output, "results_" + tool + ".yml")
@@ -927,7 +1008,7 @@ def export_single_job_result(job, export_config=None):
   output_file = os.path.join(output_dir, "results_" + tool + ".yml")
   units, records = _load_existing_results(output_file)
 
-  record = process_configuration(
+  job_records = process_configuration(
     input=input_tool_path,
     target=target,
     architecture=architecture,
@@ -945,14 +1026,14 @@ def export_single_job_result(job, export_config=None):
     source=config.get("source", None),
   )
 
-  if record is None:
+  if not job_records:
     printc.warning(
       "Could not export results for " + target + "/" + architecture + "/" + configuration,
       script_name=script_name,
     )
     return False
 
-  records = results_schema.upsert_records(records, [record])
+  records = results_schema.upsert_records(records, job_records)
 
   try:
     results_schema.dump_results_file(output_file, units, records)

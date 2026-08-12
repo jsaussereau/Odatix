@@ -71,6 +71,25 @@ That default is refined per metric by ``match``:
                 dimension from the join;
   * ``map``:    the same dimension is not named the same on both sides.
 
+Steps
+-----
+
+A flow split into steps yields one record per step, so a job is several source
+records rather than one. By default a metric reads the *last* step each job
+reached — the finished result — and ``step`` says otherwise::
+
+    derived_metrics:
+      Reg_count_after_synthesis:
+        metric: Reg_count
+        from: synthesis
+        step: synthesis     # a step name, a list of them, or "@group"
+      Anything:
+        from: synthesis
+        step: any           # every step, values aggregated per "on_multiple"
+
+The step of the records that *receive* a metric is not restricted: every step
+record in scope gets it. Use ``where: {step: ...}`` to narrow that side.
+
 Groups
 ------
 
@@ -116,6 +135,9 @@ TYPE_ALIASES = {
 }
 
 ON_MULTIPLE_CHOICES = ("error", "first", "last", "skip", "mean", "min", "max", "sum")
+
+# "step" values lifting the default restriction to the last step of a job.
+ANY_STEP_VALUES = ("any", "all", "*")
 
 # The dimensions a join runs on, on top of every free (parameter domain) meta
 # key. "configuration" is normalized first, see join_dimensions.
@@ -322,6 +344,15 @@ class DerivedMetric:
     self.from_types = record_types(definition.get("from"))
     self.apply_to_types = record_types(definition.get("apply_to", "synthesis"))
 
+    # Which step of the source job to read from. A flow split into steps has one
+    # record per step (see odatix.lib.results_schema), so without this a source
+    # would be found as many times as the job has steps. Left unset, only the
+    # last step of each job is read, which is the finished result; "step: any"
+    # opens it to all of them, and a name (or a list, or a group) picks them.
+    self.source_step = definition.get("step")
+    self.any_step = str(self.source_step).strip().lower() in ANY_STEP_VALUES if self.source_step is not None else False
+    self.source_step_patterns = [] if self.source_step is None else resolver.resolve(self.source_step)
+
     if self.kind == "":
       self.kind = KIND_OPERATION if self.op is not None else KIND_IMPORT
     if self.kind not in (KIND_IMPORT, KIND_OPERATION):
@@ -392,7 +423,27 @@ class DerivedMetric:
     """Whether a record may be read as a source for this metric."""
     if self.from_types and str(meta.get(results_schema.META_TYPE, "")) not in self.from_types:
       return False
+    if not self._step_allowed(meta):
+      return False
     return self._satisfies(meta, self.source_where)
+
+  def _step_allowed(self, meta):
+    """
+    Whether the step a source record holds is one this metric reads.
+
+    A record that belongs to no step (a job whose flow has none) always is. The
+    default, for the others, is the last step the job reached: reading every
+    step would silently turn one source into several and trip "on_multiple".
+    """
+    if results_schema.META_STEP not in meta:
+      return True
+    if self.any_step:
+      return True
+    if self.source_step is not None:
+      return matches_any(meta.get(results_schema.META_STEP), self.source_step_patterns)
+    if results_schema.META_STEP in self.source_where:
+      return True  # the step is picked by "source_where" instead
+    return bool(meta.get(results_schema.META_LAST_STEP, True))
 
   @staticmethod
   def _satisfies(meta, conditions):
