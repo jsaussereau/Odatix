@@ -303,74 +303,92 @@ by the `flow` meta key — which is what lets Odatix Explorer plot them against
 each other. The flow is also written into the job directory (`flow.txt`), so a
 full re-export (`odatix res_synth`) keeps the flow of results produced earlier.
 
-`flow` is a dimension; `step` is not. A result record is identified by the run it
-comes from — its architecture, its configuration, its target, its tool and its
-flow — so running the same configuration under two flows leaves **two records**,
-side by side, which is exactly what makes them comparable.
+`flow` and `step` are both dimensions. A result record is identified by the run
+it comes from — its architecture, its configuration, its target, its tool, its
+flow — **and by the step of that flow it holds**. Running the same configuration
+under two flows leaves two records side by side, which is what makes the flows
+comparable; running it through three steps leaves one record per step, which is
+what makes the steps comparable.
 
-`step` is recorded on the result, but it is not part of that identity. Running a
-job `--until synthesis` and later resuming it to `pnr` therefore **replaces the
-first record** instead of adding a second one. That is the intended behaviour:
-the two runs do not describe two designs, they describe the same one measured
-twice, the second time more accurately — post-synthesis estimates give way to
-post-route numbers. Keeping both would mean two points where there is one, one of
-them known to be obsolete, so the latest wins.
+### One record per step
 
-In short: to compare, use flows; going further into the steps of a flow refines a
-result, it does not add one.
+A run split into steps measures the same design several times, each time more
+accurately: post-synthesis estimates first, post-route numbers after. Odatix
+exports one record per step, so those measurements are values of one metric at
+different steps rather than differently named metrics.
 
-### Comparing the steps of a run
-
-That leaves one question open: what if you *do* want to see what place & route
-did to the post-synthesis estimate? Since both numbers belong to the same run,
-they belong to the same record — as two metrics, not two records.
-
-A metric can name the step it is extracted from. `$step` in its file then
-resolves to the report directory that step wrote, and the metric is simply left
-out when the job never reached that step: a run stopped at synthesis is not
-missing its post-route numbers, it has not produced them.
+A metric is therefore declared **once**, and reads the report of the step being
+exported: `$step` in a file name resolves to the report directory that step
+wrote.
 
 {{< code lang=yaml filename="tools/vivado/metrics.yml" >}}
 metrics:
-  LUT_count_synth:
+  LUT_count:
     type: regex
-    step: synthesis
     settings:
       file: report/$step/utilization.rep
       pattern: "\\| (Slice|CLB) LUTs \\s*\\|\\s*([0-9]+).*"
       group_id: 2
-    format: "%.0f"
-
-  LUT_count_pnr:
-    type: regex
-    step: pnr
-    settings:
-      file: report/$step/utilization.rep
-      pattern: "\\| (Slice|CLB) LUTs \\s*\\|\\s*([0-9]+).*"
-      group_id: 2
-    format: "%.0f"
-
-  # Only defined on a job that ran both steps, hence error_if_missing
-  LUT_pnr_delta:
-    type: operation
-    step: pnr
-    error_if_missing: false
-    settings:
-      op: LUT_count_pnr - LUT_count_synth
     format: "%.0f"
 {{< /code >}}
+
+A job stopped at synthesis has one record, `step: synthesis`; resuming it to
+place & route **adds** a second one, `step: pnr`, next to the first instead of
+replacing it. Re-running it from an earlier step drops the records that re-run
+invalidated.
 
 For this to work the tool's scripts have to keep a copy of the reports per step,
 since each step overwrites the report files of the one before. Vivado's steps do
 it through `odatix_write_reports <step>` (`step_common.tcl`), which writes the
-usual `report/utilization.rep` *and* a snapshot under `report/<step>/`. The
-built-in Vivado metrics use this to expose `LUT_count_synth` / `LUT_count_pnr`
-and `Reg_count_synth` / `Reg_count_pnr` out of the box.
+usual `report/utilization.rep` *and* a snapshot under `report/<step>/`. A step
+that wrote no such report simply has no value for the metrics reading it — that
+is not a missing file, and not an error.
 
-Both values end up on the same record, so Odatix Explorer plots one against the
-other directly. A job resumed from synthesis to place & route keeps its
-post-synthesis columns — they live in `report/synthesis/`, which place & route
-does not touch — and gains the post-route ones.
+A metric that belongs to one step alone still says so with `step:`, and is left
+out of every other record:
+
+{{< code lang=yaml filename="tools/vivado/metrics.yml" >}}
+metrics:
+  Bitstream_size:
+    type: regex
+    step: bitstream
+    settings:
+      file: report/bitstream/size.rep
+      pattern: "size: ([0-9]+)"
+      group_id: 1
+    format: "%.0f"
+{{< /code >}}
+
+The metrics tied to no step at all — `Fmax`, the parameter domains — are
+repeated in every record of the job, so selecting one step always gives a
+complete row.
+
+### Which step you get by default
+
+Each record also carries `_step_index` (the position of the step in the flow) and
+`_last_step` (true on the furthest step the job reached). Odatix Explorer orders
+the `Step` dimension by the former, and turns the latter into a `Step scope`
+filter which starts on `last` alone: you see the finished results by default, and
+tick `intermediate` to compare a step against the next.
+
+Which step is the last one belongs to the job, not to the step name: a job
+stopped at `pnr` and one that went on to `bitstream` each have their own, and
+both are shown by default.
+
+Derived metrics follow the same rule — a source is read from the last step of its
+job unless the metric says otherwise:
+
+{{< code lang=yaml filename="odatix_userconfig/derived_metrics.yml" >}}
+derived_metrics:
+  # What place & route did to the post-synthesis estimate
+  LUT_count_after_synthesis:
+    metric: LUT_count
+    from: synthesis
+    step: synthesis
+  LUT_pnr_delta:
+    type: operation
+    op: LUT_count - LUT_count_after_synthesis
+{{< /code >}}
 
 > [!NOTE]
 > A flow name becomes part of a directory name, so it cannot contain `@` (the
