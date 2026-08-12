@@ -54,7 +54,7 @@ class Architecture:
         file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
         fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
         param_target_filename, generate_rtl, generate_command, constraint_filename, install_path, 
-        param_domains, continue_on_error=False, force_single_thread=False,
+        param_domains, continue_on_error=False, force_single_thread=False, virtual_param_domains=None,
     ):
         self.arch_name = arch_name
         self.arch_display_name = arch_display_name
@@ -93,6 +93,11 @@ class Architecture:
         self.constraint_filename = constraint_filename
         self.install_path = install_path
         self.param_domains = param_domains
+        # Variables selected for this job: domains with no directory on disk, kept
+        # apart from the physical ones since they have no parameter file to apply.
+        self.virtual_param_domains = (
+            dict(virtual_param_domains) if isinstance(virtual_param_domains, dict) else {}
+        )
         self.continue_on_error = continue_on_error
         self.force_single_thread = force_single_thread
 
@@ -151,6 +156,7 @@ class Architecture:
             'constraint_filename': arch.constraint_filename,
             'install_path': arch.install_path,
             'param_domains': domain_list,
+            'virtual_param_domains': arch.virtual_param_domains,
             'continue_on_error': arch.continue_on_error,
             'force_single_thread': arch.force_single_thread,
         }
@@ -237,6 +243,7 @@ class Architecture:
                 param_domains            = Architecture.read_param_domains(
                     get_from_dict("param_domains", yaml_data, config_file, default_value=[], silent=True, script_name=script_name)[0]
                 ),
+                virtual_param_domains    = get_from_dict("virtual_param_domains", yaml_data, config_file, default_value={}, silent=True, script_name=script_name)[0],
                 continue_on_error        = get_from_dict("continue_on_error", yaml_data, config_file, default_value=False, script_name=script_name)[0],
                 force_single_thread      = get_from_dict("force_single_thread", yaml_data, config_file, default_value=False, script_name=script_name)[0],
             )
@@ -829,9 +836,10 @@ class ArchitectureHandler:
         # Virtual parameter domains (variables) have no directory on disk: their
         # values are provided as command substitutions instead.
         virtual_domain_names = virtual_param_domain.get_virtual_domain_names(settings_data)
-        requested_physical_param_domains, _requested_virtual_param_domains = (
+        requested_physical_param_domains, requested_virtual_param_domains = (
             virtual_param_domain.split_requested_param_domains(requested_param_domains, virtual_domain_names)
         )
+        virtual_param_domains = virtual_param_domain.domains_dict(requested_virtual_param_domains)
 
         if len(requested_physical_param_domains) > 0:
             param_domains = ParamDomain.get_param_domains(
@@ -1053,6 +1061,7 @@ class ArchitectureHandler:
         tmp_log_path = os.path.join(tmp_dir, self.work_log_path)
 
         arch_instance = Architecture(
+            virtual_param_domains=virtual_param_domains,
             arch_name=arch,
             arch_display_name=arch_display_name,
             lib_name=lib_name,

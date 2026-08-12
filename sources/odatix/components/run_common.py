@@ -371,6 +371,7 @@ def replace_and_write_param_domains(
     generate_rtl=False,
     target_resolver=None,
     timestamp=None,
+    virtual_domains=None,
 ):
     domain_dict = {}
     arch_config = re.sub('.*/', '', arch_name)
@@ -398,6 +399,12 @@ def replace_and_write_param_domains(
             # of the sweep, so it names nothing in the result record.
             if success and param_domain.domain_value != "":
                 domain_dict[param_domain.domain] = param_domain.domain_value
+
+    # Virtual domains (variables) have no parameter file to substitute, but they are
+    # still a dimension of the sweep: without them here, they never reach the results.
+    for domain, domain_value in (virtual_domains or {}).items():
+        if domain_value != "":
+            domain_dict[domain] = domain_value
 
     with open(os.path.join(tmp_dir, hard_settings.param_domains_filename), "w") as param_domains_file:
         yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False)

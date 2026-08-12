@@ -446,8 +446,14 @@ def prepare_analysis(
           if success:
             nb_domain = nb_domain + 1
             domain_dict[param_domain.domain] = param_domain.domain_value
-          if debug: 
+          if debug:
             print()
+
+      # Variables have no parameter file to apply, but they are still a dimension of
+      # the sweep and have to be recorded like the physical domains above.
+      for domain, domain_value in (getattr(arch_instance, "virtual_param_domains", None) or {}).items():
+        if domain_value != "":
+          domain_dict[domain] = domain_value
 
       with open(os.path.join(arch_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
         yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False)

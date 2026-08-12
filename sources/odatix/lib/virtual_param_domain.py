@@ -122,6 +122,22 @@ def replace_command_vars(value, substitutions):
     return COMMAND_VAR_PATTERN.sub(_replace_var, value)
 
 
+def domains_dict(requested_virtual_param_domains):
+    """
+    Turn "domain/value" selectors of virtual domains into the {domain: value}
+    mapping a job records in its param_domains.yml, so variables end up as
+    columns of the results like physical parameter domains do.
+    """
+    domains = {}
+    for requested_virtual_param_domain in requested_virtual_param_domains or []:
+        domain = re.sub("/.*", "", requested_virtual_param_domain)
+        value = re.sub(".*/", "", requested_virtual_param_domain)
+        if domain == "" or value == "*":
+            continue
+        domains[domain] = value
+    return domains
+
+
 def split_requested_param_domains(requested_param_domains, virtual_domain_names):
     """
     Split requested "domain/value" selectors into physical and virtual ones.

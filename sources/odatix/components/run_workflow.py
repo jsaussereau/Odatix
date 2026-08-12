@@ -80,6 +80,7 @@ class WorkflowInstance:
         no_main_configuration=False,
         use_parameters=True,
         extra_command_substitutions=None,
+        virtual_param_domains=None,
     ):
         self.workflow_name = workflow_name
         self.workflow_display_name = workflow_display_name
@@ -103,6 +104,9 @@ class WorkflowInstance:
         self.use_parameters = use_parameters
         self.extra_command_substitutions = (
             dict(extra_command_substitutions) if isinstance(extra_command_substitutions, dict) else {}
+        )
+        self.virtual_param_domains = (
+            dict(virtual_param_domains) if isinstance(virtual_param_domains, dict) else {}
         )
 
 
@@ -551,6 +555,9 @@ def check_settings(
                     no_main_configuration=no_main_configuration,
                     use_parameters=use_parameters,
                     extra_command_substitutions=virtual_variant.get("substitutions", {}),
+                    virtual_param_domains=virtual_param_domain.domains_dict(
+                        virtual_variant.get("requested_param_domains", [])
+                    ),
                 )
             )
             plan.add(workflow_display_name_variant, Category.NEW, tasks=len(tasks))
@@ -634,6 +641,7 @@ def check_settings(
             target_resolver=resolve_workflow_param_target_file,
             debug=debug,
             timestamp=None,
+            virtual_domains=workflow_instance.virtual_param_domains,
         )
 
         selected_tasks = task_common.select_platform_task_implementations(workflow_instance.tasks, sys.platform)

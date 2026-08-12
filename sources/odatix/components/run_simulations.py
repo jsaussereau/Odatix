@@ -355,6 +355,7 @@ def check_settings(
             debug=debug,
             target_resolver=resolve_sim_param_target_file,
             timestamp=None,
+            virtual_domains=getattr(sim_instance.architecture, "virtual_param_domains", None),
         )
 
         # replace parameters again (override)
