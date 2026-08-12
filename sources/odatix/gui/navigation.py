@@ -69,6 +69,7 @@ nav_groups = [
     ]),
     ("Workspace", "", [
         ("Clean", "/clean"),
+        ("Derived Metrics", "/derived_metrics"),
         ("Settings", "/workspace"),
     ]),
 ]
