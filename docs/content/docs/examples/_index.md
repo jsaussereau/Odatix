@@ -15,11 +15,11 @@ They come in two families.
 
 {{< doc-cards cols="2" >}}
 {{< doc-card title="Architectures" link="/docs/examples/architectures/" icon="chip" accent="#7c3aed" cta="Browse the designs" >}}
-Six RTL designs — a counter in four languages, an ALU, a multiplier, a sine ROM, a pipelined CORDIC, and a catalogue of configuration generators. Synthesis, Fmax search, simulation and parameter domains, on real hardware descriptions.
+Several RTL designs — a counter in four languages, an ALU, a multiplier, a sine ROM, a pipelined CORDIC, and a catalogue of configuration generators. Synthesis, Fmax search, simulation and parameter domains, on real hardware descriptions.
 {{< /doc-card >}}
 
 {{< doc-card title="Workflows" link="/docs/examples/workflows/" icon="workflow" accent="#ea580c" cta="Browse the workflows" >}}
-Nine script sweeps with no RTL and no EDA tool — task graphs, command placeholders, virtual and paired variables, multi-row metrics, environment bootstrapping. Odatix applied to anything that runs from a command line.
+Several script sweeps with no RTL and no EDA tool — task graphs, command placeholders, virtual and paired variables, multi-row metrics, environment bootstrapping. Odatix applied to anything that runs from a command line.
 {{< /doc-card >}}
 {{< /doc-cards >}}
 <!-- 

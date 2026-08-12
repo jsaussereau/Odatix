@@ -72,6 +72,7 @@ The GUI has a **Derived Metrics** page that edits this file, if you prefer not t
 | `for` | `*` | Which instances receive it: a pattern, a list, or `"@group"`. Matched against architecture, `architecture/configuration`, workflow name and simulation name. |
 | `where` | — | `{meta key: patterns}` — only results matching this receive the metric. |
 | `source_where` | — | `{meta key: patterns}` — only these results may be read as a source. |
+| `step` | last step | Which step of the source job to read, when its flow is split into [steps](/docs/tools/add_flows/): a step name, a list, `"@group"`, or `any` for all of them. |
 | `unit` | — | Unit label exported alongside the value. |
 | `on_multiple` | `error` | What to do when several source results match: `error`, `first`, `last`, `skip`, `mean`, `min`, `max`, `sum`. |
 | `optional` | `false` | Do not warn when no source result matches. |
@@ -125,6 +126,28 @@ Cycles:
 
 > [!NOTE]
 > The key is `keys`, not `on`: YAML reads a bare `on:` as the boolean `true`. A file written with `on:` anyway is still honoured.
+
+### Steps of the source job
+
+A flow split into [steps](/docs/tools/add_flows/) exports **one result per step**, so a single job is several candidate sources. By default a derived metric reads the *last* step each job reached — the finished result — which is why nothing has to be said about steps in the common case.
+
+`step` says otherwise:
+
+{{< code lang=yaml filename="derived_metrics.yml" >}}
+# What place & route did to the post-synthesis estimate
+LUT_count_after_synthesis:
+  metric: LUT_count
+  from: synthesis
+  step: synthesis        # a step name, a list of them, or "@group"
+
+LUT_pnr_delta:
+  type: operation
+  op: LUT_count - LUT_count_after_synthesis
+{{< /code >}}
+
+`step: any` reads every step of the job at once, the values being reduced by `on_multiple`.
+
+The step of the results that *receive* a metric is not restricted: every step result in scope gets it. Narrow that side with `where: {step: ...}`.
 
 ### When several sources match
 
