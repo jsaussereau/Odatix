@@ -22,7 +22,7 @@
   {{- $body := .Plain | htmlUnescape -}}
   {{- $body = replaceRE `\s+` " " $body -}}
   {{- $index = $index | append (dict
-      "u" .RelPermalink
+      "u" .Permalink
       "t" .Title
       "s" (cond (eq .Section "") "" (or (.Site.GetPage .Section).Title (title .Section)))
       "d" (or .Description (.Summary | plainify | truncate 160))
