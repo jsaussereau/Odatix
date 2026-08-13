@@ -724,6 +724,39 @@ class ArchitectureHandler:
         )
 
 
+    def generation_command_substitutions(
+        self, arch_param_dir, arch_config, arch_display_name, target, tmp_dir, local_rtl_path,
+        design_path, top_level_module, clock_signal, reset_signal
+    ):
+        """
+        The names Odatix itself replaces in a generation command.
+
+        Same spirit as the simulation and workflow commands: what the command
+        needs to know about the job it generates the RTL of, so it does not have
+        to be written around hardcoded paths. The command runs from the work
+        directory, so the paths it is given inside it are relative to it.
+
+        Kept in step with odatix.gui.builtin_variables, which promises this list
+        to the user in the architecture editor.
+        """
+        substitutions = {
+            "architecture": arch_param_dir,
+            "configuration": arch_config,
+            "arch_full": arch_display_name,
+            "target": target,
+            "top_level_module": top_level_module,
+            "clock_signal": clock_signal,
+            "reset_signal": reset_signal,
+            "work_path": tmp_dir,
+            "rtl_path": local_rtl_path,
+            "log_path": self.log_path,
+            "design_path": design_path if design_path else "",
+            "arch_path": self.arch_path,
+            "odatix_path": OdatixSettings.odatix_path,
+        }
+        # A setting left empty reads as an empty string rather than as "None".
+        return {name: str(value) if value is not None else "" for name, value in substitutions.items()}
+
     def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp="", command_substitutions=None, target_constraints=None):
         
         arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
@@ -901,11 +934,24 @@ class ArchitectureHandler:
         else:
             param_domains = []
 
-        # Resolve ${...} placeholders in the generation command: virtual parameter
-        # domains (variables) first, then the values of the selected configuration
-        # and of each physical parameter domain.
+        # Resolve ${...} placeholders in the generation command: Odatix' own names
+        # first, then virtual parameter domains (variables), then the values of the
+        # selected configuration and of each physical parameter domain. The user's
+        # own names come last on purpose: a parameter domain named like a built-in
+        # one is what the user wrote, so it is what wins.
         if generate_rtl and generate_command:
-            substitutions = {}
+            substitutions = self.generation_command_substitutions(
+                arch_param_dir=arch_param_dir,
+                arch_config=arch_config,
+                arch_display_name=arch_display_name,
+                target=target,
+                tmp_dir=tmp_dir,
+                local_rtl_path=local_rtl_path,
+                design_path=design_path,
+                top_level_module=top_level_module,
+                clock_signal=clock_signal,
+                reset_signal=reset_signal,
+            )
             if isinstance(command_substitutions, dict):
                 for key, value in command_substitutions.items():
                     substitutions[str(key)] = str(value)
