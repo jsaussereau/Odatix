@@ -1302,3 +1302,50 @@
     opacity: 1;
     background: var(--theme-tertiary-color);
 }
+
+/* --- Overrides (/arch_editor) ------------------------------------------- */
+/* One card per rule the architecture applies to a part of its jobs, stacked in
+   the column of the tile that holds them rather than side by side: the order of
+   the rules is what decides which one has the last word, so the section has to
+   read top to bottom. */
+.odx-override-cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
+    margin-top: var(--space-2);
+}
+.odx-override-card {
+    padding: var(--space-4);
+    gap: var(--space-3);
+}
+.odx-override-head {
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.16);
+}
+/* "Applies to" heads the selectors, which are what the card is about. */
+.odx-override-card .odx-card-name {
+    font-size: 16px;
+}
+/* Both fmax bounds hold a short number: half a card each, side by side. */
+.odx-override-card .odx-field-row > .odx-field {
+    flex: 1;
+    min-width: 0;
+}
+.odx-override-card textarea {
+    min-height: 64px;
+}
+.odx-override-empty {
+    padding: var(--space-2) 0;
+}
+/* The add card sits in the same column as the cards, and reads as their dashed
+   outline rather than as a card of its own. */
+.odx-add-card.odx-override-add {
+    width: 100%;
+    height: auto;
+    min-height: 52px;
+    border-radius: var(--theme-normal-border-radius);
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}

@@ -430,7 +430,7 @@ def form_area(
     tooltip_options: str="secondary",
     style: Optional[dict]=None,
     className: str="",
-    textarea_className: str="auto-resize-textarea",
+    textarea_className: str="",
 ) -> Component:
     """Labelled multi-line (monospace) input."""
     return html.Div(

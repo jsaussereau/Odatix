@@ -29,6 +29,8 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import get_variables
+from odatix.lib.constraint_files import DEFAULT_SCOPE, SCOPES
+import odatix.lib.overrides as overrides_lib
 
 page_path = "/arch_editor"
 
@@ -120,8 +122,13 @@ def architecture_form_field(
 ):
     return html.Div(
         children=[
-            html.Label(label),
-            ui.tooltip_icon(tooltip, tooltip_options),
+            html.Div(
+                [
+                    html.Label(label),
+                    ui.tooltip_icon(tooltip, tooltip_options),
+                ],
+                className="odx-field-label"
+            ),
             dcc.Input(
                 id=id,
                 value=value,
@@ -131,8 +138,302 @@ def architecture_form_field(
                 style={"width": "100%"},
             ),
         ],
-        style={"marginBottom": "12px"}
+        className="odx-field",
+        style={"marginBottom": "12px"},
     )
+
+######################################
+# Constraint files
+######################################
+
+# How a constraint declaration is written in the form: one file per line, with
+# the stage that reads it after an "@" when it is not every stage. The settings
+# file itself accepts richer shapes (a mapping grouping several files under one
+# scope), which this flattens to one line per file rather than refusing to show.
+CONSTRAINTS_PLACEHOLDER = "constraints/pinout.xdc @ pnr\nconstraints/exceptions.sdc"
+
+CONSTRAINTS_TOOLTIP = (
+    "Constraint files read by the jobs, on top of the timing constraint Odatix writes itself. "
+    "One file per line, its path relative to the workspace. A file only one stage should read "
+    "is followed by \"@ synthesis\" or \"@ pnr\"; without one, both stages read it."
+)
+
+
+def constraints_to_text(declaration):
+    """The "constraints" key of a settings file, as the text the form shows."""
+    lines = []
+    for item in declaration or []:
+        if isinstance(item, str):
+            lines.append(item)
+            continue
+        if not isinstance(item, dict):
+            continue
+        files = item.get("files", item.get("file"))
+        if isinstance(files, str):
+            files = [files]
+        scope = str(item.get("scope") or DEFAULT_SCOPE).strip().lower()
+        for path in files or []:
+            lines.append(str(path) if scope == DEFAULT_SCOPE else "{0} @ {1}".format(path, scope))
+    return "\n".join(lines)
+
+
+def constraints_from_text(text):
+    """The "constraints" key to write back, from the text of the form."""
+    declaration = []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        path, separator, scope = line.rpartition("@")
+        scope = scope.strip().lower()
+        # A path can hold an "@" of its own: only a known stage after it makes
+        # it a scope, anything else is part of the file name.
+        if separator and path.strip() and scope in SCOPES:
+            declaration.append({"file": path.strip(), "scope": scope})
+        else:
+            declaration.append(line)
+    return declaration
+
+
+######################################
+# Overrides
+######################################
+
+# What a rule can select on, in the order the card shows them. Each is a
+# comma-separated list of names or patterns in the form, and a name, a list of
+# names or nothing at all in the file.
+SELECTOR_FIELDS = (
+    ("tools", "Tools", "vivado, genus@power_opt, *",
+     "EDA tools whose jobs this rule applies to, comma-separated. A tool alone covers all of its "
+     "flows; \"tool@flow\" covers that flow only. Patterns such as \"vivado*\" are accepted. Empty for every tool."),
+    ("targets", "Targets", "xc7a100t-csg324-1, xc7k70t-*",
+     "Synthesis targets this rule applies to, comma-separated. Patterns such as \"xc7a*\" are accepted. "
+     "Empty for every target."),
+    ("configurations", "Configurations", "08bits, 16bits, *bits",
+     "Configurations this rule applies to, comma-separated. Patterns such as \"*bits\" are accepted. "
+     "Empty for every configuration."),
+)
+
+
+def selector_to_text(value):
+    """One selector of a rule, as the text the form shows."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
+def selector_from_text(text):
+    """The selector to write back, or None when it restricts nothing."""
+    names = [name.strip() for name in (text or "").split(",") if name.strip()]
+    if not names:
+        return None
+    return names[0] if len(names) == 1 else names
+
+
+def override_card(index, rule=None):
+    """
+    One rule of the "overrides" section: which jobs it applies to, and what it
+    says about them.
+
+    Args:
+        index (int): position of the card, which is what its components are
+            keyed by. Rules have no name of their own, and their order is what
+            decides which one has the last word, so the position is their
+            identity here.
+        rule (dict): what the file says, or None for a rule being added.
+    """
+    rule = rule if isinstance(rule, dict) else {}
+    fmax = rule.get("fmax_synthesis") or {}
+    custom_freq = rule.get("custom_freq_synthesis") or {}
+
+    head = html.Div(
+        children=[
+            html.Span("Applies to", className="odx-card-name odx-override-title"),
+            ui.delete_button(
+                id={"type": "arch-delete-override", "index": index},
+                tooltip="Remove this rule",
+            ),
+        ],
+        className="odx-card-head odx-override-head",
+    )
+
+    selectors = [
+        ui.form_field(
+            label=label,
+            id={"type": "arch-override-" + key, "index": index},
+            value=selector_to_text(rule.get(key)),
+            placeholder=placeholder,
+            type="text",
+            tooltip=tooltip,
+            tooltip_options="secondary large",
+        )
+        for key, label, placeholder, tooltip in SELECTOR_FIELDS
+    ]
+
+    body = html.Div(
+        children=selectors + [
+            ui.caption(
+                "Settings",
+                tooltip="What the jobs this rule selects use instead of what the architecture says above.",
+            ),
+            html.Div(
+                children=[
+                    ui.form_field(
+                        label="Fmax Lower Bound (MHz)",
+                        id={"type": "arch-override-fmax-lower", "index": index},
+                        value=fmax.get("lower_bound", "") if fmax.get("lower_bound") is not None else "",
+                        placeholder="Same as above",
+                        type="number",
+                        tooltip="Lower bound of the fmax binary search for these jobs. Empty to use the bound of the architecture.",
+                    ),
+                    ui.form_field(
+                        label="Fmax Upper Bound (MHz)",
+                        id={"type": "arch-override-fmax-upper", "index": index},
+                        value=fmax.get("upper_bound", "") if fmax.get("upper_bound") is not None else "",
+                        placeholder="Same as above",
+                        type="number",
+                        tooltip="Upper bound of the fmax binary search for these jobs. Empty to use the bound of the architecture.",
+                    ),
+                ],
+                className="odx-field-row",
+            ),
+            ui.form_field(
+                label="Custom Frequencies (MHz)",
+                id={"type": "arch-override-custom-freq", "index": index},
+                value=", ".join(map(str, custom_freq.get("list") or [])),
+                placeholder="Same as above",
+                type="text",
+                tooltip="Comma-separated frequencies a custom frequency synthesis runs these jobs at. Empty to use the list of the architecture.",
+            ),
+            ui.form_area(
+                label="Constraint Files",
+                id={"type": "arch-override-constraints", "index": index},
+                value=constraints_to_text(rule.get("constraints")),
+                placeholder=CONSTRAINTS_PLACEHOLDER,
+                tooltip=CONSTRAINTS_TOOLTIP
+                + " Declared here, they are only read by the jobs this rule selects, which is what a "
+                  "file in a tool specific format (an xdc for Vivado, an sdc for an ASIC flow) needs. "
+                  "They are read on top of the ones declared above, not instead of them.",
+                tooltip_options="secondary large",
+            ),
+            # What the file says for this rule that the card does not show: the
+            # keys Odatix does not know about, kept so that editing a bound here
+            # does not drop the rest.
+            dcc.Store(id={"type": "arch-override-rest", "index": index}, data=override_rest(rule)),
+        ],
+        className="odx-card-body",
+    )
+
+    return html.Div(
+        children=[head, body],
+        className="odx-card odx-override-card",
+        id={"type": "override-card", "index": index},
+    )
+
+
+#: The keys of a rule the card shows, selectors included. Anything else is a
+#: setting the form does not know about and hands back untouched.
+CARD_KEYS = ("fmax_synthesis", "custom_freq_synthesis", "constraints") + overrides_lib.SELECTORS
+
+
+def override_rest(rule):
+    """What a rule holds that its card does not show."""
+    if not isinstance(rule, dict):
+        return {}
+    return {key: value for key, value in rule.items() if key not in CARD_KEYS}
+
+
+def override_add_card():
+    """The "add a rule" placeholder, laid out like the cards it follows."""
+    return ui.add_card(
+        id="arch-add-override-card",
+        text="Add override",
+        className="horizontal odx-override-add",
+    )
+
+
+def no_override_note():
+    """Shown instead of rule cards when the architecture says the same thing everywhere."""
+    return html.Div(
+        "Every job of this architecture uses the settings above. Add an override to say what "
+        "only some of them should use.",
+        className="odx-panel-note odx-override-empty",
+    )
+
+
+def override_cards(rules):
+    """The cards of an "overrides" section, in file order, plus the add card."""
+    cards = [
+        override_card(index, rule)
+        for index, rule in enumerate(rules or [])
+        if isinstance(rule, dict)
+    ]
+    if not cards:
+        cards.append(no_override_note())
+    cards.append(override_add_card())
+    return cards
+
+
+def build_overrides(selectors, fmax_lowers, fmax_uppers, custom_freqs, constraints, rests):
+    """
+    Build the "overrides" section from the values of the rule cards.
+
+    Args:
+        selectors (dict): the values of each selector field, by selector name,
+            each a list in card order.
+        rests (list): what each card was built with that it does not show, in
+            card order, so that a key Odatix does not know about survives a save.
+    """
+    rules = []
+    for index in range(len(fmax_lowers)):
+        rest = rests[index] if index < len(rests) else None
+        rule = dict(rest) if isinstance(rest, dict) else {}
+
+        for key in overrides_lib.SELECTORS:
+            value = selector_from_text((selectors.get(key) or [None] * len(fmax_lowers))[index])
+            if value is None:
+                rule.pop(key, None)
+            else:
+                rule[key] = value
+
+        fmax = {}
+        if fmax_lowers[index] not in (None, ""):
+            fmax["lower_bound"] = fmax_lowers[index]
+        if fmax_uppers[index] not in (None, ""):
+            fmax["upper_bound"] = fmax_uppers[index]
+
+        # A frequency being typed is not a frequency yet: what is not a number
+        # is left out instead of breaking the form on every keystroke.
+        frequencies = []
+        for value in (custom_freqs[index] or "").split(","):
+            value = value.strip()
+            if value:
+                try:
+                    frequencies.append(int(value))
+                except ValueError:
+                    pass
+        declaration = constraints_from_text(constraints[index])
+
+        for key, value in (
+            ("fmax_synthesis", fmax),
+            ("custom_freq_synthesis", {"list": frequencies} if frequencies else {}),
+            ("constraints", declaration),
+        ):
+            if value:
+                rule[key] = value
+            else:
+                rule.pop(key, None)
+
+        # A rule that ended up saying nothing at all is not written: it selects
+        # every job and changes none of them.
+        if rule:
+            rules.append(rule)
+    return rules
+
 
 def architecture_form(settings):
     defval = lambda k, v=None: settings.get(k, v)
@@ -259,26 +560,28 @@ def architecture_form(settings):
             ], className="tile config"),
             html.Div([
                 html.H3("Synthesis Settings"),
-                html.H4("Fmax Synthesis (MHz)"),
-                architecture_form_field(
-                    label="Lower Bound",
-                    id="fmax_synthesis_lower",
-                    value=defval("fmax_synthesis", {}).get("lower_bound", ""),
-                    placeholder=str(hard_settings.default_fmax_lower_bound),
-                    tooltip="The lower bound for the synthesis maximum operating frequency binary search ('odatix fmax' command). This value can be overriden by the argument --from (ex: 'odatix fmax --from 50 --to 200').",
-                    tooltip_options="secondary large",
-                    type="number",
-                ),
-                architecture_form_field(
-                    label="Upper Bound",
-                    id="fmax_synthesis_upper",
-                    value=defval("fmax_synthesis", {}).get("upper_bound", ""),
-                    placeholder=str(hard_settings.default_fmax_upper_bound),
-                    tooltip="The upper bound for the synthesis maximum operating frequency binary search ('odatix fmax' command). This value can be overriden by the argument --to (ex: 'odatix fmax --from 50 --to 200')",
-                    tooltip_options="secondary large",
-                    type="number",
-                ),
-                html.H4("Custom Freq Synthesis (MHz)"),
+                html.H4("Fmax Synthesis (MHz)", style={"margin": "10px 0"}),
+                html.Div([
+                    architecture_form_field(
+                        label="Lower Bound",
+                        id="fmax_synthesis_lower",
+                        value=defval("fmax_synthesis", {}).get("lower_bound", ""),
+                        placeholder=str(hard_settings.default_fmax_lower_bound),
+                        tooltip="The lower bound for the synthesis maximum operating frequency binary search ('odatix fmax' command). This value can be overriden by the argument --from (ex: 'odatix fmax --from 50 --to 200').",
+                        tooltip_options="secondary large",
+                        type="number",
+                    ),
+                    architecture_form_field(
+                        label="Upper Bound",
+                        id="fmax_synthesis_upper",
+                        value=defval("fmax_synthesis", {}).get("upper_bound", ""),
+                        placeholder=str(hard_settings.default_fmax_upper_bound),
+                        tooltip="The upper bound for the synthesis maximum operating frequency binary search ('odatix fmax' command). This value can be overriden by the argument --to (ex: 'odatix fmax --from 50 --to 200')",
+                        tooltip_options="secondary large",
+                        type="number",
+                    ),
+                ], className="odx-field-row"),
+                html.H4("Custom Freq Synthesis (MHz)", style={"margin": "10px 0"}),
                 architecture_form_field(
                     label="List",
                     id="custom_freq_synthesis_list",
@@ -287,6 +590,34 @@ def architecture_form(settings):
                     tooltip="Comma-separated list of custom frequencies for synthesis (in MHz). The synthesis will be run for each frequency in this list ('odatix synth' command). Theses values can be overriden by the argument --at (ex: 'odatix synth --at 50 --at 100') or --from, --to and --step (ex: 'odatix synth --from 50 --to 200 --step 10').",
                     tooltip_options="secondary large",
                     type="text",
+                ),
+            ], className="tile config"),
+            html.Div([
+                html.H3("Constraints"),
+                ui.form_area(
+                    label="Constraint Files",
+                    id="constraints",
+                    value=constraints_to_text(defval("constraints", [])),
+                    placeholder=CONSTRAINTS_PLACEHOLDER,
+                    tooltip=CONSTRAINTS_TOOLTIP
+                    + " Declared here, they are read by every job of this architecture, so they should hold "
+                      "what depends on the design rather than on the tool, the target or the configuration. "
+                      "What only some jobs should read belongs in an override below.",
+                    tooltip_options="secondary large",
+                ),
+            ], className="tile config"),
+            html.Div([
+                html.H3("Overrides"),
+                ui.caption(
+                    "Rules",
+                    tooltip="What this architecture says for a part of its jobs only. Each rule selects the "
+                            "jobs it applies to by tool, target and configuration, and applies on top of the "
+                            "settings above. Rules apply in order: the last one selecting a job has the last word.",
+                ),
+                html.Div(
+                    children=override_cards(defval("overrides", [])),
+                    id="arch-override-cards-row",
+                    className="odx-override-cards",
                 ),
             ], className="tile config"),
         ], className="tiles-container config", style={"marginTop": "-10px", "marginBottom": "20px"},
@@ -315,7 +646,46 @@ def normalize_form_settings(settings):
             if fmax.get(key) not in (None, "")
         },
         "custom_freq_synthesis": {"list": freq_list} if freq_list else {},
+        "constraints": constraints_from_text(constraints_to_text(settings.get("constraints"))),
+        "overrides": normalize_overrides(settings.get("overrides")),
     }
+
+
+def normalize_overrides(rules):
+    """
+    The "overrides" section as the form can express it, so that a section read
+    from file and one rebuilt from the cards can be compared. It mirrors what
+    :func:`build_overrides` writes, key for key.
+    """
+    normalized = []
+    for rule in rules or []:
+        if not isinstance(rule, dict):
+            continue
+        kept = dict(rule)
+        for key in overrides_lib.SELECTORS:
+            value = selector_from_text(selector_to_text(rule.get(key)))
+            if value is None:
+                kept.pop(key, None)
+            else:
+                kept[key] = value
+        fmax = rule.get("fmax_synthesis") or {}
+        fmax = {
+            key: fmax[key] for key in ("lower_bound", "upper_bound") if fmax.get(key) not in (None, "")
+        }
+        freq_list = (rule.get("custom_freq_synthesis") or {}).get("list")
+        declaration = constraints_from_text(constraints_to_text(rule.get("constraints")))
+        for key, value in (
+            ("fmax_synthesis", fmax),
+            ("custom_freq_synthesis", {"list": list(freq_list)} if freq_list else {}),
+            ("constraints", declaration),
+        ):
+            if value:
+                kept[key] = value
+            else:
+                kept.pop(key, None)
+        if kept:
+            normalized.append(kept)
+    return normalized
 
 
 # The sub-settings the form knows about. Anything else in these sections belongs to
@@ -346,6 +716,15 @@ def apply_form_settings(architecture, settings_subset):
     for key, owned_keys in form_sub_settings.items():
         values = top_level.pop(key, None) or {}
         update_sub_settings(settings[key], values, owned_keys)
+
+    # "overrides" is not a declared setting: it is kept as it comes, and taken
+    # out of the file entirely rather than written empty when it says nothing.
+    rules = top_level.pop("overrides", None)
+    if rules:
+        settings["overrides"] = rules
+    elif "overrides" in settings:
+        del settings["overrides"]
+
     settings.update(top_level)
     architecture.save()
 
@@ -384,6 +763,9 @@ def init_form(search, page, odatix_settings):
 
             "fmax_synthesis": full_settings.get("fmax_synthesis", {}),
             "custom_freq_synthesis": full_settings.get("custom_freq_synthesis", {}),
+
+            "constraints": full_settings.get("constraints", []),
+            "overrides": full_settings.get("overrides", []),
         }
         settings = normalize_form_settings(settings)
     else:
@@ -411,6 +793,15 @@ def init_form(search, page, odatix_settings):
     Input("fmax_synthesis_lower", "value"),
     Input("fmax_synthesis_upper", "value"),
     Input("custom_freq_synthesis_list", "value"),
+    Input("constraints", "value"),
+    Input({"type": "arch-override-tools", "index": dash.ALL}, "value"),
+    Input({"type": "arch-override-targets", "index": dash.ALL}, "value"),
+    Input({"type": "arch-override-configurations", "index": dash.ALL}, "value"),
+    Input({"type": "arch-override-fmax-lower", "index": dash.ALL}, "value"),
+    Input({"type": "arch-override-fmax-upper", "index": dash.ALL}, "value"),
+    Input({"type": "arch-override-custom-freq", "index": dash.ALL}, "value"),
+    Input({"type": "arch-override-constraints", "index": dash.ALL}, "value"),
+    State({"type": "arch-override-rest", "index": dash.ALL}, "data"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("architecture-initial-settings", "data"),
@@ -420,8 +811,11 @@ def init_form(search, page, odatix_settings):
 )
 def save_and_status(
     n_clicks, arch_title, design_path, whitelist, blacklist, generate_rtl, generate_command, generate_output,
-    rtl_path, top_level_file, top_level_module, clock_signal, reset_signal, 
-    fmax_lower, fmax_upper, custom_freq_list, search, page, initial_settings, saved_settings,
+    rtl_path, top_level_file, top_level_module, clock_signal, reset_signal,
+    fmax_lower, fmax_upper, custom_freq_list, constraints,
+    override_tools, override_targets, override_configurations,
+    override_fmax_lowers, override_fmax_uppers, override_custom_freqs, override_constraints,
+    override_rests, search, page, initial_settings, saved_settings,
     odatix_settings,
 ):
     triggered_id = ctx.triggered_id
@@ -466,6 +860,16 @@ def save_and_status(
         "custom_freq_synthesis": {
             "list": [int(x.strip()) for x in custom_freq_list.split(", ") if x.strip()],
         } if custom_freq_list != "" else {},
+        "constraints": constraints_from_text(constraints),
+        "overrides": build_overrides(
+            {
+                "tools": override_tools,
+                "targets": override_targets,
+                "configurations": override_configurations,
+            },
+            override_fmax_lowers, override_fmax_uppers, override_custom_freqs, override_constraints,
+            override_rests,
+        ),
     }
 
     if not arch_title:
@@ -565,6 +969,73 @@ dash.clientside_callback(
     Input("arch-hl-param-domains", "data"),
     Input("arch-hl-variables", "data"),
 )
+
+@dash.callback(
+    Output("arch-override-cards-row", "children"),
+    Input("arch-add-override-card", "n_clicks"),
+    Input({"type": "arch-delete-override", "index": dash.ALL}, "n_clicks"),
+    State("arch-override-cards-row", "children"),
+    State({"type": "arch-override-tools", "index": dash.ALL}, "value"),
+    State({"type": "arch-override-targets", "index": dash.ALL}, "value"),
+    State({"type": "arch-override-configurations", "index": dash.ALL}, "value"),
+    State({"type": "arch-override-fmax-lower", "index": dash.ALL}, "value"),
+    State({"type": "arch-override-fmax-upper", "index": dash.ALL}, "value"),
+    State({"type": "arch-override-custom-freq", "index": dash.ALL}, "value"),
+    State({"type": "arch-override-constraints", "index": dash.ALL}, "value"),
+    State({"type": "arch-override-rest", "index": dash.ALL}, "data"),
+    prevent_initial_call=True,
+)
+def add_or_delete_override(
+    add_click, delete_clicks, cards,
+    tools, targets, configurations, fmax_lowers, fmax_uppers, custom_freqs, constraints, rests,
+):
+    """
+    Add an empty rule, or drop the one whose delete button was hit.
+
+    A rule has no name, and its position is what decides when it applies, so the
+    cards are keyed by position: deleting one renumbers the ones after it. They
+    are therefore rebuilt from the values of the form rather than moved around,
+    which is what keeps a card's contents with the rule it belongs to.
+    """
+    triggered_id = ctx.triggered_id
+
+    # A rule saying nothing at all is dropped by build_overrides, which would
+    # take an empty card away as soon as another one is added. The list is
+    # therefore rebuilt card by card, empty rules included.
+    rules = []
+    for index in range(len(fmax_lowers or [])):
+        rules.append(_card_rule(
+            index, tools, targets, configurations,
+            fmax_lowers, fmax_uppers, custom_freqs, constraints, rests,
+        ))
+
+    if triggered_id == "arch-add-override-card" and add_click:
+        rules.append({})
+    elif isinstance(triggered_id, dict) and triggered_id.get("type") == "arch-delete-override":
+        # A card that has just been added brings its own delete button along,
+        # which fires this callback with no click of its own: only a button that
+        # was actually clicked deletes anything.
+        triggered = ctx.triggered[0] if ctx.triggered else {}
+        index = triggered_id.get("index")
+        if triggered.get("value") and isinstance(index, int) and index < len(rules):
+            del rules[index]
+
+    return override_cards(rules)
+
+
+def _card_rule(index, tools, targets, configurations, fmax_lowers, fmax_uppers, custom_freqs, constraints, rests):
+    """What one card currently holds, as the rule it would be written as."""
+    built = build_overrides(
+        {
+            "tools": [tools[index]] if index < len(tools or []) else [None],
+            "targets": [targets[index]] if index < len(targets or []) else [None],
+            "configurations": [configurations[index]] if index < len(configurations or []) else [None],
+        },
+        [fmax_lowers[index]], [fmax_uppers[index]], [custom_freqs[index]], [constraints[index]],
+        [rests[index] if index < len(rests or []) else None],
+    )
+    return built[0] if built else {}
+
 
 @dash.callback(
     Output("generate-settings", "className"),
