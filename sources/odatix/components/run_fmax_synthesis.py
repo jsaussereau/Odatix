@@ -268,6 +268,8 @@ def check_settings(
         process_group=context["process_group"],
         command=context["run_command"],
         eda_target_filename=eda_tools.resolve_target_file(tool, target_path),
+        tool=tool,
+        flow=context["flow"],
         fmax_status_filename=hard_settings.fmax_status_filename,
         frequency_search_filename=hard_settings.frequency_search_filename,
         param_settings_filename=hard_settings.param_settings_filename,

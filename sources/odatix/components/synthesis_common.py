@@ -20,6 +20,7 @@ from odatix.lib.check_tool import start_tool_check
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 import odatix.lib.job_steps as job_steps
+import odatix.lib.constraint_files as constraint_files
 
 
 def load_synthesis_context(
@@ -572,6 +573,9 @@ def build_prepare_synthesis_job(
                 printc.cyan("error details: ", end="", script_name=script_name)
                 print(str(e))
                 return
+
+        if not constraint_files.copy_constraint_files(arch_instance):
+            return
 
         tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
         edit_config_file(arch_instance, tcl_config_file)

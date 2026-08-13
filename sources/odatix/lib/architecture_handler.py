@@ -38,6 +38,10 @@ from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.variables import replace_variables, Variables
 from odatix.lib.param_domain import ParamDomain
 import odatix.lib.virtual_param_domain as virtual_param_domain
+import odatix.lib.constraint_files as constraints_lib
+from odatix.lib.constraint_files import ConstraintFileError
+import odatix.lib.overrides as overrides_lib
+from odatix.lib.overrides import OverrideError
 from odatix.run.planner import JobPlanner
 import odatix.workspace.architectures as workspace_architectures
 import odatix.workspace.selection as selection
@@ -55,6 +59,7 @@ class Architecture:
         fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
         param_target_filename, generate_rtl, generate_command, constraint_filename, install_path, 
         param_domains, continue_on_error=False, force_single_thread=False, virtual_param_domains=None,
+        constraint_files=None,
     ):
         self.arch_name = arch_name
         self.arch_display_name = arch_display_name
@@ -91,6 +96,10 @@ class Architecture:
         self.generate_rtl = generate_rtl
         self.generate_command = generate_command
         self.constraint_filename = constraint_filename
+        # Constraint files the user provides, read on top of the timing
+        # constraint file Odatix generates: {"source", "scope", "dest"} entries,
+        # already resolved (see lib/constraint_files.py).
+        self.constraint_files = list(constraint_files) if constraint_files else []
         self.install_path = install_path
         self.param_domains = param_domains
         # Variables selected for this job: domains with no directory on disk, kept
@@ -154,6 +163,7 @@ class Architecture:
             'generate_rtl': arch.generate_rtl,
             'generate_command': arch.generate_command,
             'constraint_filename': arch.constraint_filename,
+            'constraint_files': arch.constraint_files,
             'install_path': arch.install_path,
             'param_domains': domain_list,
             'virtual_param_domains': arch.virtual_param_domains,
@@ -238,7 +248,10 @@ class Architecture:
                 param_target_filename    = get_from_dict("param_target_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 generate_rtl             = get_from_dict("generate_rtl", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 generate_command         = get_from_dict("generate_command", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
-                constraint_filename      = get_from_dict("constraint_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
+                constraint_filename      = get_from_dict("constraint_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
+                # Optional: job directories written before user constraint files
+                # existed have no such key, and they stay readable.
+                constraint_files         = get_from_dict("constraint_files", yaml_data, config_file, default_value=[], silent=True, script_name=script_name)[0],
                 install_path             = get_from_dict("install_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
                 param_domains            = Architecture.read_param_domains(
                     get_from_dict("param_domains", yaml_data, config_file, default_value=[], silent=True, script_name=script_name)[0]
@@ -276,6 +289,8 @@ class ArchitectureHandler:
         forced_custom_freq_list,
         overwrite,
         fallback_custom_freq_list=None,
+        tool="",
+        flow="",
         continue_on_error=False,
         force_single_thread=False,
         requested_steps=None,
@@ -305,6 +320,13 @@ class ArchitectureHandler:
         self.forced_fmax_upper_bound = forced_fmax_upper_bound
         self.forced_custom_freq_list = forced_custom_freq_list
         self.fallback_custom_freq_list = fallback_custom_freq_list
+
+        # Which jobs a rule of an architecture's "overrides" section selects is
+        # answered with these: the tool running the jobs and the flow of it they
+        # run. Empty for a run that has no tool (RTL analysis), which only
+        # rules naming no tool then apply to.
+        self.tool = tool or ""
+        self.flow = flow or ""
 
         self.continue_on_error = continue_on_error
         self.force_single_thread = force_single_thread
@@ -431,6 +453,7 @@ class ArchitectureHandler:
             script_copy_enable = False
             script_copy_source = "/dev/null"
             target_settings = {}
+            base_constraints = []
         else:
             with open(self.eda_target_filename, 'r') as f:
                 try:
@@ -461,6 +484,15 @@ class ArchitectureHandler:
             except (KeyNotInListError, BadValueInListError):
                 target_settings = {}
 
+            # Constraint files every target of this tool gets. What a target
+            # declares for itself is added to these, not substituted for them:
+            # the list here is what does not depend on the part.
+            try:
+                base_constraints = constraints_lib.read_constraints(settings_data, self.eda_target_filename, variables)
+            except ConstraintFileError as error:
+                printc.error(str(error), script_name)
+                sys.exit(-1)
+
         # Expand every (target, architecture) pair into an architecture instance.
         # For RTL analysis the target list is a single generic entry.
         if True:
@@ -474,7 +506,8 @@ class ArchitectureHandler:
                 script_name=script_name,
             )
             for target in targets:
-                # Overwrite existing script copy settings if there are target specific settings
+                target_constraints = list(base_constraints)
+                # Overwrite existing script copy settings if the target file has some for this target
                 if target_settings != {}:
                     try:
                         this_target_settings = read_from_list(target, target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
@@ -495,6 +528,17 @@ class ArchitectureHandler:
                             script_copy_enable = False
                             script_copy_source = "/dev/null"
 
+                        # Constraint files of this target only: an IO placement
+                        # is a property of the part or the board, not of the tool.
+                        try:
+                            target_constraints += constraints_lib.read_constraints(
+                                this_target_settings, self.eda_target_filename, variables,
+                                parent="target_settings/" + target,
+                            )
+                        except ConstraintFileError as error:
+                            printc.error(str(error), script_name)
+                            sys.exit(-1)
+
                 # Handle wildcard
                 architectures = ArchitectureHandler.configuration_wildcard(full_architectures, self.arch_path, target)
 
@@ -510,6 +554,7 @@ class ArchitectureHandler:
                         script_copy_source = script_copy_source,
                         synthesis = True,
                         constraint_filename = constraint_filename,
+                        target_constraints = target_constraints,
                         install_path = install_path,
                         run_mode = run_mode,
                         keep=keep,
@@ -679,7 +724,7 @@ class ArchitectureHandler:
         )
 
 
-    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp="", command_substitutions=None):
+    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp="", command_substitutions=None, target_constraints=None):
         
         arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
 
@@ -893,6 +938,8 @@ class ArchitectureHandler:
                 settings_filename=settings_filename, 
                 run_mode=run_mode,
                 fallback_custom_freq_list=self.fallback_custom_freq_list,
+                tool=self.tool,
+                flow=self.flow,
             )
 
             # Override by bounds from --from and --to if used
@@ -1011,16 +1058,28 @@ class ArchitectureHandler:
             elif run_mode == "default":
                 self.plan.add(arch_display_name, Category.NEW)
 
-        # Retrieve target-specific settings if they exist
-        target_specific_data, target_specific_defined = get_from_dict(target, settings_data, settings_filename, silent=True)
+        # What this architecture says for a part of its jobs only: the rules of
+        # its "overrides" section that select this one, in file order, the last
+        # of them having the last word (see odatix.lib.overrides).
+        try:
+            job_overrides = overrides_lib.select(
+                settings_data, tool=self.tool, flow=self.flow, target=target,
+                configuration=arch_config, where=settings_filename,
+            )
+        except OverrideError as error:
+            printc.error(str(error), script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.plan.add(arch_display_name, Category.ERROR)
+            return None
 
-        # target specific file copy
-        if target_specific_defined:
+        # file copy of these jobs only
+        for index, override in enumerate(job_overrides):
+            parent = overrides_lib.OVERRIDES_KEY + "[" + str(index) + "]"
             try:
-                _file_copy_enable = read_from_list('file_copy_enable', target_specific_data, settings_filename, optional=True, print_error=False, type=bool, script_name=script_name)
+                _file_copy_enable = read_from_list('file_copy_enable', override, settings_filename, optional=True, print_error=False, type=bool, parent=parent, script_name=script_name)
                 try:
-                    _file_copy_source = read_from_list('file_copy_source', target_specific_data, settings_filename, optional=True, script_name=script_name)
-                    _file_copy_dest = read_from_list('file_copy_dest', target_specific_data, settings_filename, optional=True, script_name=script_name)
+                    _file_copy_source = read_from_list('file_copy_source', override, settings_filename, optional=True, parent=parent, script_name=script_name)
+                    _file_copy_dest = read_from_list('file_copy_dest', override, settings_filename, optional=True, parent=parent, script_name=script_name)
                     file_copy_enable = _file_copy_enable
                     file_copy_source = _file_copy_source
                     file_copy_dest = _file_copy_dest
@@ -1029,7 +1088,7 @@ class ArchitectureHandler:
             except KeyNotInListError:
                 pass
             except BadValueInListError:
-                printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + "target_settings/" + target + "\"," + " in \"" + settings_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
+                printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + parent + "\"," + " in \"" + settings_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
         
         # Define user accessible variables
         variables = Variables(
@@ -1040,6 +1099,25 @@ class ArchitectureHandler:
 
         # Replace variables in command
         file_copy_source = replace_variables(file_copy_source, variables)
+
+        # Constraint files: what the target file declares for this target, then
+        # what the architecture declares for every job and in each rule matching
+        # this one. All of them add up -- a design does not stop needing its
+        # timing exceptions because the board it runs on has a pinout.
+        try:
+            job_constraints = list(target_constraints) if target_constraints else []
+            job_constraints += constraints_lib.read_constraints(settings_data, settings_filename, variables)
+            for index, override in enumerate(job_overrides):
+                job_constraints += constraints_lib.read_constraints(
+                    override, settings_filename, variables,
+                    parent=overrides_lib.OVERRIDES_KEY + "[" + str(index) + "]",
+                )
+            job_constraints = constraints_lib.resolve(job_constraints)
+        except ConstraintFileError as error:
+            printc.error(str(error), script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.plan.add(arch_display_name, Category.ERROR)
+            return None
 
         # check file copy
         if file_copy_enable:
@@ -1097,6 +1175,7 @@ class ArchitectureHandler:
             stop_delimiter=stop_delimiter,
             generate_command=generate_command,
             constraint_filename=constraint_filename,
+            constraint_files=job_constraints,
             install_path=install_path,
             param_domains=param_domains,
             continue_on_error=self.continue_on_error,
@@ -1124,7 +1203,7 @@ class ArchitectureHandler:
         return use_parameters, start_delimiter, stop_delimiter, param_target_filename
 
     @staticmethod
-    def get_frequency_settings(arch_config, target, settings_data, settings_filename, run_mode, fallback_custom_freq_list=None):
+    def get_frequency_settings(arch_config, target, settings_data, settings_filename, run_mode, fallback_custom_freq_list=None, tool="", flow=""):
         """
         Retrieves frequency synthesis settings from the YAML configuration.
 
@@ -1140,6 +1219,8 @@ class ArchitectureHandler:
                 settings_filename (str): Name of the YAML file.
                 run_mode (str): The mode of operation (e.g., "fmax", "custom_freq").
                 fallback_custom_freq_list (list, optional): A fallback list of custom frequencies to use instead of default values.
+                tool (str, optional): The EDA tool running the jobs, which a rule of the "overrides" section can select.
+                flow (str, optional): The flow of that tool the jobs run.
 
         Returns:
                 tuple: (fmax_lower_bound, fmax_upper_bound, custom_freq_list, warn_fmax_obsolete).
@@ -1148,6 +1229,8 @@ class ArchitectureHandler:
             settings_data,
             target=target,
             configuration=arch_config,
+            tool=tool,
+            flow=flow,
             mode=run_mode,
             fallback=fallback_custom_freq_list,
         )

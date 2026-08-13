@@ -52,8 +52,13 @@ import os
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.pnr_source as pnr_source
 import odatix.lib.printc as printc
+import odatix.lib.constraint_files as constraints_lib
 from odatix.lib.architecture_handler import Architecture, ArchitectureHandler
+from odatix.lib.constraint_files import ConstraintFileError
 from odatix.lib.run_report import Category
+from odatix.lib.settings import OdatixSettings
+from odatix.lib.variables import Variables
+from odatix.workspace.yaml_io import read_mapping
 
 script_name = os.path.basename(__file__)
 
@@ -180,14 +185,60 @@ class PnrJobHandler(ArchitectureHandler):
       )
       return self.architecture_instances
 
+    # Constraint files the place & route tool declares for itself. The ones the
+    # synthesis job was given travel with its settings.yml; these are the ones
+    # only this tool knows about -- a floorplan, for one -- and no synthesis
+    # could have recorded them.
+    pnr_constraints = self._read_target_constraints(install_path)
+
     for source in pnr_source.match_sources(self.available_sources, selectors):
-      instance = self._build_instance(source, targets, install_path, constraint_filename)
+      instance = self._build_instance(source, targets, install_path, constraint_filename, pnr_constraints)
       if instance is not None:
         self.architecture_instances.append(instance)
 
     return self.architecture_instances
 
-  def _build_instance(self, source, targets, install_path, constraint_filename):
+  def _read_target_constraints(self, install_path):
+    """
+    The "constraints" of the place & route tool's target file, by target.
+
+    Returns:
+        dict: {target: entries}, plus a "" key holding the entries every target
+            of this tool gets. Empty when the file declares none.
+    """
+    if not self.eda_target_filename or not os.path.isfile(self.eda_target_filename):
+      return {}
+
+    variables = Variables(
+      tool_install_path=os.path.realpath(install_path) if install_path else "",
+      odatix_path=OdatixSettings.odatix_path,
+      odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+    )
+
+    try:
+      settings_data = read_mapping(self.eda_target_filename)
+      by_target = {"": constraints_lib.read_constraints(settings_data, self.eda_target_filename, variables)}
+      target_settings = settings_data.get("target_settings")
+      if isinstance(target_settings, dict):
+        for target, this_target_settings in target_settings.items():
+          by_target[target] = constraints_lib.read_constraints(
+            this_target_settings, self.eda_target_filename, variables,
+            parent="target_settings/" + str(target),
+          )
+    except ConstraintFileError as error:
+      printc.error(str(error), script_name)
+      return {}
+    except Exception as error:
+      printc.error(
+        'Could not read the constraints of "' + str(self.eda_target_filename) + '"', script_name
+      )
+      printc.cyan("error details: ", end="", script_name=script_name)
+      print(str(error))
+      return {}
+
+    return by_target
+
+  def _build_instance(self, source, targets, install_path, constraint_filename, pnr_constraints=None):
     """
     Turn one source into the job that places & routes it, or None when it cannot
     be run (the reason is reported and the job is recorded as an error).
@@ -229,6 +280,15 @@ class PnrJobHandler(ArchitectureHandler):
     arch.design_path = None
     arch.file_copy_enable = False
     arch.script_copy_enable = False
+    # Constraint files, on the other hand, are kept: the synthesis recorded the
+    # ones the design and its target were given, and the "pnr" scoped ones are
+    # precisely those meant to be read here. What this tool declares on its own
+    # is added to them.
+    arch.constraint_files = constraints_lib.resolve(
+      list(getattr(arch, "constraint_files", None) or [])
+      + list((pnr_constraints or {}).get("", []))
+      + list((pnr_constraints or {}).get(source.target, []))
+    )
 
     arch.tmp_dir = self.job_dir(source)
     arch.tmp_script_path = os.path.join(arch.tmp_dir, self.work_script_path)

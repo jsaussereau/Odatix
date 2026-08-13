@@ -23,6 +23,8 @@ import sys
 import os
 import re
 
+import odatix.lib.constraint_files as constraint_files
+
 
 def _normalize_path(path):
   """Normalise a path for Windows/Unix compatibility inside a tcl script."""
@@ -55,6 +57,20 @@ def edit_config_file(arch, config_file):
       return ""
     return value
 
+  def tcl_constraint_list(scope):
+    """
+    The constraint files a stage reads, as a tcl list literal.
+
+    The paths are relative to the work directory and written through $tmp_path,
+    which settings.tcl sets before these lines: a job directory stays valid
+    wherever it is moved to, exactly like the other paths of that file.
+    """
+    destinations = constraint_files.for_scope(getattr(arch, "constraint_files", []), scope)
+    if not destinations:
+      return "[list]"
+    quoted = ['"$tmp_path/' + destination + '"' for destination in destinations]
+    return "[list " + " ".join(quoted) + "]"
+
   # Replace rules definition
   replacements = {
     r"(set top_level_module\s+).*":   lambda m: f"{m.group(1)}{safe_replace(arch.top_level_module)}",
@@ -66,6 +82,8 @@ def edit_config_file(arch, config_file):
     r"(set source_rtl_path\s+).*":    lambda m: f"{m.group(1)}{safe_replace(arch.rtl_path)}",
     r"(set source_arch_path\s+).*":   lambda m: f"{m.group(1)}{safe_replace(arch.arch_path)}",
     r"(set constraints_file\s+).*":   lambda m: f"{m.group(1)}{safe_replace(constraints_file)}",
+    r"(set user_constraints_synthesis\s+).*": lambda m: f"{m.group(1)}{tcl_constraint_list('synthesis')}",
+    r"(set user_constraints_pnr\s+).*":       lambda m: f"{m.group(1)}{tcl_constraint_list('pnr')}",
     r"(set target_frequency\s+).*":   lambda m: f"{m.group(1)}{arch.target_frequency}",
     r"(set fmax_lower_bound\s+).*":   lambda m: f"{m.group(1)}{arch.fmax_lower_bound}",
     r"(set fmax_upper_bound\s+).*":   lambda m: f"{m.group(1)}{arch.fmax_upper_bound}",

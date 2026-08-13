@@ -34,6 +34,9 @@ work_script_path = "scripts"
 work_report_path = "report"
 work_result_path = "result"
 work_log_path = "log"
+# Where the constraint files a user provides are copied, next to the timing
+# constraint file Odatix generates itself (see lib/constraint_files.py).
+work_constraint_path = "constraints"
 
 # Work directory files
 arch_filename = "architecture.txt"

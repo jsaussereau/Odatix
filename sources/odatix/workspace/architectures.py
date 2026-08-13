@@ -30,6 +30,7 @@ configurations of its parameter domains.
 import os
 
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.overrides as overrides
 from odatix.workspace.configs import (
     ConfigGeneration,
     VariablesSetting,
@@ -107,10 +108,14 @@ class ArchitectureSettings(WithVariables, Settings):
     Settings of an architecture ("<architecture>/_settings.yml"), which are also
     the settings of its main parameter domain.
 
-    Frequency settings given per target (a mapping named after the target,
-    holding its own "fmax_synthesis" and "custom_freq_synthesis" blocks) are not
-    declared here, but they are preserved: like any other key Odatix does not
-    know about, they stay in the file and in ``settings.extra``.
+    What the architecture says for a part of its jobs only lives in the
+    "overrides" section: an ordered list of rules, each selecting the jobs it
+    applies to by tool, flow, target and configuration, and holding whatever
+    those jobs should use instead ("constraints", "file_copy_*",
+    "fmax_synthesis", "custom_freq_synthesis", or any other key of this file).
+    See :mod:`odatix.lib.overrides`. The section is not declared here, but it is
+    preserved: like any other key Odatix does not know about, it stays in the
+    file and in ``settings.extra``.
     """
 
     # RTL generation
@@ -165,6 +170,17 @@ class ArchitectureSettings(WithVariables, Settings):
     file_copy_source = Setting("", type="str", when="file_copy_enable", doc="File to copy.")
     file_copy_dest = Setting("", type="str", when="file_copy_enable", doc="Where to copy it, in the work directory.")
 
+    # Constraint files of this design, read on top of the timing constraint
+    # Odatix generates. What only some of its jobs should read -- an IO
+    # placement that only makes sense on one board, a floorplan only place &
+    # route can use -- goes in a rule of the "overrides" section instead.
+    constraints = Setting(
+        factory=list, type="list", section="Constraints", skip_if_empty=True,
+        doc="Constraint files read by the jobs of this architecture. Either file "
+            "paths, or mappings with a \"files\" key and a \"scope\" among "
+            "\"synthesis\", \"pnr\" and \"all\".",
+    )
+
     # Frequencies
     fmax_synthesis = Setting(
         type=FrequencyBounds, section="Default frequencies (in MHz)", skip_if_empty=True,
@@ -192,13 +208,14 @@ class ArchitectureSettings(WithVariables, Settings):
             "virtual parameter domains substituted as \"${name}\" into commands.",
     )
 
-    def frequencies(self, target="", configuration="", mode="fmax", fallback=None):
+    def frequencies(self, target="", configuration="", tool="", flow="", mode="fmax", fallback=None):
         """
         The frequencies a run uses, for one configuration on one target (see
         :func:`resolve_frequencies`).
         """
         return resolve_frequencies(
-            self, target=target, configuration=configuration, mode=mode, fallback=fallback
+            self, target=target, configuration=configuration, tool=tool, flow=flow,
+            mode=mode, fallback=fallback,
         )
 
 
@@ -258,10 +275,10 @@ def validate(settings, path=""):
 ######################################
 
 #: How the frequencies of a run are written, from the most general to the most
-#: specific. An architecture settings file can say them for every target and
-#: every configuration, for one target ("<target>:"), or for one configuration
-#: of one target ("<target>:" then "<configuration>:").
-FREQUENCY_LEVELS = ("global", "target", "configuration")
+#: specific. An architecture settings file says them once for every job it
+#: produces, and again in each rule of its "overrides" section that selects only
+#: some of them (see :mod:`odatix.lib.overrides`).
+FREQUENCY_LEVELS = ("global", "override")
 
 
 class ResolvedFrequencies(object):
@@ -313,17 +330,6 @@ def check_bounds(lower_bound, upper_bound, step=0, kind="fmax synthesis"):
     return messages
 
 
-def _block(data, key, messages, where):
-    """One level of a settings file, or None when it says nothing."""
-    if not isinstance(data, dict) or key not in data:
-        return None
-    value = data[key]
-    if not isinstance(value, dict):
-        messages.append(Message("error", 'Key "{0}"{1} does not hold a list of settings.'.format(key, where)))
-        return None
-    return value
-
-
 def _cascade(blocks, key):
     """
     Read a key from the most specific level that holds it.
@@ -340,16 +346,18 @@ def _cascade(blocks, key):
     return value, False
 
 
-def resolve_frequencies(settings, target="", configuration="", mode="fmax", fallback=None):
+def resolve_frequencies(settings, target="", configuration="", tool="", flow="", mode="fmax", fallback=None):
     """
     The frequencies a run uses for one configuration of an architecture.
 
     Args:
         settings: the settings of the architecture, as an
             :class:`ArchitectureSettings` or a plain mapping.
-        target (str): the synthesis target, which the file can single out.
-        configuration (str): the configuration, which it can single out too,
-            inside a target.
+        target (str): the synthesis target, which a rule of the "overrides"
+            section can select.
+        configuration (str): the configuration, which a rule can select too.
+        tool (str): the EDA tool running the job, which a rule can select.
+        flow (str): the flow of that tool the job runs.
         mode (str): "fmax" for a binary search, "custom_freq" for a synthesis at
             given frequencies.
         fallback (list): frequencies to use when the file names none. The
@@ -361,36 +369,49 @@ def resolve_frequencies(settings, target="", configuration="", mode="fmax", fall
     data = settings.to_dict() if isinstance(settings, Settings) else (settings if isinstance(settings, dict) else {})
     messages = []
 
-    target_data = _block(data, target, messages, ' of "{0}"'.format(target)) if target else None
-    configuration_data = (
-        _block(target_data, configuration, messages, ' of "{0}/{1}"'.format(target, configuration))
-        if target_data and configuration else None
-    )
+    def levels(key):
+        """The blocks holding a key, most specific first, the invalid ones reported."""
+        try:
+            found = overrides.blocks(
+                data, key, tool=tool, flow=flow, target=target, configuration=configuration,
+            )
+        except overrides.OverrideError as error:
+            messages.append(Message("error", str(error)))
+            return []
+        blocks = []
+        for value in found:
+            if isinstance(value, dict):
+                blocks.append(value)
+            else:
+                messages.append(Message("error", 'Key "{0}" does not hold a list of settings.'.format(key)))
+        return blocks
 
     if mode == "custom_freq":
-        return _resolve_custom_frequencies(data, target_data, configuration_data, fallback, messages)
-    return _resolve_fmax_bounds(data, target_data, configuration_data, messages)
+        return _resolve_custom_frequencies(levels("custom_freq_synthesis"), fallback, messages)
+    return _resolve_fmax_bounds(levels("fmax_synthesis"), _legacy_bound_levels(data, tool, flow, target, configuration), messages)
 
 
-def _frequency_blocks(data, target_data, configuration_data, key, messages):
-    """The "fmax_synthesis" (or "custom_freq_synthesis") blocks, most specific first."""
-    blocks = []
-    for level in (configuration_data, target_data, data):
-        block = _block(level, key, messages, "") if level else None
-        if block is not None:
-            blocks.append(block)
-    return blocks
+def _legacy_bound_levels(data, tool, flow, target, configuration):
+    """
+    Every level of a file, most specific first, for the keys that are read as
+    they come rather than out of a block.
+    """
+    try:
+        rules = overrides.select(data, tool=tool, flow=flow, target=target, configuration=configuration)
+    except overrides.OverrideError:
+        rules = []
+    rules.reverse()
+    rules.append(data if isinstance(data, dict) else {})
+    return rules
 
 
-def _resolve_fmax_bounds(data, target_data, configuration_data, messages):
-    blocks = _frequency_blocks(data, target_data, configuration_data, "fmax_synthesis", messages)
-
+def _resolve_fmax_bounds(blocks, legacy_levels, messages):
     # How the bounds were written before "fmax_synthesis" existed. They are
     # still read, and still reported as deprecated, but a modern block wins.
     lower_bound = upper_bound = None
     deprecated = False
     for key, name in (("fmax_lower_bound", "lower"), ("fmax_upper_bound", "upper")):
-        value, defined = _cascade([level for level in (target_data, configuration_data) if level], key)
+        value, defined = _cascade(legacy_levels, key)
         if defined:
             deprecated = True
             if name == "lower":
@@ -412,9 +433,7 @@ def _resolve_fmax_bounds(data, target_data, configuration_data, messages):
     )
 
 
-def _resolve_custom_frequencies(data, target_data, configuration_data, fallback, messages):
-    blocks = _frequency_blocks(data, target_data, configuration_data, "custom_freq_synthesis", messages)
-
+def _resolve_custom_frequencies(blocks, fallback, messages):
     lower_bound, lower_defined = _cascade(blocks, "lower_bound")
     upper_bound, upper_defined = _cascade(blocks, "upper_bound")
     step, step_defined = _cascade(blocks, "step")
@@ -562,13 +581,14 @@ class Architecture(Entry):
         """How many configuration combinations this architecture amounts to."""
         return count_combinations(self.parameter_domains())
 
-    def frequencies(self, target="", configuration="", mode="fmax", fallback=None):
+    def frequencies(self, target="", configuration="", tool="", flow="", mode="fmax", fallback=None):
         """
         The frequencies this architecture is run at, for one of its
         configurations on one target (see :func:`resolve_frequencies`).
         """
         return self.settings.frequencies(
-            target=target, configuration=configuration, mode=mode, fallback=fallback
+            target=target, configuration=configuration, tool=tool, flow=flow,
+            mode=mode, fallback=fallback,
         )
 
     def generate_configurations(self, overwrite=False, clear=False, domains=None):

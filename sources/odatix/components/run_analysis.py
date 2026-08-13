@@ -47,6 +47,7 @@ from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks,
 from odatix.components.analyze_results import generate_analysis_summary
 from odatix.components.export_analysis import configure_analysis_job_exports
 import odatix.components.export_derived_metrics as exp_derived
+import odatix.lib.constraint_files as constraint_files
 
 
 class AnalysisCancelled(Exception):
@@ -496,6 +497,9 @@ def prepare_analysis(
           printc.cyan("error details: ", end="", script_name=script_name)
           print(str(e))
           return
+
+      if not constraint_files.copy_constraint_files(arch_instance):
+        return
 
       # Edit tcl config script
       tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
