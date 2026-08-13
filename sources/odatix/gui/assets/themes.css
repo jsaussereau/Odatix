@@ -62,7 +62,7 @@
     --theme-pause-color: #798ba68f;
     --theme-pending-color: #22d9e6;
     --theme-error-color: var(--theme-caution-color);
-    --theme-shadow-color: rgba(29, 37, 79, 0.1);
+    --theme-shadow-color: rgba(29, 37, 79, 0.075);
     --theme-text-color: #24292e;
     --theme-subtle-text-color: #cbcfd4;
     --theme-subtle-text-font-size: var(--theme-small-font-size);
@@ -100,10 +100,10 @@
     /* cards and tiles */
     --card-background: var(--theme-element-background-color);
     --card-text-color: var(--theme-text-color);
-    --card-border: initial;
+    --card-border: 1px solid rgba(128, 128, 128, 0.16);
     --card-box-shadow: var(--theme-shadow-color) 0px 2px 10px 0px;
     --card-border-hover: none;
-    --card-border-radius: var(--theme-large-border-radius);
+    --card-border-radius: var(--theme-normal-border-radius);
     --card-backdrop-filter: initial;
     --card-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
     --card-hover-transition: all 0.18s ease;
@@ -403,17 +403,12 @@
 
     /* cards and tiles */
     --card-box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
-    --card-border-radius: var(--theme-normal-border-radius);
    	--card-border: 1px solid rgba(128, 128, 128, 0.16);
     --add-card-background-hover: #228be61a;
 
     /* buttons */
     --button-background: #ffffff05;
     --back-button-color: var(--theme-disabled-color);
-    --primary-button-background: #2585cd15;
-    --secondary-button-background: #2585cd15;
-    --warning-button-background: #D2712015;
-    --caution-button-background: #CA393915;
 
     /* inputs */
     --title-input-border: var(--theme-border-style) #ffffff00;
