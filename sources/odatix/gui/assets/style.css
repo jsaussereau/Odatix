@@ -32,6 +32,7 @@ html, body {
 
 .theme {
     background: var(--theme-background);
+    background-image: var(--theme-background-image);
     color: var(--theme-text-color);
     font-family: var(--theme-font-family), Arial, sans-serif;
     text-shadow: var(--theme-text-shadow);
@@ -515,11 +516,19 @@ textarea {
     background-color: var(--dropdown-background);
     border: var(--dropdown-border);
     border-radius: var(--dropdown-border-radius);
-    color: var(--theme-text-color);
+    color: var(--dropdown-text-color);
+}
+.navbar .Select-value {
+    background-color: var(--navbar-dropdown-background);
+    border: var(--navbar-dropdown-border);
+    color: var(--navbar-dropdown-text-color);
 }
 
 .Select-value-label {
     color: var(--theme-text-color) !important;
+}
+.navbar .Select-value-label {
+    color: var(--navbar-dropdown-text-color) !important;
 }
 
 .Select-menu-outer {
@@ -530,6 +539,11 @@ textarea {
     color: var(--theme-text-color);
     z-index: 5000 !important;
 }
+.navbar .Select-menu-outer {
+    background-color: var(--navbar-dropdown-background);
+    border: var(--navbar-dropdown-border);
+    color: var(--navbar-dropdown-text-color);
+}
 
 .navbar .Select-menu-outer {
     position: absolute;
@@ -538,6 +552,9 @@ textarea {
 .Select-value:hover {
     background-color: var(--dropdown-background-hover);
     border-color: var(--main-border-color-hover);
+}
+.navbar .Select-value:hover {
+    background-color: var(--navbar-dropdown-background-hover);
 }
 
 .error {
@@ -711,6 +728,13 @@ textarea {
     gap: 2px;
 }
 
+.odx-add-card,
+.odx-jobstep-add,
+.card.hover {
+    transition: var(--card-hover-transition);
+}
+.odx-add-card:hover,
+.odx-jobstep-add:hover,
 .card.hover:hover {
     cursor: pointer;
     box-shadow: var(--card-hover-box-shadow);
@@ -751,6 +775,13 @@ textarea {
     background: var(--add-card-background-hover);
     color: var(--theme-primary-color);
     border-color: var(--theme-primary-color);
+}
+
+.tile.config h3 {
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.5;
+    font-size: 1em;
 }
 
 .page-header {
@@ -851,6 +882,9 @@ textarea {
         box-shadow 0.18s ease;
 }
 
+.tile.hover {
+    transition: var(--tile-hover-transition);
+}
 .tile.hover:hover {
     cursor: pointer;
     box-shadow: var(--tile-hover-box-shadow);

@@ -49,6 +49,7 @@ DARK_CHROME = {
 }
 
 APP_THEME_CHROME = {
+  "default": LIGHT_CHROME,
   "odatix": LIGHT_CHROME,
   "odatix_dark": DARK_CHROME,
   "odatix_darker": DARK_CHROME,
