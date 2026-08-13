@@ -44,7 +44,7 @@
   if (modal.parentNode !== document.body) document.body.appendChild(modal);
   const input = document.getElementById('search-input');
   const list = document.getElementById('search-results');
-  const indexURL = {{ "/index.json" | relURL }};
+  const indexURL = {{ printf "%s/index.json" (strings.TrimSuffix "/" site.BaseURL) }};
 
   let docs = null;      // loaded lazily
   let loading = null;
