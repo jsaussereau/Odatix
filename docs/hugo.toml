@@ -48,6 +48,10 @@ pagination.path = "page"
     ordered = false
     startLevel = 2
 
+# Outputs: the home page also emits /index.json, the client-side search index
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+
 # Taxonomies
 [taxonomies]
   category = 'categories'

@@ -47,8 +47,9 @@
                 </div>
 
                 <!-- CTA Buttons -->
-                {{ if not $headerConfig.hideButtons }}
                 <div class="hidden xl:flex items-center space-x-4">
+                    {{ partial "search.html" "button" }}
+                {{ if not $headerConfig.hideButtons }}
                     {{ with $headerConfig.buttons.signIn }}
                     <a href="{{ .url | default "#" }}" class="{{ with .class }}{{ . }}{{ else }}inline-flex items-center justify-center px-6 py-3 rounded-lg font-bold transition duration-200 ease-in-out border-2 border-gray-200 hover:border-primary-600 hover:text-primary-600{{ end }}">
                         {{ .text | default "Sign in" }}
@@ -60,8 +61,8 @@
                         {{ .text | default "Get Started" }}
                     </a>
                     {{ end }}
-                </div>
                 {{ end }}
+                </div>
 
                 <!-- Mobile Menu Toggle -->
                 <div class="xl:hidden">
@@ -77,6 +78,9 @@
         <!-- Mobile Menu -->
         <div class="nav-content xl:hidden w-full fixed left-0 right-0 top-20 bg-white border-t border-gray-100 shadow-lg max-h-[calc(100vh-5rem)] overflow-y-auto">
             <div class="w-full px-6 py-4">
+                <div class="pb-4 border-b border-gray-100 mb-2">
+                    {{ partial "search.html" "button" }}
+                </div>
                 {{ range .Site.Menus.main }}
                     {{ if .Params.has_submenu }}
                     <div class="py-2">
@@ -132,6 +136,10 @@
             </div>
         </div>
     </header>
+
+    <!-- Search modal (rendered here rather than in baseof, which the theme owns;
+         the partial re-parents itself to <body> so no ancestor can clip it) -->
+    {{ partial "search.html" "modal" }}
 
     <style>
         .mobile-menu-wrapper {

@@ -3204,6 +3204,13 @@ details[open] > summary.admonition-header::before {
   color: rgb(100 116 139);
 }
 
+@media (max-width: 1279.98px) {
+  .search-button {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 :root:root {
   --adm-warning: #df8e1d;
   --adm-warning-rgb: 223, 142, 29;

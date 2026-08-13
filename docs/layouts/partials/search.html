@@ -1,0 +1,189 @@
+{{/* Site-wide documentation search: a trigger button (rendered wherever this
+     partial is called with "button") and the modal itself (called with
+     "modal", once per page, from baseof). The index is fetched lazily from
+     /index.json the first time the modal opens. */}}
+{{ $mode := . }}
+{{ if eq $mode "button" }}
+<button type="button" data-search-open
+        class="search-button flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-500 hover:border-primary-600 hover:text-primary-600 transition duration-200"
+        aria-label="Search the documentation">
+  <div class="flex items-center gap-2">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/>
+    </svg>
+    <span class="text-sm">Search</span>
+  </div>
+  <kbd class="hidden lg:inline text-xs font-sans border border-gray-200 rounded px-1.5 py-0.5">Ctrl K</kbd>
+</button>
+{{ else if eq $mode "modal" }}
+<div id="search-modal" class="hidden fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Search">
+  <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" data-search-close></div>
+  <div class="relative mx-auto mt-24 w-[92vw] max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden">
+    <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+      <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/>
+      </svg>
+      <input id="search-input" type="search" autocomplete="off" spellcheck="false"
+             class="flex-1 bg-transparent text-base text-gray-900 placeholder-gray-400 focus:outline-none rounded-xl"
+             placeholder="Search the documentation…" aria-controls="search-results">
+      <button type="button" data-search-close class="text-xs text-gray-400 border border-gray-200 rounded px-1.5 py-0.5 hover:text-gray-700">Esc</button>
+    </div>
+    <div id="search-results" class="max-h-[60vh] overflow-y-auto p-2" role="listbox"></div>
+    <div class="px-4 py-2 border-t border-gray-100 text-xs text-gray-400 flex gap-4">
+      <span>↑↓ to navigate</span><span>↵ to open</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const modal = document.getElementById('search-modal');
+  if (!modal) return;
+  // The header is a fixed, backdrop-blurred stacking context: anything left
+  // inside it would be clipped or trapped below the page. Re-parent to <body>.
+  if (modal.parentNode !== document.body) document.body.appendChild(modal);
+  const input = document.getElementById('search-input');
+  const list = document.getElementById('search-results');
+  const indexURL = {{ "/index.json" | relURL }};
+
+  let docs = null;      // loaded lazily
+  let loading = null;
+  let results = [];
+  let active = 0;
+
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  function load() {
+    if (docs || loading) return loading || Promise.resolve();
+    loading = fetch(indexURL)
+      .then((r) => r.json())
+      .then((data) => {
+        docs = data.map((d) => Object.assign({}, d, {
+          _t: norm(d.t), _b: norm(d.b || ''), _s: norm(d.s || ''),
+          _h: (d.h || []).map((h) => ({ t: h.t, a: h.a, _t: norm(h.t) })),
+        }));
+      })
+      .catch(() => { docs = []; });
+    return loading;
+  }
+
+  // Score a document against the query terms. All terms must appear somewhere,
+  // title and heading hits weigh more than body hits.
+  function search(query) {
+    const terms = norm(query).split(/\s+/).filter(Boolean);
+    if (!terms.length || !docs) return [];
+    const out = [];
+    for (const d of docs) {
+      let score = 0, ok = true, heading = null;
+      for (const term of terms) {
+        let s = 0;
+        if (d._t === term) s += 200;
+        else if (d._t.startsWith(term)) s += 120;
+        else if (d._t.includes(term)) s += 80;
+        const h = d._h.find((x) => x._t.includes(term));
+        if (h) { s += 40; heading = heading || h; }
+        if (d._s.includes(term)) s += 10;
+        const hits = d._b.split(term).length - 1;
+        if (hits) s += Math.min(hits, 10) * 3;
+        if (!s) { ok = false; break; }
+        score += s;
+      }
+      if (ok) out.push({ doc: d, score: score, heading: heading, term: terms[0] });
+    }
+    return out.sort((a, b) => b.score - a.score).slice(0, 20);
+  }
+
+  function snippet(doc, term) {
+    const i = doc._b.indexOf(term);
+    if (i < 0) return doc.d || '';
+    const start = Math.max(0, i - 60);
+    const raw = doc.b.substr(start, 180);
+    return (start ? '…' : '') + raw + '…';
+  }
+
+  function highlight(text, term) {
+    const i = norm(text).indexOf(term);
+    if (i < 0) return esc(text);
+    return esc(text.slice(0, i)) + '<mark class="bg-primary-100 text-primary-800 rounded">' +
+           esc(text.slice(i, i + term.length)) + '</mark>' + esc(text.slice(i + term.length));
+  }
+
+  function render() {
+    if (!input.value.trim()) {
+      list.innerHTML = '<p class="px-4 py-8 text-center text-sm text-gray-400">Type to search the documentation.</p>';
+      return;
+    }
+    if (!results.length) {
+      list.innerHTML = '<p class="px-4 py-8 text-center text-sm text-gray-400">No result for “' + esc(input.value) + '”.</p>';
+      return;
+    }
+    list.innerHTML = results.map((r, i) => {
+      const url = r.doc.u + (r.heading ? '#' + r.heading.a : '');
+      return '<a href="' + url + '" role="option" data-idx="' + i + '"' +
+        ' class="block px-4 py-3 rounded-lg ' + (i === active ? 'bg-primary-50' : 'hover:bg-gray-50') + '">' +
+        '<div class="flex items-baseline gap-2">' +
+          '<span class="font-semibold text-gray-900">' + highlight(r.doc.t, r.term) + '</span>' +
+          (r.doc.s ? '<span class="text-xs text-gray-400">' + esc(r.doc.s) + '</span>' : '') +
+        '</div>' +
+        (r.heading ? '<div class="text-xs text-primary-600 mt-0.5">' + highlight(r.heading.t, r.term) + '</div>' : '') +
+        '<p class="text-sm text-gray-500 mt-1 line-clamp-2">' + highlight(snippet(r.doc, r.term), r.term) + '</p>' +
+      '</a>';
+    }).join('');
+    const el = list.querySelector('[data-idx="' + active + '"]');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function update() {
+    results = search(input.value);
+    active = 0;
+    render();
+  }
+
+  function open() {
+    const navToggle = document.getElementById('nav-toggle');
+    if (navToggle) navToggle.checked = false;  // close the mobile menu behind us
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    input.focus();
+    input.select();
+    load().then(() => { if (!modal.classList.contains('hidden')) update(); });
+  }
+
+  function close() {
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  // Delegated so triggers rendered anywhere (header, mobile menu, sidebar) work.
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-search-open]')) { e.preventDefault(); open(); }
+    else if (e.target.closest('[data-search-close]')) { e.preventDefault(); close(); }
+  });
+  input.addEventListener('input', update);
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!results.length) return;
+      active = (active + (e.key === 'ArrowDown' ? 1 : results.length - 1)) % results.length;
+      render();
+    } else if (e.key === 'Enter') {
+      const el = list.querySelector('[data-idx="' + active + '"]');
+      if (el) { e.preventDefault(); window.location.href = el.getAttribute('href'); }
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const open_ = !modal.classList.contains('hidden');
+    if (e.key === 'Escape' && open_) { close(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open_ ? close() : open(); return; }
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || document.activeElement.isContentEditable;
+    if (e.key === '/' && !open_ && !typing) { e.preventDefault(); open(); }
+  });
+
+  // Warm the index up as soon as the browser is idle, so the first open is instant.
+  (window.requestIdleCallback || window.setTimeout)(load, 2000);
+})();
+</script>
+{{ end }}
