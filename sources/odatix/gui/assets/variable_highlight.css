@@ -125,6 +125,7 @@
 .odx-varlist-panel {
     position: relative;
     display: inline-block;
+    font-size: 20px;
 }
 
 .odx-varlist-summary {
@@ -150,11 +151,16 @@
 .odx-varlist-panel[open] .odx-varlist-summary {
     border-color: var(--default-button-text-color-hover);
 }
+.odx-varlist-label {
+    color: var(--default-button-text-color);
+    font-weight: normal;
+}
 
 .odx-varlist-sigil {
     font-family: monospace;
-    font-weight: 700;
-    font-size: 1.05em;
+    font-weight: normal;
+    font-size: 0.75em;
+    color: var(--wf-hl-builtin-color);
     line-height: 1;
 }
 

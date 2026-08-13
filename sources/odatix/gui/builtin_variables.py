@@ -31,6 +31,10 @@ Each context lists what the runner replacing its commands defines:
                    resolved by odatix.components.synthesis_common
   - "simulation" : run_simulations.build_simulation_command_substitutions
   - "workflow"   : run_workflow._build_workflow_command_substitutions
+  - "architecture": architecture_handler.generation_command_substitutions, plus
+                   the architecture's own configuration, its parameter domains
+                   and its variables, which get_architecture adds on top: a name
+                   the user chose wins over a built-in one it collides with.
 
 Keep these lists in step with those functions: they are what the editor
 promises the user.
@@ -92,6 +96,21 @@ BUILTIN_VARIABLES = {
         ("source_path", "Directory the workflow's sources are copied from."),
         ("odatix_path", "Odatix installation directory."),
     ],
+    "architecture": [
+        ("architecture", "Name of this architecture."),
+        ("configuration", "Configuration being generated."),
+        ("arch_full", "Full name of the variant, parameter domains included."),
+        ("target", "Target this job runs on."),
+        ("top_level_module", "Top level module of the design."),
+        ("clock_signal", "Its clock signal."),
+        ("reset_signal", "Its reset signal."),
+        ("work_path", "The job's work directory, which the command runs from."),
+        ("rtl_path", "Directory the generated RTL is expected in, inside the work directory."),
+        ("log_path", "Directory logs are expected in, inside the work directory."),
+        ("design_path", "Source directory of the design, as declared in its settings."),
+        ("arch_path", "Directory holding the architecture definitions."),
+        ("odatix_path", "Odatix installation directory."),
+    ],
 }
 
 # Names that still work but are no longer offered: they were renamed to match
@@ -118,6 +137,11 @@ EXTRA_VARIABLES = {
         ("<workflow>", "This workflow's own configuration value, under its name.", "wf-hl-domain"),
         ("<param_domain>", "Configuration value of each of its parameter domains.", "wf-hl-domain"),
     ],
+    "architecture": [
+        ("<variable>", "Value of each of the architecture's variables: a variable used here generates one run per value.", "wf-hl-var"),
+        ("<architecture>", "This architecture's own configuration value, under its name.", "wf-hl-domain"),
+        ("<param_domain>", "Configuration value of each of its parameter domains.", "wf-hl-domain"),
+    ],
 }
 
 # How a context writes its variables, used for the examples of the list.
@@ -125,12 +149,20 @@ _SYNTAX = {
     "tool": "$name",
     "simulation": "${name}",
     "workflow": "${name}",
+    "architecture": "${name}",
 }
 
 _INTRO = {
     "tool": "Odatix replaces these tokens in every command of every task of this tool:",
     "simulation": "Odatix replaces these tokens in every command of every task of this simulation:",
-    "workflow": "Odatix replaces these tokens in every command of every task of this workflow:"
+    "workflow": "Odatix replaces these tokens in every command of every task of this workflow:",
+    "architecture": "Odatix replaces these tokens in the generation command of this architecture:",
+}
+
+# Default heading of the list, overridden by the contexts using it for a single
+# field rather than for every command they define.
+_HEADING = {
+    "architecture": "Variables usable in the generation command",
 }
 
 
@@ -190,7 +222,7 @@ def variable_list(context, id=None):
     items = [(name, description, css) for name, description, css in EXTRA_VARIABLES.get(context, [])]
     items += [(name, description, "wf-hl-builtin") for name, description in BUILTIN_VARIABLES.get(context, [])]
 
-    heading = "Variables usable in commands"
+    heading = _HEADING.get(context, "Variables usable in commands")
     children = [html.P(_INTRO.get(context, ""), className="odx-varlist-intro")]
 
     if items:
@@ -216,7 +248,7 @@ def variable_list(context, id=None):
             # No `title`: the native tooltip would cover the very panel it opens.
             html.Summary(
                 children=[
-                    html.Span("$", className="odx-varlist-sigil"),
+                    html.Span(r"${}", className="odx-varlist-sigil"),
                     html.Span("Variables", className="odx-varlist-label"),
                     html.Span(className="odx-varlist-chevron"),
                 ],

@@ -27,6 +27,7 @@ from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url, get_workspace
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
+import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import get_variables
 from odatix.lib.constraint_files import DEFAULT_SCOPE, SCOPES
@@ -443,8 +444,25 @@ def architecture_form(settings):
     return html.Div(
         children=[
             html.Div(style={"display": "none"}),
+            # The page pushes its own variable and parameter domain names through
+            # a clientside callback, hence declares_variables.
+            builtin_variables.highlight_data(
+                "architecture", id="arch-builtin-variables-data", declares_variables=True
+            ),
             html.Div([
-                html.H3("RTL Generation"),
+                html.Div(
+                    children=[
+                        html.H3("RTL Generation", style={"marginBottom": "0px"}),
+                        builtin_variables.variable_list("architecture", id="arch-builtin-variables"),
+                    ],
+                    className="title-tile-flex",
+                    style={
+                        "display": "flex",
+                        "alignItems": "center",
+                        "justifyContent": "space-between",
+                        "marginBottom": "10px",
+                    },
+                ),
                 html.Div([
                     dcc.Checklist(
                         options=[{"label": "Enable RTL Generation", "value": True}],
