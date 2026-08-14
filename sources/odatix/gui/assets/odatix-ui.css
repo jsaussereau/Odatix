@@ -178,6 +178,9 @@
 .odx-stat.muted .odx-stat-value {
     opacity: 0.5;
 }
+.odx-stat.caution .odx-stat-value {
+    color: var(--theme-caution-color);
+}
 .odx-tag {
     display: inline-flex;
     align-items: center;
@@ -1348,4 +1351,362 @@
     cursor: pointer;
     box-sizing: border-box;
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+/* Configuration rules: the configurations the rules of a parameter domain
+   would produce, previewed above the ones it holds while they are edited.
+   Same grid and same silhouette as a configuration card, so the list reads as
+   one; dashed and quiet, because none of it is written yet. */
+
+.odx-config-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 5px 10px 5px;
+}
+
+.odx-config-preview-row {
+    margin-bottom: 18px;
+}
+
+.card.configs.odx-config-preview-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    margin: 5px;
+    box-sizing: border-box;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--theme-primary-color) 4%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--theme-primary-color) 50%, transparent);
+}
+
+/* The list stands in for the cards of the domain while it is shown: keeping
+   both would show a configuration on its way out twice, once as itself and
+   once as its own removal. */
+div:has(> .odx-configs-diff) + div .card-matrix.configs {
+    display: none;
+}
+
+/* A configuration the domain already holds, among the ones the rules would add:
+   a settled card, not a proposal. */
+.card.configs.odx-config-preview-kept {
+    background: var(--theme-element-background-color);
+    border: var(--card-border);
+}
+
+/* A generated configuration excluded from runs remains visible so its button
+   can restore it. This is a saved state, distinct from an unsaved preview. */
+.card.configs.odx-config-blacklisted {
+    background: color-mix(in srgb, var(--theme-caution-color) 5%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--theme-caution-color) 55%, transparent);
+}
+
+.card.configs.odx-config-blacklisted .auto-resize-textarea,
+.card.configs.odx-config-blacklisted textarea {
+    opacity: 0.7;
+}
+
+/* A configuration the domain holds and the edited rules no longer describe:
+   the same card, on its way out. */
+.card.configs.odx-config-preview-removed {
+    background: color-mix(in srgb, var(--theme-caution-color) 4%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--theme-caution-color) 50%, transparent);
+    opacity: 0.75;
+}
+
+.odx-config-preview-removed .odx-config-preview-title {
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--theme-caution-color) 70%, transparent);
+    text-decoration-thickness: 2px;
+}
+
+.odx-config-preview-card .odx-config-preview-title {
+    margin: 2px 5px 0 5px;
+    font-weight: bold;
+    font-size: 1.1em;
+    line-height: 30px;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.odx-config-preview-card .odx-config-preview-content {
+    margin: 0 5px;
+    padding: 8px 10px;
+    max-height: 140px;
+    overflow: auto;
+    border-radius: var(--textarea-border-radius, 8px);
+    background: color-mix(in srgb, var(--theme-text-color) 4%, transparent);
+    font-family: monospace;
+    font-size: 0.85em;
+    line-height: 1.45;
+    opacity: 0.75;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.odx-config-preview-card .odx-config-preview-content:empty::before {
+    content: "empty";
+    font-style: italic;
+    opacity: 0.6;
+}
+
+.odx-config-preview-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    /* The height of the button row of a saved card, so both line up. */
+    min-height: 30px;
+    margin: 0 5px;
+}
+
+.card.configs.odx-config-preview-more {
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+}
+
+/* ====================================================================== */
+/*  Configuration editor: the folded explanation, and the note under it    */
+/* ====================================================================== */
+
+/* One line above the fields it explains, opened only by whoever needs it. */
+.odx-help-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+.odx-help-question {
+    font-weight: 600;
+    font-size: 15px;
+}
+.odx-help-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 14px;
+}
+.odx-help-blocks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+}
+.odx-help-title {
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    margin-bottom: 4px;
+}
+.odx-help-text {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    opacity: 0.85;
+}
+
+/* The diagram: a configuration, and what it replaces in the target file. */
+.odx-diagram {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.odx-diagram-box {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    border-radius: var(--card-border-radius);
+    border: var(--card-border);
+    background: var(--theme-element-background-color);
+}
+.odx-diagram-box.grow {
+    flex: 2 1 300px;
+}
+.odx-diagram-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.odx-diagram-kind {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+.odx-diagram-name {
+    font-family: monospace;
+    font-weight: 700;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+.odx-diagram-code {
+    margin: 0;
+    font-family: monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.odx-diagram-code.content {
+    color: var(--theme-primary-color);
+    font-weight: 600;
+}
+.odx-diagram-dim {
+    opacity: 0.5;
+}
+.odx-diagram-delimiter {
+    color: var(--theme-primary-color);
+    font-weight: 600;
+}
+.odx-diagram-replaced {
+    display: inline-block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--theme-primary-color) 14%, transparent);
+}
+.odx-diagram-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 0 0 auto;
+    opacity: 0.75;
+}
+.odx-diagram-arrow-label {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.odx-diagram-arrow-glyph {
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* What the cards below are, said once, quietly. */
+.odx-configs-note {
+    max-width: calc(2 * var(--tile-width) + var(--tile-gap));
+    margin: 0 auto 10px auto;
+    padding: 0 10px;
+    box-sizing: border-box;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.5;
+    opacity: 0.6;
+}
+/* Hidden with the cards it introduces, while the rules preview stands in. */
+div:has(> .odx-configs-diff) + div .odx-configs-note {
+    display: none;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Configuration editor: the variables of a domain, one row each              */
+/* ------------------------------------------------------------------------- */
+
+/* A list, not a grid of tiles: a variable is read as a line -- name, type,
+   values -- and every variable of a domain is visible at once. */
+.card-matrix.configs.odx-variable-list {
+    display: block;
+    max-width: calc(2 * var(--tile-width) + 2 * var(--tile-gap));
+    margin: 0 auto;
+    padding: 0 5px;
+    box-sizing: border-box;
+}
+
+.card.configs.odx-variable-row {
+    box-sizing: border-box;
+}
+
+/* Name, type and values on one line; the actions at the end of it. */
+.odx-variable-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.odx-variable-name-cell {
+    flex: 0 1 160px;
+    min-width: 90px;
+}
+.odx-variable-type-cell {
+    flex: 0 0 170px;
+}
+.odx-variable-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+/* What the variable is worth, in the row that names it. */
+.odx-variable-values {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.odx-variable-count {
+    flex: 0 0 auto;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    background: color-mix(in srgb, var(--theme-primary-color) 16%, transparent);
+}
+.odx-variable-values-list {
+    font-family: monospace;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    opacity: 0.8;
+}
+.odx-variable-values-empty {
+    font-size: 13px;
+    font-style: italic;
+    opacity: 0.5;
+}
+
+/* Opened, a row becomes the editor of its variable: the fields it uses, side by
+   side rather than stacked, since a row is wide where a card was not. */
+/* Every field a variable uses -- "Format" and "Variable group" included, which
+   are fields like any other -- side by side, as many per line as fit. A field
+   its type does not use is display:none, so the grid skips it. */
+.odx-variable-fields-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0 14px;
+}
+.odx-variable-fields {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+/* One more variable, in the shape of the rows above it. */
+.card.configs.odx-variable-add {
+    text-align: left;
+}
+
+@media screen and (max-width: 700px) {
+    .odx-variable-head {
+        flex-wrap: wrap;
+    }
+    .odx-variable-values {
+        order: 3;
+        flex-basis: 100%;
+    }
 }

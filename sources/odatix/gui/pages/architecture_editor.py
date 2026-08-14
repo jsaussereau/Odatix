@@ -30,6 +30,7 @@ import odatix.gui.navigation as navigation
 import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import get_variables
+from odatix.workspace.space import config_set_rules
 from odatix.lib.constraint_files import DEFAULT_SCOPE, SCOPES
 import odatix.lib.overrides as overrides_lib
 
@@ -961,10 +962,10 @@ def update_arch_highlight_names(search, page, odatix_settings):
     variables = []
     try:
         settings = architectures.entry(arch_name).settings.to_dict()
-        # When configuration generation is enabled, the variables generate
-        # configuration files instead of command values: they are not usable in
-        # the generation command.
-        if not settings.get("generate_configurations", False):
+        # When the architecture describes its own configurations, the variables
+        # build those configurations instead of command values: they are not
+        # usable in the generation command.
+        if not config_set_rules(settings).generates:
             declared_variables, _legacy = get_variables(settings)
             variables = [name for name in declared_variables.keys() if str(name).strip()]
     except Exception:

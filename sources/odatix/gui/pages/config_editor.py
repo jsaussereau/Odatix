@@ -25,13 +25,17 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 import uuid
 import random
+from natsort import natsorted
 
 import odatix.gui.ui_components as ui
-from odatix.gui.utils import get_instance_mode, get_instance_collection_context
+import odatix.gui.config_rules as config_rules
+import odatix.gui.replacement_help as replacement_help
+from odatix.gui.utils import get_instance_mode, get_instance_collection_context, get_key_from_url
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 import odatix.components.replace_params as replace_params
 from odatix.workspace.domains import ParameterDomain
+from odatix.workspace.space import ORIGIN_BLACKLISTED, ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_MANUAL
 from odatix.gui.icons import icon
 from odatix.gui.css_helper import Style
 
@@ -90,30 +94,83 @@ def params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_de
         or stop_delimiter != domain_settings.get("stop_delimiter", "")
     )
 
-def generate_config_link(mode: str, instance_name: str = "", domain_name: str = "") -> str:
-    key = "workflow" if mode == "workflow" else "arch"
-    if domain_name:
-        return f"/config_generator?{key}={instance_name}&domain={domain_name}"
-    else:
-        return f"/config_generator?{key}={instance_name}"
-
 ######################################
 # UI Components
 ######################################
 
-def config_card(domain_uuid, config_uuid, config_name, content, initial_content, config_layout="normal"):
+#: What each origin says on a configuration card, and how it is presented. The
+#: rules preview labels the same configurations, so the labels live with it.
+ORIGIN_LABELS = config_rules.ORIGIN_LABELS
+
+#: How the delete button of a card reads, per origin. A configuration that only
+#: exists as a rule has no file to delete, so its button is inert and says why.
+DELETE_TOOLTIPS = {
+    ORIGIN_GENERATED: ("caution", "Blacklist this generated configuration"),
+    ORIGIN_EDITED: ("caution", "Discard this edit and go back to what the rules produce"),
+    ORIGIN_MANUAL: ("caution", "Delete"),
+    ORIGIN_BLACKLISTED: ("primary", "Remove this configuration from the blacklist"),
+}
+
+def origin_badge(origin):
+    """The origin badge of a card, empty for a plain hand-written configuration."""
+    if origin not in ORIGIN_LABELS:
+        return []
+    text, color, _tooltip = ORIGIN_LABELS[origin]
+    return ui.badge(text, color=color)
+
+def origin_chip(domain_uuid, config_uuid, origin):
+    tooltip = ORIGIN_LABELS.get(origin, ("", "", ""))[2]
+    return html.Div(
+        origin_badge(origin),
+        id={"type": "config-origin", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
+        className="tooltip delay bottom auto" if tooltip else "",
+        style={"display": "flex", "alignItems": "center"},
+        **{"data-tooltip": tooltip},
+    )
+
+def delete_button_class(origin):
+    color = DELETE_TOOLTIPS.get(origin, DELETE_TOOLTIPS[ORIGIN_MANUAL])[0]
+    return f"color-button {color} icon-button icon-only tooltip bottom auto"
+
+
+def config_action_button(domain_uuid, config_uuid, origin):
+    """Delete a file, blacklist a generated config, or restore a blacklisted one."""
+    action_id = {"type": "delete-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid}
+    tooltip = DELETE_TOOLTIPS.get(origin, DELETE_TOOLTIPS[ORIGIN_MANUAL])[1]
+    if origin == ORIGIN_BLACKLISTED:
+        return ui.icon_button(
+            icon=icon(
+                "reset",
+                className="icon",
+                id={"type": "restore-config-icon", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
+            ),
+            color="primary",
+            id=action_id,
+            tooltip=tooltip,
+            tooltip_options="bottom auto",
+        )
+    return ui.delete_button(id=action_id, tooltip=tooltip)
+
+
+def config_card(domain_uuid, config_uuid, config_name, content, initial_content, config_layout="normal", origin=ORIGIN_MANUAL):
     display_name = config_name[:-4] if config_name.endswith(".txt") else config_name
 
     save_class =  "color-button disabled"
     status_text = ""
     status_class = "status"
+    # A configuration the rules produce is named by the name template: renaming
+    # the file here would only make a copy, and leave the rule's own name to
+    # reappear beside it.
+    from_rules = origin in (ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_BLACKLISTED)
+    is_blacklisted = origin == ORIGIN_BLACKLISTED
     return html.Div([
         html.Div([
             dcc.Input(
                 value=f"{display_name}",
                 type="text",
                 id={"type": "config-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
-                className="title-input",
+                className="title-input preview" if from_rules else "title-input",
+                readOnly=from_rules,
                 style={
                     "boxSizing": "border-box",
                     "width": "calc(100% - 10px)",
@@ -128,6 +185,7 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
         dcc.Textarea(
             id={"type": "config-content", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
             value=content,
+            readOnly=is_blacklisted,
             className="auto-resize-textarea" if config_layout != "compact" else "",
             style={
                 "width": "calc(100% - 20px)",
@@ -148,6 +206,7 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
                 "config_uuid": config_uuid,
                 "config_name": config_name,
                 "config_content": content,
+                "origin": origin,
             }
         ),
         html.Div([
@@ -155,16 +214,17 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
                 html.Div([ui.icon_button(
                     icon=icon("save", className="icon", id={"type": "save-config-icon", "domain_uuid": domain_uuid, "config_uuid": config_uuid}),
                     color="disabled",
-                    text="Save", 
+                    text="Save",
                     width="78px",
                     id={"type": "save-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
                 ),], style={"marginLeft": "5px"}),
                 html.Div(status_text, id={"type": "save-status", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, className=status_class, style={"marginLeft": "0px", "textWrap": "wrap", "width": "70px", "fontWeight": "515"}),
             ], style={"display": "flex", "alignItems": "center"}),
             html.Div([
+                origin_chip(domain_uuid, config_uuid, origin),
                 ui.duplicate_button(id={"type": "duplicate-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid}),
-                ui.delete_button(id={"type": "delete-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid}),
-            ], style={"display": "flex", "alignItems": "center", "marginLeft": "0px"}, className="inline-flex-buttons"),
+                config_action_button(domain_uuid, config_uuid, origin),
+            ], style={"display": "flex", "alignItems": "center", "marginLeft": "0px", "gap": "6px"}, className="inline-flex-buttons"),
         ], style={
             "marginTop": "8px",
             "display": "flex",
@@ -175,7 +235,7 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
         dcc.Store(id={"type": "initial-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, data=display_name),
         dcc.Store(id={"type": "initial-content", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, data=initial_content),
     ], 
-    className="card configs", 
+    className="card configs odx-config-blacklisted" if is_blacklisted else "card configs",
     id={"type": "config-card", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
     style={
         "padding": "10px", 
@@ -292,15 +352,6 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
         text = "Main parameter domain"
         buttons = html.Div(
             children=[
-                ui.icon_button(
-                    # id={"type": "generate-config", "domain_uuid": domain_uuid},
-                    icon=icon("generate", className="icon"),
-                    text="Config Generator",
-                    color="default",
-                    link=generate_config_link(mode=mode, instance_name=instance_name),
-                    multiline=True,
-                    tooltip="Generate multiple design configurations",
-                ),
                 ui.duplicate_button(
                     id={"action": "duplicate-domain", "domain_uuid": domain_uuid},
                     tooltip="Duplicate as a new domain",
@@ -323,15 +374,6 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
     else:
         buttons = html.Div(
             children=[
-                ui.icon_button(
-                    id={"type": "generate-config", "domain_uuid": domain_uuid},
-                    icon=icon("generate", className="icon"),
-                    text="Config Generator",
-                    color="default",
-                    link=generate_config_link(mode=mode, instance_name=instance_name, domain_name=domain_name),
-                    multiline=True,
-                    tooltip="Generate multiple design configurations",
-                ),
                 ui.duplicate_button(
                     id={"action": "duplicate-domain", "domain_uuid": domain_uuid},
                     tooltip="Duplicate domain",
@@ -406,7 +448,7 @@ def add_parameter_domain_button(text:str="Main parameter domain"):
         },
     )
 
-def config_parameters_form(domain_uuid, settings, mode="arch"):
+def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None):
     defval = lambda k, v=None: settings.get(k, v)
 
     save_button = html.Div(
@@ -454,6 +496,10 @@ def config_parameters_form(domain_uuid, settings, mode="arch"):
                 id={"type": "params-config-fields", "domain_uuid": domain_uuid}, className="animated-section" if use_parameters else "animated-section hide",
             ),
             html.Div(id={"type": "save-params-status", "domain_uuid": domain_uuid}, className="status", style={"marginLeft": "16px"}),
+            # How a configuration is named and what it writes: the other half of
+            # the replacement set up above, and the half most domains never have
+            # to touch -- so, folded, and here rather than apart.
+            config_rules.domain_advanced_section(domain_uuid, settings, domain_name=domain_name),
         ]
     )
 
@@ -581,7 +627,7 @@ def preview_header(domain_uuid):
         },
     )
 
-def domain_section(domain: str, mode: str = "arch", instance_name: str = "", settings: dict = {}, domain_uuid=None):
+def domain_section(domain: str, mode: str = "arch", instance_name: str = "", settings: dict = {}, domain_uuid=None, open_rules: bool = False):
     # Generate a unique UUID for non-main domains
     if not domain_uuid:
         domain_uuid = get_uuid() if domain != hard_settings.main_parameter_domain else domain
@@ -608,7 +654,7 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                     *content_hidden_divs,
                     html.Div(
                         children=[
-                            config_parameters_form(domain_uuid, settings, mode),
+                            config_parameters_form(domain_uuid, settings, mode, domain_name=domain),
                         ],
                         id={"type": "config-parameters", "domain_uuid": domain_uuid}, 
                         className="tile config"),
@@ -622,23 +668,148 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                 ], 
                 className="card-matrix config",
             ),
+            config_rules.rules_section(domain_uuid, settings, open=open_rules, domain_name=domain),
+            html.Div(
+                id={"type": "config-counters", "domain_uuid": domain_uuid},
+                # Centered over the cards it counts, like everything else of the
+                # list: the rules preview heads the same column.
+                style={"display": "flex", "flexWrap": "wrap", "justifyContent": "center",
+                       "gap": "12px", "margin": "16px 5px 10px 5px"},
+            ),
+            # What the rules of this domain would produce, shown above its
+            # configurations while they are edited and not saved yet.
+            html.Div(id={"type": "cfg-config-preview", "domain_uuid": domain_uuid}),
+            # Kept in the same wrapper as the cards it introduces: the rules
+            # preview hides that whole wrapper while it stands in for it (see
+            # ".odx-configs-diff" in the stylesheet).
             html.Div([
                 html.Div(
                     children=[add_card(domain_uuid=domain_uuid)],
                     id={"type": "config-cards-row", "domain_uuid": domain_uuid},
-                    className=f"card-matrix configs", 
+                    className=f"card-matrix configs",
                 ),
             ]),
             dcc.Store(id={"type": "config-params-store", "domain_uuid": domain_uuid}, data=settings),
             dcc.Store(id={"type": "domain-metadata", "domain_uuid": domain_uuid}, data={"domain_name": domain, "domain_uuid": domain_uuid}),
         ],
         id = {"type": "param-domain-section", "domain_uuid": domain_uuid},
+        # The highlighter of the two templates looks for the variables of this
+        # domain, and of this domain only: a ${name} defined next door is not
+        # defined here. The whole section is the scope, since the templates and
+        # the variables they read now sit in two different places of it.
+        **{
+            "data-odatix-hl-scope": domain_uuid,
+            "data-odatix-hl-unknown": "no variable of this domain is named like this",
+        },
     )
 
 
 def instance_domain(instances, instance_name, domain_name):
     """One parameter domain of the architecture or workflow being edited."""
     return ParameterDomain(instances.entry(instance_name), domain_name)
+
+
+def origin_of(domain, filename):
+    """
+    What the given configuration is, once the domain has been written to: a
+    file the rules know nothing about, one they produce, or one they produce
+    and that was edited since.
+    """
+    for config in domain.resolve_configurations():
+        if config.filename == filename:
+            return config.origin
+    return ORIGIN_MANUAL
+
+
+def build_config_cards(domain, domain_uuid, config_layout):
+    """
+    The cards of one parameter domain: what it holds, whether it is written as
+    a file or only described by the rules of the domain, plus the add card.
+    """
+    cards = []
+    configurations = list(domain.resolve_configurations()) + list(domain.blacklisted_configurations())
+    for config in natsorted(configurations, key=lambda configuration: configuration.name):
+        cards.append(
+            config_card(
+                domain_uuid=domain_uuid,
+                config_uuid=get_uuid(),
+                config_name=config.filename,
+                content=config.content,
+                initial_content=config.content,
+                config_layout=config_layout,
+                origin=config.origin,
+            )
+        )
+    cards.append(add_card(domain_uuid=domain_uuid))
+    return cards
+
+
+def rules_of(domain):
+    """The configurations the rules of a domain produce, by filename."""
+    if not domain.describes_configurations:
+        return {}
+    return {config.filename: config for config in domain.resolve_configurations() if config.from_rules}
+
+
+def unsaved_rule_configurations(names, templates, stores, field_values, domain_metadata):
+    """Generated configurations currently described by unsaved rule fields."""
+    domain_metadata = domain_metadata or []
+    uuids = config_rules.domain_uuids_of(domain_metadata)
+    indices = config_rules.domain_indices(config_rules.field_ids("variable-title"), uuids)
+    names_by_uuid = config_rules.domain_names_of(domain_metadata)
+    stores = stores or []
+    configurations_by_domain = {}
+
+    for i, domain_uuid in enumerate(uuids):
+        variables = config_rules.variables_of(field_values, indices.get(domain_uuid, []))
+        name = names[i] if i < len(names) else ""
+        template = templates[i] if i < len(templates) else ""
+        saved = stores[i] if i < len(stores) and stores[i] else config_rules.rules_settings("", "", {})
+        current = config_rules.form_rules_settings(
+            name, template, variables, names_by_uuid.get(domain_uuid), saved,
+        )
+        if current == saved:
+            continue
+
+        space = config_rules.effective_rules(
+            name, template, variables,
+            blacklist=config_rules.configuration_blacklist(saved),
+        )
+        if not space.generates:
+            continue
+        try:
+            configurations = {point.name: point.content for point in space.points()}
+        except Exception:
+            continue
+        configurations_by_domain[domain_uuid] = configurations
+
+    return configurations_by_domain
+
+
+def replacement_text_for_preview(selected_config, domain_uuid, domain_contents, config_metadata, rule_configurations):
+    """The selected configuration text, preferring an unsaved generated value."""
+    selected_metadata = next(
+        (
+            data for data in (config_metadata or [])
+            if (data or {}).get("domain_uuid") == domain_uuid
+            and (data or {}).get("config_uuid") == selected_config
+        ),
+        None,
+    )
+    if selected_metadata:
+        config_name = selected_metadata.get("config_name", "")
+        name = config_name[:-4] if config_name.endswith(".txt") else config_name
+        origin = selected_metadata.get("origin", ORIGIN_MANUAL)
+        if origin == ORIGIN_GENERATED and name in rule_configurations:
+            return rule_configurations[name]
+        if origin in (ORIGIN_MANUAL, ORIGIN_EDITED, ORIGIN_BLACKLISTED):
+            return domain_contents.get(selected_config, next(iter(domain_contents.values()), ""))
+
+    if rule_configurations:
+        return next(iter(rule_configurations.values()), "")
+    if selected_config in domain_contents:
+        return domain_contents[selected_config]
+    return next(iter(domain_contents.values()), "")
 
 
 ######################################
@@ -691,6 +862,8 @@ def update_param_domains(
             className="card-matrix config",
         ), dash.no_update, dash.no_update
 
+    requested_domain = get_key_from_url(search, "domain")
+
     add_domain_div = html.Div(
         children=[
             add_parameter_domain_button("Add new parameter domain")
@@ -712,7 +885,12 @@ def update_param_domains(
         domain_sections = []
         for domain in instance.domains:
             domain_sections.append(
-                domain_section(domain.name, mode, instance_name, settings=domain.settings.to_dict())
+                domain_section(
+                    domain.name, mode, instance_name, settings=domain.settings.to_dict(),
+                    # A link naming a domain -- the old configuration generator
+                    # URL, among others -- opens the rules of that domain.
+                    open_rules=(domain.name == requested_domain),
+                )
             )
         domain_sections.append(add_domain_div)
         return domain_sections, True, dash.no_update
@@ -727,13 +905,25 @@ def update_param_domains(
             while new_domain in domains:
                 suffix += 1
                 new_domain = f"{base_name}{suffix}"
-            instance.domains.create(new_domain)
+            # A new domain starts with one variable, named after itself: that is
+            # the shortest thing it can be, and it needs no template to say what
+            # its configurations are called or contain.
+            new_settings = {"variables": config_rules.default_variables()}
+            instance.domains.create(new_domain, **new_settings)
 
             # Insert new domain section before the add domain button
             domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
-            domain_sections.append(domain_section(new_domain, mode, instance_name, settings={}))
+            domain_uuid = get_uuid()
+            domain_sections.append(
+                domain_section(
+                    new_domain, mode, instance_name, settings=new_settings,
+                    domain_uuid=domain_uuid, open_rules=True,
+                )
+            )
             domain_sections.append(add_domain_div)
-            return domain_sections, dash.no_update, dash.no_update
+            # Its one variable already describes configurations, so the new
+            # domain holds some the moment it exists: its cards are read.
+            return domain_sections, dash.no_update, domain_uuid
 
         # Duplicate domain
         elif trigger_action == "duplicate-domain":
@@ -807,6 +997,7 @@ def update_param_domains(
     Input({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "delete-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "duplicate-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-rules-saved", "domain_uuid": dash.ALL}, "data"),
     Input("param-domains-section-update", "data"),
     State({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
     State({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
@@ -818,7 +1009,7 @@ def update_param_domains(
 )
 def update_config_cards(
     search, _,
-    config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, update_domain_uuid,
+    config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, rules_saved, update_domain_uuid,
     config_cards_row, title_values, contents, config_metadata, domain_metadata, odatix_settings
 ):
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
@@ -826,6 +1017,21 @@ def update_config_cards(
         return [html.Div("No architecture or workflow selected.", className="error")]
 
     triggered_id = ctx.triggered_id
+    # A blacklist toggle answers the very click this callback answers. Dash holds
+    # this one back until the toggle has saved the domain, then runs it with both
+    # the click and the saved signal at once -- and names the click as the
+    # trigger, which is the one branch below that has nothing to do. The saved
+    # signal is what actually says the domain changed, so it wins over the click.
+    rules_saved_trigger = next(
+        (
+            identifier for identifier in (ctx.triggered_prop_ids or {}).values()
+            if isinstance(identifier, dict) and identifier.get("type") == "cfg-rules-saved"
+        ),
+        None,
+    )
+    if rules_saved_trigger is not None:
+        triggered_id = rules_saved_trigger
+
     if not isinstance(triggered_id, dict):
         domains = {}
         for data in domain_metadata:
@@ -848,11 +1054,23 @@ def update_config_cards(
                 trig_domain_name = domain_name
                 trig_domain_idx = i
 
-        if trig_type in ["new-config", "save-config", "delete-config", "duplicate-config"]:         
+        # The rules of a domain were saved: what the domain holds has changed,
+        # so its cards are read again -- which is the whole point of editing
+        # the rules next to the configurations they produce.
+        if trig_type == "cfg-rules-saved" and trig_domain_idx >= 0:
+            cards = build_config_cards(
+                instance_domain(instances, instance_name, trig_domain_name), trig_domain_uuid, config_layout,
+            )
+            # Only the domain whose rules changed is read again: what is being
+            # edited in the other domains stays as the user left it.
+            return [cards if i == trig_domain_idx else dash.no_update for i in range(len(config_cards_row))]
+
+        if trig_type in ["new-config", "save-config", "delete-config", "duplicate-config"]:
             trig_domain_configs = []
             trig_config_uuid = triggered_id.get("config_uuid", "")
             trig_config_name = ""
             trig_config_initial_content = ""
+            trig_config_origin = ORIGIN_MANUAL
             
             # Get config from metadata
             trig_global_idx = -1
@@ -869,8 +1087,14 @@ def update_config_cards(
                     if config_uuid == trig_config_uuid:
                         trig_config_name = config_name
                         trig_config_initial_content = config_content
+                        trig_config_origin = data.get("origin", ORIGIN_MANUAL)
                         trig_config_idx = domain_config_idx
                         trig_global_idx = i
+
+            # The blacklist toggle owns rule-produced cards. Its saved signal
+            # rebuilds this row once the domain has been updated.
+            if trig_type == "delete-config" and trig_config_origin in (ORIGIN_GENERATED, ORIGIN_BLACKLISTED):
+                return [dash.no_update for _ in range(len(config_cards_row))]
             
             if trig_type == "new-config" and add_click:
                 for idx in range(1, 1001):
@@ -917,7 +1141,8 @@ def update_config_cards(
                             config_old_title = config_new_title
                     if verbose:
                         print(f"Saving config '{config_old_title}' in domain '{trig_domain_name}'")
-                    instance_domain(instances, instance_name, trig_domain_name).configs.write(config_old_title, trig_config_content)
+                    domain = instance_domain(instances, instance_name, trig_domain_name)
+                    domain.configs.write(config_old_title, trig_config_content)
                     config_metadata[trig_config_idx]['config_content'] = trig_config_content
                     config_cards_row[trig_domain_idx][trig_config_idx] = config_card(
                         domain_uuid=trig_domain_uuid,
@@ -926,14 +1151,34 @@ def update_config_cards(
                         content=trig_config_content,
                         initial_content=trig_config_content,
                         config_layout=config_layout,
+                        origin=origin_of(domain, config_old_title),
                     )
-                
+
                 # Delete config
                 if trig_type == "delete-config" and trig_config_name:
-                    instance_domain(instances, instance_name, trig_domain_name).configs.delete(trig_config_name)
+                    domain = instance_domain(instances, instance_name, trig_domain_name)
+                    from_rules = rules_of(domain).get(trig_config_name)
+                    if domain.configs.exists(trig_config_name):
+                        domain.configs.delete(trig_config_name)
                     card_idx = card_index(config_cards_row[trig_domain_idx], trig_domain_uuid, trig_config_uuid)
                     if card_idx >= 0:
-                        config_cards_row[trig_domain_idx].pop(card_idx)
+                        if from_rules is not None:
+                            # The file was an edit of what the rules produce:
+                            # deleting it takes the configuration back to its
+                            # rule, it does not remove it from the domain.
+                            generated = origin_of(domain, trig_config_name)
+                            content = rules_of(domain)[trig_config_name].content
+                            config_cards_row[trig_domain_idx][card_idx] = config_card(
+                                domain_uuid=trig_domain_uuid,
+                                config_uuid=trig_config_uuid,
+                                config_name=trig_config_name,
+                                content=content,
+                                initial_content=content,
+                                config_layout=config_layout,
+                                origin=generated,
+                            )
+                        else:
+                            config_cards_row[trig_domain_idx].pop(card_idx)
 
                 # Duplicate config
                 if trig_type == "duplicate-config":
@@ -960,25 +1205,9 @@ def update_config_cards(
     if triggered_id == "param-domains-section-initialized":
         config_cards_row = []
         for idx, (domain_uuid, domain_name) in enumerate(domains.items()):
-            configs = instance_domain(instances, instance_name, domain_name).configs
-            config_cards = []
-            config_metadata = []
-            for config_name in configs.filenames():
-                config_content = configs[config_name].read()
-                config_uuid = get_uuid()
-                # Create config card
-                config_cards.append(
-                    config_card(
-                        domain_uuid = domain_uuid, 
-                        config_uuid = config_uuid,
-                        config_name = config_name,
-                        content = config_content,
-                        initial_content = config_content,
-                        config_layout = config_layout,
-                    )
-                )
-            config_cards.append(add_card(domain_uuid=domain_uuid))
-            config_cards_row.append(config_cards)
+            config_cards_row.append(build_config_cards(
+                instance_domain(instances, instance_name, domain_name), domain_uuid, config_layout,
+            ))
         return config_cards_row
     
     # If a domain was duplicated, load the new domain configs
@@ -986,28 +1215,123 @@ def update_config_cards(
         # Reload only domain with uuid == update_domain_uuid
         for i, domain_uuid in enumerate(domains.keys()):
             if domain_uuid == update_domain_uuid:
-                domain_name = domains[domain_uuid]
-                configs = instance_domain(instances, instance_name, domain_name).configs
-                config_cards = []
-                for config_name in configs.filenames():
-                    config_content = configs[config_name].read()
-                    config_uuid = get_uuid()
-                    # Create config card
-                    config_cards.append(
-                        config_card(
-                            domain_uuid = domain_uuid, 
-                            config_uuid = config_uuid,
-                            config_name = config_name,
-                            content = config_content,
-                            initial_content = config_content,
-                            config_layout = config_layout,
-                        )
-                    )
-                config_cards.append(add_card(domain_uuid=domain_uuid))
-                config_cards_row[i] = config_cards
+                config_cards_row[i] = build_config_cards(
+                    instance_domain(instances, instance_name, domains[domain_uuid]), domain_uuid, config_layout,
+                )
                 break
 
     return config_cards_row
+
+
+def rules_with_configuration_blacklist(saved_rules, config_name, blacklisted):
+    """Return saved rules with one generated configuration added or removed."""
+    rules = dict(saved_rules or {})
+    configurations = dict(rules.get(config_rules.CONFIGURATIONS_KEY, {}) or {})
+    blacklist = config_rules.configuration_blacklist(rules)
+    if blacklisted:
+        if config_name not in blacklist:
+            blacklist.append(config_name)
+    else:
+        blacklist = [name for name in blacklist if name != config_name]
+    if blacklist:
+        configurations["blacklist"] = blacklist
+    else:
+        configurations.pop("blacklist", None)
+    rules[config_rules.CONFIGURATIONS_KEY] = configurations
+    return rules
+
+
+@dash.callback(
+    Output({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
+    Output({"type": "cfg-rules-saved", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
+    # The cards of the domain are rewritten here rather than left to the callback
+    # that owns them: it answers the same click, so waiting for it would mean
+    # relying on the order Dash runs the two in, and the card kept the look it
+    # had until the page was reloaded.
+    Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children", allow_duplicate=True),
+    Input({"type": "delete-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "n_clicks"),
+    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "cfg-rules-saved", "domain_uuid": dash.ALL}, "data"),
+    State("config-layout-dropdown", "value"),
+    State("url", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def toggle_generated_configuration_blacklist(
+    delete_clicks, config_metadata, domain_metadata, rules_stores, saved_counters, config_layout, search,
+    odatix_settings,
+):
+    """Blacklist a generated configuration, or restore it from the same card button."""
+    nothing = [dash.no_update] * len(domain_metadata)
+    trigger = ctx.triggered_id
+    if not isinstance(trigger, dict):
+        return nothing, nothing, nothing
+
+    # Rebuilding the row hands Dash brand new buttons, and it announces them here as
+    # if they had been pressed. Only a button carrying a click count is a real press,
+    # otherwise a page reload would toggle the blacklist a second time on its own.
+    clicked = next(
+        (
+            clicks for entry, clicks in zip(ctx.inputs_list[0], delete_clicks or [])
+            if entry.get("id") == trigger
+        ),
+        None,
+    )
+    if not clicked:
+        return nothing, nothing, nothing
+
+    domain_uuid = trigger.get("domain_uuid", "")
+    config_uuid = trigger.get("config_uuid", "")
+    metadata = next(
+        (
+            data for data in (config_metadata or [])
+            if (data or {}).get("domain_uuid") == domain_uuid
+            and (data or {}).get("config_uuid") == config_uuid
+        ),
+        None,
+    )
+    origin = (metadata or {}).get("origin")
+    if origin not in (ORIGIN_GENERATED, ORIGIN_BLACKLISTED):
+        return nothing, nothing, nothing
+
+    index = next(
+        (i for i, data in enumerate(domain_metadata) if (data or {}).get("domain_uuid") == domain_uuid),
+        -1,
+    )
+    if index < 0:
+        return nothing, nothing, nothing
+
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
+    if not instance_name or instance_name not in instances:
+        return nothing, nothing, nothing
+
+    domain_name = domain_metadata[index].get("domain_name", "")
+    domain = instance_domain(instances, instance_name, domain_name)
+    saved = rules_stores[index] if index < len(rules_stores) and rules_stores[index] else domain.settings.to_dict()
+    filename = (metadata or {}).get("config_name", "")
+    config_name = filename[:-4] if filename.endswith(".txt") else filename
+    updated = rules_with_configuration_blacklist(saved, config_name, origin == ORIGIN_GENERATED)
+    if updated == saved:
+        return nothing, nothing, nothing
+
+    persisted_configurations = dict(updated[config_rules.CONFIGURATIONS_KEY])
+    if not config_rules.configuration_blacklist(updated):
+        # Nested settings merge mapping updates, so an absent key alone would
+        # leave a previous blacklist in memory after the configuration is restored.
+        persisted_configurations["blacklist"] = []
+    domain.update({config_rules.CONFIGURATIONS_KEY: persisted_configurations})
+    counter = (saved_counters[index] or 0) if index < len(saved_counters) else 0
+    stores = list(nothing)
+    counters = list(nothing)
+    rows = list(nothing)
+    stores[index] = updated
+    counters[index] = counter + 1
+    # Read once the domain has been written: what it holds now is what the cards
+    # of this domain say, blacklisted one included.
+    rows[index] = build_config_cards(domain, domain_uuid, config_layout)
+    return stores, counters, rows
 
 @dash.callback(
     Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "options"),
@@ -1015,7 +1339,7 @@ def update_config_cards(
     Input("param-domains-section", "children"),
     Input({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
-    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
     prevent_initial_call=True
@@ -1051,7 +1375,13 @@ def update_preview_config_select(_, config_cards_rows, config_titles, config_met
     Input({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
-    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
+    *config_rules.variable_inputs(),
+    # Card rows are rebuilt after a blacklist toggle. Metadata must be an input
+    # so the pane runs again once those replacement cards exist.
+    Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
     prevent_initial_call=True
@@ -1059,8 +1389,12 @@ def update_preview_config_select(_, config_cards_rows, config_titles, config_met
 def update_preview_all(
     search, param_domains_update,
     config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list,
-    selected_configs, config_metadata, domain_metadata, odatix_settings
+    selected_configs, rule_names, rule_templates, rule_stores, *rest
 ):
+    rule_field_values = rest[:len(config_rules.FIELD_PATTERNS)]
+    config_metadata = rest[len(config_rules.FIELD_PATTERNS)] if len(rest) > len(config_rules.FIELD_PATTERNS) else []
+    domain_metadata = rest[len(config_rules.FIELD_PATTERNS) + 1] if len(rest) > len(config_rules.FIELD_PATTERNS) + 1 else []
+    odatix_settings = rest[len(config_rules.FIELD_PATTERNS) + 2] if len(rest) > len(config_rules.FIELD_PATTERNS) + 2 else {}
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name or instance_name not in instances:
         label = "Workflow" if mode == "workflow" else "Architecture"
@@ -1082,6 +1416,10 @@ def update_preview_all(
         }
         contents_by_domain.append(domain_contents)
 
+    rule_configurations_by_domain = unsaved_rule_configurations(
+        rule_names, rule_templates, rule_stores, rule_field_values, domain_metadata,
+    )
+
     # Generate previews for each domain
     results = []
     for i, domain in enumerate(domain_metadata):
@@ -1094,10 +1432,10 @@ def update_preview_all(
         domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
         domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
         selected_config = selected_configs[i] if i < len(selected_configs) else None
-        if selected_config in domain_contents:
-            replacement_text = domain_contents[selected_config]
-        else:
-            replacement_text = next(iter(domain_contents.values()), "")
+        replacement_text = replacement_text_for_preview(
+            selected_config, domain_uuid, domain_contents, config_metadata,
+            rule_configurations_by_domain.get(domain_uuid, {}),
+        )
         results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text))
     return results
 
@@ -1138,6 +1476,64 @@ def update_save_status(param_domains_section, title_values, content_values, init
     return save_classes, tooltip_texts
 
 @dash.callback(
+    Output({"type": "config-counters", "domain_uuid": dash.ALL}, "children"),
+    Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+)
+def update_config_counters(config_metadata, domain_metadata):
+    """
+    How many configurations each domain holds, and where they come from. A
+    domain with nothing but hand-written files says only how many there are.
+    """
+    counters = []
+    for domain in domain_metadata:
+        domain_uuid = domain.get("domain_uuid", "")
+        origins = [
+            (data or {}).get("origin", ORIGIN_MANUAL)
+            for data in config_metadata
+            if (data or {}).get("domain_uuid", "") == domain_uuid
+        ]
+        active_origins = [origin for origin in origins if origin != ORIGIN_BLACKLISTED]
+        stats = [ui.stat(
+            len(active_origins), "configurations" if len(active_origins) != 1 else "configuration", className="accent",
+        )]
+        for origin, label in ((ORIGIN_GENERATED, "generated"), (ORIGIN_EDITED, "edited")):
+            count = active_origins.count(origin)
+            if count:
+                stats.append(ui.stat(count, label))
+        manual = active_origins.count(ORIGIN_MANUAL)
+        if manual and len(stats) > 1:
+            stats.append(ui.stat(manual, "written by hand"))
+        blacklisted = origins.count(ORIGIN_BLACKLISTED)
+        if blacklisted:
+            stats.append(ui.stat(blacklisted, "blacklisted", className="caution"))
+        counters.append(stats)
+    return counters
+
+@dash.callback(
+    Output({"type": "config-origin", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "children"),
+    Output({"type": "config-origin", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data-tooltip"),
+    Output({"type": "delete-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
+    Output({"type": "delete-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data-tooltip"),
+    Output({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "readOnly"),
+    Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+)
+def update_origin_indicators(config_metadata):
+    """
+    Keep what a card says about where its configuration comes from in step with
+    its metadata, so saving an edit relabels the card without a reload.
+    """
+    badges, badge_tooltips, delete_classes, delete_tooltips, read_only = [], [], [], [], []
+    for data in config_metadata:
+        origin = (data or {}).get("origin", ORIGIN_MANUAL)
+        badges.append(origin_badge(origin))
+        badge_tooltips.append(ORIGIN_LABELS.get(origin, ("", "", ""))[2])
+        delete_classes.append(delete_button_class(origin))
+        delete_tooltips.append(DELETE_TOOLTIPS.get(origin, DELETE_TOOLTIPS[ORIGIN_MANUAL])[1])
+        read_only.append(origin in (ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_BLACKLISTED))
+    return badges, badge_tooltips, delete_classes, delete_tooltips, read_only
+
+@dash.callback(
     Output({"type": "save-params-btn", "domain_uuid": dash.ALL}, "className"),
     Input({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
@@ -1160,8 +1556,9 @@ def update_params_save_button(params_enables, target_files, start_delims, stop_d
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Input({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     Input({"type": "save-params-btn", "domain_uuid": dash.ALL}, "className"),
+    Input({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "className"),
 )
-def update_save_all_button(config_save_classes, params_save_classes):
+def update_save_all_button(config_save_classes, params_save_classes, rules_save_classes):
     """
     Mirror the state of the individual save buttons on the page-wide save button.
     The "warning" class is also what the unsaved-changes guard looks for to warn
@@ -1172,7 +1569,7 @@ def update_save_all_button(config_save_classes, params_save_classes):
 
     dirty = any(
         isinstance(cls, str) and "warning" in cls
-        for cls in list(config_save_classes) + list(params_save_classes)
+        for cls in list(config_save_classes) + list(params_save_classes) + list(rules_save_classes)
     )
     if dirty:
         return enabled_class, "Save all changes"
@@ -1248,18 +1645,23 @@ def save_all(
             continue
 
         new_name = new_title if new_title.endswith(".txt") else new_title + ".txt"
+        domain = instance_domain(instances, instance_name, domain_name)
         if new_name != old_name:
-            path = instance_domain(instances, instance_name, domain_name).path
             if verbose:
                 print(f"Renaming config from '{old_name}' to '{new_name}'")
-            os.rename(os.path.join(path, old_name), os.path.join(path, new_name))
+            os.rename(os.path.join(domain.path, old_name), os.path.join(domain.path, new_name))
         if verbose:
             print(f"Saving config '{new_name}' in domain '{domain_name}'")
-        instance_domain(instances, instance_name, domain_name).configs.write(new_name, new_content)
+        domain.configs.write(new_name, new_content)
 
         new_titles[i] = new_title
         new_contents[i] = new_content
-        new_metadata[i] = {**metadata, "config_name": new_name, "config_content": new_content}
+        new_metadata[i] = {
+            **metadata,
+            "config_name": new_name,
+            "config_content": new_content,
+            "origin": origin_of(domain, new_name),
+        }
 
     # Configuration parameters
     new_params = list(no_domain_update)
@@ -1295,12 +1697,14 @@ def save_all(
     State({"type": "config-cards-row", "domain_uuid": dash.ALL}, "className"),
 )
 def update_layout_style(layout_value, config_card_classes, add_card_classes, config_row_classes):
+    blacklisted = [" odx-config-blacklisted" if "odx-config-blacklisted" in (class_name or "") else ""
+                   for class_name in config_card_classes]
     if layout_value == "wide":
-        config_card_classes = ["card configs wide" for _ in range(len(config_card_classes))]
+        config_card_classes = ["card configs wide" + blacklisted[i] for i in range(len(config_card_classes))]
         add_card_classes = ["card configs add wide hover" for _ in range(len(add_card_classes))]
         config_row_classes = ["card-matrix configs wide" for _ in range(len(config_row_classes))]
     else:
-        config_card_classes = ["card configs" for _ in range(len(config_card_classes))]
+        config_card_classes = ["card configs" + blacklisted[i] for i in range(len(config_card_classes))]
         add_card_classes = ["card configs add hover" for _ in range(len(add_card_classes))]
         config_row_classes = ["card-matrix configs" for _ in range(len(config_row_classes))]
     return config_card_classes, add_card_classes, config_row_classes
@@ -1361,6 +1765,8 @@ def save_config_parameters(
 @dash.callback(
     Output({"type": "params-config-fields", "domain_uuid": dash.ALL}, "className"),
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "style"),
+    # The rules preview is part of that list: it goes away with it.
+    Output({"type": "cfg-config-preview", "domain_uuid": dash.ALL}, "style"),
     Input ({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
 )
 def toggle_params_fields(enabled_values):
@@ -1373,7 +1779,7 @@ def toggle_params_fields(enabled_values):
         else:
             styles.append(Style.hidden)
             classes.append("animated-section hide")
-    return classes, styles
+    return classes, styles, list(styles)
 
 @dash.callback(
     Output({"page": page_path, "type": "instance-title-div"}, "children"),
@@ -1389,7 +1795,6 @@ def update_instance_title(search):
     Output({"type": "save-domain-title", "domain_uuid": dash.ALL}, "className"),
     Output({"type": "save-domain-title", "domain_uuid": dash.ALL}, "data-tooltip"),
     Output({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
-    Output({"type": "generate-config", "domain_uuid": dash.ALL, "is_link": True}, "href"),
     Input({"type": "save-domain-title", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "domain-title-input", "domain_uuid": dash.ALL}, "value"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
@@ -1400,7 +1805,6 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
     save_classes = []
     tooltips = []
     new_metadata = []
-    new_hrefs = []
 
     disabled_class = "color-button invisible icon-button tooltip delay bottom small"
     enabled_class = "color-button warning icon-button tooltip bottom small"
@@ -1430,18 +1834,14 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                 tooltips.append("Nothing to save")
                 metadata["domain_name"] = new_domain_name
                 new_metadata.append(metadata)
-                new_link = generate_config_link(mode, instance_name, new_domain_name)
-                new_hrefs.append(new_link)
             else:
                 new_metadata.append(dash.no_update)
-                new_hrefs.append(dash.no_update)
                 save_classes.append(dash.no_update)
                 tooltips.append(dash.no_update)
 
         # No save button clicked, just check for changes
         else:
             new_metadata.append(dash.no_update)
-            new_hrefs.append(dash.no_update)
             if new_domain_name != domain_name:
                 invalid_char_found = False
                 for c in hard_settings.invalid_filename_characters:
@@ -1466,7 +1866,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
             else:
                 save_classes.append(disabled_class)
                 tooltips.append("Nothing to save")
-    return save_classes, tooltips, new_metadata, new_hrefs
+    return save_classes, tooltips, new_metadata
 
 
 ######################################
@@ -1477,6 +1877,16 @@ layout = html.Div(
     children=[
         dcc.Location(id="url"),
         html.Div(id={"page": page_path, "type": "instance-title-div"}, style={"marginTop": "20px"}),
+        # What this page does, said once, above every domain of it -- folded
+        # away, since it is only ever read once.
+        html.Div(
+            html.Div(
+                replacement_help.help_section("page"),
+                className="tile title",
+                style={"marginTop": "10px"},
+            ),
+            className="card-matrix config",
+        ),
         html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
         dcc.Store(id="param-domains-section-initialized", data=False),
         dcc.Store(id="param-domains-section-update", data=""),

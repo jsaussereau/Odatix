@@ -22,7 +22,8 @@
 
 /*
  * Highlight ${...} variables inside command fields: the workflow task
- * "commands" textareas and the architecture "generate command" input.
+ * "commands" textareas, the architecture "generate command" input, and the two
+ * templates of a parameter domain's configuration rules.
  *
  * An input/textarea cannot render colored text, so each command field is backed
  * by a mirror <div> that holds the same text with the variables wrapped in
@@ -96,12 +97,20 @@
     return !(element && element.hasAttribute("data-odatix-hl-no-globals"));
   }
 
-  function definedVariableNames() {
+  // A page holding several independent sets of variables (the configuration
+  // editor, one rules panel per parameter domain) marks each of them with
+  // data-odatix-hl-scope: a field inside one only sees the variables declared
+  // in it, and none of the window globals.
+  function scopeRoot(field) {
+    return (field && field.closest && field.closest("[data-odatix-hl-scope]")) || null;
+  }
+
+  function definedVariableNames(root) {
     // The variable cards' title inputs; read live so renaming a variable
     // recolors the commands without a save. Pages without variable cards (the
     // architecture editor) push their variable names from Python instead.
-    var names = nameSet(usesGlobals() ? window.__odatixHlVariables : []);
-    document.querySelectorAll('input[id*="variable-title"]').forEach(function (input) {
+    var names = nameSet(!root && usesGlobals() ? window.__odatixHlVariables : []);
+    (root || document).querySelectorAll('input[id*="variable-title"]').forEach(function (input) {
       var value = (input.value || "").trim();
       if (value) {
         names.add(value);
@@ -110,8 +119,8 @@
     return names;
   }
 
-  function paramDomainNames() {
-    return nameSet(usesGlobals() ? window.__odatixHlParamDomains : []);
+  function paramDomainNames(root) {
+    return nameSet(!root && usesGlobals() ? window.__odatixHlParamDomains : []);
   }
 
   // {name: description} of the variables Odatix substitutes itself, declared by
@@ -154,7 +163,7 @@
     return "wf-hl-unknown";
   }
 
-  function buildHtml(text, variables, domains, builtins) {
+  function buildHtml(text, variables, domains, builtins, unknownTip) {
     var html = "";
     var lastIndex = 0;
     var match;
@@ -165,7 +174,9 @@
       var cls = classFor(rawName, variables, domains, builtins);
       var name = rawName.trim();
       var tip = (name ? name + ": " : "")
-        + (cls === "wf-hl-builtin" ? builtins[name] : KINDS[cls]);
+        + (cls === "wf-hl-builtin"
+            ? builtins[name]
+            : (cls === "wf-hl-unknown" && unknownTip ? unknownTip : KINDS[cls]));
       html +=
         '<span class="wf-hl-token ' + cls + '" data-wf-hl-tip="' + escapeHtml(tip) + '">'
         + escapeHtml(match[0])
@@ -230,9 +241,17 @@
     return mirror;
   }
 
-  function refreshTextarea(textarea, variables, domains, builtins) {
+  function refreshTextarea(textarea, variables, domains, builtins, unknownTip) {
     var mirror = ensureMirror(textarea);
-    mirror.innerHTML = buildHtml(textarea.value || "", variables, domains, builtins);
+    var text = textarea.value || "";
+    // An empty field would show nothing at all: the mirror covers the real one,
+    // whose native placeholder is hidden with the rest of its text. Draw it
+    // here instead, dimmed but with its ${...} highlighted like any other --
+    // a placeholder that is what Odatix would use (the templates a parameter
+    // domain of a single variable leaves unwritten) is worth reading.
+    var html = buildHtml(text || textarea.getAttribute("placeholder") || "",
+                         variables, domains, builtins, unknownTip);
+    mirror.innerHTML = text ? html : '<span class="wf-hl-placeholder">' + html + "</span>";
 
     var computed = window.getComputedStyle(textarea);
     COPIED_STYLES.forEach(function (prop) {
@@ -252,11 +271,21 @@
     if (!textareas.length) {
       return;
     }
-    var variables = definedVariableNames();
-    var domains = paramDomainNames();
     var builtins = builtinVariables();
+    // The unscoped names are shared by every field of the page; a scope is
+    // read once and reused by the fields belonging to it.
+    var byRoot = new Map();
     textareas.forEach(function (textarea) {
-      refreshTextarea(textarea, variables, domains, builtins);
+      var root = scopeRoot(textarea);
+      if (!byRoot.has(root)) {
+        byRoot.set(root, [
+          definedVariableNames(root),
+          paramDomainNames(root),
+          root ? root.getAttribute("data-odatix-hl-unknown") : null,
+        ]);
+      }
+      var names = byRoot.get(root);
+      refreshTextarea(textarea, names[0], names[1], builtins, names[2]);
     });
   }
 
@@ -301,7 +330,12 @@
       refreshAll();
     });
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  // A placeholder is an attribute, and Dash rewrites it as the variables of a
+  // domain change: it has to be watched too, or the mirror would keep drawing
+  // the previous one.
+  observer.observe(document.body, {
+    childList: true, subtree: true, attributes: true, attributeFilter: ["placeholder"],
+  });
 
   // Fired by the clientside callback when the parameter domains change.
   document.addEventListener("odatix:refresh-var-highlight", refreshAll);

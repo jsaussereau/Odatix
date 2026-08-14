@@ -92,6 +92,16 @@
     caret-color: var(--theme-text-color);
 }
 
+/* The mirror draws the placeholder itself, dimmed: the native one would show
+   through underneath it, in the browser's own gray. */
+.wf-hl-input.odatix-command-field::placeholder {
+    color: transparent !important;
+}
+
+.wf-hl-placeholder {
+    opacity: 0.55;
+}
+
 .wf-hl-input.odatix-command-field::selection {
     background: color-mix(in srgb, var(--theme-primary-color) 30%, transparent);
 }
