@@ -48,6 +48,7 @@ from odatix.lib.simulation_handler import SimulationHandler
 from odatix.lib.utils import copytree, create_dir, ask_to_continue, get_timestamp_string
 from odatix.lib.run_settings import get_sim_settings
 from odatix.lib.wosit import createTaskGraph
+from odatix.workspace.space import selected_config_file
 
 script_name = os.path.basename(__file__)
 
@@ -333,7 +334,7 @@ def check_settings(
             param_target_file = resolve_sim_param_target_file(
                 sim_instance.tmp_dir, sim_instance.architecture.param_target_filename
             )
-            param_filename = os.path.join(arch_path, sim_instance.architecture.arch_name + '.txt')
+            param_filename = selected_config_file(arch_path, sim_instance.architecture.arch_name)
             replace_params(
                 base_text_file=param_target_file,
                 replacement_text_file=param_filename,

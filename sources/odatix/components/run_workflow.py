@@ -51,6 +51,7 @@ import odatix.lib.virtual_param_domain as virtual_param_domain
 from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_continue, get_timestamp_string, KeyNotInListError, BadValueInListError
 from odatix.lib.run_settings import get_workflow_settings
 from odatix.lib.wosit import createTaskGraph
+import odatix.workspace.space as space
 
 script_name = os.path.basename(__file__)
 WORKFLOW_META_FILENAME = "workflow_meta.yml"
@@ -447,9 +448,18 @@ def check_settings(
                 script_name,
             )
 
-        param_file = os.path.join(workflow_path, workflow_param_dir, workflow_config + ".txt")
-        if use_parameters and not no_main_configuration and not os.path.isfile(param_file):
-            printc.error("Workflow parameter file \"" + param_file + "\" does not exist", script_name)
+        # A configuration described by a rule is resolved here, on the way, so
+        # nothing has to have been generated before the run.
+        param_file = space.config_file(
+            os.path.join(workflow_path, workflow_param_dir), workflow_config, settings=workflow_settings
+        )
+        if use_parameters and not no_main_configuration and param_file is None:
+            printc.error(
+                "The workflow parameter file \"" + workflow_config + ".txt\" does not exist in directory \""
+                + os.path.join(workflow_path, workflow_param_dir) + "\"",
+                script_name,
+            )
+            printc.note("Add it, or declare the configurations of this workflow in \"" + workflow_settings_file + "\".", script_name)
             plan.add(workflow_display_name, Category.ERROR)
             continue
         if no_main_configuration or not use_parameters:

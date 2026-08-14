@@ -27,6 +27,7 @@ from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadV
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+from odatix.workspace.space import config_file
 
 script_name = os.path.basename(__file__)
 
@@ -76,24 +77,24 @@ class ParamDomain:
     return out
 
   @staticmethod
-  def check_parameter_file(parameter_file, arch_param_dir, generate_enabled=False):
+  def check_parameter_file(parameter_file, arch_param_dir):
     """
     Checks if the parameter file exists.
+
+    Only reached once the rules of the domain have been asked too (see
+    :func:`odatix.workspace.space.config_file`): a configuration that is neither
+    a file nor described by a rule simply does not exist.
 
     Args:
         parameter_file (str): Path to the parameter file.
         arch_param_dir (str): Directory of the architecture parameters.
-        generate_enabled (bool): Whether configuration generation generation is enabled.
 
     Returns:
         bool: True if the file exists, False otherwise.
     """
     if not os.path.isfile(parameter_file):
       printc.error("The parameter file \"" + parameter_file + "\" does not exist in directory \"" + arch_param_dir + "\"", script_name)
-      if generate_enabled:
-        printc.note("Since \"generate_configutations\" is enabled:", script_name)
-        printc.note("Did you run \"odatix generate\"?", script_name)
-        printc.note("Are your generation settings correct?", script_name)
+      printc.note("Add it, or declare the configurations of this parameter domain in \"" + hard_settings.param_settings_filename + "\".", script_name)
       return False
     return True
 
@@ -192,10 +193,16 @@ class ParamDomain:
         print(str(e))
         return None
 
-    generate_enabled, _ = get_from_dict("generate_configutations", settings_data, settings_file, default_value=False, silent=True, script_name=script_name)
-    success = ParamDomain.check_parameter_file(parameter_file, param_domain_path, generate_enabled)
-    if not success:
-      return None
+    # A configuration described by a rule does not have to exist as a file: it
+    # is resolved here, on the way, which is why nothing has to be generated
+    # before a run.
+    resolved_file = config_file(param_domain_path, arch_config, settings=settings_data)
+    if resolved_file is not None:
+      parameter_file = resolved_file
+    else:
+      success = ParamDomain.check_parameter_file(parameter_file, param_domain_path)
+      if not success:
+        return None
 
     # Retrieve parameter delimiters and usage details
     use_parameters, start_delimiter, stop_delimiter, param_target_filename = ParamDomain.get_param_delimiters(

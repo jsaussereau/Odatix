@@ -48,6 +48,7 @@ from odatix.components.analyze_results import generate_analysis_summary
 from odatix.components.export_analysis import configure_analysis_job_exports
 import odatix.components.export_derived_metrics as exp_derived
 import odatix.lib.constraint_files as constraint_files
+from odatix.workspace.space import selected_config_file
 
 
 class AnalysisCancelled(Exception):
@@ -408,7 +409,7 @@ def prepare_analysis(
         param_target_file = resolve_param_target_file(
           arch_instance.tmp_dir, arch_instance.param_target_filename, arch_instance.generate_rtl
         )
-        param_filename = os.path.join(arch_path, arch_instance.arch_name + ".txt")
+        param_filename = selected_config_file(arch_path, arch_instance.arch_name)
         replace_params(
           base_text_file=param_target_file,
           replacement_text_file=param_filename,

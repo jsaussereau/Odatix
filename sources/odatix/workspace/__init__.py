@@ -49,10 +49,11 @@ no path is ever passed around::
     counter.configs.write("16bits", "WIDTH = 16")
 
     width = counter.domains.create("width")
-    width.settings.generate_configurations = True
+    width.settings.configurations.name = "${width}bits"
+    width.settings.configurations.template = "WIDTH = ${width}"
     width.settings.set_variable("width", "range", {"from": 8, "to": 32, "step": 8})
     width.save()
-    width.generate_configurations()
+    width.configuration_names()  # a run resolves these; writing them out is optional
 
 Settings objects are typed: they know their keys, their defaults and how each
 one is written. What a settings file holds that Odatix does not know about is

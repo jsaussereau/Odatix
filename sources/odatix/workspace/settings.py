@@ -242,6 +242,17 @@ class Settings(_SettingsBase):
     #: key by key and refuses when one is missing).
     write_all_settings = False
 
+    #: Keys a file may still hold, that are read but never written again. They
+    #: are dropped from a file the next time it is saved, so that a settings
+    #: file only ever shows the form that is documented. What such a key used
+    #: to mean has to be carried over when the file is read, in
+    #: :meth:`from_dict`, or saving would lose it.
+    dropped_keys = ()
+
+    #: The key the dropped ones leave their place to, written where the first
+    #: of them was rather than at the end of the file.
+    replacement_key = None
+
     def __init__(self, **values):
         object.__setattr__(self, "extra", {})
         # What the file held when it was read. Saving compares against it, so
@@ -499,6 +510,25 @@ def render(settings, header=None):
     return data
 
 
+def _separate_from_what_follows(data, position):
+    """
+    Keep a blank line between a key just inserted and the one after it.
+
+    The blank line that used to be there belonged to the key that was dropped,
+    and went away with it. Without this, a block written in place of another
+    ends up glued to what follows.
+    """
+    keys = list(data.keys())
+    if position >= len(keys):
+        return
+    following = keys[position]
+    existing = data.ca.items.get(following)
+    if existing is not None and existing[1]:
+        # It already says something before itself, blank line included.
+        return
+    data.yaml_set_comment_before_after_key(following, before="\n")
+
+
 def apply(settings, data):
     """
     Write a settings object into an existing document, leaving its comments,
@@ -511,6 +541,17 @@ def apply(settings, data):
     """
     if data is None:
         data = CommentedMap()
+
+    # A dropped key leaves its place to the key that replaces it, rather than
+    # sending it to the end of the file: a settings file that Odatix rewrites
+    # has to stay laid out the way its author laid it out.
+    replaced_at = None
+    for key in settings.dropped_keys:
+        if key in data:
+            position = list(data.keys()).index(key)
+            replaced_at = position if replaced_at is None else min(replaced_at, position)
+        data.pop(key, None)
+
     for spec in settings.specs():
         if not spec.stored:
             continue
@@ -536,6 +577,13 @@ def apply(settings, data):
             continue
         if isinstance(value, Settings) and isinstance(data.get(key), CommentedMap):
             apply(value, data[key])
+        elif replaced_at is not None and key == settings.replacement_key and key not in data:
+            # The blank line that set the dropped key apart is already there:
+            # the title goes straight on top of it, not after another one.
+            data.insert(replaced_at, key, spec.dump(value))
+            if spec.section:
+                data.yaml_set_comment_before_after_key(key, before=spec.section)
+            _separate_from_what_follows(data, replaced_at + 1)
         else:
             data[key] = spec.dump(value)
     declared_keys = set()
@@ -570,6 +618,12 @@ def save_settings(settings, path, header=None, regenerate=False):
     generated from scratch, with its header and section comments.
     """
     import os
+
+    # What a dropped key still holds has to be carried over to the key that
+    # replaces it before the file is written, or saving would lose it.
+    normalize = getattr(settings, "normalize", None)
+    if callable(normalize):
+        normalize()
 
     if regenerate or not os.path.isfile(path):
         document = render(settings, header=header)

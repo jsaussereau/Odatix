@@ -43,6 +43,9 @@ variables_key = "variables"
 #: Where variables used to be declared, still read for backward compatibility.
 legacy_variables_parent = "generate_configurations_settings"
 
+#: Key holding the name and the template the configurations are built from.
+configurations_key = "configurations"
+
 
 def get_variables(settings):
   """
@@ -84,6 +87,43 @@ def _safe_sorted(values):
     return sorted(values)
   except TypeError:
     return sorted(values, key=str)
+
+class GeneratedPoint(object):
+  """
+  One point of a parameter space: the values its variables were assigned, the
+  name it is known by, and the text it is rendered into.
+
+  The name is the identity of a configuration everywhere else in Odatix (job
+  selections, result files, work directories), so two points of the same space
+  must never share one. The values are carried along as what the point *is*,
+  independently of how it happens to be named.
+  """
+
+  __slots__ = ("name", "values", "content")
+
+  def __init__(self, name, values, content):
+    self.name = name
+    self.values = values
+    self.content = content
+
+  def __repr__(self):
+    return "<GeneratedPoint {0!r} {1!r}>".format(self.name, self.values)
+
+
+def duplicate_point_names(points):
+  """
+  The names given to more than one point, as a ``{name: [values, ...]}``
+  mapping (empty when every point has its own name).
+
+  A name template that leaves out a variable gives several points the same
+  name. Nothing downstream can tell them apart, so the sweep silently loses
+  every point but one -- which is why this is reported rather than tolerated.
+  """
+  by_name = {}
+  for point in points:
+    by_name.setdefault(point.name, []).append(point.values)
+  return {name: values for name, values in by_name.items() if len(values) > 1}
+
 
 ######################################
 # Generator
@@ -169,7 +209,18 @@ class ConfigGenerator:
     else:
       self.variables, variables_defined = {}, False
 
-    if generate_settings_defined:
+    # The current form: a "configurations" block holding the name and the
+    # template. It needs no flag to turn it on -- describing configurations is
+    # what asks for them.
+    configurations, configurations_defined = get_from_dict(configurations_key, data, self.yaml_file, type=dict, silent=True, script_name=script_name)
+    if configurations_defined and isinstance(configurations, dict) and configurations.get("name"):
+      self.name_template, name_template_defined = get_from_dict("name", configurations, self.yaml_file, parent=configurations_key, type=str, behavior=Key.MANTADORY, script_name=script_name)
+      self.template, template_defined = get_from_dict("template", configurations, self.yaml_file, parent=configurations_key, default_value="", silent=True, script_name=script_name)
+      if not variables_defined:
+        get_from_dict("variables", data, self.yaml_file, type=dict, behavior=Key.MANTADORY, script_name=script_name)
+      self.valid = name_template_defined and variables_defined
+      generate_enabled = self.valid
+    elif generate_settings_defined:
       self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_configurations_settings", behavior=Key.MANTADORY, script_name=script_name)
       self.name_template, name_template_defined = get_from_dict("name", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=str, behavior=Key.MANTADORY, script_name=script_name)
       if not variables_defined:
@@ -217,13 +268,32 @@ class ConfigGenerator:
     """
     Generate all possible parameter combinations based on the configuration.
     Includes support for union, disjunctive_union, intersection, and difference.
-    
+
     Returns:
         dict: A dictionary where keys are generated names and values are formatted templates.
         dict: A dictionary where keys are variable names and values are lists of all possible values for those variables.
     """
+    points, all_vars_values = self.generate_points()
+    final_configs = {}
+    for point in points:
+      final_configs[point.name] = point.content
+    return final_configs, all_vars_values
+
+  def generate_points(self):
+    """
+    Every point of the space, in generation order.
+
+    Same combinations as :meth:`generate`, but each one is kept whole: the
+    values the variables were assigned, not only the name and the text they
+    were rendered into. That assignment is what names a point for a search
+    that picks its points one by one, instead of enumerating them all.
+
+    Returns:
+        list: the :class:`GeneratedPoint` of the space, in generation order.
+        dict: the values of each variable, as :meth:`generate` returns them.
+    """
     if not self.valid or not self.enabled:
-      return {}, {}
+      return [], {}
 
     sources_used = set()
     for variable, config in self.variables.items():
@@ -315,7 +385,7 @@ class ConfigGenerator:
       rows = [dict(zip(members, combo)) for combo in zip(*member_values)]
       group_row_lists.append(rows)
 
-    final_configs = {}
+    points = []
     computed_values = {}  # per-variable sets of values computed by function/format/conversion
 
     for group_combo in itertools.product(*group_row_lists):
@@ -324,52 +394,110 @@ class ConfigGenerator:
         value_map.update(row)
       for variable, config in self.variables.items():
         value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
-        if value_type == "function":
-          settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
-          if defined:
-            op, _ = get_from_dict("op", settings, self.yaml_file, silent=True, script_name=script_name)
-            if op:
-              evaluated_expr = self.evaluate_expression(op, value_map)
-              if evaluated_expr is not None:
-                value_map[variable] = evaluated_expr
-                computed_values.setdefault(variable, set()).add(evaluated_expr)
-        elif value_type == "format":
-          settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
-          if defined:
-            source, source_defined = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
-            if source_defined:
-              formatted_values = self.format_value_map(value_map)
-              source = self.substitute_variables(str(source), formatted_values)
-              value_map[variable] = source
-              computed_values.setdefault(variable, set()).add(source)
-        elif value_type == "conversion":
-          settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
-          if defined:
-            from_type, _ = get_from_dict("from", settings, self.yaml_file, silent=True, script_name=script_name)
-            to_type, _ = get_from_dict("to", settings, self.yaml_file, silent=True, script_name=script_name)
-            source, sources_defined = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
-            if sources_defined:
-              source = str(source).replace("$", "").replace("{", "").replace("}", "")
-            if source in value_map:
-              converted = self.apply_conversion(value_map[source], from_type, to_type)
-              value_map[variable] = converted
-              computed_values.setdefault(variable, set()).add(converted)
-            else:
-              printc.warning(f'Source "{source}" not found for conversion variable "{variable}"', script_name)
+        if value_type in combo_types:
+          self._apply_derived_variable(variable, config, value_map, computed_values)
 
-      formatted_values = self.format_value_map(value_map)
-      final_name = self.substitute_variables(self.name_template, formatted_values)
-      final_configs[final_name] = self.substitute_variables(self.template, formatted_values)
+      points.append(self.render_point(value_map))
 
     if self.debug:
-      printc.note(f"generated {len(final_configs)} configurations.", script_name)
+      printc.note(f"generated {len(points)} configurations.", script_name)
 
     all_vars_values = {k: _safe_sorted(v) for k, v in computed_values.items()}
     all_dim_var_values = {k: _safe_sorted(set(v)) if isinstance(v, list) else [v] for k, v in dimension_vars.items()}
     all_source_dim_var_values = {k: _safe_sorted(set(v)) if isinstance(v, list) else [v] for k, v in source_dim_vars.items()}
     all_vars_values.update(all_dim_var_values)
     all_vars_values.update(all_source_dim_var_values)
-    return final_configs, all_vars_values
+    return points, all_vars_values
+
+  def _apply_derived_variable(self, variable, config, value_map, computed_values):
+    """
+    Compute one derived variable ("function", "format" or "conversion") into an
+    assignment, from the values it already holds.
+
+    Args:
+        variable (str): name of the derived variable.
+        config (dict): its declaration.
+        value_map (dict): the assignment, updated in place.
+        computed_values (dict): per-variable set of every computed value, for
+            the preview of the values a variable takes. Updated in place.
+    """
+    value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
+    settings, defined = get_from_dict("settings", config, self.yaml_file, silent=True, script_name=script_name)
+    if not defined:
+      return
+
+    if value_type == "function":
+      op, _ = get_from_dict("op", settings, self.yaml_file, silent=True, script_name=script_name)
+      if op:
+        evaluated_expr = self.evaluate_expression(op, value_map)
+        if evaluated_expr is not None:
+          value_map[variable] = evaluated_expr
+          computed_values.setdefault(variable, set()).add(evaluated_expr)
+
+    elif value_type == "format":
+      source, source_defined = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
+      if source_defined:
+        formatted_values = self.format_value_map(value_map)
+        source = self.substitute_variables(str(source), formatted_values)
+        value_map[variable] = source
+        computed_values.setdefault(variable, set()).add(source)
+
+    elif value_type == "conversion":
+      from_type, _ = get_from_dict("from", settings, self.yaml_file, silent=True, script_name=script_name)
+      to_type, _ = get_from_dict("to", settings, self.yaml_file, silent=True, script_name=script_name)
+      source, sources_defined = get_from_dict("source", settings, self.yaml_file, silent=True, script_name=script_name)
+      if sources_defined:
+        source = str(source).replace("$", "").replace("{", "").replace("}", "")
+      if source in value_map:
+        converted = self.apply_conversion(value_map[source], from_type, to_type)
+        value_map[variable] = converted
+        computed_values.setdefault(variable, set()).add(converted)
+      else:
+        printc.warning(f'Source "{source}" not found for conversion variable "{variable}"', script_name)
+
+  def render_point(self, value_map):
+    """
+    Turn one assignment of the variables into the point it stands for: the name
+    it is known by and the text it is rendered into.
+
+    The assignment is expected to already hold the derived variables
+    (``function``, ``format``, ``conversion``), which :meth:`generate_points`
+    computes as it walks the combinations. :meth:`derive_point` computes them
+    for an assignment that comes from somewhere else.
+
+    Args:
+        value_map (dict): the value of each variable.
+
+    Returns:
+        GeneratedPoint: the name, the values and the rendered text.
+    """
+    formatted_values = self.format_value_map(value_map)
+    return GeneratedPoint(
+      name=self.substitute_variables(self.name_template, formatted_values),
+      values=dict(value_map),
+      content=self.substitute_variables(self.template, formatted_values),
+    )
+
+  def derive_point(self, assignment):
+    """
+    Render the point of an assignment of the *dimension* variables, computing
+    the derived variables (``function``, ``format``, ``conversion``) it implies.
+
+    This is the single-point counterpart of :meth:`generate_points`, for a
+    caller that chooses which point it wants instead of taking them all.
+
+    Args:
+        assignment (dict): the value of each dimension variable.
+
+    Returns:
+        GeneratedPoint: the name, the values and the rendered text.
+    """
+    value_map = dict(assignment)
+    for variable, config in self.variables.items():
+      value_type = config.get("type") if isinstance(config, dict) else None
+      if value_type in combo_types:
+        self._apply_derived_variable(variable, config, value_map, {})
+    return self.render_point(value_map)
 
   def _variable_group(self, variable):
     """Return the non-empty "group" label of a variable, or None if ungrouped."""

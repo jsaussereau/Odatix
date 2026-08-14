@@ -29,8 +29,8 @@ settings file: it has no directory on disk, but every combination of its values
 still expands into its own job, and its value can be referenced as
 ``${variable}`` inside commands.
 
-Virtual domains are only expanded when ``generate_configurations`` is disabled,
-so the original meaning of ``generate_configurations`` (generating ``.txt``
+Virtual domains are only expanded when the settings file does not describe its
+own configurations, so the meaning of a ``configurations`` block (generating ``.txt``
 configuration files) is preserved.
 
 This module is shared by workflows (task commands) and architectures
@@ -44,6 +44,7 @@ import yaml
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import ConfigGenerator, get_variables
+from odatix.workspace.space import config_set_rules
 
 script_name = os.path.basename(__file__)
 
@@ -175,8 +176,14 @@ def build_variants(settings, settings_file, debug=False, script_name=script_name
     Returns a list of {"requested_param_domains": [...], "substitutions": {...}},
     an empty list when there is nothing to generate, or None on error.
     """
-    generate_enabled = bool(settings.get("generate_configurations", False))
-    if generate_enabled:
+    # A domain that describes its own configurations is a physical one: its
+    # variables build those configurations, and expanding them into virtual
+    # domains too would sweep the same axis twice. The former flag is honoured
+    # on its own, so that a file saying only "generate_configurations: Yes"
+    # keeps meaning exactly what it meant.
+    if bool(settings.get("generate_configurations", False)):
+        return []
+    if config_set_rules(settings, source=settings_file).generates:
         return []
 
     variables, _legacy = get_variables(settings)
@@ -197,8 +204,7 @@ def build_variants(settings, settings_file, debug=False, script_name=script_name
     synthetic_name = "__virtual__" + "__".join([f"${{{variable_name}}}" for variable_name in variable_names])
 
     generator_data = {
-        "generate_configurations": True,
-        "generate_configurations_settings": {
+        "configurations": {
             "template": synthetic_template,
             "name": synthetic_name,
         },

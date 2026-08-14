@@ -17,6 +17,7 @@ from odatix.lib.utils import read_from_list, copytree, create_dir, create_dir_if
 from odatix.lib.get_from_dict import get_from_dict
 from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import start_tool_check
+from odatix.workspace.space import selected_config_file
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 import odatix.lib.job_steps as job_steps
@@ -518,7 +519,7 @@ def build_prepare_synthesis_job(
             param_target_file = resolve_param_target_file(
                 arch_instance.tmp_dir, arch_instance.param_target_filename, arch_instance.generate_rtl
             )
-            param_filename = os.path.join(arch_path, arch_instance.arch_name + ".txt")
+            param_filename = selected_config_file(arch_path, arch_instance.arch_name)
             replace_params(
                 base_text_file=param_target_file,
                 replacement_text_file=param_filename,

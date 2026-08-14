@@ -46,6 +46,7 @@ import re
 from natsort import natsorted
 
 from odatix.workspace.configs import CONFIG_EXTENSION, configuration_names
+from odatix.workspace.space import resolved_names
 
 __all__ = [
     "JobRequest",
@@ -284,7 +285,7 @@ def _match_configurations(request, root, messages):
         messages.append(Message("error", 'The architecture directory "{0}" does not exist'.format(entry_path)))
         return []
 
-    names = configuration_names(entry_path)
+    names = resolved_names(entry_path)
     if not names:
         messages.append(
             Message("warning", 'Wildcard "{0}" did not match any configuration in "{1}"'.format(
@@ -335,7 +336,7 @@ def _match_domains(request, root, messages):
             )
             continue
 
-        names = configuration_names(domain_path)
+        names = resolved_names(domain_path)
         values[domain] = names
         if not names:
             messages.append(

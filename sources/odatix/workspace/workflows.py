@@ -31,7 +31,14 @@ extracts whatever metrics it declares from the result.
 import os
 
 from odatix.workspace.architectures import Architecture, ArchitectureCollection
-from odatix.workspace.configs import ConfigGeneration, VariablesSetting, WithVariables
+from odatix.workspace.configs import (
+    CONFIGURATIONS_KEY,
+    LEGACY_CONFIGURATION_KEYS,
+    ConfigGeneration,
+    Configurations,
+    VariablesSetting,
+    WithVariables,
+)
 from odatix.workspace.metrics import METRICS_FILENAME, MetricsFile
 from odatix.workspace.settings import Setting, Settings
 from odatix.workspace.simulations import ProgressSettings
@@ -57,6 +64,9 @@ class WorkflowSettings(WithVariables, Settings):
     settings of its main parameter domain.
     """
 
+    dropped_keys = LEGACY_CONFIGURATION_KEYS
+    replacement_key = CONFIGURATIONS_KEY
+
     sources = Setting(
         type=SourcesSettings, section="Design sources (copied into each work directory)",
         doc="Where the files the workflow runs on come from.",
@@ -79,21 +89,22 @@ class WorkflowSettings(WithVariables, Settings):
         doc="What the workflow runs, as a task graph. Execution starts at the task named \"main\".",
     )
 
-    generate_configurations = Setting(
-        False, type="bool", style="yesno", section="Configuration generation",
-        doc="Whether the configurations of the main domain are generated from a template.",
-    )
-    generate_configurations_settings = Setting(
-        type=ConfigGeneration, when="generate_configurations", skip_if_empty=True,
-        doc="Template and name the configurations are generated from.",
+    configurations = Setting(
+        type=Configurations, section="Configurations", skip_if_empty=True,
+        doc="Name and template the configurations of the main domain are built from.",
     )
 
     variables = VariablesSetting(
         factory=dict, type="dict", section="Variables", skip_if_empty=True,
         doc="Definition of each variable, by name. Variables are the values the "
-            "configurations are generated from, and, when nothing is generated, "
-            "virtual parameter domains substituted as \"${name}\" into commands.",
+            "configurations are built from. A workflow with no template substitutes "
+            "them as \"${name}\" into its commands instead.",
     )
+
+    # Read so that the files written before "configurations" existed keep
+    # meaning what they meant. Never written again: see dropped_keys.
+    generate_configurations = Setting(False, type="bool", style="yesno", stored=False)
+    generate_configurations_settings = Setting(type=ConfigGeneration, stored=False)
 
 
 ######################################

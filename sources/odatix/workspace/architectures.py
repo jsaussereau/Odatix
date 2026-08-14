@@ -32,7 +32,10 @@ import os
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.overrides as overrides
 from odatix.workspace.configs import (
+    CONFIGURATIONS_KEY,
+    LEGACY_CONFIGURATION_KEYS,
     ConfigGeneration,
+    Configurations,
     VariablesSetting,
     WithVariables,
     combinations,
@@ -118,6 +121,9 @@ class ArchitectureSettings(WithVariables, Settings):
     file and in ``settings.extra``.
     """
 
+    dropped_keys = LEGACY_CONFIGURATION_KEYS
+    replacement_key = CONFIGURATIONS_KEY
+
     # RTL generation
     generate_rtl = Setting(
         False, type="bool", style="yesno", section="RTL generation",
@@ -191,22 +197,23 @@ class ArchitectureSettings(WithVariables, Settings):
         doc="Frequencies a custom frequency synthesis runs this architecture at.",
     )
 
-    # Configuration generation
-    generate_configurations = Setting(
-        False, type="bool", style="yesno", section="Configuration generation",
-        doc="Whether the configurations of the main domain are generated from a template.",
-    )
-    generate_configurations_settings = Setting(
-        type=ConfigGeneration, when="generate_configurations", skip_if_empty=True,
-        doc="Template and name the configurations are generated from.",
+    # Configurations
+    configurations = Setting(
+        type=Configurations, section="Configurations", skip_if_empty=True,
+        doc="Name and template the configurations of the main domain are built from.",
     )
 
     variables = VariablesSetting(
         factory=dict, type="dict", section="Variables", skip_if_empty=True,
         doc="Definition of each variable, by name. Variables are the values the "
-            "configurations are generated from, and, when nothing is generated, "
-            "virtual parameter domains substituted as \"${name}\" into commands.",
+            "configurations are built from. An architecture with no template "
+            "substitutes them as \"${name}\" into its commands instead.",
     )
+
+    # Read so that the files written before "configurations" existed keep
+    # meaning what they meant. Never written again: see dropped_keys.
+    generate_configurations = Setting(False, type="bool", style="yesno", stored=False)
+    generate_configurations_settings = Setting(type=ConfigGeneration, stored=False)
 
     def frequencies(self, target="", configuration="", tool="", flow="", mode="fmax", fallback=None):
         """
@@ -565,7 +572,7 @@ class Architecture(Entry):
         for domain in self.domains:
             if not domain.use_parameters:
                 continue
-            names = domain.configs.names()
+            names = domain.configuration_names()
             if names:
                 result[domain.name] = names
         return result
@@ -606,7 +613,7 @@ class Architecture(Entry):
         for domain in self.domains:
             if domains is not None and domain.name not in domains:
                 continue
-            if not domain.settings.get("generate_configurations", False):
+            if not domain.describes_configurations:
                 continue
             names = domain.generate_configurations(overwrite=overwrite, clear=clear)
             if names:

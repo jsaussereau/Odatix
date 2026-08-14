@@ -45,6 +45,7 @@ from odatix.lib.overrides import OverrideError
 from odatix.run.planner import JobPlanner
 import odatix.workspace.architectures as workspace_architectures
 import odatix.workspace.selection as selection
+import odatix.workspace.space as space
 from odatix.workspace.errors import InvalidSettingsError
 from odatix.workspace.yaml_io import read_mapping
 
@@ -903,10 +904,17 @@ class ArchitectureHandler:
                 return None
             f.close()
 
-        # check if param file exists
+        # Resolve the configuration: a file when there is one, otherwise what the
+        # rules of the domain describe, written on the way. Nothing has to have
+        # been generated beforehand.
+        main_param_file = None
         if not no_configuration:
-            if not isfile(os.path.join(self.arch_path, arch + '.txt')):
-                printc.error("The parameter file \"" + arch + ".txt\" does not exist in directory \"" + os.path.join(self.arch_path, arch_param_dir) + "\"", script_name)
+            main_param_file = space.config_file(
+                os.path.join(self.arch_path, arch_param_dir), arch_config, settings=settings_data
+            )
+            if main_param_file is None:
+                printc.error("The parameter file \"" + arch_config + ".txt\" does not exist in directory \"" + os.path.join(self.arch_path, arch_param_dir) + "\"", script_name)
+                printc.note("Add it, or declare the configurations of this architecture in \"" + settings_filename + "\".", script_name)
                 self.banned_arch_param.append(arch_param_dir)
                 self.plan.add(arch_display_name, Category.ERROR)
                 return None
@@ -957,9 +965,7 @@ class ArchitectureHandler:
                     substitutions[str(key)] = str(value)
 
             if not no_configuration:
-                main_value = virtual_param_domain.read_command_parameter_value(
-                    os.path.join(self.arch_path, arch + ".txt")
-                )
+                main_value = virtual_param_domain.read_command_parameter_value(main_param_file)
                 if main_value is not None:
                     substitutions[arch_param_dir] = main_value
 
@@ -1238,8 +1244,9 @@ class ArchitectureHandler:
             use_parameters = False
         else:
             if use_parameters:
-                # check if parameter file exists
-                param_file = os.path.join(self.arch_path, arch + ".txt")
+                # The configuration has to exist -- as a file, or as something
+                # the rules of the domain describe (resolved on the way).
+                param_file = space.selected_config_file(self.arch_path, arch)
                 if not isfile(param_file):
                     printc.error("There is no parameter file \"" + param_file + "\", while \"use_parameters\" is true", script_name)
                     if add_to_error_list:

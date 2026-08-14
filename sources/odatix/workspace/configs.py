@@ -34,6 +34,7 @@ from itertools import product
 
 from natsort import natsorted
 from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 import odatix.lib.hard_settings as hard_settings
 from odatix.workspace.entries import check_name
@@ -44,7 +45,10 @@ from odatix.workspace.yaml_io import flow_seq
 __all__ = [
     "Configuration",
     "ConfigurationCollection",
+    "Configurations",
     "ConfigGeneration",
+    "CONFIGURATIONS_KEY",
+    "LEGACY_CONFIGURATION_KEYS",
     "VariablesSetting",
     "WithVariables",
     "variable_definition",
@@ -55,6 +59,13 @@ __all__ = [
 ]
 
 CONFIG_EXTENSION = ".txt"
+
+#: Where a settings file says how its configurations are built.
+CONFIGURATIONS_KEY = "configurations"
+
+#: What that used to be spread across. Read, never written again, and dropped
+#: from a file the next time it is saved.
+LEGACY_CONFIGURATION_KEYS = ("generate_configurations", "generate_configurations_settings")
 
 
 def configuration_names(path):
@@ -260,9 +271,77 @@ class VariablesSetting(Setting):
         return variables
 
 
+class TemplateSetting(Setting):
+    """
+    A template, written quoted.
+
+    A template is a piece of text with ``${...}`` placeholders in it, and it
+    reads as one when it is quoted. Quoting is also what keeps a template that
+    happens to hold ": " or to start with "[" from being read back as something
+    other than the text it is.
+
+    A template written as several lines is left as it is: it is a block, and a
+    block reads better unquoted.
+    """
+
+    def dump(self, value):
+        if isinstance(value, (list, tuple)):
+            return [str(line) for line in value]
+        text = "" if value is None else str(value)
+        if "\n" in text:
+            return text
+        return DoubleQuotedScalarString(text)
+
+
+class Configurations(Settings):
+    """
+    How the configurations of a domain are described ("configurations").
+
+    ``name`` is the name given to each configuration and ``template`` the text
+    substituted into the design, both written with ``${variable}``
+    placeholders. The values behind those placeholders are the ``variables``
+    declared at the root of the same file.
+
+    A domain that leaves ``template`` out describes configurations that are not
+    substituted into the design: their values are substituted as ``${name}``
+    into the commands instead. That is what used to be called a virtual
+    parameter domain.
+
+    This replaces the ``generate_configurations`` flag and its
+    ``generate_configurations_settings`` block, which are still read (see
+    :class:`WithVariables`) and dropped the next time the file is written.
+    """
+
+    enabled = Setting(
+        False, type="bool", style="yesno", skip_if_empty=True,
+        doc="Whether an otherwise empty configuration block uses the default name and content templates.",
+    )
+    # Neither template is written when it says nothing: a domain of a single
+    # variable names its configurations after its values without being told to
+    # (see odatix.workspace.space.implicit_template), and an empty key would
+    # only be noise in the file.
+    name = TemplateSetting(
+        "", type="str", skip_if_empty=True,
+        doc="Name given to each configuration, e.g. \"${width}bits\". Left out by a domain of a single variable.",
+    )
+    # A template is usually a block of text, but a list of lines is accepted too
+    # (the generator joins it), so it is taken as it comes.
+    template = TemplateSetting(
+        "", type="any", skip_if_empty=True,
+        doc="Text written in each configuration. Left out by a domain that substitutes into commands.",
+    )
+    blacklist = Setting(
+        factory=list, type="list", style="flow", skip_if_empty=True,
+        doc="Generated configuration names excluded from runs.",
+    )
+
+
 class ConfigGeneration(Settings):
     """
-    How the configurations of a domain are generated ("generate_configurations_settings").
+    The former way of describing the configurations of a domain
+    ("generate_configurations_settings"), read but no longer written.
+
+    See :class:`Configurations` for what replaces it.
 
     `template` is the text substituted into the design and `name` the name given
     to each generated configuration, both written with ``${variable}``
@@ -315,17 +394,59 @@ class WithVariables(object):
     ``generate_configurations_settings``, are still read: their variables are
     moved to the root when the file is loaded, and thus written there the next
     time it is saved.
+
+    The same goes for how the configurations themselves are described: a file
+    saying ``generate_configurations: Yes`` with a
+    ``generate_configurations_settings`` block is read as the
+    :class:`Configurations` block it stands for, and saved in that form. No
+    file has to be migrated by hand, and none is left saying something Odatix
+    no longer documents.
     """
 
     @classmethod
     def from_dict(cls, data):
         settings = super(WithVariables, cls).from_dict(data)
-        if not settings.variables:
-            legacy = getattr(settings.generate_configurations_settings, "variables", None)
-            if legacy:
-                settings.variables = dict(legacy)
-                settings.generate_configurations_settings.variables = {}
+        settings.normalize()
         return settings
+
+    def normalize(self):
+        """
+        Carry what the former keys hold over to the ones that replace them.
+
+        Called when a settings file is read and again before it is written, so
+        that a file saying the old thing keeps meaning it, whether it is only
+        read or saved back -- the old keys are not written again, so anything
+        left in them at that point would be lost.
+
+        Doing it twice changes nothing.
+        """
+        if not self.variables:
+            legacy = getattr(self.generate_configurations_settings, "variables", None)
+            if legacy:
+                self.variables = dict(legacy)
+                self.generate_configurations_settings.variables = {}
+
+        # The former form only described configurations when its flag was on: a
+        # block left behind with the flag off described nothing, and must keep
+        # describing nothing.
+        if not self.configurations.name and self.generate_configurations:
+            former = self.generate_configurations_settings
+            self.configurations.name = former.name
+            self.configurations.template = former.template
+
+        return self
+
+    @property
+    def describes_configurations(self):
+        """
+        Whether this file says how to build its configurations, rather than
+        holding only the ones written by hand.
+        """
+        return bool(self.variables) and bool(
+            self.configurations.enabled
+            or self.configurations.name
+            or self.configurations.template
+        )
 
     def set_variable(self, name, type, settings, format=None, group=None):
         """

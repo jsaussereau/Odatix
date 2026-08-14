@@ -39,10 +39,19 @@ from natsort import natsorted
 
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.utils import copytree
-from odatix.workspace.configs import ConfigGeneration, ConfigurationCollection, VariablesSetting, WithVariables
+from odatix.workspace.configs import (
+    CONFIGURATIONS_KEY,
+    LEGACY_CONFIGURATION_KEYS,
+    ConfigGeneration,
+    Configurations,
+    ConfigurationCollection,
+    VariablesSetting,
+    WithVariables,
+)
 from odatix.workspace.entries import check_name
 from odatix.workspace.errors import AlreadyExistsError, InvalidNameError, NotFoundError
 from odatix.workspace.settings import Setting, Settings, load_settings, save_settings
+from odatix.workspace.space import ConfigSet, config_set_rules
 from odatix.workspace.yaml_io import file_header
 
 __all__ = ["MAIN_DOMAIN", "DomainSettings", "ParameterDomain", "ParameterDomainCollection"]
@@ -59,10 +68,13 @@ class DomainSettings(WithVariables, Settings):
     """
     Settings of a named parameter domain ("<instance>/<domain>/_settings.yml").
 
-    A domain says where its parameters are written in the design, and, when its
-    configurations are generated rather than written by hand, how to generate
-    them.
+    A domain says where its parameters are written in the design, and how its
+    configurations are built -- when they are not simply written by hand, one
+    file each.
     """
+
+    dropped_keys = LEGACY_CONFIGURATION_KEYS
+    replacement_key = CONFIGURATIONS_KEY
 
     use_parameters = Setting(
         True, type="bool", style="yesno", section="Delimiters for parameter files",
@@ -75,21 +87,22 @@ class DomainSettings(WithVariables, Settings):
     start_delimiter = Setting("", type="str", doc="Text after which the parameters are written. Escape sequences such as \\n are supported.")
     stop_delimiter = Setting("", type="str", doc="Text before which the parameters are written. Escape sequences such as \\n are supported.")
 
-    generate_configurations = Setting(
-        False, type="bool", style="yesno", section="Configuration generation",
-        doc="Whether the configurations of this domain are generated from a template.",
-    )
-    generate_configurations_settings = Setting(
-        type=ConfigGeneration, when="generate_configurations", skip_if_empty=True,
-        doc="Template and name the configurations are generated from.",
+    configurations = Setting(
+        type=Configurations, section="Configurations", skip_if_empty=True,
+        doc="Name and template the configurations of this domain are built from.",
     )
 
     variables = VariablesSetting(
         factory=dict, type="dict", section="Variables", skip_if_empty=True,
         doc="Definition of each variable, by name. Variables are the values the "
-            "configurations are generated from, and, when nothing is generated, "
-            "virtual parameter domains substituted as \"${name}\" into commands.",
+            "configurations are built from. A domain with no template substitutes "
+            "them as \"${name}\" into commands instead.",
     )
+
+    # Read so that the files written before "configurations" existed keep
+    # meaning what they meant. Never written again: see dropped_keys.
+    generate_configurations = Setting(False, type="bool", style="yesno", stored=False)
+    generate_configurations_settings = Setting(type=ConfigGeneration, stored=False)
 
 
 ######################################
@@ -219,44 +232,80 @@ class ParameterDomain(object):
         """The configurations of this domain."""
         return ConfigurationCollection(self)
 
+    @property
+    def config_set(self):
+        """
+        Everything this domain resolves to: what its rules describe, together
+        with the configuration files it holds.
+
+        Resolving is a computation, so what a domain holds can be asked for
+        without anything having been generated first.
+
+        A named domain says everything by declaring a single variable; the main
+        one shares its settings file with the instance, whose variables may
+        instead feed its commands, so there nothing is implied.
+        """
+        return ConfigSet(
+            self.path,
+            config_set_rules(
+                self.settings.to_dict(), source=self.settings_path, implicit=not self.is_main
+            ),
+        )
+
+    def resolve_configurations(self):
+        """The configurations of this domain, rules and files together."""
+        return self.config_set.resolve()
+
+    def blacklisted_configurations(self):
+        """Rule-produced configurations excluded from runs but shown by the editor."""
+        return self.config_set.blacklisted()
+
+    def configuration_names(self):
+        """
+        The names of the configurations of this domain, in natural order.
+
+        What the rules describe counts, whether or not it was ever written to
+        disk: a sweep is over what the domain holds, not over what happens to
+        have been generated.
+        """
+        return self.config_set.names()
+
+    @property
+    def describes_configurations(self):
+        """Whether this domain says how its configurations are built."""
+        return self.config_set.space.generates
+
     def preview_configurations(self):
         """
-        The configurations the generation settings of this domain would produce,
-        as a ``{name: content}`` mapping, without writing anything.
+        The configurations the rules of this domain describe, as a
+        ``{name: content}`` mapping, without writing anything.
 
-        Returns an empty mapping when the domain does not generate its
-        configurations, or when its generation settings are incomplete.
+        Returns an empty mapping when the domain describes none, i.e. when its
+        configurations are only the files it holds.
         """
-        from odatix.lib.config_generator import ConfigGenerator
-
-        generator = ConfigGenerator(path=self.path, data=self.settings.to_dict(), silent=True)
-        if not generator.enabled or not generator.valid:
+        space = self.config_set.space
+        if not space.valid:
             return {}
-        generated, _ = generator.generate()
-        return generated or {}
+        return {point.name: point.content for point in space.points()}
 
-    def generate_configurations(self, overwrite=False, clear=False):
+    def generate_configurations(self, overwrite=False, clear=False, prune=False):
         """
-        Generate the configuration files of this domain from its generation
-        settings, and return the names written.
+        Write the configuration files this domain describes, and return the
+        names written.
+
+        Generating is no longer something to do before a run -- a run resolves
+        what it needs on its own. It stays available for a workspace that would
+        rather keep its configurations as files, to read them or to track them.
 
         Args:
-            overwrite (bool): replace the configurations that already exist.
-                Without it, they are left untouched.
+            overwrite (bool): take a configuration that was edited by hand back
+                to what its rule says. Without it, edits are left alone.
             clear (bool): delete every existing configuration first, so that
-                only what the settings describe is left.
+                only what the rules describe is left.
+            prune (bool): delete what an earlier generation left behind and the
+                rules no longer describe -- never a file written by hand.
         """
-        generated = self.preview_configurations()
-        if clear:
-            self.configs.clear()
-        written = []
-        for name, content in generated.items():
-            configuration = self.configs.get(name)
-            if configuration is not None and not overwrite:
-                continue
-            self.configs.write(name, content)
-            written.append(name)
-        return natsorted(written)
+        return self.config_set.materialize(overwrite=overwrite, clear=clear, prune=prune)
 
     ######################################
     # Lifecycle
