@@ -1459,19 +1459,20 @@ def _close_finished_popup(_stay_clicks, _backdrop_clicks):
     Output("monitor-finished-error", "children"),
     Input("monitor-finished-keep", "n_clicks"),
     Input("monitor-finished-close", "n_clicks"),
+    Input("monitor-finished-close-only", "n_clicks"),
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
     State("session-dropdown", "value"),
     prevent_initial_call=True,
 )
-def _quit_to_explorer(_keep_clicks, _close_clicks, daemon_state, search, selected_session):
+def _quit_to_explorer(_keep_clicks, _close_clicks, _close_only_clicks, daemon_state, search, selected_session):
     triggered = ctx.triggered_id
-    if triggered not in ("monitor-finished-keep", "monitor-finished-close"):
+    if triggered not in ("monitor-finished-keep", "monitor-finished-close", "monitor-finished-close-only"):
         raise PreventUpdate
     if not ctx.triggered[0].get("value"):
         raise PreventUpdate
 
-    if triggered == "monitor-finished-close":
+    if triggered in ("monitor-finished-close", "monitor-finished-close-only"):
         try:
             resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
             daemon_control.stop_daemon(
@@ -1480,6 +1481,9 @@ def _quit_to_explorer(_keep_clicks, _close_clicks, daemon_state, search, selecte
             )
         except Exception as e:
             return no_update, no_update, _format_monitor_error(e, daemon_state)
+
+    if triggered == "monitor-finished-close-only":
+        return {"href": "/", "id": page_path}, "overlay-odatix", ""
 
     return {"href": "/explorer", "id": page_path}, "overlay-odatix", ""
 
@@ -1736,6 +1740,12 @@ layout = html.Div(
                 html.Div(id="monitor-finished-backdrop", className="popup-backdrop", n_clicks=0),
                 html.Div(
                     [
+                        html.Button(
+                            "×",
+                            id="monitor-finished-stay",
+                            n_clicks=0,
+                            className="close",
+                        ),
                         html.Div(
                             className="monitor-finished-head",
                             children=[
@@ -1775,11 +1785,11 @@ layout = html.Div(
                                         ),
                                         html.Button(
                                             [
-                                                "Stay in",
+                                                "Close session",
                                                 html.Br(),
-                                                "the monitor",
+                                                "only",
                                             ],
-                                            id="monitor-finished-stay",
+                                            id="monitor-finished-close-only",
                                             n_clicks=0,
                                             className="monitor-finished-ghost",
                                         ),
