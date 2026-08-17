@@ -952,9 +952,12 @@ def curses_main(handler, stdscr):
 
         if not handler.showing_help:
             if key == curses.KEY_MOUSE:
-                _, x, y, _, button = curses.getmouse()
+                try:
+                    _, x, y, _, button = curses.getmouse()
+                except curses.error:
+                    x = y = button = None
 
-                if resize_hold:
+                if button is not None and resize_hold:
                     y = min(y, height - 2)
                     relative_y = y - (header_height + separator_height)
                     new_progress_height = _clamp_progress_height(relative_y, height)
@@ -963,7 +966,9 @@ def curses_main(handler, stdscr):
                         sync_progress_indices()
                         resize = True
 
-                if button & curses.BUTTON1_CLICKED or button & curses.BUTTON1_DOUBLE_CLICKED:
+                if button is None:
+                    pass
+                elif button & curses.BUTTON1_CLICKED or button & curses.BUTTON1_DOUBLE_CLICKED:
                     job_index = click_on_job(handler, progress_win, y, x)
                     if job_index >= 0:
                         handler.selected_job_index = job_index
