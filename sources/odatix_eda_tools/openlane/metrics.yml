@@ -38,7 +38,7 @@ metrics:
       key: synth_cell_count
     format: "%.0f"
 
-  WNS:
+  Worst_Slack:
     type: csv
     settings:
       file: runs/odatix/reports/metrics.csv

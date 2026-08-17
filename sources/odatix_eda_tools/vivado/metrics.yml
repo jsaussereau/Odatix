@@ -143,6 +143,22 @@ metrics:
       group_id: 1
     format: "%.0f"
 
+  # Timing
+  #
+  # Worst slack of the design, read from the first path of the timing report —
+  # "report_timing" reports the worst path first. An unconstrained design has
+  # "Worst_Slack: inf" instead of a number, and simply gets no value here.
+
+  Worst_Slack:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/timing.rep
+      pattern: "Slack \\(\\w+\\)\\s*:\\s*(-?[0-9.]+)ns"
+      group_id: 1
+    format: "%.3f"
+    unit: ns
+
   # Power
 
   Static_Power:

@@ -95,6 +95,21 @@ metrics:
       group_id: 2
     format: "%.0f"
 
+  # Timing
+  #
+  # Worst slack of the design, read from the first path of the timing report —
+  # "report_timing" reports the worst path first.
+
+  Worst_Slack:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/timing.rep
+      pattern: "[Ss]lack \\(\\w+\\)\\s+(-?[0-9.]+)"
+      group_id: 1
+    format: "%.3f"
+    unit: ns
+
   Internal_Power:
     type: regex
     settings:
