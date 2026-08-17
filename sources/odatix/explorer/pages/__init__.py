@@ -32,5 +32,6 @@ import odatix.explorer.pages.scatter
 import odatix.explorer.pages.scatter3d
 import odatix.explorer.pages.radar
 import odatix.explorer.pages.parcoords
+import odatix.explorer.pages.dse
 import odatix.explorer.pages.overview
 import odatix.explorer.pages.table

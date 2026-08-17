@@ -55,6 +55,7 @@ _VIEW_TABS = (
   ("scatter", "/explorer/scatter", "Scatter"),
   ("scatter3d", "/explorer/scatter3d", "Scatter 3D"),
   ("radar", "/explorer/radar", "Radar"),
+  ("parcoords", "/explorer/parcoords", "Parallel Coordinates"),
   ("table", "/explorer/table", "Table"),
   ("overview", "/explorer/overview", "Overview"),
 )
@@ -87,6 +88,13 @@ def _mini_icon(kind):
     ])
   if kind == "radar":
     return svg([Polygon(points="12,3 21,10 17,21 7,21 3,10", stroke="currentColor", strokeWidth="2", fill="currentColor", fillOpacity="0.15", strokeLinejoin="round")])
+  if kind == "parcoords":
+    return svg([
+      Line(x1="5", y1="3", x2="5", y2="21", stroke="currentColor", strokeWidth="1.6", opacity="0.5"),
+      Line(x1="12", y1="3", x2="12", y2="21", stroke="currentColor", strokeWidth="1.6", opacity="0.5"),
+      Line(x1="19", y1="3", x2="19", y2="21", stroke="currentColor", strokeWidth="1.6", opacity="0.5"),
+      Polyline(points="5,7 12,16 19,10", stroke="currentColor", strokeWidth="2", fill="none", strokeLinejoin="round", strokeLinecap="round"),
+    ])
   if kind == "table":
     return svg([
       Rect(x="3", y="4", width="18", height="16", rx="2", stroke="currentColor", strokeWidth="1.6", fill="none"),
@@ -175,6 +183,7 @@ def build_sidebar(kind):
   is_scatter = kind in ("scatter", "scatter3d")
   is_overview = kind == "overview"
   is_table = kind == "table"
+  is_parcoords = kind == "parcoords"
 
   toggles = [toggle for toggle in capabilities["toggles"]] + ["stable_index"]
   toggle_options = [{"label": TOGGLE_LABELS.get(toggle, toggle), "value": toggle} for toggle in toggles]
@@ -192,6 +201,12 @@ def build_sidebar(kind):
         components.control_row("X axis" if not is_scatter else "X metric", _dropdown("xp-axis-x"), hidden="x" not in axes and not is_overview),
         components.control_row("Y metric", _dropdown("xp-axis-y"), hidden="y" not in axes),
         components.control_row("Z metric", _dropdown("xp-axis-z"), hidden="z" not in axes),
+        components.control_row(
+          "Metrics",
+          _multi_dropdown("xp-parcoords-metrics"),
+          tooltip="Metrics shown as axes, in the order picked here",
+          hidden=not is_parcoords,
+        ),
         # Only meaningful when the x axis is symbolic: hidden here, then shown by
         # toggle_x_order_rows when the chosen x axis turns out to be categorical.
         components.control_row(

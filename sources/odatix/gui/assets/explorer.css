@@ -868,6 +868,12 @@
     margin-top: 34px;
 }
 
+.xp-home > .xp-section-head {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 .xp-section-head {
     display: flex;
     align-items: center;
@@ -1583,4 +1589,277 @@ button.xpa-stat-card:hover {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* ---------- Design space exploration page ---------- */
+
+.xp-dse {
+    min-height: calc(100vh - 50px);
+    padding: 32px 24px 48px 24px;
+    box-sizing: border-box;
+    color: var(--theme-text-color);
+    font-family: var(--theme-font-family);
+}
+
+.xp-dse-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    max-width: 1320px;
+    margin: 0 auto 26px auto;
+}
+
+.xp-dse-title {
+    margin: 0 0 6px 0;
+    font-size: 26px;
+}
+
+.xp-dse-subtitle {
+    margin: 0;
+    opacity: 0.7;
+    font-size: 14px;
+}
+
+.xp-dse-picker {
+    min-width: 240px;
+}
+
+.xp-dse-body {
+    max-width: 1320px;
+    margin: 0 auto;
+}
+
+.xp-dse-section + .xp-dse-section,
+.xp-dse-summary + .xp-dse-charts,
+.xp-dse-charts + .xp-dse-section,
+/* The summary, the charts and the table are filled by separate callbacks, so
+   they are siblings through their own slots rather than directly. */
+.xp-dse-body > div + div {
+    margin-top: 34px;
+}
+
+/* Headline numbers */
+
+.xp-dse-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+}
+
+.xp-dse-stat {
+    background-color: var(--theme-element-background-color);
+    border: 1px solid var(--theme-border-color);
+    border-radius: var(--theme-small-border-radius, 12px);
+    box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+    padding: 14px 16px;
+}
+
+.xp-dse-stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--theme-primary-color);
+}
+
+.xp-dse-stat-label {
+    font-size: 13px;
+    margin-top: 2px;
+}
+
+.xp-dse-stat-detail {
+    font-size: 12px;
+    opacity: 0.6;
+    margin-top: 2px;
+}
+
+/* What the campaign was looking for */
+
+.xp-dse-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.xp-dse-chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-primary-color) 12%, transparent);
+}
+
+.xp-dse-chip-constraint {
+    color: var(--theme-text-color);
+    background: color-mix(in srgb, var(--theme-text-color) 8%, transparent);
+}
+
+.xp-dse-warning {
+    margin-top: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    border-radius: var(--theme-small-border-radius, 12px);
+    color: var(--theme-caution-color, #d9534f);
+    border: 1px solid color-mix(in srgb, var(--theme-caution-color, #d9534f) 40%, transparent);
+    background: color-mix(in srgb, var(--theme-caution-color, #d9534f) 8%, transparent);
+}
+
+/* Charts, side by side while there is room for both */
+
+.xp-dse-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 24px;
+}
+
+.xp-dse-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background-color: var(--theme-element-background-color);
+    border: 1px solid var(--theme-border-color);
+    border-radius: var(--theme-small-border-radius, 12px);
+    box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+    padding: 16px 16px 10px 16px;
+    box-sizing: border-box;
+}
+
+.xp-dse-card-head {
+    margin-bottom: 6px;
+}
+
+.xp-dse-card-title {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.xp-dse-card-subtitle {
+    font-size: 12px;
+    opacity: 0.6;
+    margin-top: 2px;
+}
+
+.xp-dse-graph {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* The slot a chart is dropped into, so it fills the card whatever is in it */
+
+.xp-dse-slot {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Which metrics the trade-off curve is drawn against */
+
+.xp-dse-axes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.xp-dse-axis {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 140px;
+    min-width: 0;
+}
+
+.xp-dse-axis-label {
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.7;
+    text-transform: uppercase;
+}
+
+.xp-dse-axis-dropdown {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--theme-small-font-size);
+}
+
+/* Which designs are drawn on the trade-off curve and the parallel-coordinates plot */
+
+.xp-dse-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 12px;
+    font-size: var(--theme-small-font-size);
+}
+
+.xp-dse-filters label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+/* What a chart says when it has nothing to draw */
+
+.xp-dse-placeholder {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.xp-dse-placeholder-text {
+    max-width: 34em;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.6;
+    opacity: 0.65;
+}
+
+.xp-dse-table {
+    overflow-x: auto;
+}
+
+.xp-dse-empty {
+    padding: 20px;
+    font-size: 13px;
+    opacity: 0.7;
+    border: 1px dashed var(--theme-border-color);
+    border-radius: var(--theme-small-border-radius, 12px);
+}
+
+/* Designs that produced nothing */
+
+.xp-dse-failures {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+}
+
+.xp-dse-failures li {
+    display: flex;
+    gap: 12px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--theme-border-color);
+}
+
+.xp-dse-failure-name {
+    font-weight: 600;
+    flex: 0 0 auto;
+}
+
+.xp-dse-failure-reason {
+    opacity: 0.65;
+}
+
+.xp-dse-failure-more {
+    opacity: 0.6;
+    font-style: italic;
 }

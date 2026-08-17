@@ -79,6 +79,24 @@ def _pictogram(kind):
       Circle(cx="32", cy="14", r="3", fill=_STROKE, opacity="0.7"),
       Circle(cx="34", cy="26", r="3", fill=_STROKE, opacity="0.5"),
     ])
+  if kind == "dse":
+    return _svg([
+      Circle(cx="14.374229", cy="11.243209", r="2.5", fill=_FILL, opacity="0.3"),
+      Circle(cx="29.933266", cy="21.765116", r="2.5", fill=_FILL, opacity="0.3"),
+      Circle(cx="39.465553", cy="27.08618", r="2.5", fill=_FILL, opacity="0.3"),
+      Circle(cx="19.74486", cy="24.320129", r="2.5", fill=_FILL, opacity="0.3"),
+      Path(
+          d="M 4.1817167,9.2258967 C 4.1735767,17.225892 9.0917071,27.64385 19.36212,32.297218 c 6.402955,2.901082 19.0848,5.089128 25.750024,5.256957",
+          stroke=_STROKE,
+          strokeWidth="2.5",
+          fill="none",
+          strokeLinecap="round",
+      ),
+      Circle(cx="4.0877485", cy="9.763505", r="3", fill=_STROKE),
+      Circle(cx="12.451153", cy="27.683771", r="3", fill=_STROKE),
+      Circle(cx="26.237762", cy="34.867134", r="3", fill=_STROKE),
+      Circle(cx="44.339264", cy="37.767685", r="3", fill=_STROKE),
+    ])
   if kind == "table":
     return _svg([
       Rect(x="6", y="8", width="36", height="32", rx="2.5", stroke=_FILL, strokeWidth="2", strokeOpacity="0.5", fill="none"),
@@ -92,7 +110,15 @@ def _pictogram(kind):
       Polygon(points="24,4 43,18 36,42 12,42 5,18", stroke=_FILL, strokeWidth="1.5", fill="none", opacity="0.4"),
       Polygon(points="24,12 35,20 31,34 17,34 13,20", stroke=_STROKE, strokeWidth="2.5", fill=_STROKE, fillOpacity="0.15"),
     ])
-  # overview
+  if kind == "parcoords":
+    return _svg([
+      Line(x1="10", y1="6", x2="10", y2="42", stroke=_FILL, strokeWidth="1.5", strokeOpacity="0.4"),
+      Line(x1="24", y1="6", x2="24", y2="42", stroke=_FILL, strokeWidth="1.5", strokeOpacity="0.4"),
+      Line(x1="38", y1="6", x2="38", y2="42", stroke=_FILL, strokeWidth="1.5", strokeOpacity="0.4"),
+      Polyline(points="10,14 24,32 38,20", stroke=_STROKE, strokeWidth="2.5", fill="none", strokeLinejoin="round", strokeLinecap="round"),
+      Polyline(points="10,30 24,12 38,36", stroke=_STROKE, strokeWidth="2.5", fill="none", strokeLinejoin="round", strokeLinecap="round", opacity="0.5"),
+    ])
+  # overview2 prob
   return _svg([
     Rect(x="5", y="5", width="17", height="17", rx="2", stroke=_STROKE, strokeWidth="2", fill="none"),
     Rect(x="26", y="5", width="17", height="17", rx="2", stroke=_STROKE, strokeWidth="2", fill="none", opacity="0.7"),
@@ -101,15 +127,20 @@ def _pictogram(kind):
   ])
 
 
-_CARDS = [
+_CHART_CARDS = [
   {"name": "Lines", "link": "/explorer/lines", "kind": "lines", "description": "Metric vs any dimension, point by point"},
   {"name": "Columns", "link": "/explorer/columns", "kind": "columns", "description": "Bar comparison across configurations"},
   {"name": "Scatter", "link": "/explorer/scatter", "kind": "scatter", "description": "Any metric against any other metric"},
   {"name": "Scatter 3D", "link": "/explorer/scatter3d", "kind": "scatter3d", "description": "Three metrics in one 3D view"},
   {"name": "Radar", "link": "/explorer/radar", "kind": "radar", "description": "Polar view of a metric"},
+  {"name": "Parallel Coordinates", "link": "/explorer/parcoords", "kind": "parcoords", "description": "Compare several metrics across configurations"},
   {"name": "Overview", "link": "/explorer/overview", "kind": "overview", "description": "Every metric at a glance"},
   {"name": "Table", "link": "/explorer/table", "kind": "table", "description": "Sortable, filterable data table"},
+]
+
+_REPORT_CARDS = [
   {"name": "RTL Analysis", "link": "/explorer/analysis", "kind": "analysis", "description": "RTL analysis warnings and errors dashboard"},
+  {"name": "Design Space Exploration", "link": "/explorer/dse", "kind": "dse", "description": "Pareto front and progress of a design space exploration"},
 ]
 
 
@@ -329,7 +360,10 @@ def layout(**kwargs):
       # the same note in ui/shell.py for xp-url).
       dcc.Location(id="xp-home-url", refresh=True),
       home_shared.home_header("Odatix Explorer", "Visualize, compare and explore your results."),
-      home_shared.home_card_grid(_CARDS, _card_visual),
+      _section_header("Charts"),
+      home_shared.home_card_grid(_CHART_CARDS, _card_visual),
+      _section_header("Reports"),
+      home_shared.home_card_grid(_REPORT_CARDS, _card_visual),
       html.Div(id="xp-home-sources", className="xp-home-section"),
       html.Div(id="xp-home-views", className="xp-home-section"),
     ],
