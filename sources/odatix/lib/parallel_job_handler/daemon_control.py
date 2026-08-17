@@ -399,6 +399,81 @@ def _resolve_session_selector(daemons, selector, allow_missing=False):
     raise DaemonControlError("No session matches '{}'".format(selector))
 
 
+def _daemon_is_alive_with_retries(state, attempts=3, timeout=0.6, backoff=0.3):
+    """
+    Like :func:`daemon_is_alive`, but does not take one slow reply as proof of
+    death.
+
+    A daemon that has been running a while can be briefly slow to answer --
+    host under load, an event loop hiccup -- and a single 0.6s timeout is not
+    enough to tell that from a daemon that is actually gone. Treating it as
+    gone anyway spawns a second daemon under the very session name the first
+    one is still using (see :func:`ensure_daemon_running`), which orphans the
+    first one along with whatever it is running.
+    """
+    for attempt in range(int(attempts)):
+        if daemon_is_alive(state, timeout=timeout):
+            return True
+        if attempt < attempts - 1:
+            time.sleep(backoff)
+    return False
+
+
+def _pid_is_running(pid):
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        # No cheap liveness check without extra dependencies here; callers on
+        # Windows fall back to trusting the HTTP alive-check alone.
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Exists, just not ours to signal.
+        return True
+    except Exception:
+        return False
+    return True
+
+
+def _pid_claiming_session(paths, session_name):
+    """
+    The pid of a still-running process that owns this session's state file, if
+    any -- regardless of whether it currently answers HTTP.
+
+    Used before replacing a session whose daemon failed its alive-check: a
+    process match here means the daemon is (at worst) stuck, not dead, and
+    starting a second one under the same name would silently orphan it.
+    """
+    target_state_file = os.path.realpath(os.path.expanduser(str(paths.get("state_file") or "")))
+    target_slug = _session_slug(session_name)
+
+    for candidate in _iter_system_daemon_candidates() or []:
+        candidate_state_file = candidate.get("state_file")
+        candidate_state_file = (
+            os.path.realpath(os.path.expanduser(str(candidate_state_file)))
+            if candidate_state_file else ""
+        )
+        candidate_slug = _session_slug(candidate.get("session_name"))
+
+        same_state_file = target_state_file != "" and candidate_state_file == target_state_file
+        same_session_name = target_slug is not None and candidate_slug == target_slug
+        if not (same_state_file or same_session_name):
+            continue
+
+        pid = candidate.get("pid")
+        if _pid_is_running(pid):
+            return pid
+
+    return None
+
+
 def _spawn_daemon(paths, host, port, jobs, logsize, session_name=None, daemon_log_enabled=None):
     os.makedirs(paths["state_dir"], exist_ok=True)
     session_name = _normalize_session_name(session_name, default_name=host)
@@ -480,11 +555,29 @@ def ensure_daemon_running(
 
     if session_selector:
         matched = _resolve_session_selector(active_daemons, session_selector, allow_missing=True)
-        if matched is not None and daemon_is_alive(matched):
-            return matched
+        if matched is not None:
+            if _daemon_is_alive_with_retries(matched):
+                return matched
 
-        session_name = _normalize_session_name(session_selector, default_name=host)
-        paths = get_daemon_paths(workspace_root, session_name=session_name)
+            session_name = _normalize_session_name(session_selector, default_name=host)
+            paths = get_daemon_paths(workspace_root, session_name=session_name)
+
+            # The alive-check failed, but do not take that as proof the daemon
+            # is gone: a process still claiming this exact session at the OS
+            # level means it is (at worst) stuck, not dead. Spawning a
+            # replacement here would give it a second daemon under its own
+            # name, silently orphaning the first one and whatever it is
+            # running (see the "dse-<pid>" duplicate-session incident).
+            stuck_pid = _pid_claiming_session(paths, session_name)
+            if stuck_pid is not None:
+                raise DaemonControlError(
+                    "Daemon session '{0}' is not responding, but its process (pid {1}) is "
+                    "still running. Stop it explicitly (odatix daemon stop -S {0}) before "
+                    "starting a new one.".format(session_name, stuck_pid)
+                )
+        else:
+            session_name = _normalize_session_name(session_selector, default_name=host)
+            paths = get_daemon_paths(workspace_root, session_name=session_name)
     else:
         # By default, launching jobs creates a fresh daemon session.
         # Existing sessions are reused only when an explicit selector is given.
