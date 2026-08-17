@@ -30,7 +30,7 @@ from dash import ALL, Input, Output, State
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.schema as schema
-from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, normalize_dims, resolve_defaults, x_is_symbolic
+from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, normalize_dims, normalize_metrics, resolve_defaults, x_is_symbolic
 
 
 def _options(names):
@@ -42,7 +42,7 @@ def _dimension_options(dimensions, include_none=True):
   return [{"label": "None" if name == NONE_VALUE else name, "value": name} for name in names]
 
 
-def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate):
+def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics):
   """Store only controls supported by the current chart kind.
 
   The sidebar keeps all dropdowns mounted so figure callbacks have stable
@@ -64,6 +64,8 @@ def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group
     sort_x_order=sort_x_order,
     dissociate=dissociate,
   )
+  if kind == "parcoords":
+    state["y_metrics"] = y_metrics
   return state
 
 
@@ -109,6 +111,8 @@ def register_callbacks():
     Output("xp-sort-x-order", "value"),
     Output("xp-dissociate-by", "options"),
     Output("xp-dissociate-by", "value"),
+    Output("xp-parcoords-metrics", "options"),
+    Output("xp-parcoords-metrics", "value"),
     Input("xp-data-version", "data"),
     Input("xp-source-select", "value"),
     Input("xp-restore-trigger", "data"),
@@ -122,10 +126,11 @@ def register_callbacks():
     State("xp-sort-x-by", "value"),
     State("xp-sort-x-order", "value"),
     State("xp-dissociate-by", "value"),
+    State("xp-parcoords-metrics", "value"),
     State("xp-control-state", "data"),
     State("xp-chart-kind", "data"),
   )
-  def update_control_options(_version, sources, _restore, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, stored, kind):
+  def update_control_options(_version, sources, _restore, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, stored, kind):
     # Values chosen on any chart page are remembered in xp-control-state (session
     # storage) so they survive switching chart kinds. On a fresh page the live
     # component values are empty (Dash persistence drops them while options are
@@ -141,6 +146,7 @@ def register_callbacks():
     sort_x_by = stored.get("sort_x_by", sort_x_by)
     sort_x_order = stored.get("sort_x_order", sort_x_order)
     dissociate = stored.get("dissociate", dissociate)
+    y_metrics = stored.get("y_metrics", y_metrics)
 
     df = query.select_dataframe(STORE, sources=sources)
     dimensions, metrics = query.discover(df, STORE, sources)
@@ -151,6 +157,7 @@ def register_callbacks():
       x=x, y=y, z=z,
       color_by=color_by, symbol_by=symbol_by, legend_group_by=legend_group_by,
       sort_by=sort_by, sort_x_by=sort_x_by, sort_x_order=sort_x_order, dissociate=dissociate,
+      y_metrics=y_metrics,
     )
     resolve_defaults(spec, dimensions, metrics)
 
@@ -181,6 +188,7 @@ def register_callbacks():
       multi_options, list(spec.sort_x_by),
       spec.sort_x_order,
       multi_options, list(spec.dissociate),
+      _options(metrics), list(spec.y_metrics),
     )
 
   @dash.callback(
@@ -306,19 +314,21 @@ def register_callbacks():
     Input("xp-sort-x-by", "value"),
     Input("xp-sort-x-order", "value"),
     Input("xp-dissociate-by", "value"),
+    Input("xp-parcoords-metrics", "value"),
     State("xp-control-state", "data"),
     State("xp-chart-kind", "data"),
     prevent_initial_call=True,
   )
-  def remember_control_state(x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, state, kind):
+  def remember_control_state(x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, state, kind):
     """Remember the data-dependent control values across chart pages and reloads."""
-    if x is None:
+    if kind != "parcoords" and x is None:
       # Transient state right after a page swap: the axis dropdowns are not
       # clearable, so a genuine user edit never produces x=None — only the
       # fresh page's default does, before update_control_options restores it.
       # Ignore it so it can't race ahead and clobber the remembered values.
+      # Parcoords has no x axis at all, so it is exempted from this guard.
       raise dash.exceptions.PreventUpdate
     return _merge_control_state(
       state, kind, x, y, z,
-      color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate,
+      color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics,
     )

@@ -27,4 +27,4 @@ def layout(**kwargs):
   return explorer_shell("table")
 
 
-dash.register_page(__name__, path="/explorer/table", name="Table", title="Odatix Explorer - Table", order=27, layout=layout)
+dash.register_page(__name__, path="/explorer/table", name="Table", title="Odatix Explorer - Table", order=28, layout=layout)

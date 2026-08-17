@@ -244,6 +244,12 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
 
   fig = go.Figure()
 
+  if spec.kind == "parcoords":
+    if not df.empty and spec.y_metrics:
+      fig.add_trace(_parcoords_trace(df, spec, units, palette))
+    _apply_layout(fig, spec, [], units, chrome, height, plot_theme)
+    return fig
+
   if df.empty or spec.y is None:
     _apply_layout(fig, spec, [], units, chrome, height, plot_theme)
     return fig
@@ -406,6 +412,73 @@ def _radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_hea
   )
 
 
+def _parcoords_trace(df, spec, units, palette):
+  """One parallel-coordinates axis per metric of spec.y_metrics.
+
+  Unlike the other kinds, this is a single trace over the whole selection
+  (parcoords has no notion of separate traces): lines are colored by the first
+  "Color by" dimension when it holds numeric values, one solid color otherwise.
+  """
+  dimensions = []
+  for metric in spec.y_metrics:
+    if metric not in df.columns:
+      continue
+    series = pd.to_numeric(df[metric], errors="coerce")
+    dimensions.append(dict(
+      label=schema.axis_title(metric, units),
+      values=series.fillna(series.mean() if series.notna().any() else 0).tolist(),
+    ))
+
+  line = dict(color=palettes.get_color(0, palette))
+  if spec.color_by:
+    color_column = spec.color_by[0]
+    if color_column in df.columns:
+      color_series = pd.to_numeric(df[color_column], errors="coerce")
+      if color_series.notna().any():
+        line = dict(
+          color=color_series.fillna(color_series.mean()).tolist(),
+          colorscale="Viridis",
+          showscale=True,
+          colorbar=dict(title=schema.metric_display_name(color_column)),
+        )
+      else:
+        line = _parcoords_categorical_line(df[color_column], color_column, palette)
+
+  return go.Parcoords(dimensions=dimensions, line=line)
+
+
+def _parcoords_categorical_line(series, color_column, palette):
+  """Line spec coloring parcoords lines by a non-numeric column's distinct values."""
+  categories = series.astype(str).fillna("").tolist()
+  uniques = sorted(set(categories))
+  codes = [uniques.index(v) for v in categories]
+  n = len(uniques)
+
+  if n <= 1:
+    return dict(color=palettes.get_color(0, palette))
+
+  colors = [palettes.get_color(i, palette) for i in range(n)]
+  colorscale = []
+  for i, c in enumerate(colors):
+    colorscale.append([i / n, c])
+    colorscale.append([(i + 1) / n, c])
+
+  tickvals = [i + 0.5 for i in range(n)]
+
+  return dict(
+    color=codes,
+    colorscale=colorscale,
+    cmin=0,
+    cmax=n,
+    showscale=True,
+    colorbar=dict(
+      title=schema.metric_display_name(color_column),
+      tickvals=tickvals,
+      ticktext=uniques,
+    ),
+  )
+
+
 def _scatter_axis_series(sub_df, column):
   """Values for a scatter axis: numeric when the column holds any numeric value,
   otherwise the categorical (string) values, so a meta dimension can be plotted
@@ -477,6 +550,8 @@ def _figure_title(spec, units):
     if spec.kind == "scatter3d" and spec.z:
       title += " vs " + schema.metric_display_name(spec.z)
     return title
+  if spec.kind == "parcoords":
+    return ", ".join(schema.metric_display_name(metric) for metric in (spec.y_metrics or ()))
   return schema.axis_title(spec.y, units)
 
 
@@ -548,6 +623,8 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
       camera=dict(eye=dict(x=1.6, y=1.6, z=0.6)),
     )
     layout["legend"] = dict(itemsizing="constant")
+  elif spec.kind == "parcoords":
+    pass  # no cartesian/polar/scene axes: the dimensions carry their own labels/ranges
   else:
     # Categorical x: title is the dimension name; numeric x: metric title with unit
     xaxis = dict(title=str(spec.x) if categories else schema.axis_title(spec.x, units), **grid)

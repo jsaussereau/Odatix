@@ -36,7 +36,7 @@ NONE_VALUE = "none"
 # Controls accepting several dimensions at once (multi dropdowns). Their spec
 # fields hold a tuple of dimensions: () means "none", None means "not set yet"
 # (resolve_defaults then picks a default).
-MULTI_CONTROLS = ("color_by", "symbol_by", "sort_by", "sort_x_by", "dissociate")
+MULTI_CONTROLS = ("color_by", "symbol_by", "sort_by", "sort_x_by", "dissociate", "y_metrics")
 
 # Ordering of a categorical (symbolic) x axis. "natural" is the numeric-aware
 # ordering of the values themselves; the y orders rank the categories by their
@@ -50,7 +50,7 @@ X_ORDER_LABELS = {
 }
 DEFAULT_X_ORDER = "natural"
 
-KINDS = ["lines", "columns", "scatter", "scatter3d", "radar"]
+KINDS = ["lines", "columns", "scatter", "scatter3d", "radar", "parcoords"]
 
 KIND_LABELS = {
   "lines": "Lines",
@@ -58,9 +58,15 @@ KIND_LABELS = {
   "scatter": "Scatter",
   "scatter3d": "Scatter 3D",
   "radar": "Radar",
+  "parcoords": "Parallel Coordinates",
   "overview": "Overview",
   "table": "Table",
 }
+
+# Minimum number of metrics to preselect by default on a fresh parallel
+# coordinates chart (fewer than that and the plot is not very useful, more and
+# it gets cluttered, so the user is left to add more explicitly).
+PARCOORDS_DEFAULT_METRICS = 4
 
 # Which controls make sense for each chart kind. Drives the sidebar control
 # visibility; "axes" lists the axis selectors to show ("x" of lines, columns
@@ -72,6 +78,9 @@ CAPABILITIES = {
   "scatter": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "scatter_lines", "labels", "zero_x", "zero_y", "log_x", "log_y")),
   "scatter3d": dict(axes=("x", "y", "z"), toggles=("legend", "legend_groups", "title", "scatter_lines", "labels", "zero_axis", "log_x", "log_y", "log_z")),
   "radar": dict(axes=("x", "y"), toggles=("legend", "legend_groups", "title", "close_line", "connect_gaps", "log_y")),
+  # No x/y/z axis selectors: the metrics shown are picked with their own
+  # multi-select ("xp-parcoords-metrics"), one axis per metric.
+  "parcoords": dict(axes=(), toggles=("title",)),
   "overview": dict(axes=(), toggles=("legend", "legend_groups", "title", "lines", "connect_gaps", "close_line", "zero_y", "log_x", "log_y")),
   # The table view has no axes or chart toggles: columns are chosen in its own
   # "Columns" sidebar section, and sorting/filtering happen in the table itself.
@@ -121,6 +130,7 @@ class FigureSpec:
   sort_x_by: tuple = None       # dimensions taking priority when ordering a categorical x axis
   sort_x_order: str = None      # ordering of a categorical x axis (see X_ORDERS)
   dissociate: tuple = None      # dimensions pulled out of x labels into trace identity
+  y_metrics: tuple = None       # metrics, one parcoords axis each (parcoords only)
   label_by: str = None          # dimension used for point labels (scatter kinds)
   stable_index: bool = False    # color/symbol indices computed over all values (stable across filters)
   toggles: tuple = field(default_factory=tuple)
@@ -159,6 +169,18 @@ def normalize_dims(value, dimensions=None):
   return tuple(dict.fromkeys(values))  # de-duplicated, order preserved
 
 
+def normalize_metrics(value, metrics=None):
+  """Same as ``normalize_dims``, but for controls holding metrics (parcoords'
+  Y metrics) rather than dimensions."""
+  if value is None:
+    return None
+  values = list(value) if isinstance(value, (list, tuple)) else [value]
+  values = [str(item) for item in values if item not in (None, NONE_VALUE)]
+  if metrics is not None:
+    values = [item for item in values if item in metrics]
+  return tuple(dict.fromkeys(values))
+
+
 def resolve_defaults(spec, dimensions, metrics):
   """
   Fill unset spec fields with sensible defaults based on the discovered
@@ -172,7 +194,10 @@ def resolve_defaults(spec, dimensions, metrics):
         return candidate
     return fallback
 
-  if spec.kind in ("scatter", "scatter3d"):
+  if spec.kind == "parcoords":
+    spec.x = None
+    spec.y = metrics[0] if metrics else None
+  elif spec.kind in ("scatter", "scatter3d"):
     # Scatter axes accept metrics or any dimension (meta), metrics preferred.
     axis_choices = list(metrics) + [dim for dim in dimensions if dim not in metrics]
     if spec.x not in axis_choices:
@@ -210,5 +235,11 @@ def resolve_defaults(spec, dimensions, metrics):
   if spec.sort_x_order not in X_ORDERS:
     spec.sort_x_order = DEFAULT_X_ORDER
   spec.dissociate = resolve_multi(spec.dissociate, None)
+
+  requested_y_metrics = normalize_metrics(spec.y_metrics)
+  kept_y_metrics = normalize_metrics(spec.y_metrics, metrics)
+  if requested_y_metrics and not kept_y_metrics:
+    kept_y_metrics = None  # every requested metric vanished from the data: default again
+  spec.y_metrics = kept_y_metrics if kept_y_metrics is not None else tuple(metrics[:PARCOORDS_DEFAULT_METRICS])
 
   return spec

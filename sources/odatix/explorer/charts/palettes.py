@@ -48,6 +48,7 @@ MARKER_SYMBOLS_3D = ["circle", "square", "diamond", "cross", "x", "circle-open",
 BAR_PATTERNS = ["", "/", "x", "-", "|", "+", ".", "\\"]
 
 GREYED_COLOR = "#aaa"
+HIGHLIGHT_COLOR = "#FFD43B"
 
 
 def palette_colors(palette):

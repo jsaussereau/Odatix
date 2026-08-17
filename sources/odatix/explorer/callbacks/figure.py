@@ -57,6 +57,7 @@ _FIGURE_DEPS = [
   Input("xp-sort-x-by", "value"),
   Input("xp-sort-x-order", "value"),
   Input("xp-dissociate-by", "value"),
+  Input("xp-parcoords-metrics", "value"),
   Input("xp-palette", "value"),
   Input("xp-plot-theme", "value"),
   Input("xp-toggles", "value"),
@@ -79,7 +80,7 @@ def _selection(sources, filter_values, filter_ids, rule_state=None):
   return df, dimensions, metrics, global_dimensions
 
 
-def _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, toggles, dimensions, metrics):
+def _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, toggles, dimensions, metrics):
   spec = FigureSpec(
     kind=kind,
     x=x, y=y, z=z,
@@ -90,6 +91,7 @@ def _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sor
     sort_x_by=sort_x_by,
     sort_x_order=sort_x_order,
     dissociate=dissociate,
+    y_metrics=y_metrics,
     stable_index="stable_index" in (toggles or []),
     toggles=tuple(toggles or []),
   )
@@ -220,14 +222,14 @@ def register_callbacks():
     Output("xp-error", "children"),
     *_FIGURE_DEPS,
   )
-  def update_figure(version, sources, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate,
+  def update_figure(version, sources, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics,
                     palette, plot_theme, toggles, filter_values, filter_ids, rule_state, app_theme,
                     dl_format, dl_background, kind):
     if kind in (None, "overview"):
       raise dash.exceptions.PreventUpdate
     try:
       df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)
-      spec = _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, toggles, dimensions, metrics)
+      spec = _make_spec(kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, toggles, dimensions, metrics)
       chrome = app_theme_bridge.get_chrome(app_theme)
       units = STORE.units(sources)
       fig = builder.build_figure(
@@ -246,13 +248,13 @@ def register_callbacks():
     *_FIGURE_DEPS,
   )
   def update_overview(chart_type, layout, version, sources, x, y, z, color_by, symbol_by, legend_group_by,
-                      sort_by, sort_x_by, sort_x_order, dissociate, palette, plot_theme, toggles, filter_values, filter_ids, rule_state,
+                      sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, palette, plot_theme, toggles, filter_values, filter_ids, rule_state,
                       app_theme, dl_format, dl_background, kind):
     if kind != "overview":
       raise dash.exceptions.PreventUpdate
     try:
       df, dimensions, metrics, global_dimensions = _selection(sources, filter_values, filter_ids, rule_state)
-      spec = _make_spec(chart_type or "lines", x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, toggles, dimensions, metrics)
+      spec = _make_spec(chart_type or "lines", x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, toggles, dimensions, metrics)
       spec = replace(spec, toggles=tuple(toggle for toggle in spec.toggles if toggle != "legend"))
       chrome = app_theme_bridge.get_chrome(app_theme)
       units = STORE.units(sources)
