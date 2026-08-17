@@ -56,7 +56,10 @@ def add_arguments(parser):
                         help="architecture to explore (repeatable, overrides the settings file)")
     parser.add_argument("-r", "--run", help="what evaluating one design runs (fmax_synthesis, ...)")
     parser.add_argument("-s", "--strategy", help="how the designs to evaluate are chosen "
-                                                 "(genetic, random, exhaustive)")
+                                                 "(genetic, random, exhaustive, bayesian)")
+    parser.add_argument("-m", "--mode", choices=["batch", "async"],
+                        help="wait for a whole batch between two decisions, or fill "
+                             "slots as they free up (batch, async)")
     parser.add_argument("-b", "--budget", type=int, help="how many designs to evaluate at most")
     parser.add_argument("-B", "--batch", type=int, help="how many designs to evaluate together")
     parser.add_argument("--seed", type=int, help="make the search reproducible")
@@ -100,7 +103,7 @@ def apply_arguments(settings, args):
     if getattr(args, "architectures", None):
         settings.architectures = list(args.architectures)
 
-    for name in ("strategy", "budget", "batch", "seed"):
+    for name in ("strategy", "mode", "budget", "batch", "seed"):
         value = getattr(args, name, None)
         if value is not None:
             settings.search[name] = value

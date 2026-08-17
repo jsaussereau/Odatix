@@ -130,8 +130,17 @@ class SearchSettings(Settings):
 
     strategy = Setting(
         "genetic", type="str",
-        comment="genetic, random or exhaustive - overridden by --strategy",
+        comment="genetic, random, exhaustive or bayesian - overridden by --strategy",
         doc="How the next designs to evaluate are chosen.",
+    )
+    mode = Setting(
+        "batch", type="str",
+        comment=(
+            "batch or async - async starts a new design the moment a slot frees\n"
+            " instead of waiting for the whole batch, which is what a single slow\n"
+            " design otherwise leaves the others idle for"
+        ),
+        doc="Whether designs are run in fixed-size batches, or continuously as slots free up.",
     )
     budget = Setting(
         50, type="int",
@@ -140,7 +149,8 @@ class SearchSettings(Settings):
     )
     batch = Setting(
         8, type="int",
-        comment="how many designs are evaluated together, between two decisions",
+        comment="how many designs are evaluated together, between two decisions"
+                " (async: how many are kept running at once)",
         doc="How many designs are run at once.",
     )
     patience = Setting(
@@ -172,6 +182,16 @@ class SearchSettings(Settings):
         None, type="optional_int",
         comment="genetic only, empty: four batches' worth",
         doc="How many designs the search keeps to look around.",
+    )
+    candidates = Setting(
+        None, type="optional_int",
+        comment="bayesian only, empty: 300 - how many candidates the acquisition compares before choosing one",
+        doc="How large the pool of candidates the acquisition function scores is.",
+    )
+    samples = Setting(
+        None, type="optional_int",
+        comment="bayesian only, empty: 12 - how many Monte Carlo draws value a candidate",
+        doc="How many samples the acquisition function averages a candidate's value over.",
     )
 
 

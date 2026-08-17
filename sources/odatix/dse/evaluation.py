@@ -49,7 +49,7 @@ import odatix.lib.printc as printc
 from odatix.dse.space import MAIN_DOMAIN
 from odatix.lib.results_schema import load_results_file
 
-__all__ = ["Evaluation", "Evaluator", "EvaluationError"]
+__all__ = ["Evaluation", "Evaluator", "EvaluationError", "Pending"]
 
 script_name = os.path.basename(__file__)
 
@@ -145,15 +145,25 @@ class Evaluation(object):
             to minimize -- None when the design was not measured, whether it
             failed to build or simply produced no number for one objective.
         note (str): why there are no costs, when there are none.
+        batch (int): which batch of the campaign proposed the design. It is
+            what makes the order of the search readable afterwards -- a front
+            reached in three batches and one reached in thirty are not the same
+            answer -- and 0 for a design read back from an archive written
+            before batches were recorded.
     """
 
-    __slots__ = ("design", "metrics", "costs", "note")
+    __slots__ = ("design", "metrics", "costs", "note", "batch", "source")
 
-    def __init__(self, design, metrics=None, costs=None, note=""):
+    def __init__(self, design, metrics=None, costs=None, note="", batch=0, source=None):
         self.design = design
         self.metrics = dict(metrics) if metrics else {}
         self.costs = costs
         self.note = note
+        self.batch = int(batch or 0)
+        #: The meta of the result record the numbers were read from -- what the
+        #: design was run as (type, tool, flow, target, ...). Kept so that the
+        #: exported results say it, and empty for a design that produced none.
+        self.source = dict(source) if source else {}
 
     @property
     def genome(self):
@@ -179,6 +189,7 @@ class Evaluation(object):
         """
         record = {
             "configuration": self.design.entry,
+            "batch": self.batch,
             # Where the design sits in the space, so that a campaign that is
             # started again knows what it already looked at without having to
             # search the space for it (see Campaign.resume).
@@ -194,6 +205,10 @@ class Evaluation(object):
             # Same reason: what ran the design is what tells two of its records
             # apart when the search is the one that chose it.
             record["toolchain"] = self.design.toolchain.to_dict()
+        if self.source:
+            # What the design ran as, so that an exploration picked up again
+            # can still export the results of the designs it did not re-run.
+            record["source"] = dict(self.source)
         if not self.measured:
             record["failed"] = True
             if self.note:
@@ -202,6 +217,42 @@ class Evaluation(object):
 
     def __repr__(self):
         return "<Evaluation {0}{1}>".format(self.label, "" if self.measured else " (failed)")
+
+
+class Pending(object):
+    """
+    One design, submitted and not yet finished.
+
+    What ties it to the daemon is the set of its own work directories -- one
+    per underlying job, since a design fixed at several frequencies, or one
+    whose entry is also being simulated, is still one design of the search and
+    several jobs of the daemon. It counts as finished once none of them are
+    left (see :meth:`Evaluator.poll`).
+    """
+
+    __slots__ = ("design", "tmp_dirs", "before_count", "failure")
+
+    def __init__(self, design, tmp_dirs, before_count, failure=None):
+        self.design = design
+        self.tmp_dirs = set(tmp_dirs)
+        #: How many records this design's identity already had in the results
+        #: files at the moment it was submitted -- what :meth:`Evaluator.collect`
+        #: reads past, the same way :meth:`Evaluator.evaluate` reads past a
+        #: whole batch's "before" (see :meth:`Evaluator.measure`).
+        self.before_count = before_count
+        #: Why the submission itself did not go through, when it did not --
+        #: a batch that turned out to be already cached is not this, and
+        #: leaves it None.
+        self.failure = failure
+
+    @property
+    def ready(self):
+        return not self.tmp_dirs
+
+    def __repr__(self):
+        return "<Pending {0}{1}>".format(
+            self.design.label, "" if self.tmp_dirs else " (ready)"
+        )
 
 
 class Evaluator(object):
@@ -688,6 +739,146 @@ class Evaluator(object):
                     pending.discard(directory)
 
     ######################################
+    # Running one design at a time
+    ######################################
+
+    def begin_async(self):
+        """
+        Start a rolling session: designs may from now on be submitted one at a
+        time and polled without waiting on a whole batch (see :meth:`submit`,
+        :meth:`poll`, :meth:`collect`), which is what a campaign's ``async``
+        mode runs on.
+
+        Only what a simulation is shared by needs remembering between calls --
+        one entry may be the design of several genomes, an explored frequency
+        does not change what a testbench measures, and it is submitted once
+        for all of them (see :meth:`submit`).
+        """
+        self._async_simulated_entries = set()
+        self._async_simulation_jobs = {}
+
+    def submit(self, design):
+        """
+        Enqueue one design, without waiting for it.
+
+        Its own synthesis is always started; its entry's simulation only the
+        first time that entry comes up. Both go into the same daemon session a
+        batch would have used, which is what lets a design started this way
+        run alongside whatever a batch already had running rather than behind
+        it -- the whole point of an async campaign.
+
+        Returns:
+            Pending: what to hand to :meth:`poll` and, once it is ready, to
+            :meth:`collect`.
+        """
+        before_count = len(self._records().get(self.design_identity(design), []))
+
+        failures = []
+        tmp_dirs = set()
+
+        if self.simulations:
+            if design.entry not in self._async_simulated_entries:
+                self._async_simulated_entries.add(design.entry)
+                parallel_jobs, failure = self.start_simulations([design])
+                if failure is not None:
+                    failures.append(failure)
+                self._async_simulation_jobs[design.entry] = self._tmp_dirs_of(parallel_jobs)
+            tmp_dirs |= self._async_simulation_jobs.get(design.entry, set())
+
+        for toolchain, frequency, group in self.groups([design]):
+            parallel_jobs, failure = self.start_batch(group, toolchain, frequency)
+            if failure is not None:
+                failures.append(failure)
+            tmp_dirs |= self._tmp_dirs_of(parallel_jobs)
+
+        self.count += 1
+        return Pending(design, tmp_dirs, before_count, failure="\n".join(failures) or None)
+
+    @staticmethod
+    def _tmp_dirs_of(parallel_jobs):
+        return set(
+            os.path.realpath(str(job.tmp_dir))
+            for job in (getattr(parallel_jobs, "job_list", None) or [])
+            if getattr(job, "tmp_dir", None)
+        )
+
+    def poll(self, pending, cancel_event=None):
+        """
+        Wait until at least one design of ``pending`` is finished.
+
+        A design already resolved when it was submitted -- a cache hit, or a
+        submission that failed outright and started nothing -- is returned
+        immediately, without asking the daemon anything, which is what lets a
+        campaign keep moving when a whole run of designs turns out to already
+        be done. Every design returned is removed from ``pending``, which is
+        what makes it safe to call again with what is left.
+
+        Args:
+            pending (list): the :class:`Pending` designs to wait on. Mutated
+                in place: what is returned is taken out of it.
+            cancel_event (threading.Event): asking the wait to stop.
+
+        Returns:
+            list: the designs that are ready to :meth:`collect`, in no
+            particular order.
+        """
+        from odatix.lib.parallel_job_handler.daemon_control import list_daemon_jobs
+
+        resolved = [item for item in pending if item.ready]
+        if resolved:
+            for item in resolved:
+                pending.remove(item)
+            return resolved
+
+        first = True
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                raise EvaluationError("The exploration was cancelled while designs were running.")
+            if not first:
+                time.sleep(POLL_INTERVAL)
+            first = False
+            try:
+                running = list_daemon_jobs(workspace_root=self.workspace.root)
+            except Exception:
+                continue
+
+            known = {}
+            for job in running:
+                directory = job.get("tmp_dir") if isinstance(job, dict) else None
+                if directory:
+                    known[os.path.realpath(str(directory))] = str(job.get("status", "")).strip().lower()
+
+            finished = []
+            for item in pending:
+                item.tmp_dirs = set(
+                    directory for directory in item.tmp_dirs
+                    if known.get(directory) is not None and known.get(directory) not in FINISHED_STATUSES
+                )
+                if item.ready:
+                    finished.append(item)
+            if finished:
+                for item in finished:
+                    pending.remove(item)
+                return finished
+
+    def collect(self, pending):
+        """
+        What a finished design turned out to be worth (see :meth:`measure`).
+
+        Called once :meth:`derive` has been run again for whatever just
+        finished -- collecting before that would measure a design against
+        derived metrics from before its own simulation was accounted for,
+        which would only be correct by accident.
+        """
+        after = self._records()
+        identity = self.design_identity(pending.design)
+        before = {identity: [None] * pending.before_count}
+        evaluation = self.measure(pending.design, after, before)
+        if not evaluation.measured and pending.failure:
+            evaluation.note = pending.failure
+        return evaluation
+
+    ######################################
     # Measuring what came out
     ######################################
 
@@ -719,6 +910,25 @@ class Evaluator(object):
                 meta = record.get("meta", {}) if isinstance(record, dict) else {}
                 records.setdefault(self.identity(meta), []).append(record)
         return records
+
+    def units(self):
+        """
+        The unit of every metric, as the results files of the tools declare it.
+
+        Read for the export of the campaign (:mod:`odatix.dse.export`): the
+        designs it writes are the ones these files measured, so they are
+        measured in the same units.
+        """
+        units = {}
+        for tool in self.tools:
+            path = self.results_file(tool)
+            if not os.path.isfile(path):
+                continue
+            try:
+                units.update(load_results_file(path).units or {})
+            except Exception:
+                continue
+        return units
 
     def identity(self, meta):
         """
@@ -794,17 +1004,17 @@ class Evaluator(object):
         if len(new) > len(previous):
             new = new[len(previous):]
 
-        metrics = self.best_of(new)
+        metrics, source = self.best_of(new)
         costs = self.objectives.costs(metrics)
         if costs is None:
             missing = [
                 metric for metric in self.objectives.measured_metrics if metrics.get(metric) is None
             ]
             return Evaluation(
-                design, metrics=metrics,
+                design, metrics=metrics, source=source,
                 note="nothing was measured for: {0}".format(", ".join(missing)),
             )
-        return Evaluation(design, metrics=metrics, costs=costs)
+        return Evaluation(design, metrics=metrics, costs=costs, source=source)
 
     def best_of(self, records):
         """
@@ -818,22 +1028,29 @@ class Evaluator(object):
         kept over one that does not, however fast it was. The design is being
         run at ten frequencies to find one that works; keeping the fastest of
         the ones that do not would be answering another question.
+
+        Returns:
+            tuple: the metrics of the best record, and the meta of that record
+            -- which is what the design was actually run as, and is what the
+            exported results say about it (see :mod:`odatix.dse.export`).
         """
         from odatix.dse.objectives import violation_of
 
         best = None
+        best_meta = {}
         best_rank = None
         for record in records:
             metrics = self.metrics_of(record)
+            meta = dict(record.get("meta", {}) or {})
             costs = self.objectives.costs(metrics)
             if costs is None:
                 if best is None:
-                    best = metrics
+                    best, best_meta = metrics, meta
                 continue
             rank = (violation_of(costs), tuple(costs))
             if best_rank is None or rank < best_rank:
-                best, best_rank = metrics, rank
-        return best if best is not None else {}
+                best, best_meta, best_rank = metrics, meta, rank
+        return (best if best is not None else {}), best_meta
 
     @staticmethod
     def metrics_of(record):

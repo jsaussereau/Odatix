@@ -25,7 +25,7 @@ vector, all objectives turned into things to minimize. A strategy never reads a
 metric, a configuration name or a settings file; it proposes places to look and
 is told how they turned out.
 
-Three of them, and the first is the one Odatix already did:
+Four of them, and the first is the one Odatix already did:
 
 - ``exhaustive`` walks the whole space in sweep order. It is here so that a
   full sweep and a search are the same command with a different word in the
@@ -34,6 +34,13 @@ Three of them, and the first is the one Odatix already did:
   beat, and on a space too large to sweep it is already useful on its own.
 - ``genetic`` keeps the designs that turned out well and looks around them. It
   is the one that makes an exploration worth its name.
+- ``bayesian`` fits a model of each objective and chooses what to look at next
+  by how much it is expected to teach the search (see
+  :mod:`odatix.dse.bayesian`). It costs more thinking between two designs than
+  a genetic search does, which is a trade worth making when the designs
+  themselves cost hours -- and, run in a campaign's ``async`` mode, it asks for
+  one design at a time rather than a whole batch, so a single slow synthesis
+  never leaves the rest of the machine idle waiting for it.
 
 Each strategy is handed a random source it does not own, so a campaign given a
 seed runs the same way twice -- which matters when an evaluation costs an hour
@@ -44,58 +51,12 @@ answer.
 import itertools
 
 from odatix.dse.objectives import crowding_distances, non_dominated_sort
+from odatix.dse.strategy import Strategy
 
-__all__ = ["Strategy", "ExhaustiveSearch", "RandomSearch", "GeneticSearch", "STRATEGIES", "strategy_for"]
-
-
-class Strategy(object):
-    """
-    A way of choosing what to evaluate next.
-
-    A campaign asks for a batch, evaluates it, hands the results back, and asks
-    again. A strategy that has nothing left to propose says so, which is how an
-    exhaustive search ends before its budget does.
-
-    Args:
-        space (ArchitectureSpace): what there is to choose from.
-        rng (random.Random): the campaign's random source.
-        **options: what the settings file says about this strategy.
-    """
-
-    #: The word a settings file uses for it.
-    name = ""
-
-    def __init__(self, space, rng, **options):
-        self.space = space
-        self.rng = rng
-        self.options = options
-
-    def propose(self, count):
-        """
-        Up to ``count`` genomes to evaluate next.
-
-        Fewer is allowed -- a campaign fills the gap by asking again after the
-        next batch -- and none means there is nothing left to look at.
-        """
-        raise NotImplementedError
-
-    def observe(self, evaluations):
-        """
-        How the last batch turned out.
-
-        Args:
-            evaluations (list): the :class:`~odatix.dse.evaluation.Evaluation`
-                of the batch, failures included: a design that could not be
-                built is something a search should learn to stay away from.
-        """
-
-    @property
-    def exhausted(self):
-        """Whether the strategy has run out of places to look."""
-        return False
-
-    def __repr__(self):
-        return "<{0} strategy>".format(self.name)
+__all__ = [
+    "Strategy", "ExhaustiveSearch", "RandomSearch", "GeneticSearch", "BayesianSearch",
+    "STRATEGIES", "strategy_for",
+]
 
 
 ######################################
@@ -299,9 +260,12 @@ class GeneticSearch(Strategy):
 # Choosing one
 ######################################
 
+from odatix.dse.bayesian import BayesianSearch  # noqa: E402
+
 #: Every search strategy, by the word a settings file uses for it.
 STRATEGIES = dict(
-    (strategy.name, strategy) for strategy in (ExhaustiveSearch, RandomSearch, GeneticSearch)
+    (strategy.name, strategy)
+    for strategy in (ExhaustiveSearch, RandomSearch, GeneticSearch, BayesianSearch)
 )
 
 #: Other words for the same strategies, so that a settings file may say what it
@@ -314,6 +278,9 @@ STRATEGY_ALIASES = {
     "ga": "genetic",
     "nsga2": "genetic",
     "evolutionary": "genetic",
+    "bo": "bayesian",
+    "mobo": "bayesian",
+    "gp": "bayesian",
 }
 
 

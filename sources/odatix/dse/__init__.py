@@ -50,9 +50,11 @@ Read from the inside out, it is four pieces:
 """
 
 from odatix.dse.archive import Archive
+from odatix.dse.bayesian import BayesianSearch
 from odatix.dse.campaign import Campaign, CampaignError, Exploration
 from odatix.dse.constraints import Constraint, Constraints
 from odatix.dse.evaluation import Evaluation, EvaluationError, Evaluator
+from odatix.dse.gp import GaussianProcess
 from odatix.dse.objectives import (
     Costs,
     Objective,
@@ -74,6 +76,7 @@ from odatix.dse.strategies import STRATEGIES, Strategy, strategy_for
 __all__ = [
     "Archive",
     "ArchitectureSpace",
+    "BayesianSearch",
     "Campaign",
     "CampaignError",
     "Constraint",
@@ -87,6 +90,7 @@ __all__ = [
     "EvaluationError",
     "Evaluator",
     "Exploration",
+    "GaussianProcess",
     "Objective",
     "Objectives",
     "Progress",

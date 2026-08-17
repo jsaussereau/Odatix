@@ -147,6 +147,7 @@ class Campaign(object):
             self.archive_path, self.name, self.objectives,
             strategy=self.strategy.name, space_size=self.space.size(),
             tolerance=self.search.improvement,
+            results_path=self.results_path,
         )
         #: The genomes already proposed, so that no design is ever run twice --
         #: which is what makes a budget mean "this many designs", not "this many
@@ -157,6 +158,10 @@ class Campaign(object):
         #: question its log is opened for.
         self.batch_index = 0
         self.started_at = None
+        #: Designs submitted and not yet finished, in ``async`` mode -- empty
+        #: whenever the campaign runs in ``batch`` mode instead (see
+        #: :meth:`next_wave`).
+        self._pending = []
 
     @property
     def name(self):
@@ -174,6 +179,17 @@ class Campaign(object):
             self.workspace.paths.result_path, "dse", "{0}.yml".format(self.name)
         )
 
+    @property
+    def results_path(self):
+        """
+        Where the designs the campaign evaluated are exported as a results
+        source of their own, next to the results of the tools -- which is what
+        makes them show up in the explorer as something to chart.
+        """
+        from odatix.dse.export import results_path_for
+
+        return results_path_for(self.workspace.paths.result_path, self.name)
+
     ######################################
     # What it would do
     ######################################
@@ -189,6 +205,10 @@ class Campaign(object):
             raise CampaignError(
                 "The exploration has no objective: it cannot tell one design from another. "
                 "Name at least one metric to minimize or to maximize."
+            )
+        if self.search.mode not in ("batch", "async"):
+            raise CampaignError(
+                "Unknown search mode \"{0}\": it is either \"batch\" or \"async\".".format(self.search.mode)
             )
         try:
             self.space.require_choice()
@@ -222,12 +242,21 @@ class Campaign(object):
         """One line saying what this campaign is about to do."""
         return (
             "Exploring \"{0}\": {1} designs, {2} of them evaluated at most, "
-            "{3} at a time, by {4} search.{5}{6}{7}".format(
+            "{3} at a time, by {4} search.{5}{6}{7}{8}".format(
                 self.selection.describe(), self.space.size(), self.budget,
                 self.search.batch, self.strategy.name, self.describe_frequencies(),
-                self.describe_toolchains(), self.describe_simulations(),
+                self.describe_toolchains(), self.describe_simulations(), self.describe_mode(),
             )
             + self.describe_constraints()
+        )
+
+    def describe_mode(self):
+        """Whether the campaign waits for a whole batch, or fills slots as they free up."""
+        if self.search.mode != "async":
+            return ""
+        return (
+            " Runs continuously: a new design starts the moment a slot frees, instead of "
+            "waiting for the rest of the batch."
         )
 
     def describe_constraints(self):
@@ -299,6 +328,11 @@ class Campaign(object):
         evaluated = self.resume()
         idle = 0
         self.progress(evaluated)
+
+        asynchronous = self.search.mode == "async"
+        if asynchronous:
+            self.evaluator.begin_async()
+
         while evaluated < self.budget:
             if self.cancel_event is not None and self.cancel_event.is_set():
                 printc.note("The exploration was cancelled after {0}/{1} design(s).".format(
@@ -306,7 +340,16 @@ class Campaign(object):
                 ), script_name)
                 break
 
-            designs = self.next_batch(min(int(self.search.batch), self.budget - evaluated))
+            started = time.time()
+            try:
+                if asynchronous:
+                    designs, evaluations = self.next_wave(self.budget - evaluated)
+                else:
+                    designs = self.next_batch(min(int(self.search.batch), self.budget - evaluated))
+                    evaluations = None
+            except EvaluationError as error:
+                raise CampaignError(str(error))
+
             if not designs:
                 printc.note(
                     "The search has nothing left to propose after {0} design(s): every design "
@@ -318,18 +361,22 @@ class Campaign(object):
                 break
 
             self.batch_index += 1
-            self.announce(designs, evaluated)
-            started = time.time()
+            if not asynchronous:
+                self.announce(designs, evaluated)
+                try:
+                    evaluations = self.evaluator.evaluate(designs)
+                except EvaluationError as error:
+                    raise CampaignError(str(error))
 
-            try:
-                evaluations = self.evaluator.evaluate(designs)
-            except EvaluationError as error:
-                raise CampaignError(str(error))
+            for evaluation in evaluations:
+                # Which batch found a design is what makes the search readable
+                # afterwards, and it is only known here.
+                evaluation.batch = self.batch_index
 
             self.strategy.observe(evaluations)
             before = self.archive.progress.value
             improved = self.archive.improved_by(evaluations)
-            self.archive.save()
+            self.save()
             evaluated += len(evaluations)
             self.report(evaluations, evaluated, improved, elapsed=time.time() - started,
                         volume_before=before)
@@ -356,8 +403,21 @@ class Campaign(object):
             printc.say("Campaign \"{0}\" ran for {1} over {2} batch(es).".format(
                 self.name, _duration(time.time() - self.started_at), self.batch_index
             ), script_name)
-        self.archive.save()
+        self.save()
         return self.archive
+
+    def save(self):
+        """
+        Write the archive, and the results the explorer reads with it.
+
+        The units come from the results files the batch was measured in, so
+        that a chart of the exported designs labels its axes exactly like a
+        chart of the same designs read from the tool that ran them. An
+        evaluator that measures designs some other way than by reading results
+        files declares none, and the export goes without.
+        """
+        units = getattr(self.evaluator, "units", None)
+        self.archive.save(units=units() if callable(units) else None)
 
     def resume(self):
         """
@@ -426,6 +486,46 @@ class Campaign(object):
                 if len(designs) >= count:
                     break
         return designs
+
+    def next_wave(self, remaining):
+        """
+        ``async`` mode's equivalent of :meth:`next_batch` and evaluating it.
+
+        What "batch" means here is how many designs are kept running at once,
+        not how many are decided between two rounds: designs are topped back
+        up to that many every time one finishes, instead of only once every
+        one of them has. That is the whole difference from ``batch`` mode --
+        a straggler ties up its own slot and nothing else, because the next
+        design is already running next to it rather than waiting on it.
+
+        Args:
+            remaining (int): how many more designs the budget allows for,
+                counting the ones already in flight.
+
+        Returns:
+            tuple: the designs that finished and what they turned out to be
+            worth, in the same order. Both empty means there is nothing left
+            running and nothing left to propose either.
+        """
+        self._top_up(remaining)
+        if not self._pending:
+            return [], []
+
+        finished = self.evaluator.poll(self._pending, cancel_event=self.cancel_event)
+        self.evaluator.derive()
+        evaluations = [self.evaluator.collect(pending) for pending in finished]
+        return [pending.design for pending in finished], evaluations
+
+    def _top_up(self, remaining):
+        """Submit designs until as many are running as the batch size asks for."""
+        depth = min(max(1, int(self.search.batch)), max(0, remaining))
+        while len(self._pending) < depth:
+            designs = self.next_batch(1)
+            if not designs:
+                break
+            design = designs[0]
+            printc.say("  -> {0}{1}".format(design.label, self.describe_values(design)), script_name)
+            self._pending.append(self.evaluator.submit(design))
 
     def describe_objectives(self):
         """What the campaign is looking for, as a user reads it."""

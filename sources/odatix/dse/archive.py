@@ -30,10 +30,13 @@ and is going to be interrupted; what it knew when it stopped has to be on disk.
 
 import os
 
+import odatix.lib.printc as printc
 from odatix.dse.objectives import Progress, pareto_front
 from odatix.workspace.yaml_io import file_header
 
 __all__ = ["Archive"]
+
+script_name = os.path.basename(__file__)
 
 TITLE = "Design space exploration"
 
@@ -63,8 +66,13 @@ class Archive(object):
             :class:`~odatix.dse.objectives.Progress`).
     """
 
-    def __init__(self, path, architecture, objectives, strategy="", space_size=0, tolerance=0.0):
+    def __init__(self, path, architecture, objectives, strategy="", space_size=0, tolerance=0.0,
+                 results_path=None):
         self.path = path
+        #: Where the designs the search evaluated are exported as an ordinary
+        #: Odatix results file, or None to export none (see
+        #: :mod:`odatix.dse.export`).
+        self.results_path = results_path
         self.architecture = architecture
         self.objectives = objectives
         self.strategy = strategy
@@ -95,6 +103,48 @@ class Archive(object):
         """
         measured = self.measured
         return [measured[index] for index in pareto_front([e.costs for e in measured])]
+
+    def history(self):
+        """
+        What the front was worth after each batch.
+
+        This is what makes a campaign readable as a *search* and not only as a
+        list of designs: a front reached in three batches and one reached in
+        thirty are not the same answer, and a curve that went flat ten batches
+        ago says the budget of the next run can be smaller.
+
+        It is recomputed here rather than recorded batch by batch, because the
+        volume is measured against the worst of every objective seen so far
+        (see :class:`~odatix.dse.objectives.Progress`) -- a corner that moves
+        as the search discovers bad designs. Two volumes measured against two
+        different corners do not belong on one curve, so the whole curve is
+        measured again, against the corner known now.
+
+        Returns:
+            list: one entry per batch, in order.
+        """
+        measured = self.measured
+        if not measured:
+            return []
+        self.progress.observe([evaluation.costs for evaluation in measured])
+
+        history = []
+        # Every batch, and not only the ones that measured something: a batch
+        # whose designs all failed to build spent the budget and moved the
+        # front nowhere, which is exactly what a flat point on the curve says.
+        for batch in sorted(set(evaluation.batch for evaluation in self.evaluations)):
+            # Everything known once that batch was done -- so the curve grows
+            # the way the campaign learned, not the way it was written down.
+            so_far = [evaluation for evaluation in measured if evaluation.batch <= batch]
+            costs = [so_far[index].costs for index in pareto_front([e.costs for e in so_far])]
+            history.append({
+                "batch": batch,
+                "evaluated": len([e for e in self.evaluations if e.batch <= batch]),
+                "measured": len(so_far),
+                "front": len(costs),
+                "hypervolume": self.progress.of(costs),
+            })
+        return history
 
     def improved_by(self, evaluations):
         """
@@ -177,7 +227,10 @@ class Archive(object):
                 continue
             metrics = record.get("metrics") or {}
             costs = None if record.get("failed") else objectives.costs(metrics)
-            restored.append(Evaluation(design, metrics=metrics, costs=costs, note=record.get("reason", "")))
+            restored.append(Evaluation(
+                design, metrics=metrics, costs=costs, note=record.get("reason", ""),
+                batch=record.get("batch") or 0, source=record.get("source"),
+            ))
             genomes.append(design.genome)
 
         self.evaluations = restored
@@ -224,13 +277,23 @@ class Archive(object):
             # How far the front reaches, which is what a campaign is trying to
             # grow: two runs of the same exploration are compared by it.
             "hypervolume": self.progress.observe(costs).of(costs),
+            "history": self.history(),
             "front": [self.record(evaluation) for evaluation in front],
             "evaluations": [self.record(evaluation) for evaluation in self.evaluations],
         })
         return written
 
-    def save(self):
-        """Write what is known so far, replacing what was written before it."""
+    def save(self, units=None):
+        """
+        Write what is known so far, replacing what was written before it.
+
+        The designs are exported alongside as an ordinary results source (see
+        :mod:`odatix.dse.export`), so that the explorer charts what the search
+        found without knowing anything about searches. Failing to write it does
+        not fail the campaign: the archive is the record, the export is a
+        convenience, and an exploration that ran for six hours is not thrown
+        away over a results file that could not be written.
+        """
         import yaml
 
         directory = os.path.dirname(self.path)
@@ -239,6 +302,19 @@ class Archive(object):
         with open(self.path, "w") as f:
             f.write(file_header(TITLE) + NOTICE)
             yaml.safe_dump(self.to_dict(), f, default_flow_style=False, sort_keys=False)
+
+        if self.results_path:
+            from odatix.dse.export import export_results
+
+            try:
+                export_results(self, self.results_path, units=units)
+            except Exception as error:
+                printc.warning(
+                    "Could not export the results of the exploration to \"{0}\": {1}".format(
+                        self.results_path, error
+                    ),
+                    script_name,
+                )
         return self
 
     def __len__(self):
