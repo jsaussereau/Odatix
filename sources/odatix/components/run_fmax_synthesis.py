@@ -200,6 +200,7 @@ def check_settings(
     nb_jobs,
     continue_on_error,
     check_eda_tool,
+    selected_targets=None,
     forced_fmax_lower_bound=None,
     forced_fmax_upper_bound=None,
     debug=False,
@@ -233,6 +234,7 @@ def check_settings(
         script_name=script_name,
         synth_type=None,
         flow=flow,
+        selected_targets=selected_targets,
         check_cancel=lambda: _check_cancel(cancel_event),
     )
 
@@ -394,6 +396,7 @@ def start_parallel_jobs(
     start_headless_on_startup=False,
     detach=False,
     session=None,
+    configure=True,
 ):
     start_parallel_jobs_common(
         parallel_jobs=parallel_jobs,
@@ -401,6 +404,7 @@ def start_parallel_jobs(
         start_headless_on_startup=start_headless_on_startup,
         detach=detach,
         session=session,
+        configure=configure,
     )
 
     # # Summary

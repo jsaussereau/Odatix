@@ -478,6 +478,17 @@ class Settings(_SettingsBase):
 # Documents
 ######################################
 
+def _as_comment(text):
+    """
+    A comment, over as many lines as it takes.
+
+    A comment long enough to be written on several lines has to open each of
+    them: what follows a bare newline is read back as YAML, and a settings file
+    that explains itself would stop being a settings file.
+    """
+    return str(text).replace("\n", "\n#")
+
+
 def render(settings, header=None):
     """
     Build a complete YAML document from a settings object, with the section
@@ -504,7 +515,7 @@ def render(settings, header=None):
             data.yaml_set_comment_before_after_key(key, before="\n" + section)
         comment = spec.comment if holds else spec.alt_comment
         if comment:
-            data.yaml_add_eol_comment(comment, key=key)
+            data.yaml_add_eol_comment(_as_comment(comment), key=key)
     for key, value in settings.extra.items():
         data[key] = value
     return data

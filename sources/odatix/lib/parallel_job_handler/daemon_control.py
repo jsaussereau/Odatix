@@ -33,7 +33,6 @@ import urllib.error
 import urllib.request
 
 from odatix.lib.parallel_job_handler.serialization import job_to_payload
-from odatix.lib.parallel_job_handler.job import ParallelJob
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
@@ -526,7 +525,23 @@ def ensure_daemon_running(
     raise DaemonControlError("Could not start Odatix daemon")
 
 
-def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None):
+def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, configure=True):
+    """
+    Hand jobs to a daemon session, starting one when there is none.
+
+    Args:
+        parallel_jobs (ParallelJobHandler): the jobs to enqueue, and how the run
+            that built them wants the daemon configured.
+        workspace_root (str): the workspace they belong to.
+        session (str): the session to enqueue into. A new one is started when
+            none is named.
+        configure (bool): also apply how this run wants the daemon to behave --
+            how many jobs at once, whether the monitor closes by itself. Adding
+            jobs to a session and telling it how to run them are two different
+            things: something enqueueing *into* a session it is already part of
+            (an exploration adding a batch to its own, see odatix.dse) must not
+            reconfigure it under everything else that is running there.
+    """
     job_list = list(getattr(parallel_jobs, "job_list", []) or [])
 
     format_yaml = getattr(parallel_jobs, "format_yaml", None)
@@ -542,19 +557,16 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None):
         daemon_log_enabled=getattr(parallel_jobs, "daemon_log_enabled", None),
     )
 
-    payload = {
-        "jobs": [job_to_payload(job) for job in job_list],
-        "options": {
+    payload = {"jobs": [job_to_payload(job) for job in job_list]}
+    if configure:
+        payload["options"] = {
             "nb_jobs": int(getattr(parallel_jobs, "nb_jobs", 4)),
             "process_group": bool(getattr(parallel_jobs, "process_group", True)),
             "auto_exit": bool(getattr(parallel_jobs, "auto_exit", False)),
             "log_size_limit": int(getattr(parallel_jobs, "log_size_limit", 200)),
-            "progress_pattern": getattr(getattr(ParallelJob, "progress_file_pattern", None), "pattern", None),
-            "status_pattern": getattr(getattr(ParallelJob, "status_file_pattern", None), "pattern", None),
             # Empty string means "disable formatter" (None means "leave unchanged").
             "format_yaml": str(format_yaml) if format_yaml not in (None, "") else "",
-        },
-    }
+        }
 
     response = _api_request(
         _state_base_url(state),

@@ -50,7 +50,7 @@ from odatix.lib.parallel_job_handler.ansi_to_curses import AnsiToCursesConverter
 from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
 from odatix.lib.utils import open_path_in_explorer, find_free_port
 from odatix.lib.parallel_job_handler.theme import Theme
-from odatix.lib.parallel_job_handler.job import ParallelJob
+from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str, read_pipe_windows
 from odatix.lib.parallel_job_handler import curses_ui
 import odatix.lib.hard_settings as hard_settings
@@ -208,6 +208,7 @@ class ParallelJobHandler:
                     {
                         "id": idx,
                         "display_name": job.display_name,
+                        "kind": getattr(job, "kind", JOB_KIND),
                         "status": job.status,
                         "progress": getattr(job, "progress", 0),
                         "directory": job.directory,
@@ -337,12 +338,76 @@ class ParallelJobHandler:
         """
         self.configure_runtime(nb_jobs=max(1, int(nb_jobs)))
 
+    ######################################
+    # What is running, and what counts as running
+    ######################################
+
+    @property
+    def used_slots(self):
+        """
+        How many of the parallel slots are taken.
+
+        Not every running job takes one: a driver runs the run itself and spends
+        its time waiting for the jobs it enqueues (see
+        odatix.lib.parallel_job_handler.job), so counting it would mean running
+        one job less than the user asked for, forever.
+        """
+        return sum(1 for job in self.running_job_list if job.takes_a_slot)
+
+    @property
+    def working_job_list(self):
+        """The running jobs that are work, rather than what asked for it."""
+        return [job for job in self.running_job_list if job.takes_a_slot]
+
+    @property
+    def pinned_job_list(self):
+        """The jobs the monitor keeps in sight, in the order they were added."""
+        return [job for job in self.job_list if job.pinned]
+
+    @property
+    def scrollable_job_list(self):
+        """The jobs the monitor scrolls through."""
+        return [job for job in self.job_list if not job.pinned]
+
+    @property
+    def scrollable_count(self):
+        return sum(1 for job in self.job_list if not job.pinned)
+
+    def visible_jobs(self, rows=None):
+        """
+        What the monitor shows, as (index in job_list, job) pairs: the pinned
+        jobs first, always, then the scrolled window over the others.
+
+        Args:
+            rows (int): how many rows there is room for. The window already
+                worked out by job_index_start/job_index_end when not given.
+        """
+        indexed = list(enumerate(self.job_list))
+        pinned = [pair for pair in indexed if pair[1].pinned]
+        scrollable = [pair for pair in indexed if not pair[1].pinned]
+
+        if rows is None:
+            rows = max(0, int(self.job_index_end) - int(self.job_index_start))
+        room = max(0, int(rows) - len(pinned))
+        start = max(0, int(self.job_index_start))
+        return pinned + scrollable[start:start + room]
+
+    def scroll_position(self, job_index):
+        """
+        Where a job sits in what the monitor scrolls through, or None when it is
+        pinned and therefore always in sight.
+        """
+        job_index = int(job_index)
+        if job_index < 0 or job_index >= len(self.job_list) or self.job_list[job_index].pinned:
+            return None
+        return sum(1 for job in self.job_list[:job_index] if not job.pinned)
+
     def _fill_running_slots_from_queue_unlocked(self):
-        while len(self.running_job_list) < self.nb_jobs and not self.job_queue.empty():
+        while self.used_slots < self.nb_jobs and not self.job_queue.empty():
             self.start_job(self.job_queue.get())
 
     def _schedule_new_job_unlocked(self, job):
-        if len(self.running_job_list) < self.nb_jobs:
+        if not job.takes_a_slot or self.used_slots < self.nb_jobs:
             self.start_job(job)
         else:
             self.queue_job(job)
@@ -715,10 +780,16 @@ class ParallelJobHandler:
             printc.error("Post-batch action '" + kind + "' failed: " + str(e), script_name)
 
     def _run_post_batch_action_if_drained(self):
-        """Run the batch-wide action when no job is running or waiting anymore."""
+        """
+        Run the batch-wide action when no job is running or waiting anymore.
+
+        A driver is not work: an exploration running its own search would keep
+        the session from ever looking drained, and the results of every batch it
+        already ran would wait for the whole exploration to be over.
+        """
         if self._post_batch_done or not isinstance(self.post_batch_action, dict):
             return
-        if len(self.running_job_list) > 0 or not self.job_queue.empty():
+        if len(self.working_job_list) > 0 or not self.job_queue.empty():
             return
         self._post_batch_done = True
         self._run_post_batch_action()

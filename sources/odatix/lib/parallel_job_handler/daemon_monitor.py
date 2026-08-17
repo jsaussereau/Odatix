@@ -31,7 +31,7 @@ import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import curses_ui
 from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
-from odatix.lib.parallel_job_handler.job import ParallelJob
+from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
 from odatix.lib.utils import open_path_in_explorer
 
 
@@ -198,6 +198,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
 
     def _sync_job_from_remote(self, job, remote_job, now):
         job.display_name = str(remote_job.get("display_name", job.display_name))
+        job.kind = str(remote_job.get("kind", getattr(job, "kind", JOB_KIND)) or JOB_KIND)
         job.status = str(remote_job.get("status", job.status))
         job.progress = int(round(float(remote_job.get("progress", getattr(job, "progress", 0)))))
         job.progress = max(0, min(100, job.progress))

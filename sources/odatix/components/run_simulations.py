@@ -554,6 +554,7 @@ def start_parallel_jobs(
     start_headless_on_startup=False,
     detach=False,
     session=None,
+    configure=True,
 ):
     start_parallel_jobs_common(
         parallel_jobs=parallel_jobs,
@@ -561,6 +562,7 @@ def start_parallel_jobs(
         start_headless_on_startup=start_headless_on_startup,
         detach=detach,
         session=session,
+        configure=configure,
     )
 
 ######################################

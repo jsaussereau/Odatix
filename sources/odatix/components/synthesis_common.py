@@ -24,6 +24,41 @@ import odatix.lib.job_steps as job_steps
 import odatix.lib.constraint_files as constraint_files
 
 
+def restrict_targets(targets, selected, tool, eda_target_filename, script_name=""):
+    """
+    The targets a run works on, once it has been told which ones it wants.
+
+    A target file is where targets are turned on and off, and a run has always
+    taken every target it enables. Being told a subset is what lets something
+    else choose the target of a job without editing that file underneath the
+    other runs sharing it -- an exploration searching the targets, typically,
+    which runs one target at a time and must not have the file mean different
+    things at different moments.
+
+    Args:
+        targets (list): what the target file enables.
+        selected (list): the targets the run was told to keep, empty or None to
+            keep all of them.
+
+    Returns:
+        list: the targets to run on, in the order the target file names them.
+    """
+    wanted = [str(name).strip() for name in (selected or []) if str(name).strip()]
+    if not wanted:
+        return targets
+
+    kept = [target for target in targets if str(target) in wanted]
+    missing = [name for name in wanted if name not in [str(target) for target in targets]]
+    if missing:
+        printc.error(
+            'Target(s) "' + '", "'.join(missing) + '" are not enabled for the eda tool "' + tool + '"',
+            script_name,
+        )
+        printc.note('Enabled targets in "' + eda_target_filename + '" are: ' + ", ".join(str(t) for t in targets), script_name)
+        raise SystemExit(-1)
+    return kept
+
+
 def load_synthesis_context(
     run_config_settings_filename,
     arch_path,
@@ -44,6 +79,7 @@ def load_synthesis_context(
     settings_reader=None,
     selection_key="architectures",
     selection_noun="architectures",
+    selected_targets=None,
 ):
     if check_cancel is not None:
         check_cancel()
@@ -128,6 +164,8 @@ def load_synthesis_context(
             constraint_file = read_from_list("constraint_file", settings_data, eda_target_filename, script_name=script_name)
         except (KeyNotInListError, BadValueInListError):
             raise SystemExit(-1)
+
+        targets = restrict_targets(targets, selected_targets, tool, eda_target_filename, script_name=script_name)
 
         try:
             install_path = read_from_list(

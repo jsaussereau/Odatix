@@ -279,21 +279,54 @@ class ConfigGenerator:
       final_configs[point.name] = point.content
     return final_configs, all_vars_values
 
-  def generate_points(self):
+  def dimensions(self):
     """
-    Every point of the space, in generation order.
+    The axes of the space: what a point is free to choose, and what it may
+    choose there.
 
-    Same combinations as :meth:`generate`, but each one is kept whole: the
-    values the variables were assigned, not only the name and the text they
-    were rendered into. That assignment is what names a point for a search
-    that picks its points one by one, instead of enumerating them all.
+    The cross product is not taken over the variables but over *groups* of
+    them, because variables sharing a "group" move together -- their values are
+    matched position by position rather than combined. An axis is therefore a
+    list of rows, each row an assignment of the variables of that group::
+
+        [
+          {"variables": ["width"],           "rows": [{"width": 8}, {"width": 16}]},
+          {"variables": ["mant", "exp"],     "rows": [{"mant": 23, "exp": 8}, ...]},
+        ]
+
+    Choosing one row per axis and merging them gives exactly the assignments
+    :meth:`generate_points` walks through, so an exhaustive sweep is the search
+    that takes every combination of the axes, and any other search is the same
+    thing choosing fewer. The derived variables are left out: they are computed
+    from a choice (see :meth:`derive_point`), not chosen.
 
     Returns:
-        list: the :class:`GeneratedPoint` of the space, in generation order.
-        dict: the values of each variable, as :meth:`generate` returns them.
+        list: the axes, in declaration order. Empty when the rules describe no
+        space at all.
+    """
+    rows_per_group, _dimension_vars, _source_vars, valid = self._dimension_rows()
+    if not valid:
+      return []
+    return [
+      {"variables": list(rows[0].keys()) if rows else [], "rows": rows}
+      for rows in rows_per_group
+    ]
+
+  def _dimension_rows(self):
+    """
+    The axes of the space, with what building them found out.
+
+    Split out of :meth:`generate_points` so that a search can be handed the
+    axes without walking every point of their cross product -- which is the
+    whole of the difference between exploring a space and enumerating it.
+
+    Returns:
+        tuple: the rows of each axis, the values of the dimension variables,
+        the values of the variables used only as sources of a set operation,
+        and whether the rules could be read at all.
     """
     if not self.valid or not self.enabled:
-      return [], {}
+      return [], {}, {}, False
 
     sources_used = set()
     for variable, config in self.variables.items():
@@ -301,15 +334,15 @@ class ConfigGenerator:
       if value_type in modification_types:
         settings, settings_defined = get_from_dict("settings", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
         if not settings_defined:
-          return {}, {}
+          return [], {}, {}, False
         sources, sources_defined = get_from_dict("sources", settings, self.yaml_file, parent=f"{variable}[settings]", behavior=Key.MANTADORY, type=list, script_name=script_name)
         if not sources_defined:
-          return {}, {}
+          return [], {}, {}, False
         for source in sources:
           sources_used.add(source)
       elif value_type not in dimension_types and value_type not in combo_types:
         printc.error(f'Invalid type \"{value_type}\" for variable "{variable}", in ' + self.yaml_file + '".', script_name)
-        return {}, {}
+        return [], {}, {}, False
 
     dimension_vars = {}
     source_dim_vars = {}  # dimension variables used only as union/intersection/etc. sources:
@@ -384,6 +417,25 @@ class ConfigGenerator:
       # a singleton group), turned into a {variable: value} row.
       rows = [dict(zip(members, combo)) for combo in zip(*member_values)]
       group_row_lists.append(rows)
+
+    return group_row_lists, dimension_vars, source_dim_vars, True
+
+  def generate_points(self):
+    """
+    Every point of the space, in generation order.
+
+    Same combinations as :meth:`generate`, but each one is kept whole: the
+    values the variables were assigned, not only the name and the text they
+    were rendered into. That assignment is what names a point for a search
+    that picks its points one by one, instead of enumerating them all.
+
+    Returns:
+        list: the :class:`GeneratedPoint` of the space, in generation order.
+        dict: the values of each variable, as :meth:`generate` returns them.
+    """
+    group_row_lists, dimension_vars, source_dim_vars, valid = self._dimension_rows()
+    if not valid:
+      return [], {}
 
     points = []
     computed_values = {}  # per-variable sets of values computed by function/format/conversion

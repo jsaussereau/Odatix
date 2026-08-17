@@ -64,6 +64,7 @@ __all__ = [
     "DuplicateNameError",
     "ResolvedConfig",
     "Manifest",
+    "Axis",
     "ParameterSpace",
     "ConfigSet",
     "config_set_rules",
@@ -301,6 +302,39 @@ class Manifest(object):
 # Parameter space
 ######################################
 
+class Axis(object):
+    """
+    One free choice of a parameter space.
+
+    Usually one variable and the values it takes. Variables declared with the
+    same ``group`` share an axis instead of having one each: they are chosen
+    together, position by position, so a "couple" of parameters stays paired
+    whichever way the space is explored. An axis is therefore a list of rows,
+    each row an assignment of the variables it holds.
+    """
+
+    __slots__ = ("variables", "rows")
+
+    def __init__(self, variables, rows):
+        self.variables = [str(name) for name in variables]
+        self.rows = [dict(row) for row in rows]
+
+    @property
+    def label(self):
+        """How the axis is named to a user: its variables, paired ones joined."""
+        return " + ".join(self.variables)
+
+    def values_of(self, variable):
+        """The values one variable of this axis takes, in order."""
+        return [row[variable] for row in self.rows if variable in row]
+
+    def __len__(self):
+        return len(self.rows)
+
+    def __repr__(self):
+        return "<Axis {0} ({1} values)>".format(self.label, len(self.rows))
+
+
 class ParameterSpace(object):
     """
     The variables of a domain, and the points they stand for.
@@ -408,6 +442,55 @@ class ParameterSpace(object):
             return None
         point = self.generator.derive_point(assignment)
         return None if point is not None and point.name in self.blacklist else point
+
+    def axes(self):
+        """
+        What a point of this space is free to choose, and what it may choose
+        there (see :meth:`ConfigGenerator.dimensions`).
+
+        An axis is a *group* of variables rather than a single one, because
+        variables declared with the same ``group`` move together. Choosing one
+        row per axis is choosing a point, and taking every combination of the
+        axes is exactly what :meth:`points` enumerates -- which is what makes an
+        exhaustive sweep one search strategy among others rather than a
+        different mechanism.
+
+        Returns:
+            list: the :class:`Axis` of the space, in declaration order. Empty
+            when the rules describe no space.
+        """
+        if not self.valid:
+            return []
+        return [Axis(axis["variables"], axis["rows"]) for axis in self.generator.dimensions()]
+
+    def size(self):
+        """
+        How many points the axes stand for, counted rather than enumerated.
+
+        This is what a budget is compared against: a space of ten million
+        points is counted in the time it takes to multiply a few numbers, and
+        that number is precisely the reason not to sweep it.
+        """
+        total = 1
+        for axis in self.axes():
+            total *= len(axis)
+        return total
+
+    def assignment(self, choice):
+        """
+        The assignment a choice of one row per axis stands for.
+
+        Args:
+            choice (sequence): the index of the chosen row on each axis, in the
+                order :meth:`axes` returns them.
+
+        Returns:
+            dict: the value of each dimension variable, ready for :meth:`point`.
+        """
+        assignment = {}
+        for axis, index in zip(self.axes(), choice):
+            assignment.update(axis.rows[index % len(axis)])
+        return assignment
 
     def values(self):
         """

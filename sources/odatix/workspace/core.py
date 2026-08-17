@@ -73,6 +73,7 @@ PATH_SETTINGS = (
     ("pnr_settings_file", "DEFAULT_PNR_SETTINGS_FILE"),
     ("analysis_settings_file", "DEFAULT_ANALYSIS_SETTINGS_FILE"),
     ("workflow_settings_file", "DEFAULT_WORKFLOW_SETTINGS_FILE"),
+    ("dse_settings_file", "DEFAULT_DSE_SETTINGS_FILE"),
     ("derived_metrics_file", "DEFAULT_DERIVED_METRICS_FILE"),
 )
 

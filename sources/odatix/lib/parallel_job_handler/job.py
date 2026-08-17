@@ -27,6 +27,32 @@ import signal
 
 import odatix.lib.printc as printc
 
+#: What a job is, for the daemon.
+#:
+#: A "job" is the ordinary kind: it runs one thing, it takes one of the parallel
+#: slots, and the daemon is done when there is none left running.
+#:
+#: A "driver" is a job that runs *the run itself* -- an exploration deciding
+#: what to synthesize next (see odatix.dse) is one. It waits far more than it
+#: works, so it takes no slot, it is shown apart at the top of the monitor
+#: rather than scrolling with the others, and the work it is waiting for is
+#: the jobs it enqueues itself.
+JOB_KIND = "job"
+DRIVER_KIND = "driver"
+
+
+def _compiled(pattern):
+    """A pattern as a compiled regex, from whichever of the two it is given."""
+    if pattern is None or pattern == "":
+        return None
+    if hasattr(pattern, "search"):
+        return pattern
+    try:
+        return re.compile(str(pattern))
+    except re.error:
+        return None
+
+
 class ParallelJob:
     status_file_pattern = re.compile(r"(.*)")
     progress_file_pattern = re.compile(r"(.*)")
@@ -47,6 +73,9 @@ class ParallelJob:
         log_size_limit,
         progress_mode="default",
         status="not started",
+        kind=JOB_KIND,
+        progress_pattern=None,
+        status_pattern=None,
     ):
         self.process = process
         self.command = command
@@ -62,6 +91,9 @@ class ParallelJob:
         self.log_size_limit = log_size_limit
         self.progress_mode = progress_mode
         self.status = status
+        self.kind = str(kind or JOB_KIND)
+        self.progress_pattern = _compiled(progress_pattern)
+        self.status_pattern = _compiled(status_pattern)
 
         self.log_history = []
         self.log_position = 0
@@ -73,8 +105,62 @@ class ParallelJob:
 
     @staticmethod
     def set_patterns(progress_file_pattern, status_file_pattern=None):
+        """
+        The patterns jobs read their progress with, for the jobs that do not
+        carry their own.
+
+        A command sets them once for everything it is about to run, which is
+        what every "odatix run" does. It is only a default: a job created while
+        they were set keeps them (see :meth:`patterns`), so a daemon running the
+        jobs of two commands at once does not read the progress of one with the
+        pattern of the other.
+        """
         ParallelJob.status_file_pattern = status_file_pattern
         ParallelJob.progress_file_pattern = progress_file_pattern
+
+    def patterns(self):
+        """
+        The (progress, status) patterns this job reports its progress with: its
+        own, and what is set globally for whatever it does not say.
+        """
+        progress = self.progress_pattern
+        status = self.status_pattern
+        if progress is None:
+            progress = ParallelJob.progress_file_pattern
+        if status is None:
+            status = ParallelJob.status_file_pattern
+        return progress, status
+
+    def adopt_current_patterns(self):
+        """
+        Freeze the patterns in effect right now onto this job, so that they
+        travel with it and stay its own once it is handed to the daemon.
+        """
+        self.progress_pattern, self.status_pattern = self.patterns()
+        return self
+
+    ######################################
+    # What kind of job it is
+    ######################################
+
+    @property
+    def is_driver(self):
+        """Whether this job is what runs a run (see :data:`DRIVER_KIND`)."""
+        return self.kind == DRIVER_KIND
+
+    @property
+    def takes_a_slot(self):
+        """
+        Whether this job counts against the number of jobs allowed to run at
+        once. A driver spends its time waiting for the jobs it enqueues; making
+        it take a slot would mean running one less of them.
+        """
+        return not self.is_driver
+
+    @property
+    def pinned(self):
+        """Whether the monitor keeps this job in sight instead of scrolling it."""
+        return self.is_driver
 
     @staticmethod
     def _extract_int_from_pattern(content, pattern, default_group_index=1):
@@ -264,12 +350,13 @@ class ParallelJob:
         if self.progress_mode == "fmax":
             return self.get_progress_fmax()
 
+        progress_pattern, _status_pattern = self.patterns()
         progress = 0
         content = self._read_status_file(self.progress_file)
         if content is not None:
             parsed_progress = ParallelJob._extract_int_from_pattern(
                 content,
-                ParallelJob.progress_file_pattern,
+                progress_pattern,
                 default_group_index=1,
             )
             if parsed_progress is not None:
@@ -279,13 +366,15 @@ class ParallelJob:
         return self._scale_to_run(progress)
 
     def get_progress_fmax(self):
+        progress_pattern, status_pattern = self.patterns()
+
         # Get progress from status file
         fmax_progress = 0
         fmax_step = 1
         fmax_totalstep = 1
         content = self._read_status_file(self.status_file)
         if content is not None:
-            parsed_fmax_status = ParallelJob._extract_fmax_status(content, ParallelJob.status_file_pattern)
+            parsed_fmax_status = ParallelJob._extract_fmax_status(content, status_pattern)
             if parsed_fmax_status is not None:
                 fmax_progress, fmax_step, fmax_totalstep = parsed_fmax_status
 
@@ -295,7 +384,7 @@ class ParallelJob:
         if content is not None:
             parsed_synth_progress = ParallelJob._extract_int_from_pattern(
                 content,
-                ParallelJob.progress_file_pattern,
+                progress_pattern,
                 default_group_index=1,
             )
             if parsed_synth_progress is not None:

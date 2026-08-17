@@ -416,13 +416,18 @@ def start_parallel_jobs(
     start_headless_on_startup=False,
     detach=False,
     session=None,
+    configure=True,
 ):
     """Enqueue jobs into the background daemon, then optionally attach monitor.
+
+    `configure` also applies how this run wants the daemon to behave; a run that
+    is itself running inside the session it enqueues into leaves it alone (see
+    enqueue_parallel_jobs).
 
     The `use_api` and `start_headless_on_startup` arguments are kept for
     backward compatibility with older call sites.
     """
-    _state, _response = enqueue_parallel_jobs(parallel_jobs, session=session)
+    _state, _response = enqueue_parallel_jobs(parallel_jobs, session=session, configure=configure)
     if not detach:
         attach_monitor(
             host=_state.get("host", hard_settings.daemon_default_host),

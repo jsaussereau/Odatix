@@ -21,7 +21,7 @@
 
 """Serialization helpers for transporting ParallelJob objects over JSON."""
 
-from odatix.lib.parallel_job_handler.job import ParallelJob
+from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
 
 
 def _task_name(task):
@@ -145,6 +145,10 @@ def job_to_payload(job):
     if not isinstance(step_tracking, dict):
         step_tracking = None
 
+    # A job reports its progress with the patterns of the command that built it,
+    # whatever the daemon is running besides it: they travel with the job.
+    progress_pattern, status_pattern = job.patterns()
+
     return {
         "command": serialize_command(job.command),
         "directory": str(job.directory),
@@ -158,6 +162,9 @@ def job_to_payload(job):
         "tmp_dir": str(job.tmp_dir or "."),
         "log_size_limit": int(getattr(job, "log_size_limit", 200)),
         "progress_mode": str(getattr(job, "progress_mode", "default")),
+        "kind": str(getattr(job, "kind", JOB_KIND)),
+        "progress_pattern": getattr(progress_pattern, "pattern", None),
+        "status_pattern": getattr(status_pattern, "pattern", None),
         "post_run_export": post_run_export,
         # Step pipeline bookkeeping (see odatix.lib.job_steps); absent for jobs
         # that are not split into steps.
@@ -190,6 +197,9 @@ def payload_to_job(payload, default_log_size_limit=200):
         tmp_dir=str(payload.get("tmp_dir", ".")),
         log_size_limit=int(log_size_limit),
         progress_mode=str(payload.get("progress_mode", "default")),
+        kind=str(payload.get("kind", JOB_KIND) or JOB_KIND),
+        progress_pattern=payload.get("progress_pattern"),
+        status_pattern=payload.get("status_pattern"),
         status="idle",
     )
 

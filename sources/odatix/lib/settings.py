@@ -112,6 +112,7 @@ class OdatixSettings:
     DEFAULT_PNR_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "pnr_settings.yml")
     DEFAULT_ANALYSIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "analysis_settings.yml")
     DEFAULT_WORKFLOW_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "workflow_settings.yml")
+    DEFAULT_DSE_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "dse_settings.yml")
     DEFAULT_DERIVED_METRICS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "derived_metrics.yml")
 
     odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
@@ -264,6 +265,7 @@ class OdatixSettings:
         self.pnr_settings_file, _ = get_from_dict("pnr_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_PNR_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.analysis_settings_file, _ = get_from_dict("analysis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.workflow_settings_file, _ = get_from_dict("workflow_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE , silent=silent, script_name=script_name)
+        self.dse_settings_file, _ = get_from_dict("dse_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_DSE_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.derived_metrics_file, _ = get_from_dict("derived_metrics_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_DERIVED_METRICS_FILE , silent=silent, script_name=script_name)
 
         # Depreciation warnings

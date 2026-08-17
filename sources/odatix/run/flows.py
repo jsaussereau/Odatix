@@ -104,7 +104,12 @@ class Flow(object):
         if start is None:
             from odatix.components.run_common import start_parallel_jobs as start
 
-        start(parallel_jobs, detach=run.options.detach, session=run.options.session)
+        start(
+            parallel_jobs,
+            detach=run.options.detach,
+            session=run.options.session,
+            configure=run.options.configure_session,
+        )
 
     ######################################
     # Reading what a step returned
@@ -153,6 +158,7 @@ class SynthesisFlow(Flow):
             rerun_from_step=options.rerun_from,
             work_path=run.work_path,
             target_path=run.path("target_path"),
+            selected_targets=options.targets,
             overwrite=options.overwrite,
             noask=options.noask,
             exit_when_done=options.exit_when_done,

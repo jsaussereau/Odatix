@@ -186,6 +186,7 @@ def check_settings(
     log_size_limit,
     nb_jobs,
     check_eda_tool,
+    selected_targets=None,
     custom_freq_list=None,
     debug=False,
     keep=False,
@@ -228,6 +229,7 @@ def check_settings(
         script_name=script_name,
         synth_type="custom_freq_synthesis",
         flow=flow,
+        selected_targets=selected_targets,
         check_cancel=lambda: _check_cancel(cancel_event),
     )
 
@@ -389,6 +391,7 @@ def start_parallel_jobs(
     start_headless_on_startup=False,
     detach=False,
     session=None,
+    configure=True,
 ):
     start_parallel_jobs_common(
         parallel_jobs=parallel_jobs,
@@ -396,6 +399,7 @@ def start_parallel_jobs(
         start_headless_on_startup=start_headless_on_startup,
         detach=detach,
         session=session,
+        configure=configure,
     )
 
 ######################################

@@ -49,6 +49,16 @@ class RunOptions(Settings):
     # them as a list.
     tool = Setting("", type="any", doc="EDA tool the jobs run with, or the tools an analysis runs.")
     flow = Setting(None, type="any", doc="Flow of that tool. Its default flow when unset.")
+    # Which of the targets the tool's target file enables this run actually uses.
+    # Empty means all of them, which is what a run has always done: the target
+    # file is where targets are turned on and off. It is only when something
+    # else chooses one target at a time -- an exploration searching the targets,
+    # typically -- that a run has to be told a subset without the file changing
+    # under the other runs sharing it.
+    targets = Setting(
+        factory=list, type="str_list",
+        doc="Synthesis targets to run on, out of those the tool's target file enables. All of them when empty.",
+    )
     until = Setting(None, type="any", doc="Last step of the flow to run, inclusive.")
     rerun_from = Setting(None, type="any", doc="Step to run again, with the ones after it.")
 
@@ -78,6 +88,14 @@ class RunOptions(Settings):
     exit_when_done = Setting(False, type="bool", doc="Close the monitor once every job is done.")
     detach = Setting(True, type="bool", doc="Hand the jobs over to the daemon without attaching a monitor.")
     session = Setting(None, type="any", doc="Daemon session to enqueue into.")
+    configure_session = Setting(
+        True, type="bool",
+        doc=(
+            "Apply how this run wants the daemon to behave, on top of enqueueing its jobs. "
+            "A run that is itself a job of the session it enqueues into (see odatix.dse) "
+            "leaves it as it found it."
+        ),
+    )
     debug = Setting(False, type="bool", doc="Report what reading the settings files finds.")
     check_eda_tool = Setting(True, type="bool", doc="Check the eda tool actually runs before using it.")
     continue_on_error = Setting(False, type="bool", doc="Keep going when a job fails.")

@@ -43,11 +43,9 @@ Server->client messages (JSON):
 
 import asyncio
 import importlib
-import re
 from typing import Any, Dict, Optional, Set
 
 from odatix.lib.parallel_job_handler.serialization import payload_to_job
-from odatix.lib.parallel_job_handler.job import ParallelJob
 import odatix.lib.hard_settings as hard_settings
 
 
@@ -193,6 +191,11 @@ def create_parallel_job_app(
         if not isinstance(payload, dict):
             raise ValueError("payload must be a JSON object")
 
+        # Configuring the session and adding jobs to it are two different
+        # things: a caller that only wants its jobs run sends no options, and
+        # what the session was told before it stands (see enqueue_parallel_jobs).
+        # How a job reports its progress is the job's own business and travels
+        # with it, so nothing global is set here.
         options = payload.get("options")
         if isinstance(options, dict):
             handler.configure_runtime(
@@ -202,17 +205,6 @@ def create_parallel_job_app(
                 log_size_limit=options.get("log_size_limit"),
                 format_yaml=options.get("format_yaml"),
             )
-
-            progress_pattern = options.get("progress_pattern")
-            status_pattern = options.get("status_pattern")
-            if progress_pattern is not None:
-                try:
-                    compiled_progress = re.compile(str(progress_pattern))
-                    compiled_status = re.compile(str(status_pattern)) if status_pattern else None
-                    ParallelJob.set_patterns(compiled_progress, compiled_status)
-                except Exception:
-                    # Keep daemon alive even if a malformed pattern is sent.
-                    pass
 
         jobs_data = payload.get("jobs")
         if not isinstance(jobs_data, list):

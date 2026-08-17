@@ -36,6 +36,7 @@ import odatix.components.run_custom_synthesis as run_custom_synthesis_module
 import odatix.components.run_pnr as run_pnr_cmd
 import odatix.components.run_analysis as analyze
 import odatix.components.run_workflow as run_workflow
+import odatix.components.run_dse as run_dse
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
 import odatix.components.export_simulation_results as exp_sim_res
@@ -134,6 +135,11 @@ class ArgParser:
     run_workflow.add_arguments(ArgParser.workflow_parser)
     ArgParser.workflow_parser.add_argument('-e', '--noexport', action='store_true', help='do not export workflow results after workflow execution')
     ArgParser.add_nobanner(ArgParser.workflow_parser)
+
+    # Define parser for the 'dse' command
+    ArgParser.dse_parser = subparsers.add_parser("dse", aliases=["explore"], help="explore a design space instead of sweeping it", formatter_class=formatter)
+    run_dse.add_arguments(ArgParser.dse_parser)
+    ArgParser.add_nobanner(ArgParser.dse_parser)
 
     # Define parser for the 'monitor' command
     ArgParser.monitor_parser = subparsers.add_parser("monitor", help="attach to background daemon monitor", formatter_class=formatter)
@@ -363,6 +369,18 @@ def run_fmax_synthesis(args):
   success = True
   try:
     run_synth.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
+def run_exploration(args):
+  success = True
+  try:
+    run_dse.main(args)
   except SystemExit as e:
     if e.code != EXIT_SUCCESS:
       success = False
@@ -673,6 +691,8 @@ def main(args=None):
     success = run_place_and_route(args)
   elif args.command == "analyze":
     success = run_analysis(args)
+  elif args.command in ("dse", "explore"):
+    success = run_exploration(args)
   elif args.command == "results":
     success = export_all_results(args)
   elif args.command in "res_benchmark":

@@ -58,7 +58,8 @@ def _visible_text_len(text):
     return len(ANSI_ESCAPE_RE.sub("", str(text)))
 
 
-def progress_bar(handler, window, id, progress, elapsed_time, title, title_size, width, status="", selected=False):
+def progress_bar(handler, window, id, progress, elapsed_time, title, title_size, width, status="",
+                 selected=False, real_id=None):
     reserved_space = handler.theme.get('reserved_space')
     spacer = handler.theme.get('spacer')
     ellipsis = handler.theme.get('ellipsis')
@@ -85,7 +86,8 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
 
     bar_length = int(bar_width * progress / 100.0)
 
-    real_id = handler.job_index_start + id
+    if real_id is None:
+        real_id = handler.job_index_start + id
 
     try:
         if real_id == handler.selected_job_index and handler.theme.get('selected_reverse') and handler.job_count > 1:
@@ -211,19 +213,22 @@ def update_header(handler, header_win, active_jobs_count, retired_jobs_count, to
 
 
 def update_progress_window(handler, progress_win):
-    _, width = progress_win.getmaxyx()
+    rows, width = progress_win.getmaxyx()
     if handler.showing_help:
         progress_win.attron(curses.A_DIM)
 
     progress_win.erase()
 
-    for id, job in enumerate(handler.job_list[handler.job_index_start:handler.job_index_end]):
-        selected = (handler.selected_job_index == handler.job_index_start + id)
+    # The pinned jobs come first and never scroll away: what runs a run is what
+    # tells the rest of the list what it is doing there.
+    for id, (real_id, job) in enumerate(handler.visible_jobs(rows=rows)):
+        selected = (handler.selected_job_index == real_id)
         elapsed_time = get_elapsed_time_str(job.start_time, job.stop_time)
         try:
             progress_bar(
                 handler=handler,
                 id=id,
+                real_id=real_id,
                 window=progress_win,
                 progress=job.progress,
                 elapsed_time=elapsed_time,
@@ -595,9 +600,10 @@ def update_help_popup(popup_win, popup_width, popup_height):
 def click_on_job(handler, progress_win, y, x):
     if progress_win.enclose(y, x):
         relative_y = y - progress_win.getbegyx()[0]
-        job_index = handler.job_index_start + relative_y
-        if 0 <= job_index < len(handler.job_list):
-            return job_index
+        rows = progress_win.getmaxyx()[0]
+        visible = handler.visible_jobs(rows=rows)
+        if 0 <= relative_y < len(visible):
+            return visible[relative_y][0]
     return -1
 
 
@@ -655,15 +661,22 @@ def curses_main(handler, stdscr):
     def _clamp_progress_height(desired_height, screen_height):
         return max(1, min(int(desired_height), _max_progress_height(screen_height), handler.job_count))
 
+    def scroll_room():
+        """How many rows are left for the jobs that scroll, once the pinned ones are drawn."""
+        return max(1, progress_height - len(handler.pinned_job_list))
+
     def sync_progress_indices():
-        if handler.job_count <= 0:
+        # The window scrolls over the jobs that are not pinned: the pinned ones
+        # are drawn above it, whatever it is showing (see visible_jobs).
+        scrollable = handler.scrollable_count
+        if scrollable <= 0:
             handler.job_index_start = 0
             handler.job_index_end = 0
             return
 
-        max_start = max(0, handler.job_count - 1)
+        max_start = max(0, scrollable - 1)
         handler.job_index_start = max(0, min(handler.job_index_start, max_start))
-        handler.job_index_end = min(handler.job_count, handler.job_index_start + progress_height)
+        handler.job_index_end = min(scrollable, handler.job_index_start + scroll_room())
         if handler.job_index_end <= handler.job_index_start:
             handler.job_index_end = handler.job_index_start + 1
 
@@ -821,14 +834,14 @@ def curses_main(handler, stdscr):
                     update_logs(handler, logs_win, selected_job, logs_height, width)
 
             update_progress_window(handler, progress_win)
-            update_separator(handler, separator_middle_win, handler.job_count, handler.job_index_end, width)
+            update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
         elif not help_static_drawn:
             # Draw a single dimmed snapshot behind the popup, then keep it stable
             # while help is open to avoid flicker from continuous progress redraws.
             update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
             update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
             update_progress_window(handler, progress_win)
-            update_separator(handler, separator_middle_win, handler.job_count, handler.job_index_end, width)
+            update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
             update_logs(handler, logs_win, selected_job, logs_height, width)
             help_static_drawn = True
 
@@ -857,7 +870,7 @@ def curses_main(handler, stdscr):
                 update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
                 update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
                 update_progress_window(handler, progress_win)
-                update_separator(handler, separator_middle_win, handler.job_count, handler.job_index_end, width)
+                update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
                 try:
@@ -921,8 +934,20 @@ def curses_main(handler, stdscr):
                 sync_progress_indices()
 
         def scroll_down_progress():
-            if handler.job_index_end < handler.job_count:
+            if handler.job_index_end < handler.scrollable_count:
                 handler.job_index_start += 1
+                sync_progress_indices()
+
+        def scroll_to_selected():
+            """Bring the selected job into the window, if it is one that scrolls."""
+            position = handler.scroll_position(handler.selected_job_index)
+            if position is None:
+                return
+            if position < handler.job_index_start:
+                handler.job_index_start = position
+                sync_progress_indices()
+            elif position >= handler.job_index_end:
+                handler.job_index_start = position - scroll_room() + 1
                 sync_progress_indices()
 
         if not handler.showing_help:
@@ -963,7 +988,7 @@ def curses_main(handler, stdscr):
                         scroll_up_logs(selected_job)
                 elif button & curses.BUTTON5_PRESSED:
                     if progress_win.enclose(y, x):
-                        if handler.job_index_end < handler.job_count:
+                        if handler.job_index_end < handler.scrollable_count:
                             scroll_down_progress()
                     elif logs_win is not None and logs_win.enclose(y, x):
                         scroll_down_logs(selected_job)
@@ -971,16 +996,14 @@ def curses_main(handler, stdscr):
             elif key == curses.KEY_PPAGE or key == ord("p") or key == ord("P"):
                 if handler.selected_job_index > 0:
                     handler.selected_job_index -= 1
-                if handler.selected_job_index < handler.job_index_start:
-                    scroll_up_progress()
+                scroll_to_selected()
                 selected_job = update_selected_job()
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
             elif key == curses.KEY_NPAGE or key == ord("n") or key == ord("N"):
                 if handler.selected_job_index < len(handler.job_list) - 1:
                     handler.selected_job_index += 1
-                if handler.selected_job_index >= handler.job_index_end:
-                    scroll_down_progress()
+                scroll_to_selected()
                 selected_job = update_selected_job()
                 update_logs(handler, logs_win, selected_job, logs_height, width)
 
