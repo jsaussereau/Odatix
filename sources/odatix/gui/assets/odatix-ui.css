@@ -181,6 +181,24 @@
 .odx-stat.caution .odx-stat-value {
     color: var(--theme-caution-color);
 }
+/* A stat that also filters the cards it counts: clicking it drops them out of
+   the list, and says so by fading out and striking its own label. */
+.odx-stat-filter {
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid transparent;
+    transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+.odx-stat-filter:hover {
+    border-color: var(--theme-primary-color);
+}
+.odx-stat-filter.odx-stat-off {
+    opacity: 0.4;
+}
+.odx-stat-filter.odx-stat-off .odx-stat-label,
+.odx-stat-filter.odx-stat-off .odx-stat-value {
+    text-decoration: line-through;
+}
 .odx-tag {
     display: inline-flex;
     align-items: center;
@@ -1709,4 +1727,130 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
         order: 3;
         flex-basis: 100%;
     }
+}
+
+/* ------------------------------------------------------------------ *
+ * Configuration cards
+ *
+ * These used to be inline styles on every card. With a domain holding
+ * hundreds of configurations, that style dictionary was serialized once
+ * per card on every round-trip of the card rows; as classes it is sent
+ * once, in this stylesheet.
+ * ------------------------------------------------------------------ */
+
+.card.configs.odx-config-card {
+    padding: 10px;
+    margin: 5px;
+    display: inline-block;
+    vertical-align: top;
+}
+
+.title-input.odx-config-name {
+    box-sizing: border-box;
+    width: calc(100% - 10px);
+    margin: 2px 0px 5px 5px;
+    font-weight: bold;
+    font-size: 1.1em;
+    height: 30px;
+    text-align: center;
+}
+
+.odx-config-content {
+    width: calc(100% - 20px);
+    margin-left: 5px;
+    margin-right: 5px;
+    resize: none;
+    field-sizing: border-box;
+    font-family: monospace;
+    font-weight: normal;
+}
+
+/* The compact layout gives up auto-sizing for a fixed, resizable box. */
+.odx-config-content.odx-config-content-compact {
+    resize: vertical;
+    min-height: 45px;
+    height: 45px;
+}
+
+.odx-config-card-footer {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.odx-config-card-save {
+    display: flex;
+    align-items: center;
+}
+
+.odx-config-card-save-button {
+    margin-left: 5px;
+}
+
+.odx-config-card-status {
+    margin-left: 0px;
+    text-wrap: wrap;
+    width: 70px;
+    font-weight: 515;
+}
+
+.odx-config-card-actions {
+    display: flex;
+    align-items: center;
+    margin-left: 0px;
+    gap: 6px;
+}
+
+.odx-config-origin {
+    display: flex;
+    align-items: center;
+}
+
+/* ---------------------------------------------------------------------
+ * Show more
+ *
+ * A domain holding hundreds of configurations only gives cards to the
+ * first of them; this card stands for the rest, and is styled like the
+ * add card it sits next to.
+ * ------------------------------------------------------------------ */
+
+.card.configs.odx-show-more {
+    padding: 10px;
+    margin: 5px;
+    display: inline-block;
+    vertical-align: top;
+    box-sizing: border-box;
+}
+
+.card.configs.odx-show-more.odx-hidden {
+    display: none;
+}
+
+.odx-show-more-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    cursor: pointer;
+}
+
+.odx-show-more-glyph {
+    font-size: 2.5em;
+    line-height: 60px;
+    height: 60px;
+    letter-spacing: 2px;
+}
+
+.odx-show-more-label {
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+.odx-show-more-count {
+    font-size: 0.9em;
+    opacity: 0.7;
+    padding-bottom: 20px;
 }

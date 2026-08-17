@@ -304,14 +304,34 @@ def title_input(value: str="", id: Union[str, dict]="page-title", placeholder: s
     )
 
 
-def stat(value, label: str, className: str="") -> Component:
-    """Pill of the stat strip: a big value and its label."""
+def stat(
+    value,
+    label: str,
+    className: str="",
+    id: Optional[Union[str, dict]]=None,
+    tooltip: str="",
+    tooltip_options: str="bottom auto",
+) -> Component:
+    """
+    Pill of the stat strip: a big value and its label. Given an "id" it is
+    clickable and counts its clicks, which is what turns a stat into a filter;
+    the "odx-stat-filter" class is what makes it look clickable.
+    """
+    kwargs = {}
+    if id is not None:
+        kwargs["id"] = id
+        kwargs["n_clicks"] = 0
+    classes = f"odx-stat {className}".strip()
+    if tooltip:
+        classes = f"{classes} tooltip delay {tooltip_options}".strip()
+        kwargs["data-tooltip"] = tooltip
     return html.Div(
         children=[
             html.Span(str(value), className="odx-stat-value"),
             html.Span(label, className="odx-stat-label"),
         ],
-        className=f"odx-stat {className}".strip(),
+        className=classes,
+        **kwargs,
     )
 
 

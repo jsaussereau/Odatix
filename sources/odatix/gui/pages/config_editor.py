@@ -21,8 +21,10 @@
 
 import os
 import re
+import json
 import dash
-from dash import html, dcc, Input, Output, State, ctx
+from dash import html, dcc, Input, Output, State, ctx, Patch
+from dash.exceptions import MissingCallbackContextException
 import uuid
 import random
 from natsort import natsorted
@@ -42,6 +44,12 @@ from odatix.gui.css_helper import Style
 verbose = False
 
 page_path = "/config_editor"
+
+# How many configuration cards a domain shows before it stops and offers to show
+# more. A card is a text area, two stores and four buttons: a domain holding
+# hundreds of them is what makes the page slow, and most of them are not being
+# looked at.
+configs_per_page = 30
 
 dash.register_page(
     __name__,
@@ -123,8 +131,7 @@ def origin_chip(domain_uuid, config_uuid, origin):
     return html.Div(
         origin_badge(origin),
         id={"type": "config-origin", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
-        className="tooltip delay bottom auto" if tooltip else "",
-        style={"display": "flex", "alignItems": "center"},
+        className="odx-config-origin tooltip delay bottom auto" if tooltip else "odx-config-origin",
         **{"data-tooltip": tooltip},
     )
 
@@ -152,6 +159,17 @@ def config_action_button(domain_uuid, config_uuid, origin):
     return ui.delete_button(id=action_id, tooltip=tooltip)
 
 
+def card_class(config_layout, is_blacklisted):
+    """The classes of a configuration card. Everything it looks like is a class:
+    the layout switch below rewrites this same string."""
+    classes = ["card", "configs", "odx-config-card"]
+    if config_layout == "wide":
+        classes.append("wide")
+    if is_blacklisted:
+        classes.append("odx-config-blacklisted")
+    return " ".join(classes)
+
+
 def config_card(domain_uuid, config_uuid, config_name, content, initial_content, config_layout="normal", origin=ORIGIN_MANUAL):
     display_name = config_name[:-4] if config_name.endswith(".txt") else config_name
 
@@ -169,35 +187,16 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
                 value=f"{display_name}",
                 type="text",
                 id={"type": "config-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
-                className="title-input preview" if from_rules else "title-input",
+                className="title-input odx-config-name preview" if from_rules else "title-input odx-config-name",
                 readOnly=from_rules,
-                style={
-                    "boxSizing": "border-box",
-                    "width": "calc(100% - 10px)",
-                    "margin": "2px 0px 5px 5px",
-                    "fontWeight": "bold",
-                    "fontSize": "1.1em",
-                    "height": "30px",
-                    "textAlign": "center",
-                },
             )
         ]),
         dcc.Textarea(
             id={"type": "config-content", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
             value=content,
             readOnly=is_blacklisted,
-            className="auto-resize-textarea" if config_layout != "compact" else "",
-            style={
-                "width": "calc(100% - 20px)",
-                "marginLeft": "5px",
-                "marginRight": "5px",
-                "resize": "none" if config_layout != "compact" else "vertical",
-                "minHeight": "none" if config_layout != "compact" else "45px",
-                "height": "none" if config_layout != "compact" else "45px",
-                "fieldSizing": "border-box",
-                "fontFamily": "monospace",
-                "fontWeight": "normal",
-            },
+            className="odx-config-content odx-config-content-compact" if config_layout == "compact"
+                      else "odx-config-content auto-resize-textarea",
         ),
         dcc.Store(
             id={"type": "config-metadata", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
@@ -217,32 +216,20 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
                     text="Save",
                     width="78px",
                     id={"type": "save-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
-                ),], style={"marginLeft": "5px"}),
-                html.Div(status_text, id={"type": "save-status", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, className=status_class, style={"marginLeft": "0px", "textWrap": "wrap", "width": "70px", "fontWeight": "515"}),
-            ], style={"display": "flex", "alignItems": "center"}),
+                ),], className="odx-config-card-save-button"),
+                html.Div(status_text, id={"type": "save-status", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, className=f"{status_class} odx-config-card-status"),
+            ], className="odx-config-card-save"),
             html.Div([
                 origin_chip(domain_uuid, config_uuid, origin),
                 ui.duplicate_button(id={"type": "duplicate-config", "domain_uuid": domain_uuid, "config_uuid": config_uuid}),
                 config_action_button(domain_uuid, config_uuid, origin),
-            ], style={"display": "flex", "alignItems": "center", "marginLeft": "0px", "gap": "6px"}, className="inline-flex-buttons"),
-        ], style={
-            "marginTop": "8px",
-            "display": "flex",
-            "flexDirection": "row",
-            "width": "100%",
-            "justifyContent": "space-between",
-        }),
+            ], className="inline-flex-buttons odx-config-card-actions"),
+        ], className="odx-config-card-footer"),
         dcc.Store(id={"type": "initial-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, data=display_name),
         dcc.Store(id={"type": "initial-content", "domain_uuid": domain_uuid, "config_uuid": config_uuid}, data=initial_content),
-    ], 
-    className="card configs odx-config-blacklisted" if is_blacklisted else "card configs",
-    id={"type": "config-card", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
-    style={
-        "padding": "10px", 
-        "margin": "5px", 
-        "display": "inline-block", 
-        "verticalAlign": "top"
-    })
+    ],
+    className=card_class(config_layout, is_blacklisted),
+    id={"type": "config-card", "domain_uuid": domain_uuid, "config_uuid": config_uuid})
 
 def card_index(cards, domain_uuid, config_uuid):
     """Index of the config card of that uuid in a row of cards, -1 when it is not there anymore."""
@@ -669,6 +656,10 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                 className="card-matrix config",
             ),
             config_rules.rules_section(domain_uuid, settings, open=open_rules, domain_name=domain),
+            # Which origins the stat strip of this domain currently filters out.
+            # Only the browser reads it: hiding a card is a matter of style, and
+            # nothing of the domain itself changes.
+            dcc.Store(id={"type": "config-filter-state", "domain_uuid": domain_uuid}, data=[]),
             html.Div(
                 id={"type": "config-counters", "domain_uuid": domain_uuid},
                 # Centered over the cards it counts, like everything else of the
@@ -721,14 +712,113 @@ def origin_of(domain, filename):
     return ORIGIN_MANUAL
 
 
-def build_config_cards(domain, domain_uuid, config_layout):
+def domain_configurations(domain):
+    """
+    Everything one parameter domain holds, in the order its cards are shown:
+    what it resolves to plus what its rules produce and the blacklist keeps out.
+    """
+    configurations = list(domain.resolve_configurations()) + list(domain.blacklisted_configurations())
+    return natsorted(configurations, key=lambda configuration: configuration.name)
+
+
+def show_more_class(config_layout, hidden):
+    """The classes of the show more card, which says by itself whether anything
+    is still hidden: the layout switch below rewrites this same string."""
+    classes = ["card", "configs", "add", "hover", "odx-show-more"]
+    if config_layout == "wide":
+        classes.append("wide")
+    if hidden <= 0:
+        classes.append("odx-hidden")
+    return " ".join(classes)
+
+
+def show_more_label(hidden):
+    """What the show more card offers, or nothing when the domain is all there."""
+    return f"Show {min(configs_per_page, hidden)} more" if hidden > 0 else ""
+
+
+def show_more_count(hidden):
+    """How much of the domain the show more card is standing in for."""
+    return f"{hidden} more configuration{'s' if hidden != 1 else ''}" if hidden > 0 else ""
+
+
+def show_more_card(domain_uuid, config_layout, hidden):
+    """
+    The card that ends a shortened list of configurations. It holds how many
+    have no card, and nothing else: a click reads them from the domain again
+    rather than keeping them in the browser for a list nobody may open.
+    """
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Div("⋯", className="odx-show-more-glyph"),
+                    html.Div(
+                        show_more_label(hidden),
+                        id={"type": "show-more-label", "domain_uuid": domain_uuid},
+                        className="odx-show-more-label",
+                    ),
+                    html.Div(
+                        show_more_count(hidden),
+                        id={"type": "show-more-count", "domain_uuid": domain_uuid},
+                        className="odx-show-more-count",
+                    ),
+                ],
+                id={"type": "show-more-configs", "domain_uuid": domain_uuid},
+                n_clicks=0,
+                className="odx-show-more-button",
+            ),
+            # How many configurations of this domain have no card. Adding or
+            # deleting one moves the shown count and the total together, so this
+            # only changes when more are revealed, or when the row is built again.
+            dcc.Store(
+                id={"type": "config-hidden", "domain_uuid": domain_uuid},
+                data=hidden,
+            ),
+        ],
+        className=show_more_class(config_layout, hidden),
+        id={"type": "show-more-card", "domain_uuid": domain_uuid},
+    )
+
+
+def cards_shown(config_metadata, domain_uuid):
+    """
+    How many configurations of a domain have a card right now. Rebuilding a row
+    keeps that many rather than folding it back to the first page: what was
+    revealed was asked for.
+    """
+    return max(
+        configs_per_page,
+        sum(1 for data in (config_metadata or []) if (data or {}).get("domain_uuid", "") == domain_uuid),
+    )
+
+
+def insert_config_card(cards, card):
+    """
+    Add one card to a row, before the cards that close it. The show more and add
+    cards always sit last, and a new configuration belongs with the others.
+    """
+    for i, existing in enumerate(cards):
+        card_id = existing.get("props", {}).get("id") if isinstance(existing, dict) else getattr(existing, "id", None)
+        if isinstance(card_id, dict) and card_id.get("type") in ("show-more-card", "add-config-card"):
+            cards.insert(i, card)
+            return
+    cards.insert(max(len(cards) - 1, 0), card)
+
+
+def build_config_cards(domain, domain_uuid, config_layout, shown=None):
     """
     The cards of one parameter domain: what it holds, whether it is written as
-    a file or only described by the rules of the domain, plus the add card.
+    a file or only described by the rules of the domain, plus the show more and
+    add cards. Only the first `shown` configurations get a card -- the rest are
+    counted, and read again when the show more card is clicked.
     """
+    configurations = domain_configurations(domain)
+    if shown is None:
+        shown = configs_per_page
+    shown = min(max(shown, 0), len(configurations))
     cards = []
-    configurations = list(domain.resolve_configurations()) + list(domain.blacklisted_configurations())
-    for config in natsorted(configurations, key=lambda configuration: configuration.name):
+    for config in configurations[:shown]:
         cards.append(
             config_card(
                 domain_uuid=domain_uuid,
@@ -740,6 +830,7 @@ def build_config_cards(domain, domain_uuid, config_layout):
                 origin=config.origin,
             )
         )
+    cards.append(show_more_card(domain_uuid, config_layout, len(configurations) - shown))
     cards.append(add_card(domain_uuid=domain_uuid))
     return cards
 
@@ -751,8 +842,13 @@ def rules_of(domain):
     return {config.filename: config for config in domain.resolve_configurations() if config.from_rules}
 
 
-def unsaved_rule_configurations(names, templates, stores, field_values, domain_metadata):
-    """Generated configurations currently described by unsaved rule fields."""
+def unsaved_rule_configurations(names, templates, stores, field_values, domain_metadata, only=None):
+    """
+    Generated configurations currently described by unsaved rule fields.
+    `only` restricts the work to a set of domain uuids: expanding a rule space
+    is the expensive half of a preview, and a domain whose pane is not being
+    rebuilt has no use for it.
+    """
     domain_metadata = domain_metadata or []
     uuids = config_rules.domain_uuids_of(domain_metadata)
     indices = config_rules.domain_indices(config_rules.field_ids("variable-title"), uuids)
@@ -761,6 +857,8 @@ def unsaved_rule_configurations(names, templates, stores, field_values, domain_m
     configurations_by_domain = {}
 
     for i, domain_uuid in enumerate(uuids):
+        if only is not None and domain_uuid not in only:
+            continue
         variables = config_rules.variables_of(field_values, indices.get(domain_uuid, []))
         name = names[i] if i < len(names) else ""
         template = templates[i] if i < len(templates) else ""
@@ -812,9 +910,81 @@ def replacement_text_for_preview(selected_config, domain_uuid, domain_contents, 
     return next(iter(domain_contents.values()), "")
 
 
+def preview_domains_to_refresh(debounce):
+    """
+    The domains whose preview the current trigger made stale, or None when every
+    pane has to be built again. A preview costs a file read and a substitution
+    over it, so a keystroke in one domain does not pay for all the others.
+    """
+    try:
+        triggered = ctx.triggered_prop_ids or {}
+    except MissingCallbackContextException:
+        # Called outside a callback: nothing says what changed, so nothing is
+        # spared.
+        return None
+    if not triggered:
+        return None
+    stale = set()
+    for identifier in triggered.values():
+        if identifier == "config-content-debounce":
+            domains = (debounce or {}).get("domains")
+            if domains is None:
+                return None
+            stale.update(domains)
+        elif isinstance(identifier, dict) and identifier.get("domain_uuid"):
+            stale.add(identifier["domain_uuid"])
+        else:
+            # Something that is not tied to one domain: rebuild every pane.
+            return None
+    return stale
+
+
 ######################################
 # Callbacks
 ######################################
+
+# Typing must not reach the server: a preview reads a file and substitutes over
+# it, per domain. This holds the keystrokes on the client and, once they stop,
+# hands the preview the domains that actually changed.
+dash.clientside_callback(
+    """
+    function(_contents) {
+        const state = window.__odatixPreviewDebounce = window.__odatixPreviewDebounce
+            || {domains: {}, all: false, timer: null};
+        const context = window.dash_clientside.callback_context;
+        (context.triggered || []).forEach(function(trigger) {
+            const raw = trigger.prop_id || "";
+            const cut = raw.lastIndexOf(".");
+            let id = null;
+            if (cut > 0) {
+                try { id = JSON.parse(raw.slice(0, cut)); } catch (error) { id = null; }
+            }
+            if (id && id.domain_uuid) {
+                state.domains[id.domain_uuid] = true;
+            } else {
+                state.all = true;
+            }
+        });
+        if (state.timer) {
+            clearTimeout(state.timer);
+        }
+        state.timer = setTimeout(function() {
+            const payload = {
+                stamp: Date.now(),
+                domains: state.all ? null : Object.keys(state.domains),
+            };
+            state.domains = {};
+            state.all = false;
+            state.timer = null;
+            window.dash_clientside.set_props("config-content-debounce", {data: payload});
+        }, 400);
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("config-content-debounce", "data"),
+    Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    prevent_initial_call=True,
+)
 
 @dash.callback(
     Output(f"param-domain-title-div-{hard_settings.main_parameter_domain}", "children"),
@@ -1032,6 +1202,12 @@ def update_config_cards(
     if rules_saved_trigger is not None:
         triggered_id = rules_saved_trigger
 
+    # Which rows this call rewrites. Every other one is answered with no_update:
+    # a row is the whole card tree of a domain, and sending back the rows an
+    # action did not touch makes adding one configuration cost as much as the
+    # page holds.
+    changed_rows = set()
+
     if not isinstance(triggered_id, dict):
         domains = {}
         for data in domain_metadata:
@@ -1060,12 +1236,15 @@ def update_config_cards(
         if trig_type == "cfg-rules-saved" and trig_domain_idx >= 0:
             cards = build_config_cards(
                 instance_domain(instances, instance_name, trig_domain_name), trig_domain_uuid, config_layout,
+                shown=cards_shown(config_metadata, trig_domain_uuid),
             )
             # Only the domain whose rules changed is read again: what is being
             # edited in the other domains stays as the user left it.
             return [cards if i == trig_domain_idx else dash.no_update for i in range(len(config_cards_row))]
 
         if trig_type in ["new-config", "save-config", "delete-config", "duplicate-config"]:
+            # Every branch below rewrites this one row, and only this one.
+            changed_rows.add(trig_domain_idx)
             trig_domain_configs = []
             trig_config_uuid = triggered_id.get("config_uuid", "")
             trig_config_name = ""
@@ -1102,7 +1281,8 @@ def update_config_cards(
                     if new_filename not in trig_domain_configs:
                         instance_domain(instances, instance_name, trig_domain_name).configs.write(new_filename, "")
                         config_uuid = get_uuid()
-                        config_cards_row[trig_domain_idx].insert(-1, 
+                        insert_config_card(
+                            config_cards_row[trig_domain_idx],
                             config_card(
                                 domain_uuid=trig_domain_uuid,
                                 config_uuid=config_uuid,
@@ -1110,7 +1290,7 @@ def update_config_cards(
                                 content="",
                                 initial_content="",
                                 config_layout=config_layout,
-                            )
+                            ),
                         )
                         break
                 else:
@@ -1190,7 +1370,8 @@ def update_config_cards(
                         new_filename = f"{base}_copy{suffix}.txt"
                     instance_domain(instances, instance_name, trig_domain_name).configs.write(new_filename, trig_config_content)
                     config_uuid = get_uuid()
-                    config_cards_row[trig_domain_idx].insert(-1, 
+                    insert_config_card(
+                        config_cards_row[trig_domain_idx],
                         config_card(
                             domain_uuid=trig_domain_uuid,
                             config_uuid=config_uuid,
@@ -1198,7 +1379,7 @@ def update_config_cards(
                             content=trig_config_content,
                             initial_content=trig_config_content,
                             config_layout=config_layout,
-                        )
+                        ),
                     )
   
     # Initial load
@@ -1218,9 +1399,103 @@ def update_config_cards(
                 config_cards_row[i] = build_config_cards(
                     instance_domain(instances, instance_name, domains[domain_uuid]), domain_uuid, config_layout,
                 )
+                changed_rows.add(i)
                 break
 
-    return config_cards_row
+    return [
+        row if i in changed_rows else dash.no_update
+        for i, row in enumerate(config_cards_row)
+    ]
+
+
+@dash.callback(
+    # The row is patched, not rewritten: the cards already there are what the
+    # user is editing, and the point of showing them a few at a time is lost if
+    # the whole list travels back and forth to add to it.
+    Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children", allow_duplicate=True),
+    Output({"type": "show-more-label", "domain_uuid": dash.ALL}, "children"),
+    Output({"type": "show-more-count", "domain_uuid": dash.ALL}, "children"),
+    Output({"type": "show-more-card", "domain_uuid": dash.ALL}, "className", allow_duplicate=True),
+    Output({"type": "config-hidden", "domain_uuid": dash.ALL}, "data"),
+    Input({"type": "show-more-configs", "domain_uuid": dash.ALL}, "n_clicks"),
+    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "config-filter-state", "domain_uuid": dash.ALL}, "id"),
+    State("config-layout-dropdown", "value"),
+    State("url", "search"),
+    State("odatix-settings", "data"),
+    prevent_initial_call=True,
+)
+def show_more_configs(
+    clicks, config_metadata, domain_metadata, filter_states, filter_ids, config_layout, search, odatix_settings
+):
+    """
+    Give cards to the next configurations of one domain. What is already shown
+    is read from the cards themselves rather than from a count, so adding or
+    deleting a configuration in the meantime cannot make this skip one.
+    """
+    nothing = [dash.no_update] * len(domain_metadata)
+    trigger = ctx.triggered_id
+    if not isinstance(trigger, dict) or not any(clicks or []):
+        return nothing, nothing, nothing, nothing, nothing
+
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
+    trig_domain_uuid = trigger.get("domain_uuid", "")
+    index = next(
+        (i for i, data in enumerate(domain_metadata) if (data or {}).get("domain_uuid", "") == trig_domain_uuid),
+        -1,
+    )
+    if not instance_name or index < 0:
+        return nothing, nothing, nothing, nothing, nothing
+
+    domain = instance_domain(instances, instance_name, domain_metadata[index].get("domain_name", ""))
+    shown = [
+        (data or {}).get("config_name", "")
+        for data in config_metadata
+        if (data or {}).get("domain_uuid", "") == trig_domain_uuid
+    ]
+    missing = [config for config in domain_configurations(domain) if config.filename not in set(shown)]
+    # The stat filters hide cards, so a batch of filtered out configurations
+    # would look like a click that did nothing: skip them to give the user the
+    # promised count of cards they can actually see. They stay in "missing", and
+    # so remain reachable once the filter is lifted.
+    filtered = next(
+        (
+            filter_states[i] or []
+            for i, filter_id in enumerate(filter_ids or [])
+            if (filter_id or {}).get("domain_uuid", "") == trig_domain_uuid
+        ),
+        [],
+    )
+    batch = [config for config in missing if config.origin not in filtered][:configs_per_page]
+    hidden = len(missing) - len(batch)
+
+    row = Patch()
+    for offset, config in enumerate(batch):
+        row.insert(
+            len(shown) + offset,
+            config_card(
+                domain_uuid=trig_domain_uuid,
+                config_uuid=get_uuid(),
+                config_name=config.filename,
+                content=config.content,
+                initial_content=config.content,
+                config_layout=config_layout,
+                origin=config.origin,
+            ),
+        )
+
+    def only_here(value):
+        return [value if i == index else dash.no_update for i in range(len(domain_metadata))]
+
+    return (
+        only_here(row),
+        only_here(show_more_label(hidden)),
+        only_here(show_more_count(hidden)),
+        only_here(show_more_class(config_layout, hidden)),
+        only_here(hidden),
+    )
 
 
 def rules_with_configuration_blacklist(saved_rules, config_name, blacklisted):
@@ -1330,50 +1605,69 @@ def toggle_generated_configuration_blacklist(
     counters[index] = counter + 1
     # Read once the domain has been written: what it holds now is what the cards
     # of this domain say, blacklisted one included.
-    rows[index] = build_config_cards(domain, domain_uuid, config_layout)
+    rows[index] = build_config_cards(
+        domain, domain_uuid, config_layout, shown=cards_shown(config_metadata, domain_uuid),
+    )
     return stores, counters, rows
 
-@dash.callback(
+# Fill the preview config selector of each domain with its configs. Renaming a
+# configuration retitles its entry as it is typed, so this answers every
+# keystroke of every title: it is a relabelling of data the client already
+# holds, and it stays there.
+PREVIEW_SELECT_JS = """
+    function(_section, titles, metadata, domains, currentValues) {
+        const optionsOut = [];
+        const valuesOut = [];
+        (domains || []).forEach(function(domain, i) {
+            const domainUuid = (domain && domain.domain_uuid) || "";
+            const options = [];
+            (metadata || []).forEach(function(config, j) {
+                if (!config || (config.domain_uuid || "") !== domainUuid) {
+                    return;
+                }
+                const title = (titles && titles[j]) ? titles[j] : (config.config_name || "");
+                options.push({label: title, value: config.config_uuid || ""});
+            });
+            let current = i < (currentValues || []).length ? currentValues[i] : null;
+            const known = options.some(function(option) { return option.value === current; });
+            if (!known) {
+                current = options.length ? options[0].value : null;
+            }
+            optionsOut.push(options);
+            valuesOut.push(current);
+        });
+        return [optionsOut, valuesOut];
+    }
+"""
+
+dash.clientside_callback(
+    PREVIEW_SELECT_JS,
     Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "options"),
     Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
     Input("param-domains-section", "children"),
-    Input({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
+    # The cards themselves are not an input: rewriting a row replaces the
+    # metadata stores it holds, which is the same signal without shipping the
+    # whole card tree back to the server.
     Input({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
     prevent_initial_call=True
 )
-def update_preview_config_select(_, config_cards_rows, config_titles, config_metadata, domain_metadata, current_values):
-    """Fill the preview config selector of each domain with its configs."""
-    options_out = []
-    values_out = []
-    for i, domain in enumerate(domain_metadata):
-        domain_uuid = domain.get("domain_uuid", "")
-        options = []
-        for j, config in enumerate(config_metadata):
-            if config.get("domain_uuid", "") != domain_uuid:
-                continue
-            title = config_titles[j] if j < len(config_titles) and config_titles[j] else config.get("config_name", "")
-            options.append({"label": title, "value": config.get("config_uuid", "")})
-        current = current_values[i] if i < len(current_values) else None
-        if current not in [option["value"] for option in options]:
-            current = options[0]["value"] if options else None
-        options_out.append(options)
-        values_out.append(current)
-    return options_out, values_out
 
 @dash.callback(
     Output({"type": "preview-pane", "domain_uuid": dash.ALL}, "children"),
     State("url", "search"),
     Input("param-domains-section", "children"),
-    Input({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
-    Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    # The contents themselves are a State: what says they changed is the
+    # debounced signal, so a keystroke costs nothing until the typing stops.
+    Input("config-content-debounce", "data"),
+    State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
@@ -1388,7 +1682,8 @@ def update_preview_config_select(_, config_cards_rows, config_titles, config_met
 )
 def update_preview_all(
     search, param_domains_update,
-    config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list,
+    params_enables, target_files, start_delims, stop_delims, settings_list,
+    content_debounce, config_contents_list,
     selected_configs, rule_names, rule_templates, rule_stores, *rest
 ):
     rule_field_values = rest[:len(config_rules.FIELD_PATTERNS)]
@@ -1403,7 +1698,9 @@ def update_preview_all(
                 html.Div(f"{label} is not created yet."),
                 html.Div("Edit settings, then save or add a new config to create it."),
             ], className="error warning")
-        ] * len(config_cards_rows)
+        ] * len(domain_metadata)
+
+    stale_domains = preview_domains_to_refresh(content_debounce)
 
     # Group config contents by domain, keyed by config uuid
     contents_by_domain = []
@@ -1418,12 +1715,17 @@ def update_preview_all(
 
     rule_configurations_by_domain = unsaved_rule_configurations(
         rule_names, rule_templates, rule_stores, rule_field_values, domain_metadata,
+        only=stale_domains,
     )
 
     # Generate previews for each domain
     results = []
     for i, domain in enumerate(domain_metadata):
         domain_uuid = domain.get("domain_uuid", "")
+        # A domain nothing touched keeps the pane it already shows.
+        if stale_domains is not None and domain_uuid not in stale_domains:
+            results.append(dash.no_update)
+            continue
         domain_contents = contents_by_domain[i] if i < len(contents_by_domain) else {}
         settings = settings_list[0] if 0 < len(settings_list) and settings_list[0] is not None else {}
         domain_settings = settings_list[i] if i < len(settings_list) and settings_list[i] is not None else {}
@@ -1439,7 +1741,63 @@ def update_preview_all(
         results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text))
     return results
 
-@dash.callback(
+# The dirty state of a card is nothing but string comparisons, and it is the one
+# thing that has to answer every keystroke. Run on the client: a domain with a
+# few hundred configurations would otherwise send every title and every content
+# to the server, and take back a class name per card, on every character typed.
+SAVE_STATUS_JS = """
+function(_section, titles, contents, initialTitles, initialContents) {
+    const invalid = __INVALID_CHARS__;
+    const base = "icon-button tooltip delay bottom small";
+    const context = window.dash_clientside.callback_context;
+    const outputs = (context && context.outputs_list && context.outputs_list[0]) || [];
+    // Names are only taken within their own domain: two domains can each have a "12"
+    const domains = outputs.map(function(output) {
+        return (output && output.id && output.id.domain_uuid) || "";
+    });
+    const takenByDomain = {};
+    for (let i = 0; i < initialTitles.length; i++) {
+        const domain = domains[i] === undefined ? "" : domains[i];
+        (takenByDomain[domain] = takenByDomain[domain] || []).push(initialTitles[i]);
+    }
+    const classes = [];
+    const tooltips = [];
+    for (let i = 0; i < titles.length; i++) {
+        const title = titles[i];
+        const initialTitle = initialTitles[i];
+        let error = null;
+        if (!title) {
+            error = "Configuration name cannot be empty";
+        } else {
+            for (let c = 0; c < invalid.length; c++) {
+                if (title.indexOf(invalid[c]) !== -1) {
+                    const shown = invalid[c] === " " ? "' ' (space)" : "'" + invalid[c] + "'";
+                    error = "Unauthorized character in configuration name: " + shown;
+                    break;
+                }
+            }
+            if (!error && title !== initialTitle
+                    && (takenByDomain[domains[i]] || []).indexOf(title) !== -1) {
+                error = "A configuration with this name already exists in the domain.";
+            }
+        }
+        if (error) {
+            classes.push("color-button error-status " + base);
+            tooltips.push(error);
+        } else if (title !== initialTitle || contents[i] !== initialContents[i]) {
+            classes.push("color-button warning " + base);
+            tooltips.push("Unsaved changes!");
+        } else {
+            classes.push("color-button disabled " + base);
+            tooltips.push("Nothing to save");
+        }
+    }
+    return [classes, tooltips];
+}
+""".replace("__INVALID_CHARS__", json.dumps(hard_settings.invalid_filename_characters))
+
+dash.clientside_callback(
+    SAVE_STATUS_JS,
     Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data-tooltip"),
     Input("param-domains-section", "children"),
@@ -1448,67 +1806,135 @@ def update_preview_all(
     Input({"type": "initial-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     Input({"type": "initial-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
 )
-def update_save_status(param_domains_section, title_values, content_values, initial_titles, initial_contents):
-    save_classes = []
-    tooltip_texts = []
-    # Names are only taken within their own domain: two domains can each have a "12"
-    domain_uuids = [item.get("id", {}).get("domain_uuid", "") for item in (ctx.outputs_list[0] or [])]
-    for i, (title, content, initial_title, initial_content) in enumerate(
-        zip(title_values, content_values, initial_titles, initial_contents)
-    ):
-        domain_uuid = domain_uuids[i] if i < len(domain_uuids) else None
-        domain_titles = [
-            other for j, other in enumerate(initial_titles)
-            if domain_uuid is None or (j < len(domain_uuids) and domain_uuids[j] == domain_uuid)
-        ]
-        error = config_title_error(title, domain_titles, initial_title)
-        if error:
-            save_classes.append("color-button error-status icon-button tooltip delay bottom small")
-            tooltip_texts.append(error)
-            continue
-        # Check for changes
-        if title != initial_title or content != initial_content:
-            save_classes.append("color-button warning icon-button tooltip delay bottom small")
-            tooltip_texts.append("Unsaved changes!")
-        else:
-            save_classes.append("color-button disabled icon-button tooltip delay bottom small")
-            tooltip_texts.append("Nothing to save")
-    return save_classes, tooltip_texts
+
+def filter_stat(domain_uuid, origin, count, label, filtered, className=""):
+    """
+    A stat of the strip that also filters: clicking it takes the configurations
+    it counts out of the list below, and says so by striking itself through.
+    """
+    is_off = origin in (filtered or [])
+    classes = " ".join(c for c in (className, "odx-stat-filter", "odx-stat-off" if is_off else "") if c)
+    return ui.stat(
+        count,
+        label,
+        className=classes,
+        id={"type": "config-filter", "domain_uuid": domain_uuid, "origin": origin},
+        tooltip="Show these configurations again" if is_off else f"Hide the {label} configurations",
+    )
+
 
 @dash.callback(
     Output({"type": "config-counters", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    Input({"type": "config-hidden", "domain_uuid": dash.ALL}, "data"),
+    Input({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
 )
-def update_config_counters(config_metadata, domain_metadata):
+def update_config_counters(config_metadata, hidden_counts, filter_states, domain_metadata):
     """
     How many configurations each domain holds, and where they come from. A
     domain with nothing but hand-written files says only how many there are.
+    The ones with no card are counted in the total and named apart: only the
+    cards say where a configuration comes from, so the breakdown is of them.
+
+    Every stat naming an origin is also the filter of that origin, struck
+    through while its cards are out of the list.
     """
     counters = []
-    for domain in domain_metadata:
+    for index, domain in enumerate(domain_metadata):
         domain_uuid = domain.get("domain_uuid", "")
+        hidden = hidden_counts[index] if index < len(hidden_counts) else 0
+        hidden = hidden or 0
+        filtered = filter_states[index] if index < len(filter_states) else []
         origins = [
             (data or {}).get("origin", ORIGIN_MANUAL)
             for data in config_metadata
             if (data or {}).get("domain_uuid", "") == domain_uuid
         ]
         active_origins = [origin for origin in origins if origin != ORIGIN_BLACKLISTED]
+        total = len(active_origins) + hidden
         stats = [ui.stat(
-            len(active_origins), "configurations" if len(active_origins) != 1 else "configuration", className="accent",
+            total, "configurations" if total != 1 else "configuration", className="accent",
         )]
+        if hidden:
+            stats.append(ui.stat(hidden, "not shown"))
         for origin, label in ((ORIGIN_GENERATED, "generated"), (ORIGIN_EDITED, "edited")):
             count = active_origins.count(origin)
             if count:
-                stats.append(ui.stat(count, label))
+                stats.append(filter_stat(domain_uuid, origin, count, label, filtered))
         manual = active_origins.count(ORIGIN_MANUAL)
         if manual and len(stats) > 1:
-            stats.append(ui.stat(manual, "written by hand"))
+            stats.append(filter_stat(domain_uuid, ORIGIN_MANUAL, manual, "written by hand", filtered))
         blacklisted = origins.count(ORIGIN_BLACKLISTED)
         if blacklisted:
-            stats.append(ui.stat(blacklisted, "blacklisted", className="caution"))
+            stats.append(filter_stat(
+                domain_uuid, ORIGIN_BLACKLISTED, blacklisted, "blacklisted", filtered, className="caution",
+            ))
         counters.append(stats)
     return counters
+
+
+# Clicking a filter stat only flips the origin it names, and only for its own
+# domain: the strips of the other domains keep whatever they were filtering.
+CONFIG_FILTER_TOGGLE_JS = """
+    function(clicks, states, stateIds) {
+        const dc = window.dash_clientside;
+        const context = dc.callback_context;
+        const trigger = context.triggered && context.triggered[0];
+        if (!trigger || !trigger.value) {
+            return dc.no_update;
+        }
+        const id = JSON.parse(trigger.prop_id.substring(0, trigger.prop_id.lastIndexOf(".")));
+        return (states || []).map(function(state, i) {
+            const stateId = (stateIds || [])[i] || {};
+            if ((stateId.domain_uuid || "") !== (id.domain_uuid || "")) {
+                return dc.no_update;
+            }
+            const filtered = (state || []).slice();
+            const at = filtered.indexOf(id.origin);
+            if (at >= 0) {
+                filtered.splice(at, 1);
+            } else {
+                filtered.push(id.origin);
+            }
+            return filtered;
+        });
+    }
+"""
+
+dash.clientside_callback(
+    CONFIG_FILTER_TOGGLE_JS,
+    Output({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
+    Input({"type": "config-filter", "domain_uuid": dash.ALL, "origin": dash.ALL}, "n_clicks"),
+    State({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "config-filter-state", "domain_uuid": dash.ALL}, "id"),
+    prevent_initial_call=True,
+)
+
+# Filtered cards are hidden rather than dropped: what a card holds is unsaved
+# work as often as not, and its style is the one thing the layout switch does
+# not rewrite, so the two never fight over the same property.
+CONFIG_FILTER_APPLY_JS = """
+    function(states, metadata, stateIds) {
+        const filtered = {};
+        (stateIds || []).forEach(function(stateId, i) {
+            filtered[(stateId && stateId.domain_uuid) || ""] = (states || [])[i] || [];
+        });
+        return (metadata || []).map(function(config) {
+            config = config || {};
+            const hidden = filtered[config.domain_uuid || ""] || [];
+            return hidden.indexOf(config.origin || "manual") >= 0 ? {"display": "none"} : {};
+        });
+    }
+"""
+
+dash.clientside_callback(
+    CONFIG_FILTER_APPLY_JS,
+    Output({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "style"),
+    Input({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
+    Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "config-filter-state", "domain_uuid": dash.ALL}, "id"),
+)
 
 @dash.callback(
     Output({"type": "config-origin", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "children"),
@@ -1551,29 +1977,30 @@ def update_params_save_button(params_enables, target_files, start_delims, stop_d
         save_classes.append(enabled_class if dirty else disabled_class)
     return save_classes
 
-@dash.callback(
+# Mirror the state of the individual save buttons on the page-wide save button.
+# The "warning" class is also what the unsaved-changes guard looks for to warn
+# before leaving the page. Clientside, since it answers every keystroke through
+# the card save buttons -- and reading a class name needs no server.
+dash.clientside_callback(
+    """
+    function(configClasses, paramsClasses, rulesClasses) {
+        const base = "icon-button tooltip bottom auto caution";
+        const all = [].concat(configClasses || [], paramsClasses || [], rulesClasses || []);
+        const dirty = all.some(function(name) {
+            return typeof name === "string" && name.indexOf("warning") !== -1;
+        });
+        if (dirty) {
+            return ["color-button warning " + base, "Save all changes"];
+        }
+        return ["color-button disabled " + base, "Nothing to save"];
+    }
+    """,
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Input({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     Input({"type": "save-params-btn", "domain_uuid": dash.ALL}, "className"),
     Input({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "className"),
 )
-def update_save_all_button(config_save_classes, params_save_classes, rules_save_classes):
-    """
-    Mirror the state of the individual save buttons on the page-wide save button.
-    The "warning" class is also what the unsaved-changes guard looks for to warn
-    before leaving the page.
-    """
-    disabled_class = "color-button disabled icon-button tooltip bottom auto caution"
-    enabled_class = "color-button warning icon-button tooltip bottom auto caution"
-
-    dirty = any(
-        isinstance(cls, str) and "warning" in cls
-        for cls in list(config_save_classes) + list(params_save_classes) + list(rules_save_classes)
-    )
-    if dirty:
-        return enabled_class, "Save all changes"
-    return disabled_class, "Nothing to save"
 
 @dash.callback(
     Output({"type": "initial-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
@@ -1690,24 +2117,30 @@ def save_all(
 @dash.callback(
     Output({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     Output({"type": "add-config-card", "domain_uuid": dash.ALL}, "className"),
+    Output({"type": "show-more-card", "domain_uuid": dash.ALL}, "className"),
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "className"),
     Input("config-layout-dropdown", "value"),
     State({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     State({"type": "add-config-card", "domain_uuid": dash.ALL}, "className"),
+    State({"type": "show-more-card", "domain_uuid": dash.ALL}, "className"),
     State({"type": "config-cards-row", "domain_uuid": dash.ALL}, "className"),
 )
-def update_layout_style(layout_value, config_card_classes, add_card_classes, config_row_classes):
-    blacklisted = [" odx-config-blacklisted" if "odx-config-blacklisted" in (class_name or "") else ""
-                   for class_name in config_card_classes]
+def update_layout_style(layout_value, config_card_classes, add_card_classes, show_more_classes, config_row_classes):
+    blacklisted = ["odx-config-blacklisted" in (class_name or "") for class_name in config_card_classes]
+    config_card_classes = [card_class(layout_value, is_blacklisted) for is_blacklisted in blacklisted]
+    # A hidden show more card stays hidden: its class is the only place saying
+    # whether the domain still has configurations without a card.
+    show_more_classes = [
+        show_more_class(layout_value, 0 if "odx-hidden" in (class_name or "") else 1)
+        for class_name in show_more_classes
+    ]
     if layout_value == "wide":
-        config_card_classes = ["card configs wide" + blacklisted[i] for i in range(len(config_card_classes))]
         add_card_classes = ["card configs add wide hover" for _ in range(len(add_card_classes))]
         config_row_classes = ["card-matrix configs wide" for _ in range(len(config_row_classes))]
     else:
-        config_card_classes = ["card configs" + blacklisted[i] for i in range(len(config_card_classes))]
         add_card_classes = ["card configs add hover" for _ in range(len(add_card_classes))]
         config_row_classes = ["card-matrix configs" for _ in range(len(config_row_classes))]
-    return config_card_classes, add_card_classes, config_row_classes
+    return config_card_classes, add_card_classes, show_more_classes, config_row_classes
 
 @dash.callback(
     Output({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
@@ -1890,6 +2323,9 @@ layout = html.Div(
         html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
         dcc.Store(id="param-domains-section-initialized", data=False),
         dcc.Store(id="param-domains-section-update", data=""),
+        # Typing in a configuration does not reach the server: this store does,
+        # once the typing stops, naming the domains whose preview is now stale.
+        dcc.Store(id="config-content-debounce", data=None),
     ],
     className="page-content",
     style={

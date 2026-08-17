@@ -60,7 +60,6 @@
   // at exactly the same place and the colors land under the real characters.
   var COPIED_STYLES = [
     "boxSizing", "width",
-    "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
     "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
     "fontFamily", "fontSize", "fontWeight", "fontStyle",
     "lineHeight", "letterSpacing", "wordSpacing", "textTransform", "textIndent",
