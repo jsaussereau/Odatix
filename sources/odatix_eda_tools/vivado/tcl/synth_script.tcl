@@ -68,6 +68,11 @@ if {[catch {
         puts -nonewline "$signature tool says -> $errmsg"
         exit -1
     }
+    # find_fmax.tcl sources this script once per iteration of the search, each
+    # time on a design rebuilt from the RTL, so the user constraints are read
+    # again here every time — exactly like the generated timing constraint above,
+    # which update_freq has just rewritten.
+    odatix_read_user_constraints synthesis read_xdc $signature
 
     ######################################
     # Get target
@@ -126,6 +131,7 @@ if {[catch {
     if {$::odatix_synth_depth eq "synthesis"} {
         puts "$signature <cyan>stopping after synthesis: reports are post-synthesis estimates<end>"
     } else {
+    odatix_read_user_constraints pnr read_xdc $signature
     if {[catch {
         place_design -directive Explore
     } errmsg]} {

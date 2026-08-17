@@ -46,6 +46,7 @@ if {[catch {
         puts -nonewline "$signature tool says -> $errmsg"
         exit -1
     }
+    odatix_read_user_constraints synthesis read_xdc $signature
 
     ######################################
     # Get target

@@ -38,6 +38,12 @@ if {[catch {
     report_progress 0 $synth_statusfile
 
     odatix_open_checkpoint "post_synth.dcp" $signature "synthesis"
+
+    # Constraints scoped to place & route: an IO placement, a floorplan. They
+    # are read here rather than with the synthesis ones so that a constraint
+    # meant for implementation does not change what the synthesis step produced.
+    odatix_read_user_constraints pnr read_xdc $signature
+
     report_progress 10 $synth_statusfile
 
     ######################################
