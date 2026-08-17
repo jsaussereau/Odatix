@@ -25,7 +25,9 @@ Selection and discovery helpers over the result store DataFrame.
 
 import pandas as pd
 
+import odatix.explorer.core.rules as rules
 import odatix.explorer.core.schema as schema
+import odatix.lib.results_schema as results_schema
 
 
 def dimension_values(df, dimension):
@@ -33,10 +35,17 @@ def dimension_values(df, dimension):
   if dimension not in df.columns:
     return []
   values = df[dimension].fillna(schema.MISSING_VALUE).astype(str).unique()
+
+  # Steps read in flow order, not alphabetically: "synthesis" comes before
+  # "pnr" because the flow runs it first, which no sort of the names can tell.
+  if dimension == schema.COL_STEP and results_schema.META_STEP_INDEX in df.columns:
+    order = df.groupby(df[dimension].astype(str))[results_schema.META_STEP_INDEX].min()
+    return sorted(values, key=lambda value: (order.get(value, len(order)), schema.sort_key(value)))
+
   return schema.sort_values(values)
 
 
-def select_dataframe(store, sources=None, filters=None):
+def select_dataframe(store, sources=None, filters=None, rule_state=None):
   """
   Select rows of the store DataFrame.
 
@@ -46,6 +55,8 @@ def select_dataframe(store, sources=None, filters=None):
       filters (dict | None): {dimension: list of allowed values (as strings)}.
           Dimensions absent from the DataFrame are ignored. Missing values
           match "None".
+      rule_state (dict | None): metric value rules (see core.rules), applied
+          after the dimension filters.
 
   Returns:
       pd.DataFrame: the filtered selection (a copy-on-filter view).
@@ -63,6 +74,9 @@ def select_dataframe(store, sources=None, filters=None):
         continue
       column = df[dimension].fillna(schema.MISSING_VALUE).astype(str)
       df = df[column.isin([str(value) for value in allowed])]
+
+  if rule_state:
+    df = rules.apply_rules(df, rule_state)
 
   # Drop columns that are empty on this selection
   if not df.empty:
@@ -114,7 +128,9 @@ def cascaded_dimensions(store, sources, filter_state):
   allowed = {}
   for dimension, values in base_dimensions.items():
     remembered = state.get(dimension, {})
-    allowed[dimension] = [value for value in values if remembered.get(value, True)]
+    allowed[dimension] = [
+      value for value in values if remembered.get(value, schema.default_selected(dimension, value))
+    ]
 
   dimensions = {}
   for dimension in base_dimensions:

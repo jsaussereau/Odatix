@@ -1,0 +1,431 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 640 420"
+   width="640"
+   height="420"
+   fill="none"
+   role="img"
+   aria-label="Create your own workflow: a script of yours swept across configurations as parallel monitored jobs"
+   version="1.1"
+   id="svg32"
+   sodipodi:docname="own-workflow.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview32"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="3.8520484"
+     inkscape:cx="365.00061"
+     inkscape:cy="197.03802"
+     inkscape:window-width="5120"
+     inkscape:window-height="1355"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg32" />
+  <defs
+     id="defs6">
+    <linearGradient
+       id="ow-accent"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#fb923c"
+         id="stop1" />
+      <stop
+         offset="1"
+         stop-color="#ea580c"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       id="ow-panel"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#ffffff"
+         id="stop3" />
+      <stop
+         offset="1"
+         stop-color="#f1f5f9"
+         id="stop4" />
+    </linearGradient>
+    <linearGradient
+       id="ow-glow"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#ea580c"
+         stop-opacity="0.18"
+         id="stop5" />
+      <stop
+         offset="1"
+         stop-color="#ea580c"
+         stop-opacity="0"
+         id="stop6" />
+    </linearGradient>
+  </defs>
+  <rect
+     x="24"
+     y="18"
+     width="592"
+     height="384"
+     rx="40"
+     fill="url(#ow-panel)"
+     id="rect6" />
+  <rect
+     x="24"
+     y="18"
+     width="592"
+     height="384"
+     rx="40"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="rect7" />
+  <circle
+     cx="530"
+     cy="70"
+     r="150"
+     fill="url(#ow-glow)"
+     id="circle7" />
+  <!-- labels -->
+  <g
+     fill="#64748b"
+     font-family="Inter, system-ui, sans-serif"
+     font-size="15"
+     font-weight="600"
+     id="g8">
+    <text
+       x="110"
+       y="140"
+       id="text7"><tspan
+         sodipodi:role="line"
+         id="tspan32"
+         x="110"
+         y="140">your tasks</tspan><tspan
+         sodipodi:role="line"
+         id="tspan33"
+         x="110"
+         y="158.75" /></text>
+    <text
+       x="324"
+       y="84"
+       id="text8">parallel jobs, one per configuration</text>
+  </g>
+  <!-- script card -->
+  <rect
+     x="64"
+     y="152"
+     width="164"
+     height="128"
+     rx="22"
+     fill="#ffffff"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="rect8" />
+  <path
+     d="M86 152c-12.2 0-22 9.8-22 22v14h164v-14c0-12.2-9.8-22-22-22z"
+     fill="url(#ow-accent)"
+     id="path8"
+     style="stroke:#e2e8f0;stroke-opacity:1;stroke-width:2;stroke-dasharray:none" />
+  <rect
+     x="84"
+     y="165"
+     width="60"
+     height="9"
+     rx="4.5"
+     fill="#ffffff"
+     opacity="0.9"
+     id="rect9" />
+  <g
+     stroke="#fb923c"
+     stroke-width="3"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     fill="none"
+     id="g10">
+    <path
+       d="m86 206 8 7-8 7"
+       id="path9" />
+    <path
+       d="m86 240 8 7-8 7"
+       id="path10" />
+  </g>
+  <g
+     fill="#e2e8f0"
+     id="g12">
+    <rect
+       x="104"
+       y="209"
+       width="84"
+       height="8"
+       rx="4"
+       id="rect10" />
+    <rect
+       x="104"
+       y="243"
+       width="60"
+       height="8"
+       rx="4"
+       id="rect11" />
+    <rect
+       x="172"
+       y="243"
+       width="30"
+       height="8"
+       rx="4"
+       id="rect12" />
+  </g>
+  <!-- swept parameter -->
+  <rect
+     x="104"
+     y="226"
+     width="46"
+     height="8"
+     rx="4"
+     fill="#fdba74"
+     id="rect13" />
+  <rect
+     x="158"
+     y="226"
+     width="34"
+     height="8"
+     rx="4"
+     fill="#ffedd5"
+     id="rect14" />
+  <!-- fan-out edges -->
+  <g
+     stroke="#fdba74"
+     stroke-width="3"
+     stroke-linecap="round"
+     fill="none"
+     id="g17">
+    <path
+       d="M228 216h26c14 0 14-90 28-90h20"
+       id="path14" />
+    <path
+       d="M228 216h26c14 0 14-30 28-30h20"
+       id="path15" />
+    <path
+       d="M228 216h26c14 0 14 30 28 30h20"
+       id="path16" />
+    <path
+       d="M228 216h26c14 0 14 90 28 90h20"
+       id="path17" />
+  </g>
+  <!-- job rows -->
+  <g
+     id="g20">
+    <rect
+       x="302"
+       y="100"
+       width="274"
+       height="52"
+       rx="18"
+       fill="#ffffff"
+       stroke="#fdba74"
+       stroke-width="2"
+       id="rect17" />
+    <circle
+       cx="330"
+       cy="126"
+       r="11"
+       fill="#ffedd5"
+       id="circle17" />
+    <path
+       d="m325 126 4 4 8-9"
+       stroke="#ea580c"
+       stroke-width="3"
+       fill="none"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       id="path18" />
+    <rect
+       x="352"
+       y="121"
+       width="80"
+       height="9"
+       rx="4.5"
+       fill="#e2e8f0"
+       id="rect18" />
+    <rect
+       x="452"
+       y="121"
+       width="104"
+       height="10"
+       rx="5"
+       fill="#ffedd5"
+       id="rect19" />
+    <rect
+       x="452"
+       y="121"
+       width="104"
+       height="10"
+       rx="5"
+       fill="url(#ow-accent)"
+       id="rect20" />
+  </g>
+  <g
+     id="g24">
+    <rect
+       x="302"
+       y="160"
+       width="274"
+       height="52"
+       rx="18"
+       fill="#ffffff"
+       stroke="#fdba74"
+       stroke-width="2"
+       id="rect21" />
+    <circle
+       cx="330"
+       cy="186"
+       r="11"
+       fill="#ffedd5"
+       id="circle21" />
+    <path
+       d="m325 186 4 4 8-9"
+       stroke="#ea580c"
+       stroke-width="3"
+       fill="none"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       id="path21" />
+    <rect
+       x="352"
+       y="181"
+       width="62"
+       height="9"
+       rx="4.5"
+       fill="#e2e8f0"
+       id="rect22" />
+    <rect
+       x="452"
+       y="181"
+       width="104"
+       height="10"
+       rx="5"
+       fill="#ffedd5"
+       id="rect23" />
+    <rect
+       x="452"
+       y="181"
+       width="104"
+       height="10"
+       rx="5"
+       fill="url(#ow-accent)"
+       id="rect24" />
+  </g>
+  <g
+     id="g28">
+    <rect
+       x="302"
+       y="220"
+       width="274"
+       height="52"
+       rx="18"
+       fill="#ffffff"
+       stroke="#fdba74"
+       stroke-width="2"
+       id="rect25" />
+    <circle
+       cx="330"
+       cy="246"
+       r="11"
+       fill="#ffffff"
+       stroke="#fb923c"
+       stroke-width="3"
+       stroke-dasharray="14 8"
+       id="circle25" />
+    <rect
+       x="352"
+       y="241"
+       width="94"
+       height="9"
+       rx="4.5"
+       fill="#e2e8f0"
+       id="rect26" />
+    <rect
+       x="452"
+       y="241"
+       width="104"
+       height="10"
+       rx="5"
+       fill="#ffedd5"
+       id="rect27" />
+    <rect
+       x="452"
+       y="241"
+       width="62"
+       height="10"
+       rx="5"
+       fill="url(#ow-accent)"
+       id="rect28" />
+  </g>
+  <g
+     id="g31">
+    <rect
+       x="302"
+       y="280"
+       width="274"
+       height="52"
+       rx="18"
+       fill="#ffffff"
+       stroke="#e2e8f0"
+       stroke-width="2"
+       id="rect29" />
+    <circle
+       cx="330"
+       cy="306"
+       r="11"
+       fill="#f1f5f9"
+       id="circle29" />
+    <path
+       d="M330 299v8l5 3"
+       stroke="#94a3b8"
+       stroke-width="3"
+       fill="none"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       id="path29" />
+    <rect
+       x="352"
+       y="301"
+       width="70"
+       height="9"
+       rx="4.5"
+       fill="#e2e8f0"
+       id="rect30" />
+    <rect
+       x="452"
+       y="301"
+       width="104"
+       height="10"
+       rx="5"
+       fill="#f1f5f9"
+       id="rect31" />
+  </g>
+  <g
+     fill="#64748b"
+     font-family="Inter, system-ui, sans-serif"
+     font-size="15"
+     font-weight="600"
+     id="g32" />
+</svg>

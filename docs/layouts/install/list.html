@@ -1,0 +1,42 @@
+{{/* Install hub.
+
+     Same shape as the tutorials hub: the docs shell keeps the sidebar (and the
+     mobile drawer), while the body is a gradient masthead carrying the title,
+     the page description and a copyable quick-install line, then the prose of
+     _index.md (which places the install-methods cards). */}}
+{{ define "main" }}
+
+{{ $quick := "" }}
+{{ with .Params.quick_command }}
+  {{ $quick = printf `
+      <div class="install-hero__command">
+        <span class="install-hero__prompt" aria-hidden="true">$</span>
+        <code>%s</code>
+      </div>%s` . (cond (ne (string $.Params.quick_note) "")
+        (printf `<p class="install-hero__note">%s</p>` ($.Params.quick_note | markdownify)) "") }}
+{{ end }}
+
+{{ $body := printf `
+<div class="install-page">
+  <header class="install-hero">
+    <div class="install-hero__inner">
+      <p class="install-hero__eyebrow">%s</p>
+      <h1 class="install-hero__title">%s</h1>
+      %s
+      %s
+    </div>
+  </header>
+
+  <div class="install-body">
+    <div class="prose prose-lg max-w-none">%s</div>
+  </div>
+</div>`
+  (i18n "installEyebrow" | default "Installation")
+  .Title
+  (cond (ne (string .Description) "")
+    (printf `<p class="install-hero__lead">%s</p>` .Description) "")
+  $quick
+  .Content }}
+
+{{ partial "docs-shell.html" (dict "page" . "main" $body "wide" true) }}
+{{ end }}

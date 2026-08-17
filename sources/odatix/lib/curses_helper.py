@@ -20,11 +20,36 @@
 #
 
 import curses
+import sys
 
 CTRL_D = 4
 
+# XTerm mouse tracking modes. As long as any of them is set, the terminal sends
+# mouse events to the application instead of handling text selection itself, so
+# a click-drag gets interrupted. ncurses does not reliably emit the "reset"
+# sequences when the mouse mask is cleared, so we write them out explicitly.
+_MOUSE_TRACKING_MODES = ("1000", "1002", "1003", "1006", "1015")
+
+def _write_terminal_sequence(sequence):
+    try:
+        sys.stdout.write(sequence)
+        sys.stdout.flush()
+    except (IOError, ValueError):
+        pass
+
+def _set_mouse_tracking(enabled):
+    action = "h" if enabled else "l"
+    _write_terminal_sequence("".join("\033[?" + mode + action for mode in _MOUSE_TRACKING_MODES))
+
 def enable_selection():
-    curses.mousemask(0)
+    """Gives the mouse back to the terminal so the user can select text."""
+    try:
+        curses.mousemask(0)
+    except curses.error:
+        pass
+    _set_mouse_tracking(False)
 
 def disable_selection():
+    """Grabs mouse events for the application (clicks, drags, wheel)."""
     curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
+    _set_mouse_tracking(True)

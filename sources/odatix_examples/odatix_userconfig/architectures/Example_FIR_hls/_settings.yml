@@ -1,0 +1,87 @@
+##############################################
+# Settings for Example_FIR_hls
+##############################################
+# A direct-form FIR filter written in C++ and turned into RTL by Vitis HLS,
+# then synthesized like any other design.
+#
+# Nothing is replaced in the sources: both knobs are passed on the command line
+# of the high-level synthesis, one as a preprocessor define (the number of
+# taps), the other as an HLS directive (the pipeline initiation interval). The
+# C++ therefore contains no "#pragma HLS" at all, and each point of the design
+# space is one run of "run_hls.tcl".
+
+# Source files
+design_path: "examples/fir_hls"
+design_path_whitelist: ['src', 'run_hls.tcl'] # path/pattern of what should be copied from design_path
+design_path_blacklist: [] # path/pattern of what should NOT be copied from design_path
+
+# Generate the rtl (from C/C++ with Vitis HLS here)
+generate_rtl: Yes
+generate_command: "vitis_hls -f run_hls.tcl -tclargs ${taps} ${ii} ${partition}" # this requires Vitis HLS
+generate_output: "rtl" # path of the generated rtl
+
+# Generated design settings
+# Vitis HLS names the top module after the synthesized function, and gives it
+# the default "ap_ctrl_hs" block-level interface (ap_clk, ap_rst, ap_start...).
+top_level_file: "fir.v"
+top_level_module: "fir"
+clock_signal: "ap_clk"
+reset_signal: "ap_rst"
+
+# No parameter file: nothing is replaced in the sources
+use_parameters: No
+
+##############################################
+# Virtual parameter domains
+##############################################
+
+# "${taps}", "${ii}" and "${partition}" in the generation command above are
+# filled from these variables, which behave exactly like parameter domains: the
+# filter is synthesized once per combination, and a slice can be selected with
+# "Example_FIR_hls+taps/16taps+ii/1+partition/complete" in the job settings
+# file. No directory, and no parameter file, needed.
+#
+# Two of the three explore HLS pragmas, in the two ways a pragma can be
+# explored: "ii" sweeps the *value* of a directive, "partition" sweeps *which
+# directive is applied* — including applying none at all.
+variables:
+  # Generation parameter: passed to the C++ front end as "-DTAPS=<n>".
+  taps:
+    type: list
+    settings:
+      list: [8, 16, 32]
+
+  # Pragma: the initiation interval the MAC loop is pipelined at. This is the
+  # throughput/area knob — II=1 issues one sample per cycle and needs the most
+  # multipliers, larger IIs let the operators be shared.
+  ii:
+    type: list
+    settings:
+      list: [1, 2, 4]
+
+  # Pragma: which array_partition directive is applied to the tap delay line.
+  # "none" applies no directive at all and leaves it in a bram, which caps the
+  # reachable initiation interval — it is the point of comparison the two
+  # others are read against.
+  partition:
+    type: list
+    settings:
+      list: ["none", "cyclic", "complete"]
+
+# Default frequencies (in MHz)
+fmax_synthesis:
+  lower_bound: 50
+  upper_bound: 600
+custom_freq_synthesis:
+  list: [100]
+
+# Optional target-specific frequencies (in MHz)
+overrides:
+  - targets: xc7a100t-csg324-1
+    fmax_synthesis:
+      lower_bound: 50
+      upper_bound: 500
+  - targets: xc7k70t-fbg676-2
+    fmax_synthesis:
+      lower_bound: 100
+      upper_bound: 700

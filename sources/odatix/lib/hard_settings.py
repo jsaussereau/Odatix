@@ -34,10 +34,15 @@ work_script_path = "scripts"
 work_report_path = "report"
 work_result_path = "result"
 work_log_path = "log"
+# Where the constraint files a user provides are copied, next to the timing
+# constraint file Odatix generates itself (see lib/constraint_files.py).
+work_constraint_path = "constraints"
 
 # Work directory files
 arch_filename = "architecture.txt"
 target_filename = "target.txt"
+flow_filename = "flow.txt"
+steps_filename = "steps.yml"
 tcl_config_filename = "settings.tcl"
 yaml_config_filename = "settings.yml"
 fmax_status_filename = "status.log"
@@ -45,6 +50,26 @@ sim_progress_filename = "progress.log"
 synth_status_filename = "synth_status.log"
 frequency_search_filename = "frequency_search.log"
 param_domains_filename = "param_domains.yml"
+pnr_source_filename = "pnr.yml"
+
+# Where a simulation/workflow writes its progress, relative to the job's work
+# directory. Makefiles write it into the log directory they are handed, so the
+# default path must include it, not just the file name.
+sim_progress_file = work_log_path + "/" + sim_progress_filename
+
+# Handoff from a synthesis job to a place & route job run with another tool
+# ("odatix pnr"). A synthesis flow that wants to be usable as a pnr input writes
+# these three files in its result directory, under these exact names, whatever
+# the tool calls them internally. Mirrored in tcl by $netlist_file, $sdc_file and
+# $sdf_file (see the _common/settings.tcl of the eda tools).
+pnr_netlist_filename = "netlist.v"
+pnr_sdc_filename = "design.sdc"
+pnr_sdf_filename = "design.sdf"
+
+# Last path segment of a place & route job whose source is an fmax search. A
+# custom frequency source uses "<N>MHz" there instead, so the two never collide
+# and every pnr job directory has the same depth.
+pnr_fmax_dirname = "fmax"
 
 # Values to retrieve in files
 valid_status = "Done: 100%"
@@ -79,7 +104,9 @@ daemon_log_prefix = "daemon."
 daemon_log_suffix = ".log"
 daemon_log_enabled_default = False
 
-default_supported_tools = ["vivado", "design_compiler", "openlane", "genus", "verilator"]
+# Tools are no longer hard-coded: the list of supported eda tools is discovered
+# at runtime by scanning the user tools directory and the built-in one (see
+# odatix.lib.eda_tools). A tool is any directory containing a "tool.yml" file.
 default_analysis_target = "analysis"
 default_analysis_constraint_file = "analysis_constraints.txt"
 

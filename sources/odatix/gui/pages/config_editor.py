@@ -20,17 +20,18 @@
 #
 
 import os
+import re
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 import uuid
 import random
 
 import odatix.gui.ui_components as ui
-from odatix.gui.utils import get_instance_mode, get_instance_context
+from odatix.gui.utils import get_instance_mode, get_instance_collection_context
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 import odatix.components.replace_params as replace_params
-import odatix.components.workspace as workspace
+from odatix.workspace.domains import ParameterDomain
 from odatix.gui.icons import icon
 from odatix.gui.css_helper import Style
 
@@ -114,14 +115,12 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
                 id={"type": "config-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
                 className="title-input",
                 style={
-                    "width": "calc(100% - 20px)",
-                    "marginLeft": "5px",
-                    "marginRight": "5px",
+                    "boxSizing": "border-box",
+                    "width": "calc(100% - 10px)",
+                    "margin": "2px 0px 5px 5px",
                     "fontWeight": "bold",
                     "fontSize": "1.1em",
-                    "height": "10px",
-                    "marginTop": "-5px",
-                    "marginBottom": "2px",
+                    "height": "30px",
                     "textAlign": "center",
                 },
             )
@@ -185,21 +184,23 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
         "verticalAlign": "top"
     })
 
+def card_index(cards, domain_uuid, config_uuid):
+    """Index of the config card of that uuid in a row of cards, -1 when it is not there anymore."""
+    for i, card in enumerate(cards):
+        card_id = card.get("props", {}).get("id") if isinstance(card, dict) else getattr(card, "id", None)
+        if isinstance(card_id, dict) and card_id.get("type") == "config-card" \
+                and card_id.get("domain_uuid") == domain_uuid and card_id.get("config_uuid") == config_uuid:
+            return i
+    return -1
+
 def add_card(text: str = "Add design configuration", domain_uuid: str = hard_settings.main_parameter_domain):
     return html.Div(
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingTop": "20px"}),
-                    html.Div(
-                        "+",
-                        style={
-                            "fontSize": "2.5em",
-                            "lineHeight": "80px",
-                            "height": "80px",
-                        }
-                    ),
-                ], 
+                    html.Div("+", style={"fontSize": "2.5em", "lineHeight": "80px", "height": "80px", "marginTop": "-2px", "marginBottom": "-16px"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingBottom": "20px"}),
+                ],
                 style={"textAlign": "center"}
             ),
             id={"type": "new-config", "domain_uuid": domain_uuid},
@@ -390,6 +391,7 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
 def add_parameter_domain_button(text:str="Main parameter domain"):
     return html.Div(
         [
+            html.Div("+", style={"fontSize": "1.5em", "transform": "translateY(-1px)"}),
             html.H3(text, style={"marginBottom": "0px"})
         ], 
         id={"type": "button", "action": "add-domain"}, 
@@ -397,8 +399,10 @@ def add_parameter_domain_button(text:str="Main parameter domain"):
         className="tile title add hover",
         style={
             "marginTop": "50px",
-            "textAlign": "center",
-            "border": "1px dashed #bbb",
+            "display": "flex",
+            "flexDirection": "row",
+            "justifyContent": "center",
+            "gap": "10px",
         },
     )
 
@@ -438,12 +442,12 @@ def config_parameters_form(domain_uuid, settings, mode="arch"):
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Start Delimiter"),
-                        ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file."),
+                        ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file. Escape sequences such as \\n are supported."),
                         dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
                         html.Label("Stop Delimiter"),
-                        ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file."),
+                        ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file. Escape sequences such as \\n are supported."),
                         dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                 ],
@@ -453,17 +457,29 @@ def config_parameters_form(domain_uuid, settings, mode="arch"):
         ]
     )
 
+def show_newlines(text: str):
+    """Render text with a visible '↩' pilcrow before each newline, keeping the actual line break."""
+    if "\n" not in text:
+        return text
+    components = []
+    for i, line in enumerate(text.split("\n")):
+        if i:
+            components.append(html.Span("↩", className="newline-marker"))
+            components.append("\n")
+        components.append(line)
+    return components
+
 def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str):
     use_parameters = domain_settings.get("use_parameters", True)
     if not use_parameters:
-        return preview_div(html.Div("Parameter replacement disabled.", style={"color": "#888"}))
+        return html.Div("Parameter replacement disabled.", style={"color": "#888"})
     param_target_file = domain_settings.get("param_target_file", "")
 
     if mode == "workflow":
         sources = settings.get("sources", {})
         base_path = sources.get("path", "") if isinstance(sources, dict) else ""
         if not base_path:
-            return preview_div(html.Div("No source path specified in workflow settings. Unable to preview.", className="error"))
+            return html.Div("No source path specified in workflow settings. Unable to preview.", className="error")
         if param_target_file == "":
             param_target_file = settings.get("param_target_file", "")
     else:
@@ -472,13 +488,13 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         if generate_rtl:
             base_path = settings.get("design_path", "")
             if not base_path:
-                return preview_div(html.Div("No design path specified in architecture settings. Unable to preview.", className="error"))
+                return html.Div("No design path specified in architecture settings. Unable to preview.", className="error")
             if param_target_file == "":
                 param_target_file = settings.get("top_level_file", "")
         else:
             rtl_path = settings.get("rtl_path", "")
             if not rtl_path:
-                return preview_div(html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error"))
+                return html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error")
             base_path = rtl_path
             if param_target_file == "":
                 param_target_file = os.path.join(settings.get("top_level_file", ""))
@@ -494,59 +510,25 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             stop_delim=stop_delimiter, 
             replace_all_occurrences=False,
         )
+        start_delimiter = replace_params.unescape_delimiter(start_delimiter)
+        stop_delimiter = replace_params.unescape_delimiter(stop_delimiter)
         if not match_found:
-            preview_components=html.Span(base_text, style={"whiteSpace": "pre-wrap", "color": "#FA5252", "fontWeight": "800"}) 
+            preview_components=html.Span(base_text, style={"whiteSpace": "pre-wrap", "color": "#FA5252", "fontWeight": "800"})
         else:
-            start_line, start_charater = replace_params.get_first_appearance(new_content, start_delimiter)
-            stop_line, stop_charater = replace_params.get_first_appearance(new_content, stop_delimiter, start_line=start_line, start_char=start_charater+len(start_delimiter)+1)
-            lines = new_content.splitlines()
-            preview_start = 0
-            preview_stop = len(lines)
-            preview_lines = lines[preview_start:preview_stop]
-            preview_components = []
-            # preview_components.append(html.Span("[...]\n", style={"color": "#888"}))
-            for idx, line in enumerate(preview_lines):
-                line_idx = preview_start + idx
-                line_parts = []
-
-                # Case where start and stop are on the same line
-                if start_line == stop_line and line_idx == start_line - 1:
-                    s_idx = start_charater
-                    e_idx = stop_charater
-                    if s_idx > 0:
-                        line_parts.append(line[:s_idx])
-                    line_parts.append(html.Span(start_delimiter, className="text-highlight primary"))
-                    line_parts.append(html.Span(line[s_idx+len(start_delimiter):e_idx], className="text-highlight secondary"))
-                    line_parts.append(html.Span(stop_delimiter, className="text-highlight primary"))
-                    if e_idx + len(stop_delimiter) < len(line):
-                        line_parts.append(line[e_idx+len(stop_delimiter):])
-                # Start delimiter line
-                elif line_idx == start_line - 1:
-                    if start_charater != -1:
-                        if start_charater > 0:
-                            line_parts.append(line[:start_charater])
-                        line_parts.append(html.Span(start_delimiter, className="text-highlight primary"))
-                        line_parts.append(html.Span(line[start_charater+len(start_delimiter):], className="text-highlight secondary"))
-                    else:
-                        line_parts.append(line)
-                # Stop delimiter line
-                elif line_idx == stop_line - 1:
-                    if stop_charater != -1:
-                        if stop_charater > 0:
-                            line_parts.append(html.Span(line[:stop_charater], className="text-highlight secondary"))
-                        line_parts.append(html.Span(stop_delimiter, className="text-highlight primary"))
-                        if stop_charater + len(stop_delimiter) < len(line):
-                            line_parts.append(line[stop_charater+len(stop_delimiter):])
-                    else:
-                        line_parts.append(line)
-                # Replaced content lines
-                elif start_line-1 < line_idx < stop_line-1:
-                    line_parts.append(html.Span(line, className="text-highlight secondary"))
-                else:
-                    line_parts.append(line)
-                preview_components.extend(line_parts)
-                preview_components.append(html.Br())
-            # preview_components.append(html.Span("[...]", style={"color": "#888"}))
+            # Highlight the replaced section by character index, so delimiters may span several lines
+            pattern = re.escape(start_delimiter) + ".*?" + re.escape(stop_delimiter)
+            match = re.search(pattern, new_content, flags=re.DOTALL)
+            section_start = match.start()
+            section_stop = match.end()
+            content_start = section_start + len(start_delimiter)
+            content_stop = section_stop - len(stop_delimiter)
+            preview_components = [
+                new_content[:section_start],
+                html.Span(show_newlines(start_delimiter), className="text-highlight primary"),
+                html.Span(new_content[content_start:content_stop], className="text-highlight secondary"),
+                html.Span(show_newlines(stop_delimiter), className="text-highlight primary"),
+                new_content[section_stop:],
+            ]
 
         pane_content = html.Pre(
             children=preview_components,
@@ -574,14 +556,29 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         else:
             text = f"Preview file '{os.path.realpath(param_target_file)}' not found. Unable to preview."
         pane_content = html.Div(text, className="error")
-    return preview_div(pane_content)
+    return pane_content
 
-def preview_div(content):
+def preview_header(domain_uuid):
+    """Header of the preview tile: title + config selector."""
     return html.Div(
         children=[
-            html.H3("Preview Pane"),
-            content,
-        ], 
+            html.H3("Preview Pane", style={"margin": "0px"}),
+            dcc.Dropdown(
+                id={"type": "preview-config-select", "domain_uuid": domain_uuid},
+                options=[],
+                value=None,
+                clearable=False,
+                placeholder="No config",
+                style={"minWidth": "180px", "flex": "0 1 240px"},
+            ),
+        ],
+        style={
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "space-between",
+            "gap": "10px",
+            "marginBottom": "8px",
+        },
     )
 
 def domain_section(domain: str, mode: str = "arch", instance_name: str = "", settings: dict = {}, domain_uuid=None):
@@ -615,7 +612,13 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                         ],
                         id={"type": "config-parameters", "domain_uuid": domain_uuid}, 
                         className="tile config"),
-                    html.Div(id={"type": "preview-pane", "domain_uuid": domain_uuid}, className="tile config"),
+                    html.Div(
+                        children=[
+                            preview_header(domain_uuid),
+                            html.Div(id={"type": "preview-pane", "domain_uuid": domain_uuid}),
+                        ],
+                        className="tile config",
+                    ),
                 ], 
                 className="card-matrix config",
             ),
@@ -631,6 +634,11 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
         ],
         id = {"type": "param-domain-section", "domain_uuid": domain_uuid},
     )
+
+
+def instance_domain(instances, instance_name, domain_name):
+    """One parameter domain of the architecture or workflow being edited."""
+    return ParameterDomain(instances.entry(instance_name), domain_name)
 
 
 ######################################
@@ -674,7 +682,7 @@ def update_param_domains(
         if page != page_path:
             return dash.no_update, dash.no_update, dash.no_update
 
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         return html.Div(
             children=[
@@ -690,22 +698,22 @@ def update_param_domains(
         className="card-matrix config",
     )
 
-    if not workspace.instance_exists(base_path, instance_name):
+    if instance_name not in instances:
         domain_sections = []
         domain_sections.append(domain_section(hard_settings.main_parameter_domain, mode, instance_name, settings={}))
         domain_sections.append(add_domain_div)
         return domain_sections, dash.no_update, dash.no_update
 
-    domains = workspace.get_param_domains(base_path, instance_name)
+    instance = instances[instance_name]
+    domains = instance.domains.sub_names()
 
     # Generate domain sections
     if triggered_id == {"page": page_path, "type": "instance-title-div"}:
         domain_sections = []
-        settings = workspace.load_instance_domain_settings(base_path, instance_name, hard_settings.main_parameter_domain, kind=mode)
-        domain_sections.append(domain_section(hard_settings.main_parameter_domain, mode, instance_name, settings=settings))
-        for domain in domains:
-            settings = workspace.load_instance_domain_settings(base_path, instance_name, domain, kind=mode)
-            domain_sections.append(domain_section(domain, mode, instance_name, settings=settings))
+        for domain in instance.domains:
+            domain_sections.append(
+                domain_section(domain.name, mode, instance_name, settings=domain.settings.to_dict())
+            )
         domain_sections.append(add_domain_div)
         return domain_sections, True, dash.no_update
 
@@ -719,7 +727,7 @@ def update_param_domains(
             while new_domain in domains:
                 suffix += 1
                 new_domain = f"{base_name}{suffix}"
-            workspace.create_parameter_domain(base_path, instance_name, new_domain)
+            instance.domains.create(new_domain)
 
             # Insert new domain section before the add domain button
             domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
@@ -752,13 +760,11 @@ def update_param_domains(
                 while new_domain in domains:
                     suffix += 1
                     new_domain = f"{base_name}{suffix}"
-                workspace.duplicate_parameter_domain(
-                    base_path, instance_name, instance_name, domain_to_duplicate, new_domain
-                )
+                instance.domains.duplicate(domain_to_duplicate, new_domain)
 
                 # Insert new domain section before the add domain button
                 domain_sections = domain_sections[:-1] if isinstance(domain_sections, list) else []
-                new_domain_settings = workspace.load_instance_domain_settings(base_path, instance_name, new_domain, kind=mode)
+                new_domain_settings = instance.domains[new_domain].settings.to_dict()
                 domain_uuid = get_uuid()
                 domain_sections.append(domain_section(new_domain, mode, instance_name, settings=new_domain_settings, domain_uuid=domain_uuid))
                 domain_sections.append(add_domain_div)
@@ -782,7 +788,7 @@ def update_param_domains(
                 return dash.no_update, dash.no_update, dash.no_update
 
             if domain_to_delete and domain_to_delete != hard_settings.main_parameter_domain:
-                workspace.delete_parameter_domain(base_path, instance_name, domain_to_delete)
+                instance.domains.delete(domain_to_delete)
                 if isinstance(domain_sections, list):
                     for i, section in enumerate(domain_sections):
                         domain = section.get("props", {}).get("id", {}).get("domain_uuid", "")
@@ -815,7 +821,7 @@ def update_config_cards(
     config_layout, add_click, save_clicks, delete_clicks, duplicate_clicks, update_domain_uuid,
     config_cards_row, title_values, contents, config_metadata, domain_metadata, odatix_settings
 ):
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         return [html.Div("No architecture or workflow selected.", className="error")]
 
@@ -870,7 +876,7 @@ def update_config_cards(
                 for idx in range(1, 1001):
                     new_filename = f"new_config{idx}.txt"
                     if new_filename not in trig_domain_configs:
-                        workspace.save_config_file(base_path, instance_name, trig_domain_name, new_filename, "")
+                        instance_domain(instances, instance_name, trig_domain_name).configs.write(new_filename, "")
                         config_uuid = get_uuid()
                         config_cards_row[trig_domain_idx].insert(-1, 
                             config_card(
@@ -902,7 +908,7 @@ def update_config_cards(
                             if verbose:
                                 print(f"File '{config_new_title}' already exists.")
                         else:
-                            path = workspace.get_arch_domain_path(base_path, instance_name, trig_domain_name)
+                            path = instance_domain(instances, instance_name, trig_domain_name).path
                             old_path = os.path.join(path, config_old_title)
                             new_path = os.path.join(path, config_new_title)
                             if verbose:
@@ -911,7 +917,7 @@ def update_config_cards(
                             config_old_title = config_new_title
                     if verbose:
                         print(f"Saving config '{config_old_title}' in domain '{trig_domain_name}'")
-                    workspace.save_config_file(base_path, instance_name, trig_domain_name, config_new_title, trig_config_content)
+                    instance_domain(instances, instance_name, trig_domain_name).configs.write(config_old_title, trig_config_content)
                     config_metadata[trig_config_idx]['config_content'] = trig_config_content
                     config_cards_row[trig_domain_idx][trig_config_idx] = config_card(
                         domain_uuid=trig_domain_uuid,
@@ -923,9 +929,11 @@ def update_config_cards(
                     )
                 
                 # Delete config
-                if trig_type == "delete-config":
-                    workspace.delete_config_file(base_path, instance_name, trig_domain_name, trig_config_name)
-                    config_cards_row[trig_domain_idx].pop(trig_config_idx)
+                if trig_type == "delete-config" and trig_config_name:
+                    instance_domain(instances, instance_name, trig_domain_name).configs.delete(trig_config_name)
+                    card_idx = card_index(config_cards_row[trig_domain_idx], trig_domain_uuid, trig_config_uuid)
+                    if card_idx >= 0:
+                        config_cards_row[trig_domain_idx].pop(card_idx)
 
                 # Duplicate config
                 if trig_type == "duplicate-config":
@@ -935,7 +943,7 @@ def update_config_cards(
                     while new_filename in trig_domain_configs:
                         suffix += 1
                         new_filename = f"{base}_copy{suffix}.txt"
-                    workspace.save_config_file(base_path, instance_name, trig_domain_name, new_filename, trig_config_content)
+                    instance_domain(instances, instance_name, trig_domain_name).configs.write(new_filename, trig_config_content)
                     config_uuid = get_uuid()
                     config_cards_row[trig_domain_idx].insert(-1, 
                         config_card(
@@ -952,11 +960,11 @@ def update_config_cards(
     if triggered_id == "param-domains-section-initialized":
         config_cards_row = []
         for idx, (domain_uuid, domain_name) in enumerate(domains.items()):
-            files = workspace.get_config_files(base_path, instance_name, domain_name)
+            configs = instance_domain(instances, instance_name, domain_name).configs
             config_cards = []
             config_metadata = []
-            for config_name in files:
-                config_content = workspace.load_config_file(base_path, instance_name, domain_name, config_name)
+            for config_name in configs.filenames():
+                config_content = configs[config_name].read()
                 config_uuid = get_uuid()
                 # Create config card
                 config_cards.append(
@@ -979,10 +987,10 @@ def update_config_cards(
         for i, domain_uuid in enumerate(domains.keys()):
             if domain_uuid == update_domain_uuid:
                 domain_name = domains[domain_uuid]
-                files = workspace.get_config_files(base_path, instance_name, domain_name)
+                configs = instance_domain(instances, instance_name, domain_name).configs
                 config_cards = []
-                for config_name in files:
-                    config_content = workspace.load_config_file(base_path, instance_name, domain_name, config_name)
+                for config_name in configs.filenames():
+                    config_content = configs[config_name].read()
                     config_uuid = get_uuid()
                     # Create config card
                     config_cards.append(
@@ -1002,6 +1010,36 @@ def update_config_cards(
     return config_cards_row
 
 @dash.callback(
+    Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "options"),
+    Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
+    Input("param-domains-section", "children"),
+    Input({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
+    Input({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
+    prevent_initial_call=True
+)
+def update_preview_config_select(_, config_cards_rows, config_titles, config_metadata, domain_metadata, current_values):
+    """Fill the preview config selector of each domain with its configs."""
+    options_out = []
+    values_out = []
+    for i, domain in enumerate(domain_metadata):
+        domain_uuid = domain.get("domain_uuid", "")
+        options = []
+        for j, config in enumerate(config_metadata):
+            if config.get("domain_uuid", "") != domain_uuid:
+                continue
+            title = config_titles[j] if j < len(config_titles) and config_titles[j] else config.get("config_name", "")
+            options.append({"label": title, "value": config.get("config_uuid", "")})
+        current = current_values[i] if i < len(current_values) else None
+        if current not in [option["value"] for option in options]:
+            current = options[0]["value"] if options else None
+        options_out.append(options)
+        values_out.append(current)
+    return options_out, values_out
+
+@dash.callback(
     Output({"type": "preview-pane", "domain_uuid": dash.ALL}, "children"),
     State("url", "search"),
     Input("param-domains-section", "children"),
@@ -1012,6 +1050,7 @@ def update_config_cards(
     Input({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
     State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
@@ -1019,11 +1058,11 @@ def update_config_cards(
 )
 def update_preview_all(
     search, param_domains_update,
-    config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list, 
-    config_metadata, domain_metadata, odatix_settings
+    config_cards_rows, params_enables, target_files, start_delims, stop_delims, settings_list, config_contents_list,
+    selected_configs, config_metadata, domain_metadata, odatix_settings
 ):
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
-    if not instance_name or not workspace.instance_exists(base_path, instance_name):
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
+    if not instance_name or instance_name not in instances:
         label = "Workflow" if mode == "workflow" else "Architecture"
         return [
             html.Div([
@@ -1032,27 +1071,33 @@ def update_preview_all(
             ], className="error warning")
         ] * len(config_cards_rows)
 
-    # Group config contents by domain
+    # Group config contents by domain, keyed by config uuid
     contents_by_domain = []
-    domain_contents = []
     for domain in domain_metadata:
         domain_uuid = domain.get("domain_uuid", "")
-        indices = [i for i, config in enumerate(config_metadata) if config.get("domain_uuid", "") == domain_uuid]
-        domain_contents = [config_contents_list[i] for i in indices]
+        domain_contents = {
+            config.get("config_uuid", ""): config_contents_list[i]
+            for i, config in enumerate(config_metadata)
+            if config.get("domain_uuid", "") == domain_uuid and i < len(config_contents_list)
+        }
         contents_by_domain.append(domain_contents)
 
     # Generate previews for each domain
     results = []
     for i, domain in enumerate(domain_metadata):
         domain_uuid = domain.get("domain_uuid", "")
-        config_contents_list = contents_by_domain[i] if i < len(contents_by_domain) else []
+        domain_contents = contents_by_domain[i] if i < len(contents_by_domain) else {}
         settings = settings_list[0] if 0 < len(settings_list) and settings_list[0] is not None else {}
         domain_settings = settings_list[i] if i < len(settings_list) and settings_list[i] is not None else {}
         domain_settings["use_parameters"] = params_enables[i] if i < len(params_enables) else ""
         domain_settings["param_target_file"] = target_files[i] if i < len(target_files) else ""
         domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
         domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
-        replacement_text = config_contents_list[0] if config_contents_list else ""
+        selected_config = selected_configs[i] if i < len(selected_configs) else None
+        if selected_config in domain_contents:
+            replacement_text = domain_contents[selected_config]
+        else:
+            replacement_text = next(iter(domain_contents.values()), "")
         results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text))
     return results
 
@@ -1068,8 +1113,17 @@ def update_preview_all(
 def update_save_status(param_domains_section, title_values, content_values, initial_titles, initial_contents):
     save_classes = []
     tooltip_texts = []
-    for title, content, initial_title, initial_content in zip(title_values, content_values, initial_titles, initial_contents):
-        error = config_title_error(title, initial_titles, initial_title)
+    # Names are only taken within their own domain: two domains can each have a "12"
+    domain_uuids = [item.get("id", {}).get("domain_uuid", "") for item in (ctx.outputs_list[0] or [])]
+    for i, (title, content, initial_title, initial_content) in enumerate(
+        zip(title_values, content_values, initial_titles, initial_contents)
+    ):
+        domain_uuid = domain_uuids[i] if i < len(domain_uuids) else None
+        domain_titles = [
+            other for j, other in enumerate(initial_titles)
+            if domain_uuid is None or (j < len(domain_uuids) and domain_uuids[j] == domain_uuid)
+        ]
+        error = config_title_error(title, domain_titles, initial_title)
         if error:
             save_classes.append("color-button error-status icon-button tooltip delay bottom small")
             tooltip_texts.append(error)
@@ -1161,7 +1215,7 @@ def save_all(
     if not n_clicks:
         return no_config_update, no_config_update, no_config_update, no_domain_update
 
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         return no_config_update, no_config_update, no_config_update, no_domain_update
 
@@ -1195,13 +1249,13 @@ def save_all(
 
         new_name = new_title if new_title.endswith(".txt") else new_title + ".txt"
         if new_name != old_name:
-            path = workspace.get_arch_domain_path(base_path, instance_name, domain_name)
+            path = instance_domain(instances, instance_name, domain_name).path
             if verbose:
                 print(f"Renaming config from '{old_name}' to '{new_name}'")
             os.rename(os.path.join(path, old_name), os.path.join(path, new_name))
         if verbose:
             print(f"Saving config '{new_name}' in domain '{domain_name}'")
-        workspace.save_config_file(base_path, instance_name, domain_name, new_name, new_content)
+        instance_domain(instances, instance_name, domain_name).configs.write(new_name, new_content)
 
         new_titles[i] = new_title
         new_contents[i] = new_content
@@ -1226,9 +1280,7 @@ def save_all(
             "start_delimiter": start_delimiter,
             "stop_delimiter": stop_delimiter,
         }
-        workspace.update_instance_domain_settings(
-            base_path, instance_name, metadata.get("domain_name", ""), settings, kind=mode
-        )
+        instance_domain(instances, instance_name, metadata.get("domain_name", "")).update(settings)
         new_params[i] = settings
 
     return new_titles, new_contents, new_metadata, new_params
@@ -1270,7 +1322,7 @@ def save_config_parameters(
     use_parameters, param_target_files, start_delimiters, stop_delimiters, domain_metadata, config_params_stores,
     search, odatix_settings
 ):
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):        
@@ -1302,7 +1354,7 @@ def save_config_parameters(
             settings["start_delimiter"] = start_delimiter
             settings["stop_delimiter"] = stop_delimiter
 
-            workspace.update_instance_domain_settings(base_path, instance_name, trig_domain_name, settings, kind=mode)
+            instance_domain(instances, instance_name, trig_domain_name).update(settings)
             return [settings if i == idx else dash.no_update for i in range(len(domain_metadata))]
     return [dash.no_update for _ in range(len(domain_metadata))]
 
@@ -1358,7 +1410,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
     triggered_type = triggered_id.get("type", "")
     triggered_domain_uuid = triggered_id.get("domain_uuid", "")
     
-    mode, instance_name, base_path = get_instance_context(search, odatix_settings)
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         raise dash.exceptions.PreventUpdate
 
@@ -1371,7 +1423,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
         # Save button clicked for this domain
         if triggered_type == "save-domain-title" and domain_uuid == triggered_domain_uuid:
             if new_domain_name != domain_name and new_domain_name != "":
-                workspace.rename_parameter_domain(base_path, instance_name, domain_name, new_domain_name)
+                instances.entry(instance_name).domains.rename(domain_name, new_domain_name)
 
                 domain_name = new_domain_name
                 save_classes.append(disabled_class)
@@ -1404,7 +1456,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                 if new_domain_name == "" or " " in new_domain_name:
                     save_classes.append(error_class)
                     tooltips.append("Parameter domain name cannot be empty")
-                elif workspace.parameter_domain_exists(base_path, instance_name, new_domain_name):
+                elif new_domain_name in instances.entry(instance_name).domains:
                     save_classes.append(error_class)
                     label = "workflow" if mode == "workflow" else "architecture"
                     tooltips.append(f"Parameter domain '{new_domain_name}' already exists for this {label}")

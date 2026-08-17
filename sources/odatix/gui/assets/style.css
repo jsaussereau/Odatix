@@ -32,6 +32,7 @@ html, body {
 
 .theme {
     background: var(--theme-background);
+    background-image: var(--theme-background-image);
     color: var(--theme-text-color);
     font-family: var(--theme-font-family), Arial, sans-serif;
     text-shadow: var(--theme-text-shadow);
@@ -515,11 +516,19 @@ textarea {
     background-color: var(--dropdown-background);
     border: var(--dropdown-border);
     border-radius: var(--dropdown-border-radius);
-    color: var(--theme-text-color);
+    color: var(--dropdown-text-color);
+}
+.navbar .Select-value {
+    background-color: var(--navbar-dropdown-background);
+    border: var(--navbar-dropdown-border);
+    color: var(--navbar-dropdown-text-color);
 }
 
 .Select-value-label {
     color: var(--theme-text-color) !important;
+}
+.navbar .Select-value-label {
+    color: var(--navbar-dropdown-text-color) !important;
 }
 
 .Select-menu-outer {
@@ -528,12 +537,12 @@ textarea {
     border: var(--dropdown-border);
     border-radius: var(--dropdown-menu-border-radius);
     color: var(--theme-text-color);
+    z-index: 5000 !important;
 }
-
-/* Keep topbar dropdown menus above Plotly layers (modebar, graph overlays). */
-.navbar .Select,
 .navbar .Select-menu-outer {
-    z-index: 4000 !important;
+    background-color: var(--navbar-dropdown-background);
+    border: var(--navbar-dropdown-border);
+    color: var(--navbar-dropdown-text-color);
 }
 
 .navbar .Select-menu-outer {
@@ -543,6 +552,9 @@ textarea {
 .Select-value:hover {
     background-color: var(--dropdown-background-hover);
     border-color: var(--main-border-color-hover);
+}
+.navbar .Select-value:hover {
+    background-color: var(--navbar-dropdown-background-hover);
 }
 
 .error {
@@ -636,12 +648,7 @@ textarea {
     /* transition: all .2s cubic-bezier(0.175, 0.885, 0, 1); */
     box-sizing: border-box;
 }
-.tile.add,
-.card.add {
-    background: var(--add-card-background);
-    border: var(--add-card-border);
-    color: var(--card-text-color);
-}
+
 .card.configs {
     width: var(--tile-half-width);
     overflow: visible !important;
@@ -721,6 +728,13 @@ textarea {
     gap: 2px;
 }
 
+.odx-add-card,
+.odx-jobstep-add,
+.card.hover {
+    transition: var(--card-hover-transition);
+}
+.odx-add-card:hover,
+.odx-jobstep-add:hover,
 .card.hover:hover {
     cursor: pointer;
     box-shadow: var(--card-hover-box-shadow);
@@ -745,6 +759,29 @@ textarea {
     gap: 16px;
     max-width: 1100px;
     margin: 0 auto 32px auto;
+}
+
+.odx-add-card,
+.tile.add,
+.card.add {
+    background: var(--add-card-background);
+    border: var(--add-card-border);
+    color: var(--card-text-color);
+}
+.odx-add-card:hover,
+.card.add:hover,
+.tile.title.add:hover,
+.tile.config.add:hover {
+    background: var(--add-card-background-hover);
+    color: var(--theme-primary-color);
+    border-color: var(--theme-primary-color);
+}
+
+.tile.config h3 {
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.5;
+    font-size: 1em;
 }
 
 .page-header {
@@ -830,7 +867,7 @@ textarea {
     display: block;
     width: 80%;
     max-width: 500px;
-    margin-bottom: 16px;
+    margin-bottom: var(--tile-gap);
     padding: 18px 22px;
     box-sizing: border-box;
     background-color: var(--card-background);
@@ -845,6 +882,9 @@ textarea {
         box-shadow 0.18s ease;
 }
 
+.tile.hover {
+    transition: var(--tile-hover-transition);
+}
 .tile.hover:hover {
     cursor: pointer;
     box-shadow: var(--tile-hover-box-shadow);
@@ -855,6 +895,10 @@ textarea {
     justify-self: center;
     max-width: var(--tile-width);
     width: var(--tile-width);
+}
+.tile.config.collapsed {
+    padding-bottom: 0px;
+    height: fit-content;
 }
 
 .tile.title {
@@ -894,6 +938,12 @@ textarea {
     margin: auto;
     margin-top: 0px;
     margin-bottom: 30px;
+}
+.tiles-container.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--tile-width), 1fr));
+    gap: var(--tile-gap);
+    align-items: start;
 }
 
 .title-input {
@@ -1121,8 +1171,17 @@ h3 {
     text-shadow: var(--secondary-highlight-text-shadow);
 }
 
+.newline-marker {
+    opacity: 0.55;
+    font-weight: bold;
+}
+
 .tooltip {
     position: relative;
+    z-index: 4000;
+}
+.tooltip-icon {
+    z-index: 1;
 }
 
 .tooltip .icon {
@@ -1154,7 +1213,7 @@ h3 {
     background: var(--default-tooltip-background);
     color: var(--default-tooltip-text-color);
     border: var(--default-tooltip-border);
-    z-index: 10;
+    z-index: 4000;
 }
 .tooltip.delay::after {
     transition-delay: 0s;
@@ -1198,7 +1257,9 @@ h3 {
     color: var(--error-tooltip-text-color);
     border: var(--error-tooltip-border);
 }
-
+button.tooltip {
+    z-index: initial;
+}
 .tooltip:hover::after {
     opacity: 1;
     z-index: 999999!important;
@@ -1515,9 +1576,12 @@ h3 {
 .monitor-task-button-container {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     gap: 5px;
     scale: 0.7;
     width: 100px;
+    height: 22px;
+    overflow: visible;
 }
 
 .monitor-task-progress {
@@ -1617,6 +1681,7 @@ h3 {
 }
 
 .monitor-log {
+    background: var(--terminal-background-color);
     font-family: monospace;
     font-size: 12px;
     line-height: 16px;
@@ -1934,6 +1999,7 @@ input[type="checkbox"] {
 .monitor-list-panel .monitor-task-progress-text { width: 46px; min-width: 46px; font-size: 13px; }
 .monitor-list-panel .monitor-task-runtime { width: 68px; min-width: 68px; font-size: 13px; }
 .monitor-list-panel .monitor-task-status { width: 72px; min-width: 72px; font-size: 13px; }
+.monitor-list-panel .monitor-task-button-container { height: 18px; overflow: visible; }
 
 /* --- Filter chips ------------------------------------------------------ */
 .monitor-filter {
@@ -2002,6 +2068,9 @@ input[type="checkbox"] {
     overflow: auto;
     border-radius: 0 0 var(--theme-normal-border-radius) var(--theme-normal-border-radius);
 }
+/* Focusable for keyboard scrolling, but no ring when focused by click. */
+.monitor-log-scroll:focus { outline: none; }
+.monitor-log-scroll:focus-visible { outline: 1px solid var(--theme-primary-color); outline-offset: -1px; }
 .monitor-log-panel .monitor-log {
     margin: 0;
     height: auto;
@@ -2356,4 +2425,161 @@ input[type="checkbox"] {
     font-weight: 700;
     font-size: 15px;
     font-variant-numeric: tabular-nums;
+}
+
+.dropdown-up .Select-menu-outer {
+    bottom: 100%;
+    top: auto;
+}
+
+/* Click-away layer behind a popup: the dialog sits above it (position: relative). */
+.popup-backdrop {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    cursor: default;
+}
+
+/* Monitor: "all jobs finished" dialog */
+.monitor-finished-popup {
+    width: 440px;
+    max-width: min(92vw, 460px);
+    padding: var(--space-6, 26px) var(--space-6, 26px) var(--space-5, 20px);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5, 20px);
+    animation: monitor-finished-in 180ms ease-out;
+}
+@keyframes monitor-finished-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .monitor-finished-popup { animation: none; }
+}
+
+/* Head: centered badge + title + subtitle */
+.monitor-finished-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3, 12px);
+}
+.monitor-finished-badge {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-primary-color) 14%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-primary-color) 7%, transparent);
+}
+.monitor-finished-badge .icon { stroke-width: 2.4; }
+.monitor-finished-badge.success {
+    color: var(--theme-success-color);
+    background: color-mix(in srgb, var(--theme-success-color) 14%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-success-color) 7%, transparent);
+}
+.monitor-finished-badge.failed {
+    color: var(--theme-caution-color);
+    background: color-mix(in srgb, var(--theme-caution-color) 14%, transparent);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-caution-color) 7%, transparent);
+}
+.monitor-finished-popup h2 {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--theme-text-color);
+}
+.monitor-finished-message {
+    margin-top: -6px;
+    font-size: 14px;
+    opacity: 0.65;
+}
+
+/* Stats recap: one surface split by dividers, like the monitor header stats */
+.monitor-finished-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid rgba(128, 128, 128, 0.16);
+    border-radius: var(--theme-small-border-radius, 8px);
+    background: rgba(128, 128, 128, 0.05);
+    overflow: hidden;
+}
+.monitor-finished-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3, 12px) 4px;
+    border-right: 1px solid rgba(128, 128, 128, 0.14);
+}
+.monitor-finished-stat:last-child { border-right: none; }
+.monitor-finished-stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: var(--theme-text-color);
+}
+.monitor-finished-stat.time .monitor-finished-stat-value { 
+    height: 23.1px;
+    line-height: 23.1px;
+    font-size: 16px; 
+}
+.monitor-finished-stat.done .monitor-finished-stat-value { color: var(--theme-success-color); }
+.monitor-finished-stat.failed .monitor-finished-stat-value { color: var(--theme-caution-color); }
+.monitor-finished-stat-label {
+    margin-top: 3px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    opacity: 0.5;
+}
+
+/* Actions: one primary call to action, two quiet alternatives below */
+.monitor-finished-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3, 12px);
+}
+.monitor-finished-actions-row {
+    display: flex;
+    gap: var(--space-2, 8px);
+}
+.monitor-finished-ghost {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    padding: 8px 10px;
+    background: transparent;
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    border-radius: var(--theme-small-border-radius, 8px);
+    color: var(--theme-text-color);
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0.8;
+    cursor: pointer;
+    transition: background 120ms ease, opacity 120ms ease, border-color 120ms ease;
+}
+.monitor-finished-ghost:hover {
+    background: rgba(128, 128, 128, 0.1);
+    border-color: rgba(128, 128, 128, 0.4);
+    opacity: 1;
+}
+.monitor-finished-error {
+    color: var(--theme-caution-color, #FA5252);
+    font-size: 13px;
+}
+.monitor-finished-error:empty { display: none; }
+
+@media screen and (max-width: 560px) {
+    .monitor-finished-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .monitor-finished-stat:nth-child(2) { border-right: none; }
+    .monitor-finished-stat:nth-child(-n+2) { border-bottom: 1px solid rgba(128, 128, 128, 0.14); }
 }

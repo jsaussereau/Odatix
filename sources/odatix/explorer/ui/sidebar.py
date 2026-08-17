@@ -33,7 +33,15 @@ from dash_svg import Svg, Polyline, Rect, Circle, Polygon, Line
 
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
-from odatix.explorer.charts.spec import CAPABILITIES, TOGGLE_LABELS, DEFAULT_TOGGLES, OVERVIEW_LAYOUTS
+from odatix.explorer.charts.spec import (
+  CAPABILITIES,
+  DEFAULT_TOGGLES,
+  DEFAULT_X_ORDER,
+  OVERVIEW_LAYOUTS,
+  TOGGLE_LABELS,
+  X_ORDERS,
+  X_ORDER_LABELS,
+)
 import odatix.explorer.ui.components as components
 
 _PERSIST = dict(persistence=True, persistence_type="session")
@@ -114,6 +122,11 @@ def _dropdown(id, options=None, value=None, clearable=False, persist=True, **kwa
   return dcc.Dropdown(id=id, options=options or [], value=value, clearable=clearable, className="xp-dropdown", style={"width": "100%"}, **extra)
 
 
+def _multi_dropdown(id, **kwargs):
+  """Dimension picker accepting several dimensions (empty = none)."""
+  return _dropdown(id, multi=True, clearable=True, placeholder="None", **kwargs)
+
+
 # Sidebar tabs. Every control lives on every page in a fixed DOM (the single
 # figure callback needs a fixed set of inputs), so tabs must never remove their
 # panels from the DOM. Tab switching is done client-side by toggling a class on
@@ -165,7 +178,7 @@ def build_sidebar(kind):
 
   toggles = [toggle for toggle in capabilities["toggles"]] + ["stable_index"]
   toggle_options = [{"label": TOGGLE_LABELS.get(toggle, toggle), "value": toggle} for toggle in toggles]
-  toggle_defaults = [toggle for toggle in toggles if toggle in DEFAULT_TOGGLES or toggle == "stable_index"]
+  toggle_defaults = [toggle for toggle in toggles if toggle in DEFAULT_TOGGLES]
 
   axes_section = (
       # --- Axes ---
@@ -179,7 +192,27 @@ def build_sidebar(kind):
         components.control_row("X axis" if not is_scatter else "X metric", _dropdown("xp-axis-x"), hidden="x" not in axes and not is_overview),
         components.control_row("Y metric", _dropdown("xp-axis-y"), hidden="y" not in axes),
         components.control_row("Z metric", _dropdown("xp-axis-z"), hidden="z" not in axes),
-        components.control_row("Dissociate", _dropdown("xp-dissociate-by"), tooltip="Split one dimension into separate traces"),
+        # Only meaningful when the x axis is symbolic: hidden here, then shown by
+        # toggle_x_order_rows when the chosen x axis turns out to be categorical.
+        components.control_row(
+          "Sort X by",
+          _multi_dropdown("xp-sort-x-by"),
+          tooltip="Order the symbolic x values by the chosen dimensions, in the order picked here",
+          hidden=True,
+          id="xp-row-sort-x-by",
+        ),
+        components.control_row(
+          "X order",
+          _dropdown(
+            "xp-sort-x-order",
+            options=[{"label": X_ORDER_LABELS[order], "value": order} for order in X_ORDERS],
+            value=DEFAULT_X_ORDER,
+          ),
+          tooltip="Order of the symbolic x values (last criterion after \"Sort X by\")",
+          hidden=True,
+          id="xp-row-sort-x-order",
+        ),
+        components.control_row("Dissociate", _multi_dropdown("xp-dissociate-by"), tooltip="Split one or more dimensions into separate traces"),
         components.control_row("Layout", _dropdown(
           "xp-overview-layout",
           options=[{"label": name, "value": name} for name in OVERVIEW_LAYOUTS],
@@ -192,9 +225,14 @@ def build_sidebar(kind):
   style_section = (
       # --- Style ---
       components.section("Style", [
-        components.control_row("Color by", _dropdown("xp-color-by")),
-        components.control_row("Pattern by" if kind == "columns" else "Symbol by", _dropdown("xp-symbol-by")),
+        components.control_row("Color by", _multi_dropdown("xp-color-by"), tooltip="One color per combination of the chosen dimensions"),
+        components.control_row(
+          "Pattern by" if kind == "columns" else "Symbol by",
+          _multi_dropdown("xp-symbol-by"),
+          tooltip="One pattern per combination of the chosen dimensions" if kind == "columns" else "One symbol per combination of the chosen dimensions",
+        ),
         components.control_row("Group legend by", _dropdown("xp-legend-group-by")),
+        components.control_row("Sort legend by", _multi_dropdown("xp-sort-by"), tooltip="Order traces globally by the chosen dimensions, in the order picked here"),
         components.control_row("Palette", _dropdown(
           "xp-palette",
           options=[{"label": name, "value": name} for name in palettes.PALETTES],
@@ -253,7 +291,9 @@ def build_sidebar(kind):
 
   filters_panel = html.Div(
     [
-      # --- Filters ---
+      # --- Rules (metric value conditions) ---
+      html.Div(id="xp-rules-panel"),
+      # --- Filters (per-dimension checkboxes) ---
       html.Div(id="xp-filter-panel"),
     ],
     className="xp-tab-panel xp-tab-panel-filters",

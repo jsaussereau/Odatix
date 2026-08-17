@@ -1,0 +1,19 @@
+{{ if .Parent }}
+	{{ $name := trim (.Get "name") " " }}
+	{{ if not $name }}
+	  {{- errorf "[%s] %q: tab shortcode requires a non-empty name" site.Language.Lang .Page.Path -}}
+	{{ end }}
+	{{ if not (.Parent.Scratch.Get "tabs") }}
+	    {{ .Parent.Scratch.Set "tabs" slice }}
+	{{ end }}
+	{{ with .Inner }}
+		{{ $content := trim . " \n\r\t" }}
+		{{ if and (hasPrefix $content "<blockquote>") (hasSuffix $content "</blockquote>") }}
+			{{ $content = replaceRE `(?s)^<blockquote>\s*` "" $content }}
+			{{ $content = replaceRE `(?s)\s*</blockquote>$` "" $content }}
+		{{ end }}
+	    {{ $.Parent.Scratch.Add "tabs" (dict "name" $name "content" $content) }}
+	{{ end }}
+{{ else }}
+	{{- errorf "[%s] %q: tab shortcode missing its parent" site.Language.Lang .Page.Path -}}
+{{ end}}

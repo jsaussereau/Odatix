@@ -44,12 +44,17 @@ nav_groups = [
     ("Configure", "", [
         ("Workflows", "/workflows"),
         ("RTL Architectures", "/architectures"),
+        ("RTL Simulations", "/architectures#simulations"),
+        ("EDA Tools", "/tools"),
+        ("Derived Metrics", "/derived_metrics"),
     ]),
     ("Run", "/choose_job_type", [
         ("Workflows", "/run_jobs?type=workflow"),
+        ("Simulations", "/run_jobs?type=simulation"),
         ("RTL Analysis", "/run_jobs?type=analyze"),
         ("Fmax Synthesis", "/choose_eda_tool?type=fmax_synthesis"),
         ("Custom Synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
+        ("Place & Route", "/choose_eda_tool?type=pnr"),
     ]),
     ("Monitor", "/monitor"),
     ("Explorer", "/explorer", [
@@ -62,8 +67,10 @@ nav_groups = [
         ("Overview", "/explorer/overview"),
         ("RTL Analysis", "/explorer/analysis"),
     ]),
-    ("Settings", "/workspace", [
-        ("Workspace", "/workspace"),
+    ("Workspace", "", [
+        ("Clean", "/clean"),
+        ("Derived Metrics", "/derived_metrics"),
+        ("Settings", "/workspace"),
     ]),
 ]
 
@@ -212,6 +219,19 @@ def setup_callbacks(gui):
         theme
     ):
         return f"theme {theme}"
+
+    # Persist the chosen theme to a cookie so it survives page refreshes and
+    # app restarts (read back server-side via themes.theme_from_cookie).
+    gui.app.clientside_callback(
+        f"""
+        function(theme) {{
+            document.cookie = "{themes.cookie_name}=" + theme + ";path=/;max-age=31536000;samesite=Lax";
+            return window.dash_clientside.no_update;
+        }}
+        """,
+        Output("theme-cookie-sync", "data"),
+        Input("theme-dropdown", "value"),
+    )
     
     @gui.app.callback(
         Output("url", "href"),

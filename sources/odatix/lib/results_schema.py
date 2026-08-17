@@ -32,14 +32,22 @@ Format v2 (current):
     Fmax: MHz
   results:          # flat list of records
     - meta:
-        type: fmax_synthesis          # fmax_synthesis | custom_freq_synthesis | workflow | ...
+        type: fmax_synthesis          # fmax_synthesis | custom_freq_synthesis | pnr | workflow | simulation | ...
+        tool: vivado                  # eda tool the job ran with
+        flow: standard                # flow of that tool the job ran with
+        step: pnr                     # step of that flow this record holds
         target: xc7a100t-csg324-1
         architecture: Example_Counter_verilog
         configuration: 04bits         # full configuration name (incl. "+domain/value" segments)
-        frequency: 100                # custom_freq_synthesis only
+        frequency: 100                # custom_freq_synthesis, and pnr of one
+        source_tool: design_compiler  # pnr only: the synthesis it started from
+        source_flow: dc_shell         # pnr only
+        source_type: custom_freq_synthesis  # pnr only
         timestamp: 2025-08-27_07-50-09
         main: 04bits                  # parameter domains are flattened into meta
-        _run_dir: /abs/path           # "_" prefix = informational, not a dimension
+        _step_index: 1                # "_" prefix = informational, not a dimension
+        _last_step: true              # this is the last step the job reached
+        _run_dir: /abs/path
       metrics:
         Fmax: 450
         LUT_count: 3
@@ -63,26 +71,50 @@ SCHEMA_VERSION = 2
 # Meta keys with fixed semantics. Any other (non "_"-prefixed) meta key is a
 # free dimension (typically a parameter domain).
 META_TYPE = "type"
+META_TOOL = "tool"
+META_FLOW = "flow"
+META_STEP = "step"
 META_TARGET = "target"
 META_ARCHITECTURE = "architecture"
 META_CONFIGURATION = "configuration"
 META_FREQUENCY = "frequency"
 META_WORKFLOW = "workflow"
+META_SIMULATION = "simulation"
 META_TIMESTAMP = "timestamp"
+# Place & route records only: the synthesis the job started from. The same
+# design placed & routed from a Design Compiler and from a Genus netlist are two
+# results to be compared, so these are part of what identifies a record.
+META_SOURCE_TYPE = "source_type"
+META_SOURCE_TOOL = "source_tool"
+META_SOURCE_FLOW = "source_flow"
+
+# Informational step keys, "_"-prefixed so they stay out of the record identity,
+# of the dimensions a chart offers and of the joins derived metrics run on.
+META_STEP_INDEX = "_step_index"
+META_LAST_STEP = "_last_step"
 
 RESERVED_META_KEYS = (
   META_TYPE,
+  META_TOOL,
+  META_FLOW,
+  META_STEP,
   META_TARGET,
   META_ARCHITECTURE,
   META_CONFIGURATION,
   META_FREQUENCY,
   META_WORKFLOW,
+  META_SIMULATION,
   META_TIMESTAMP,
+  META_SOURCE_TYPE,
+  META_SOURCE_TOOL,
+  META_SOURCE_FLOW,
 )
 
 TYPE_FMAX = "fmax_synthesis"
 TYPE_CUSTOM_FREQ = "custom_freq_synthesis"
+TYPE_PNR = "pnr"
 TYPE_WORKFLOW = "workflow"
+TYPE_SIMULATION = "simulation"
 
 FORMAT_V2 = "v2"
 FORMAT_V1_SYNTH = "v1_synth"
@@ -140,39 +172,88 @@ def make_record(meta, metrics):
   return {"meta": meta, "metrics": metrics}
 
 
+# Meta keys that describe a record without telling it apart from another one.
+# The timestamp changes on every run. The step, on the other hand, *is* part of
+# the identity: a job resumed to a further step adds the record of that step
+# next to the ones it already produced. The flow is a dimension too: two flows
+# of the same tool run in separate work directories and are meant to be compared.
+NON_IDENTITY_META_KEYS = (META_TIMESTAMP,)
+
+# On top of that, what identifies the *job* a record comes from ignores the step:
+# every record sharing a job identity was produced by the same job directory.
+NON_JOB_IDENTITY_META_KEYS = NON_IDENTITY_META_KEYS + (META_STEP,)
+
+
+def _identity(meta, ignored_keys):
+  if not isinstance(meta, dict):
+    return tuple()
+  return tuple(
+    sorted(
+      (str(key), str(value))
+      for key, value in meta.items()
+      if str(key) not in ignored_keys and not str(key).startswith("_")
+    )
+  )
+
+
 def record_identity(meta):
   """
   Identity of a record, used to deduplicate/replace records on incremental
   exports. The timestamp and informational ("_"-prefixed) keys are excluded:
-  re-running the same job replaces its previous record.
+  re-exporting the same step of the same job replaces its previous record.
   """
-  if not isinstance(meta, dict):
-    return tuple()
-  return tuple(
-    sorted((str(key), str(value)) for key, value in meta.items() if str(key) != META_TIMESTAMP and not str(key).startswith("_"))
-  )
+  return _identity(meta, NON_IDENTITY_META_KEYS)
+
+
+def job_identity(meta):
+  """
+  Identity of the job a record comes from: its record identity without the step.
+  Every record of a job shares it.
+  """
+  return _identity(meta, NON_JOB_IDENTITY_META_KEYS)
 
 
 def upsert_records(existing, new):
   """
-  Merge new records into an existing record list: a new record replaces any
-  existing record with the same identity (in place), otherwise it is appended.
+  Merge new records into an existing record list.
+
+  An export always produces *all* the records of the jobs it covers (one per
+  step, see the module docstring), so the records of a job are replaced as a
+  whole: what the new export does not mention, the job no longer holds. That is
+  what drops the records of steps invalidated by a re-run, and what clears the
+  "_last_step" flag of a step a resumed job has gone past. Records of the other
+  jobs keep their place.
 
   Returns:
       list: The merged record list.
   """
-  merged = list(existing) if existing else []
-  index_by_identity = {record_identity(record.get("meta", {})): i for i, record in enumerate(merged) if isinstance(record, dict)}
+  new = [record for record in new if isinstance(record, dict)]
+  merged = [record for record in (existing or []) if isinstance(record, dict)]
+
+  replaced_jobs = set(job_identity(record.get("meta", {})) for record in new)
+  if not replaced_jobs:
+    return merged
+
+  # Records of a replaced job land where its first record was, so that a
+  # re-export does not shuffle the file around.
+  new_by_job = {}
   for record in new:
-    if not isinstance(record, dict):
+    new_by_job.setdefault(job_identity(record.get("meta", {})), []).append(record)
+
+  result = []
+  emitted = set()
+  for record in merged:
+    job = job_identity(record.get("meta", {}))
+    if job not in replaced_jobs:
+      result.append(record)
       continue
-    identity = record_identity(record.get("meta", {}))
-    if identity in index_by_identity:
-      merged[index_by_identity[identity]] = record
-    else:
-      index_by_identity[identity] = len(merged)
-      merged.append(record)
-  return merged
+    if job not in emitted:
+      emitted.add(job)
+      result += new_by_job[job]
+  for job in new_by_job:
+    if job not in emitted:
+      result += new_by_job[job]
+  return result
 
 
 def flatten_param_domains(param_domains, meta):
@@ -362,6 +443,58 @@ def make_workflow_record(workflow, workflow_full, fallback_configuration, run_di
     meta["_workflow_definition_dir"] = str(workflow_definition_dir)
   if isinstance(workflow_full, str) and workflow_full != "":
     meta["_workflow_full"] = workflow_full
+  return make_record(meta, metrics)
+
+
+def make_simulation_record(
+  simulation,
+  architecture,
+  configuration,
+  arch_full,
+  run_dir,
+  simulation_definition_dir,
+  metrics,
+  timestamp=None,
+  invariant_domains=None,
+):
+  """
+  Build a v2 simulation record.
+
+  A simulation run is identified by the simulation that ran it and by the
+  architecture configuration it ran on, so it carries both the "simulation"
+  dimension and the usual architecture/configuration ones. The "+domain/value"
+  segments of arch_full are flattened into meta, exactly like synthesis and
+  workflow records.
+
+  `invariant_domains` names the domains the simulation declared its result does
+  not depend on. They are deliberately left out of meta: a dimension the record
+  does not carry is a dimension it does not constrain, so a single run matches
+  every value of it when another record borrows a metric from it (see
+  odatix.lib.derived_metrics). The full name is still kept under "_arch_full",
+  so what actually ran stays traceable.
+  """
+  invariant = set(str(domain) for domain in invariant_domains) if invariant_domains else set()
+
+  meta = {
+    META_TYPE: TYPE_SIMULATION,
+    META_SIMULATION: str(simulation),
+    META_ARCHITECTURE: str(architecture),
+    META_CONFIGURATION: str(configuration),
+  }
+  if timestamp is not None:
+    meta[META_TIMESTAMP] = timestamp
+  for domain, value in parse_domain_segments(arch_full).items():
+    if domain in invariant:
+      continue
+    meta.setdefault(domain, value)
+  if invariant:
+    meta["_invariant_domains"] = sorted(invariant)
+  if run_dir is not None:
+    meta["_run_dir"] = str(run_dir)
+  if simulation_definition_dir is not None:
+    meta["_simulation_definition_dir"] = str(simulation_definition_dir)
+  if isinstance(arch_full, str) and arch_full != "":
+    meta["_arch_full"] = arch_full
   return make_record(meta, metrics)
 
 

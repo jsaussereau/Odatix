@@ -22,13 +22,13 @@
 import dash
 from dash import html, dcc, Input, Output, State, ctx, ALL, MATCH
 
-import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url
 import odatix.gui.ui_components as ui
 from odatix.gui.css_helper import Style
 import odatix.gui.navigation as navigation
-from odatix.lib.settings import OdatixSettings
+import odatix.lib.eda_tools as eda_tools
+from odatix.gui.utils import get_workspace
 
 page_path = "/select_targets"
 
@@ -40,13 +40,6 @@ dash.register_page(
     order=3,
 )
 
-tool_display_names = {
-    "vivado": "Vivado",
-    "design_compiler": "Design Compiler",
-    "genus": "Genus",
-    "openlane": "OpenLane",
-}
-
 save_button_disabled = "color-button disabled icon-button"
 save_button_enabled = "color-button warning icon-button tooltip delay bottom auto caution"
 
@@ -54,7 +47,11 @@ save_button_enabled = "color-button warning icon-button tooltip delay bottom aut
 def get_tool_display_name(tool):
     if not tool:
         return ""
-    return tool_display_names.get(tool, tool.replace("_", " ").title())
+    # Use the tool's own "label" (from tool.yml) when it is a discovered tool,
+    # otherwise fall back to a prettified version of its identifier.
+    if eda_tools.is_supported(tool):
+        return eda_tools.get_tool_label(tool)
+    return tool.replace("_", " ").title()
 
 
 ######################################
@@ -206,9 +203,7 @@ def build_cards(search, odatix_settings):
             className="error-message",
             style={"width": "100%", "marginTop": "20px"},
         )]
-    target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
-    targets = workspace.get_targets(target_path, tool)
-    cards = [target_card(target) for target in targets]
+    cards = [target_card(target.to_dict()) for target in get_workspace(odatix_settings).targets[tool]]
     cards.append(add_card())
     return cards
 
@@ -280,18 +275,18 @@ def save_or_mark_dirty(save_n_clicks, titles, enables, script_copy_enables, scri
         tool = get_key_from_url(search, "tool")
         if not tool:
             return dash.no_update, dash.no_update
-        target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
-
-        targets = []
-        for i, meta in enumerate(metadata):
-            targets.append({
+        target_file = get_workspace(odatix_settings).targets[tool]
+        target_file.targets = [
+            {
                 "name": str(titles[i] or "").strip(),
                 "original_name": meta.get("name", ""),
                 "enabled": bool(enables[i]),
                 "script_copy_enable": bool(script_copy_enables[i]),
                 "script_copy_source": str(script_copy_sources[i] or ""),
-            })
-        workspace.save_target_selection(target_path, tool, targets)
+            }
+            for i, meta in enumerate(metadata)
+        ]
+        target_file.save()
         return save_button_disabled, build_cards(search, odatix_settings)
 
     # Any other trigger: compare current values against the loaded metadata
@@ -321,17 +316,17 @@ def handle_add_target(n_clicks, search, odatix_settings):
     tool = get_key_from_url(search, "tool")
     if not tool:
         return dash.no_update
-    target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+    target_file = get_workspace(odatix_settings).targets[tool]
 
     for i in range(1, 1001):
         candidate = f"new_target_{i}"
-        if not workspace.target_exists(target_path, tool, candidate):
+        if candidate not in target_file:
             break
     else:
         return dash.no_update
 
     try:
-        workspace.add_target(target_path, tool, candidate)
+        target_file.add(candidate)
     except Exception:
         return dash.no_update
     return build_cards(search, odatix_settings)
@@ -358,18 +353,18 @@ def handle_duplicate_target(timestamps, btn_ids, search, odatix_settings):
     tool = get_key_from_url(search, "tool")
     if not tool:
         return dash.no_update
-    target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+    target_file = get_workspace(odatix_settings).targets[tool]
 
     name = triggered["name"]
     for i in range(1, 1001):
         candidate = f"{name}_copy{i}"
-        if not workspace.target_exists(target_path, tool, candidate):
+        if candidate not in target_file:
             break
     else:
         return dash.no_update
 
     try:
-        workspace.duplicate_target(target_path, tool, name, candidate)
+        target_file.duplicate(name, candidate)
     except Exception:
         return dash.no_update
     return build_cards(search, odatix_settings)
@@ -419,13 +414,13 @@ def do_delete_target(n_clicks, info, search, odatix_settings):
     tool = get_key_from_url(search, "tool")
     if not tool:
         return dash.no_update, dash.no_update, dash.no_update
-    target_path = (odatix_settings or {}).get("target_path", OdatixSettings.DEFAULT_TARGET_PATH)
+    target_file = get_workspace(odatix_settings).targets[tool]
 
     name = info["name"]
-    if not workspace.target_exists(target_path, tool, name):
+    if name not in target_file:
         return dash.no_update, "Target not found.", dash.no_update
     try:
-        workspace.remove_target(target_path, tool, name)
+        target_file.remove(name)
     except Exception as e:
         return dash.no_update, f"Error: {e}", dash.no_update
     return "overlay-odatix", "", build_cards(search, odatix_settings)

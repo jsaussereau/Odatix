@@ -1,0 +1,18 @@
+{{/* Navigation for the current top-level section (docs, tutorials, install, ...).
+     Context: the current page. Rendered twice (desktop aside + mobile drawer).
+
+     Install guides and tutorials share one sidebar: both groups are always
+     listed, so a reader can move from installing to running without leaving
+     the navigation. */}}
+{{ $section := .Section }}
+{{ $groups := slice $section }}
+{{ if in (slice "install" "tutorials") $section }}
+  {{ $groups = slice "install" "tutorials" }}
+{{ end }}
+<nav class="docs-nav text-sm">
+  {{ range $i, $g := $groups }}
+  <div {{ if gt $i 0 }}class="mt-8 pt-6 border-t border-gray-200"{{ end }}>
+    {{ partial "docs-nav-tree.html" (dict "section" $g "current" $.RelPermalink) }}
+  </div>
+  {{ end }}
+</nav>

@@ -26,8 +26,7 @@ from dash import html, dcc, Input, Output, ctx, State
 import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
-import odatix.components.workspace as workspace
-from odatix.lib.settings import OdatixSettings
+from odatix.gui.utils import get_workspace
 
 page_path = "/workflows"
 
@@ -44,20 +43,8 @@ dash.register_page(
 # Helpers
 ######################################
 
-def get_workflow_path(odatix_settings):
-    workflow_path = odatix_settings.get("workflow_path", "")
-    if workflow_path:
-        return workflow_path
-
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
-
-    return OdatixSettings.DEFAULT_WORKFLOW_PATH
-
-def build_workflow_cards(workflow_path):
-    workflows = workspace.get_workflows(workflow_path)
-    workflow_cards = [normal_card(name) for name in workflows]
+def build_workflow_cards(workflows):
+    workflow_cards = [normal_card(name) for name in workflows.names()]
     workflow_cards.append(add_card("Create New Workflow"))
     return workflow_cards
 
@@ -131,21 +118,21 @@ def add_card(text: str):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em", "color": "var(--add-card-text-color)"}),
                     html.Div(
                         "+",
                         style={
                             "fontSize": "2em",
                             "lineHeight": "1",
-                            "marginTop": "8px",
+                            "marginTop": "-2px",
+                            "marginBottom": "8px",
                         },
                     ),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em"}),
                 ],
                 style={"textAlign": "center"},
             ),
             id=btn_id,
             n_clicks=0,
-            style={"textDecoration": "none", "color": "var(--add-card-text-color)", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"},
         ),
         className="card add hover",
         style={
@@ -167,8 +154,7 @@ def add_card(text: str):
     State("odatix-settings", "data"),
 )
 def update_cards(_, odatix_settings):
-    workflow_path = get_workflow_path(odatix_settings)
-    return build_workflow_cards(workflow_path)
+    return build_workflow_cards(get_workspace(odatix_settings).workflows)
 
 @dash.callback(
     Output("workflow-cards-matrix", "children", allow_duplicate=True),
@@ -190,25 +176,25 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     if btn_id != triggered or not dupl_timestamps[idx]:
         return dash.no_update
 
-    workflow_path = get_workflow_path(odatix_settings)
+    workflows = get_workspace(odatix_settings).workflows
     name = btn_id["name"]
 
     base = name
     suffix = 1
     while True:
         new_name = f"{base}_copy{suffix}"
-        if not workspace.workflow_exists(workflow_path, new_name):
+        if new_name not in workflows:
             break
         suffix += 1
         if suffix > 1000:
             return dash.no_update
 
     try:
-        workspace.duplicate_workflow(workflow_path, name, new_name)
+        workflows.duplicate(name, new_name)
     except Exception:
         return dash.no_update
 
-    return build_workflow_cards(workflow_path)
+    return build_workflow_cards(workflows)
 
 @dash.callback(
     Output("workflow-delete-popup", "className"),
@@ -246,17 +232,17 @@ def do_delete(n_clicks, info, odatix_settings):
     if not n_clicks or not info:
         return dash.no_update, dash.no_update, dash.no_update
 
-    workflow_path = get_workflow_path(odatix_settings)
+    workflows = get_workspace(odatix_settings).workflows
     name = info["name"]
-    if not workspace.workflow_exists(workflow_path, name):
+    if name not in workflows:
         return dash.no_update, "Workflow not found.", dash.no_update
 
     try:
-        workspace.delete_workflow(workflow_path, name)
+        workflows.delete(name)
     except Exception as e:
         return dash.no_update, f"Error: {e}", dash.no_update
 
-    return "overlay-odatix", "", build_workflow_cards(workflow_path)
+    return "overlay-odatix", "", build_workflow_cards(workflows)
 
 @dash.callback(
     Output({"type": "update_url", "id": page_path}, "data"),
@@ -268,12 +254,12 @@ def handle_add_card(n_click_timestamp, odatix_settings):
     if not n_click_timestamp:
         return dash.no_update
 
-    workflow_path = get_workflow_path(odatix_settings)
+    workflows = get_workspace(odatix_settings).workflows
     base_name = "New_Workflow"
 
     for i in range(1, 1001):
         candidate = f"{base_name}{i}"
-        if not workspace.workflow_exists(workflow_path, candidate):
+        if candidate not in workflows:
             return {"href": f"/workflow_editor?workflow={candidate}", "id": page_path}
 
     return {"href": "/workflow_editor", "id": page_path}

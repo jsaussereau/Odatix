@@ -28,9 +28,8 @@ from dash import html, dcc, Input, Output, ctx, State
 import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
-import odatix.components.workspace as workspace
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
+from odatix.gui.utils import get_workspace
 
 page_path = "/architectures"
 
@@ -49,6 +48,29 @@ dash.register_page(
 
 def normal_card(name, card_type: str = "arch"):
     unique_key = str(uuid.uuid4())
+    # An architecture owns configurations; a simulation owns none (it runs on
+    # the configurations of the architectures it is paired with), so its second
+    # button opens its exported metrics instead.
+    if card_type == "sim":
+        second_button = ui.icon_button(
+            id=f"button-open-{card_type}-{name}",
+            icon=icon("metrics", className="icon black"),
+            text="Edit Metrics",
+            color="default",
+            link=f"/metric_editor?simulation={name}",
+            width="auto",
+            bold=False,
+        )
+    else:
+        second_button = ui.icon_button(
+            id=f"button-open-{card_type}-{name}",
+            icon=icon("edit", className="icon black"),
+            text="Edit Configs",
+            color="default",
+            link=f"/config_editor?{card_type}={name}",
+            width="auto",
+            bold=False,
+        )
     return html.Div(
         [
             html.Div(name, title=name, style={"fontWeight": "bold", "fontSize": "1.05em", "textAlign": "center", "textOverflow": "ellipsis", "overflow": "hidden", "whiteSpace": "nowrap"}),
@@ -63,15 +85,7 @@ def normal_card(name, card_type: str = "arch"):
                         width="auto",
                         bold=False,
                     ),
-                    ui.icon_button(
-                        id=f"button-open-{card_type}-{name}",
-                        icon=icon("edit", className="icon black"),
-                        text="Edit Configs",
-                        color="default",
-                        link=f"/config_editor?{card_type}={name}",
-                        width="auto",
-                        bold=False,
-                    ),
+                    second_button,
                 ], style={"display": "flex", "gap": "4px"}),
                 html.Div([
                     ui.duplicate_button(id={"type": "button-duplicate", "card_type": card_type, "name": name}),
@@ -103,21 +117,22 @@ def add_card(text: str, card_type: str = "arch"):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em", "color": "var(--add-card-text-color)"}),
                     html.Div(
                         "+",
                         style={
                             "fontSize": "2em",
                             "lineHeight": "1",
-                            "marginTop": "8px",
+                            "marginTop": "-2px",
+                            "marginBottom": "8px",
                         }
                     ),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.05em"}),
                 ],
                 style={"textAlign": "center"}
             ),
             id=btn_id,
             n_clicks=0,
-            style={"textDecoration": "none", "color": "var(--add-card-text-color)", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"},
+            style={"textDecoration": "none", "display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"},
         ),
         className="card add hover",
         style={
@@ -141,17 +156,15 @@ def add_card(text: str, card_type: str = "arch"):
     State("odatix-settings", "data"),
 )
 def update_cards(_, odatix_settings):
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+    ws = get_workspace(odatix_settings)
 
-    architectures = workspace.get_architectures(arch_path)
-    simulations = workspace.get_simulations(sim_path)
+    architectures = ws.architectures.names()
+    simulations = ws.simulations.names()
 
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
-    # sim_cards = [normal_card(name, "sim") for name in simulations]
-    # sim_cards.append(add_card("Create New Simulation", "sim"))
-    sim_cards = []
+    sim_cards = [normal_card(name, "sim") for name in simulations]
+    sim_cards.append(add_card("Create New Simulation", "sim"))
     return arch_cards, sim_cards
 
 @dash.callback(
@@ -169,9 +182,8 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
 
     if not dupl_timestamps or not btn_ids:
         return dash.no_update, dash.no_update
-    
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
+
+    ws = get_workspace(odatix_settings)
 
     idx = max(range(len(dupl_timestamps)), key=lambda i: dupl_timestamps[i] or 0)
     btn_id = btn_ids[idx]
@@ -182,26 +194,26 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     card_type = btn_id["card_type"]
     name = btn_id["name"]
 
-    path = arch_path if card_type == "arch" else sim_path
+    collection = ws.architectures if card_type == "arch" else ws.simulations
 
     base = name
     suffix = 1
     while True:
         new_name = f"{base}_copy{suffix}"
-        if not workspace.instance_exists(path, new_name):
+        if new_name not in collection:
             break
         suffix += 1
         if suffix > 1000:
             return dash.no_update, dash.no_update
 
     try:
-        workspace.duplicate_instance(path, name, new_name)
+        collection.duplicate(name, new_name)
     except Exception:
         return dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = workspace.get_architectures(arch_path)
-    simulations = workspace.get_simulations(sim_path)
+    architectures = ws.architectures.names()
+    simulations = ws.simulations.names()
     arch_cards = [normal_card(n, "arch") for n in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(n, "sim") for n in simulations]
@@ -249,24 +261,23 @@ def close_delete_popup(n):
 def do_delete(n_clicks, info, odatix_settings):
     if not n_clicks or not info:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-    
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
-    
+
+    ws = get_workspace(odatix_settings)
+
     card_type = info["card_type"]
     name = info["name"]
-    path = arch_path if card_type == "arch" else sim_path
-    if not workspace.instance_exists(path, name):
+    collection = ws.architectures if card_type == "arch" else ws.simulations
+    if name not in collection:
         return dash.no_update, "Item not found.", dash.no_update, dash.no_update
     try:
-        workspace.delete_instance(path, name)
+        collection.delete(name)
     except Exception as e:
         print("Error during deletion:", e)
         return dash.no_update, f"Error: {e}", dash.no_update, dash.no_update
 
     # Refresh the cards
-    architectures = workspace.get_architectures(arch_path)
-    simulations = workspace.get_simulations(sim_path)
+    architectures = ws.architectures.names()
+    simulations = ws.simulations.names()
     arch_cards = [normal_card(name, "arch") for name in architectures]
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]
@@ -290,16 +301,15 @@ def handle_add_card(n_clicks_timestamps, ids, odatix_settings):
     
     card_type = triggered_id.get("card_type")
 
-    arch_path = odatix_settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH)
-    sim_path = odatix_settings.get("sim_path", OdatixSettings.DEFAULT_SIM_PATH)
-    root = arch_path if card_type == "arch" else sim_path
+    ws = get_workspace(odatix_settings)
+    collection = ws.architectures if card_type == "arch" else ws.simulations
 
     base_name = "New_Architecture" if card_type == "arch" else "New_Simulation"
 
     # Search for an available name
     for i in range(1, 1001):
         candidate = f"{base_name}{i}"
-        if not workspace.instance_exists(root, candidate):
+        if candidate not in collection:
             return {"href": f"/{card_type}_editor?{card_type}={candidate}", "id":page_path}
     # If all names are taken, go to editor without preset name
     return {"href": f"/{card_type}_editor", "id":page_path}
@@ -316,7 +326,23 @@ layout = html.Div(
             children=[
                 ui.page_header("Architectures", "Configure your RTL architectures and their configurations.", back_link="/"),
                 html.Div(id="arch-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
-                # html.H2("Simulations", style={"textAlign": "center", "marginTop": "40px"}),
+                # Simulations live here rather than on a page of their own:
+                # they are always tied to the architectures above (a simulation
+                # has no configuration, it runs on theirs).
+                html.Div(
+                    id="simulations",
+                    children=[
+                        html.H2("Simulations", className="page-header-title", style={"fontSize": "1.6em"}),
+                        html.P(
+                            "Testbenches run against the configurations of the architectures above.",
+                            className="page-header-subtitle",
+                        ),
+                    ],
+                    className="page-header",
+                    # scroll-margin-top keeps the sticky navbar from covering the
+                    # heading when the "RTL Simulations" nav link scrolls here.
+                    style={"marginTop": "24px", "scrollMarginTop": f"calc({navigation.top_bar_height} + 16px)"},
+                ),
                 html.Div(id="sim-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],
             style={
@@ -367,6 +393,7 @@ layout = html.Div(
             ]
         ),
         dcc.Store(id={"type": "update_url", "id": page_path}),
+        dcc.Store(id="scroll-to-hash-dummy"),
     ],
     className="page-content",
     style={
@@ -375,4 +402,49 @@ layout = html.Div(
         "flexDirection": "column",
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
+)
+
+
+# The "RTL Simulations" nav link points here with a "#simulations" fragment,
+# but dcc.Link navigates client-side and never lets the browser do its native
+# anchor scroll, so the target has to be scrolled into view by hand.
+#
+# The scroll cannot happen as soon as the url changes: arriving from another
+# page, the page content and then the cards themselves are rendered by
+# callbacks, so at that point the target either does not exist yet or sits at an
+# offset that the cards are about to push down. Both the target and the cards
+# above it are therefore waited for before scrolling.
+dash.clientside_callback(
+    """
+    function(href) {
+        if (!href || href.indexOf("#simulations") === -1) {
+            return "";
+        }
+        // A navigation supersedes the wait started by the previous one.
+        const token = (window.__odatixScrollToken || 0) + 1;
+        window.__odatixScrollToken = token;
+
+        let frames = 0;
+        const maxFrames = 90;  // ~1.5 s, then scroll to wherever it is
+        const attempt = function() {
+            if (window.__odatixScrollToken !== token) {
+                return;
+            }
+            const target = document.getElementById("simulations");
+            const archCards = document.getElementById("arch-cards-matrix");
+            const rendered = target && archCards && archCards.childElementCount > 0;
+            if (target && (rendered || frames >= maxFrames)) {
+                target.scrollIntoView({behavior: "smooth", block: "start"});
+                return;
+            }
+            if (frames++ < maxFrames) {
+                window.requestAnimationFrame(attempt);
+            }
+        };
+        window.requestAnimationFrame(attempt);
+        return "";
+    }
+    """,
+    Output("scroll-to-hash-dummy", "data"),
+    Input("url", "href"),
 )

@@ -2,11 +2,18 @@
 # Settings for Vivado
 ##############################################
 
+# Display metadata (used by the GUI tool selection page)
+label: "Vivado"
+description: "AMD/Xilinx Vivado™"
+icon: "assets/icons/vivado.png"
+
 # Group processes
 process_group: True
 
 # Default metrics file for this tool
 default_metrics_file: "$eda_tools_path/vivado/metrics.yml"
+
+default_flow: standard
 
 unix:
   # Optional constants (anchors) that can be used in the file
@@ -15,41 +22,114 @@ unix:
     - &vivado_unix vivado
     - &vivado_opt_unix -mode tcl -notrace
     - &vivado_fmax_opt_unix -log $log_path/fmax_synthesis.log
-    - &vivado_custom_freq_opt_unix -log $log_path/synthesis.log
+    - &vivado_custom_freq_opt_unix -log $log_path/$first_step.log
     - &vivado_analyze_opt_unix -log $log_path/analysis.log
     - &source_init_script_unix -source $script_path/init_script.tcl
     - &source_analyze_script_unix -source $script_path/analyze_script.tcl
     - &source_elaborate_script_unix -source $script_path/elaborate_script.tcl
-    - &source_synth_script_unix -source $script_path/synth_script.tcl
-    - &source_synth_freq_script_unix -source $script_path/find_fmax.tcl
     - &source_exit_script_unix -source $script_path/exit.tcl
-    
+    - &source_flow_power_opt_unix -source $script_path/flow_power_opt.tcl
+    - &vivado_pnr_opt_unix -log $log_path/pnr.log
+    - &vivado_bitstream_opt_unix -log $log_path/bitstream.log
+    - &source_step_elaboration_unix -source $script_path/step_elaboration.tcl
+    - &source_step_synthesis_unix -source $script_path/step_synthesis.tcl
+    - &source_step_pnr_unix -source $script_path/step_pnr.tcl
+    - &source_step_bitstream_unix -source $script_path/step_bitstream.tcl
+    - &source_step_fmax_synthesis_unix -source $script_path/step_fmax_synthesis.tcl
+    - &source_step_fmax_pnr_unix -source $script_path/step_fmax_pnr.tcl
+    - &source_step_fmax_bitstream_unix -source $script_path/step_fmax_bitstream.tcl
+
   # Command to check if the tool is installed
-  tool_test_command: 
+  tool_test_command:
     - *vivado_unix
     - -version
 
-  # Command for fmax synthesis
-  fmax_synthesis_command: 
-    - *vivado_init_unix
-    - *vivado_unix
-    - *vivado_opt_unix
-    - *vivado_fmax_opt_unix
-    - *source_init_script_unix
-    - *source_analyze_script_unix
-    - *source_synth_freq_script_unix
-    - *source_exit_script_unix
+  ##############################################
+  # Steps
+  ##############################################
+  # Synthesis jobs are split into ordered steps, so a run can stop at any of
+  # them ("--until") and a later run picks up where it left off instead of
+  # starting over. Being split into steps is a property of every flow of this
+  # tool, not of a flow of its own: the steps below belong to the default flow,
+  # and the flows declared at the bottom of this file inherit them, redefining
+  # only the ones they change.
+  #
+  # A step declares either the whole command it runs — it is then a Vivado
+  # process of its own — or only the "args" it adds to the job type's session
+  # (the "*_session" keys below). The steps of one run that share a session are
+  # run by a single Vivado process: it opens once, sources what each step adds,
+  # and exits.
 
-  # Command for custom frequency synthesis
-  custom_freq_synthesis_command: 
-    - *vivado_init_unix
-    - *vivado_unix
-    - *vivado_opt_unix
-    - *vivado_custom_freq_opt_unix
-    - *source_init_script_unix
-    - *source_analyze_script_unix
-    - *source_synth_script_unix
-    - *source_exit_script_unix
+  # Steps of an fmax search. Each one is a search of its own, going as far as
+  # its name says: "synthesis" converges on post-synthesis timing (fast and
+  # optimistic), "pnr" on post-route timing (what the design really reaches).
+  # Screen a design space with the first, implement only what deserves it.
+  fmax_synthesis_steps:
+    - name: synthesis
+      command:
+        - *vivado_init_unix
+        - *vivado_unix
+        - *vivado_opt_unix
+        - *vivado_fmax_opt_unix
+        - *source_step_fmax_synthesis_unix
+        - *source_exit_script_unix
+    - name: pnr
+      default: true
+      command:
+        - *vivado_init_unix
+        - *vivado_unix
+        - *vivado_opt_unix
+        - *vivado_pnr_opt_unix
+        - *source_step_fmax_pnr_unix
+        - *source_exit_script_unix
+    - name: bitstream
+      command:
+        - *vivado_init_unix
+        - *vivado_unix
+        - *vivado_opt_unix
+        - *vivado_bitstream_opt_unix
+        - *source_step_fmax_bitstream_unix
+        - *source_exit_script_unix
+
+  # How a custom frequency synthesis opens Vivado: once per run, whatever the
+  # steps that run covers. Everything the steps add is sourced in between, so
+  # the design stays in memory from one step to the next.
+  custom_freq_synthesis_session:
+    command:
+      - *vivado_init_unix
+      - *vivado_unix
+      - *vivado_opt_unix
+      - *vivado_custom_freq_opt_unix
+    end:
+      - *source_exit_script_unix
+
+  # Steps of a custom frequency synthesis. From "synthesis" on, each one
+  # continues from the design the previous one left: in memory when they run in
+  # the same session, from the design checkpoint it wrote when the run stopped
+  # in between. Nothing is synthesized twice either way.
+  #
+  # "elaboration" stands apart: it only elaborates the RTL, for a count of the
+  # operators and registers it infers, obtained in seconds ("--until
+  # elaboration"), and hands nothing over — synthesis starts from the sources
+  # whatever it leaves behind.
+  custom_freq_synthesis_steps:
+    - name: elaboration
+      args:
+        - *source_init_script_unix
+        - *source_analyze_script_unix
+        - *source_step_elaboration_unix
+    - name: synthesis
+      args:
+        - *source_init_script_unix
+        - *source_analyze_script_unix
+        - *source_step_synthesis_unix
+    - name: pnr
+      default: true
+      args:
+        - *source_step_pnr_unix
+    - name: bitstream
+      args:
+        - *source_step_bitstream_unix
 
   # Command for RTL analysis
   analysis_command: 
@@ -87,13 +167,86 @@ windows:
     - *source_synth_freq_script_windows
     - *source_exit_script_windows
 
-  custom_freq_synthesis_command: 
+  custom_freq_synthesis_command:
     - *vivado_windows
     - *vivado_opt_windows
     - *source_init_script_windows
     - *source_analyze_script_windows
     - *source_synth_script_windows
     - *source_exit_script_windows
+
+##############################################
+# Flows
+##############################################
+# A flow is a way of running this tool: a different script, different options,
+# sometimes a different binary. Flows of the same tool are alternatives meant to
+# be compared, so each one gets its own work directory ("vivado@power_opt") and
+# its results are tagged with its name.
+#
+# Pick one with "--flow" on the command line, or from the tool's card in the
+# GUI. The "standard" flow is the default one: what it runs is declared in the
+# "unix"/"windows" sections above (see "default_flow").
+#
+# A flow starts from the default flow's declaration and changes only what it
+# says. Steps are merged by name, so a flow that only changes how the design is
+# synthesized redefines that one step and inherits place & route and bitstream
+# generation as they are. Sessions are merged key by key, so a flow changing
+# where the log goes says that much and keeps the rest. Every flow is therefore
+# stepped, and "--until" works the same whichever one is picked.
+
+flows:
+
+  standard:
+    label: "Standard"
+    description: "Timing oriented synthesis and implementation"
+
+  power_opt:
+    label: "Power optimized"
+    description: "Automatic clock gating and power optimization pass"
+    unix:
+      # Every step of an fmax search starts again from the RTL — a binary search
+      # has nothing to hand over — so all three have to set the power knobs.
+      fmax_synthesis_steps:
+        - name: synthesis
+          command:
+            - *vivado_init_unix
+            - *vivado_unix
+            - *vivado_opt_unix
+            - *vivado_fmax_opt_unix
+            - *source_flow_power_opt_unix
+            - *source_step_fmax_synthesis_unix
+            - *source_exit_script_unix
+        - name: pnr
+          default: true
+          command:
+            - *vivado_init_unix
+            - *vivado_unix
+            - *vivado_opt_unix
+            - *vivado_pnr_opt_unix
+            - *source_flow_power_opt_unix
+            - *source_step_fmax_pnr_unix
+            - *source_exit_script_unix
+        - name: bitstream
+          command:
+            - *vivado_init_unix
+            - *vivado_unix
+            - *vivado_opt_unix
+            - *vivado_bitstream_opt_unix
+            - *source_flow_power_opt_unix
+            - *source_step_fmax_bitstream_unix
+            - *source_exit_script_unix
+      # A custom frequency synthesis, on the other hand, hands its design over
+      # from one step to the next: the clock gating and the power optimization
+      # pass are already baked into it, so only the synthesis step differs and
+      # "pnr" and "bitstream" are inherited unchanged — as is the session they
+      # all run in.
+      custom_freq_synthesis_steps:
+        - name: synthesis
+          args:
+            - *source_init_script_unix
+            - *source_flow_power_opt_unix
+            - *source_analyze_script_unix
+            - *source_step_synthesis_unix
 
 # Log formatting
 format:

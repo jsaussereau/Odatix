@@ -1,0 +1,70 @@
+{{/* Hybrid layout: the marketing look of the "feature" layout, inside the docs
+     shell (sidebar + mobile drawer). Same front matter as "feature":
+     badge, badgeColor, features[], demo{description,image}, cta. */}}
+{{ define "main" }}
+{{ $badgeColor := .Params.badgeColor | default "#5573df" }}
+
+{{ $body := "" }}
+
+{{/* Hero */}}
+{{ $body = printf `%s
+<div class="feature-page relative isolate overflow-hidden" style="--badge-color: %s; margin-bottom: 2rem">
+  <div class="absolute inset-x-0 top-0 h-72 opacity-75" style="background-image: linear-gradient(180deg, color-mix(in srgb, var(--badge-color) 8%%, white), white)"></div>
+  <div class="relative px-5 sm:px-8 lg:px-12 pt-12 pb-10 lg:pt-16">
+    <div class="mx-auto max-w-3xl text-center">
+      %s
+      <h1 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-5xl">%s</h1>
+      %s
+    </div>
+  </div>
+</div>` $body $badgeColor
+  (cond (ne (string .Params.badge) "")
+    (printf `<div class="mb-6"><span class="inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium" style="background-color: color-mix(in srgb, %s 10%%, transparent); color: %s">%s</span></div>` $badgeColor $badgeColor .Params.badge)
+    "")
+  .Title
+  (cond (ne (string .Description) "")
+    (printf `<p class="mt-6 text-lg leading-8 text-gray-600">%s</p>` .Description)
+    "") }}
+
+{{/* Key features grid */}}
+{{ with .Params.features }}
+  {{ $cards := "" }}
+  {{ range . }}
+    {{ $cards = printf `%s
+      <div class="flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+        <dt class="text-base font-semibold leading-7 text-gray-900">%s</dt>
+        <dd class="mt-3 flex flex-auto flex-col text-sm leading-6 text-gray-600"><p class="flex-auto">%s</p></dd>
+      </div>` $cards .title .description }}
+  {{ end }}
+  {{ $body = printf `%s
+<div class="px-5 sm:px-8 lg:px-12 pb-4">
+  <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">%s
+  </div>
+</div>` $body $cards }}
+{{ end }}
+
+{{/* Page content */}}
+{{ $body = printf `%s
+<div class="px-5 sm:px-8 lg:px-12 py-10 lg:py-12" style="padding-top: 0;">
+  <article class="prose prose-lg max-w-none">%s</article>
+</div>` $body (.Content | string) }}
+
+{{/* Demo */}}
+{{ with .Params.demo }}
+  {{ $body = printf `%s
+<div class="bg-gray-50 border-t border-gray-200 px-5 sm:px-8 lg:px-12 py-16">
+  <div class="mx-auto max-w-2xl text-center">
+    <h2 class="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">%s</h2>
+    <p class="mt-4 text-lg leading-8 text-gray-600">%s</p>
+  </div>
+  <div class="mt-10 flex justify-center">
+    <div class="rounded-xl bg-white p-6 shadow-2xl ring-1 ring-gray-200">
+      <img src="%s" alt="Demo" class="rounded-lg">
+    </div>
+  </div>
+</div>` $body (i18n "seeItInAction" | default "See it in action") .description (.image | relURL) }}
+{{ end }}
+
+{{ partial "docs-shell.html" (dict "page" . "main" $body "wide" true) }}
+
+{{ end }}

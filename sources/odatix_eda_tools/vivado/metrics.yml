@@ -2,6 +2,15 @@
 # Metrics for Vivado
 ##############################################
 
+# Results are exported once per step of the flow (see odatix.lib.results_schema),
+# so a metric is declared once and read from the report of each step: "$step" in
+# a file name is the step the record being written is for. Post-synthesis and
+# post-route utilization are therefore the same metric measured at two steps,
+# not two metrics telling each other apart by their name.
+#
+# A metric of one step alone declares it with "step:", and a step that wrote no
+# report simply has no value for the metrics reading it — that is not an error.
+
 fmax_synthesis_metrics:
   Fmax:
     type: regex
@@ -12,51 +21,45 @@ fmax_synthesis_metrics:
     format: "%.0f"
     unit: MHz
 
-custom_freq_synthesis_metrics:
-  Frequency:
-    type: regex
-    settings:
-      file: frequency.txt
-      pattern: "([0-9_]+) MHz"
-      group_id: 1
-    format: "%.0f"
-    unit: MHz
-
 metrics:
+
+  # Utilization
+
   LUT_count:
     type: regex
     settings:
-      file: report/utilization.rep
-      pattern: "\\| (Slice|CLB) LUTs \\s*\\|\\s*([0-9]+).*"
+      file: report/$step/utilization.rep
+      pattern: "\\| (Slice|CLB) LUTs\\*?\\s*\\|\\s*([0-9]+).*"
       group_id: 2
     format: "%.0f"
 
   LUT_percent:
     type: regex
     settings:
-      file: report/utilization.rep
-      pattern: "\\| (?:Slice|CLB) LUTs .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      file: report/$step/utilization.rep
+      pattern: "\\| (?:Slice|CLB) LUTs\\*?\\s.*\\|\\s*([0-9.]+)\\s*\\|.*"
       group_id: 1
     format: "%.2f"
 
   Reg_count:
     type: regex
     settings:
-      file: report/utilization.rep
-      pattern: "\\| (Slice|CLB) Registers \\s*\\|\\s*([0-9]+).*"
+      file: report/$step/utilization.rep
+      pattern: "\\| (Slice|CLB) Registers\\*?\\s*\\|\\s*([0-9]+).*"
       group_id: 2
     format: "%.0f"
 
   Reg_percent:
     type: regex
     settings:
-      file: report/utilization.rep
-      pattern: "\\| (?:Slice|CLB) Registers .*\\|\\s*([0-9.]+)\\s*\\|.*"
+      file: report/$step/utilization.rep
+      pattern: "\\| (?:Slice|CLB) Registers\\*?\\s.*\\|\\s*([0-9.]+)\\s*\\|.*"
       group_id: 1
     format: "%.2f"
 
   LUT+Reg_count:
     type: operation
+    error_if_missing: No
     settings:
       op: LUT_count + Reg_count
     format: "%.0f"
@@ -64,7 +67,7 @@ metrics:
   BRAM_count:
     type: regex
     settings:
-      file: report/utilization.rep
+      file: report/$step/utilization.rep
       pattern: "\\| Block RAM Tile (\\s*)\\|(\\s*)([0-9]+)(.*)"
       group_id: 3
     format: "%.0f"
@@ -72,7 +75,7 @@ metrics:
   BRAM_percent:
     type: regex
     settings:
-      file: report/utilization.rep
+      file: report/$step/utilization.rep
       pattern: "\\| Block RAM Tile .*\\|\\s*([0-9.]+)\\s*\\|.*"
       group_id: 1
     format: "%.2f"
@@ -80,7 +83,7 @@ metrics:
   DSP_count:
     type: regex
     settings:
-      file: report/utilization.rep
+      file: report/$step/utilization.rep
       pattern: "\\| DSPs (\\s*)\\|(\\s*)([0-9]+)(.*)"
       group_id: 3
     format: "%.0f"
@@ -88,15 +91,64 @@ metrics:
   DSP_percent:
     type: regex
     settings:
-      file: report/utilization.rep
+      file: report/$step/utilization.rep
       pattern: "\\| DSPs .*\\|\\s*([0-9.]+)\\s*\\|.*"
       group_id: 1
     format: "%.2f"
 
+  # RTL estimates (elaboration step only)
+  #
+  # An elaborated design is not mapped to the device, so it has no utilization,
+  # no timing and no power. What it has is the operators and the registers
+  # inferred from the RTL: these count them, from a report only the elaboration
+  # step writes.
+
+  RTL_Reg_count:
+    type: regex
+    step: elaboration
+    error_if_missing: No
+    settings:
+      file: report/$step/rtl_resources.rep
+      pattern: "\\| Registers\\s*\\|\\s*([0-9]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  RTL_Mem_count:
+    type: regex
+    step: elaboration
+    error_if_missing: No
+    settings:
+      file: report/$step/rtl_resources.rep
+      pattern: "\\| Memories\\s*\\|\\s*([0-9]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  RTL_Arith_count:
+    type: regex
+    step: elaboration
+    error_if_missing: No
+    settings:
+      file: report/$step/rtl_resources.rep
+      pattern: "\\| Arithmetic Operators\\s*\\|\\s*([0-9]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  RTL_Mux_count:
+    type: regex
+    step: elaboration
+    error_if_missing: No
+    settings:
+      file: report/$step/rtl_resources.rep
+      pattern: "\\| Multiplexers\\s*\\|\\s*([0-9]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  # Power
+
   Static_Power:
     type: regex
     settings:
-      file: report/power.rep
+      file: report/$step/power.rep
       pattern: "\\| Device Static \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
       group_id: 3
     format: "%.3f"
@@ -105,7 +157,7 @@ metrics:
   Dynamic_Power:
     type: regex
     settings:
-      file: report/power.rep
+      file: report/$step/power.rep
       pattern: "\\| Dynamic \\(W\\) (\\s*)\\|(\\s*)([0-9.]+)(.*)"
       group_id: 3
     format: "%.3f"
@@ -113,23 +165,13 @@ metrics:
 
   Total_Power:
     type: operation
+    error_if_missing: No
     settings:
       op: Static_Power + Dynamic_Power
     format: "%.3f"
     unit: W
 
-  DMIPS_per_MHz:
-    type: benchmark
-    settings:
-      key: DMIPS_per_MHz
-    format: "%.3f"
-
-  DMIPS:
-    type: operation
-    benchmark_only: True
-    settings:
-      op: DMIPS_per_MHz * Fmax
-    format: "%.0f"
+  # Always
 
   Param_Domains:
     type: yaml

@@ -60,13 +60,19 @@ def legend_item(name, color, symbol="circle"):
   )
 
 
-def control_row(label, control, hidden=False, tooltip=None):
-  """A labeled control of the sidebar."""
+def control_row(label, control, hidden=False, tooltip=None, id=None):
+  """A labeled control of the sidebar.
+
+  ``id`` is only needed by rows whose visibility depends on the data (a callback
+  then writes their ``style``); static rows are hidden here once and for all.
+  """
+  extra = {"id": id} if id else {}
   return html.Div(
     [html.Label(label, className="xp-control-label"), control],
     className="xp-control-row",
     style={"display": "none"} if hidden else None,
     title=tooltip,
+    **extra,
   )
 
 

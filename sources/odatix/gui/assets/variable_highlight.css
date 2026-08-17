@@ -20,13 +20,15 @@
 *
 */
 
-/* Highlight of ${...} variables inside the workflow command textareas. */
+/* Highlight of ${...} variables inside command fields (workflow task commands,
+   architecture generation command). */
 
 /* Theme variables live on the .theme wrapper, not :root, so alias them there
    (referencing them from :root would resolve to nothing). */
 .theme {
     --wf-hl-var-color: var(--theme-success-color);
     --wf-hl-domain-color: var(--theme-primary-color);
+    --wf-hl-builtin-color: #9775FA;
     --wf-hl-unknown-color: var(--theme-warning-color);
 }
 
@@ -36,12 +38,12 @@
     margin-bottom: 8px;
 }
 
-/* The textarea styling brings its own margin-bottom; the wrapper owns it now. */
-.wf-hl-wrap .wf-command-textarea {
+/* The field styling brings its own margin-bottom; the wrapper owns it now. */
+.wf-hl-wrap .odatix-command-field {
     margin-bottom: 0 !important;
 }
 
-/* The mirror sits exactly under the textarea and shows the colored text. */
+/* The mirror sits exactly under the field and shows the colored text. */
 .wf-hl-mirror {
     position: absolute;
     top: 0;
@@ -61,9 +63,28 @@
     z-index: 0;
 }
 
-/* The real textarea: transparent text/background so the mirror shows through,
+.odx-job .wf-hl-wrap {
+    margin-bottom: 0;
+}
+
+/* A single-line field sits in a form row that already owns the spacing. */
+.wf-hl-wrap-single {
+    margin-bottom: 0;
+}
+
+/* A single-line field never wraps: it scrolls horizontally instead, and the
+   mirror follows its scroll position. */
+.wf-hl-mirror-single {
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
+    display: flex;
+    align-items: center;
+}
+
+/* The real field: transparent text/background so the mirror shows through,
    but a visible caret and selection. */
-.wf-hl-input.wf-command-textarea {
+.wf-hl-input.odatix-command-field {
     position: relative;
     z-index: 1;
     background: transparent !important;
@@ -71,10 +92,10 @@
     caret-color: var(--theme-text-color);
 }
 
-.wf-hl-input.wf-command-textarea::selection {
+.wf-hl-input.odatix-command-field::selection {
     background: color-mix(in srgb, var(--theme-primary-color) 30%, transparent);
 }
-.wf-hl-input.wf-command-textarea::-moz-selection {
+.wf-hl-input.odatix-command-field::-moz-selection {
     background: color-mix(in srgb, var(--theme-primary-color) 30%, transparent);
 }
 
@@ -90,11 +111,169 @@
     color: var(--wf-hl-domain-color);
     background: color-mix(in srgb, var(--wf-hl-domain-color) 14%, transparent);
 }
+.wf-hl-builtin {
+    color: var(--wf-hl-builtin-color);
+    background: color-mix(in srgb, var(--wf-hl-builtin-color) 14%, transparent);
+}
 .wf-hl-unknown {
     color: var(--wf-hl-unknown-color);
     background: color-mix(in srgb, var(--wf-hl-unknown-color) 14%, transparent);
     text-decoration: underline dashed color-mix(in srgb, var(--wf-hl-unknown-color) 60%, transparent);
     text-underline-offset: 2px;
+}
+
+.odx-varlist-panel {
+    position: relative;
+    display: inline-block;
+    font-size: 20px;
+}
+
+.odx-varlist-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 10px;
+    border: var(--default-button-border);
+    border-radius: 999px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 0.82em;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    background: transparent;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.odx-varlist-summary::-webkit-details-marker {
+    display: none;
+}
+.odx-varlist-summary:hover,
+.odx-varlist-panel[open] .odx-varlist-summary {
+    border-color: var(--default-button-text-color-hover);
+}
+.odx-varlist-label {
+    color: var(--default-button-text-color);
+    font-weight: normal;
+}
+
+.odx-varlist-sigil {
+    font-family: monospace;
+    font-weight: normal;
+    font-size: 0.75em;
+    color: var(--wf-hl-builtin-color);
+    line-height: 1;
+}
+
+.odx-varlist-chevron {
+    width: 6px;
+    height: 6px;
+    margin: -3px 1px 0 0;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    opacity: 0.7;
+    transform: rotate(45deg);
+    transition: transform 0.18s ease;
+}
+.odx-varlist-panel[open] .odx-varlist-chevron {
+    margin: 2px 1px 0 0;
+    transform: rotate(-135deg);
+}
+
+.odx-varlist-panel .odx-varlist {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 5000;
+    width: max-content;
+    max-width: min(580px, calc(100vw - 40px));
+    max-height: min(60vh, 520px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    text-align: left;
+    padding-bottom: 16px;
+border: var(--card-border);
+    border-radius: var(--card-border-radius, var(--theme-normal-border-radius));
+    background: var(--theme-element-background-color);
+    box-shadow: var(--theme-shadow-color) 0px 12px 28px -10px;
+    animation: odx-varlist-in 0.14s ease-out;
+}
+
+@keyframes odx-varlist-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .odx-varlist-panel .odx-varlist {
+        animation: none;
+    }
+    .odx-varlist-chevron {
+        transition: none;
+    }
+}
+
+.odx-varlist-title {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: -14px 0;
+    padding: 0;
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    background: var(--theme-element-background-color);
+    border-bottom: var(--card-border);
+}
+
+.odx-varlist-title > h4 {
+    opacity: 0.75;
+    margin: 0;
+    padding: 16px;
+}
+
+.odx-varlist-intro {
+    margin: 40px 16px 12px 16px;
+    line-height: 1.45;
+    font-size: 0.8em;
+    color: var(--theme-text-color);
+    opacity: 0.75;
+}
+.odx-varlist-intro:only-child {
+    margin-bottom: 0;
+}
+
+.odx-varlist-items {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    gap: 2px 14px;
+    font-size: 0.75em;
+    margin: 0 12px;
+}
+
+.odx-varlist-item {
+    display: contents;
+}
+
+.odx-varlist-item .wf-hl-token {
+    justify-self: start;
+    flex: none;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 0.86em;
+    white-space: nowrap;
+}
+
+.odx-varlist-desc {
+    padding: 2px 0;
+    line-height: 1.45;
+    color: var(--theme-text-color);
+    opacity: 0.7;
+    font-size: 0.86em;
 }
 
 /* Floating hover tooltip (positioned by JS, appended inside .theme). */
@@ -128,6 +307,11 @@
     background: var(--wf-hl-domain-color);
     color: #fff;
     border-color: var(--wf-hl-domain-color);
+}
+.wf-hl-tooltip.wf-hl-builtin {
+    background: var(--wf-hl-builtin-color);
+    color: #fff;
+    border-color: var(--wf-hl-builtin-color);
 }
 .wf-hl-tooltip.wf-hl-unknown {
     background: var(--wf-hl-unknown-color);

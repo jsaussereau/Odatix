@@ -85,13 +85,23 @@ class OdatixApp:
         """
         Setup the layout of the Dash application.
         """
-        self.app.layout = html.Div(
+        def serve_layout():
+            # Resolve the theme for this request from the odatix_theme cookie
+            # (set client-side when the user picks a theme) so it survives
+            # page refreshes and app restarts.
+            self.start_theme = themes.theme_from_cookie(default=self.start_theme)
+            return self._layout()
+        self.app.layout = serve_layout
+
+    def _layout(self):
+        return html.Div(
             children=[
                 navigation.top_bar(self),
                 navigation.side_bar(self),
-                dcc.Location(id="url-global"),  
+                dcc.Location(id="url-global"),
                 dcc.Store(id="previous-url", data=""),
                 dcc.Store(id="odatix-settings", data=self.odatix_settings.to_dict() if self.odatix_settings.valid else {}),
+                dcc.Store(id="theme-cookie-sync"),
                 *explorer_shell.explorer_state_stores(),
                 html.Div(
                     [dash.page_container],

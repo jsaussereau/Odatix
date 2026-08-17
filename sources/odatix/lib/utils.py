@@ -34,6 +34,7 @@ Functions:
     - create_dir: Creates a directory, removing it first if it exists.
     - internal_error: Logs internal errors and prints an error message.
     - safe_df_append: Safely appends data to a pandas DataFrame.
+    - can_open_path_in_explorer: Tells if a file explorer is available on this system.
     - open_path_in_explorer: Opens a file or directory in the system explorer.
 """
 
@@ -268,6 +269,17 @@ def ask_yes_no():
         else:
             print("Please enter yes or no")
 
+def create_dir_if_missing(dir):
+    """
+    Creates a directory, keeping its content when it already exists.
+
+    Used by jobs resuming a flow split into steps: their directory holds what
+    the steps already run produced (checkpoints, reports, step state) and must
+    not be wiped, unlike create_dir.
+    """
+    os.makedirs(dir, exist_ok=True)
+
+
 def create_dir(dir):
     """Creates a directory, removing it first if it exists."""
     if os.path.isdir(dir):
@@ -319,8 +331,23 @@ def safe_df_append(df, row, ignore_index=True):
             return row_df.reset_index(drop=True) if ignore_index else row_df
         return pd.concat([df, row_df], ignore_index=ignore_index)
 
+def can_open_path_in_explorer():
+    """Returns True if a file explorer can actually be opened on this system.
+
+    On Linux, xdg-open needs a graphical session: without DISPLAY nor
+    WAYLAND_DISPLAY (headless servers), opening a path would just fail.
+    """
+    if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
+        return True
+    if sys.platform.startswith("linux"):
+        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    return False
+
 def open_path_in_explorer(path):
     """Opens the given path in the system file explorer."""
+    if not can_open_path_in_explorer():
+        raise NotImplementedError("No file explorer available on this system")
+
     if sys.platform.startswith("win"): # Windows
         os.startfile(path)
     elif sys.platform.startswith("linux"): # Linux

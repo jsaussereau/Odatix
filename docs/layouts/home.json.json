@@ -1,0 +1,33 @@
+{{- /* Client-side search index: one entry per content page, plus its headings
+       so results can deep-link to a section. */ -}}
+{{- $sections := slice "docs" "tutorials" "install" "news" -}}
+{{- $pages := slice -}}
+{{- range where .Site.RegularPages "Section" "in" $sections -}}
+  {{- if not .Params.noSearch -}}{{- $pages = $pages | append . -}}{{- end -}}
+{{- end -}}
+{{- range where .Site.Pages "Kind" "page" -}}
+  {{- if and (eq .Section "") (not .Params.noSearch) -}}{{- $pages = $pages | append . -}}{{- end -}}
+{{- end -}}
+{{- $index := slice -}}
+{{- range $pages -}}
+  {{- $headings := slice -}}
+  {{- range findRE `<h[23][^>]*id="([^"]+)"[^>]*>(?s:.*?)</h[23]>` .Content -}}
+    {{- $id := index (findRE `id="[^"]+"` . 1) 0 -}}
+    {{- $id = replace (replace $id `id="` "") `"` "" -}}
+    {{- $text := trim (htmlUnescape (plainify .)) " \n\t" -}}
+    {{- with $text -}}
+      {{- $headings = $headings | append (dict "t" . "a" $id) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $body := .Plain | htmlUnescape -}}
+  {{- $body = replaceRE `\s+` " " $body -}}
+  {{- $index = $index | append (dict
+      "u" .Permalink
+      "t" .Title
+      "s" (cond (eq .Section "") "" (or (.Site.GetPage .Section).Title (title .Section)))
+      "d" (or .Description (.Summary | plainify | truncate 160))
+      "h" $headings
+      "b" (substr $body 0 12000)
+  ) -}}
+{{- end -}}
+{{- jsonify (dict "indent" "") $index -}}

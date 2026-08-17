@@ -1,0 +1,26 @@
+{{/* One navigation group: the whole page tree of `section`, at any depth,
+     with the current page highlighted and its ancestors expanded.
+
+     Context: dict
+       section (required) top-level section name, e.g. "docs", "install"
+       current (required) RelPermalink of the page being rendered */}}
+{{ $section := .section }}
+{{ $current := .current }}
+{{ $sectionPage := site.GetPage $section }}
+
+<h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3 px-3">
+  {{ with $sectionPage }}
+    <a href="{{ .RelPermalink }}" class="hover:text-gray-600 transition-colors duration-200">{{ .Title }}</a>
+  {{ else }}{{ title $section }}{{ end }}
+</h3>
+<ul class="space-y-0.5">
+  {{ with $sectionPage }}
+    {{ $children := slice }}
+    {{ range .Pages }}
+      {{ if .Title }}{{ $children = $children | append . }}{{ end }}
+    {{ end }}
+    {{ range sort $children "Weight" }}
+      {{ partial "docs-nav-item.html" (dict "page" . "current" $current "depth" 0) }}
+    {{ end }}
+  {{ end }}
+</ul>

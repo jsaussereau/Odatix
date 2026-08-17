@@ -1,0 +1,17 @@
+{
+  "sum": "d15533ef21b8e472",
+  "dependencySources": {
+    "dependencies": {},
+    "devDependencies": {
+      "@commitlint/cli": "hugo-admonitions",
+      "@commitlint/config-conventional": "hugo-admonitions",
+      "@semantic-release/changelog": "hugo-admonitions",
+      "@semantic-release/commit-analyzer": "hugo-admonitions",
+      "@semantic-release/github": "hugo-admonitions",
+      "@semantic-release/npm": "hugo-admonitions",
+      "@semantic-release/release-notes-generator": "hugo-admonitions",
+      "husky": "hugo-admonitions",
+      "semantic-release": "hugo-admonitions"
+    }
+  }
+}

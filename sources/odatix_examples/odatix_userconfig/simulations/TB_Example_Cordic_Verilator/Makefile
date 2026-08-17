@@ -1,0 +1,168 @@
+
+########################################################
+# Paths
+########################################################
+
+WORK_DIR = .
+RTL_DIR = rtl
+OBJ_DIR = $(WORK_DIR)/obj
+LOG_DIR = $(WORK_DIR)/log
+VCD_DIR = $(WORK_DIR)/vcd
+TB_DIR  = $(WORK_DIR)/tb
+
+ENV_SET = export LC_ALL=C; unset LANGUAGE;
+
+########################################################
+# Simulation Parameters
+########################################################
+
+MODULE = cordic
+VCD_FILE = $(VCD_DIR)/$(MODULE).vcd
+RESULT_FILE = $(WORK_DIR)/results.yml
+
+########################################################
+# Files
+########################################################
+
+VERILATOR_LOGFILE = verilator.log
+SIM_LOGFILE = sim.log
+
+EXCLUDE_PREFIX = tb_
+RTL_FILES := $(shell find $(RTL_DIR) -name '*.sv' -not -name '$(EXCLUDE_PREFIX)*')
+SV_FILES := $(wildcard $(RTL_DIR)/*.sv) $(wildcard $(RTL_DIR)/**/*.sv)
+
+CPP_FILES := $(wildcard $(TB_DIR)/*.cpp)
+
+SIM_FILE = $(OBJ_DIR)/V$(MODULE)
+
+PROGRESS_FILE = $(LOG_DIR)/progress.log
+
+########################################################
+# Configuration
+########################################################
+
+# The testbench needs to know the parameters Odatix wrote in the RTL file, so
+# that it can build its reference model. Odatix passes the value of each
+# parameter domain of the architecture to the command in _settings.yml
+# (${width} and ${iterations}), so nothing has to be read back from the source.
+CFG_WIDTH ?=
+CFG_ITERATIONS ?=
+
+TB_CFLAGS = -O2 -DCFG_WIDTH=$(CFG_WIDTH) -DCFG_ITERATIONS=$(CFG_ITERATIONS)
+
+# Options Verilator
+VERILATOR_FLAGS = -Wall -Wno-DECLFILENAME --trace --x-assign unique --x-initial unique
+
+########################################################
+# Text formatting
+########################################################
+
+_END     =\033[0m
+_BOLD    =\033[1m
+_BLACK   =\033[30m
+_RED     =\033[31m
+_GREEN   =\033[32m
+_YELLOW  =\033[33m
+_BLUE    =\033[34m
+_MAGENTA =\033[35m
+_CYAN    =\033[36m
+_WHITE   =\033[37m
+_GREY    =\033[90m
+
+VERILATOR_COLOR := $(shell printf 's/%%Error\\(\\S*\\):\\(.*\\)/%%$(_BOLD)$(_RED)Error\\1$(_END):$(_RED)\\2$(_END)/g;s/%%Warning\\(\\S*\\):\\(.*\\)/%%$(_BOLD)$(_YELLOW)Warning\\1$(_END):$(_YELLOW)\\2$(_END)/g')########################################################
+
+########################################################
+# Rules
+########################################################
+
+.PHONY: help
+help:
+	@printf "VERIFICATION\n"
+	@printf "\t$(_BOLD)make lint$(_END): check syntax of rtl files\n"
+	@printf "SIMULATION\n"
+	@printf "\t$(_BOLD)make verilate$(_END): compile rtl\n"
+	@printf "\t$(_BOLD)make sim$(_END): run the simulation\n"
+	@printf "\t$(_BOLD)make view$(_END): view simulation waveform\n"
+	@printf "OTHERS\n"
+	@printf "\t$(_BOLD)make clean$(_END): clean generated files\n"
+	@printf "\t$(_BOLD)make help$(_END): display a list of useful commands\n"
+
+.PHONY: sim
+sim: check_config $(VCD_FILE)
+
+.PHONY: check_config
+check_config:
+	@test -n "$(CFG_WIDTH)" -a -n "$(CFG_ITERATIONS)" || { \
+	  printf "Error: CFG_WIDTH and CFG_ITERATIONS must be set\n"; \
+	  printf "       (Odatix passes them from the \"width\" and \"iterations\" parameter domains)\n"; \
+	  exit 1; \
+	}
+
+.PHONY: view
+view:
+	@printf "\n$(_BOLD)$(_CYAN)"
+	@printf "######################################\n"
+	@printf "              View Waves              \n"
+	@printf "######################################\n"
+	@printf "$(_END)\n"
+	@gtkwave $(VCD_FILE) -a gtkwave_setup.gtkw
+
+$(VCD_FILE): $(SIM_FILE)
+	@printf "\n$(_BOLD)$(_CYAN)"
+	@printf "######################################\n"
+	@printf "              Simulating              \n"
+	@printf "######################################\n"
+	@printf "$(_END)\n"
+	@$(SIM_FILE) --vcd_file "$(VCD_FILE)" --result_file "$(RESULT_FILE)" \
+	  --progress_file "$(PROGRESS_FILE)" \
+	| tee "$(LOG_DIR)/$(SIM_LOGFILE)" | sed "$(VERILATOR_COLOR)"
+	@echo "progress: 100%" > $(PROGRESS_FILE)
+
+$(SIM_FILE): .stamp.verilate
+	@printf "\n$(_BOLD)$(_CYAN)"
+	@printf "######################################\n"
+	@printf "         Building Simulation          \n"
+	@printf "######################################\n"
+	@printf "$(_END)"
+	@make -C $(OBJ_DIR) -f V$(MODULE).mk V$(MODULE) MAKEFLAGS=s --no-print-directory
+	@echo "progress: 5%" > $(PROGRESS_FILE)
+
+.PHONY: verilate
+verilate: .stamp.verilate
+
+.stamp.verilate: makedir $(SV_FILES) $(CPP_FILES)
+	@echo "progress: 1%" > $(PROGRESS_FILE)
+	@printf "\n$(_BOLD)$(_CYAN)"
+	@printf "######################################\n"
+	@printf "              Verilating              \n"
+	@printf "######################################\n"
+	@printf "$(_END)\n"
+	@printf "WIDTH = $(CFG_WIDTH), ITERATIONS = $(CFG_ITERATIONS)\n"
+	@$(ENV_SET) verilator -Mdir $(OBJ_DIR) --top-module $(MODULE) $(VERILATOR_FLAGS) -cc $(RTL_FILES) \
+	  --exe $(CPP_FILES) -CFLAGS "$(TB_CFLAGS)" \
+	2>&1 | tee "$(LOG_DIR)/$(VERILATOR_LOGFILE)" | sed "$(VERILATOR_COLOR)"
+	@touch .stamp.verilate
+	@echo "progress: 3%" > $(PROGRESS_FILE)
+
+.PHONY: lint
+lint: $(SV_FILES)
+	@$(ENV_SET) verilator --lint-only --top-module $(MODULE) $(VERILATOR_FLAGS) -cc $(RTL_FILES) \
+	 2>&1 | sed $(VERILATOR_COLOR)
+
+.PHONY: hierarchy
+hierarchy: $(SV_FILES)
+	@$(ENV_SET) verilator -C --top-module $(MODULE) $(VERILATOR_FLAGS) -cc $(RTL_FILES) \
+	 2>&1 | sed $(VERILATOR_COLOR)
+
+.PHONY: clean
+clean:
+	@rm -rf .stamp.*
+	@rm -rf $(OBJ_DIR)
+	@rm -rf $(LOG_DIR)
+	@rm -rf $(VCD_DIR)
+	@rm -f $(RESULT_FILE)
+
+.PHONY: makedir
+makedir:
+	@mkdir -p $(LOG_DIR)
+	@mkdir -p $(VCD_DIR)

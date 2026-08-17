@@ -24,15 +24,15 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional
 
-import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
+import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
 import odatix.gui.variable_editor as ve
+from odatix.lib.config_generator import get_variables
 
 # Variable-editor id namespace for this page.
 VE_PREFIX = "wf-"
@@ -70,17 +70,6 @@ def _normalize_list(value):
         return [str(v).strip() for v in value if str(v).strip()]
     return [str(v).strip() for v in str(value).split(",") if str(v).strip()]
 
-def _get_workflow_path(odatix_settings):
-    workflow_path = odatix_settings.get("workflow_path", "")
-    if workflow_path:
-        return workflow_path
-
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
-
-    return OdatixSettings.DEFAULT_WORKFLOW_PATH
-
 def normalize_workflow_settings(settings):
     if not isinstance(settings, dict):
         settings = {}
@@ -97,17 +86,13 @@ def normalize_workflow_settings(settings):
     if not isinstance(tasks, list):
         tasks = []
 
-    generate_configurations_settings = settings.get("generate_configurations_settings", {})
-    if not isinstance(generate_configurations_settings, dict):
-        generate_configurations_settings = {}
-    variables = generate_configurations_settings.get("variables", {})
-    if not isinstance(variables, dict):
-        variables = {}
-    generate_configurations_settings = {**generate_configurations_settings, "variables": variables}
+    # Variables are declared at the root of the settings file, but are still
+    # read from where they used to be declared.
+    variables, _legacy = get_variables(settings)
 
     try:
         vars_copy = {}
-        for vname, vcfg in generate_configurations_settings.get("variables", {}).items():
+        for vname, vcfg in variables.items():
             if not isinstance(vcfg, dict):
                 vars_copy[vname] = vcfg
                 continue
@@ -131,7 +116,7 @@ def normalize_workflow_settings(settings):
 
             vars_copy[vname] = new_vcfg
 
-        generate_configurations_settings["variables"] = vars_copy
+        variables = vars_copy
     except Exception:
         pass
 
@@ -150,7 +135,7 @@ def normalize_workflow_settings(settings):
             "regex": progress.get("regex", ""),
         },
         "tasks": tasks,
-        "generate_configurations_settings": generate_configurations_settings,
+        "variables": variables,
     }
 
 def format_tasks(tasks):
@@ -217,7 +202,7 @@ def wf_build_variables_dict(
     titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals, from_type_vals, to_type_vals, step_vals, op_vals, list_vals, source_vals, sources_vals, format_vals, group_vals
 ):
     """
-    Build a "generate_configurations_settings.variables" dict from the variable card field values.
+    Build a "variables" dict from the variable card field values.
     """
     return ve.build_variables_dict(
         titles, types, base_vals, from_vals, to_vals, from_2_pow_vals, to_2_pow_vals,
@@ -381,13 +366,13 @@ def workflow_form(settings):
                                 label="Start Delimiter",
                                 id="wf-start-delimiter",
                                 value=defval("start_delimiter", ""),
-                                tooltip="Start marker for replacement.",
+                                tooltip="Start marker for replacement. Escape sequences such as \\n are supported.",
                             ),
                             workflow_form_field(
                                 label="Stop Delimiter",
                                 id="wf-stop-delimiter",
                                 value=defval("stop_delimiter", ""),
-                                tooltip="Stop marker for replacement.",
+                                tooltip="Stop marker for replacement. Escape sequences such as \\n are supported.",
                             ),
                         ],
                         id="wf-params-config-fields",
@@ -456,7 +441,7 @@ def wf_task_card(name="main", dependencies_value="", commands_value="", path_val
                 dcc.Textarea(
                     value=commands_value,
                     id={"type": "wf-task-field-commands", "name": name},
-                    className="auto-resize-textarea wf-command-textarea",
+                    className="auto-resize-textarea odatix-command-field",
                     style={
                         "width": "100%",
                         "minHeight": "110px",
@@ -525,15 +510,8 @@ def wf_add_card(prefix: str = "wf-variable", text: str = "Add new variable", mod
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingTop": "20px"}),
-                    html.Div(
-                        "+",
-                        style={
-                            "fontSize": "2.5em",
-                            "lineHeight": "80px",
-                            "height": "80px",
-                        }
-                    ),
+                    html.Div("+", style={"fontSize": "2.5em", "lineHeight": "80px", "height": "80px", "marginTop": "-2px", "marginBottom": "-16px"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingBottom": "20px"}),
                 ],
                 style={"display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"}
             ),
@@ -731,9 +709,9 @@ def init_form(search, page, odatix_settings):
     if not workflow_name:
         return workflow_form({}), {}, wf_cards_from_tasks([]), wf_cards_from_variables({})
 
-    workflow_path = _get_workflow_path(odatix_settings)
-    settings = normalize_workflow_settings(workspace.load_workflow_settings(workflow_path, workflow_name))
-    variables = settings.get("generate_configurations_settings", {}).get("variables", {})
+    workflows = get_workspace(odatix_settings).workflows
+    settings = normalize_workflow_settings(workflows.entry(workflow_name).settings.to_dict())
+    variables = settings.get("variables", {})
     tasks = settings.get("tasks", [])
     return workflow_form(settings), settings, wf_cards_from_tasks(tasks), wf_cards_from_variables(variables)
 
@@ -755,8 +733,7 @@ def update_wf_param_domains(search, page, odatix_settings):
     if not workflow_name:
         return []
     try:
-        workflow_path = _get_workflow_path(odatix_settings)
-        return workspace.get_param_domains(workflow_path, workflow_name)
+        return get_workspace(odatix_settings).workflows.entry(workflow_name).domains.sub_names()
     except Exception:
         return []
 
@@ -765,7 +742,9 @@ def update_wf_param_domains(search, page, odatix_settings):
 dash.clientside_callback(
     """
     function(domains) {
-        window.__odatixWfParamDomains = domains || [];
+        window.__odatixHlParamDomains = domains || [];
+        // The workflow's variables are read live from its variable cards.
+        window.__odatixHlVariables = [];
         document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
         return "";
     }
@@ -881,8 +860,6 @@ def save_and_status(
         variable_step_vals, variable_op_vals, variable_list_vals, variable_source_vals, variable_sources_vals,
         variable_format_vals, variable_group_vals,
     )
-    generate_configurations_settings = dict(reference_settings.get("generate_configurations_settings", {}))
-    generate_configurations_settings["variables"] = variables
 
     current_settings = normalize_workflow_settings(
         {
@@ -899,13 +876,13 @@ def save_and_status(
                 "file": progress_file or "",
                 "regex": progress_regex or "",
             },
-            "generate_configurations_settings": generate_configurations_settings,
+            "variables": variables,
             "tasks": parsed_tasks,
         }
     )
 
     workflow_name = get_key_from_url(search, "workflow")
-    workflow_path = _get_workflow_path(odatix_settings)
+    workflows = get_workspace(odatix_settings).workflows
 
     if not workflow_title_value:
         return (
@@ -929,26 +906,27 @@ def save_and_status(
         new_search = dash.no_update
 
         if workflow_name and workflow_title_value != workflow_name:
-            if workspace.workflow_exists(workflow_path, workflow_title_value):
+            if workflow_title_value in workflows:
                 return (
                     "color-button error-status icon-button tooltip bottom",
                     f"'{workflow_title_value}' already exists",
                     dash.no_update,
                     saved_settings,
                 )
-            if workspace.workflow_exists(workflow_path, workflow_name):
-                workspace.rename_workflow(workflow_path, workflow_name, workflow_title_value)
+            if workflow_name in workflows:
+                workflows.rename(workflow_name, workflow_title_value)
             workflow_name = workflow_title_value
             new_search = f"?workflow={workflow_name}"
         elif not workflow_name:
             workflow_name = workflow_title_value
             new_search = f"?workflow={workflow_name}"
 
-        if not workspace.workflow_exists(workflow_path, workflow_name):
-            workspace.create_workflow(workflow_path, workflow_name)
+        workflow = workflows.get(workflow_name)
+        if workflow is None:
+            workflow = workflows.create(workflow_name)
 
         try:
-            workspace.save_workflow_settings(workflow_path, workflow_name, current_settings)
+            workflow.update(current_settings)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
@@ -1185,7 +1163,11 @@ layout = html.Div(
         html.Div(id="workflow-form-container"),
         html.Div(
             children=[
-                ui.title_tile(text="Task Definition", id="wf-task-title", tooltip="Tasks can be used to define the steps of the workflow."),
+                ui.title_tile(
+                    text="Task Definition", id="wf-task-title",
+                    tooltip="Tasks can be used to define the steps of the workflow.",
+                    buttons=builtin_variables.variable_list("workflow", id="wf-builtin-variables"),
+                ),
                 html.Div([
                     html.Div(
                         id="wf-task-cards-row",
@@ -1212,6 +1194,9 @@ layout = html.Div(
         # variables (which it reads live from the variable cards).
         dcc.Store(id="wf-hl-param-domains", data=[]),
         dcc.Store(id="wf-hl-dummy", data=""),
+        # A workflow command has no built-in variable, but declaring the (empty)
+        # list keeps a stale one from another editor out of this page.
+        builtin_variables.highlight_data("workflow", id="wf-hl-builtins", declares_variables=True),
     ],
     className="page-content",
     style={

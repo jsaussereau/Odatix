@@ -20,10 +20,7 @@
 #
 
 import os
-import re
-import math
 import yaml
-import itertools
 
 from os.path import isfile
 from os.path import isdir
@@ -32,14 +29,40 @@ from odatix.lib.architecture_handler import ArchitectureHandler
 from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.utils import *
 from odatix.lib.param_domain import ParamDomain
+import odatix.lib.param_domain as param_domain
+import odatix.lib.hard_settings as hard_settings
+import odatix.workspace.selection as selection
+import odatix.workspace.sim_architectures as sim_architectures
 
 script_name = os.path.basename(__file__)
 
 class Simulation:
-  def __init__(self, sim_name, sim_display_name, architecture, tmp_dir, source_sim_dir, override_parameters, override_param_target_filename, override_param_filename, override_start_delimiter, override_stop_delimiter, simulation_command):
+  def __init__(
+    self,
+    sim_name,
+    sim_display_name,
+    architecture,
+    arch_full,
+    arch_param_dir,
+    arch_config,
+    tmp_dir,
+    source_sim_dir,
+    override_parameters,
+    override_param_target_filename,
+    override_param_filename,
+    override_start_delimiter,
+    override_stop_delimiter,
+    tasks=None,
+    progress_file=None,
+    progress_regex=None,
+    invariant_domains=None,
+  ):
     self.sim_name = sim_name
     self.sim_display_name = sim_display_name
     self.architecture = architecture
+    self.arch_full = arch_full
+    self.arch_param_dir = arch_param_dir
+    self.arch_config = arch_config
     self.tmp_dir = tmp_dir
     self.source_sim_dir = source_sim_dir
     self.override_parameters = override_parameters
@@ -47,8 +70,17 @@ class Simulation:
     self.override_param_filename = override_param_filename
     self.override_start_delimiter = override_start_delimiter
     self.override_stop_delimiter = override_stop_delimiter
-    self.simulation_command = simulation_command
-    
+    # Tasks are the workflow-style execution graph of the simulation. When the
+    # settings file defines none, run_simulations falls back to the historical
+    # single "make sim" rule (see default_simulation_task there).
+    self.tasks = tasks if isinstance(tasks, list) else []
+    self.progress_file = progress_file
+    self.progress_regex = progress_regex
+    # Parameter domains this simulation's result does not depend on. They are
+    # collapsed to a single run (see SimulationHandler.get_simulations) and are
+    # left out of the exported record, so it matches every value of them.
+    self.invariant_domains = invariant_domains if isinstance(invariant_domains, dict) else {}
+
 
 class SimulationHandler:
 
@@ -66,7 +98,100 @@ class SimulationHandler:
     self.sim_makefile_filename = sim_makefile_filename
     self.reset_lists()
 
+  def get_invariant_domains(self, sim):
+    """
+    The parameter domains a simulation declares its result does not depend on.
+
+    Read straight from the simulation settings file, and before the
+    configurations are expanded: which configurations are worth running depends
+    on it, so it cannot wait until each one is built.
+    """
+    if sim in self._invariant_domains_cache:
+      return self._invariant_domains_cache[sim]
+
+    domains = {}
+    settings_filename = os.path.join(self.sim_path, sim, self.sim_settings_filename)
+    if isfile(settings_filename):
+      try:
+        with open(settings_filename, "r") as f:
+          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        if isinstance(settings_data, dict):
+          domains = param_domain.parse_invariant_domains(
+            settings_data.get(param_domain.INVARIANT_DOMAINS_KEY), settings_filename
+          )
+      except Exception:
+        # An unreadable settings file is reported by get_simulation, which needs
+        # to ban the simulation anyway. Nothing to add here.
+        domains = {}
+
+    self._invariant_domains_cache[sim] = domains
+    return domains
+
+  def get_architecture_entries(self, sim):
+    """
+    The architectures a simulation declares it runs on, and what it changes for
+    each of them (see odatix.workspace.sim_architectures).
+
+    Read straight from the settings file, and cached: the compatibility warning
+    needs them before the configurations are expanded, and every job of the
+    simulation reads them again.
+    """
+    if sim in self._architectures_cache:
+      return self._architectures_cache[sim]
+
+    entries = []
+    settings_filename = os.path.join(self.sim_path, sim, self.sim_settings_filename)
+    if isfile(settings_filename):
+      try:
+        with open(settings_filename, "r") as f:
+          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        if isinstance(settings_data, dict):
+          messages = []
+          entries = sim_architectures.parse(
+            settings_data.get(sim_architectures.ARCHITECTURES_KEY),
+            messages=messages,
+            where='"' + sim_architectures.ARCHITECTURES_KEY + '" in "' + settings_filename + '"',
+          )
+          printc.messages(messages, script_name)
+          if any(message.level == "error" for message in messages):
+            entries = []
+            self.banned_sim_param.append(sim)
+      except Exception:
+        # An unreadable settings file is reported by get_simulation, which needs
+        # to ban the simulation anyway. Nothing to add here.
+        entries = []
+
+    self._architectures_cache[sim] = entries
+    return entries
+
+  def check_architectures(self, sim, architectures):
+    """
+    Warn about the architectures a simulation is run on but does not list. Once
+    per architecture, whatever the number of configurations.
+    """
+    entries = self.get_architecture_entries(sim)
+    if not entries:
+      return
+
+    for arch_full in architectures:
+      arch_name = str(arch_full).split("+", 1)[0].split("/", 1)[0].strip()
+      if sim_architectures.matches(entries, arch_name) or (sim, arch_name) in self._warned_unlisted:
+        continue
+      self._warned_unlisted.add((sim, arch_name))
+      printc.warning(
+        "\"" + arch_name + "\" is not one of the architectures \"" + sim + "\" runs on",
+        script_name,
+      )
+      printc.note(
+        "Add it to \"" + sim_architectures.ARCHITECTURES_KEY + "\" in \""
+        + os.path.join(self.sim_path, sim, self.sim_settings_filename) + "\" to silence this warning",
+        script_name,
+      )
+
   def reset_lists(self):
+    self._invariant_domains_cache = {}
+    self._architectures_cache = {}
+    self._warned_unlisted = set()
     self.no_settings_sims = []
     self.banned_sim_param = []
     # Single source of truth for the check outcome (see lib/run_report.py).
@@ -128,57 +253,31 @@ class SimulationHandler:
         if sim_dict is not None:
           for sim, arch_list in sim_dict.items():
             if arch_list is not None and arch_list is not None:
-              # Handle wildcard
-              architectures = []
-              for arch in arch_list:
-                print(f"arch: {arch}")
-                arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch, "", False)
-                if arch.endswith("/*"):
-                  # get param dir (arch name before '/*')
-                  arch_param_dir = re.sub(r'/\*', '', arch)
-                  arch_param = self.arch_path + '/' + arch_param_dir
+              # What the simulation runs on is written exactly like what a
+              # synthesis runs on, wildcards included (see workspace.selection).
+              messages = []
+              architectures = selection.expand(arch_list, self.arch_path, messages=messages)
+              printc.messages(messages, script_name)
 
-                  # check if parameter dir exists
-                  if isdir(arch_param):
-                    files = [f[:-4] for f in os.listdir(arch_param) if os.path.isfile(os.path.join(arch_param, f)) and f.endswith(".txt")]
-                    joker_archs = [os.path.join(arch_param_dir, file) for file in sorted(files)]
-                else:
-                  joker_archs = [arch]
-                  arch_param = arch_param_dir
-                  
-                # Parameter domain wildcard
-                joker_param_domain = {}
-                if len(requested_param_domains) > 0:
-                  for requested_param_domain in requested_param_domains:
-                    if requested_param_domain.endswith("/*"):
-                      param_domain = re.sub(r'/\*', '', requested_param_domain)
-                      # get parameter domain dir
-                      arch_param = self.arch_path + '/' + arch_param_dir
-                      param_domain_dir = os.path.join(arch_param, param_domain)
+              # Running a simulation on an architecture it does not list is
+              # allowed: only say so.
+              self.check_architectures(sim, architectures)
 
-                      # check if parameter domain dir exists
-                      if isdir(param_domain_dir):
-                        files = [f[:-4] for f in os.listdir(param_domain_dir) if os.path.isfile(os.path.join(param_domain_dir, f)) and f.endswith(".txt")]
-                        joker_param_domain[param_domain] = sorted(files)
-                    else:
-                      param_domain = re.sub(r'/.*', '', requested_param_domain)
-                      value = re.sub(r'.*/', '', requested_param_domain)
-                      joker_param_domain[param_domain] = [value]
+              # Configurations that only differ by a domain the simulation is
+              # invariant to would all compute the same result: keep one.
+              invariant_domains = self.get_invariant_domains(sim)
+              if invariant_domains:
+                architectures, dropped = param_domain.collapse_invariant_configurations(
+                  architectures, invariant_domains, error_prefix=sim + ": "
+                )
+                if dropped > 0:
+                  printc.note(
+                    sim + ': skipping ' + str(dropped) + ' redundant configuration'
+                    + ("s" if dropped > 1 else "")
+                    + ' (invariant to "' + '", "'.join(sorted(invariant_domains)) + '")',
+                    script_name,
+                  )
 
-                  # Generate combinations
-                  param_keys = list(joker_param_domain.keys())
-                  param_values = [joker_param_domain[key] if isinstance(joker_param_domain[key], list) else [joker_param_domain[key]] for key in param_keys]
-
-                  for arch_instance in joker_archs:
-                    for param_combination in itertools.product(*param_values):
-                      param_string = "+".join(f"{param_keys[i]}/{param_combination[i]}" for i in range(len(param_keys)))
-                      architectures.append(f"{arch_instance}+{param_string}")
-                else:
-                  architectures = architectures + joker_archs
-
-              # Remove duplicates
-              architectures = list(dict.fromkeys(architectures))
-              
               for arch in architectures:
                 simulation_instance = self.get_simulation(sim, arch, arch_handler, keep=keep, timestamp=timestamp)
                 if simulation_instance is not None:
@@ -189,26 +288,17 @@ class SimulationHandler:
   
   def get_simulation(self, sim, arch_full, arch_handler, keep=False, timestamp=""):
     
-    arch, arch_param, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch_full)
+    arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch_full)
 
     arch_config_dir_work = arch_config_dir_work + "_" + timestamp if keep and timestamp != "" else arch_config_dir_work
 
     tmp_dir = os.path.join(self.work_path, sim, arch_param_dir_work, arch_config_dir_work) 
 
     sim_name = sim
-    sim_display_name = sim + ": " + arch_display_name 
-    simulation_command = None
+    sim_display_name = sim + ": " + arch_display_name
 
     # check if sim has been banned
     if sim in self.banned_sim_param:
-      self.plan.add(sim_display_name, Category.ERROR)
-      return None
-
-    # check if sim dir exists
-    source_sim_dir = self.sim_path + '/' + sim
-    if not isdir(source_sim_dir):
-      printc.error("There is no directory \"" + sim + "\" in directory \"" + self.sim_path + "\"", script_name)
-      self.banned_sim_param.append(sim)
       self.plan.add(sim_display_name, Category.ERROR)
       return None
 
@@ -226,20 +316,17 @@ class SimulationHandler:
       self.plan.add(sim_display_name, Category.ERROR)
       return None
 
-    # check if makefile exists
-    makefile_filename = source_sim_dir + '/' + self.sim_makefile_filename
-    if not isfile(makefile_filename):
-      printc.error("There is no setting \"Makefile\" in directory \"" + source_sim_dir + "\"", script_name)
-      printc.note("A Makefile with a rule \"sim\" is mandatory", script_name)
-      self.banned_sim_param.append(sim)
-      self.plan.add(sim_display_name, Category.ERROR)
-      return None
-
     override_parameters = False
     override_param_target_filename = ""
     override_param_file = ""
     override_start_delimiter = ""
     override_stop_delimiter = ""
+
+    # Workflow-style execution graph. Empty means "use the legacy 'make sim'
+    # rule", which is what every simulation defined before tasks existed does.
+    tasks = []
+    progress_file = hard_settings.sim_progress_file
+    progress_regex = hard_settings.sim_status_pattern.pattern
 
     # check if settings file exists
     if sim not in self.no_settings_sims:
@@ -259,43 +346,84 @@ class SimulationHandler:
             self.plan.add(sim_display_name, Category.ERROR)
             return None # if an identifier is missing
 
-          # get use_parameters, start_delimiter and stop_delimiter
-          use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, None, add_to_error_list=False)
-          if use_parameters is None:
-            self.banned_sim_param.append(sim)
-            self.plan.add(sim_display_name, Category.ERROR)
-            return None
-          elif start_delimiter is None or stop_delimiter is None:
-            self.plan.add(sim_display_name, Category.ERROR)
-            return None
-
-          # overwrite architecture settings
-          architecture.use_parameters = use_parameters
-          architecture.start_delimiter = start_delimiter
-          architecture.stop_delimiter = stop_delimiter
-
-          # get param_target_file
-          if use_parameters:
-            if param_target_filename is None:
+          # Both moved under "architectures", which lists what the simulation runs on and
+          # what it changes for each. A file still written the old way would be read as
+          # having no override at all: say so rather than running something else.
+          for moved_key in ('param_domains', 'compatible_architectures'):
+            if moved_key in settings_data:
+              printc.error("\"" + moved_key + "\" in \"" + settings_filename + "\" is not read anymore", script_name)
+              printc.note(
+                "The architectures a simulation runs on, and what it changes for each of them, "
+                "are now listed under \"" + sim_architectures.ARCHITECTURES_KEY + "\"", script_name
+              )
               self.banned_sim_param.append(sim)
               self.plan.add(sim_display_name, Category.ERROR)
               return None
-            else:
-              # check if param target file path exists
-              param_target_file_rtl = architecture.rtl_path + '/' + param_target_filename
-              param_target_file_sim = source_sim_dir + '/' + param_target_filename
-              #if not isfile(param_target_file_rtl) and not isfile(param_target_file_sim): 
-                #printc.warning("The parameter target file \"" + param_target_filename + "\" specified in \"" + settings_filename + "\" does not seem to exist", script_name)
-              # overwrite architecture settings
-              architecture.param_target_filename = param_target_filename
 
-          # get override_parameters
+          # get tasks (optional: without them the legacy "make sim" rule is used)
           try:
-            override_parameters = read_from_list('override_parameters', settings_data, settings_filename, type=bool, script_name=script_name)
+            tasks = read_from_list('tasks', settings_data, settings_filename, type=list, optional=True, raise_if_missing=False, print_error=False)
           except (KeyNotInListError, BadValueInListError):
-            self.banned_sim_param.append(sim)
-            self.plan.add(sim_display_name, Category.ERROR)
-            return None
+            tasks = []
+          if tasks in (False, None):
+            tasks = []
+
+          # get progress tracking settings (optional)
+          try:
+            progress = read_from_list('progress', settings_data, settings_filename, type=dict, optional=True, raise_if_missing=False, print_error=False)
+          except (KeyNotInListError, BadValueInListError):
+            progress = None
+          if progress not in (False, None):
+            progress_file_setting = read_from_list('file', progress, settings_filename, parent='progress', optional=True, raise_if_missing=False, print_error=False)
+            progress_regex_setting = read_from_list('regex', progress, settings_filename, parent='progress', optional=True, raise_if_missing=False, print_error=False)
+            if progress_file_setting not in (False, None):
+              progress_file = progress_file_setting
+            if progress_regex_setting not in (False, None):
+              progress_regex = progress_regex_setting
+
+          # deprecated: "use_parameters" (and its delimiters/target file) at the top level of a
+          # simulation's settings only ever covered a single, non-domain parameter file. Prefer
+          # "param_domains" below, which can override (or add) any number of parameter domains.
+          if 'use_parameters' in settings_data:
+            printc.warning("\"use_parameters\" in \"" + settings_filename + "\" is deprecated, use \"param_domains\" instead", script_name)
+
+            # get use_parameters, start_delimiter and stop_delimiter
+            use_parameters, start_delimiter, stop_delimiter, param_target_filename = arch_handler.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, None, add_to_error_list=False)
+            if use_parameters is None:
+              self.banned_sim_param.append(sim)
+              self.plan.add(sim_display_name, Category.ERROR)
+              return None
+            elif start_delimiter is None or stop_delimiter is None:
+              self.plan.add(sim_display_name, Category.ERROR)
+              return None
+
+            # overwrite architecture settings
+            architecture.use_parameters = use_parameters
+            architecture.start_delimiter = start_delimiter
+            architecture.stop_delimiter = stop_delimiter
+
+            # get param_target_file
+            if use_parameters:
+              if param_target_filename is None:
+                self.banned_sim_param.append(sim)
+                self.plan.add(sim_display_name, Category.ERROR)
+                return None
+              else:
+                architecture.param_target_filename = param_target_filename
+          else:
+            # No deprecated block: the architecture's own parameter domains are the only
+            # source of substitution, adjusted by "param_domains" below.
+            architecture.use_parameters = False
+
+          # get override_parameters (optional, defaults to no override)
+          try:
+            override_parameters = read_from_list('override_parameters', settings_data, settings_filename, type=bool, optional=True, raise_if_missing=False, print_error=False)
+          except (KeyNotInListError, BadValueInListError):
+            override_parameters = False
+          if override_parameters is False or override_parameters is None:
+            override_parameters = False
+          elif 'override_parameters' in settings_data:
+            printc.warning("\"override_parameters\" in \"" + settings_filename + "\" is deprecated, use \"param_domains\" instead", script_name)
 
           if override_parameters:
             # get override_param_target_file
@@ -350,7 +478,102 @@ class SimulationHandler:
               return None
           else:
             override_param_target_filename = "/dev/null"
-      
+
+          # What the simulation changes for the architecture under test, taken from the
+          # "architectures" block (see odatix.workspace.sim_architectures): the entries
+          # matching this architecture, merged in the order they are written.
+          arch_settings = sim_architectures.settings_for(self.get_architecture_entries(sim), arch)
+          if sim in self.banned_sim_param:
+            self.plan.add(sim_display_name, Category.ERROR)
+            return None
+
+          # "param_domains" customizes the parameter substitution of this simulation for
+          # this architecture. A key matching one of the architecture's own domains (e.g.
+          # "width") overrides only the fields it lists, the rest is inherited from the
+          # architecture's domain settings. A key that does not match any architecture
+          # domain declares a standalone substitution of its own (a "param_file" is then
+          # mandatory), which subsumes what the deprecated "override_parameters"
+          # mechanism used to do.
+          if arch_settings.get("param_domains"):
+            for domain_name, domain_overrides in arch_settings["param_domains"].items():
+              domain_name = str(domain_name)
+              domain_id = arch + ": param_domains: " + domain_name
+              if not isinstance(domain_overrides, dict):
+                printc.error("\"architectures: " + domain_id + "\" in \"" + settings_filename + "\" must be a mapping", script_name)
+                self.banned_sim_param.append(sim)
+                self.plan.add(sim_display_name, Category.ERROR)
+                return None
+
+              existing_domain = next((pd for pd in architecture.param_domains if pd.domain == domain_name), None)
+
+              if existing_domain is not None:
+                if 'use_parameters' in domain_overrides:
+                  existing_domain.use_parameters = bool(domain_overrides['use_parameters'])
+                if 'start_delimiter' in domain_overrides:
+                  existing_domain.start_delimiter = domain_overrides['start_delimiter']
+                if 'stop_delimiter' in domain_overrides:
+                  existing_domain.stop_delimiter = domain_overrides['stop_delimiter']
+                if 'param_target_file' in domain_overrides:
+                  existing_domain.param_target_file = domain_overrides['param_target_file']
+                elif existing_domain.param_target_file == "":
+                  # The architecture had the domain switched off, so it never resolved a target
+                  # file for it. Re-enabling it here has to fall back to the top level, as the
+                  # architecture would have.
+                  existing_domain.param_target_file = architecture.top_level_filename
+                if existing_domain.use_parameters and (existing_domain.start_delimiter == "" or existing_domain.stop_delimiter == ""):
+                  printc.error("\"architectures: " + domain_id + "\" in \"" + settings_filename + "\" enables the replacement but no \"start_delimiter\"/\"stop_delimiter\" is defined, here or in the architecture", script_name)
+                  self.banned_sim_param.append(sim)
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                if 'param_file' in domain_overrides:
+                  domain_param_file = os.path.join(source_sim_dir, domain_overrides['param_file'])
+                  if not isfile(domain_param_file):
+                    printc.error("There is no parameter file \"" + domain_param_file + "\", referenced by \"architectures: " + domain_id + "\" in \"" + settings_filename + "\"", script_name)
+                    self.plan.add(sim_display_name, Category.ERROR)
+                    return None
+                  existing_domain.param_file = domain_param_file
+              else:
+                # Standalone override: not tied to any architecture domain, so everything
+                # needed to run a substitution has to be given here.
+                if 'param_file' not in domain_overrides:
+                  printc.error("Cannot find key \"param_file\" in \"architectures: " + domain_id + "\" in \"" + settings_filename + "\", required since \"" + domain_name + "\" is not a domain of this architecture", script_name)
+                  self.banned_sim_param.append(sim)
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                new_domain_param_file = os.path.join(source_sim_dir, domain_overrides['param_file'])
+                if not isfile(new_domain_param_file):
+                  printc.error("There is no parameter file \"" + new_domain_param_file + "\", referenced by \"architectures: " + domain_id + "\" in \"" + settings_filename + "\"", script_name)
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                new_domain_use_parameters = bool(domain_overrides.get('use_parameters', True))
+                new_domain_start_delimiter = domain_overrides.get('start_delimiter', '')
+                new_domain_stop_delimiter = domain_overrides.get('stop_delimiter', '')
+                if new_domain_use_parameters and (new_domain_start_delimiter == '' or new_domain_stop_delimiter == ''):
+                  printc.error("\"architectures: " + domain_id + "\" in \"" + settings_filename + "\" needs \"start_delimiter\" and \"stop_delimiter\", since it does not match any domain of this architecture", script_name)
+                  self.banned_sim_param.append(sim)
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                architecture.param_domains.append(ParamDomain(
+                  domain=domain_name,
+                  domain_value=str(domain_overrides.get('domain_value', '')),
+                  use_parameters=new_domain_use_parameters,
+                  start_delimiter=new_domain_start_delimiter,
+                  stop_delimiter=new_domain_stop_delimiter,
+                  param_target_file=domain_overrides.get('param_target_file', '') or architecture.top_level_filename,
+                  param_file=new_domain_param_file,
+                ))
+
+    # Without tasks, the simulation is run through its Makefile's "sim" rule:
+    # that Makefile is then mandatory. Task-based simulations do not need one.
+    if len(tasks) == 0:
+      makefile_filename = source_sim_dir + '/' + self.sim_makefile_filename
+      if not isfile(makefile_filename):
+        printc.error("There is no file \"" + self.sim_makefile_filename + "\" in directory \"" + source_sim_dir + "\"", script_name)
+        printc.note("A Makefile with a rule \"sim\" is mandatory, unless the simulation defines \"tasks\" in \"" + self.sim_settings_filename + "\"", script_name)
+        self.banned_sim_param.append(sim)
+        self.plan.add(sim_display_name, Category.ERROR)
+        return None
+
     # check if the architecture is in cache and has a status file
     if isdir(tmp_dir):
       if self.overwrite:
@@ -361,7 +584,7 @@ class SimulationHandler:
         self.plan.add(sim_display_name, Category.CACHED)
         return None
     else:
-      self.plan.add(sim_display_name, Category.NEW)
+      self.plan.add(sim_display_name, Category.NEW, tasks=max(len(tasks), 1))
 
     # passed all check: added to the list
     self.valid_sims.append(sim_display_name)
@@ -370,6 +593,9 @@ class SimulationHandler:
       sim_name = sim_name,
       sim_display_name = sim_display_name,
       architecture = architecture,
+      arch_full = arch_full,
+      arch_param_dir = arch_param_dir,
+      arch_config = arch_config,
       tmp_dir = tmp_dir,
       source_sim_dir = source_sim_dir,
       override_parameters = override_parameters,
@@ -377,7 +603,10 @@ class SimulationHandler:
       override_param_filename = override_param_file,
       override_start_delimiter = override_start_delimiter,
       override_stop_delimiter = override_stop_delimiter,
-      simulation_command = simulation_command
+      tasks = tasks,
+      progress_file = progress_file,
+      progress_regex = progress_regex,
+      invariant_domains = self.get_invariant_domains(sim),
     )
 
     return sim_instance

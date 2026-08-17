@@ -59,6 +59,7 @@
 .jobs-arch-card.enabled {
     border-color: rgba(34, 139, 230, 0.45);
     box-shadow: var(--theme-shadow-color) 0px 4px 14px -6px;
+    overflow: visible;
 }
 .jobs-arch-header {
     display: flex;
@@ -135,6 +136,91 @@
     .jobs-arch-grid {
         grid-template-columns: minmax(0, 1fr);
     }
+}
+
+/* --- Architectures nested in a simulation card ------------------------- */
+/* A simulation card holds one collapsible architecture card per architecture,
+   each with the same domains + preview layout every other job type uses. */
+.jobs-sim-archs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4) var(--space-4) var(--space-4);
+}
+.jobs-arch-card.nested {
+    background: var(--theme-element-background-color);
+    box-shadow: none;
+}
+.jobs-arch-card.nested > .jobs-arch-header {
+    padding: var(--space-2) var(--space-3);
+}
+/* Take an architecture out of the ones the simulation declares it runs on. */
+.jobs-sim-arch-remove {
+    line-height: 1;
+    padding: 2px 8px;
+    font-size: 15px;
+    opacity: 0.5;
+}
+.jobs-sim-arch-remove:hover {
+    opacity: 1;
+}
+/* ... and put one back. */
+.jobs-sim-arch-add-row {
+    display: flex;
+    justify-content: flex-start;
+    padding-top: var(--space-1);
+}
+.jobs-sim-arch-add {
+    min-width: 280px;
+}
+.jobs-arch-card.nested .jobs-arch-name {
+    font-size: 14px;
+}
+.jobs-arch-card.nested .jobs-arch-headline .checklist-switch label {
+    width: 34px;
+    height: 19px;
+}
+.jobs-arch-card.nested .jobs-arch-headline .checklist-switch label::before {
+    width: 34px;
+    height: 19px;
+    border-radius: 19px;
+}
+.jobs-arch-card.nested .jobs-arch-headline .checklist-switch label::after {
+    top: 2.5px;
+    left: 4px;
+    width: 15px;
+    height: 15px;
+}
+.jobs-arch-card.nested
+    .jobs-arch-headline
+    .checklist-switch
+    label:has(input[type="checkbox"]:checked)::after {
+    left: 17px;
+}
+.jobs-arch-card.nested .jobs-arch-grid {
+    padding: var(--space-2) var(--space-3) var(--space-3) var(--space-3);
+}
+/* Only a nested card that is itself on gets the "selected" badge treatment. */
+.jobs-arch-card.nested:not(.enabled) .odx-badge {
+    background: none;
+    color: inherit;
+    opacity: 0.55;
+}
+.jobs-arch-card.nested:not(.enabled) .jobs-arch-name {
+    font-weight: 600;
+}
+/* The two rules above dress the count badges of a card after its state. A
+   colored badge says something of its own (how many syntheses were left out,
+   ...) and keeps its variant either way. */
+.jobs-arch-card .odx-badge.accent,
+.jobs-arch-card .odx-badge.primary,
+.jobs-arch-card .odx-badge.success,
+.jobs-arch-card .odx-badge.warning,
+.jobs-arch-card .odx-badge.caution,
+.jobs-arch-card .odx-badge.error {
+    background: color-mix(in srgb, var(--odx-badge-color) 14%, transparent);
+    color: var(--odx-badge-color);
+    opacity: 1;
 }
 
 /* --- Workflow variables ------------------------------------------------ */

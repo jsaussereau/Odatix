@@ -1,0 +1,483 @@
+{{ $id := .Get "id" | default (printf "data-table-%d" .Ordinal) }}
+{{ $filters := .Get "filters" | default "*" }}
+{{ $badgeRulesRaw := .Get "badgeRules" | default "" }}
+
+<div id="{{ $id }}" class="data-table-widget" data-filter-columns="{{ $filters }}" data-badge-rules="{{ $badgeRulesRaw | htmlEscape }}">
+  <div class="data-table-toolbar" role="group" aria-label="Actions du tableau">
+    {{/*  <label class="data-table-search-label" for="{{ $id }}-search">Recherche</label>  */}}
+    <input id="{{ $id }}-search" class="data-table-search" type="search" placeholder="Search the table..." aria-label="Search the table">
+    {{/*  <button type="button" class="data-table-clear-filters">Reinitialiser les filtres</button>  */}}
+    <span class="data-table-count" aria-live="polite"></span>
+  </div>
+
+  <div class="data-table-rendered">
+    {{ .Inner | markdownify }}
+  </div>
+
+  <p class="data-table-empty" hidden>Aucune ligne ne correspond aux filtres actuels.</p>
+</div>
+
+<style>
+  .data-table-rendered table {
+    margin-left: -16px !important;
+  }
+</style>
+
+<script>
+(function () {
+  const root = document.getElementById("{{ $id }}");
+  if (!root) {
+    return;
+  }
+
+  const table = root.querySelector("table");
+  if (!table || !table.tBodies || !table.tBodies[0]) {
+    return;
+  }
+
+  const tbody = table.tBodies[0];
+  const searchInput = root.querySelector(".data-table-search");
+  const clearButton = root.querySelector(".data-table-clear-filters");
+  const countEl = root.querySelector(".data-table-count");
+  const emptyEl = root.querySelector(".data-table-empty");
+
+  const rows = Array.from(tbody.rows);
+  const headers = Array.from(table.tHead ? table.tHead.rows[0].cells : table.rows[0].cells);
+  const configuredFilters = (root.dataset.filterColumns || "*")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  // badgeRules format:
+  // "Column::Value=class|Other=class|*=default;;Other Column::X=class"
+  // Example:
+  // "Status::Installé (Cluster-CSN)=data-badge-green|Installable (Cluster-CSN)=data-badge-lime|*=data-badge-gray"
+  const parseBadgeRules = (raw) => {
+    const result = {};
+    if (!raw || !raw.trim()) {
+      return result;
+    }
+
+    raw.split(";;").forEach((columnBlock) => {
+      const block = columnBlock.trim();
+      if (!block) {
+        return;
+      }
+
+      const sepIndex = block.indexOf("::");
+      if (sepIndex < 0) {
+        return;
+      }
+
+      const columnName = block.slice(0, sepIndex).trim();
+      const rulesPart = block.slice(sepIndex + 2).trim();
+      if (!columnName || !rulesPart) {
+        return;
+      }
+
+      const columnRules = {};
+      rulesPart.split("|").forEach((ruleEntry) => {
+        const entry = ruleEntry.trim();
+        if (!entry) {
+          return;
+        }
+
+        const equalIndex = entry.indexOf("=");
+        if (equalIndex < 0) {
+          return;
+        }
+
+        const value = entry.slice(0, equalIndex).trim();
+        const className = entry.slice(equalIndex + 1).trim();
+        if (!value || !className) {
+          return;
+        }
+
+        columnRules[value] = className;
+      });
+
+      if (Object.keys(columnRules).length > 0) {
+        result[columnName] = columnRules;
+      }
+    });
+
+    return result;
+  };
+
+  let badgeRules = {};
+  try {
+    badgeRules = parseBadgeRules(root.dataset.badgeRules || "");
+  } catch (e) {
+    badgeRules = {};
+  }
+
+  const sortState = { index: -1, dir: 1 };
+  const filterState = {};
+  const headerFilterControls = [];
+
+  const normalize = (value) =>
+    (value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const rawValuesByRow = new Map(
+    rows.map((row) => [
+      row,
+      Array.from(row.cells).map((cell) => (cell.textContent || "").trim())
+    ])
+  );
+
+  const getRawCellText = (row, index) => ((rawValuesByRow.get(row) || [])[index] || "").trim();
+  const getRawRowText = (row) => (rawValuesByRow.get(row) || []).join(" ");
+
+  const escapeHtml = (value) =>
+    String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  const maybeNumber = (value) => {
+    const candidate = value.replace(/,/g, ".").replace(/[^0-9.-]/g, "");
+    if (!candidate || candidate === "." || candidate === "-" || candidate === "-." || candidate === ".-") {
+      return null;
+    }
+    const number = Number(candidate);
+    return Number.isFinite(number) ? number : null;
+  };
+
+  const getHeaderIndex = (name) => {
+    const wanted = normalize(name);
+    return headers.findIndex((header) => normalize(header.dataset.rawHeader || "") === wanted);
+  };
+
+  const isFilterEnabled = (headerName) => {
+    if (configuredFilters.length === 0) {
+      return true;
+    }
+    if (configuredFilters.includes("*")) {
+      return true;
+    }
+    const normalizedAllowed = configuredFilters.map((value) => normalize(value));
+    return normalizedAllowed.includes(normalize(headerName));
+  };
+
+  const updateCount = () => {
+    const visibleRows = rows.filter((row) => row.style.display !== "none").length;
+    countEl.textContent = visibleRows + " / " + rows.length + " lignes";
+    emptyEl.hidden = visibleRows !== 0;
+  };
+
+  const setSortStateOnHeaders = () => {
+    headers.forEach((header, index) => {
+      const sortButton = header.querySelector(".data-table-sort-btn");
+      if (!sortButton) {
+        return;
+      }
+
+      let state = "none";
+      if (sortState.index === index) {
+        state = sortState.dir === 1 ? "asc" : "desc";
+      }
+
+      sortButton.setAttribute("data-sort", state);
+      const indicatorContainer = sortButton.querySelector(".data-table-sort-indicator");
+      if (indicatorContainer) {
+        const svgUp = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M342.6 73.4C330.1 60.9 309.8 60.9 297.3 73.4L137.3 233.4C124.8 245.9 124.8 266.2 137.3 278.7C149.8 291.2 170.1 291.2 182.6 278.7L288 173.3L288 544C288 561.7 302.3 576 320 576C337.7 576 352 561.7 352 544L352 173.3L457.4 278.7C469.9 291.2 490.2 291.2 502.7 278.7C515.2 266.2 515.2 245.9 502.7 233.4L342.7 73.4z"/></svg>`;
+        const svgDown = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M297.4 566.6C309.9 579.1 330.2 579.1 342.7 566.6L502.7 406.6C515.2 394.1 515.2 373.8 502.7 361.3C490.2 348.8 469.9 348.8 457.4 361.3L352 466.7L352 96C352 78.3 337.7 64 320 64C302.3 64 288 78.3 288 96L288 466.7L182.6 361.3C170.1 348.8 149.8 348.8 137.3 361.3C124.8 373.8 124.8 394.1 137.3 406.6L297.3 566.6z"/></svg>`;
+        const svgNeutral = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><!--!Font Awesome Free v7.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M470.6 566.6L566.6 470.6C575.8 461.4 578.5 447.7 573.5 435.7C568.5 423.7 556.9 416 544 416L480 416L480 96C480 78.3 465.7 64 448 64C430.3 64 416 78.3 416 96L416 416L352 416C339.1 416 327.4 423.8 322.4 435.8C317.4 447.8 320.2 461.5 329.3 470.7L425.3 566.7C437.8 579.2 458.1 579.2 470.6 566.7zM214.6 73.4C202.1 60.9 181.8 60.9 169.3 73.4L73.3 169.4C64.1 178.6 61.4 192.3 66.4 204.3C71.4 216.3 83.1 224 96 224L160 224L160 544C160 561.7 174.3 576 192 576C209.7 576 224 561.7 224 544L224 224L288 224C300.9 224 312.6 216.2 317.6 204.2C322.6 192.2 319.8 178.5 310.7 169.3L214.7 73.3z"/></svg>`;
+
+        if (state === "asc") {
+          indicatorContainer.innerHTML = svgUp;
+        } else if (state === "desc") {
+          indicatorContainer.innerHTML = svgDown;
+        } else {
+          indicatorContainer.innerHTML = svgNeutral;
+        }
+      }
+    });
+  };
+
+  const applyFilters = () => {
+    const searchTerm = normalize(searchInput ? searchInput.value : "");
+
+    rows.forEach((row) => {
+      const matchesSearch = !searchTerm || normalize(getRawRowText(row)).includes(searchTerm);
+      const matchesFilters = Object.keys(filterState).every((headerName) => {
+        const selectedValue = filterState[headerName];
+        if (!selectedValue) {
+          return true;
+        }
+
+        const index = getHeaderIndex(headerName);
+        if (index < 0) {
+          return true;
+        }
+
+        return normalize(getRawCellText(row, index)) === normalize(selectedValue);
+      });
+
+      row.style.display = matchesSearch && matchesFilters ? "" : "none";
+    });
+
+    updateCount();
+  };
+
+  const sortByColumn = (index) => {
+    if (sortState.index === index) {
+      sortState.dir = sortState.dir * -1;
+    } else {
+      sortState.index = index;
+      sortState.dir = 1;
+    }
+
+    rows.sort((rowA, rowB) => {
+      const textA = getRawCellText(rowA, index);
+      const textB = getRawCellText(rowB, index);
+      const numberA = maybeNumber(textA);
+      const numberB = maybeNumber(textB);
+
+      if (numberA !== null && numberB !== null) {
+        return (numberA - numberB) * sortState.dir;
+      }
+
+      return textA.localeCompare(textB, "fr", { numeric: true, sensitivity: "base" }) * sortState.dir;
+    });
+
+    rows.forEach((row) => tbody.appendChild(row));
+    setSortStateOnHeaders();
+    updateCount();
+  };
+
+  const closeAllFilterPopovers = (exceptPanel) => {
+    headerFilterControls.forEach((control) => {
+      if (exceptPanel && control.panel === exceptPanel) {
+        return;
+      }
+      control.panel.hidden = true;
+      control.button.setAttribute("aria-expanded", "false");
+    });
+  };
+
+  const buildFilterForHeader = (header, index, headerName) => {
+    if (!isFilterEnabled(headerName)) {
+      return null;
+    }
+
+    const values = Array.from(
+      new Set(rows.map((row) => getRawCellText(row, index)).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+
+    if (values.length < 2) {
+      return null;
+    }
+
+    const filterButton = document.createElement("button");
+    filterButton.type = "button";
+    filterButton.className = "data-table-header-btn data-table-filter-btn";
+    filterButton.setAttribute("aria-label", "Filtrer la colonne " + headerName);
+    filterButton.setAttribute("aria-expanded", "false");
+    // Use FontAwesome filter icon
+    filterButton.innerHTML = '<i class="fa-solid fa-filter" aria-hidden="true"></i><span class="sr-only">Filtrer</span>';
+
+    const panel = document.createElement("div");
+    panel.className = "data-table-filter-popover";
+    panel.hidden = true;
+
+    const panelLabel = document.createElement("p");
+    panelLabel.className = "data-table-filter-title";
+    panelLabel.textContent = "Filtre: " + headerName;
+
+    const select = document.createElement("select");
+    select.className = "data-table-filter-select";
+    select.setAttribute("aria-label", "Choix du filtre pour " + headerName);
+
+    const allOption = document.createElement("option");
+    allOption.value = "";
+    allOption.textContent = "";
+    select.appendChild(allOption);
+
+    values.forEach((value) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    });
+
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "data-table-filter-reset";
+    reset.innerHTML = '<i class="fa-solid fa-filter-circle-xmark"></i>';
+
+    const setFilterValue = (value) => {
+      filterState[headerName] = value;
+      filterButton.classList.toggle("is-active", !!value);
+      applyFilters();
+    };
+
+    select.addEventListener("change", () => {
+      setFilterValue(select.value);
+    });
+
+    reset.addEventListener("click", () => {
+      select.value = "";
+      setFilterValue("");
+    });
+
+    filterButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const willOpen = panel.hidden;
+      closeAllFilterPopovers(willOpen ? panel : null);
+      panel.hidden = !willOpen;
+      filterButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      if (willOpen) {
+        select.focus();
+      }
+    });
+
+    panel.appendChild(panelLabel);
+    panel.appendChild(select);
+    panel.appendChild(reset);
+
+    headerFilterControls.push({ button: filterButton, panel, select, headerName });
+
+    return { filterButton, panel };
+  };
+
+  const decorateCellBadges = () => {
+    const rulesByColumn = {};
+    const columnIndexes = {};
+
+    Object.keys(badgeRules || {}).forEach((columnName) => {
+      const index = getHeaderIndex(columnName);
+      if (index < 0) {
+        return;
+      }
+
+      columnIndexes[columnName] = index;
+
+      const normalizedRules = {};
+      const sourceRules = badgeRules[columnName] || {};
+      Object.keys(sourceRules).forEach((ruleKey) => {
+        normalizedRules[normalize(ruleKey)] = sourceRules[ruleKey];
+      });
+      rulesByColumn[columnName] = normalizedRules;
+    });
+
+    rows.forEach((row) => {
+      Object.keys(columnIndexes).forEach((columnName) => {
+        const index = columnIndexes[columnName];
+        if (!row.cells[index]) {
+          return;
+        }
+
+        const raw = getRawCellText(row, index);
+        const tokens = raw
+          .split(",")
+          .map((token) => token.trim())
+          .filter(Boolean);
+
+        if (tokens.length === 0) {
+          return;
+        }
+
+        const ruleMap = rulesByColumn[columnName] || {};
+        const defaultClass = ruleMap["*"] || "data-badge-default";
+
+        row.cells[index].innerHTML = tokens
+          .map((token) => {
+            const cls = ruleMap[normalize(token)] || defaultClass;
+            return '<span class="data-badge ' + cls + '">' + escapeHtml(token) + '</span>';
+          })
+          .join(" ");
+      });
+    });
+  };
+
+  headers.forEach((header, index) => {
+    const headerName = (header.textContent || "").trim();
+    header.dataset.rawHeader = headerName;
+    header.classList.add("is-sortable");
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "data-table-th-inner";
+
+    const label = document.createElement("span");
+    label.className = "data-table-th-label";
+    label.textContent = headerName;
+
+    const actions = document.createElement("span");
+    actions.className = "data-table-th-actions";
+
+    const sortButton = document.createElement("button");
+    sortButton.type = "button";
+    sortButton.className = "data-table-header-btn data-table-sort-btn";
+    sortButton.setAttribute("aria-label", "Trier la colonne " + headerName);
+    // Single icon element inside indicator — we'll toggle its classes when sorting
+    sortButton.innerHTML = '<span class="data-table-sort-indicator" aria-hidden="true" style="width: 10px;"><i class="fa-solid fa-up-down" aria-hidden="true"></i></span><span class="sr-only">Trier</span>';
+
+    sortButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      sortByColumn(index);
+    });
+
+    actions.appendChild(sortButton);
+
+    const filterControl = buildFilterForHeader(header, index, headerName);
+    if (filterControl) {
+      actions.appendChild(filterControl.filterButton);
+      wrapper.appendChild(filterControl.panel);
+    }
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(actions);
+    header.textContent = "";
+    header.appendChild(wrapper);
+  });
+
+  if (searchInput) {
+    searchInput.addEventListener("input", applyFilters);
+  }
+
+  if (clearButton) {
+    clearButton.addEventListener("click", () => {
+      if (searchInput) {
+        searchInput.value = "";
+      }
+
+      Object.keys(filterState).forEach((key) => {
+        filterState[key] = "";
+      });
+
+      headerFilterControls.forEach((control) => {
+        control.select.value = "";
+        control.button.classList.remove("is-active");
+      });
+
+      closeAllFilterPopovers();
+      applyFilters();
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    if (!root.contains(event.target)) {
+      closeAllFilterPopovers();
+    }
+  });
+
+  root.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeAllFilterPopovers();
+    }
+  });
+
+  decorateCellBadges();
+  setSortStateOnHeaders();
+  applyFilters();
+})();
+</script>

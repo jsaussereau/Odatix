@@ -17,7 +17,7 @@ exit_when_done:   No   # overridden by -E / --exit
 log_size_limit:   300  # overridden by --logsize
 
 # maximum number of parallel jobs
-nb_jobs:          8    # overridden by -j / --jobs
+nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
 # targeted simulations
 simulations: 
@@ -40,14 +40,24 @@ simulations:
 # Examples
 #--------------------------------------------#
 
-  - TB_Example_Counter_GHDL:
-    - Example_Counter_vhdl/04bits
-    - Example_Counter_vhdl/08bits
-    - Example_Counter_vhdl/16bits
-    - Example_Counter_vhdl/24bits
-    - Example_Counter_vhdl/32bits
-    - Example_Counter_vhdl/48bits
-    - Example_Counter_vhdl/64bits
+  - TB_Example_Cordic_Verilator:
+    - Example_Cordic_sv + iterations/* + width/*
+ 
+  - TB_Example_Cordic_GHDL:
+    - Example_Cordic_vhdl + iterations/* + width/*
+
+  - TB_Example_Cordic_QuestaSim:
+    - Example_Cordic_sv + iterations/* + width/*
+    - Example_Cordic_vhdl + iterations/* + width/*
+
+  # - TB_Example_Counter_GHDL:
+  #   - Example_Counter_vhdl/04bits
+  #   - Example_Counter_vhdl/08bits
+  #   - Example_Counter_vhdl/16bits
+  #   - Example_Counter_vhdl/24bits
+  #   - Example_Counter_vhdl/32bits
+  #   - Example_Counter_vhdl/48bits
+  #   - Example_Counter_vhdl/64bits
 
   # - TB_Example_Counter_Verilator:
   #   - Example_Counter_sv/04bits

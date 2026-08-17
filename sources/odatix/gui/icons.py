@@ -359,6 +359,21 @@ _pictograms = {
         Path(d="M8 24 q5 -14 10 0 t10 0 t10 0", stroke=_PRIMARY, strokeWidth="2.5", fill="none", strokeLinecap="round"),
         Line(x1="8", y1="34", x2="40", y2="34", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
     ], size),
+    # Place & route: die floorplan with placed cells and a routing track
+    "pnr": lambda size: _picto([
+        Rect(x="8", y="8", width="32", height="32", rx="3", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5"),
+        Rect(x="13", y="13", width="7", height="7", rx="1", fill=_PRIMARY, fillOpacity="0.75"),
+        Rect(x="28", y="13", width="7", height="7", rx="1", fill=_PRIMARY, fillOpacity="0.45"),
+        Rect(x="13", y="28", width="7", height="7", rx="1", fill=_PRIMARY, fillOpacity="0.45"),
+        Rect(x="28", y="28", width="7", height="7", rx="1", fill=_PRIMARY, fillOpacity="0.75"),
+        Polyline(points="20,16.5 24,16.5 24,31.5 28,31.5", stroke=_PRIMARY, strokeWidth="2", fill="none", strokeLinecap="round", strokeLinejoin="round"),
+    ], size),
+    # Simulation: digital waveform
+    "simulation": lambda size: _picto([
+        Line(x1="8", y1="40", x2="40", y2="40", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4", strokeLinecap="round"),
+        Polyline(points="8,30 14,30 14,16 22,16 22,30 30,30 30,16 40,16", stroke=_PRIMARY, strokeWidth="2.5", fill="none", strokeLinecap="round", strokeLinejoin="round"),
+        Line(x1="8", y1="9", x2="40", y2="9", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.35", strokeDasharray="3 4", strokeLinecap="round"),
+    ], size),
     # RTL analysis: document with lines + magnifier
     "analysis": lambda size: _picto([
         Path(d="M13 8 h14 l8 8 v24 a2 2 0 0 1-2 2 H13 a2 2 0 0 1-2-2 V10 a2 2 0 0 1 2-2 z", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinejoin="round"),

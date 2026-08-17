@@ -1,0 +1,496 @@
+# ********************************************************************** #
+#                                Odatix                                  #
+# ********************************************************************** #
+#
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Odatix.
+# Odatix is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Odatix is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+#
+
+import os
+import sys
+import argparse
+
+from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
+from odatix.workspace.yaml_io import read_yaml
+from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, start_parallel_jobs as start_parallel_jobs_common
+import odatix.components.export_results as exp_res
+import odatix.components.export_derived_metrics as exp_derived
+import odatix.lib.printc as printc
+import odatix.lib.hard_settings as hard_settings
+import odatix.lib.eda_tools as eda_tools
+import odatix.lib.job_steps as job_steps
+import odatix.run.cli as run_cli
+from odatix.lib.parallel_job_handler import ParallelJob
+from odatix.lib.settings import OdatixSettings
+from odatix.lib.architecture_handler import ArchitectureHandler
+from odatix.lib.utils import ask_to_continue, get_timestamp_string
+
+script_name = os.path.basename(__file__)
+
+class SynthesisCancelled(Exception):
+    pass
+
+def _check_cancel(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise SynthesisCancelled()
+
+######################################
+# Parse Arguments
+######################################
+
+
+def add_arguments(parser):
+    parser.add_argument("-t", "--tool", default="vivado", help="eda tool in use (default: vivado)")
+    parser.add_argument("-f", "--flow", default=None, help="flow of the eda tool to run (default: the tool's default flow)")
+    parser.add_argument("-u", "--until", default=None, help="last step of the flow to run, inclusive (default: the flow's default step, or all its steps)")
+    parser.add_argument("--rerun-from", dest="rerun_from", default=None, help="re-run this step and the following ones, even if already done")
+    parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
+    parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
+    parser.add_argument("-d", "--detach", action="store_true", help="enqueue jobs to daemon and return without attaching monitor")
+    parser.add_argument("-S", "--session", help="daemon session name or selector")
+    parser.add_argument("-i", "--input", help="input settings file")
+    parser.add_argument("-a", "--archpath", help="architecture directory")
+    parser.add_argument("-w", "--work", help="work directory")
+    parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
+    parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
+    parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
+    parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
+    parser.add_argument("--from", dest="from_freq", type=int, help="override range lower bound for custom frequency synthesis (in MHz)")
+    parser.add_argument("--to", dest="to_freq", type=int, help="override range upper bound for custom frequency synthesis (in MHz)")
+    parser.add_argument("--step", dest="step_freq", type=int, help="override range step bound for custom frequency synthesis (in MHz)")
+    parser.add_argument("--at", dest="at_freq", action='append', type=int, help="override freqency at which custom frequency synthesis should be run (in MHz)")
+    parser.add_argument("-k", "--keep", action="store_true", help="store synthesis batch with a timestamp in the configuration name")
+    parser.add_argument("--logsize", help="size of the log history per job in the monitor")
+    parser.add_argument(
+        "-c",
+        "--config",
+        default=OdatixSettings.DEFAULT_SETTINGS_FILE,
+        help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
+    )
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Run synthesis at specigied frequencies on selected architectures")
+    add_arguments(parser)
+    return parser.parse_args()
+
+
+def _load_settings_custom_frequencies(run_config_settings_filename):
+    settings_payload = read_yaml(run_config_settings_filename, default={})
+    frequencies = settings_payload.get("frequencies", {})
+
+    override_arch_frequencies = bool(frequencies.get("override", False))
+    custom_freq_list = []
+
+    list_data = frequencies.get("list", [])
+    if list_data:
+        custom_freq_list.extend(list_data)
+
+    range_data = frequencies.get("range", {})
+    lower_bound = range_data.get("from")
+    upper_bound = range_data.get("to")
+    step = range_data.get("step")
+    if lower_bound is not None and upper_bound is not None and step is not None:
+        if ArchitectureHandler.check_bounds(lower_bound, upper_bound, step, synth_type="custom frequency synthesis"):
+            range_list = ArchitectureHandler.create_list_from_range(lower_bound, upper_bound, step)
+            custom_freq_list.extend(range_list)
+    # Keep order stable while removing duplicates.
+    custom_freq_list = list(dict.fromkeys(custom_freq_list))
+    return custom_freq_list, override_arch_frequencies
+
+
+######################################
+# Run Synthesis
+######################################
+
+def run_synthesis(
+    run_config_settings_filename,
+    arch_path,
+    tool,
+    flow,
+    until_step,
+    rerun_from_step,
+    work_path,
+    target_path,
+    overwrite,
+    noask, 
+    exit_when_done,
+    log_size_limit,
+    nb_jobs,
+    check_eda_tool,
+    custom_freq_list=None,
+    debug=False,
+    keep=False,
+    export_output_dir=None,
+    use_benchmark=False,
+    benchmark_file=None,
+    custom_metrics_file=None,
+    cancel_event=None,
+    detach=False,
+    daemon_session=None,
+):
+    # See run_fmax_synthesis.run_synthesis: every run goes through odatix.run.
+    run_cli.execute(run_cli.command_run(
+        "custom_freq_synthesis",
+        cancel_event=cancel_event,
+        settings_file=run_config_settings_filename,
+        arch_path=arch_path,
+        target_path=target_path,
+        work_path=work_path,
+        result_path=export_output_dir,
+        tool=tool,
+        flow=flow,
+        until=until_step,
+        rerun_from=rerun_from_step,
+        overwrite=overwrite,
+        noask=noask,
+        exit_when_done=exit_when_done,
+        log_size_limit=log_size_limit,
+        nb_jobs=nb_jobs,
+        check_eda_tool=check_eda_tool,
+        frequencies=custom_freq_list or [],
+        debug=debug,
+        keep=keep,
+        use_benchmark=use_benchmark,
+        benchmark_file=benchmark_file,
+        custom_metrics_file=custom_metrics_file,
+        detach=detach,
+        session=daemon_session,
+    ))
+
+def check_settings(
+    run_config_settings_filename,
+    arch_path,
+    tool,
+    flow,
+    until_step,
+    rerun_from_step,
+    work_path,
+    target_path,
+    overwrite,
+    noask, 
+    exit_when_done,
+    log_size_limit,
+    nb_jobs,
+    check_eda_tool,
+    custom_freq_list=None,
+    debug=False,
+    keep=False,
+    cancel_event=None,
+    tool_check_sink=None,
+):
+    _check_cancel(cancel_event)
+
+    if custom_freq_list is None:
+        custom_freq_list = []
+
+    cli_custom_freq_list = list(custom_freq_list)
+    settings_custom_freq_list, override_arch_frequencies = _load_settings_custom_frequencies(run_config_settings_filename)
+
+    # Priority order:
+    # 1) CLI (--at / --from --to --step)
+    # 2) settings frequencies when override=true
+    # 3) architecture-specific settings
+    # 4) fallback frequencies list
+    # 5) default frequencies list
+    forced_custom_freq_list = cli_custom_freq_list
+    if len(forced_custom_freq_list) == 0 and override_arch_frequencies and len(settings_custom_freq_list) > 0:
+        forced_custom_freq_list = settings_custom_freq_list
+
+    fallback_custom_freq_list = settings_custom_freq_list if len(settings_custom_freq_list) > 0 else None
+
+    context = load_synthesis_context(
+        run_config_settings_filename=run_config_settings_filename,
+        arch_path=arch_path,
+        tool=tool,
+        work_path=work_path,
+        target_path=target_path,
+        overwrite=overwrite,
+        noask=noask,
+        exit_when_done=exit_when_done,
+        log_size_limit=log_size_limit,
+        nb_jobs=nb_jobs,
+        check_eda_tool=check_eda_tool,
+        debug=debug,
+        script_name=script_name,
+        synth_type="custom_freq_synthesis",
+        flow=flow,
+        check_cancel=lambda: _check_cancel(cancel_event),
+    )
+
+    # A flow can be split into ordered steps: narrow them to what this run
+    # covers ("--until"), and let "--rerun-from" force redoing part of what a
+    # previous run already did.
+    steps = context["flow_steps"]
+    rerun_index = None
+    if steps:
+        steps, rerun_index, step_error = job_steps.select_steps(steps, until=until_step, rerun_from=rerun_from_step)
+        if step_error is not None:
+            printc.error('Flow "' + str(context["flow"]) + '" of eda tool "' + tool + '": ' + step_error, script_name)
+            raise SystemExit(-1)
+    elif until_step or rerun_from_step:
+        printc.error(
+            'Flow "' + str(context["flow"]) + '" of eda tool "' + tool + '" is not split into steps',
+            script_name,
+        )
+        printc.note("--until and --rerun-from only apply to a flow declaring steps in its tool.yml", script_name)
+        raise SystemExit(-1)
+
+    ParallelJob.set_patterns(hard_settings.synth_status_pattern, hard_settings.fmax_status_pattern)
+
+    arch_handler = ArchitectureHandler(
+        work_path=context["work_path"],
+        arch_path=arch_path,
+        script_path=OdatixSettings.odatix_eda_tools_path,
+        log_path=hard_settings.work_log_path,
+        work_rtl_path=hard_settings.work_rtl_path,
+        work_script_path=hard_settings.work_script_path,
+        work_report_path=hard_settings.work_report_path,
+        work_log_path=hard_settings.work_log_path,
+        process_group=context["process_group"],
+        command=context["run_command"],
+        eda_target_filename=eda_tools.resolve_target_file(tool, target_path),
+        tool=tool,
+        flow=context["flow"],
+        fmax_status_filename=hard_settings.synth_status_filename,
+        frequency_search_filename=hard_settings.frequency_search_filename,
+        param_settings_filename=hard_settings.param_settings_filename,
+        valid_status=hard_settings.valid_status,
+        valid_frequency_search=hard_settings.valid_frequency_search,
+        forced_fmax_lower_bound=None,
+        forced_fmax_upper_bound=None,
+        forced_custom_freq_list=forced_custom_freq_list,
+        fallback_custom_freq_list=fallback_custom_freq_list,
+        overwrite=context["overwrite"],
+        requested_steps=[step["name"] for step in steps] if steps else None,
+        rerun_step_index=rerun_index,
+        force_single_thread=context["force_single_thread"],
+    )
+
+    timestamp = get_timestamp_string()
+    architecture_instances = arch_handler.get_architectures(
+        context["architectures"],
+        context["targets"],
+        context["constraint_file"],
+        context["install_path"],
+        run_mode="custom_freq",
+        keep=keep,
+        timestamp=timestamp,
+    )
+
+    _check_cancel(cancel_event)
+
+    arch_handler.print_summary()
+
+    # The eda tool check was started in the background by load_synthesis_context:
+    # its outcome is only needed now, right before the confirmation.
+    settle_tool_checks([context["tool_check"]], tool_check_sink)
+    confirm_valid_jobs(arch_handler.get_valid_arch_count(), context["ask_continue"], ask_to_continue, script_name=script_name)
+
+    print()
+
+    job_list = []
+    prepare_job = build_prepare_synthesis_job(
+        arch_handler=arch_handler,
+        arch_path=arch_path,
+        tool=tool,
+        log_size_limit=context["log_size_limit"],
+        debug=debug,
+        timestamp=timestamp,
+        flow=context["flow"],
+        steps=steps,
+        rerun_index=rerun_index,
+        progress_mode="synth",
+        script_name=script_name,
+        check_cancel=lambda: _check_cancel(cancel_event),
+    )
+    return (
+        architecture_instances,
+        prepare_job,
+        job_list,
+        context["format_settings_file"],
+        arch_handler,
+        context["exit_when_done"],
+        context["log_size_limit"],
+        context["nb_jobs"],
+        arch_handler.plan,
+ )
+
+def prepare_synthesis(
+    architecture_instances,
+    prepare_job,
+    job_list,
+    tool_settings_file,
+    arch_handler,
+    exit_when_done,
+    log_size_limit,
+    nb_jobs,
+    cancel_event=None,
+    export_output_dir=None,
+    export_tool=None,
+    export_flow=None,
+    export_work_path=None,
+    use_benchmark=False,
+    benchmark_file=None,
+    custom_metrics_file=None,
+):
+    parallel_jobs = prepare_synthesis_jobs(
+        architecture_instances=architecture_instances,
+        prepare_job=prepare_job,
+        job_list=job_list,
+        process_group=arch_handler.process_group,
+        tool_settings_file=tool_settings_file,
+        exit_when_done=exit_when_done,
+        log_size_limit=log_size_limit,
+        nb_jobs=nb_jobs,
+        check_cancel=lambda: _check_cancel(cancel_event),
+        script_name=script_name,
+    )
+
+    # Per-job result export (au fil de l'eau): tag every job so the handler
+    # exports its result as soon as it finishes, for both the CLI and the
+    # GUI/daemon (which both call this prepare function).
+    if export_output_dir and export_tool and export_work_path:
+        exp_res.configure_synthesis_job_exports(
+            parallel_jobs=parallel_jobs,
+            result_type="custom_freq_synthesis",
+            work_path=export_work_path,
+            tool=export_tool,
+            flow=export_flow,
+            output_dir=export_output_dir,
+            use_benchmark=use_benchmark,
+            benchmark_file=benchmark_file,
+            custom_metrics_file=custom_metrics_file,
+        )
+
+    # Whole-batch derivation: a derived metric reads records other jobs produce,
+    # so it can only be computed once every job of the batch is done.
+    if export_output_dir:
+        exp_derived.configure_post_batch_derivation(parallel_jobs, export_output_dir)
+
+    return parallel_jobs
+
+def start_parallel_jobs(
+    parallel_jobs, 
+    use_api=True,
+    start_headless_on_startup=False,
+    detach=False,
+    session=None,
+):
+    start_parallel_jobs_common(
+        parallel_jobs=parallel_jobs,
+        use_api=use_api,
+        start_headless_on_startup=start_headless_on_startup,
+        detach=detach,
+        session=session,
+    )
+
+######################################
+# Main
+######################################
+
+
+def main(args, settings=None):
+    # Get settings
+    if settings is None:
+        settings = OdatixSettings(args.config)
+        if not settings.valid:
+            sys.exit(-1)
+
+    if args.input is not None:
+        run_config_settings_filename = args.input
+    else:
+        run_config_settings_filename = settings.custom_freq_synthesis_settings_file
+
+    if args.archpath is not None:
+        arch_path = args.archpath
+    else:
+        arch_path = settings.arch_path
+
+    if args.work is not None:
+        work_path = args.work
+    else:
+        work_path = os.path.join(str(settings.work_path), str(settings.custom_freq_synthesis_work_path))
+
+    target_path = settings.target_path
+    tool = args.tool
+    flow = args.flow
+    until_step = args.until
+    rerun_from_step = args.rerun_from
+    overwrite = args.overwrite
+    noask = args.noask
+    exit_when_done = args.exit
+    log_size_limit = args.logsize
+    nb_jobs = args.jobs
+    check_eda_tool = not args.trust
+    debug = args.debug
+    keep = args.keep
+    detach = args.detach
+    daemon_session = args.session
+    use_benchmark = bool(getattr(settings, "use_benchmark", False))
+    benchmark_file = getattr(settings, "benchmark_file", None)
+
+    if args.at_freq is None:
+        custom_freq_list = []
+    else:
+        custom_freq_list = args.at_freq
+
+    if args.to_freq is not None and (args.from_freq is None or args.step_freq is None):
+        printc.error("--to cannot be used without --from and --step", script_name=script_name)
+        sys.exit(-1)
+    elif args.from_freq is not None and (args.to_freq is None or args.step_freq is None):
+        printc.error("--from cannot be used without --to and --step", script_name=script_name)
+        sys.exit(-1)
+    elif args.step_freq is not None and (args.to_freq is None or args.from_freq is None):
+        printc.error("--step cannot be used without --from and --to", script_name=script_name)
+        sys.exit(-1)
+    elif args.from_freq is not None and args.to_freq is not None and args.step_freq is not None:
+        if ArchitectureHandler.check_bounds(args.from_freq, args.to_freq, args.step_freq, synth_type="custom frequency synthesis"):
+            range_list = ArchitectureHandler.create_list_from_range(args.from_freq, args.to_freq, args.step_freq)
+            custom_freq_list = custom_freq_list + range_list
+        else:
+            sys.exit(-1)
+
+    run_synthesis(
+        run_config_settings_filename=run_config_settings_filename,
+        arch_path=arch_path,
+        tool=tool,
+        flow=flow,
+        until_step=until_step,
+        rerun_from_step=rerun_from_step,
+        work_path=work_path,
+        target_path=target_path,
+        overwrite=overwrite,
+        noask=noask,
+        exit_when_done=exit_when_done,
+        log_size_limit=log_size_limit,
+        nb_jobs=nb_jobs,
+        check_eda_tool=check_eda_tool,
+        custom_freq_list=custom_freq_list,
+        debug=debug,
+        keep=keep,
+        export_output_dir=settings.result_path,
+        use_benchmark=use_benchmark,
+        benchmark_file=benchmark_file,
+        custom_metrics_file=None,
+        detach=detach,
+        daemon_session=daemon_session,
+    )
+
+
+if __name__ == "__main__":
+    args = parse_arguments()
+    main(args)

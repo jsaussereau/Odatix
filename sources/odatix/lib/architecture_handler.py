@@ -22,12 +22,8 @@
 import os
 import re
 import sys
-import math
 import yaml
 import copy
-import itertools
-
-from natsort import natsorted
 
 from os.path import isfile
 from os.path import isdir
@@ -41,6 +37,16 @@ import odatix.lib.printc as printc
 from odatix.lib.run_report import JobPlan, Category
 from odatix.lib.variables import replace_variables, Variables
 from odatix.lib.param_domain import ParamDomain
+import odatix.lib.virtual_param_domain as virtual_param_domain
+import odatix.lib.constraint_files as constraints_lib
+from odatix.lib.constraint_files import ConstraintFileError
+import odatix.lib.overrides as overrides_lib
+from odatix.lib.overrides import OverrideError
+from odatix.run.planner import JobPlanner
+import odatix.workspace.architectures as workspace_architectures
+import odatix.workspace.selection as selection
+from odatix.workspace.errors import InvalidSettingsError
+from odatix.workspace.yaml_io import read_mapping
 
 script_name = os.path.basename(__file__)
 
@@ -52,7 +58,8 @@ class Architecture:
         file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
         fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
         param_target_filename, generate_rtl, generate_command, constraint_filename, install_path, 
-        param_domains, continue_on_error=False, force_single_thread=False,
+        param_domains, continue_on_error=False, force_single_thread=False, virtual_param_domains=None,
+        constraint_files=None,
     ):
         self.arch_name = arch_name
         self.arch_display_name = arch_display_name
@@ -89,15 +96,37 @@ class Architecture:
         self.generate_rtl = generate_rtl
         self.generate_command = generate_command
         self.constraint_filename = constraint_filename
+        # Constraint files the user provides, read on top of the timing
+        # constraint file Odatix generates: {"source", "scope", "dest"} entries,
+        # already resolved (see lib/constraint_files.py).
+        self.constraint_files = list(constraint_files) if constraint_files else []
         self.install_path = install_path
         self.param_domains = param_domains
+        # Variables selected for this job: domains with no directory on disk, kept
+        # apart from the physical ones since they have no parameter file to apply.
+        self.virtual_param_domains = (
+            dict(virtual_param_domains) if isinstance(virtual_param_domains, dict) else {}
+        )
         self.continue_on_error = continue_on_error
         self.force_single_thread = force_single_thread
 
-    def write_yaml(arch, config_file): 
-        domain_dict=dict()
-        for param_domain in arch.param_domains:
-            domain_dict[param_domain.domain] = param_domain.domain_value
+    # Keys of a ParamDomain serialized in the job's settings.yml. Writing them all
+    # is what lets read_yaml rebuild the domains instead of only their values.
+    PARAM_DOMAIN_KEYS = (
+        "domain",
+        "domain_value",
+        "use_parameters",
+        "start_delimiter",
+        "stop_delimiter",
+        "param_target_file",
+        "param_file",
+    )
+
+    def write_yaml(arch, config_file):
+        domain_list = [
+            {key: getattr(param_domain, key, None) for key in Architecture.PARAM_DOMAIN_KEYS}
+            for param_domain in (arch.param_domains or [])
+        ]
         yaml_data = {
             'arch_name': arch.arch_name,
             'arch_display_name': arch.arch_display_name,
@@ -107,6 +136,7 @@ class Architecture:
             'script_path': arch.tmp_script_path,
             'report_path': arch.tmp_report_path,
             'log_path': arch.tmp_log_path,
+            'local_log_path': arch.log_path,
             'tmp_path': arch.tmp_dir,
             'design_path': arch.design_path,
             'design_path_whitelist': arch.design_path_whitelist,
@@ -133,14 +163,46 @@ class Architecture:
             'generate_rtl': arch.generate_rtl,
             'generate_command': arch.generate_command,
             'constraint_filename': arch.constraint_filename,
+            'constraint_files': arch.constraint_files,
             'install_path': arch.install_path,
-            'param_domains': domain_dict,
+            'param_domains': domain_list,
+            'virtual_param_domains': arch.virtual_param_domains,
             'continue_on_error': arch.continue_on_error,
             'force_single_thread': arch.force_single_thread,
         }
             
         with open(config_file, 'w') as f:
             yaml.dump(yaml_data, f, default_flow_style=False, sort_keys=False)
+
+    @staticmethod
+    def read_param_domains(value):
+        """
+        Rebuild the parameter domains of a job from what its settings.yml holds.
+
+        Two shapes are accepted: the list of full domains write_yaml produces, and
+        the "{domain: value}" mapping older job directories hold, which only
+        carries the domain values.
+        """
+        if isinstance(value, list):
+            return [
+                ParamDomain(**{key: entry.get(key) for key in Architecture.PARAM_DOMAIN_KEYS})
+                for entry in value
+                if isinstance(entry, dict)
+            ]
+        if isinstance(value, dict):
+            return [
+                ParamDomain(
+                    domain=domain,
+                    domain_value=domain_value,
+                    use_parameters=False,
+                    start_delimiter=None,
+                    stop_delimiter=None,
+                    param_target_file=None,
+                    param_file=None,
+                )
+                for domain, domain_value in value.items()
+            ]
+        return []
 
     def read_yaml(config_file):
         if not os.path.isfile(config_file):
@@ -149,7 +211,7 @@ class Architecture:
 
         with open(config_file, 'r') as f:
             yaml_data = yaml.safe_load(f)
-        
+
         try:
             arch = Architecture(
                 arch_name                = get_from_dict("arch_name", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
@@ -159,8 +221,8 @@ class Architecture:
                 rtl_path                 = get_from_dict("source_rtl_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 tmp_script_path          = get_from_dict("script_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 tmp_report_path          = get_from_dict("report_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
-                tmp_log_path             = get_from_dict("log_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
-                log_path                 = get_from_dict("log_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
+                tmp_log_path             = get_from_dict("log_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
+                log_path                 = get_from_dict("local_log_path", yaml_data, config_file, default_value=hard_settings.work_log_path, silent=True, script_name=script_name)[0],
                 tmp_dir                  = get_from_dict("tmp_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 design_path              = get_from_dict("design_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 design_path_whitelist    = get_from_dict("design_path_whitelist", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
@@ -186,19 +248,23 @@ class Architecture:
                 param_target_filename    = get_from_dict("param_target_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 generate_rtl             = get_from_dict("generate_rtl", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 generate_command         = get_from_dict("generate_command", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
-                constraint_filename      = get_from_dict("constraint_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
+                constraint_filename      = get_from_dict("constraint_filename", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
+                # Optional: job directories written before user constraint files
+                # existed have no such key, and they stay readable.
+                constraint_files         = get_from_dict("constraint_files", yaml_data, config_file, default_value=[], silent=True, script_name=script_name)[0],
                 install_path             = get_from_dict("install_path", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
-                param_domains            = get_from_dict("install_path", yaml_data, config_file, default_value={}, script_name=script_name)[0],
+                param_domains            = Architecture.read_param_domains(
+                    get_from_dict("param_domains", yaml_data, config_file, default_value=[], silent=True, script_name=script_name)[0]
+                ),
+                virtual_param_domains    = get_from_dict("virtual_param_domains", yaml_data, config_file, default_value={}, silent=True, script_name=script_name)[0],
                 continue_on_error        = get_from_dict("continue_on_error", yaml_data, config_file, default_value=False, script_name=script_name)[0],
                 force_single_thread      = get_from_dict("force_single_thread", yaml_data, config_file, default_value=False, script_name=script_name)[0],
             )
-        except (KeyNotInListError, BadValueInListError):
+        except (KeyNotInDictError, BadValueInDictError):
             return None
         return arch
 
 class ArchitectureHandler:
-
-    DAEMON_RESTARTABLE_STATUSES = ("failed", "killed", "canceled", "cancelled")
 
     def __init__(
         self,
@@ -223,8 +289,12 @@ class ArchitectureHandler:
         forced_custom_freq_list,
         overwrite,
         fallback_custom_freq_list=None,
+        tool="",
+        flow="",
         continue_on_error=False,
         force_single_thread=False,
+        requested_steps=None,
+        rerun_step_index=None,
     ):
         self.work_path = work_path
         self.arch_path = arch_path
@@ -251,26 +321,84 @@ class ArchitectureHandler:
         self.forced_custom_freq_list = forced_custom_freq_list
         self.fallback_custom_freq_list = fallback_custom_freq_list
 
-        self.overwrite = overwrite
+        # Which jobs a rule of an architecture's "overrides" section selects is
+        # answered with these: the tool running the jobs and the flow of it they
+        # run. Empty for a run that has no tool (RTL analysis), which only
+        # rules naming no tool then apply to.
+        self.tool = tool or ""
+        self.flow = flow or ""
+
         self.continue_on_error = continue_on_error
         self.force_single_thread = force_single_thread
+
+        # What to do with a job directory that already exists is the same
+        # question for every job type, and is answered there.
+        self.planner = JobPlanner(
+            work_path=work_path,
+            work_log_path=work_log_path,
+            status_filename=fmax_status_filename,
+            valid_status=valid_status,
+            overwrite=overwrite,
+            requested_steps=requested_steps,
+            rerun_step_index=rerun_step_index,
+        )
 
         self.reset_lists()
 
         self.odatix_path = os.path.realpath(os.path.join(self.script_path, ".."))
 
+    ######################################
+    # What this run does with a job directory
+    ######################################
+
+    # The decisions themselves live in the planner; these keep the handler
+    # usable as it always was, from the run flows and from the GUI.
+
+    @property
+    def plan(self):
+        return self.planner.plan
+
+    @property
+    def overwrite(self):
+        return self.planner.overwrite
+
+    @overwrite.setter
+    def overwrite(self, value):
+        self.planner.overwrite = value
+
+    @property
+    def requested_steps(self):
+        return self.planner.requested_steps
+
+    @property
+    def rerun_step_index(self):
+        return self.planner.rerun_step_index
+
+    def steps_decision(self, tmp_dir):
+        return self.planner.steps_decision(tmp_dir)
+
+    def classify_job(self, tmp_dir, subject, job_noun="synthesis"):
+        return self.planner.classify_job(tmp_dir, subject, job_noun=job_noun)
+
+    @staticmethod
+    def _format_daemon_entry(entry):
+        return JobPlanner.format_daemon_entry(entry)
+
+    def _get_daemon_job_decision(self, tmp_dir, steps_decision=None):
+        return self.planner.daemon_decision(tmp_dir, steps_decision)
+
+    def _refresh_daemon_jobs_index(self):
+        self.planner.refresh_daemon_jobs()
+
     def reset_lists(self):
         self.checked_arch_param = []
         self.banned_arch_param = []
-        # Single source of truth for the check outcome: the CLI checklist and
-        # the GUI run popup both read this plan.
-        self.plan = JobPlan()
+        self.planner.reset()
         # Architectures that passed *every* check. Not derivable from the plan:
         # an architecture is categorized (new, overwrite, ...) before the last
         # checks run, and may still be rejected afterwards.
         self.valid_archs = []
         self.deprecation_notice_archs = []
-        self._daemon_jobs_by_tmp_dir = None
 
     # Kept as read-only views so existing callers (and the CLI) keep working.
     @property
@@ -296,64 +424,6 @@ class ArchitectureHandler:
     @property
     def new_archs(self):
         return self.plan.names(Category.NEW)
-
-    @staticmethod
-    def _normalize_tmp_dir(tmp_dir):
-        if tmp_dir is None:
-            return ""
-        try:
-            return os.path.realpath(os.path.expanduser(str(tmp_dir)))
-        except Exception:
-            return str(tmp_dir)
-
-    @staticmethod
-    def _format_daemon_entry(entry):
-        status = str(entry.get("status", "unknown"))
-        session_id = str(entry.get("session_id", "")).strip()
-        if session_id == "":
-            return " {}(session status: {}){}".format(printc.colors.GREY, status, printc.colors.ENDC)
-        return " {}({} in session {}){}".format(printc.colors.GREY, status, session_id, printc.colors.ENDC)
-
-    def _refresh_daemon_jobs_index(self):
-        self._daemon_jobs_by_tmp_dir = {}
-        try:
-            daemon_jobs = list_daemon_jobs(workspace_root=self.work_path)
-        except Exception:
-            daemon_jobs = []
-
-        for job in daemon_jobs:
-            if not isinstance(job, dict):
-                continue
-
-            normalized_tmp_dir = ArchitectureHandler._normalize_tmp_dir(job.get("tmp_dir", ""))
-            if normalized_tmp_dir == "":
-                continue
-
-            status = str(job.get("status", "")).strip().lower()
-            if status == "":
-                status = "unknown"
-
-            self._daemon_jobs_by_tmp_dir.setdefault(normalized_tmp_dir, []).append(
-                {
-                    "status": status,
-                    "session_id": str(job.get("session_id", "")).strip(),
-                }
-            )
-
-    def _get_daemon_job_decision(self, tmp_dir):
-        if self._daemon_jobs_by_tmp_dir is None:
-            self._refresh_daemon_jobs_index()
-
-        normalized_tmp_dir = ArchitectureHandler._normalize_tmp_dir(tmp_dir)
-        daemon_entries = self._daemon_jobs_by_tmp_dir.get(normalized_tmp_dir, [])
-        if len(daemon_entries) == 0:
-            return "none", None
-
-        for entry in daemon_entries:
-            if entry["status"] not in ArchitectureHandler.DAEMON_RESTARTABLE_STATUSES:
-                return "skip", entry
-
-        return "replace", daemon_entries[0]
 
     def get_architectures(self, architectures, targets, constraint_filename="", install_path="", run_mode="default", keep=False, timestamp="", allow_missing_target_file=False):
 
@@ -383,6 +453,7 @@ class ArchitectureHandler:
             script_copy_enable = False
             script_copy_source = "/dev/null"
             target_settings = {}
+            base_constraints = []
         else:
             with open(self.eda_target_filename, 'r') as f:
                 try:
@@ -413,12 +484,30 @@ class ArchitectureHandler:
             except (KeyNotInListError, BadValueInListError):
                 target_settings = {}
 
+            # Constraint files every target of this tool gets. What a target
+            # declares for itself is added to these, not substituted for them:
+            # the list here is what does not depend on the part.
+            try:
+                base_constraints = constraints_lib.read_constraints(settings_data, self.eda_target_filename, variables)
+            except ConstraintFileError as error:
+                printc.error(str(error), script_name)
+                sys.exit(-1)
+
         # Expand every (target, architecture) pair into an architecture instance.
         # For RTL analysis the target list is a single generic entry.
         if True:
-            full_architectures = architectures
+            # Virtual parameter domains have no directory on disk: drop their
+            # wildcard selectors before the generic wildcard resolver runs.
+            full_architectures = virtual_param_domain.normalize_requests_for_wildcards(
+                requests=architectures,
+                base_path=self.arch_path,
+                get_basic=ArchitectureHandler.get_basic,
+                param_settings_filename=self.param_settings_filename,
+                script_name=script_name,
+            )
             for target in targets:
-                # Overwrite existing script copy settings if there are target specific settings
+                target_constraints = list(base_constraints)
+                # Overwrite existing script copy settings if the target file has some for this target
                 if target_settings != {}:
                     try:
                         this_target_settings = read_from_list(target, target_settings, self.eda_target_filename, optional=True, parent="target_settings", script_name=script_name)
@@ -439,22 +528,38 @@ class ArchitectureHandler:
                             script_copy_enable = False
                             script_copy_source = "/dev/null"
 
+                        # Constraint files of this target only: an IO placement
+                        # is a property of the part or the board, not of the tool.
+                        try:
+                            target_constraints += constraints_lib.read_constraints(
+                                this_target_settings, self.eda_target_filename, variables,
+                                parent="target_settings/" + target,
+                            )
+                        except ConstraintFileError as error:
+                            printc.error(str(error), script_name)
+                            sys.exit(-1)
+
                 # Handle wildcard
                 architectures = ArchitectureHandler.configuration_wildcard(full_architectures, self.arch_path, target)
 
-                for arch in architectures:
+                # One job per combination of the virtual parameter domains
+                architectures = self.expand_virtual_param_domains(architectures, target, only_one_target)
+
+                for arch, command_substitutions in architectures:
                     architecture_instance = self.get_architecture(
                         arch = arch,
-                        target = target, 
-                        only_one_target = only_one_target, 
-                        script_copy_enable = script_copy_enable, 
+                        target = target,
+                        only_one_target = only_one_target,
+                        script_copy_enable = script_copy_enable,
                         script_copy_source = script_copy_source,
                         synthesis = True,
                         constraint_filename = constraint_filename,
+                        target_constraints = target_constraints,
                         install_path = install_path,
                         run_mode = run_mode,
                         keep=keep,
                         timestamp=timestamp,
+                        command_substitutions=command_substitutions,
                     )
                     if run_mode == "custom_freq":
                         if architecture_instance is not None:
@@ -471,66 +576,26 @@ class ArchitectureHandler:
                                 freq_arch.lib_name = freq_arch.lib_name + "_" + str(freq) + "MHz"
 
                                 # check if the architecture is in cache and has a status file
-                                status_file = os.path.join(freq_arch.tmp_dir, self.work_log_path, self.fmax_status_filename)
-                                local_state = "new"
-                                if isdir(freq_arch.tmp_dir) and isfile(status_file):
-                                    # check if the previous synthesis has completed
-                                    sf = open(status_file, "r")
-                                    if self.valid_status in sf.read():
-                                        if self.overwrite:
-                                            printc.warning("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\".", script_name)
-                                            local_state = "overwrite"
-                                        else:
-                                            printc.note("Found cached results for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\". Skipping.", script_name)
-                                            self.plan.add(freq_arch.arch_display_name, Category.CACHED)
-                                            local_state = "cached"
-                                    else: 
-                                        printc.warning("The previous synthesis for \"" + unformatted_display_name + "\" @ " + str(freq) + " MHz with target \"" + target + "\" has not finished or the directory has been corrupted.", script_name)
-                                        local_state = "incomplete"
-                                    sf.close()
+                                subject = (
+                                    "\"" + unformatted_display_name + "\" @ " + str(freq)
+                                    + " MHz with target \"" + target + "\""
+                                )
+                                local_state, daemon_entry = self.classify_job(freq_arch.tmp_dir, subject)
 
                                 if local_state == "cached":
+                                    self.plan.add(freq_arch.arch_display_name, Category.CACHED)
                                     continue
 
-                                daemon_decision, daemon_entry = self._get_daemon_job_decision(freq_arch.tmp_dir)
-                                if daemon_decision == "skip":
-                                    daemon_status = str(daemon_entry.get("status", "unknown"))
-                                    daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
-                                    printc.note(
-                                        "Found existing daemon job for \""
-                                        + unformatted_display_name
-                                        + "\" @ "
-                                        + str(freq)
-                                        + " MHz with target \""
-                                        + target
-                                        + "\" (session \""
-                                        + daemon_session
-                                        + "\", status \""
-                                        + daemon_status
-                                        + "\"). Skipping.",
-                                        script_name,
-                                    )
+                                if local_state == "daemon":
                                     self.plan.add(freq_arch.arch_display_name + ArchitectureHandler._format_daemon_entry(daemon_entry), Category.DAEMON)
                                     continue
-                                elif daemon_decision == "replace":
-                                    daemon_status = str(daemon_entry.get("status", "unknown"))
-                                    printc.warning(
-                                        "Found previously failed/canceled daemon job for \""
-                                        + unformatted_display_name
-                                        + "\" @ "
-                                        + str(freq)
-                                        + " MHz with target \""
-                                        + target
-                                        + "\" (status \""
-                                        + daemon_status
-                                        + "\"). Re-enqueueing.",
-                                        script_name,
-                                    )
 
                                 if local_state == "overwrite":
                                     self.plan.add(unformatted_display_name, Category.OVERWRITE)
                                 elif local_state == "incomplete":
                                     self.plan.add(freq_arch.arch_display_name, Category.INCOMPLETE)
+                                elif local_state == "resume":
+                                    self.plan.add(freq_arch.arch_display_name + formatted_freq, Category.RESUME)
                                 else:
                                     self.plan.add(unformatted_display_name + formatted_freq, Category.NEW)
 
@@ -542,45 +607,157 @@ class ArchitectureHandler:
                             self.architecture_instances.append(architecture_instance)
         return self.architecture_instances
 
+    def expand_virtual_param_domains(self, architectures, target="", only_one_target=True, debug=False):
+        """
+        Expand each architecture request into one request per combination of its
+        virtual parameter domains (the variables defined in its settings file).
+
+        Only "generate_command" consumes these variables, so an architecture that
+        does not reference any of them there keeps a single job, and its variables
+        keep their sole original meaning: generating configurations.
+
+        Returns a list of (architecture request, command substitutions) tuples.
+        """
+        expanded = []
+        for arch_request in architectures:
+            expanded.extend(
+                self._expand_arch_virtual_param_domains(arch_request, target, only_one_target, debug=debug)
+            )
+        return expanded
+
+    def _expand_arch_virtual_param_domains(self, arch_request, target="", only_one_target=True, debug=False):
+        no_expansion = [(arch_request, {})]
+
+        arch, arch_param_dir, _, arch_display_name, _, _, requested_param_domains = ArchitectureHandler.get_basic(
+            arch_request, target, only_one_target
+        )
+
+        settings_data = virtual_param_domain.load_instance_settings(
+            self.arch_path, arch_param_dir, self.param_settings_filename
+        )
+        if settings_data is None:
+            # Missing or invalid settings file: let get_architecture report it.
+            return no_expansion
+
+        virtual_domain_names = virtual_param_domain.get_virtual_domain_names(settings_data)
+        if len(virtual_domain_names) == 0:
+            return no_expansion
+
+        requested_physical_param_domains, requested_virtual_param_domains = (
+            virtual_param_domain.split_requested_param_domains(requested_param_domains, virtual_domain_names)
+        )
+
+        generate_command = settings_data.get("generate_command", "") if settings_data.get("generate_rtl", False) else ""
+        referenced_variables = virtual_param_domain.referenced_variable_names(generate_command) & virtual_domain_names
+
+        # Without an explicit selector, only expand when the generation command
+        # actually uses the variables.
+        if len(requested_virtual_param_domains) == 0 and len(referenced_variables) == 0:
+            return no_expansion
+
+        settings_file = os.path.join(self.arch_path, arch_param_dir, self.param_settings_filename)
+        variants = virtual_param_domain.build_variants(
+            settings=settings_data,
+            settings_file=settings_file,
+            debug=debug,
+            script_name=script_name,
+        )
+        if variants is None:
+            self.plan.add(arch_display_name, Category.ERROR)
+            return []
+        if len(variants) == 0:
+            return no_expansion
+
+        if len(requested_virtual_param_domains) > 0:
+            variants = virtual_param_domain.filter_variants(variants, requested_virtual_param_domains)
+            if len(variants) == 0:
+                requested_domain = re.sub('/.*', '', requested_virtual_param_domains[0])
+                requested_value = re.sub('.*/', '', requested_virtual_param_domains[0])
+                printc.error(
+                    "No variable combination matches selector(s) for architecture \"" + arch_display_name + "\".",
+                    script_name,
+                )
+                printc.tip(
+                    "Add a parameter-domain config file \"" + requested_value + ".txt\" in \""
+                    + os.path.join(arch_param_dir, requested_domain) + "\" ",
+                    script_name,
+                )
+                printc.magenta(
+                    "or add a variable \"" + requested_domain + "\" generating the value \"" + requested_value
+                    + "\" to the architecture settings file \"" + settings_file + "\"."
+                )
+                self.plan.add(arch_display_name, Category.ERROR)
+                return []
+
+        expanded = []
+        for variant in variants:
+            variant_param_domains = requested_physical_param_domains + list(variant.get("requested_param_domains", []))
+            variant_request = arch
+            if len(variant_param_domains) > 0:
+                variant_request = arch + "+" + "+".join(variant_param_domains)
+            expanded.append((variant_request, variant.get("substitutions", {})))
+
+        return expanded
+
     @staticmethod
     def get_basic(arch, target="", only_one_target=True):
-        arch_full = arch.replace(" ", "")
+        """
+        Read a job selection entry ("counter/08bits+corner/tt").
 
-        parts = [part.strip() for part in arch_full.split('+')]
+        The grammar itself lives in odatix.workspace.selection, which every part
+        of Odatix reading a selection goes through. What is left here is the flat
+        tuple the run flows are written around, and the printing of what reading
+        the entry has to say.
+        """
+        request = selection.parse(arch)
+        for message in request.notes:
+            printc.note(message.text, script_name)
 
-        arch = parts[0]
-        requested_param_domains = parts[1:]
+        return (
+            request.path if request.has_configuration else request.entry,
+            request.entry,
+            request.configuration,
+            request.display_name(target, only_one_target),
+            request.entry,
+            request.work_dirname,
+            request.domains,
+        )
 
-        if arch.endswith(".txt"):
-            arch = arch[:-4] 
-            printc.note("'.txt' after the configuration name is not needed. Just use \"" + arch + "\"", script_name)
 
-        if arch.endswith("/"):
-            arch = arch[:-1] 
+    def generation_command_substitutions(
+        self, arch_param_dir, arch_config, arch_display_name, target, tmp_dir, local_rtl_path,
+        design_path, top_level_module, clock_signal, reset_signal
+    ):
+        """
+        The names Odatix itself replaces in a generation command.
 
-        # get param dir (arch name before '/')
-        arch_param_dir = re.sub('/.*', '', arch)
+        Same spirit as the simulation and workflow commands: what the command
+        needs to know about the job it generates the RTL of, so it does not have
+        to be written around hardcoded paths. The command runs from the work
+        directory, so the paths it is given inside it are relative to it.
 
-        if len(requested_param_domains) > 0: 
-            arch_param_dir_work = arch_param_dir
-            arch_display_name = arch + " [" + ", ".join(map(str, requested_param_domains)).replace("/", ":") + "]"
-        else:
-            arch_param_dir_work = arch_param_dir
-            arch_display_name = arch_full
+        Kept in step with odatix.gui.builtin_variables, which promises this list
+        to the user in the architecture editor.
+        """
+        substitutions = {
+            "architecture": arch_param_dir,
+            "configuration": arch_config,
+            "arch_full": arch_display_name,
+            "target": target,
+            "top_level_module": top_level_module,
+            "clock_signal": clock_signal,
+            "reset_signal": reset_signal,
+            "work_path": tmp_dir,
+            "rtl_path": local_rtl_path,
+            "log_path": self.log_path,
+            "design_path": design_path if design_path else "",
+            "arch_path": self.arch_path,
+            "odatix_path": OdatixSettings.odatix_path,
+        }
+        # A setting left empty reads as an empty string rather than as "None".
+        return {name: str(value) if value is not None else "" for name, value in substitutions.items()}
 
-        if not only_one_target:
-            arch_display_name = arch_display_name + " (" + target + ")"
-
-        # get configuration (arch name after '/')
-        arch_config = re.sub('.*/', '', arch)
-        if len(requested_param_domains) > 0: 
-            arch_config_dir_work = arch_config + "+" + "+".join(map(str, requested_param_domains)).replace("/", "_")
-        else:
-            arch_config_dir_work = arch_config
-
-        return arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains
-    
-    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp=""):
+    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp="", command_substitutions=None, target_constraints=None):
         
         arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
 
@@ -620,83 +797,66 @@ class ArchitectureHandler:
 
         # get settings variables
         settings_filename = os.path.join(self.arch_path, arch_param_dir, self.param_settings_filename)
-        with open(settings_filename, 'r') as f:
-            try:
-                settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
-            except Exception as e:
-                printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
-                printc.cyan("error details: ", end="", script_name=script_name)
-                print(str(e))
-                self.banned_arch_param.append(arch_param_dir)
-                self.plan.add(arch_display_name, Category.ERROR)
-                return None # if an identifier is missing
-            try:
-                top_level_filename = read_from_list('top_level_file', settings_data, settings_filename, script_name=script_name)
-                top_level_module   = read_from_list('top_level_module', settings_data, settings_filename, script_name=script_name)
-                clock_signal       = read_from_list('clock_signal', settings_data, settings_filename, script_name=script_name)
-                reset_signal       = read_from_list('reset_signal', settings_data, settings_filename, script_name=script_name)
-            except (KeyNotInListError, BadValueInListError):
-                self.banned_arch_param.append(arch_param_dir)
-                self.plan.add(arch_display_name, Category.ERROR)
-                return None # if an identifier is missing
+        try:
+            settings_data = read_mapping(settings_filename)
+        except InvalidSettingsError as error:
+            printc.error(str(error), script_name)
+            for hint in error.hints:
+                printc.cyan(hint, script_name=script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.plan.add(arch_display_name, Category.ERROR)
+            return None
 
-            file_copy_enable, defined = get_from_dict('file_copy_enable', settings_data, settings_filename, type=bool, silent=True, default_value=False, script_name=script_name)
-            if defined:
-                file_copy_source, source_defined = get_from_dict('file_copy_source', settings_data, settings_filename, behavior=Key.MANTADORY, script_name=script_name)
-                file_copy_dest, dest_defined = get_from_dict('file_copy_dest', settings_data, settings_filename, behavior=Key.MANTADORY, script_name=script_name)
-                if not source_defined or not dest_defined:
-                    self.banned_arch_param.append(arch_param_dir)
-                    self.plan.add(arch_display_name, Category.ERROR)
-                    return None
-            else:
-                file_copy_source = ""
-                file_copy_dest = ""
-            
-            generate_command = ""
-            generate_rtl, defined = get_from_dict('generate_rtl', settings_data, settings_filename, type=bool, silent=True, script_name=script_name)
-            if not defined:
-                generate_rtl = False
+        # What the architecture has to say before a job can be built from it.
+        settings_messages = workspace_architectures.validate(settings_data, settings_filename)
+        if settings_messages:
+            printc.messages(settings_messages, script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.plan.add(arch_display_name, Category.ERROR)
+            return None
 
-            if generate_rtl:
-                local_rtl_path, _ = get_from_dict('generate_output', settings_data, settings_filename, default_value=self.work_rtl_path, script_name=script_name)
-                rtl_path = self.work_rtl_path 
-                generate_command, defined = get_from_dict('generate_command', settings_data, settings_filename, silent=True, script_name=script_name)
-                if defined:
-                    generate_rtl = True
-                else:
-                    printc.error("Cannot find key \"generate_command\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-                    self.banned_arch_param.append(arch_param_dir)
-                    self.plan.add(arch_display_name, Category.ERROR)
-                    generate_rtl = False
-                    return None
-            else:
-                local_rtl_path = self.work_rtl_path 
-                rtl_path, defined = get_from_dict('rtl_path', settings_data, settings_filename, script_name=script_name)
-                if not defined:
-                    self.banned_arch_param.append(arch_param_dir)
-                    self.plan.add(arch_display_name, Category.ERROR)
-                    return None
+        settings = workspace_architectures.ArchitectureSettings.from_dict(settings_data)
 
-            top_level = os.path.join(rtl_path, top_level_filename)
+        top_level_filename = settings.top_level_file
+        top_level_module = settings.top_level_module
+        clock_signal = settings.clock_signal
+        reset_signal = settings.reset_signal
+
+        file_copy_enable = settings.file_copy_enable
+        file_copy_source = settings.file_copy_source if file_copy_enable else ""
+        file_copy_dest = settings.file_copy_dest if file_copy_enable else ""
+
+        generate_rtl = settings.generate_rtl
+        generate_command = settings.generate_command if generate_rtl else ""
+        if generate_rtl:
+            # The generation writes into the work directory, so that is where
+            # the design is read from, wherever the command puts it.
+            local_rtl_path = settings.generate_output or self.work_rtl_path
+            rtl_path = self.work_rtl_path
+        else:
+            local_rtl_path = self.work_rtl_path
+            rtl_path = settings.rtl_path
+
+        top_level = os.path.join(rtl_path, top_level_filename)
+
+        # The default target file for parameter replacement, written the way the
+        # user would have written it: relative to what the sources are copied
+        # from. Generating the RTL, that is "design_path", copied at the root of
+        # the work directory, so the generation output has to be named;
+        # otherwise it is "rtl_path", and the "rtl" subfolder it is copied into
+        # is added by the job itself (see run_common.resolve_param_target_file).
+        if generate_rtl:
             work_top_level = os.path.join(local_rtl_path, top_level_filename)
+        else:
+            work_top_level = top_level_filename
 
-            use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
-            if use_parameters is None or start_delimiter is None or stop_delimiter is None or param_target_filename is None:
-                return None
+        use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
+        if use_parameters is None or start_delimiter is None or stop_delimiter is None or param_target_filename is None:
+            return None
 
-            design_path, design_path_defined = get_from_dict('design_path', settings_data, settings_filename, silent=True, script_name=script_name)
-            if not defined:
-                design_path = None
-                if generate_rtl:
-                    printc.error("Cannot find key \"design_path\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-                    self.banned_arch_param.append(arch_param_dir)
-                    return None
-            
-            design_path_whitelist, _ = get_from_dict("design_path_whitelist", settings_data, settings_filename, type=list, default_value=[], silent=True, script_name=script_name)
-            design_path_blacklist, _ = get_from_dict("design_path_blacklist", settings_data, settings_filename, type=list, default_value=[], silent=True, script_name=script_name)
-            # if param_target_file is None:
-            #   printc.error("Cannot find key \"param_target_file\" in \"" + settings_filename + "\" while generate_rtl=true", script_name)
-            #   printc.note("\"param_target_file\" is the file in which parameters will be replaced before running the generate command", script_name)
+        design_path = settings_data.get("design_path")
+        design_path_whitelist = settings.design_path_whitelist
+        design_path_blacklist = settings.design_path_blacklist
 
         if not generate_rtl:
             # check if rtl path exists
@@ -751,12 +911,20 @@ class ArchitectureHandler:
                 self.plan.add(arch_display_name, Category.ERROR)
                 return None
         
-        if len(requested_param_domains) > 0:
+        # Virtual parameter domains (variables) have no directory on disk: their
+        # values are provided as command substitutions instead.
+        virtual_domain_names = virtual_param_domain.get_virtual_domain_names(settings_data)
+        requested_physical_param_domains, requested_virtual_param_domains = (
+            virtual_param_domain.split_requested_param_domains(requested_param_domains, virtual_domain_names)
+        )
+        virtual_param_domains = virtual_param_domain.domains_dict(requested_virtual_param_domains)
+
+        if len(requested_physical_param_domains) > 0:
             param_domains = ParamDomain.get_param_domains(
-                requested_param_domains=requested_param_domains, 
-                architecture=arch_param_dir, 
-                arch_path=self.arch_path, 
-                param_settings_filename=self.param_settings_filename, 
+                requested_param_domains=requested_physical_param_domains,
+                architecture=arch_param_dir,
+                arch_path=self.arch_path,
+                param_settings_filename=self.param_settings_filename,
                 top_level_file=work_top_level
             )
             if param_domains is None:
@@ -765,7 +933,43 @@ class ArchitectureHandler:
                 return None
         else:
             param_domains = []
-            
+
+        # Resolve ${...} placeholders in the generation command: Odatix' own names
+        # first, then virtual parameter domains (variables), then the values of the
+        # selected configuration and of each physical parameter domain. The user's
+        # own names come last on purpose: a parameter domain named like a built-in
+        # one is what the user wrote, so it is what wins.
+        if generate_rtl and generate_command:
+            substitutions = self.generation_command_substitutions(
+                arch_param_dir=arch_param_dir,
+                arch_config=arch_config,
+                arch_display_name=arch_display_name,
+                target=target,
+                tmp_dir=tmp_dir,
+                local_rtl_path=local_rtl_path,
+                design_path=design_path,
+                top_level_module=top_level_module,
+                clock_signal=clock_signal,
+                reset_signal=reset_signal,
+            )
+            if isinstance(command_substitutions, dict):
+                for key, value in command_substitutions.items():
+                    substitutions[str(key)] = str(value)
+
+            if not no_configuration:
+                main_value = virtual_param_domain.read_command_parameter_value(
+                    os.path.join(self.arch_path, arch + ".txt")
+                )
+                if main_value is not None:
+                    substitutions[arch_param_dir] = main_value
+
+            for param_domain in param_domains:
+                domain_value = virtual_param_domain.read_command_parameter_value(param_domain.param_file)
+                if domain_value is not None:
+                    substitutions[param_domain.domain] = domain_value
+
+            generate_command = virtual_param_domain.replace_command_vars(generate_command, substitutions)
+
         # optional settings
         formatted_bound = ""
         fmax_lower_bound = 0
@@ -780,6 +984,8 @@ class ArchitectureHandler:
                 settings_filename=settings_filename, 
                 run_mode=run_mode,
                 fallback_custom_freq_list=self.fallback_custom_freq_list,
+                tool=self.tool,
+                flow=self.flow,
             )
 
             # Override by bounds from --from and --to if used
@@ -821,7 +1027,19 @@ class ArchitectureHandler:
             # check if the architecture is in cache and has a status file
             if run_mode == "fmax":
                 local_state = "new"
-                if isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
+                steps_decision = self.steps_decision(tmp_dir)
+                if steps_decision is not None:
+                    if steps_decision == "cached":
+                        if self.overwrite:
+                            printc.warning("Every requested step is already done for \"" + arch + "\" with target \"" + target + "\".", script_name)
+                            local_state = "overwrite"
+                        else:
+                            printc.note("Every requested step is already done for \"" + arch + "\" with target \"" + target + "\". Skipping.", script_name)
+                            self.plan.add(arch_display_name, Category.CACHED)
+                            return None
+                    elif steps_decision == "resume" and not self.overwrite:
+                        local_state = "resume"
+                elif isdir(tmp_dir) and isfile(fmax_status_file) and isfile(frequency_search_file):
                     # check if the previous synth_fmax has completed
                     sf = open(fmax_status_file, "r")
                     if self.valid_status in sf.read():
@@ -843,7 +1061,7 @@ class ArchitectureHandler:
                         local_state = "incomplete"
                     sf.close()
 
-                daemon_decision, daemon_entry = self._get_daemon_job_decision(tmp_dir)
+                daemon_decision, daemon_entry = self._get_daemon_job_decision(tmp_dir, steps_decision)
                 if daemon_decision == "skip":
                     daemon_status = str(daemon_entry.get("status", "unknown"))
                     daemon_session = str(daemon_entry.get("session_id", "")).strip() or "unknown"
@@ -878,22 +1096,36 @@ class ArchitectureHandler:
                     self.plan.add(arch_display_name + formatted_bound, Category.OVERWRITE)
                 elif local_state == "incomplete":
                     self.plan.add(arch_display_name + formatted_bound, Category.INCOMPLETE)
+                elif local_state == "resume":
+                    self.plan.add(arch_display_name + formatted_bound, Category.RESUME)
                 else:
                     self.plan.add(arch_display_name + formatted_bound, Category.NEW)
 
             elif run_mode == "default":
                 self.plan.add(arch_display_name, Category.NEW)
 
-        # Retrieve target-specific settings if they exist
-        target_specific_data, target_specific_defined = get_from_dict(target, settings_data, settings_filename, silent=True)
+        # What this architecture says for a part of its jobs only: the rules of
+        # its "overrides" section that select this one, in file order, the last
+        # of them having the last word (see odatix.lib.overrides).
+        try:
+            job_overrides = overrides_lib.select(
+                settings_data, tool=self.tool, flow=self.flow, target=target,
+                configuration=arch_config, where=settings_filename,
+            )
+        except OverrideError as error:
+            printc.error(str(error), script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.plan.add(arch_display_name, Category.ERROR)
+            return None
 
-        # target specific file copy
-        if target_specific_defined:
+        # file copy of these jobs only
+        for index, override in enumerate(job_overrides):
+            parent = overrides_lib.OVERRIDES_KEY + "[" + str(index) + "]"
             try:
-                _file_copy_enable = read_from_list('file_copy_enable', target_specific_data, settings_filename, optional=True, print_error=False, type=bool, script_name=script_name)
+                _file_copy_enable = read_from_list('file_copy_enable', override, settings_filename, optional=True, print_error=False, type=bool, parent=parent, script_name=script_name)
                 try:
-                    _file_copy_source = read_from_list('file_copy_source', target_specific_data, settings_filename, optional=True, script_name=script_name)
-                    _file_copy_dest = read_from_list('file_copy_dest', target_specific_data, settings_filename, optional=True, script_name=script_name)
+                    _file_copy_source = read_from_list('file_copy_source', override, settings_filename, optional=True, parent=parent, script_name=script_name)
+                    _file_copy_dest = read_from_list('file_copy_dest', override, settings_filename, optional=True, parent=parent, script_name=script_name)
                     file_copy_enable = _file_copy_enable
                     file_copy_source = _file_copy_source
                     file_copy_dest = _file_copy_dest
@@ -902,7 +1134,7 @@ class ArchitectureHandler:
             except KeyNotInListError:
                 pass
             except BadValueInListError:
-                printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + "target_settings/" + target + "\"," + " in \"" + settings_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
+                printc.note("Value \"" + str(_file_copy_enable) + "\" for key \"" + 'file_copy_enable' + "\"" + ", inside list \"" + parent + "\"," + " in \"" + settings_filename + "\" is of type \"" + _file_copy_enable.__class__.__name__ + "\" while it should be of type \"bool\". Using default values instead.", script_name)
         
         # Define user accessible variables
         variables = Variables(
@@ -913,6 +1145,25 @@ class ArchitectureHandler:
 
         # Replace variables in command
         file_copy_source = replace_variables(file_copy_source, variables)
+
+        # Constraint files: what the target file declares for this target, then
+        # what the architecture declares for every job and in each rule matching
+        # this one. All of them add up -- a design does not stop needing its
+        # timing exceptions because the board it runs on has a pinout.
+        try:
+            job_constraints = list(target_constraints) if target_constraints else []
+            job_constraints += constraints_lib.read_constraints(settings_data, settings_filename, variables)
+            for index, override in enumerate(job_overrides):
+                job_constraints += constraints_lib.read_constraints(
+                    override, settings_filename, variables,
+                    parent=overrides_lib.OVERRIDES_KEY + "[" + str(index) + "]",
+                )
+            job_constraints = constraints_lib.resolve(job_constraints)
+        except ConstraintFileError as error:
+            printc.error(str(error), script_name)
+            self.banned_arch_param.append(arch_param_dir)
+            self.plan.add(arch_display_name, Category.ERROR)
+            return None
 
         # check file copy
         if file_copy_enable:
@@ -934,6 +1185,7 @@ class ArchitectureHandler:
         tmp_log_path = os.path.join(tmp_dir, self.work_log_path)
 
         arch_instance = Architecture(
+            virtual_param_domains=virtual_param_domains,
             arch_name=arch,
             arch_display_name=arch_display_name,
             lib_name=lib_name,
@@ -969,6 +1221,7 @@ class ArchitectureHandler:
             stop_delimiter=stop_delimiter,
             generate_command=generate_command,
             constraint_filename=constraint_filename,
+            constraint_files=job_constraints,
             install_path=install_path,
             param_domains=param_domains,
             continue_on_error=self.continue_on_error,
@@ -996,9 +1249,14 @@ class ArchitectureHandler:
         return use_parameters, start_delimiter, stop_delimiter, param_target_filename
 
     @staticmethod
-    def get_frequency_settings(arch_config, target, settings_data, settings_filename, run_mode, fallback_custom_freq_list=None):
+    def get_frequency_settings(arch_config, target, settings_data, settings_filename, run_mode, fallback_custom_freq_list=None, tool="", flow=""):
         """
         Retrieves frequency synthesis settings from the YAML configuration.
+
+        Which level of the settings file has the last word is the workspace
+        API's business (odatix.workspace.architectures.resolve_frequencies), so
+        that a script asking an architecture what it runs at gets the same
+        answer as a run. What is left here is the flat tuple the run flows use.
 
         Args:
                 arch_config (str): The architecture configuration.
@@ -1007,281 +1265,49 @@ class ArchitectureHandler:
                 settings_filename (str): Name of the YAML file.
                 run_mode (str): The mode of operation (e.g., "fmax", "custom_freq").
                 fallback_custom_freq_list (list, optional): A fallback list of custom frequencies to use instead of default values.
+                tool (str, optional): The EDA tool running the jobs, which a rule of the "overrides" section can select.
+                flow (str, optional): The flow of that tool the jobs run.
 
         Returns:
                 tuple: (fmax_lower_bound, fmax_upper_bound, custom_freq_list, warn_fmax_obsolete).
         """
+        resolved = workspace_architectures.resolve_frequencies(
+            settings_data,
+            target=target,
+            configuration=arch_config,
+            tool=tool,
+            flow=flow,
+            mode=run_mode,
+            fallback=fallback_custom_freq_list,
+        )
+        printc.messages(resolved.messages, script_name)
 
-        # Defaults
-        fmax_lower_bound = None
-        fmax_upper_bound = None
-        custom_freq_list = []
-        warn_fmax_obsolete = False
-
-        target_fmax_defined = False
-        target_custom_freq_defined = False
-        arch_specific_defined = False
-        arch_fmax_defined = False
-        arch_custom_freq_defined = False
-
-        # Retrieve general settings
-        global_fmax_data, global_fmax_defined =  get_from_dict("fmax_synthesis", settings_data, settings_filename, silent=True)
-        global_custom_freq_data, global_custom_freq_defined = get_from_dict("custom_freq_synthesis", settings_data, settings_filename, silent=True)
-
-        # Retrieve target-specific settings
-        target_specific_data, target_specific_defined = get_from_dict(target, settings_data, settings_filename, silent=True)
-        if target_specific_defined:
-            target_fmax_data, target_fmax_defined =  get_from_dict("fmax_synthesis", target_specific_data, settings_filename, silent=True)
-            target_custom_freq_data, target_custom_freq_defined = get_from_dict("custom_freq_synthesis", target_specific_data, settings_filename, silent=True)
-
-            # Retrieve architecture-specific settings
-            arch_specific_data, arch_specific_defined = get_from_dict(arch_config, target_specific_data, settings_filename, silent=True)
-            if arch_specific_defined:
-                arch_fmax_data, arch_fmax_defined =  get_from_dict("fmax_synthesis", arch_specific_data, settings_filename, silent=True)
-                arch_custom_freq_data, arch_custom_freq_defined = get_from_dict("custom_freq_synthesis", arch_specific_data, settings_filename, silent=True)
-
-        if run_mode == "custom_freq": # Custom frequency synthesis
-
-            # Get lower bound
-            lower_bound_defined = False
-            if arch_custom_freq_defined:
-                range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not lower_bound_defined and target_custom_freq_defined:
-                range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", target_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not lower_bound_defined and global_custom_freq_defined:
-                range_lower_bound, lower_bound_defined = get_from_dict("lower_bound", global_custom_freq_data, settings_filename, default_value=None, silent=True)
-
-            # Get upper bound
-            upper_bound_defined = False
-            if arch_custom_freq_defined:
-                range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not upper_bound_defined and target_custom_freq_defined:
-                range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", target_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not upper_bound_defined and global_custom_freq_defined:
-                range_upper_bound, upper_bound_defined = get_from_dict("upper_bound", global_custom_freq_data, settings_filename, default_value=None, silent=True)
-
-            # Get step
-            step_defined = False
-            if arch_custom_freq_defined:
-                range_step, step_defined = get_from_dict("step", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not step_defined and target_custom_freq_defined:
-                range_step, step_defined = get_from_dict("step", target_custom_freq_data, settings_filename, default_value=None, silent=True)
-            if not step_defined and global_custom_freq_defined:
-                range_step, step_defined = get_from_dict("step", global_custom_freq_data, settings_filename, default_value=None, silent=True)
-
-            # Get list
-            list_defined = False
-            list_defined_arch = False
-            list_defined_target = False
-            list_defined_global = False
-            list_append = False
-            if arch_custom_freq_defined:
-                custom_freq_list, list_defined_arch = get_from_dict("list", arch_custom_freq_data, settings_filename, default_value=None, silent=True)
-                if list_defined_arch:
-                    list_append, _ = get_from_dict("list_append", arch_custom_freq_data, settings_filename, default_value=False, silent=True)
-            if target_custom_freq_defined:
-                tmp_list, list_defined_target = get_from_dict("list", target_custom_freq_data, settings_filename, default_value=None, silent=True)
-                if list_defined_target:
-                    if not list_defined_arch:
-                        custom_freq_list = tmp_list
-                    elif list_append:
-                        custom_freq_list = custom_freq_list + tmp_list
-                    list_append, _ = get_from_dict("list_append", target_custom_freq_data, settings_filename, default_value=False, silent=True)
-            if global_custom_freq_defined:
-                tmp_list, list_defined_global = get_from_dict("list", global_custom_freq_data, settings_filename, default_value=None, silent=True)
-                if list_defined_global:
-                    if not list_defined_target:
-                        custom_freq_list = tmp_list
-                    elif list_append:
-                        custom_freq_list = custom_freq_list + tmp_list
-
-            list_defined = list_defined_global or list_defined_target or list_defined_arch
-            if not list_defined:
-                custom_freq_list = []
-
-            if not step_defined or (step_defined and (range_step == 0 or range_step == False)): # Check if range is deactivated
-                range_list = []
-            else:
-                if lower_bound_defined and upper_bound_defined and step_defined:
-                    if ArchitectureHandler.check_bounds(range_lower_bound, range_upper_bound, range_step, synth_type="custom frequency synthesis"):
-                        range_list = ArchitectureHandler.create_list_from_range(range_lower_bound, range_upper_bound, range_step)
-                        custom_freq_list = custom_freq_list + range_list
-
-            # Check if a list is defined
-            if len(custom_freq_list) == 0:
-                # printc.error('Could not find any valid custom frequency definition in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
-                # printc.note('You can define custom synthesis frequencies like this:', script_name)
-                # printc.magenta("custom_freq_synthesis:")
-                # printc.magenta("  lower_bound: XXX")
-                # printc.magenta("  upper_bound: XXX")
-                # printc.magenta("  step: XXX")
-                # printc.cyan("or ")
-                # printc.magenta("custom_freq_synthesis:")
-                # printc.magenta("  step: No")
-                # printc.magenta("  list: [XXX, XXX, XXX]")
-                # printc.cyan("or ")
-                # printc.magenta("custom_freq_synthesis:")
-                # printc.magenta("  lower_bound: XXX")
-                # printc.magenta("  upper_bound: XXX")
-                # printc.magenta("  step: XXX")
-                # printc.magenta("  list: [XXX, XXX, XXX] # append to the list generated by range")
-                if fallback_custom_freq_list is not None and fallback_custom_freq_list != []:
-                    custom_freq_list = list(fallback_custom_freq_list)
-                else:
-                    custom_freq_list = hard_settings.default_custom_freq_list
-
-            return None, None, custom_freq_list, warn_fmax_obsolete
-
-        else: # fmax synthesis
-
-            # Legacy fallback for older odatix version
-            lower_defined = False
-            if target_specific_defined:
-                fmax_lower_bound, lower_defined = get_from_dict("fmax_lower_bound", target_specific_data, settings_filename, silent=True)
-            if not lower_defined and arch_specific_defined:
-                fmax_lower_bound, lower_defined = get_from_dict("fmax_lower_bound", arch_specific_data, settings_filename, silent=True)
-            upper_defined = False
-            if target_specific_defined:
-                fmax_upper_bound, upper_defined = get_from_dict("fmax_upper_bound", target_specific_data, settings_filename, silent=True)
-            if not upper_defined and arch_specific_defined:
-                fmax_upper_bound, upper_defined = get_from_dict("fmax_upper_bound", arch_specific_data, settings_filename, silent=True)
-            
-            # Deprecation warning
-            if lower_defined or upper_defined:
-                warn_fmax_obsolete = True
-
-            # Get lower bound
-            defined = False
-            if arch_fmax_defined:
-                fmax_lower_bound, defined = get_from_dict("lower_bound", arch_fmax_data, settings_filename, default_value=None, silent=True)
-            if not defined and target_fmax_defined:
-                fmax_lower_bound, defined = get_from_dict("lower_bound", target_fmax_data, settings_filename, default_value=None, silent=True)
-            if not defined and global_fmax_defined:
-                fmax_lower_bound, defined = get_from_dict("lower_bound", global_fmax_data, settings_filename, default_value=None, silent=True)
-
-            # Get upper bound
-            defined = False
-            if arch_fmax_defined:
-                fmax_upper_bound, defined = get_from_dict("upper_bound", arch_fmax_data, settings_filename, default_value=None, silent=True)
-            if not defined and target_fmax_defined:
-                fmax_upper_bound, defined = get_from_dict("upper_bound", target_fmax_data, settings_filename, default_value=None, silent=True)
-            if not defined and global_fmax_defined:
-                fmax_upper_bound, defined = get_from_dict("upper_bound", global_fmax_data, settings_filename, default_value=None, silent=True)
-
-            # Check if bounds are defined
-            if fmax_lower_bound is None:
-                fmax_lower_bound = hard_settings.default_fmax_lower_bound
-                # printc.error('Lower bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
-            if fmax_upper_bound is None:
-                fmax_upper_bound = hard_settings.default_fmax_upper_bound
-                # printc.error('Upper bound for fmax synthesis is not defined in "{}" for architecture configuration "{}" with target "{}"'.format(settings_filename, arch_config, target), script_name)
-            # if fmax_lower_bound is None or fmax_upper_bound is None:
-            #     printc.note('You can define fmax synthesis frequency bounds like this:', script_name)
-            #     printc.magenta("fmax_synthesis:")
-            #     printc.magenta("  lower_bound: XXX")
-            #     printc.magenta("  upper_bound: XXX")
-            #     return None, None, None, warn_fmax_obsolete
-
-            return fmax_lower_bound, fmax_upper_bound, None, warn_fmax_obsolete
+        if run_mode == "custom_freq":
+            return None, None, resolved.frequencies, resolved.deprecated_bounds
+        return resolved.lower_bound, resolved.upper_bound, None, resolved.deprecated_bounds
 
     @staticmethod
     def configuration_wildcard(full_architectures, arch_path=OdatixSettings.DEFAULT_ARCH_PATH, target=""):
-        architectures = []
-        joker_archs = []
-        for arch_request in full_architectures:
-            arch, arch_param_dir, arch_config, _, _, _, requested_param_domains = ArchitectureHandler.get_basic(arch_request, target, False)
-            has_wildcard = False
-            added_count = 0
-            if arch.endswith("/*"):
-                has_wildcard = True
-                # get param dir (arch name before '/*')
-                arch_param_dir = re.sub(r'/\*', '', arch)
-                arch_param = os.path.join(arch_path, arch_param_dir)
-                # check if parameter dir exists
-                if os.path.isdir(arch_param):
-                    files = [f[:-4] for f in os.listdir(arch_param) if os.path.isfile(os.path.join(arch_param, f)) and f.endswith(".txt")]
-                    joker_archs = [os.path.join(arch_param_dir, file) for file in sorted(files)]
-                    if len(joker_archs) == 0:
-                        printc.warning(f"Wildcard \"{arch_request}\" did not match any configuration in \"{arch_param}\"", script_name)
-                else:
-                    printc.error(f"The architecture directory \"{arch_param}\" does not exist", script_name)
-            else:
-                joker_archs = [arch]
-                arch_param = arch_param_dir
-                
-            # Parameter domain wildcard
-            joker_param_domain = {}
-            if len(requested_param_domains) > 0:
-                for requested_param_domain in requested_param_domains:
-                    if requested_param_domain.endswith("/*"):
-                        has_wildcard = True
-                        param_domain = re.sub(r'/\*', '', requested_param_domain)
-                        # get parameter domain dir
-                        arch_param = os.path.join(arch_path, arch_param_dir)
-                        if not os.path.isdir(arch_param):
-                            printc.error(f"The architecture directory \"{arch_param}\" does not exist", script_name)
-                            continue
-                        param_domain_dir = os.path.join(arch_param, param_domain)  
-                        # check if parameter domain dir exists
-                        if os.path.isdir(param_domain_dir):
-                            files = [f[:-4] for f in os.listdir(param_domain_dir) if os.path.isfile(os.path.join(param_domain_dir, f)) and f.endswith(".txt")]
-                            joker_param_domain[param_domain] = sorted(files)
-                            if len(joker_param_domain[param_domain]) == 0:
-                                printc.warning(
-                                    f"Wildcard \"{requested_param_domain}\" did not match any configuration in \"{param_domain_dir}\"",
-                                    script_name,
-                                )
-                        else:
-                            printc.error(f"The parameter domain directory \"{param_domain_dir}\" does not exist", script_name)
-                            existing_domains = [d for d in os.listdir(arch_param) if os.path.isdir(os.path.join(arch_param, d))]
-                            if len(existing_domains) == 0:
-                                printc.tip(f"No parameter domains found in \"{arch_param}\"", script_name)
-                            else:
-                                printc.tip(f"Available parameter domains found in \"{arch_param}\": {', '.join(existing_domains)}", script_name)
-                            continue
-                    else:
-                        param_domain = re.sub(r'/.*', '', requested_param_domain)
-                        value = re.sub(r'.*/', '', requested_param_domain)
-                        joker_param_domain[param_domain] = [value]  
-                if len(joker_param_domain) == 0:
-                    return None  
-                # Generate combinations
-                param_keys = list(joker_param_domain.keys())
-                param_values = [joker_param_domain[key] if isinstance(joker_param_domain[key], list) else [joker_param_domain[key]] for key in param_keys]  
-                for arch_instance in joker_archs:
-                    for param_combination in itertools.product(*param_values):
-                        param_string = "+".join(f"{param_keys[i]}/{param_combination[i]}" for i in range(len(param_keys)))
-                        architectures.append(f"{arch_instance}+{param_string}")
-                        added_count += 1
-            else:
-                architectures = architectures + joker_archs
-                added_count += len(joker_archs)
+        """
+        Expand the wildcards of a job selection against what is on disk.
 
-            if has_wildcard and added_count == 0:
-                printc.warning(f"Wildcard \"{arch_request}\" did not match any configuration", script_name)
-        # Remove duplicates
-        architectures = natsorted(list(dict.fromkeys(architectures)))
+        The expansion itself lives in odatix.workspace.selection, and is what
+        the architectures, the workflows and the simulations all go through.
+        Here it only gets said out loud.
+        """
+        messages = []
+        architectures = selection.expand(full_architectures, arch_path, messages=messages)
+        printc.messages(messages, script_name)
         return architectures
 
     def create_list_from_range(lower_bound, upper_bound, step):
         return list(range(lower_bound, upper_bound + 1, step))
 
     def check_bounds(lower_bound, upper_bound, step=0, synth_type="fmax synthesis"):
-        success = True
-        if not isinstance(lower_bound, int):
-            printc.error('Lower bound for {} is "{}" which is a "{}" while it should be an integer'.format(synth_type, lower_bound, type(lower_bound).__name__), script_name)
-            success =  False
-        if not isinstance(upper_bound, int):
-            printc.error('Upper bound for {} is "{}" which is a "{}" while it should be an integer'.format(synth_type, upper_bound, type(upper_bound).__name__), script_name)
-            success =  False
-        if not isinstance(step, int):
-            printc.error('Step for {} is "{}" which is a "{}" while it should be an integer or "No"'.format(synth_type, upper_bound, type(upper_bound).__name__), script_name)
-            success =  False
-        if success:
-            if upper_bound <= lower_bound:
-                printc.error("The upper bound ({}) for {} must be strictly greater than the lower bound ({})".format(synth_type, upper_bound, lower_bound), script_name)
-                success =  False
-        return success
+        """Whether a frequency range can be run, saying what is wrong with it."""
+        messages = workspace_architectures.check_bounds(lower_bound, upper_bound, step, kind=synth_type)
+        printc.messages(messages, script_name)
+        return not messages
 
     def print_summary(self):
         self.plan.print_summary(noun="architectures")

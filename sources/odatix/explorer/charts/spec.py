@@ -33,6 +33,23 @@ import odatix.explorer.core.schema as schema
 
 NONE_VALUE = "none"
 
+# Controls accepting several dimensions at once (multi dropdowns). Their spec
+# fields hold a tuple of dimensions: () means "none", None means "not set yet"
+# (resolve_defaults then picks a default).
+MULTI_CONTROLS = ("color_by", "symbol_by", "sort_by", "sort_x_by", "dissociate")
+
+# Ordering of a categorical (symbolic) x axis. "natural" is the numeric-aware
+# ordering of the values themselves; the y orders rank the categories by their
+# y value (mean over the selection).
+X_ORDERS = ("natural", "reverse", "y_asc", "y_desc")
+X_ORDER_LABELS = {
+  "natural": "Natural",
+  "reverse": "Reversed",
+  "y_asc": "Y ascending",
+  "y_desc": "Y descending",
+}
+DEFAULT_X_ORDER = "natural"
+
 KINDS = ["lines", "columns", "scatter", "scatter3d", "radar"]
 
 KIND_LABELS = {
@@ -76,6 +93,7 @@ TOGGLE_LABELS = {
   "log_x": "Log scale X axis",
   "log_y": "Log scale Y axis",
   "log_z": "Log scale Z axis",
+  "stable_index": "Stable colors and symbols",
 }
 
 DEFAULT_TOGGLES = ["legend", "legend_groups", "title", "lines", "connect_gaps", "close_line", "labels", "zero_x", "zero_y", "zero_axis"]
@@ -96,16 +114,49 @@ class FigureSpec:
   x: str = None                 # x dimension or metric (theta for radar)
   y: str = None                 # y metric (r for radar)
   z: str = None                 # z metric (scatter3d)
-  color_by: str = None          # any dimension
-  symbol_by: str = None         # any dimension, or NONE_VALUE
+  color_by: tuple = None        # dimensions, one color per value combination
+  symbol_by: tuple = None       # dimensions, one symbol per value combination
   legend_group_by: str = None   # any dimension, or NONE_VALUE
-  dissociate: str = None        # dimension pulled out of x labels into trace identity
+  sort_by: tuple = None          # dimensions taking priority when ordering traces, in priority order
+  sort_x_by: tuple = None       # dimensions taking priority when ordering a categorical x axis
+  sort_x_order: str = None      # ordering of a categorical x axis (see X_ORDERS)
+  dissociate: tuple = None      # dimensions pulled out of x labels into trace identity
   label_by: str = None          # dimension used for point labels (scatter kinds)
-  stable_index: bool = True     # color/symbol indices computed over all values (stable across filters)
+  stable_index: bool = False    # color/symbol indices computed over all values (stable across filters)
   toggles: tuple = field(default_factory=tuple)
 
   def has(self, toggle):
     return toggle in self.toggles
+
+
+def x_is_symbolic(kind, x, dimensions, metrics):
+  """Whether the x axis holds categories rather than numbers.
+
+  Scatter kinds always plot metrics on x; elsewhere x accepts any dimension, and
+  is numeric only when the chosen name is a metric and nothing else.
+  """
+  if kind in ("scatter", "scatter3d"):
+    return False
+  return not (x in metrics and x not in dimensions)
+
+
+def normalize_dims(value, dimensions=None):
+  """
+  Normalize a multi-dimension control value into a tuple of dimensions.
+
+  Accepts what the UI and the saved views may hold: a list (multi dropdown), a
+  single dimension name (legacy single dropdown or saved view), NONE_VALUE or
+  None. Returns None when unset (so resolve_defaults can pick a default), and
+  an empty tuple when explicitly set to nothing. Values missing from
+  ``dimensions`` are dropped when it is given.
+  """
+  if value is None:
+    return None
+  values = list(value) if isinstance(value, (list, tuple)) else [value]
+  values = [str(item) for item in values if item not in (None, NONE_VALUE)]
+  if dimensions is not None:
+    values = [item for item in values if item in dimensions]
+  return tuple(dict.fromkeys(values))  # de-duplicated, order preserved
 
 
 def resolve_defaults(spec, dimensions, metrics):
@@ -138,13 +189,26 @@ def resolve_defaults(spec, dimensions, metrics):
     if spec.y not in metrics:
       spec.y = next((metric for metric in metrics if metric != spec.x), metrics[0] if metrics else None)
 
-  if spec.color_by is None or (spec.color_by != NONE_VALUE and spec.color_by not in dimensions):
-    spec.color_by = pick([schema.COL_ARCHITECTURE, schema.COL_WORKFLOW, schema.COL_SOURCE], pick(multi))
-  if spec.symbol_by is None or (spec.symbol_by != NONE_VALUE and spec.symbol_by not in dimensions):
-    spec.symbol_by = pick([schema.COL_TARGET], NONE_VALUE)
+  def resolve_multi(value, default):
+    """Keep the still-existing dimensions of a multi control; fall back to the
+    default when it is unset, or when every dimension it named disappeared."""
+    requested = normalize_dims(value)
+    kept = normalize_dims(value, dimensions)
+    if requested and not kept:
+      kept = None  # everything vanished from the data: default again
+    if kept is not None:
+      return kept
+    default = default() if callable(default) else default
+    return () if default in (None, NONE_VALUE) else (default,)
+
+  spec.color_by = resolve_multi(spec.color_by, lambda: pick([schema.COL_ARCHITECTURE, schema.COL_WORKFLOW, schema.COL_SOURCE], pick(multi)))
+  spec.symbol_by = resolve_multi(spec.symbol_by, lambda: pick([schema.COL_TARGET]))
   if spec.legend_group_by is None or (spec.legend_group_by != NONE_VALUE and spec.legend_group_by not in dimensions):
     spec.legend_group_by = pick([schema.COL_TARGET, schema.COL_SOURCE], NONE_VALUE)
-  if spec.dissociate is not None and spec.dissociate not in dimensions:
-    spec.dissociate = None
+  spec.sort_by = resolve_multi(spec.sort_by, None)
+  spec.sort_x_by = resolve_multi(spec.sort_x_by, None)
+  if spec.sort_x_order not in X_ORDERS:
+    spec.sort_x_order = DEFAULT_X_ORDER
+  spec.dissociate = resolve_multi(spec.dissociate, None)
 
   return spec

@@ -21,23 +21,39 @@
 */
 
 /*
- * Highlight ${...} variables inside the workflow task "commands" textareas.
+ * Highlight ${...} variables inside command fields: the workflow task
+ * "commands" textareas and the architecture "generate command" input.
  *
- * A textarea cannot render colored text, so each command textarea is backed by
- * a mirror <div> that holds the same text with the variables wrapped in colored
- * spans. The textarea is made transparent (text + background) and sits on top,
- * so the user still types normally while seeing the colors of the mirror.
+ * An input/textarea cannot render colored text, so each command field is backed
+ * by a mirror <div> that holds the same text with the variables wrapped in
+ * colored spans. The field is made transparent (text + background) and sits on
+ * top, so the user still types normally while seeing the colors of the mirror.
  *
- * Three colors, by where the ${name} resolves:
- *   - defined variable  : a variable card on the page (read live from the DOM)
- *   - parameter domain  : a physical domain of the workflow (window global,
+ * Four colors, by where the ${name} resolves:
+ *   - defined variable  : a variable of the instance, either a variable card on
+ *                         the page (read live from the DOM) or a window global
+ *                         pushed from Python via a clientside callback
+ *   - parameter domain  : a physical domain of the instance (window global,
  *                         pushed from Python via a clientside callback)
- *   - not found         : neither
+ *   - built-in variable : one Odatix substitutes itself ($work_path,
+ *                         ${rtl_dir}, ...), declared by the page (see
+ *                         odatix.gui.builtin_variables) with its description,
+ *                         which the hover tooltip shows
+ *   - not found         : none of them
  */
 
 (function () {
   // Both ${name} (group 1) and bare $name (group 2, a shell-style identifier).
   var VAR_PATTERN = /\$\{([^}]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
+
+  // Every highlighted field carries this class, textarea (multi-line) or input
+  // (single-line) alike.
+  var FIELD_CLASS = "odatix-command-field";
+  var FIELD_SELECTOR = "textarea." + FIELD_CLASS + ", input." + FIELD_CLASS;
+
+  function isField(element) {
+    return !!(element && element.classList && element.classList.contains(FIELD_CLASS));
+  }
 
   // Style properties the mirror must share with the textarea so the text wraps
   // at exactly the same place and the colors land under the real characters.
@@ -57,10 +73,34 @@
       .replace(/"/g, "&quot;");
   }
 
+  function nameSet(values) {
+    var names = new Set();
+    (values || []).forEach(function (value) {
+      var name = String(value || "").trim();
+      if (name) {
+        names.add(name);
+      }
+    });
+    return names;
+  }
+
+  // The element a page declares its built-in variables in, if any.
+  function builtinElement() {
+    return document.querySelector("[data-odatix-hl-builtins]");
+  }
+
+  // The window globals hold what the last page pushing them left there: a page
+  // saying it pushes none of its own must not inherit them.
+  function usesGlobals() {
+    var element = builtinElement();
+    return !(element && element.hasAttribute("data-odatix-hl-no-globals"));
+  }
+
   function definedVariableNames() {
     // The variable cards' title inputs; read live so renaming a variable
-    // recolors the commands without a save.
-    var names = new Set();
+    // recolors the commands without a save. Pages without variable cards (the
+    // architecture editor) push their variable names from Python instead.
+    var names = nameSet(usesGlobals() ? window.__odatixHlVariables : []);
     document.querySelectorAll('input[id*="variable-title"]').forEach(function (input) {
       var value = (input.value || "").trim();
       if (value) {
@@ -71,18 +111,25 @@
   }
 
   function paramDomainNames() {
-    var domains = window.__odatixWfParamDomains || [];
-    var names = new Set();
-    domains.forEach(function (domain) {
-      var value = String(domain || "").trim();
-      if (value) {
-        names.add(value);
-      }
-    });
-    return names;
+    return nameSet(usesGlobals() ? window.__odatixHlParamDomains : []);
   }
 
-  // Class + hover description for each kind of ${...} token.
+  // {name: description} of the variables Odatix substitutes itself, declared by
+  // the page in a hidden element (see odatix.gui.builtin_variables).
+  function builtinVariables() {
+    var element = builtinElement();
+    if (!element) {
+      return {};
+    }
+    try {
+      return JSON.parse(element.getAttribute("data-odatix-hl-builtins")) || {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  // Class + hover description for each kind of ${...} token. A built-in one
+  // describes itself, so it has no entry here.
   var KINDS = {
     "wf-hl-var": "user defined variable",
     "wf-hl-domain": "parameter domain",
@@ -91,7 +138,9 @@
       + "otherwise define it as a variable below",
   };
 
-  function classFor(name, variables, domains) {
+  var TOKEN_CLASSES = ["wf-hl-var", "wf-hl-domain", "wf-hl-builtin", "wf-hl-unknown"];
+
+  function classFor(name, variables, domains, builtins) {
     var key = name.trim();
     if (variables.has(key)) {
       return "wf-hl-var";
@@ -99,10 +148,13 @@
     if (domains.has(key)) {
       return "wf-hl-domain";
     }
+    if (Object.prototype.hasOwnProperty.call(builtins, key)) {
+      return "wf-hl-builtin";
+    }
     return "wf-hl-unknown";
   }
 
-  function buildHtml(text, variables, domains) {
+  function buildHtml(text, variables, domains, builtins) {
     var html = "";
     var lastIndex = 0;
     var match;
@@ -110,9 +162,10 @@
     while ((match = VAR_PATTERN.exec(text)) !== null) {
       html += escapeHtml(text.slice(lastIndex, match.index));
       var rawName = match[1] !== undefined ? match[1] : match[2];
-      var cls = classFor(rawName, variables, domains);
+      var cls = classFor(rawName, variables, domains, builtins);
       var name = rawName.trim();
-      var tip = (name ? name + ": " : "") + KINDS[cls];
+      var tip = (name ? name + ": " : "")
+        + (cls === "wf-hl-builtin" ? builtins[name] : KINDS[cls]);
       html +=
         '<span class="wf-hl-token ' + cls + '" data-wf-hl-tip="' + escapeHtml(tip) + '">'
         + escapeHtml(match[0])
@@ -128,15 +181,20 @@
     return html;
   }
 
+  function isSingleLine(field) {
+    return field.tagName === "INPUT";
+  }
+
   function ensureMirror(textarea) {
     if (textarea.__wfHlMirror) {
       return textarea.__wfHlMirror;
     }
     var wrap = document.createElement("div");
-    wrap.className = "wf-hl-wrap";
+    wrap.className = isSingleLine(textarea) ? "wf-hl-wrap wf-hl-wrap-single" : "wf-hl-wrap";
 
     var mirror = document.createElement("div");
-    mirror.className = "wf-hl-mirror";
+    // A single-line field never wraps and scrolls horizontally instead.
+    mirror.className = isSingleLine(textarea) ? "wf-hl-mirror wf-hl-mirror-single" : "wf-hl-mirror";
     mirror.setAttribute("aria-hidden", "true");
 
     // Move the textarea inside the wrapper, mirror behind it.
@@ -147,9 +205,18 @@
     textarea.classList.add("wf-hl-input");
     textarea.__wfHlMirror = mirror;
 
-    textarea.addEventListener("scroll", function () {
+    function syncScroll() {
       mirror.scrollTop = textarea.scrollTop;
       mirror.scrollLeft = textarea.scrollLeft;
+    }
+
+    textarea.addEventListener("scroll", syncScroll);
+    // A single-line input scrolls itself as the caret moves, without firing a
+    // scroll event in every browser: follow the caret on these events too.
+    ["input", "keyup", "click", "select", "focus", "blur"].forEach(function (name) {
+      textarea.addEventListener(name, function () {
+        window.requestAnimationFrame(syncScroll);
+      });
     });
 
     // Keep the mirror in step with a manual (resize handle) height change, which
@@ -163,9 +230,9 @@
     return mirror;
   }
 
-  function refreshTextarea(textarea, variables, domains) {
+  function refreshTextarea(textarea, variables, domains, builtins) {
     var mirror = ensureMirror(textarea);
-    mirror.innerHTML = buildHtml(textarea.value || "", variables, domains);
+    mirror.innerHTML = buildHtml(textarea.value || "", variables, domains, builtins);
 
     var computed = window.getComputedStyle(textarea);
     COPIED_STYLES.forEach(function (prop) {
@@ -181,14 +248,15 @@
   }
 
   function refreshAll() {
-    var textareas = document.querySelectorAll("textarea.wf-command-textarea");
+    var textareas = document.querySelectorAll(FIELD_SELECTOR);
     if (!textareas.length) {
       return;
     }
     var variables = definedVariableNames();
     var domains = paramDomainNames();
+    var builtins = builtinVariables();
     textareas.forEach(function (textarea) {
-      refreshTextarea(textarea, variables, domains);
+      refreshTextarea(textarea, variables, domains, builtins);
     });
   }
 
@@ -198,7 +266,7 @@
     if (!target) {
       return;
     }
-    if (target.classList && target.classList.contains("wf-command-textarea")) {
+    if (isField(target)) {
       refreshAll();
     } else if (target.id && String(target.id).indexOf("variable-title") !== -1) {
       refreshAll();
@@ -284,7 +352,7 @@
 
   document.addEventListener("mousemove", function (event) {
     var target = event.target;
-    if (!target || !target.classList || !target.classList.contains("wf-command-textarea")) {
+    if (!isField(target)) {
       hideTooltip();
       return;
     }
@@ -296,8 +364,10 @@
     var tip = getTooltip();
     tip.textContent = hit.token.getAttribute("data-wf-hl-tip") || "";
     // Match the tooltip color to the token kind.
-    tip.classList.remove("wf-hl-var", "wf-hl-domain", "wf-hl-unknown");
-    ["wf-hl-var", "wf-hl-domain", "wf-hl-unknown"].forEach(function (cls) {
+    TOKEN_CLASSES.forEach(function (cls) {
+      tip.classList.remove(cls);
+    });
+    TOKEN_CLASSES.forEach(function (cls) {
       if (hit.token.classList.contains(cls)) {
         tip.classList.add(cls);
       }

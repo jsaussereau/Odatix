@@ -1,0 +1,145 @@
+# Basic Configuration
+# baseURL = "https://odatix.readthedocs.io/"
+title = "Odatix"
+canonifyURLs = true
+theme = "hugo-saasify-theme"
+defaultContentLanguage = "en"
+
+# Required Features
+enableEmoji = true        # Enable emoji support
+enableGitInfo = true      # Enable Git info for lastmod
+
+# Pagination
+pagination.pagerSize = 6
+pagination.path = "page"
+
+# Required Module Configuration
+[module]
+  [[module.imports]]
+    path = "hugo-admonitions"
+  [module.hugoVersion]
+    extended = true
+    min = "0.80.0"
+
+# Required Build Configuration
+[build]
+  writeStats = true      # Required for TailwindCSS
+
+[build.buildStats]
+  enable = true
+
+# Security Configuration
+[security.funcs]
+  getenv = ['^HUGO_', '^CI$']
+
+# Required Markup Configuration
+[markup]
+  [markup.highlight]
+    noClasses = false
+    lineNos = false
+    codeFences = true
+    guessSyntax = true
+    lineNumbersInTable = true
+    tabWidth = 2
+  [markup.goldmark.renderer]
+    unsafe = true       # Allow HTML in markdown
+  [markup.tableOfContents]
+    endLevel = 3
+    ordered = false
+    startLevel = 2
+
+# Outputs: the home page also emits /index.json, the client-side search index
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+
+# Taxonomies
+[taxonomies]
+  category = 'categories'
+  tag = 'tags'
+
+# Theme Parameters
+[params]
+  description = "Odatix — a free and open-source design automation toolbox for the implementation, validation and design space exploration of configurable digital designs across FPGA and ASIC tools."
+  author = "Jonathan Saussereau"
+  logo = "/images/logos/odatix.svg"      # Path to your logo
+  # Google Analytics ID (e.g., "G-XXXXXXXXXX")
+  googleAnalytics = "G-XXXXXXXXXX"  # Only enabled in production
+
+  # Google Tag Manager ID (e.g., "GTM-XXXXXXX")
+  # Only enabled in production
+  googleTagManager = "GTM-XXXXXXX"
+
+  # Header Configuration
+  [params.header]
+    background = "bg-white/80 backdrop-blur-sm"
+    border = "border-b border-gray-100"
+    
+    # Header Logo
+    [params.header.logo]
+      src = "/images/logos/odatix.svg"
+    
+    # Header Buttons (optional)
+    [params.header.buttons]
+      [params.header.buttons.getStarted]
+        text = "Install"
+        url = "/install"
+      # [params.header.buttons.signIn]
+      #   text = "Demo"
+      #   url = "https://demo-csn.ims-bordeaux.fr/odatix"
+
+  # Global CTA Configuration (optional)
+  [params.cta]
+    enable = true
+    title = "Get Started with Odatix"
+    description = "Install Odatix and start implementing and validating your configurable digital designs across multiple FPGA and ASIC tools."
+    [params.cta.primary_button]
+      text = "Install Odatix"
+      url = "/install"
+    [params.cta.secondary_button]
+      text = "FAQ"
+      url = "/faq"
+
+  # Social Media Links (optional)
+  [params.social]
+    github = "https://github.com/jsaussereau/odatix"
+    pypi = "https://pypi.org/project/odatix/"
+    cite = "https://doi.org/10.1016/j.softx.2024.101970"
+
+# Navigation Menu
+[menu]
+  [[menu.main]]
+    name = "Features"
+    weight = 1
+    [menu.main.params]
+      has_submenu = true
+      url = "/docs/features/"
+      submenu = [
+        { name = "Architecture exploration", url = "/docs/features/architecture-exploration/" },
+        { name = "RTL analysis", url = "/docs/features/analysis/" },
+        { name = "Automated RTL synthesis", url = "/docs/features/rtl_synthesis/" },
+        { name = "Maximum frequency search", url = "/docs/features/rtl_fmax_synthesis/" },
+        { name = "Place & route", url = "/docs/pnr/" },
+        { name = "Simulation & validation", url = "/docs/features/simulation/" },
+        { name = "Custom workflows", url = "/docs/features/workflows/" },
+        { name = "Interactive results exploration", url = "/docs/features/rtl_analysis/" },
+      ]
+  [[menu.main]]
+    name = "Documentation"
+    url = "/docs"
+    weight = 2
+  [[menu.main]]
+    name = "Tutorials"
+    url = "/tutorials"
+    weight = 3
+  [[menu.main]]
+    name = "FAQ"
+    url = "/faq"
+    weight = 4
+  # [[menu.main]]
+  #   name = "Demo"
+  #   url = "https://demo-csn.ims-bordeaux.fr/odatix"
+  #   weight = 5
+  [[menu.main]]
+    name = "About"
+    url = "/about"
+    weight = 6

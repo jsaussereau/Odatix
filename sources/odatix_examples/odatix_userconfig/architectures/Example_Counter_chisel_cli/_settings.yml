@@ -1,0 +1,81 @@
+##############################################
+# Settings for counter example (command line)
+##############################################
+
+# Same counter as "Example_Counter_chisel", parameterized on the command line
+# instead of by replacing a value in the source file.
+
+# Source files
+design_path: "examples/counter_chisel_cli"
+design_path_whitelist: ['project', 'src', 'build.sbt'] # path/pattern of what should be copied from design_path
+design_path_blacklist: [] # path/pattern of what should NOT be copied from design_path
+
+# Generate the rtl (from chisel for example)
+generate_rtl: Yes
+generate_command: "sbt 'runMain example.Counter --width ${width} --o=rtl'" # this requires sbt and firtool
+generate_output: "rtl" # path of the generated rtl
+
+# Generated design settings
+top_level_file: "counter.sv"
+top_level_module: "counter"
+clock_signal: "clock"
+reset_signal: "reset"
+
+# No parameter file: nothing is replaced in the sources
+use_parameters: No
+
+##############################################
+# Virtual parameter domain
+##############################################
+
+# "${width}" in the generation command above is filled from this variable, which
+# behaves exactly like a parameter domain: the counter is synthesized once per
+# value, and a single value can be selected with
+# "odatix fmax -a Example_Counter_Chisel_CLI+width/16bits".
+# No directory, and no parameter file, needed.
+generate_configurations_settings:
+  variables:
+    width:
+      type: list
+      unit: bits # only annotates the name of the run (width/16bits)
+      settings:
+        list: [4, 8, 16, 24, 32, 48, 64]
+
+# Default frequencies (in MHz)
+fmax_synthesis:
+  lower_bound: 50
+  upper_bound: 1500
+custom_freq_synthesis:
+  list: [50, 100]
+
+# Optional target-specific frequencies (in MHz)
+xc7s25-csga225-1:
+  fmax_synthesis:
+    lower_bound: 100
+    upper_bound: 900
+  custom_freq_synthesis:
+    list: [50, 100]
+xc7a100t-csg324-1:
+  fmax_synthesis:
+    lower_bound: 250
+    upper_bound: 900
+  custom_freq_synthesis:
+    list: [50, 100]
+xc7k70t-fbg676-2:
+  fmax_synthesis:
+    lower_bound: 200
+    upper_bound: 1800
+  custom_freq_synthesis:
+    list: [50, 100]
+XFAB180CMOS:
+  fmax_synthesis:
+    lower_bound: 400
+    upper_bound: 700
+  custom_freq_synthesis:
+    list: [50, 100]
+AMS350CMOS:
+  fmax_synthesis:
+    lower_bound: 60
+    upper_bound: 160
+  custom_freq_synthesis:
+    list: [50, 100]

@@ -63,17 +63,20 @@ def get_analysis_errors_and_warnings(log_file):
                 if "Exiting due to" in line_str:
                     continue
                 if "Cannot find file containing module" in line_str:
-                    if match := re.search(r"module: '([^']+)'", line_str):
+                    match = re.search(r"module: '([^']+)'", line_str)
+                    if match:
                         errors.append(f"Module not found: {match.group(1)}")
                     else:
                         errors.append("Module not found")
                 elif "Cannot find include file" in line_str:
-                    if match := re.search(r"include file: '([^']+)'", line_str):
+                    match = re.search(r"include file: '([^']+)'", line_str)
+                    if match:
                         errors.append(f"Include file not found: {match.group(1)}")
                     else:
                         errors.append("Include file not found")
                 elif "Can't find definition of variable" in line_str:
-                    if match := re.search(r"variable: '([^']+)'", line_str):
+                    match = re.search(r"variable: '([^']+)'", line_str)
+                    if match:
                         errors.append(f"Undeclared variable: {match.group(1)}")
                     else:
                         errors.append("Reference to undeclared variable")
@@ -217,7 +220,8 @@ def get_genus_unresolved_info(unresolved_file):
                 if formatted_msg not in unresolved_instances:
                     unresolved_instances.append(formatted_msg)
             
-            if match := re.search(r"Total number of unresolved references.*:\s*(\d+)", line_str):
+            match = re.search(r"Total number of unresolved references.*:\s*(\d+)", line_str)
+            if match:
                 unresolved_count = int(match.group(1))
 
     return max(unresolved_count, len(unresolved_instances)), unresolved_instances
@@ -232,21 +236,26 @@ def get_dc_unresolved_info(log_file):
     with open(log_file, "r", errors="ignore") as f:
         for line in f:
             line_str = line.strip()
-            if match := re.search(r"Cannot find the design '([^']+)'", line_str):
+            match = re.search(r"Cannot find the design '([^']+)'", line_str)
+            if match:
                 instance = match.group(1)
                 msg = f"Unresolved: {instance} (Missing Module)"
                 if msg not in unresolved_instances:
                     unresolved_instances.append(msg)
-            elif match := re.search(r"Unable to resolve reference '([^']+)' in '([^']+)'", line_str):
-                instance = match.group(1)
-                msg = f"Unresolved: {instance} (Missing Module)"
-                if msg not in unresolved_instances:
-                    unresolved_instances.append(msg)
-            elif match := re.search(r"Design '([^']+)' has.*unresolved references", line_str):
-                instance = match.group(1)
-                msg = f"Unresolved: Hierarchy Link Issue ({instance})"
-                if msg not in unresolved_instances:
-                    unresolved_instances.append(msg)
+            else:
+                match = re.search(r"Unable to resolve reference '([^']+)' in '([^']+)'", line_str)
+                if match:
+                    instance = match.group(1)
+                    msg = f"Unresolved: {instance} (Missing Module)"
+                    if msg not in unresolved_instances:
+                        unresolved_instances.append(msg)
+                else:
+                    match = re.search(r"Design '([^']+)' has.*unresolved references", line_str)
+                    if match:
+                        instance = match.group(1)
+                        msg = f"Unresolved: Hierarchy Link Issue ({instance})"
+                        if msg not in unresolved_instances:
+                            unresolved_instances.append(msg)
 
     return len(unresolved_instances), unresolved_instances
 

@@ -111,6 +111,14 @@ class ParallelJobHandler:
         self.running_job_list = []
         self.retired_job_list = []
         self.job_queue = queue.Queue()
+
+        # Work to run once, when nothing is running and nothing is queued
+        # anymore. Per-job exports (post_run_export) cannot cover everything a
+        # batch produces: a derived metric reads records of other jobs, which
+        # may not have finished yet when a job exports its own. See
+        # odatix.components.export_derived_metrics.
+        self.post_batch_action = None
+        self._post_batch_done = False
         self.selected_job_index = 0
         self.previous_log_size = 0
         if len(self.job_list) > 0:
@@ -344,6 +352,8 @@ class ParallelJobHandler:
         with self._lock:
             self.job_list.append(job)
             self.job_count = len(self.job_list)
+            # A new job means a new batch to close: derive again once it drains.
+            self._post_batch_done = False
             self.max_title_length = max(self.max_title_length, len(job.display_name))
 
             if self.job_count == 1:
@@ -627,6 +637,9 @@ class ParallelJobHandler:
             elif export_kind == "workflow":
                 from odatix.components.export_workflow_results import export_single_workflow_job
                 export_fn = export_single_workflow_job
+            elif export_kind == "simulation":
+                from odatix.components.export_simulation_results import export_single_simulation_job
+                export_fn = export_single_simulation_job
             elif export_kind == "analysis":
                 from odatix.components.export_analysis import export_single_analysis_job
                 export_fn = export_single_analysis_job
@@ -674,6 +687,42 @@ class ParallelJobHandler:
         self._flush_job_log_buffer(job)
         return False
 
+    def _run_post_batch_action(self):
+        """
+        Run the batch-wide action once the last job of the batch has retired.
+
+        Failures are reported but never fail a job: the jobs themselves are
+        done, and their own results are already exported.
+        """
+        action = self.post_batch_action
+        if not isinstance(action, dict):
+            return
+
+        kind = str(action.get("kind", "")).strip().lower()
+        if kind == "":
+            return
+
+        try:
+            if kind == "derived_metrics":
+                from odatix.components.export_derived_metrics import apply_derived_metrics
+
+                derived_metrics_file = action.get("derived_metrics_file")
+                if derived_metrics_file and os.path.isfile(derived_metrics_file):
+                    apply_derived_metrics(action.get("result_path"), derived_metrics_file)
+            else:
+                printc.warning("Unsupported post-batch action '" + kind + "'", script_name)
+        except Exception as e:
+            printc.error("Post-batch action '" + kind + "' failed: " + str(e), script_name)
+
+    def _run_post_batch_action_if_drained(self):
+        """Run the batch-wide action when no job is running or waiting anymore."""
+        if self._post_batch_done or not isinstance(self.post_batch_action, dict):
+            return
+        if len(self.running_job_list) > 0 or not self.job_queue.empty():
+            return
+        self._post_batch_done = True
+        self._run_post_batch_action()
+
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
         for job in self.job_list:
             if job in self.retired_job_list:
@@ -693,6 +742,7 @@ class ParallelJobHandler:
                             self.run_job(job)
                             continue
                         elif hasattr(job, "_task_pipeline"):
+                            self._record_completed_step(job)
                             if self._start_next_task(job):
                                 continue
                             self._clear_task_pipeline(job)
@@ -719,6 +769,7 @@ class ParallelJobHandler:
                     self.retire_job(job, job.progress)
                     if not self.job_queue.empty():
                         self.start_job(self.job_queue.get())
+                    self._run_post_batch_action_if_drained()
 
                     if selected_job is not None and job == selected_job:
                         selected_job.log_changed = True
@@ -925,6 +976,17 @@ class ParallelJobHandler:
         cmdlines = [ln.lstrip().rstrip() for ln in cmdlines]
         return " && ".join([c[1:] if c.startswith("@") else c for c in cmdlines if c])
 
+    @staticmethod
+    def _task_steps(task):
+        """
+        The steps a task covers. A task running a whole session of the tool
+        covers several of them; any other one stands for itself.
+        """
+        steps = task.get("steps") if isinstance(task, dict) else getattr(task, "steps", None)
+        if isinstance(steps, list) and steps:
+            return [str(name) for name in steps]
+        return [ParallelJobHandler._task_name(task)]
+
     def _build_task_pipeline(self, job):
         pipeline = []
         for _, tasks in sorted(job.command.items(), key=lambda x: self._stage_sort_key(x[0])):
@@ -932,14 +994,65 @@ class ParallelJobHandler:
                 taskname = self._task_name(task)
                 full_command = self._task_full_command(task)
                 if full_command:
-                    pipeline.append((taskname, full_command))
+                    pipeline.append((taskname, full_command, self._task_steps(task)))
         return pipeline
 
     @staticmethod
+    def _record_completed_step(job):
+        """
+        Record the steps a stepped job just completed, so a later run can resume
+        after them instead of redoing them. A task running a whole session of the
+        tool completes several steps at once; the tool's own scripts may have
+        recorded them one by one already, which is what makes a session that dies
+        halfway resumable, and recording them again here is harmless. Jobs that
+        did not opt in (workflows, and flows that are not split into steps) are
+        left alone.
+        """
+        tracking = getattr(job, "step_tracking", None)
+        step_names = getattr(job, "_current_task_steps", None)
+        if not isinstance(tracking, dict) or not step_names:
+            return
+        tmp_dir = tracking.get("tmp_dir")
+        if not tmp_dir:
+            return
+        for step_name in step_names:
+            try:
+                import odatix.lib.job_steps as job_steps
+
+                job_steps.record_completed_step(tmp_dir, step_name, flow=tracking.get("flow"))
+            except Exception as e:
+                job.log_history.append(
+                    printc.colors.YELLOW + "warning: could not record step '" + str(step_name) + "': " + str(e) + printc.colors.ENDC
+                )
+
+    @staticmethod
     def _clear_task_pipeline(job):
-        for attr in ("_task_pipeline", "_task_index", "_current_task_name"):
+        for attr in ("_task_pipeline", "_task_index", "_current_task_name", "_current_task_steps",
+                     "current_step_index", "current_step_started_at", "_task_steps_recorded_before"):
             if hasattr(job, attr):
                 delattr(job, attr)
+
+    @staticmethod
+    def _recorded_step_count(job):
+        """How many steps the job directory has recorded so far, or None."""
+        tracking = getattr(job, "step_tracking", None)
+        tmp_dir = tracking.get("tmp_dir") if isinstance(tracking, dict) else None
+        if not tmp_dir:
+            return None
+        try:
+            import odatix.lib.job_steps as job_steps
+
+            return len(job_steps.completed_step_names(tmp_dir))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _step_position_of(job, step_names, fallback):
+        """Where the steps a task covers start within the run's step list."""
+        all_steps = getattr(job, "step_names", None) or []
+        if step_names and step_names[0] in all_steps:
+            return all_steps.index(step_names[0])
+        return fallback
 
     def _start_next_task(self, job):
         pipeline = getattr(job, "_task_pipeline", None)
@@ -950,9 +1063,20 @@ class ParallelJobHandler:
         if task_index >= len(pipeline):
             return False
 
-        taskname, full_command = pipeline[task_index]
+        taskname, full_command, step_names = pipeline[task_index]
         job._task_index = task_index + 1
         job._current_task_name = taskname
+        job._current_task_steps = step_names
+        # Which step the progress read from the status files belongs to, and
+        # since when they speak for it (see ParallelJob._read_status_file). A
+        # task can cover several steps, so its position is that of the first one
+        # it runs rather than its own rank in the pipeline.
+        job.current_step_index = self._step_position_of(job, step_names, task_index)
+        job.current_step_started_at = time.time()
+        # A task running several steps at once reports its progress once per
+        # step: how many steps were already recorded when it started is what
+        # lets the progress tell them apart (see ParallelJob._task_step_offset).
+        job._task_steps_recorded_before = self._recorded_step_count(job) if len(step_names or []) > 1 else None
 
         job.log_history.append(printc.colors.CYAN + "Run job task '" + taskname + "'" + printc.colors.ENDC)
         job.log_history.append(printc.colors.BOLD + " > " + full_command + printc.colors.ENDC)
@@ -1033,8 +1157,17 @@ class ParallelJobHandler:
                 self.set_nonblocking(process.stderr)
         elif isinstance(job.command, dict):
             if not hasattr(job, "_task_pipeline"):
+                # The pipeline is what is left to do: the steps already completed
+                # in the job directory were dropped when it was built (see
+                # odatix.components.synthesis_common.build_job_command).
                 job._task_pipeline = self._build_task_pipeline(job)
                 job._task_index = 0
+                resume_index = int(getattr(job, "resume_step_index", 0) or 0)
+                if resume_index > 0:
+                    skipped = ", ".join((getattr(job, "step_names", None) or [])[:resume_index])
+                    job.log_history.append(
+                        printc.colors.CYAN + "Resuming: already done -> " + skipped + printc.colors.ENDC
+                    )
 
             if not self._start_next_task(job):
                 self._clear_task_pipeline(job)

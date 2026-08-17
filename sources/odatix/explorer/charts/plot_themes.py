@@ -57,14 +57,22 @@ _PLOT_THEMES = {
 
 
 def _register_template(name, base, paper_bgcolor, plot_bgcolor, **extra):
-  pio.templates[name] = go.layout.Template(
-    layout=copy.deepcopy(pio.templates[base].layout).update(
-      paper_bgcolor=paper_bgcolor,
-      plot_bgcolor=plot_bgcolor,
-      polar_bgcolor=plot_bgcolor,
-      **extra,
-    )
+  layout = copy.deepcopy(pio.templates[base].layout).update(
+    paper_bgcolor=paper_bgcolor,
+    plot_bgcolor=plot_bgcolor,
+    polar_bgcolor=plot_bgcolor,
   )
+
+  # Some visual refinements were introduced in newer Plotly versions. Keep
+  # the theme usable with the older Plotly releases available on Python 3.6
+  # instead of failing while the module is imported.
+  for property_name, value in extra.items():
+    try:
+      layout.update(**{property_name: value})
+    except ValueError:
+      pass
+
+  pio.templates[name] = go.layout.Template(layout=layout)
 
 
 _register_template("odatix_light", "plotly_white", "#ffffff", "#ffffff")

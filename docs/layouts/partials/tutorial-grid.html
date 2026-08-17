@@ -1,0 +1,64 @@
+{{/* Card grid for the children of a tutorials section.
+
+     Context: a dict:
+       page     (required) the section page whose children are listed
+       compact  (optional) render compact cards (no cover image)
+       cols     (optional) 2 (default) or 3
+       only     (optional) "pages" or "sections" to list only one of the two
+       numbered (optional) badge each card with its position, for sections
+                           whose tutorials build on one another
+
+     Sub-sections are rendered as titled groups, each with its own grid, so
+     the hub page keeps the shape of the sidebar tree instead of flattening
+     everything into one wall of cards. */}}
+{{ $page := .page }}
+{{ $compact := .compact | default false }}
+{{ $cols := int (.cols | default 2) }}
+{{ $only := string (.only | default "") }}
+{{ $numbered := .numbered | default false }}
+{{ $gridClass := cond (eq $cols 3) "tutorial-grid tutorial-grid--3" "tutorial-grid" }}
+
+{{ $pages := slice }}
+{{ $sections := slice }}
+{{ range $page.Pages }}
+  {{ if eq .Kind "section" }}
+    {{ if ne $only "pages" }}{{ $sections = $sections | append . }}{{ end }}
+  {{ else }}
+    {{ if ne $only "sections" }}{{ $pages = $pages | append . }}{{ end }}
+  {{ end }}
+{{ end }}
+
+<div class="tutorial-collection not-prose">
+  {{ with $pages }}
+  <div class="{{ $gridClass }}">
+    {{ range $i, $p := . }}
+      {{ partial "tutorial-card.html" (dict "page" $p "compact" $compact
+           "step" (cond $numbered (add $i 1) 0)) }}
+    {{ end }}
+  </div>
+  {{ end }}
+
+  {{ range $sections }}
+  <section class="tutorial-group">
+    <div class="tutorial-group__head">
+      <div>
+        <h2 class="tutorial-group__title">
+          <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+        </h2>
+        {{ with .Description }}<p class="tutorial-group__desc">{{ . }}</p>{{ end }}
+      </div>
+      <a href="{{ .RelPermalink }}" class="tutorial-group__link">
+        {{ len .Pages }} {{ i18n "tutorialsCount" | default "tutorials" }}
+        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M4.25 10a.75.75 0 01.75-.75h8.19l-2.22-2.22a.75.75 0 111.06-1.06l3.5 3.5a.75.75 0 010 1.06l-3.5 3.5a.75.75 0 11-1.06-1.06l2.22-2.22H5a.75.75 0 01-.75-.75z" clip-rule="evenodd"/>
+        </svg>
+      </a>
+    </div>
+    <div class="{{ $gridClass }}">
+      {{ range .Pages }}
+        {{ partial "tutorial-card.html" (dict "page" . "compact" $compact) }}
+      {{ end }}
+    </div>
+  </section>
+  {{ end }}
+</div>

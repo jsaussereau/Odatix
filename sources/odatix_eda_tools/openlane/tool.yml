@@ -2,6 +2,11 @@
 # Settings for OpenLane
 ##############################################
 
+# Display metadata (used by the GUI tool selection page)
+label: "OpenLane"
+description: "Open Source OpenLane flow"
+icon: "assets/icons/openroad.png"
+
 # Group processes
 process_group: False
 report_path: runs/odatix/reports

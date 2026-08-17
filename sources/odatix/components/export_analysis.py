@@ -40,6 +40,7 @@ metrics.
 import os
 
 import odatix.lib.printc as printc
+import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.results_schema as results_schema
 from odatix.components.export_common import load_existing_results_file
@@ -67,18 +68,21 @@ def _split_architecture(architecture):
   return architecture, ""
 
 
-def _record_from_result(result, tool):
+def _record_from_result(result, tool, flow=None):
   """Build a v2 analysis record from one generate_analysis_summary() result."""
   architecture, configuration = _split_architecture(result.get("architecture", ""))
 
   meta = {
     results_schema.META_TYPE: TYPE_ANALYSIS,
-    "tool": str(tool),
+    results_schema.META_TOOL: str(tool),
     results_schema.META_ARCHITECTURE: architecture,
     results_schema.META_CONFIGURATION: configuration,
     # Informational fields (not dimensions, excluded from record identity).
     "_status": str(result.get("status", "")),
   }
+
+  if flow:
+    meta[results_schema.META_FLOW] = str(flow)
 
   error_message = result.get("error", "")
   if error_message:
@@ -106,7 +110,7 @@ def _record_from_result(result, tool):
   return results_schema.make_record(meta, metrics)
 
 
-def export_analysis_results(summary, output_dir, tool):
+def export_analysis_results(summary, output_dir, tool, flow=None):
   """
   Compile an analysis summary (as returned by
   odatix.components.analyze_results.generate_analysis_summary) into a v2 results
@@ -125,7 +129,7 @@ def export_analysis_results(summary, output_dir, tool):
 
   units, records = load_existing_results_file(output_file)
 
-  new_records = [_record_from_result(result, tool) for result in summary["results"]]
+  new_records = [_record_from_result(result, tool, flow=flow) for result in summary["results"]]
   records = results_schema.upsert_records(records, new_records)
 
   try:
@@ -145,7 +149,7 @@ def export_analysis_results(summary, output_dir, tool):
 # Per-job export (au fil de l'eau)
 ######################################
 
-def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_dir):
+def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_dir, flows=None):
   """
   Attach a per-job export descriptor to every analysis job, so the job handler
   exports its result as soon as the job finishes (au fil de l'eau — see
@@ -157,6 +161,9 @@ def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_
   sub-directories (``<tool>/<target>/<architecture>/<configuration>``). The eda
   tool and the architecture name are derived from each job's temporary
   directory, so a single call tags every tool's jobs in a shared job list.
+
+  ``flows`` is an optional {tool: flow name} mapping, recorded in each result so
+  runs of different flows of the same tool stay distinguishable.
 
   Returns:
       int: the number of jobs configured.
@@ -184,12 +191,16 @@ def configure_analysis_job_exports(parallel_jobs, *, analysis_work_root, output_
     if len(parts) < 4:  # tool / target / architecture / configuration
       continue
 
-    tool = parts[0]
+    # The work sub-directory is "<tool>" or "<tool>@<flow>" (see
+    # eda_tools.tool_work_dirname): a flow of a tool still exports into that
+    # tool's results file.
+    tool, dir_flow = eda_tools.split_tool_work_dirname(parts[0])
     architecture = parts[2] + "/" + parts[3]
 
     job.post_run_export = {
       "kind": "analysis",
       "tool": str(tool),
+      "flow": str((flows or {}).get(tool) or dir_flow or "") or None,
       "output_dir": output_dir,
       "tmp_dir": tmp_dir,
       "architecture": architecture,
@@ -213,6 +224,7 @@ def export_single_analysis_job(job, export_config=None):
     return False
 
   tool = str(config.get("tool", ""))
+  flow = config.get("flow", None)
   output_dir = str(config.get("output_dir", ""))
   tmp_dir = str(config.get("tmp_dir", ""))
   architecture = str(config.get("architecture", ""))
@@ -229,7 +241,7 @@ def export_single_analysis_job(job, export_config=None):
 
   output_file = os.path.join(output_dir, analysis_results_filename(tool))
   units, records = load_existing_results_file(output_file)
-  records = results_schema.upsert_records(records, [_record_from_result(result, tool)])
+  records = results_schema.upsert_records(records, [_record_from_result(result, tool, flow=flow)])
 
   try:
     results_schema.dump_results_file(output_file, units, records)

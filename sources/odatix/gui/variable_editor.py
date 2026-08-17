@@ -24,7 +24,7 @@ Shared configuration-variable editor used by both the Configuration Generator
 page and the Workflow Editor page.
 
 Every page renders the same variable cards (a type dropdown plus the fields of
-that type) and turns them into a ``generate_configurations_settings.variables``
+that type) and turns them into a ``variables``
 dict. The only thing that differs between the two pages is the id namespace, so
 every component id is built from a ``prefix`` argument ("" for the configuration
 generator, "wf-" for the workflow editor). Keeping this in one module means a
@@ -39,7 +39,7 @@ from dash import html, dcc
 import odatix.gui.ui_components as ui
 from odatix.gui.css_helper import Style
 from odatix.gui.icons import icon
-import odatix.components.workspace as workspace
+from odatix.workspace.configs import variable_definition
 
 # Type dropdown options, shared by every variable card.
 VARIABLE_TYPE_OPTIONS = [
@@ -109,7 +109,7 @@ def build_variables_dict(
     sources_vals, format_vals, group_vals,
 ):
     """
-    Build a ``generate_configurations_settings.variables`` dict from the values
+    Build a ``variables`` dict from the values
     of the variable card fields (one entry per index).
     """
     variables = {}
@@ -141,7 +141,7 @@ def build_variables_dict(
         elif variable_type in {"union", "disjunctive_union", "intersection", "difference"}:
             settings["sources"] = [x.strip() for x in sources_vals[idx].split(",") if x.strip()] if sources_vals[idx] else []
         group = group_vals[idx] if group_vals[idx] else None
-        variable = workspace.create_config_gen_variable_dict(name=title, type=variable_type, settings=settings, format=var_format, group=group)
+        variable = variable_definition(title, variable_type, settings, format=var_format, group=group)
         variables.update(variable)
     return variables
 

@@ -1,0 +1,23 @@
+{{ with .Inner }}{{/* don't do anything, just call it */}}{{ end }}
+{{ $groupId := default "default" (.Get "groupId") }}
+<div class="tab-panel" data-tab-group="{{ $groupId }}">
+    <div class="tab-nav" role="tablist" aria-label="Tabs">
+    {{ range $idx, $tab := .Scratch.Get "tabs" }}
+        <button
+          type="button"
+          data-tab-item="{{ .name }}"
+          data-tab-group="{{ $groupId }}"
+          role="tab"
+          aria-selected="{{ if eq $idx 0 }}true{{ else }}false{{ end }}"
+          class="tab-nav-button btn {{ cond (eq $idx 0) "active" ""}}"
+         >{{ .name }}</button>
+    {{ end }}
+    </div>
+    <div class="tab-content">
+        {{ range $idx, $tab := .Scratch.Get "tabs" }}
+        <div data-tab-item="{{ .name }}" data-tab-group="{{ $groupId }}" role="tabpanel" class="tab-item {{ cond (eq $idx 0) "active" ""}}"{{ if ne $idx 0 }} hidden{{ end }}>
+            {{ .content | safeHTML }}
+        </div>
+        {{ end }}
+    </div>
+</div>

@@ -1,0 +1,24 @@
+{
+  "name": "odatix-docs",
+  "version": "1.0.0",
+  "description": "Odatix documentation site (Hugo + TailwindCSS)",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "css": "tailwindcss -i assets/css/main.css -o static/css/style.css --minify",
+    "start": "concurrently \"npm:css -- --watch\" \"hugo server -D\"",
+    "build": "npm run css && hugo --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "postcss": "^8.4.31",
+    "postcss-cli": "^10.1.0",
+    "tailwindcss": "^3.3.5"
+  },
+  "workspaces": [
+    "packages/hugoautogen"
+  ]
+}

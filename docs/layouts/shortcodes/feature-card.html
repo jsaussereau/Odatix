@@ -1,0 +1,21 @@
+{{ if .Parent }}
+  {{ $title := trim (.Get "title" | default (.Get 0)) " " }}
+  {{ if not $title }}
+    {{- errorf "[%s] %q: feature-card shortcode requires a non-empty title" site.Language.Lang .Page.Path -}}
+  {{ end }}
+  {{ if not (.Parent.Scratch.Get "features") }}
+    {{ .Parent.Scratch.Set "features" slice }}
+  {{ end }}
+  {{ $content := .Get "description" | default "" | markdownify }}
+  {{ with .Inner }}
+    {{ $content = trim . " \n\r\t" | markdownify }}
+  {{ end }}
+  {{ .Parent.Scratch.Add "features" (dict
+    "title" $title
+    "content" $content
+    "icon" (.Get "icon")
+    "link" (.Get "link")
+  ) }}
+{{ else }}
+  {{- errorf "[%s] %q: feature-card shortcode missing its parent" site.Language.Lang .Page.Path -}}
+{{ end }}

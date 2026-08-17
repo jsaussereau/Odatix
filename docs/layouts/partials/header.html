@@ -1,0 +1,207 @@
+{{ $headerConfig := .Site.Params.header }}
+{{ $dropdownConfig := $headerConfig.menu.dropdown }}
+<div class="mobile-menu-wrapper">
+    <input type="checkbox" id="nav-toggle" class="nav-toggle">
+    <header class="fixed w-full top-0 z-50 {{ with $headerConfig.background }}{{ . }}{{ else }}bg-white/80 backdrop-blur-sm{{ end }} {{ with $headerConfig.border }}{{ . }}{{ else }}border-b border-gray-100{{ end }}">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+            <nav class="flex items-center justify-between h-20">
+                <!-- Logo and Title -->
+                <a href="{{ "/" | relLangURL }}" class="flex items-center space-x-4">
+                    {{ with $headerConfig.logo }}
+                        <img src="{{ .src | relURL }}" alt="{{ $.Site.Title }}" class="{{ with .class }}{{ . }}{{ else }}h-12{{ end }}">
+                    {{ else }}
+                        <span class="text-3xl font-bold text-gray-900">{{ .Site.Title }}</span>
+                    {{ end }}
+                    {{ if .Site.Title }}
+                        <span class="text-3xl font-semibold text-gray-800">{{ .Site.Title }}</span>
+                    {{ end }}
+                </a>
+
+                <!-- Navigation -->
+                <div class="hidden xl:flex items-center {{ with $headerConfig.menu.spacing }}{{ . }}{{ else }}space-x-8{{ end }}">
+                    {{ range .Site.Menus.main }}
+                        {{ if .Params.has_submenu }}
+                        <div class="relative group">
+                            {{ $triggerClass := printf "flex items-center %s" (or $headerConfig.menu.linkClass "text-base text-gray-900 hover:text-primary-600 font-bold transition duration-200") }}
+                            {{ $chevron := `<svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>` | safeHTML }}
+                            {{ if .Params.url }}
+                            <a href="{{ .Params.url }}" class="{{ $triggerClass }}">{{ .Name }}{{ $chevron }}</a>
+                            {{ else }}
+                            <button class="{{ $triggerClass }}">{{ .Name }}{{ $chevron }}</button>
+                            {{ end }}
+                            <div class="absolute left-0 mt-2 {{ $dropdownConfig.width | default "w-72" }} opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-in-out">
+                                <div class="{{ $dropdownConfig.container_padding | default "py-6" }} {{ $dropdownConfig.background | default "bg-white" }} {{ $dropdownConfig.border | default "border border-gray-100" }} {{ $dropdownConfig.shadow | default "shadow-xl" }} {{ $dropdownConfig.radius | default "rounded-lg" }}">
+                                    {{ range .Params.submenu }}
+                                    <a href="{{ .url }}" class="block {{ $dropdownConfig.item_padding | default "px-8 py-3" }} {{ $dropdownConfig.text_size | default "text-sm" }} {{ $dropdownConfig.text_color | default "text-gray-700" }} {{ $dropdownConfig.hover_background | default "hover:bg-gray-50" }}">{{ .name }}</a>
+                                    {{ end }}
+                                </div>
+                            </div>
+                        </div>
+                        {{ else }}
+                        <a href="{{ .URL }}" class="{{ with $headerConfig.menu.linkClass }}{{ . }}{{ else }}text-base text-gray-900 hover:text-primary-600 font-bold transition duration-200{{ end }}">{{ .Name }}</a>
+                        {{ end }}
+                    {{ end }}
+
+                    <!-- Language Switcher -->
+                    {{ partial "language-switcher" . }}
+                </div>
+
+                <!-- CTA Buttons -->
+                <div class="hidden xl:flex items-center space-x-4">
+                    {{ partial "search.html" "button" }}
+                {{ if not $headerConfig.hideButtons }}
+                    {{ with $headerConfig.buttons.signIn }}
+                    <a href="{{ .url | default "#" }}" class="{{ with .class }}{{ . }}{{ else }}inline-flex items-center justify-center px-6 py-3 rounded-lg font-bold transition duration-200 ease-in-out border-2 border-gray-200 hover:border-primary-600 hover:text-primary-600{{ end }}">
+                        {{ .text | default "Sign in" }}
+                    </a>
+                    {{ end }}
+                    
+                    {{ with $headerConfig.buttons.getStarted }}
+                    <a href="{{ .url | default "#" }}" class="{{ with .class }}{{ . }}{{ else }}inline-flex items-center justify-center px-6 py-3 rounded-lg font-bold transition duration-200 ease-in-out bg-primary-600 text-white hover:bg-primary-700 hover:scale-105{{ end }}">
+                        {{ .text | default "Get Started" }}
+                    </a>
+                    {{ end }}
+                {{ end }}
+                </div>
+
+                <!-- Mobile Menu Toggle -->
+                <div class="xl:hidden">
+                    <label for="nav-toggle" class="p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2 transition-colors cursor-pointer">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </label>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div class="nav-content xl:hidden w-full fixed left-0 right-0 top-20 bg-white border-t border-gray-100 shadow-lg max-h-[calc(100vh-5rem)] overflow-y-auto">
+            <div class="w-full px-6 py-4">
+                <div class="pb-4 border-b border-gray-100 mb-2">
+                    {{ partial "search.html" "button" }}
+                </div>
+                {{ range .Site.Menus.main }}
+                    {{ if .Params.has_submenu }}
+                    <div class="py-2">
+                        <div class="flex items-center justify-between w-full">
+                            {{ if .Params.url }}
+                            <a href="{{ .Params.url }}" class="text-xl text-gray-900 hover:text-primary-600 font-bold py-2">{{ .Name }}</a>
+                            {{ else }}
+                            <span class="text-xl text-gray-900 font-bold py-2">{{ .Name }}</span>
+                            {{ end }}
+                            <button class="flex items-center py-2 pl-4 mobile-submenu-toggle" aria-expanded="false" aria-label="Toggle {{ .Name }} submenu">
+                                <svg class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="pl-4 hidden mobile-submenu-content">
+                            {{ range .Params.submenu }}
+                            <a href="{{ .url }}" class="block text-gray-700 hover:text-primary-600 py-2">{{ .name }}</a>
+                            {{ end }}
+                        </div>
+                    </div>
+                    {{ else }}
+                    <a href="{{ .URL }}" class="{{ with $headerConfig.menu.mobileLinkClass }}{{ . }}{{ else }}block text-xl text-gray-900 hover:text-primary-600 font-bold transition duration-200 py-2{{ end }}">{{ .Name }}</a>
+                    {{ end }}
+                {{ end }}
+
+                <!-- Mobile Language Switcher -->
+                {{ if hugo.IsMultilingual }}
+                <div class="py-4 border-t border-gray-200 mt-4">
+                    <select id="mobile-language-select" class="block w-full px-6 py-3 rounded-lg font-bold text-base transition duration-200 ease-in-out border-2 border-gray-200 hover:border-primary-600 bg-white text-gray-900 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600">
+                        {{ range .Site.Languages }}
+                        <option value="{{ .Lang }}" {{ if eq $.Site.Language.Lang .Lang }}selected{{ end }}>{{ .LanguageName }}</option>
+                        {{ end }}
+                    </select>
+                </div>
+                {{ end }}
+
+                {{ if not $headerConfig.hideButtons }}
+                <div class="pt-4 space-y-4">
+                    {{ with $headerConfig.buttons.signIn }}
+                    <a href="{{ .url | default "#" }}" class="{{ with .mobileClass }}{{ . }}{{ else }}block text-center px-6 py-3 rounded-lg font-bold transition duration-200 ease-in-out border-2 border-gray-200 hover:border-primary-600 hover:text-primary-600{{ end }}">
+                        {{ .text | default "Sign in" }}
+                    </a>
+                    {{ end }}
+                    
+                    {{ with $headerConfig.buttons.getStarted }}
+                    <a href="{{ .url | default "#" }}" class="{{ with .mobileClass }}{{ . }}{{ else }}block text-center px-6 py-3 rounded-lg font-bold transition duration-200 ease-in-out bg-primary-600 text-white hover:bg-primary-700 hover:scale-105{{ end }}">
+                        {{ .text | default "Get Started" }}
+                    </a>
+                    {{ end }}
+                </div>
+                {{ end }}
+            </div>
+        </div>
+    </header>
+
+    <!-- Search modal (rendered here rather than in baseof, which the theme owns;
+         the partial re-parents itself to <body> so no ancestor can clip it) -->
+    {{ partial "search.html" "modal" }}
+
+    <style>
+        .mobile-menu-wrapper {
+            position: relative;
+        }
+        .nav-toggle {
+            display: none;
+        }
+        .nav-content {
+            display: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .nav-toggle:checked ~ header .nav-content {
+            display: block;
+        }
+    </style>
+
+    <script>
+        (function() {
+            var navToggle = document.getElementById('nav-toggle');
+            if (navToggle) {
+                navToggle.addEventListener('change', function() {
+                    if (this.checked) {
+                        document.body.style.overflow = 'hidden';
+                    } else {
+                        document.body.style.overflow = '';
+                    }
+                });
+            }
+
+            var toggles = document.querySelectorAll('.mobile-submenu-toggle');
+            toggles.forEach(function(toggle) {
+                toggle.addEventListener('click', function() {
+                    var content = this.parentElement.nextElementSibling;
+                    var expanded = this.getAttribute('aria-expanded') === 'true';
+                    this.setAttribute('aria-expanded', !expanded);
+                    content.classList.toggle('hidden');
+                    this.querySelector('svg').style.transform = expanded ? '' : 'rotate(180deg)';
+                });
+            });
+
+            var mobileLangSelect = document.getElementById('mobile-language-select');
+            if (mobileLangSelect) {
+                mobileLangSelect.addEventListener('change', function() {
+                    var lang = this.value;
+                    if (typeof localStorage !== 'undefined') {
+                        localStorage.setItem('hugo_preferred_language', lang);
+                    }
+                    window.location.href = '/' + lang + '/';
+                });
+            }
+
+            var homeScrollArrow = document.getElementById('home-scroll-arrow');
+            if (homeScrollArrow) {
+                homeScrollArrow.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    window.scrollTo({
+                        top: Math.max(window.innerHeight - 80, 0),
+                        behavior: 'smooth'
+                    });
+                });
+            }
+        })();
+    </script>
+</div>

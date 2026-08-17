@@ -22,13 +22,35 @@
 """
 Exported Metrics Editor page.
 
-Edits the metrics definition file ("_metrics.yml") of a workflow, i.e. how the
-workflow results are extracted from each run at export time (see
-odatix.components.export_workflow_results). Reached from the Workflow Editor via
-its "Edit Metrics" button (/metric_editor?workflow={workflow_name}).
+Edits how results are extracted from each run at export time, in two modes:
 
-The page has two independent sections, stored under the "metrics" and "metadata"
-keys of the same "_metrics.yml" file:
+  - workflow mode (/metric_editor?workflow=<name>, from the Workflow Editor):
+    the workflow's "_metrics.yml" (see
+    odatix.components.export_workflow_results);
+  - simulation mode (/metric_editor?simulation=<name>, from the Simulation
+    Editor or /architectures): the simulation's "_metrics.yml" (see
+    odatix.components.export_simulation_results). Simulations converged with
+    workflows, so this mode is the workflow one with a different file to write;
+  - tool mode (/metric_editor?tool=<name>, from /tools or the Tool Editor): the
+    metrics of an eda tool (see odatix.components.export_results).
+
+In tool mode the page shows both layers of the tool's metrics (see
+odatix.lib.metrics): the ones shipped with Odatix and the workspace
+"metrics.yml" that completes, overrides or removes them. Every card is editable,
+built-in metrics included — editing one writes an override in the workspace and
+never touches what Odatix ships. Only the workspace layer is written, and only
+what it actually changes: a card left exactly as the built-in metric defines it
+saves nothing and keeps following it.
+
+Each card says what your workspace holds for that metric, recomputed live as the
+fields are edited: "built-in" (nothing of yours), "overridden" (your definition
+wins) or "removed" (excluded from the exported results, saved as an empty
+entry). Its reset button drops whatever the workspace says about it, whether an
+override or its removal. Workflow mode has a single layer, so its cards have
+neither badge nor reset button.
+
+The workflow mode has two independent sections, stored under the "metrics" and
+"metadata" keys of the same "_metrics.yml" file:
   - Metrics:  the result values you compare and plot (area, frequency, ...).
   - Metadata: extra dimensions that describe/index the metrics (e.g. a sweep
     variable). Combined with "Multiple values", a single run expands into one
@@ -43,16 +65,26 @@ Configuration Generator / Workflow Editor pages.
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
-import odatix.components.workspace as workspace
+import odatix.lib.metrics as metrics_lib
 from odatix.gui.icons import icon
-from odatix.gui.utils import get_key_from_url
+from odatix.gui.utils import get_key_from_url, get_workspace
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.lib.settings import OdatixSettings
 
 page_path = "/metric_editor"
+
+# The page has two edit modes, selected by the URL query:
+#   ?workflow=<name>  -> workflow metrics: two sections (metrics + metadata),
+#                        stored in the workflow's "_metrics.yml".
+#   ?simulation=<name>-> simulation metrics: same two sections, stored in the
+#                        simulation's "_metrics.yml".
+#   ?tool=<name>      -> eda tool metrics: three sections (fmax synthesis /
+#                        custom frequency synthesis / common), stored in the
+#                        tool's "metrics.yml".
+# The same prefixed card UI is reused for every section; only the section labels
+# and the load/save target differ between modes.
 
 dash.register_page(
     __name__,
@@ -62,9 +94,11 @@ dash.register_page(
     order=6,
 )
 
-# The two sections and the "_metrics.yml" key each of them is stored under.
+# The three reusable section card-rows. Workflow mode uses the first two;
+# tool mode uses all three (see WORKFLOW_SECTIONS / TOOL_SECTIONS below).
 METRIC_PREFIX = "metric"
 META_PREFIX = "metadata"
+THIRD_PREFIX = "metric3"
 
 # Explanations of what each section is, shown as tooltips and reused in code.
 METRIC_TOOLTIP = (
@@ -76,6 +110,24 @@ META_TOOLTIP = (
     "Combined with a metric's 'Multiple values' option, a single run expands into "
     "one result entry per metadata value."
 )
+
+# Tool metric sections: (card-row prefix, section label, tooltip, metrics.yml key).
+FMAX_TOOLTIP = "Metrics extracted only for maximum-frequency synthesis."
+CUSTOM_FREQ_TOOLTIP = "Metrics extracted only for custom-frequency synthesis."
+COMMON_TOOLTIP = "Metrics extracted for every flow (e.g. area, resource counts)."
+
+WORKFLOW_SECTIONS = [
+    (METRIC_PREFIX, "Metrics", METRIC_TOOLTIP, "metrics"),
+    (META_PREFIX, "Metadata Dimensions", META_TOOLTIP, "metadata"),
+]
+TOOL_SECTIONS = [
+    (METRIC_PREFIX, "Fmax synthesis metrics", FMAX_TOOLTIP, "fmax_synthesis_metrics"),
+    (META_PREFIX, "Custom frequency synthesis metrics", CUSTOM_FREQ_TOOLTIP, "custom_freq_synthesis_metrics"),
+    (THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, "metrics"),
+]
+
+def _sections_for_mode(is_tool):
+    return TOOL_SECTIONS if is_tool else WORKFLOW_SECTIONS
 
 # Metric extraction types and the fields each of them uses.
 METRIC_TYPE_OPTIONS = [
@@ -99,21 +151,46 @@ FIELD_VISIBILITY = {
     "operation": {"op"},
 }
 
+# What a card's metric is, in tool mode (see odatix.lib.metrics). Every card is
+# editable; this only says what saving it will write to the workspace
+# metrics.yml, and is recomputed live as the fields are edited:
+#   - "builtin":   still exactly what Odatix defines. Nothing is written for it:
+#                  the built-in definition keeps being used.
+#   - "workspace": a metric of your own, or a built-in one you changed. Saved as
+#                  a definition in the workspace metrics.yml, which overrides
+#                  the built-in one.
+#   - "removed":   a built-in metric excluded from the exported results. Saved as
+#                  an empty ("null") entry.
+# Workflow mode has a single layer, so its cards are always "workspace".
+ORIGIN_WORKSPACE = "workspace"
+ORIGIN_BUILTIN = "builtin"
+ORIGIN_REMOVED = "removed"
+
+# Badge shown at the top of a card, telling what the workspace holds for that
+# metric. A metric of your own that no built-in one shares a name with gets no
+# badge: there is nothing to compare it to.
+ORIGIN_NOTES = {
+    ORIGIN_BUILTIN: (
+        "built-in",
+        "Defined by Odatix. Edit any field to override it in your workspace; "
+        "the built-in definition stays untouched.",
+    ),
+    ORIGIN_WORKSPACE: (
+        "overridden",
+        "This built-in metric is overridden in your workspace. Use the reset button "
+        "to drop your changes and go back to the built-in definition.",
+    ),
+    ORIGIN_REMOVED: (
+        "removed",
+        "This built-in metric is excluded from the exported results. Use the reset "
+        "button to bring it back.",
+    ),
+}
+
 
 ######################################
 # Helpers
 ######################################
-
-def _get_workflow_path(odatix_settings):
-    workflow_path = odatix_settings.get("workflow_path", "") if isinstance(odatix_settings, dict) else ""
-    if workflow_path:
-        return workflow_path
-
-    settings_data = OdatixSettings.get_settings_file_dict(silent=True)
-    if isinstance(settings_data, dict):
-        return settings_data.get("workflow_path", OdatixSettings.DEFAULT_WORKFLOW_PATH)
-
-    return OdatixSettings.DEFAULT_WORKFLOW_PATH
 
 def _checked(value):
     """Turn a checklist value ([True]/[]) or bool into a plain bool."""
@@ -154,18 +231,116 @@ def build_metric_definition(
         definition["multiple"] = True
     return definition
 
-def build_section_dict(
+def card_fields_of(definition):
+    """
+    The card field values a metric definition is rendered with, as the keyword
+    arguments of metric_card. Used both to build a card and to compare a card
+    with the built-in definition of the same metric.
+    """
+    d = definition if isinstance(definition, dict) else {}
+    settings = d.get("settings", {})
+    if not isinstance(settings, dict):
+        settings = {}
+    return dict(
+        type_value=d.get("type", "regex"),
+        file_value=str(settings.get("file", "")),
+        pattern_value=str(settings.get("pattern", "")),
+        group_id_value=str(settings.get("group_id", "")),
+        key_value=str(settings.get("key", "")),
+        op_value=str(settings.get("op", "")),
+        unit_value=str(d.get("unit", "")),
+        format_value=str(d.get("format", "")),
+        error_if_missing_value=bool(d.get("error_if_missing", True)),
+        multiple_value=bool(d.get("multiple", False)),
+    )
+
+def normalized_definition(definition):
+    """
+    A metric definition as the editor would save it: the same definition read
+    into a card and built back from it. Comparing a card with a built-in metric
+    goes through this, so that differences of writing (a group id written as a
+    string, a default spelled out) do not read as a change.
+    """
+    fields = card_fields_of(definition)
+    return build_metric_definition(
+        fields["type_value"], fields["file_value"], fields["pattern_value"],
+        fields["group_id_value"], fields["key_value"], fields["op_value"],
+        fields["unit_value"], fields["format_value"],
+        fields["error_if_missing_value"], fields["multiple_value"],
+    )
+
+def card_origin(name, definition, removed, builtin_section):
+    """
+    What a card currently is with respect to the built-in metrics (see ORIGIN_*):
+    a metric no built-in one shares its name with is always the workspace's own.
+    """
+    if name not in (builtin_section or {}):
+        return ORIGIN_WORKSPACE
+    if removed:
+        return ORIGIN_REMOVED
+    if definition == normalized_definition(builtin_section[name]):
+        return ORIGIN_BUILTIN
+    return ORIGIN_WORKSPACE
+
+def section_definitions(
     names, types, file_vals, pattern_vals, group_id_vals, key_vals, op_vals,
     unit_vals, format_vals, error_vals, multiple_vals,
 ):
-    """Build a name -> definition dict from one section's card field values."""
+    """The definition each card of a section currently holds, in card order."""
+    definitions = []
+    for idx in range(len(names) if isinstance(names, list) else 0):
+        definitions.append(build_metric_definition(
+            types[idx] if idx < len(types) else "regex",
+            file_vals[idx] if idx < len(file_vals) else "",
+            pattern_vals[idx] if idx < len(pattern_vals) else "",
+            group_id_vals[idx] if idx < len(group_id_vals) else "",
+            key_vals[idx] if idx < len(key_vals) else "",
+            op_vals[idx] if idx < len(op_vals) else "",
+            unit_vals[idx] if idx < len(unit_vals) else "",
+            format_vals[idx] if idx < len(format_vals) else "",
+            error_vals[idx] if idx < len(error_vals) else [True],
+            multiple_vals[idx] if idx < len(multiple_vals) else [],
+        ))
+    return definitions
+
+def card_origins(names, definitions, origins, builtin_section):
+    """
+    What each card of a section currently is (see ORIGIN_*), from the values
+    being edited rather than from what it was rendered as. `origins` is only
+    read for the cards excluded from the export, which are not editable.
+    """
+    result = []
+    for idx, definition in enumerate(definitions):
+        name = str(names[idx]).strip() if idx < len(names) and names[idx] is not None else ""
+        removed = (origins[idx] if idx < len(origins) else "") == ORIGIN_REMOVED
+        result.append(card_origin(name, definition, removed, builtin_section))
+    return result
+
+def build_section_dict(
+    names, types, file_vals, pattern_vals, group_id_vals, key_vals, op_vals,
+    unit_vals, format_vals, error_vals, multiple_vals, origins=None,
+    builtin_section=None,
+):
+    """
+    Build the workspace content of one section from its card field values:
+    a name -> definition dict, where a metric excluded from the export maps to
+    None.
+
+    A card left exactly as the built-in metric defines it is not written at all:
+    the workspace file holds only what it changes, so a built-in metric Odatix
+    later improves keeps improving unless you took it over.
+    """
     result = {}
     nb = len(names) if isinstance(names, list) else 0
     for idx in range(nb):
         name = str(names[idx]).strip() if idx < len(names) and names[idx] is not None else ""
         if name == "":
             continue
-        result[name] = build_metric_definition(
+        origin = origins[idx] if origins is not None and idx < len(origins) else ORIGIN_WORKSPACE
+        if origin == ORIGIN_REMOVED:
+            result[name] = None
+            continue
+        definition = build_metric_definition(
             types[idx] if idx < len(types) else "regex",
             file_vals[idx] if idx < len(file_vals) else "",
             pattern_vals[idx] if idx < len(pattern_vals) else "",
@@ -177,6 +352,9 @@ def build_section_dict(
             error_vals[idx] if idx < len(error_vals) else [True],
             multiple_vals[idx] if idx < len(multiple_vals) else [],
         )
+        if card_origin(name, definition, False, builtin_section) == ORIGIN_BUILTIN:
+            continue
+        result[name] = definition
     return result
 
 
@@ -184,17 +362,36 @@ def build_section_dict(
 # UI Components
 ######################################
 
-def metric_title(workflow_name):
+def metric_title(name, is_tool=False, mode="workflow"):
+    if is_tool:
+        settings_link = f"/tool_editor?tool={name}"
+        settings_text = "Tool Settings"
+        settings_tooltip = "Back to the Tool Editor for this tool"
+        back_link = f"/tool_editor?tool={name}" if name else "/tools"
+        empty_text = "No tool selected"
+    elif mode == "simulation":
+        settings_link = f"/sim_editor?sim={name}"
+        settings_text = "Simulation Settings"
+        settings_tooltip = "Back to the Simulation Editor for this simulation"
+        back_link = f"/sim_editor?sim={name}" if name else "/architectures"
+        empty_text = "No simulation selected"
+    else:
+        settings_link = f"/workflow_editor?workflow={name}"
+        settings_text = "Workflow Settings"
+        settings_tooltip = "Back to the Workflow Editor for this workflow"
+        back_link = f"/workflow_editor?workflow={name}" if name else "/workflows"
+        empty_text = "No workflow selected"
+
     title_buttons = html.Div(
         children=[
             ui.icon_button(
                 id="button-open-workflow-editor",
                 icon=icon("gear", className="icon blue"),
-                text="Workflow Settings",
-                tooltip="Back to the Workflow Editor for this workflow",
+                text=settings_text,
+                tooltip=settings_tooltip,
                 tooltip_options="bottom delay",
                 color="default",
-                link=f"/workflow_editor?workflow={workflow_name}",
+                link=settings_link,
                 multiline=False,
                 width="150px",
             ),
@@ -215,7 +412,7 @@ def metric_title(workflow_name):
                         html.Div(
                             children=[
                                 html.H3(
-                                    f"{workflow_name}" if workflow_name else "No workflow selected",
+                                    f"{name}" if name else empty_text,
                                     id="metric-workflow-title",
                                     style={"marginBottom": "0px"},
                                 )
@@ -232,7 +429,7 @@ def metric_title(workflow_name):
                         "justifyContent": "space-between",
                     },
                 ),
-                ui.back_button(link=f"/workflow_editor?workflow={workflow_name}" if workflow_name else "/workflows"),
+                ui.back_button(link=back_link),
             ],
             className="tile title",
             style={"position": "relative"},
@@ -241,7 +438,7 @@ def metric_title(workflow_name):
         style={"marginTop": "0px", "marginBottom": "10px"},
     )
 
-def metric_field(prefix, var, name, label, value="", placeholder="", type="text", options=None, default_style=Style.hidden, tooltip=""):
+def metric_field(prefix, var, name, label, value="", placeholder="", type="text", options=None, default_style=Style.hidden, tooltip="", disabled=False):
     return html.Div(
         children=[
             html.Div(
@@ -252,6 +449,7 @@ def metric_field(prefix, var, name, label, value="", placeholder="", type="text"
                         value=value,
                         type=type,
                         placeholder=placeholder,
+                        disabled=disabled,
                         id={"type": f"{prefix}-field-{name}", "name": var},
                         className="value-input",
                         style={
@@ -269,6 +467,7 @@ def metric_field(prefix, var, name, label, value="", placeholder="", type="text"
                         options=options,
                         value=value,
                         clearable=False,
+                        disabled=disabled,
                         style={"fontSize": "0.95em", "zIndex": "900", "width": "100%"},
                     ),
                 ],
@@ -279,18 +478,73 @@ def metric_field(prefix, var, name, label, value="", placeholder="", type="text"
         style=default_style,
     )
 
+def origin_note_children(origin, has_builtin):
+    """The badge content of a card: what your workspace says about that metric."""
+    note = ORIGIN_NOTES.get(origin) if has_builtin else None
+    if note is None:
+        return []
+    return [html.Span(note[0]), ui.tooltip_icon(note[1])]
+
+def origin_note_style(origin, has_builtin):
+    """The badge style: hidden for a metric there is nothing to say about."""
+    if not has_builtin or origin not in ORIGIN_NOTES:
+        return {"display": "none"}
+    return {
+        "display": "flex",
+        "alignItems": "center",
+        "fontSize": "0.75em",
+        "opacity": "0.75" if origin != ORIGIN_BUILTIN else "0.6",
+        "color": "var(--theme-warning-color)" if origin != ORIGIN_BUILTIN else "inherit",
+        "textTransform": "uppercase",
+        "letterSpacing": "0.05em",
+        "whiteSpace": "nowrap",
+        "margin": "0 6px",
+    }
+
 def metric_card(
     prefix,
     name,
     type_value="regex",
     file_value="", pattern_value="", group_id_value="", key_value="", op_value="",
     unit_value="", format_value="", error_if_missing_value=True, multiple_value=False,
+    origin=ORIGIN_WORKSPACE,
+    has_builtin=None,
 ):
+    """
+    One metric card. Every field is editable, whatever the metric is: editing a
+    built-in metric writes an override in the workspace, it never touches what
+    Odatix ships.
+
+    `origin` (see ORIGIN_*) is what the card is when it is rendered, shown as a
+    badge and recomputed live while the fields are edited. `has_builtin` says
+    whether a built-in metric of that name exists, which is what the reset
+    button goes back to; it defaults to what `origin` implies.
+
+    Every card carries all of its buttons, hidden when they do not apply, so
+    each button list stays aligned with the card list in the callbacks.
+    """
+    removed = origin == ORIGIN_REMOVED
+    if has_builtin is None:
+        has_builtin = origin in (ORIGIN_BUILTIN, ORIGIN_REMOVED)
+    # A removed metric is not edited: its fields are shown greyed out, as the
+    # built-in definition the reset button brings back.
+    read_only = removed
+
+    def button_style(shown):
+        return {"display": "flex", "alignItems": "center"} if shown else {"display": "none"}
+
     return html.Div([
         html.Div([
             dcc.Input(
+                value=origin,
+                type="text",
+                id={"type": f"{prefix}-origin", "name": name},
+                style={"display": "none"},
+            ),
+            dcc.Input(
                 value=name,
                 type="text",
+                disabled=read_only,
                 id={"type": f"{prefix}-title", "name": name},
                 className="title-input",
                 style={
@@ -310,30 +564,31 @@ def metric_card(
                 options=METRIC_TYPE_OPTIONS,
                 value=type_value,
                 clearable=False,
+                disabled=read_only,
                 style={"width": "100%"},
             ),
             html.Div(
                 children=[
-                    metric_field(prefix, name, "file", "File", value=file_value, default_style=Style.visible,
+                    metric_field(prefix, name, "file", "File", value=file_value, default_style=Style.visible, disabled=read_only,
                                  tooltip="File (relative to the run directory) the value is extracted from."),
-                    metric_field(prefix, name, "pattern", "Pattern", value=pattern_value,
+                    metric_field(prefix, name, "pattern", "Pattern", value=pattern_value, disabled=read_only,
                                  tooltip="Regular expression to search for in the file."),
-                    metric_field(prefix, name, "group_id", "Group ID", value=group_id_value, type="number",
+                    metric_field(prefix, name, "group_id", "Group ID", value=group_id_value, type="number", disabled=read_only,
                                  tooltip="Index of the regex capture group to use as the value."),
-                    metric_field(prefix, name, "key", "Key", value=key_value,
+                    metric_field(prefix, name, "key", "Key", value=key_value, disabled=read_only,
                                  tooltip="Column (CSV), key (YAML/JSON) or element path (XML, e.g. 'timing/slack' or 'cell@area') to read the value from. Leave empty for the whole file."),
-                    metric_field(prefix, name, "op", "Operation", value=op_value,
+                    metric_field(prefix, name, "op", "Operation", value=op_value, disabled=read_only,
                                  tooltip="Expression evaluated from other metric values (e.g. area / frequency)."),
                     html.Div(
                         children=[
-                            metric_field(prefix, name, "unit", "Unit", value=unit_value, default_style=Style.visible,
+                            metric_field(prefix, name, "unit", "Unit", value=unit_value, default_style=Style.visible, disabled=read_only,
                                          tooltip="Optional unit displayed with the metric."),
-                            metric_field(prefix, name, "format", "Format", value=format_value, default_style=Style.visible,
+                            metric_field(prefix, name, "format", "Format", value=format_value, default_style=Style.visible, disabled=read_only,
                                          tooltip="Optional printf-style format applied to the numeric value (e.g. %.2f)."),
                             html.Div(
                                 children=[
                                     dcc.Checklist(
-                                        options=[{"label": "Error if missing", "value": True}],
+                                        options=[{"label": "Error if missing", "value": True, "disabled": read_only}],
                                         value=[True] if error_if_missing_value else [],
                                         id={"type": f"{prefix}-field-error_if_missing", "name": name},
                                         className="checklist-switch",
@@ -341,7 +596,7 @@ def metric_card(
                                     ),
                                     ui.tooltip_icon("If checked, an error is raised when the value cannot be extracted. If unchecked, the run is simply skipped for this field."),
                                     dcc.Checklist(
-                                        options=[{"label": "Multiple values", "value": True}],
+                                        options=[{"label": "Multiple values", "value": True, "disabled": read_only}],
                                         value=[True] if multiple_value else [],
                                         id={"type": f"{prefix}-field-multiple", "name": name},
                                         className="checklist-switch",
@@ -369,9 +624,40 @@ def metric_card(
                     tooltip_options="bottom small",
                 )
             ], id={"type": f"{prefix}-more-fields-div", "name": name}, style={"display": "flex", "alignItems": "center"}),
+            # What your workspace holds for this metric, between the two button
+            # groups of the card footer (see origin_note_style).
+            html.Div(
+                children=origin_note_children(origin, has_builtin),
+                id={"type": f"{prefix}-origin-note", "name": name},
+                style=origin_note_style(origin, has_builtin),
+            ),
             html.Div([
-                ui.duplicate_button(id={"type": f"{prefix}-duplicate", "name": name}),
-                ui.delete_button(id={"type": f"{prefix}-delete", "name": name}),
+                html.Div(
+                    [ui.icon_button(
+                        icon=icon("reset", className="icon default"),
+                        color="default",
+                        id={"type": f"{prefix}-reset", "name": name},
+                        tooltip="Reset to the built-in metric: drop what your workspace says about it",
+                        tooltip_options="bottom auto",
+                    )],
+                    id={"type": f"{prefix}-reset-div", "name": name},
+                    style=button_style(has_builtin),
+                ),
+                html.Div(
+                    [ui.duplicate_button(
+                        id={"type": f"{prefix}-duplicate", "name": name},
+                        tooltip="Duplicate into a metric of your own",
+                    )],
+                    style=button_style(not removed),
+                ),
+                html.Div(
+                    [ui.delete_button(
+                        id={"type": f"{prefix}-delete", "name": name},
+                        tooltip="Exclude this built-in metric from the exported results"
+                                if has_builtin else "Delete",
+                    )],
+                    style=button_style(not removed),
+                ),
             ], style={"display": "flex", "flexDirection": "row", "alignItems": "center", "gap": "5px"}),
         ], style={
             "marginTop": "8px",
@@ -388,6 +674,7 @@ def metric_card(
         "margin": "5px",
         "display": "inline-block",
         "verticalAlign": "top",
+        **({"opacity": "0.55"} if removed else {}),
     })
 
 def add_card(prefix, text):
@@ -395,8 +682,8 @@ def add_card(prefix, text):
         html.Div(
             html.Div(
                 children=[
-                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingTop": "20px"}),
-                    html.Div("+", style={"fontSize": "2.5em", "lineHeight": "80px", "height": "80px"}),
+                    html.Div("+", style={"fontSize": "2.5em", "lineHeight": "80px", "height": "80px", "marginTop": "-2px", "marginBottom": "-16px"}),
+                    html.Div(text, style={"fontWeight": "bold", "fontSize": "1.2em", "paddingBottom": "20px"}),
                 ],
                 style={"display": "flex", "flexDirection": "column", "alignItems": "center", "justifyContent": "center", "height": "100%"}
             ),
@@ -415,33 +702,59 @@ def add_card(prefix, text):
         },
     )
 
-def metric_card_from_def(prefix, name, definition):
-    d = definition if isinstance(definition, dict) else {}
-    settings = d.get("settings", {})
-    if not isinstance(settings, dict):
-        settings = {}
+def metric_card_from_def(prefix, name, definition, origin=ORIGIN_WORKSPACE, has_builtin=None):
     return metric_card(
         prefix,
         name=name,
-        type_value=d.get("type", "regex"),
-        file_value=str(settings.get("file", "")),
-        pattern_value=str(settings.get("pattern", "")),
-        group_id_value=str(settings.get("group_id", "")),
-        key_value=str(settings.get("key", "")),
-        op_value=str(settings.get("op", "")),
-        unit_value=str(d.get("unit", "")),
-        format_value=str(d.get("format", "")),
-        error_if_missing_value=bool(d.get("error_if_missing", True)),
-        multiple_value=bool(d.get("multiple", False)),
+        origin=origin,
+        has_builtin=has_builtin,
+        **card_fields_of(definition),
     )
 
-def cards_from_section(prefix, definitions, add_text):
+def cards_from_section(prefix, entries, add_text):
+    """
+    Build the card row of a section from an ordered list of
+    (name, definition, origin, has_builtin) tuples. A plain {name: definition}
+    mapping is accepted too and read as metrics with no built-in counterpart
+    (workflow mode).
+    """
     cards = []
-    if isinstance(definitions, dict):
-        for name, definition in definitions.items():
-            cards.append(metric_card_from_def(prefix, name, definition))
+    if isinstance(entries, dict):
+        entries = [(name, definition, ORIGIN_WORKSPACE, False) for name, definition in entries.items()]
+    for name, definition, origin, has_builtin in entries or []:
+        cards.append(metric_card_from_def(prefix, name, definition, origin=origin, has_builtin=has_builtin))
     cards.append(add_card(prefix, add_text))
     return cards
+
+
+def section_entries(builtin_section, workspace_section):
+    """
+    The cards to show for one section: every built-in metric, in the order the
+    built-in file declares them, overridden or removed by what the workspace
+    metrics.yml says about it, followed by the metrics only the workspace has.
+
+    Returns a list of (name, definition, origin, has_builtin) tuples.
+    """
+    builtin_section = builtin_section if isinstance(builtin_section, dict) else {}
+    workspace_section = workspace_section if isinstance(workspace_section, dict) else {}
+
+    entries = []
+    for name, definition in builtin_section.items():
+        if name not in workspace_section:
+            entries.append((name, definition, ORIGIN_BUILTIN, True))
+        elif workspace_section[name] is None:
+            entries.append((name, definition, ORIGIN_REMOVED, True))
+        else:
+            entries.append((name, workspace_section[name], ORIGIN_WORKSPACE, True))
+
+    for name, definition in workspace_section.items():
+        if name in builtin_section:
+            continue
+        # A "removed" entry for a metric that no longer exists built-in is stale:
+        # show it as a metric of the workspace rather than hiding it silently.
+        entries.append((name, definition if definition is not None else {}, ORIGIN_WORKSPACE, False))
+
+    return entries
 
 
 ######################################
@@ -457,6 +770,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
         Input(f"{prefix}-new", "n_clicks"),
         Input({"type": f"{prefix}-duplicate", "name": dash.ALL}, "n_clicks"),
         Input({"type": f"{prefix}-delete", "name": dash.ALL}, "n_clicks"),
+        Input({"type": f"{prefix}-reset", "name": dash.ALL}, "n_clicks"),
         State(f"{prefix}-cards-row", "children"),
         State({"type": f"{prefix}-type", "name": dash.ALL}, "value"),
         State({"type": f"{prefix}-field-file", "name": dash.ALL}, "value"),
@@ -468,17 +782,42 @@ def register_section_callbacks(prefix, name_stem, add_text):
         State({"type": f"{prefix}-field-format", "name": dash.ALL}, "value"),
         State({"type": f"{prefix}-field-error_if_missing", "name": dash.ALL}, "value"),
         State({"type": f"{prefix}-field-multiple", "name": dash.ALL}, "value"),
+        State({"type": f"{prefix}-origin", "name": dash.ALL}, "value"),
+        State("metric-builtin", "data"),
         prevent_initial_call=True,
     )
     def update_cards(
-        new_click, duplicate_clicks, delete_clicks, cards,
+        new_click, duplicate_clicks, delete_clicks, reset_clicks, cards,
         types, file_vals, pattern_vals, group_id_vals, key_vals, op_vals,
-        unit_vals, format_vals, error_vals, multiple_vals,
+        unit_vals, format_vals, error_vals, multiple_vals, origins, builtin_data,
     ):
         trigger_id = ctx.triggered_id
 
         if cards is None:
             cards = []
+
+        # The built-in definitions of this section, to rebuild a card as Odatix
+        # defines it when its override is reset or dropped.
+        builtin_defs = {}
+        if isinstance(builtin_data, dict):
+            section = builtin_data.get(prefix)
+            if isinstance(section, dict):
+                builtin_defs = section
+
+        def card_values(idx):
+            """The current field values of the card at `idx`, as a definition."""
+            return dict(
+                type_value=types[idx] if idx < len(types) else "regex",
+                file_value=file_vals[idx] if idx < len(file_vals) else "",
+                pattern_value=pattern_vals[idx] if idx < len(pattern_vals) else "",
+                group_id_value=group_id_vals[idx] if idx < len(group_id_vals) else "",
+                key_value=key_vals[idx] if idx < len(key_vals) else "",
+                op_value=op_vals[idx] if idx < len(op_vals) else "",
+                unit_value=unit_vals[idx] if idx < len(unit_vals) else "",
+                format_value=format_vals[idx] if idx < len(format_vals) else "",
+                error_if_missing_value=_checked(error_vals[idx]) if idx < len(error_vals) else True,
+                multiple_value=_checked(multiple_vals[idx]) if idx < len(multiple_vals) else False,
+            )
 
         # Remove the Add card if present
         if cards and isinstance(cards[-1], dict) and cards[-1].get("props", {}).get("id") == f"{prefix}-add-card":
@@ -506,14 +845,29 @@ def register_section_callbacks(prefix, name_stem, add_text):
                     break
 
             if trig_type == f"{prefix}-delete" and idx is not None and idx < len(delete_clicks) and delete_clicks[idx]:
-                cards = [
-                    card for card in cards
-                    if not (
-                        isinstance(card.get("props", {}).get("id", {}), dict)
-                        and card.get("props", {}).get("id", {}).get("type") == f"{prefix}-card"
-                        and card.get("props", {}).get("id", {}).get("name") == trig_name
+                if trig_name in builtin_defs:
+                    # Deleting a metric that also exists built-in does not make it
+                    # disappear: it excludes the built-in one from the export, and
+                    # the card stays, greyed out, for the reset button to bring
+                    # back.
+                    cards[idx] = metric_card_from_def(
+                        prefix, trig_name, builtin_defs[trig_name], origin=ORIGIN_REMOVED
                     )
-                ]
+                else:
+                    cards = [
+                        card for card in cards
+                        if not (
+                            isinstance(card.get("props", {}).get("id", {}), dict)
+                            and card.get("props", {}).get("id", {}).get("type") == f"{prefix}-card"
+                            and card.get("props", {}).get("id", {}).get("name") == trig_name
+                        )
+                    ]
+            elif trig_type == f"{prefix}-reset" and idx is not None and idx < len(reset_clicks) and reset_clicks[idx]:
+                # Back to what Odatix defines: whatever the workspace said about
+                # this metric (an override or its removal) is dropped.
+                cards[idx] = metric_card_from_def(
+                    prefix, trig_name, builtin_defs.get(trig_name, {}), origin=ORIGIN_BUILTIN
+                )
             elif trig_type == f"{prefix}-duplicate" and idx is not None and idx < len(duplicate_clicks) and duplicate_clicks[idx]:
                 existing_names = [
                     card.get("props", {}).get("id", {}).get("name", "")
@@ -523,23 +877,69 @@ def register_section_callbacks(prefix, name_stem, add_text):
                 while f"{trig_name}_copy{copy_idx}" in existing_names:
                     copy_idx += 1
                 new_name = f"{trig_name}_copy{copy_idx}"
+                # A copy is a metric of your own, even when made from a built-in
+                # card: no built-in metric goes by that new name.
                 cards.append(metric_card(
                     prefix,
                     name=new_name,
-                    type_value=types[idx] if idx < len(types) else "regex",
-                    file_value=file_vals[idx] if idx < len(file_vals) else "",
-                    pattern_value=pattern_vals[idx] if idx < len(pattern_vals) else "",
-                    group_id_value=group_id_vals[idx] if idx < len(group_id_vals) else "",
-                    key_value=key_vals[idx] if idx < len(key_vals) else "",
-                    op_value=op_vals[idx] if idx < len(op_vals) else "",
-                    unit_value=unit_vals[idx] if idx < len(unit_vals) else "",
-                    format_value=format_vals[idx] if idx < len(format_vals) else "",
-                    error_if_missing_value=_checked(error_vals[idx]) if idx < len(error_vals) else True,
-                    multiple_value=_checked(multiple_vals[idx]) if idx < len(multiple_vals) else False,
+                    origin=ORIGIN_WORKSPACE,
+                    has_builtin=False,
+                    **card_values(idx),
                 ))
 
         cards.append(add_card(prefix, add_text))
         return cards
+
+    @dash.callback(
+        Output({"type": f"{prefix}-origin-note", "name": dash.ALL}, "children"),
+        Output({"type": f"{prefix}-origin-note", "name": dash.ALL}, "style"),
+        Output({"type": f"{prefix}-reset-div", "name": dash.ALL}, "style"),
+        Input({"type": f"{prefix}-title", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-type", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-file", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-pattern", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-group_id", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-key", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-op", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-unit", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-format", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-error_if_missing", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-field-multiple", "name": dash.ALL}, "value"),
+        Input({"type": f"{prefix}-origin", "name": dash.ALL}, "value"),
+        Input("metric-builtin", "data"),
+    )
+    def update_origin_notes(
+        names, types, file_vals, pattern_vals, group_id_vals, key_vals, op_vals,
+        unit_vals, format_vals, error_vals, multiple_vals, origins, builtin_data,
+    ):
+        """
+        Keep each card's badge (and its reset button) in step with what is being
+        typed: a built-in metric becomes "overridden" as soon as one of its
+        fields differs from the built-in definition, and goes back to "built-in"
+        when it matches again, so what saving will write is never a surprise.
+        """
+        builtin_defs = {}
+        if isinstance(builtin_data, dict):
+            section = builtin_data.get(prefix)
+            if isinstance(section, dict):
+                builtin_defs = section
+
+        definitions = section_definitions(
+            names, types, file_vals, pattern_vals, group_id_vals, key_vals, op_vals,
+            unit_vals, format_vals, error_vals, multiple_vals,
+        )
+        card_states = card_origins(names, definitions, origins, builtin_defs)
+
+        children, styles, reset_styles = [], [], []
+        for idx, origin in enumerate(card_states):
+            name = str(names[idx]).strip() if names[idx] is not None else ""
+            has_builtin = name in builtin_defs
+            children.append(origin_note_children(origin, has_builtin))
+            styles.append(origin_note_style(origin, has_builtin))
+            reset_styles.append(
+                {"display": "flex", "alignItems": "center"} if has_builtin else {"display": "none"}
+            )
+        return children, styles, reset_styles
 
     @dash.callback(
         [
@@ -598,41 +998,100 @@ def register_section_callbacks(prefix, name_stem, add_text):
 
 register_section_callbacks(METRIC_PREFIX, "metric", "Add new metric")
 register_section_callbacks(META_PREFIX, "meta", "Add new metadata")
+register_section_callbacks(THIRD_PREFIX, "metric", "Add new metric")
 
 
 ######################################
 # Page-level callbacks
 ######################################
 
+def _section_title_children(sections):
+    """Title tiles for the (up to three) sections, keyed by their card-row prefix."""
+    children = {METRIC_PREFIX: None, META_PREFIX: None, THIRD_PREFIX: None}
+    for prefix, label, tooltip, _key in sections:
+        children[prefix] = ui.title_tile(text=label, id=f"{prefix}-section-title", tooltip=tooltip)
+    return children
+
 @dash.callback(
     Output({"page": page_path, "type": "metric-title-div"}, "children"),
+    Output(f"{METRIC_PREFIX}-section-title-div", "children"),
+    Output(f"{META_PREFIX}-section-title-div", "children"),
+    Output(f"{THIRD_PREFIX}-section-title-div", "children"),
+    Output(f"{THIRD_PREFIX}-section-wrapper", "style"),
     Output(f"{METRIC_PREFIX}-cards-row", "children"),
     Output(f"{META_PREFIX}-cards-row", "children"),
+    Output(f"{THIRD_PREFIX}-cards-row", "children"),
     Output("metric-initial", "data"),
+    Output("metric-builtin", "data"),
     Input(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("odatix-settings", "data"),
 )
 def init_page(search, page, odatix_settings):
     if page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return (dash.no_update,) * 10
 
+    tool_name = get_key_from_url(search, "tool")
     workflow_name = get_key_from_url(search, "workflow")
-    if not workflow_name:
-        return (
-            metric_title(""),
-            [add_card(METRIC_PREFIX, "Add new metric")],
-            [add_card(META_PREFIX, "Add new metadata")],
-            {"metrics": {}, "metadata": {}},
-        )
+    simulation_name = get_key_from_url(search, "simulation")
+    is_tool = bool(tool_name)
+    is_simulation = (not is_tool) and bool(simulation_name)
+    mode = "tool" if is_tool else ("simulation" if is_simulation else "workflow")
+    name = tool_name if is_tool else (simulation_name if is_simulation else workflow_name)
 
-    workflow_path = _get_workflow_path(odatix_settings)
-    metrics, metadata = workspace.load_workflow_metrics(workflow_path, workflow_name)
+    sections = _sections_for_mode(is_tool)
+    titles = _section_title_children(sections)
+    third_style = {"display": "block"} if is_tool else {"display": "none"}
+
+    # Load the definitions for each section (empty when nothing selected).
+    # In tool mode the cards show both layers: what Odatix defines (read-only)
+    # and what the workspace metrics.yml adds, overrides or removes. Only the
+    # workspace layer is edited and saved.
+    builtin_defs = {prefix: {} for prefix in (METRIC_PREFIX, META_PREFIX, THIRD_PREFIX)}
+    entries = {}
+    if is_tool and name:
+        tools_path = get_workspace(odatix_settings).paths.tools_path
+        builtin, workspace_metrics = metrics_lib.load_metrics_layers(name, tools_path=tools_path)
+        section_defs = {prefix: workspace_metrics.get(key, {}) for prefix, _l, _t, key in sections}
+        for prefix, _l, _t, key in sections:
+            builtin_defs[prefix] = builtin.get(key, {})
+            entries[prefix] = section_entries(builtin.get(key, {}), workspace_metrics.get(key, {}))
+    elif (not is_tool) and name:
+        ws = get_workspace(odatix_settings)
+        instances = ws.simulations if is_simulation else ws.workflows
+        metrics_file = instances.entry(name).metrics
+        metrics, metadata = metrics_file.metrics, metrics_file.metadata
+        by_key = {"metrics": metrics, "metadata": metadata}
+        section_defs = {prefix: by_key.get(key, {}) for prefix, _l, _t, key in sections}
+        entries = {prefix: section_defs[prefix] for prefix, _l, _t, _k in sections}
+    else:
+        section_defs = {prefix: {} for prefix, _l, _t, _k in sections}
+        entries = dict(section_defs)
+
+    rows = {}
+    for prefix, _l, _t, _key in sections:
+        rows[prefix] = cards_from_section(prefix, entries.get(prefix, {}), "Add new metric")
+    # Prefixes not used by this mode still need a valid (empty) card row.
+    for prefix in (METRIC_PREFIX, META_PREFIX, THIRD_PREFIX):
+        if prefix not in rows:
+            rows[prefix] = [add_card(prefix, "Add new metric")]
+
+    initial = {
+        "mode": mode,
+        "sections": {prefix: section_defs.get(prefix, {}) for prefix, _l, _t, _k in sections},
+    }
+
     return (
-        metric_title(workflow_name),
-        cards_from_section(METRIC_PREFIX, metrics, "Add new metric"),
-        cards_from_section(META_PREFIX, metadata, "Add new metadata"),
-        {"metrics": metrics, "metadata": metadata},
+        metric_title(name, is_tool=is_tool, mode=mode),
+        titles[METRIC_PREFIX],
+        titles[META_PREFIX],
+        titles[THIRD_PREFIX],
+        third_style,
+        rows[METRIC_PREFIX],
+        rows[META_PREFIX],
+        rows[THIRD_PREFIX],
+        initial,
+        builtin_defs,
     )
 
 @dash.callback(
@@ -652,6 +1111,7 @@ def init_page(search, page, odatix_settings):
     Input({"type": f"{METRIC_PREFIX}-field-format", "name": dash.ALL}, "value"),
     Input({"type": f"{METRIC_PREFIX}-field-error_if_missing", "name": dash.ALL}, "value"),
     Input({"type": f"{METRIC_PREFIX}-field-multiple", "name": dash.ALL}, "value"),
+    Input({"type": f"{METRIC_PREFIX}-origin", "name": dash.ALL}, "value"),
     # Metadata section
     Input({"type": f"{META_PREFIX}-title", "name": dash.ALL}, "value"),
     Input({"type": f"{META_PREFIX}-type", "name": dash.ALL}, "value"),
@@ -664,18 +1124,34 @@ def init_page(search, page, odatix_settings):
     Input({"type": f"{META_PREFIX}-field-format", "name": dash.ALL}, "value"),
     Input({"type": f"{META_PREFIX}-field-error_if_missing", "name": dash.ALL}, "value"),
     Input({"type": f"{META_PREFIX}-field-multiple", "name": dash.ALL}, "value"),
+    Input({"type": f"{META_PREFIX}-origin", "name": dash.ALL}, "value"),
+    # Third section (tool "common metrics"; unused/empty in workflow mode)
+    Input({"type": f"{THIRD_PREFIX}-title", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-type", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-file", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-pattern", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-group_id", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-key", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-op", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-unit", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-format", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-error_if_missing", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-field-multiple", "name": dash.ALL}, "value"),
+    Input({"type": f"{THIRD_PREFIX}-origin", "name": dash.ALL}, "value"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
     State("metric-initial", "data"),
     State("metric-saved", "data"),
+    State("metric-builtin", "data"),
     State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
 def save_and_status(
     n_clicks,
-    m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple,
-    d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple,
-    search, page, initial, saved, odatix_settings,
+    m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple, m_origin,
+    d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple, d_origin,
+    t_names, t_types, t_file, t_pattern, t_group_id, t_key, t_op, t_unit, t_format, t_error, t_multiple, t_origin,
+    search, page, initial, saved, builtin_data, odatix_settings,
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
@@ -685,25 +1161,39 @@ def save_and_status(
     warning = ("color-button warning icon-button tooltip bottom small", "Unsaved changes!")
     error = "color-button error-status icon-button tooltip bottom small"
 
-    metrics = build_section_dict(
-        m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple,
-    )
-    metadata = build_section_dict(
-        d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple,
-    )
-    current = {"metrics": metrics, "metadata": metadata}
+    tool_name = get_key_from_url(search, "tool")
+    workflow_name = get_key_from_url(search, "workflow")
+    simulation_name = get_key_from_url(search, "simulation")
+    is_tool = bool(tool_name)
+    is_simulation = (not is_tool) and bool(simulation_name)
+    mode = "tool" if is_tool else ("simulation" if is_simulation else "workflow")
+    sections = _sections_for_mode(is_tool)
 
-    reference = saved if saved is not None else initial
-    if not isinstance(reference, dict):
-        reference = {"metrics": {}, "metadata": {}}
+    section_fields = {
+        METRIC_PREFIX: (m_names, m_types, m_file, m_pattern, m_group_id, m_key, m_op, m_unit, m_format, m_error, m_multiple, m_origin),
+        META_PREFIX: (d_names, d_types, d_file, d_pattern, d_group_id, d_key, d_op, d_unit, d_format, d_error, d_multiple, d_origin),
+        THIRD_PREFIX: (t_names, t_types, t_file, t_pattern, t_group_id, t_key, t_op, t_unit, t_format, t_error, t_multiple, t_origin),
+    }
 
-    # Reject empty / duplicate names, per section.
-    for label, section_names in (("metric", m_names or []), ("metadata", d_names or [])):
+    builtin_sections = builtin_data if isinstance(builtin_data, dict) else {}
+
+    # Build what the workspace holds for each section used by the current mode:
+    # the metrics of its own, the built-in ones it changes, and the ones it
+    # removes. A card left as the built-in metric defines it writes nothing.
+    current_sections = {}
+    for prefix, label, _t, _key in sections:
+        fields = section_fields[prefix]
+        builtin_section = builtin_sections.get(prefix)
+        current_sections[prefix] = build_section_dict(
+            *fields, builtin_section=builtin_section if isinstance(builtin_section, dict) else {}
+        )
+
+        # Reject empty / duplicate names in this section.
         seen = set()
-        for name in section_names:
+        for name in (fields[0] or []):
             clean = str(name).strip() if name is not None else ""
             if clean == "":
-                return error, f"{label.capitalize()} name cannot be empty", dash.no_update
+                return error, f"{label} name cannot be empty", dash.no_update
             for character in hard_settings.invalid_filename_characters:
                 if character in clean and character != " ":
                     return error, f"Unauthorized character in {label} name: '{character}'", dash.no_update
@@ -711,19 +1201,46 @@ def save_and_status(
                 return error, f"Duplicate {label} name: '{clean}'", dash.no_update
             seen.add(clean)
 
-    workflow_name = get_key_from_url(search, "workflow")
+    current = {"mode": mode, "sections": current_sections}
+
+    reference = saved if saved is not None else initial
+    if not isinstance(reference, dict) or "sections" not in reference:
+        reference = {"mode": current["mode"], "sections": {p: {} for p, _l, _t, _k in sections}}
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
-        if not workflow_name:
-            return error, "No workflow selected", dash.no_update
-        workflow_path = _get_workflow_path(odatix_settings)
-        try:
-            workspace.save_workflow_metrics(workflow_path, workflow_name, metrics, metadata)
-            return disabled[0], disabled[1], current
-        except Exception:
-            return error, "Failed to save...", dash.no_update
+        if is_tool:
+            if not tool_name:
+                return error, "No tool selected", dash.no_update
+            key_sections = {key: current_sections[prefix] for prefix, _l, _t, key in sections}
+            try:
+                tool_metrics = get_workspace(odatix_settings).tools.entry(tool_name).metrics
+                tool_metrics.sections = key_sections
+                tool_metrics.save()
+                return disabled[0], disabled[1], current
+            except Exception:
+                return error, "Failed to save...", dash.no_update
+        elif is_simulation:
+            try:
+                metrics_file = get_workspace(odatix_settings).simulations.entry(simulation_name).metrics
+                metrics_file.metrics = current_sections.get(METRIC_PREFIX, {})
+                metrics_file.metadata = current_sections.get(META_PREFIX, {})
+                metrics_file.save()
+                return disabled[0], disabled[1], current
+            except Exception:
+                return error, "Failed to save...", dash.no_update
+        else:
+            if not workflow_name:
+                return error, "No workflow selected", dash.no_update
+            try:
+                metrics_file = get_workspace(odatix_settings).workflows.entry(workflow_name).metrics
+                metrics_file.metrics = current_sections.get(METRIC_PREFIX, {})
+                metrics_file.metadata = current_sections.get(META_PREFIX, {})
+                metrics_file.save()
+                return disabled[0], disabled[1], current
+            except Exception:
+                return error, "Failed to save...", dash.no_update
 
-    if current != reference:
+    if current.get("sections") != reference.get("sections"):
         return warning[0], warning[1], dash.no_update
 
     return disabled[0], disabled[1], dash.no_update
@@ -733,38 +1250,39 @@ def save_and_status(
 # Layout
 ######################################
 
+def _section_block(prefix, default_title, default_tooltip, wrapper_style=None):
+    """One editable section: a dynamic title tile placeholder + its cards row."""
+    return html.Div(
+        children=[
+            html.Div(
+                id=f"{prefix}-section-title-div",
+                children=ui.title_tile(text=default_title, id=f"{prefix}-section-title", tooltip=default_tooltip),
+            ),
+            html.Div([
+                html.Div(
+                    id=f"{prefix}-cards-row",
+                    children=[add_card(prefix, "Add new metric")],
+                    className="card-matrix configs",
+                    style={"marginBottom": "30px"},
+                ),
+            ]),
+        ],
+        id=f"{prefix}-section-wrapper",
+        style=wrapper_style or {},
+    )
+
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "metric-title-div"}, style={"marginTop": "20px"}),
-        ui.title_tile(
-            text="Metrics",
-            id="metric-section-title",
-            tooltip=METRIC_TOOLTIP,
-        ),
-        html.Div([
-            html.Div(
-                id=f"{METRIC_PREFIX}-cards-row",
-                children=[add_card(METRIC_PREFIX, "Add new metric")],
-                className="card-matrix configs",
-                style={"marginBottom": "30px"},
-            ),
-        ]),
-        ui.title_tile(
-            text="Metadata Dimensions",
-            id="metadata-section-title",
-            tooltip=META_TOOLTIP,
-        ),
-        html.Div([
-            html.Div(
-                id=f"{META_PREFIX}-cards-row",
-                children=[add_card(META_PREFIX, "Add new metadata")],
-                className="card-matrix configs",
-                style={"marginBottom": "30px"},
-            ),
-        ]),
-        dcc.Store(id="metric-initial", data={"metrics": {}, "metadata": {}}),
+        _section_block(METRIC_PREFIX, "Metrics", METRIC_TOOLTIP),
+        _section_block(META_PREFIX, "Metadata Dimensions", META_TOOLTIP),
+        _section_block(THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, wrapper_style={"display": "none"}),
+        dcc.Store(id="metric-initial", data={"mode": "workflow", "sections": {}}),
         dcc.Store(id="metric-saved", data=None),
+        # The built-in definitions of each section, kept so a deleted override
+        # or a restored metric can be rendered back as a read-only card.
+        dcc.Store(id="metric-builtin", data={}),
     ],
     className="page-content",
     style={

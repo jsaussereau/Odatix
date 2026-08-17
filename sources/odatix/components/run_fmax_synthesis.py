@@ -22,12 +22,16 @@
 import os
 import sys
 import argparse
-from odatix.components import workspace as workspace_utils
+from odatix.workspace.yaml_io import read_yaml
 from odatix.components.synthesis_common import load_synthesis_context, build_prepare_synthesis_job, prepare_synthesis_jobs
 from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, start_parallel_jobs as start_parallel_jobs_common
 import odatix.components.export_results as exp_res
+import odatix.components.export_derived_metrics as exp_derived
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.eda_tools as eda_tools
+import odatix.lib.job_steps as job_steps
+import odatix.run.cli as run_cli
 from odatix.lib.parallel_job_handler import ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.architecture_handler import ArchitectureHandler
@@ -49,6 +53,9 @@ def _check_cancel(cancel_event):
 
 def add_arguments(parser):
     parser.add_argument("-t", "--tool", default="vivado", help="eda tool in use (default: vivado)")
+    parser.add_argument("-f", "--flow", default=None, help="flow of the eda tool to run (default: the tool's default flow)")
+    parser.add_argument("-u", "--until", default=None, help="last step of the flow to run, inclusive (default: the flow's default step, or all its steps)")
+    parser.add_argument("--rerun-from", dest="rerun_from", default=None, help="re-run this step and the following ones, even if already done")
     parser.add_argument("-o", "--overwrite", action="store_true", help="overwrite existing results")
     parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
     parser.add_argument("-d", "--detach", action="store_true", help="enqueue jobs to daemon and return without attaching monitor")
@@ -58,7 +65,7 @@ def add_arguments(parser):
     parser.add_argument("-w", "--work", help="work directory")
     parser.add_argument("-E", "--exit", action="store_true", help="exit monitor when all jobs are done")
     parser.add_argument("-j", "--jobs", help="maximum number of parallel jobs (use 'auto' for the number of CPUs minus one)")
-    parser.add_argument("-f", "--force", action="store_true", help="force fmax synthesis to continue on synthesis error")
+    parser.add_argument("--continue-on-error", "--force", dest="continue_on_error", action="store_true", help="force fmax synthesis to continue on synthesis error")
     parser.add_argument("-T", "--trust", action="store_true", help="do not check eda tool before runnning jobs (saves time)")
     parser.add_argument("-D", "--debug", action="store_true", help="enable debug mode to help troubleshoot settings files")
     parser.add_argument("--from", dest="from_freq", type=int, help="override lower bound for fmax synthesis (in MHz)")
@@ -88,6 +95,9 @@ def run_synthesis(
     run_config_settings_filename,
     arch_path,
     tool,
+    flow,
+    until_step,
+    rerun_from_step,
     work_path,
     target_path,
     overwrite,
@@ -109,12 +119,21 @@ def run_synthesis(
     detach=False,
     daemon_session=None,
 ):
-    architecture_instances, prepare_job, job_list, tool_settings_file, arch_handler, exit_when_done, log_size_limit, nb_jobs, _plan = check_settings(
-        run_config_settings_filename=run_config_settings_filename,
+    # Everything a run does, whatever starts it, goes through odatix.run: the
+    # command line is one of its callers, the graphical interface and scripts
+    # are the others.
+    run_cli.execute(run_cli.command_run(
+        "fmax_synthesis",
+        cancel_event=cancel_event,
+        settings_file=run_config_settings_filename,
         arch_path=arch_path,
-        tool=tool,
-        work_path=work_path,
         target_path=target_path,
+        work_path=work_path,
+        result_path=export_output_dir,
+        tool=tool,
+        flow=flow,
+        until=until_step,
+        rerun_from=rerun_from_step,
         overwrite=overwrite,
         noask=noask,
         exit_when_done=exit_when_done,
@@ -122,31 +141,16 @@ def run_synthesis(
         nb_jobs=nb_jobs,
         continue_on_error=continue_on_error,
         check_eda_tool=check_eda_tool,
-        forced_fmax_lower_bound=forced_fmax_lower_bound,
-        forced_fmax_upper_bound=forced_fmax_upper_bound,
+        lower_bound=forced_fmax_lower_bound,
+        upper_bound=forced_fmax_upper_bound,
         debug=debug,
         keep=keep,
-        cancel_event=cancel_event,
-    )
-    parallel_jobs = prepare_synthesis(
-        architecture_instances=architecture_instances,
-        prepare_job=prepare_job,
-        job_list=job_list,
-        arch_handler=arch_handler,
-        tool_settings_file=tool_settings_file,
-        exit_when_done=exit_when_done,
-        log_size_limit=log_size_limit,
-        nb_jobs=nb_jobs,
-        cancel_event=cancel_event,
-        export_output_dir=export_output_dir,
-        export_tool=tool,
-        export_work_path=work_path,
         use_benchmark=use_benchmark,
         benchmark_file=benchmark_file,
         custom_metrics_file=custom_metrics_file,
-    )
-
-    start_parallel_jobs(parallel_jobs, detach=detach, session=daemon_session)
+        detach=detach,
+        session=daemon_session,
+    ))
 
 def _load_settings_fmax_bounds(run_config_settings_filename):
     """
@@ -157,7 +161,7 @@ def _load_settings_fmax_bounds(run_config_settings_filename):
     bounds are used instead.
     Returns (lower_bound, upper_bound), each None when unset or not overriding.
     """
-    settings_payload = workspace_utils.load_yaml_file(run_config_settings_filename, default={})
+    settings_payload = read_yaml(run_config_settings_filename, default={})
     fmax_settings = settings_payload.get("fmax_synthesis", {})
     if not isinstance(fmax_settings, dict):
         return None, None
@@ -184,6 +188,9 @@ def check_settings(
     run_config_settings_filename,
     arch_path,
     tool,
+    flow,
+    until_step,
+    rerun_from_step,
     work_path,
     target_path,
     overwrite,
@@ -225,8 +232,27 @@ def check_settings(
         debug=debug,
         script_name=script_name,
         synth_type=None,
+        flow=flow,
         check_cancel=lambda: _check_cancel(cancel_event),
     )
+
+    # A flow can be split into ordered steps: narrow them to what this run
+    # covers ("--until"), and let "--rerun-from" force redoing part of what a
+    # previous run already did.
+    steps = context["flow_steps"]
+    rerun_index = None
+    if steps:
+        steps, rerun_index, step_error = job_steps.select_steps(steps, until=until_step, rerun_from=rerun_from_step)
+        if step_error is not None:
+            printc.error('Flow "' + str(context["flow"]) + '" of eda tool "' + tool + '": ' + step_error, script_name)
+            raise SystemExit(-1)
+    elif until_step or rerun_from_step:
+        printc.error(
+            'Flow "' + str(context["flow"]) + '" of eda tool "' + tool + '" is not split into steps',
+            script_name,
+        )
+        printc.note("--until and --rerun-from only apply to a flow declaring steps in its tool.yml", script_name)
+        raise SystemExit(-1)
 
     ParallelJob.set_patterns(hard_settings.synth_status_pattern, hard_settings.fmax_status_pattern)
 
@@ -241,7 +267,9 @@ def check_settings(
         work_report_path=hard_settings.work_report_path,
         process_group=context["process_group"],
         command=context["run_command"],
-        eda_target_filename=os.path.realpath(os.path.join(target_path, "target_" + tool + ".yml")),
+        eda_target_filename=eda_tools.resolve_target_file(tool, target_path),
+        tool=tool,
+        flow=context["flow"],
         fmax_status_filename=hard_settings.fmax_status_filename,
         frequency_search_filename=hard_settings.frequency_search_filename,
         param_settings_filename=hard_settings.param_settings_filename,
@@ -251,6 +279,8 @@ def check_settings(
         forced_fmax_upper_bound=forced_fmax_upper_bound,
         forced_custom_freq_list=None,
         overwrite=context["overwrite"],
+        requested_steps=[step["name"] for step in steps] if steps else None,
+        rerun_step_index=rerun_index,
         continue_on_error=continue_on_error,
         force_single_thread=context["force_single_thread"],
     )
@@ -285,6 +315,9 @@ def check_settings(
         log_size_limit=context["log_size_limit"],
         debug=debug,
         timestamp=timestamp,
+        flow=context["flow"],
+        steps=steps,
+        rerun_index=rerun_index,
         progress_mode="fmax",
         script_name=script_name,
         check_cancel=lambda: _check_cancel(cancel_event),
@@ -293,7 +326,7 @@ def check_settings(
         architecture_instances,
         prepare_job,
         job_list,
-        context["tool_settings_file"],
+        context["format_settings_file"],
         arch_handler,
         context["exit_when_done"],
         context["log_size_limit"],
@@ -313,6 +346,7 @@ def prepare_synthesis(
     cancel_event=None,
     export_output_dir=None,
     export_tool=None,
+    export_flow=None,
     export_work_path=None,
     use_benchmark=False,
     benchmark_file=None,
@@ -340,11 +374,17 @@ def prepare_synthesis(
             result_type="fmax_synthesis",
             work_path=export_work_path,
             tool=export_tool,
+            flow=export_flow,
             output_dir=export_output_dir,
             use_benchmark=use_benchmark,
             benchmark_file=benchmark_file,
             custom_metrics_file=custom_metrics_file,
         )
+
+    # Whole-batch derivation: a derived metric reads records other jobs produce,
+    # so it can only be computed once every job of the batch is done.
+    if export_output_dir:
+        exp_derived.configure_post_batch_derivation(parallel_jobs, export_output_dir)
 
     return parallel_jobs
 
@@ -409,12 +449,15 @@ def main(args, settings=None):
 
     target_path = settings.target_path
     tool = args.tool
+    flow = args.flow
+    until_step = args.until
+    rerun_from_step = args.rerun_from
     overwrite = args.overwrite
     noask = args.noask
     exit_when_done = args.exit
     log_size_limit = args.logsize
     nb_jobs = args.jobs
-    continue_on_error = args.force
+    continue_on_error = args.continue_on_error
     check_eda_tool = not args.trust
     debug = args.debug
     keep = args.keep
@@ -431,6 +474,9 @@ def main(args, settings=None):
         run_config_settings_filename=run_config_settings_filename,
         arch_path=arch_path,
         tool=tool,
+        flow=flow,
+        until_step=until_step,
+        rerun_from_step=rerun_from_step,
         work_path=work_path,
         target_path=target_path,
         overwrite=overwrite,

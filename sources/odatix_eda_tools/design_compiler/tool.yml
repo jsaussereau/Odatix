@@ -2,6 +2,11 @@
 # Settings for Design Compiler
 ##############################################
 
+# Display metadata (used by the GUI tool selection page)
+label: "Design Compiler"
+description: "Synopsys® Design Compiler®"
+icon: "assets/icons/synopsys.png"
+
 process_group: True
 
 # Default metrics file for this tool

@@ -44,8 +44,8 @@ script_name = os.path.basename(__file__)
 
 def add_arguments(parser):
     """Add command-line arguments."""
-    parser.add_argument("-s", "--startdel", dest="start_delimiter", required=True, help="Start delimiter")
-    parser.add_argument("-S", "--stopdel", dest="stop_delimiter", required=True, help="Stop delimiter")
+    parser.add_argument("-s", "--startdel", dest="start_delimiter", required=True, help="Start delimiter (supports \\n, \\r, \\t escape sequences)")
+    parser.add_argument("-S", "--stopdel", dest="stop_delimiter", required=True, help="Stop delimiter (supports \\n, \\r, \\t escape sequences)")
     parser.add_argument("-i", "--input", dest="base_text_file", required=True, help="Input base text file")
     parser.add_argument("-o", "--output", dest="output_file", required=True, help="Output text file")
     parser.add_argument("-r", "--replace", dest="replacement_text_file", required=True, help="Replacement text file")
@@ -85,19 +85,49 @@ def get_first_appearance(text, substring, start_line=1, start_char=1):
             return line_number + 1, char_index
     return -1, -1  # Not found
 
+escape_sequences = {"n": "\n", "r": "\r", "t": "\t", "0": "\0", "\\": "\\"}
+
+def unescape_delimiter(delimiter):
+    """
+    Converts escape sequences written literally in a delimiter into the characters they represent.
+
+    This allows delimiters such as a single line break to be written as "\\n" in settings files
+    or in the GUI, where an actual line break cannot easily be typed.
+    Unknown sequences are kept as-is, so a lone backslash remains a lone backslash.
+
+    Args:
+        delimiter (str): The delimiter, possibly containing escape sequences.
+
+    Returns:
+        str: The delimiter with escape sequences replaced by the corresponding characters.
+    """
+    if not delimiter:
+        return delimiter
+    return re.sub(
+        r"\\(.)",
+        lambda match: escape_sequences.get(match.group(1), match.group(0)),
+        delimiter,
+    )
+
 def replace_content(base_text, replacement_text, start_delim, stop_delim, replace_all_occurrences):
     """Replaces text between specified delimiters in the base text with the replacement text."""
-    pattern = re.escape(start_delim) + '.*?' + re.escape(stop_delim)
-
     if start_delim == "" or stop_delim == "":
         return base_text, False
-    
+
+    start_delim = unescape_delimiter(start_delim)
+    stop_delim = unescape_delimiter(stop_delim)
+
+    pattern = re.escape(start_delim) + '.*?' + re.escape(stop_delim)
+
     match_found = re.search(pattern, base_text, flags=re.DOTALL) is not None
-    
+
+    # Use a function as replacement so backslashes in the replacement text are kept literal
+    replacement = lambda _: start_delim + replacement_text + stop_delim
+
     if replace_all_occurrences:
-        new_text = re.sub(pattern, start_delim + replacement_text + stop_delim, base_text, flags=re.DOTALL)
+        new_text = re.sub(pattern, replacement, base_text, flags=re.DOTALL)
     else:
-        new_text = re.sub(pattern, start_delim + replacement_text + stop_delim, base_text, count=1, flags=re.DOTALL)
+        new_text = re.sub(pattern, replacement, base_text, count=1, flags=re.DOTALL)
     return new_text, match_found
 
 def replace_params(base_text_file, replacement_text_file, output_file, start_delimiter, stop_delimiter, replace_all_occurrences=False, silent=False):

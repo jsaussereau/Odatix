@@ -21,7 +21,8 @@
 
 """
 Filter panel callbacks: rebuild on data/style changes while preserving the
-user's selections, remember check states across pages, show/hide-all.
+user's selections, remember check states across pages, show/hide-all — plus
+the metric rule builder ("LUT < 1000 and Fmax > 100", see core/rules.py).
 """
 
 import dash
@@ -29,8 +30,10 @@ from dash import Input, Output, State, ALL, MATCH
 
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
+import odatix.explorer.core.rules as rules
 from odatix.explorer.charts.spec import NONE_VALUE
 import odatix.explorer.ui.filters as ui_filters
+import odatix.explorer.ui.rules as ui_rules
 
 
 def build_filters_dict(values, ids):
@@ -103,3 +106,85 @@ def register_callbacks():
     if triggered.get("action") == "show":
       return [option["value"] for option in options or []]
     return []
+
+  # ---------------------------------------------------------------- rules ---
+
+  @dash.callback(
+    Output("xp-rules-panel", "children"),
+    Input("xp-data-version", "data"),
+    Input("xp-source-select", "value"),
+    Input("xp-rule-state", "data"),
+    Input({"type": "xp-filter", "dim": ALL}, "value"),
+    State({"type": "xp-filter", "dim": ALL}, "id"),
+  )
+  def rebuild_rules_panel(_version, sources, rule_state, filter_values, filter_ids):
+    """Render the rule cards from the rule state, with a live match counter."""
+    filters = build_filters_dict(filter_values, filter_ids)
+    df = query.select_dataframe(STORE, sources=sources, filters=filters)
+    _dimensions, metrics = query.discover(df, STORE, sources)
+    matched = len(rules.apply_rules(df, rule_state)) if not df.empty else 0
+    return ui_rules.build_rules_section(metrics, rule_state, STORE.units(sources), matched=matched, total=len(df))
+
+  @dash.callback(
+    Output("xp-rule-state", "data"),
+    Input({"type": "xp-rule-field", "id": ALL, "field": ALL}, "value"),
+    Input({"type": "xp-rule-remove", "id": ALL}, "n_clicks"),
+    Input({"type": "xp-rule-action", "action": ALL, "group": ALL}, "n_clicks"),
+    Input({"type": "xp-rule-match", "group": ALL, "index": ALL}, "n_clicks"),
+    Input({"type": "xp-rule-operand", "id": ALL}, "n_clicks"),
+    State({"type": "xp-rule-field", "id": ALL, "field": ALL}, "id"),
+    State("xp-rule-state", "data"),
+    prevent_initial_call=True,
+  )
+  def edit_rules(
+    field_values, _remove_clicks, _action_clicks, _match_clicks, _operand_clicks, field_ids, rule_state
+  ):
+    """
+    Single entry point for every rule edit: field changes, add rule, add group,
+    remove, clear, the and/or chips and the constant/metric switch. The panel is
+    rebuilt from the resulting state, which also re-mounts the fields and fires
+    this callback back with their values — returning no_update on an unchanged
+    state is what settles that loop.
+    """
+    state = rules.normalize(rule_state)
+    triggered = dash.callback_context.triggered_id
+    if not isinstance(triggered, dict):
+      raise dash.exceptions.PreventUpdate
+
+    kind = triggered.get("type")
+    # Rebuilding the panel remounts the buttons, which fires this callback with
+    # n_clicks back to 0: only a real click (non-zero) is an edit.
+    if kind != "xp-rule-field" and not dash.callback_context.triggered[0].get("value"):
+      raise dash.exceptions.PreventUpdate
+
+    if kind == "xp-rule-action":
+      action = triggered.get("action")
+      group_id = triggered.get("group", rules.ROOT_ID)
+      if action == "add_rule":
+        rules.add_child(state, group_id, rules.new_rule(state))
+      elif action == "add_group":
+        rules.add_child(state, group_id, rules.new_group(state))
+      elif action == "clear":
+        rules.remove(state, group_id)
+      else:
+        raise dash.exceptions.PreventUpdate
+    elif kind == "xp-rule-remove":
+      rules.remove(state, triggered.get("id"))
+    elif kind == "xp-rule-match":
+      rules.toggle_match(state, triggered.get("group", rules.ROOT_ID))
+    elif kind == "xp-rule-operand":
+      rule = rules.find(state, triggered.get("id"))
+      operand = rules.OPERAND_VALUE if rule and rule.get("operand") == rules.OPERAND_METRIC else rules.OPERAND_METRIC
+      rules.set_field(state, triggered.get("id"), "operand", operand)
+    elif kind == "xp-rule-field":
+      # Apply the live field values to the rules they belong to. Fields of a
+      # rule that is no longer in the state (a stale panel about to be replaced)
+      # are ignored.
+      for value, id in zip(field_values or [], field_ids or []):
+        rules.set_field(state, id["id"], id["field"], value)
+    else:
+      raise dash.exceptions.PreventUpdate
+
+    if state == rules.normalize(rule_state):
+      raise dash.exceptions.PreventUpdate
+    return state

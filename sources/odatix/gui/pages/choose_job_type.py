@@ -59,6 +59,12 @@ run_jobs_cards = [
         "description": "Check if your RTL is synthetizable with the selected EDA tools",
     },
     {
+        "name": "Run RTL Simulation",
+        "link": "/run_jobs?type=simulation",
+        "icon": "simulation",
+        "description": "Run testbenches against your design configurations",
+    },
+    {
         "name": "Run Fmax Synthesis",
         "link": "/choose_eda_tool?type=fmax_synthesis",
         "icon": "fmax",
@@ -69,6 +75,12 @@ run_jobs_cards = [
         "link": "/choose_eda_tool?type=custom_freq_synthesis",
         "icon": "custom_freq",
         "description": "Run synthesis at custom frequencies",
+    },
+    {
+        "name": "Run Place & Route",
+        "link": "/choose_eda_tool?type=pnr",
+        "icon": "pnr",
+        "description": "Place & route designs another tool has already synthesized",
     },
 ]
 

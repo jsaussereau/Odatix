@@ -23,7 +23,6 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx
 from typing import Optional#, Literal
 
-import odatix.components.workspace as workspace
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url
 import odatix.gui.ui_components as ui
@@ -72,7 +71,8 @@ def workspace_form(settings):
                     id="target_path",
                     value=defval("target_path", ""),
                     placeholder=OdatixSettings.DEFAULT_TARGET_PATH,
-                    tooltip="The path where target definitions for all tools are stored.",
+                    tooltip="The path where target definitions for all tools are stored. "
+                            "Files not found here are also looked up in odatix_userconfig.",
                 ),
             ]),
             ui.panel(body=[
@@ -103,7 +103,7 @@ def workspace_form(settings):
                     id="custom_freq_synthesis_settings_file",
                     value=defval("custom_freq_synthesis_settings_file", ""),
                     placeholder=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
-                    tooltip="The path to the settings file used by 'odatix freq' command.",
+                    tooltip="The path to the settings file used by 'odatix synth' command.",
                 ),
             ]),
             ui.panel(body=[

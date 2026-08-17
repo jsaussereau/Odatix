@@ -22,17 +22,14 @@
 import os
 import sys
 import yaml
-import glob
-import shutil
 import argparse
 
 import odatix.lib.printc as printc
 from odatix.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
 from odatix.lib.settings import OdatixSettings
+from odatix.workspace.clean import DANGEROUS_PATHS, remove_path as remove_matching_paths
 
 script_name = os.path.basename(__file__)
-
-DANGEROUS_PATHS = ["/", "./", "./*", "*", "~", ".", ".."]
 
 ######################################
 # Parse Arguments
@@ -60,43 +57,31 @@ def parse_arguments():
 ######################################
 
 def remove_path(path, force=False, verbose=False, quiet=False):
-      
-  cwd = os.getcwd()
-  full_path = os.path.realpath(os.path.join(cwd, path))
+  """
+  Remove everything one clean pattern matches, and report it on the terminal.
 
-  if path in DANGEROUS_PATHS or full_path in DANGEROUS_PATHS:
-    if not force:
-      if not quiet:
-        printc.warning("Deleting \"" + full_path + "\" seams dangerous! Use --force to force deletion (use at your own risks!)", script_name=script_name)
-      return
+  The removal itself is the one the workspace API performs (see
+  odatix.workspace.clean), so "odatix clean" and the graphical interface always
+  delete exactly the same things.
+  """
+  result = remove_matching_paths(path, force=force)
 
-  # Handle asterisks
-  paths_to_remove = glob.glob(full_path)
+  for removal in result.removed:
+    if not quiet:
+      printc.say("Removed \"" + removal.path + "\" (" + removal.kind + ")", script_name=script_name)
 
-  # Check if the lis is empty
-  if not paths_to_remove:
-    if verbose:
-      printc.warning("Path \"" + full_path + "\" does not exist or is not accessible.", script_name=script_name)
-    return
+  for removal in result.skipped:
+    if not quiet:
+      printc.warning("Deleting \"" + removal.path + "\" seams dangerous! Use --force to force deletion (use at your own risks!)", script_name=script_name)
 
-  # Remove path
-  for p in paths_to_remove:
-    try:
-      if os.path.isfile(p) or os.path.islink(p):
-        os.remove(p)
-        if not quiet:
-          printc.say("Removed \"" + p + "\" (file)", script_name=script_name)
-      elif os.path.isdir(p):
-        shutil.rmtree(p)
-        if not quiet:
-          printc.say("Removed \"" + p + "\" (directory)", script_name=script_name)
-      else:
-        if verbose:
-          printc.warning("Path \"" + p + "\" does not exist or is not accessible.", script_name=script_name)
-    except Exception as e:
-      printc.error("Failed to remove \"" + p + "\".", script_name=script_name)
-      printc.cyan("error details: ", end="", script_name=script_name)
-      print(str(e))
+  if verbose:
+    for pattern in result.unmatched:
+      printc.warning("Path \"" + pattern + "\" does not exist or is not accessible.", script_name=script_name)
+
+  for removal in result.errors:
+    printc.error("Failed to remove \"" + removal.path + "\".", script_name=script_name)
+    printc.cyan("error details: ", end="", script_name=script_name)
+    print(removal.message)
 
 ######################################
 # Clean

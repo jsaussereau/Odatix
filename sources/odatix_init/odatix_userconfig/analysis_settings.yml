@@ -17,11 +17,16 @@ exit_when_done:   No   # overridden by -E / --exit
 log_size_limit:   300  # overridden by --logsize
 
 # maximum number of parallel jobs
-nb_jobs:          8    # overridden by -j / --jobs
+nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
+
+# eda tools to run the analysis with (overridden by -t / --tool)
+tools: 
+  - vivado
+  - verilator
 
 # targeted architectures
 
-architectures: 
+architectures:
 
 #--------------------------------------------#
 # Add your own designs!

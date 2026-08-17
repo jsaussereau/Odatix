@@ -37,6 +37,47 @@ modification_types = ("union", "disjunctive_union", "intersection", "difference"
 combo_types = ("function", "conversion", "format")
 
 
+#: Key holding the variables of an instance, at the root of its settings file.
+variables_key = "variables"
+
+#: Where variables used to be declared, still read for backward compatibility.
+legacy_variables_parent = "generate_configurations_settings"
+
+
+def get_variables(settings):
+  """
+  The variables declared by a settings dict.
+
+  Variables are declared at the root of the settings file, since they are not
+  specific to configuration generation: they also act as virtual parameter
+  domains for workflows and for architectures whose RTL is generated. They used
+  to be declared inside "generate_configurations_settings", which is still read
+  when the root key is absent.
+
+  Args:
+      settings (dict): content of a settings file.
+
+  Returns:
+      tuple:
+          - variables (dict): the variables, empty when there is none.
+          - legacy (bool): True when they were read from their former location.
+  """
+  if not isinstance(settings, dict):
+    return {}, False
+
+  variables = settings.get(variables_key)
+  if isinstance(variables, dict):
+    return variables, False
+
+  generate_settings = settings.get(legacy_variables_parent)
+  if isinstance(generate_settings, dict):
+    variables = generate_settings.get(variables_key)
+    if isinstance(variables, dict):
+      return variables, True
+
+  return {}, False
+
+
 def _safe_sorted(values):
   """Sort values, falling back to string comparison for mixed types."""
   try:
@@ -113,10 +154,27 @@ class ConfigGenerator:
     generate_enabled, generate_defined = get_from_dict("generate_configurations", data, self.yaml_file, default_value=False, silent=hide, script_name=script_name)
     generate_settings, generate_settings_defined = get_from_dict("generate_configurations_settings", data, self.yaml_file, silent=hide, script_name=script_name)
     
+    # Variables live at the root of the settings file, but are still read from
+    # "generate_configurations_settings" when declared the former way.
+    root_variables, root_variables_defined = get_from_dict("variables", data, self.yaml_file, type=dict, silent=True, script_name=script_name)
+    legacy_variables = None
+    legacy_variables_defined = False
+    if not root_variables_defined and isinstance(generate_settings, dict):
+      legacy_variables, legacy_variables_defined = get_from_dict("variables", generate_settings, self.yaml_file, parent=legacy_variables_parent, type=dict, silent=True, script_name=script_name)
+
+    if root_variables_defined:
+      self.variables, variables_defined = root_variables, True
+    elif legacy_variables_defined:
+      self.variables, variables_defined = legacy_variables, True
+    else:
+      self.variables, variables_defined = {}, False
+
     if generate_settings_defined:
       self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_configurations_settings", behavior=Key.MANTADORY, script_name=script_name)
       self.name_template, name_template_defined = get_from_dict("name", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=str, behavior=Key.MANTADORY, script_name=script_name)
-      self.variables, variables_defined = get_from_dict("variables", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=dict, behavior=Key.MANTADORY, script_name=script_name)
+      if not variables_defined:
+        # Report the missing key where it is now expected: at the root.
+        get_from_dict("variables", data, self.yaml_file, type=dict, behavior=Key.MANTADORY, script_name=script_name)
       self.valid = generate_settings_defined and template_defined and name_template_defined and variables_defined and generate_defined
     else:
       self.valid = False

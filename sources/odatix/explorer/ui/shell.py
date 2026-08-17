@@ -28,6 +28,7 @@ standalone shell) without touching the host layout.
 
 from dash import dcc, html
 
+import odatix.explorer.core.rules as rules
 import odatix.explorer.ui.sidebar as sidebar
 
 POLL_INTERVAL_MS = 2000
@@ -46,6 +47,8 @@ def explorer_state_stores():
   """
   return [
     dcc.Store(id="xp-filter-state", data={}, storage_type="session"),
+    # Metric value rules ("LUT < 1000 and Fmax > 100"), see core/rules.py
+    dcc.Store(id="xp-rule-state", data=rules.empty_state(), storage_type="session"),
     dcc.Store(id="xp-control-state", data={}, storage_type="session"),
     # Sources, palette, toggles, export options... — everything not covered by
     # the two stores above. Unlike Dash persistence (which only records user

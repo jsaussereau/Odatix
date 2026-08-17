@@ -1,0 +1,388 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 640 420"
+   width="640"
+   height="420"
+   fill="none"
+   role="img"
+   aria-label="RTL analysis: elaboration report with passing configurations and flagged issues"
+   version="1.1"
+   id="svg28"
+   sodipodi:docname="analysis.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview28"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.3619048"
+     inkscape:cx="-506.27621"
+     inkscape:cy="105.73426"
+     inkscape:window-width="5120"
+     inkscape:window-height="1355"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg28" />
+  <defs
+     id="defs6">
+    <linearGradient
+       id="linearGradient8"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#fbbf24;stop-opacity:1;"
+         offset="0"
+         id="stop8" />
+      <stop
+         style="stop-color:#f59e0b;stop-opacity:1;"
+         offset="1"
+         id="stop9" />
+    </linearGradient>
+    <linearGradient
+       id="an-accent"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#fbbf24"
+         id="stop1" />
+      <stop
+         offset="1"
+         stop-color="#f59e0b"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       id="an-panel"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#ffffff"
+         id="stop3" />
+      <stop
+         offset="1"
+         stop-color="#f1f5f9"
+         id="stop4" />
+    </linearGradient>
+    <linearGradient
+       id="an-glow"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#f59e0b"
+         stop-opacity="0.18"
+         id="stop5" />
+      <stop
+         offset="1"
+         stop-color="#f59e0b"
+         stop-opacity="0"
+         id="stop6" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient8"
+       id="linearGradient9"
+       x1="125.21468"
+       y1="-61.081215"
+       x2="420.78531"
+       y2="234.48943"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="translate(-0.9866694,-1.0384086)" />
+  </defs>
+  <rect
+     x="24"
+     y="18"
+     width="592"
+     height="384"
+     rx="40"
+     fill="url(#an-panel)"
+     id="rect6" />
+  <rect
+     x="24"
+     y="18"
+     width="592"
+     height="384"
+     rx="40"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="rect7" />
+  <circle
+     cx="96"
+     cy="66"
+     r="150"
+     fill="url(#an-glow)"
+     id="circle7" />
+  <!-- report card -->
+  <rect
+     x="64"
+     y="60"
+     width="416"
+     height="300"
+     rx="28"
+     fill="#ffffff"
+     stroke="#e2e8f0"
+     stroke-width="2"
+     id="rect8" />
+  <path
+     id="rect8-2"
+     style="fill:url(#linearGradient9);stroke:#e2e8f0;stroke-width:2"
+     d="m 92.013322,59.961592 c -15.512,0 -28,12.488 -28,28 V 111.3698 H 480.01315 V 87.961592 c 0,-15.512 -12.488,-28 -28,-28 z" />
+  <rect
+     x="90"
+     y="80"
+     width="118"
+     height="10"
+     rx="5"
+     fill="#ffffff"
+     opacity="0.9"
+     id="rect11" />
+  <g
+     fill="#ffffff"
+     opacity="0.55"
+     id="g12">
+    <circle
+       cx="428"
+       cy="86"
+       r="6"
+       id="circle11" />
+    <circle
+       cx="448"
+       cy="86"
+       r="6"
+       id="circle12" />
+    <circle
+       cx="408"
+       cy="86"
+       r="6"
+       id="circle12-7" />
+  </g>
+  <!-- rows -->
+  <g
+     font-family="Inter, system-ui, sans-serif"
+     font-size="14"
+     fill="#475569"
+     id="g24">
+    <g
+       id="g14">
+      <rect
+         x="88"
+         y="136"
+         width="368"
+         height="44"
+         rx="14"
+         fill="#f8fafc"
+         id="rect12" />
+      <circle
+         cx="114"
+         cy="158"
+         r="12"
+         fill="#dcfce7"
+         id="circle13" />
+      <path
+         d="M108 158l5 5 9-10"
+         stroke="#16a34a"
+         stroke-width="3"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path13"
+         style="fill:none" />
+      <rect
+         x="140"
+         y="153"
+         width="120"
+         height="10"
+         rx="5"
+         fill="#cbd5e1"
+         id="rect13" />
+      <rect
+         x="380"
+         y="153"
+         width="56"
+         height="10"
+         rx="5"
+         fill="#e2e8f0"
+         id="rect14" />
+    </g>
+    <g
+       id="g17">
+      <rect
+         x="88"
+         y="190"
+         width="368"
+         height="44"
+         rx="14"
+         fill="#f8fafc"
+         id="rect15" />
+      <circle
+         cx="114"
+         cy="212"
+         r="12"
+         fill="#dcfce7"
+         id="circle15" />
+      <path
+         d="M108 212l5 5 9-10"
+         stroke="#16a34a"
+         stroke-width="3"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path15"
+         style="fill:none" />
+      <rect
+         x="140"
+         y="207"
+         width="94"
+         height="10"
+         rx="5"
+         fill="#cbd5e1"
+         id="rect16" />
+      <rect
+         x="380"
+         y="207"
+         width="56"
+         height="10"
+         rx="5"
+         fill="#e2e8f0"
+         id="rect17" />
+    </g>
+    <g
+       id="g20">
+      <rect
+         x="88"
+         y="244"
+         width="368"
+         height="44"
+         rx="14"
+         fill="#fffbeb"
+         stroke="#fde68a"
+         stroke-width="2"
+         id="rect18" />
+      <circle
+         cx="114"
+         cy="266"
+         r="12"
+         fill="#fef3c7"
+         id="circle18" />
+      <path
+         d="M114 259v8"
+         stroke="#d97706"
+         stroke-width="3"
+         stroke-linecap="round"
+         id="path18" />
+      <circle
+         cx="114"
+         cy="272"
+         r="1.8"
+         fill="#d97706"
+         id="circle19" />
+      <rect
+         x="140"
+         y="261"
+         width="140"
+         height="10"
+         rx="5"
+         fill="#fcd34d"
+         id="rect19" />
+      <rect
+         x="380"
+         y="261"
+         width="56"
+         height="10"
+         rx="5"
+         fill="#fde68a"
+         id="rect20" />
+    </g>
+    <g
+       id="g23">
+      <rect
+         x="88"
+         y="298"
+         width="368"
+         height="44"
+         rx="14"
+         fill="#f8fafc"
+         id="rect21" />
+      <circle
+         cx="114"
+         cy="320"
+         r="12"
+         fill="#dcfce7"
+         id="circle21" />
+      <path
+         d="M108 320l5 5 9-10"
+         stroke="#16a34a"
+         stroke-width="3"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path21"
+         style="fill:none" />
+      <rect
+         x="140"
+         y="315"
+         width="108"
+         height="10"
+         rx="5"
+         fill="#cbd5e1"
+         id="rect22" />
+      <rect
+         x="380"
+         y="315"
+         width="56"
+         height="10"
+         rx="5"
+         fill="#e2e8f0"
+         id="rect23" />
+    </g>
+  </g>
+  <!-- magnifier -->
+  <g
+     transform="translate(444 232)"
+     id="g28">
+    <path
+       d="M101 101l34 34"
+       stroke="url(#an-accent)"
+       stroke-width="14"
+       stroke-linecap="round"
+       id="path24" />
+    <circle
+       cx="60"
+       cy="60"
+       r="58"
+       fill="#ffffff"
+       fill-opacity="0.92"
+       stroke="url(#an-accent)"
+       stroke-width="8"
+       id="circle24" />
+    <g
+       stroke="#f59e0b"
+       stroke-width="5"
+       stroke-linecap="round"
+       opacity="0.85"
+       id="g27">
+      <path
+         d="M36 52h30"
+         id="path25" />
+      <path
+         d="M36 68h48"
+         id="path26" />
+      <path
+         d="M36 84h22"
+         id="path27" />
+    </g>
+  </g>
+</svg>

@@ -149,6 +149,9 @@
 
   function onBeforeUnload(e) {
     if (bypass) return; // confirmed leave via popup should not double-prompt
+    // A run launched from the "Run jobs" popup navigates to the monitor on
+    // purpose (with the current, possibly unsaved, config): do not warn.
+    if (window.__odatixSkipUnsavedGuard) return;
     if (isDirty()) {
       e.preventDefault();
       e.returnValue = ""; // triggers the browser's native confirm dialog

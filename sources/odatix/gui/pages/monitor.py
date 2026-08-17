@@ -22,6 +22,7 @@
 import dash
 from dash import html, dcc, Input, Output, State, ctx, ALL
 from typing import Optional#, Literal
+import os
 import requests
 import socket
 from dash.exceptions import PreventUpdate
@@ -32,6 +33,7 @@ from odatix.gui.utils import get_key_from_url, ansi_to_html_spans
 import odatix.gui.ui_components as ui
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import daemon_control
+from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
 
 page_path = "/monitor"
 
@@ -241,6 +243,12 @@ def _format_monitor_error(error, daemon_state: Optional[dict] = None):
         return str(error) + " (add ?session=<session_name_or_prefix> to the monitor URL)"
 
     if isinstance(error, daemon_control.DaemonControlError):
+        # The selected session is gone (e.g. just stopped) and no other session
+        # is available: guide the user instead of showing the raw selector error.
+        if "No session matches" in str(error):
+            return (
+                "This session is no longer running. "
+            )
         return str(error)
 
     if isinstance(error, requests.RequestException):
@@ -533,6 +541,11 @@ def _update_session_dropdown(_n, last_action, search, current_value, daemon_stat
         selected = None
 
     query_session = _monitor_query(search).get("session")
+    # After a shutdown, the URL still points at the (now dead) session. Do not
+    # keep preferring it: fall back to any other available session below, so the
+    # monitor lands on a live session instead of "No session matches".
+    if session_stopped:
+        query_session = None
     if selected is None:
         selected = _pick_session_value(daemons, query_session)
 
@@ -1163,6 +1176,29 @@ def _compose_split_class(layout):
     )
 
 
+# Formatters are keyed by tool.yml path: parsing it on every log render would be
+# wasteful, and a handler keeps the same format file for its whole lifetime.
+_formatter_cache = {}
+
+
+def _get_formatter(format_yaml):
+    """Return the JobOutputFormatter for a handler's format YAML, or None.
+
+    The daemon serves raw log lines (the remote curses monitor formats them
+    client-side too), so the GUI has to apply the tool.yml rules itself before
+    converting ANSI codes to spans.
+    """
+    if not format_yaml:
+        return None
+    path = str(format_yaml)
+    if path not in _formatter_cache:
+        try:
+            _formatter_cache[path] = JobOutputFormatter(path) if os.path.isfile(path) else None
+        except Exception:
+            _formatter_cache[path] = None
+    return _formatter_cache[path]
+
+
 @dash.callback(
     Output("monitor-log", "children"),
     Output("monitor-status", "children"),
@@ -1170,14 +1206,20 @@ def _compose_split_class(layout):
     Output("monitor-error-container", "className"),
     Input("monitor-logs", "data"),
     Input("monitor-error", "data"),
+    State("monitor-snapshot", "data"),
     State(f"url_{page_path}", "search"),
 )
-def _render_logs(logs_state, error_message, search):
+def _render_logs(logs_state, error_message, snapshot, search):
     if not isinstance(logs_state, dict):
         logs_state = {}
     lines_any = logs_state.get("lines")
     lines = lines_any if isinstance(lines_any, list) else []
     lines = [str(line).rstrip("\n") for line in lines]
+
+    handler = snapshot.get("handler") if isinstance(snapshot, dict) else None
+    formatter = _get_formatter(handler.get("format_yaml") if isinstance(handler, dict) else None)
+    if formatter is not None:
+        lines = [formatter.replace_in_line(line) for line in lines]
 
     text = "\n".join(lines)
     status = ""
@@ -1306,6 +1348,140 @@ def _toggle_open_path(_n, selected_session, search, daemon_state):
     if _is_local_host(host):
         return False, "Open task directory"
     return True, "Directory not available: the daemon is running on a remote host"
+
+
+def _finished_stat(value, label, kind):
+    return html.Div(
+        className="monitor-finished-stat {}".format(kind),
+        children=[
+            html.Span(str(value), className="monitor-finished-stat-value"),
+            html.Span(label, className="monitor-finished-stat-label"),
+        ],
+    )
+
+
+def _format_hms(seconds: int) -> str:
+    seconds = max(0, int(seconds))
+    return "{:d}:{:02d}:{:02d}".format(seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+
+
+@dash.callback(
+    Output("monitor-finished-popup", "className"),
+    Output("monitor-finished-title", "children"),
+    Output("monitor-finished-badge", "className"),
+    Output("monitor-finished-badge", "children"),
+    Output("monitor-finished-message", "children"),
+    Output("monitor-finished-stats", "children"),
+    Output("monitor-finished-announced", "data"),
+    Input("monitor-snapshot", "data"),
+    State("monitor-finished-announced", "data"),
+    State("session-dropdown", "value"),
+    State("monitor-daemon", "data"),
+    prevent_initial_call=True,
+)
+def _announce_finished(snapshot, announced, selected_session, daemon_state):
+    """Pop the completion dialog once per session, when every job is done."""
+    jobs = snapshot.get("jobs") if isinstance(snapshot, dict) else None
+    if not isinstance(jobs, list):
+        raise PreventUpdate
+    jobs = [job for job in jobs if isinstance(job, dict)]
+    if not jobs:
+        raise PreventUpdate
+
+    total = len(jobs)
+    done = failed = 0
+    longest = 0
+    for job in jobs:
+        status_norm = str(job.get("status") or "").lower().strip()
+        if status_norm in RUNNING_STATUSES or status_norm in QUEUED_STATUSES:
+            raise PreventUpdate
+        if status_norm in DONE_STATUSES:
+            done += 1
+        elif status_norm in FAILED_STATUSES:
+            failed += 1
+        longest = max(longest, _elapsed_seconds(job))
+
+    if done + failed < total:
+        raise PreventUpdate
+
+    session = _normalize_optional_str(selected_session)
+    if session is None and isinstance(daemon_state, dict):
+        session = _normalize_optional_str(daemon_state.get("session"))
+    key = "{}|{}".format(session or "", total)
+    if announced == key:
+        raise PreventUpdate
+
+    if failed > 0:
+        title = "All jobs finished"
+        badge = "monitor-finished-badge failed"
+        glyph = icon("cross", className="icon", width="30px", height="30px")
+        if total == 1:
+            message = "The task finished with an error!"
+        elif failed == total:
+            message = f"All {total} tasks finished with an error!"
+        else:
+            message = f"{total} tasks finished, {failed} of them failed."
+    else:
+        title = "All jobs completed"
+        badge = "monitor-finished-badge success"
+        glyph = icon("check", className="icon", width="30px", height="30px")
+        if total == 1:
+            message = "The task completed successfully."
+        elif total == 2:
+            message = "Both tasks completed successfully."
+        else:
+            message = f"All {total} tasks completed successfully."
+
+    stats = [
+        _finished_stat(total, "Total", "total"),
+        _finished_stat(done, "Done", "done"),
+        _finished_stat(failed, "Failed", "failed"),
+        _finished_stat(_format_hms(longest), "Longest", "time"),
+    ]
+    return "overlay-odatix visible", title, badge, glyph, message, stats, key
+
+
+@dash.callback(
+    Output("monitor-finished-popup", "className", allow_duplicate=True),
+    Input("monitor-finished-stay", "n_clicks"),
+    Input("monitor-finished-backdrop", "n_clicks"),
+    prevent_initial_call=True,
+)
+def _close_finished_popup(_stay_clicks, _backdrop_clicks):
+    if not ctx.triggered[0].get("value"):
+        raise PreventUpdate
+    return "overlay-odatix"
+
+
+@dash.callback(
+    Output({"type": "update_url", "id": page_path}, "data"),
+    Output("monitor-finished-popup", "className", allow_duplicate=True),
+    Output("monitor-finished-error", "children"),
+    Input("monitor-finished-keep", "n_clicks"),
+    Input("monitor-finished-close", "n_clicks"),
+    State("monitor-daemon", "data"),
+    State(f"url_{page_path}", "search"),
+    State("session-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def _quit_to_explorer(_keep_clicks, _close_clicks, daemon_state, search, selected_session):
+    triggered = ctx.triggered_id
+    if triggered not in ("monitor-finished-keep", "monitor-finished-close"):
+        raise PreventUpdate
+    if not ctx.triggered[0].get("value"):
+        raise PreventUpdate
+
+    if triggered == "monitor-finished-close":
+        try:
+            resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
+            daemon_control.stop_daemon(
+                host=resolved_daemon.get("host"),
+                port=resolved_daemon.get("port"),
+            )
+        except Exception as e:
+            return no_update, no_update, _format_monitor_error(e, daemon_state)
+
+    return {"href": "/explorer", "id": page_path}, "overlay-odatix", ""
 
 
 ######################################
@@ -1504,6 +1680,8 @@ log_panel = html.Div(
         ),
         html.Div(
             className="monitor-log-scroll",
+            # Focusable so Home/End/PageUp scroll the log pane, not the page.
+            tabIndex="0",
             children=[
                 html.Pre(id="monitor-log", className="monitor-log"),
             ],
@@ -1524,6 +1702,8 @@ split_view = html.Div(
 layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
+        # Target of the shared `update_url` navigation callback (see navigation.py).
+        dcc.Location(id="url", refresh="callback-nav"),
         html.Div(
             children=[
                 html.Div(
@@ -1548,6 +1728,75 @@ layout = html.Div(
                 split_view,
             ],
         ),
+        html.Div(
+            id="monitor-finished-popup",
+            className="overlay-odatix",
+            children=[
+                # Clicking anywhere outside the dialog dismisses it.
+                html.Div(id="monitor-finished-backdrop", className="popup-backdrop", n_clicks=0),
+                html.Div(
+                    [
+                        html.Div(
+                            className="monitor-finished-head",
+                            children=[
+                                html.Div(
+                                    icon("check", className="icon", width="30px", height="30px"),
+                                    id="monitor-finished-badge",
+                                    className="monitor-finished-badge",
+                                ),
+                                html.H2("All jobs completed", id="monitor-finished-title"),
+                                html.Div(id="monitor-finished-message", className="monitor-finished-message"),
+                            ],
+                        ),
+                        html.Div(id="monitor-finished-stats", className="monitor-finished-stats"),
+                        html.Div(
+                            [
+                                # Default choice first, so Enter closes the session.
+                                ui.icon_button(
+                                    icon=icon("metrics", className="icon"),
+                                    color="primary",
+                                    text="Close session and open Explorer",
+                                    width="100%",
+                                    id="monitor-finished-close",
+                                    center=True,
+                                    style={"height": "45.2px", "border-radius": "var(--theme-small-border-radius)"},
+                                ),
+                                html.Div(
+                                    [
+                                        html.Button(
+                                            [
+                                                "Keep session",
+                                                html.Br(),
+                                                "and open Explorer",
+                                            ],
+                                            id="monitor-finished-keep",
+                                            n_clicks=0,
+                                            className="monitor-finished-ghost",
+                                        ),
+                                        html.Button(
+                                            [
+                                                "Stay in",
+                                                html.Br(),
+                                                "the monitor",
+                                            ],
+                                            id="monitor-finished-stay",
+                                            n_clicks=0,
+                                            className="monitor-finished-ghost",
+                                        ),
+                                    ],
+                                    className="monitor-finished-actions-row",
+                                ),
+                            ],
+                            className="monitor-finished-actions",
+                        ),
+                        html.Div(id="monitor-finished-error", className="monitor-finished-error"),
+                    ],
+                    className="popup-odatix monitor-finished-popup",
+                ),
+            ],
+        ),
+        dcc.Store(id={"type": "update_url", "id": page_path}),
+        dcc.Store(id="monitor-finished-announced", data=None),
         dcc.Interval(id="monitor-refresh", interval=1000, n_intervals=0),
         dcc.Store(id="monitor-snapshot", data=None),
         dcc.Store(id="monitor-error", data=""),

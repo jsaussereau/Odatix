@@ -148,18 +148,25 @@ class ExplorerStandaloneApp:
     )
 
   def setup_layout(self):
-    self.app.layout = html.Div(
-      children=[
-        self.top_bar(),
-        dcc.Location(id="url-global"),
-        dcc.Store(id="odatix-settings", data={"result_path": self.result_path}),
-        *explorer_state_stores(),
-        html.Div([dash.page_container], id="content", className="content", style={"height": "100%"}),
-      ],
-      id="theme",
-      className="theme " + self.start_theme,
-      style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "column"},
-    )
+    def serve_layout():
+      # Resolve the theme for this request from the odatix_theme cookie (set
+      # client-side when the user picks a theme) so it survives page
+      # refreshes and app restarts.
+      self.start_theme = gui_themes.theme_from_cookie(default=self.start_theme)
+      return html.Div(
+        children=[
+          self.top_bar(),
+          dcc.Location(id="url-global"),
+          dcc.Store(id="odatix-settings", data={"result_path": self.result_path}),
+          dcc.Store(id="theme-cookie-sync"),
+          *explorer_state_stores(),
+          html.Div([dash.page_container], id="content", className="content", style={"height": "100%"}),
+        ],
+        id="theme",
+        className="theme " + self.start_theme,
+        style={"width": "100%", "height": "100%", "display": "flex", "flexDirection": "column"},
+      )
+    self.app.layout = serve_layout
 
   def setup_callbacks(self):
     @self.app.callback(
@@ -168,6 +175,19 @@ class ExplorerStandaloneApp:
     )
     def update_theme(theme):
       return "theme " + str(theme)
+
+    # Persist the chosen theme to a cookie so it survives page refreshes and
+    # app restarts (read back server-side via gui_themes.theme_from_cookie).
+    self.app.clientside_callback(
+      f"""
+      function(theme) {{
+          document.cookie = "{gui_themes.cookie_name}=" + theme + ";path=/;max-age=31536000;samesite=Lax";
+          return window.dash_clientside.no_update;
+      }}
+      """,
+      Output("theme-cookie-sync", "data"),
+      Input("theme-dropdown", "value"),
+    )
 
   def run(self):
     self.app.run(host="127.0.0.1", debug=True)

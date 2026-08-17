@@ -1,0 +1,27 @@
+##############################################
+# Settings for Example_Cordic_sv
+##############################################
+# Pipelined CORDIC rotation core.
+# The configurations sweep the datapath width and the number of rotation
+# stages, which trades accuracy for area and latency.
+
+# Source files
+rtl_path: "examples/cordic_sv"
+top_level_file: "cordic.sv"
+top_level_module: "cordic"
+
+# Signals
+clock_signal: "clock"
+reset_signal: "reset"
+
+# Delimiters for parameter files
+use_parameters: No
+start_delimiter: ""
+stop_delimiter: ""
+
+# Default frequencies (in MHz)
+fmax_synthesis:
+  lower_bound: 50
+  upper_bound: 800
+custom_freq_synthesis:
+  list: [50, 100, 200]

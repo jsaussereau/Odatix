@@ -2,6 +2,11 @@
 # Settings for Verilator (RTL Analysis)
 ##################################################
 
+# Display metadata (used by the GUI tool selection page)
+label: "Verilator"
+description: "Open Source Verilator RTL analysis"
+icon: "assets/icons/verilator.png"
+
 process_group: True
 
 # Default metrics file for this tool

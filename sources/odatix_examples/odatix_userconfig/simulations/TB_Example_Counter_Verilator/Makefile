@@ -24,7 +24,7 @@
 ########################################################
 
 WORK_DIR = .
-RTL_DIR = ../../../examples/counter_sv
+RTL_DIR = rtl
 OBJ_DIR = $(WORK_DIR)/obj
 LOG_DIR = $(WORK_DIR)/log
 VCD_DIR = $(WORK_DIR)/vcd
@@ -38,6 +38,7 @@ ENV_SET = export LC_ALL=C; unset LANGUAGE;
 
 MODULE = counter
 VCD_FILE = $(VCD_DIR)/$(MODULE).vcd
+RESULT_FILE = $(WORK_DIR)/results.yml
 
 ########################################################
 # Files
@@ -114,7 +115,7 @@ $(VCD_FILE): $(SIM_FILE)
 	@printf "              Simulating              \n"
 	@printf "######################################\n"
 	@printf "$(_END)\n"
-	@$(SIM_FILE) --vcd_file "$(VCD_FILE)" \
+	@$(SIM_FILE) --vcd_file "$(VCD_FILE)" --result_file "$(RESULT_FILE)" \
 	| tee "$(LOG_DIR)/$(SIM_LOGFILE)" | sed "$(VERILATOR_COLOR)"
 #	+verilator+rand+reset+2 
 	@echo "progress: 100%" > $(PROGRESS_FILE)
@@ -160,6 +161,7 @@ clean:
 	@rm -rf $(OBJ_DIR)
 	@rm -rf $(LOG_DIR)
 	@rm -rf $(VCD_DIR)
+	@rm -f $(RESULT_FILE)
 
 .PHONY: makedir
 makedir:

@@ -34,7 +34,7 @@ import plotly.graph_objects as go
 import odatix.explorer.core.schema as schema
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
-from odatix.explorer.charts.spec import NONE_VALUE
+from odatix.explorer.charts.spec import NONE_VALUE, x_is_symbolic
 
 TRANSPARENT = "rgba(0,0,0,0)"
 
@@ -54,10 +54,40 @@ def _dimension_series(df, dimension):
   return df[dimension].fillna(schema.MISSING_VALUE).astype(str)
 
 
+def _auto_line_color_dimension(spec, dimensions):
+  """
+  The configuration, when a line chart would otherwise draw every configuration
+  as a single trace.
+
+  On a line chart the x axis is swept (a metric or a parameter), so several
+  configurations sharing the same x values collapse into one zigzagging trace.
+  Splitting and coloring them by configuration is what was meant. It is not done
+  for the other chart kinds: on a scatter, the configuration is the point
+  identity, and grouping by it would make one trace per point.
+
+  Returns None as soon as the user picked any explicit grouping: that choice is
+  theirs, and a second grouping behind their back is not.
+  """
+  if spec.kind != "lines":
+    return None
+  if spec.color_by or spec.symbol_by or spec.dissociate:
+    return None
+  if spec.legend_group_by and spec.legend_group_by != NONE_VALUE:
+    return None
+  dimension = schema.COL_CONFIGURATION
+  if dimension == spec.x or len(dimensions.get(dimension, [])) <= 1:
+    return None
+  return dimension
+
+
 def identity_dimensions(spec, dimensions):
   """Dimensions splitting the selection into traces."""
   identity = [dim for dim in AUTO_GROUP_DIMENSIONS if dim in dimensions and len(dimensions[dim]) > 1]
-  for extra in (spec.color_by, spec.symbol_by, spec.legend_group_by, spec.dissociate):
+  auto_line = _auto_line_color_dimension(spec, dimensions)
+  if auto_line and auto_line not in identity:
+    identity.append(auto_line)
+  extras = list(spec.color_by or ()) + list(spec.symbol_by or ()) + list(spec.dissociate or ()) + list(spec.sort_by or ()) + [spec.legend_group_by]
+  for extra in extras:
     if extra and extra != NONE_VALUE and extra in dimensions and extra not in identity:
       identity.append(extra)
   # The x axis and point-label dimensions vary inside a trace
@@ -85,7 +115,10 @@ def group_traces(df, spec, dimensions):
       key = (key,)
     groups.append((dict(zip(identity, key)), sub_df))
 
-  groups.sort(key=lambda group: tuple(schema.sort_key(group[0][dim]) for dim in identity))
+  sort_by = [dim for dim in (spec.sort_by or ()) if dim in identity]
+  sort_order = sort_by + [dim for dim in identity if dim not in sort_by]
+
+  groups.sort(key=lambda group: tuple(schema.sort_key(group[0][dim]) for dim in sort_order))
   return groups
 
 
@@ -97,7 +130,9 @@ def trace_name(info, dimensions, spec, units):
       continue  # constant over the selection: no need to repeat it
     if str(value) == schema.MISSING_VALUE:
       continue  # dimension absent from this trace's records
-    if dim == spec.dissociate:
+    if dim == spec.legend_group_by:
+      continue  # already shown as the legend group title
+    if dim in (spec.dissociate or ()):
       parts.append("[" + str(dim) + ": " + str(value) + "]")
     elif dim == schema.COL_FREQUENCY:
       if value == schema.FMAX_FREQUENCY_VALUE:
@@ -121,20 +156,45 @@ def _value_index(value, values):
     return -1
 
 
-def style_indices(info, spec, dimensions, global_dimensions):
-  """(color index, symbol index) of a trace, from its dimension values."""
+def _combination_index(info, by_dimensions, reference, dimensions):
+  """Index of a trace among all value combinations of ``by_dimensions``.
+
+  Mixed-radix number over the dimensions' value lists, so every combination
+  gets its own index (and its own color / symbol). The first dimension is the
+  most significant one: neighboring values of the last dimension end up on
+  neighboring palette entries.
+
+  Returns -1 when a dimension is absent from the selection altogether (the
+  caller's palette then falls back), as the single-dimension code did.
+  """
+  index = 0
+  for dimension in by_dimensions:
+    values = reference.get(dimension, [])
+    if dimension in info:
+      position = max(_value_index(info[dimension], values), 0)
+    elif dimension not in dimensions:
+      return -1
+    else:
+      position = 0
+    index = index * max(len(values), 1) + position
+  return index
+
+
+def style_indices(info, spec, dimensions, global_dimensions, color_by=None):
+  """(color index, symbol index) of a trace, from its dimension values.
+
+  ``color_by`` overrides spec.color_by, for the dimension a line chart colors by
+  on its own when nothing explicit was picked (see _auto_line_color_dimension).
+  """
   reference = global_dimensions if spec.stable_index else dimensions
 
-  color_index = 0
-  if spec.color_by and spec.color_by != NONE_VALUE:
-    if spec.color_by in info:
-      color_index = _value_index(info[spec.color_by], reference.get(spec.color_by, []))
-    else:
-      color_index = -1 if spec.color_by not in dimensions else 0
+  if color_by:
+    color_by = (color_by,) if isinstance(color_by, str) else tuple(color_by)
+  else:
+    color_by = spec.color_by or ()
 
-  symbol_index = 0
-  if spec.symbol_by and spec.symbol_by != NONE_VALUE and spec.symbol_by in info:
-    symbol_index = max(_value_index(info[spec.symbol_by], reference.get(spec.symbol_by, [])), 0)
+  color_index = _combination_index(info, color_by, reference, dimensions) if color_by else 0
+  symbol_index = max(_combination_index(info, spec.symbol_by or (), reference, dimensions), 0)
 
   return color_index, symbol_index
 
@@ -188,16 +248,20 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
     _apply_layout(fig, spec, [], units, chrome, height, plot_theme)
     return fig
 
-  x_is_metric = spec.kind in ("scatter", "scatter3d") or (spec.x in metrics and spec.x not in dimensions)
+  x_is_metric = not x_is_symbolic(spec.kind, spec.x, dimensions, metrics)
   categories = [] if x_is_metric else _x_categories(df, spec)
 
+  auto_color_by = _auto_line_color_dimension(spec, dimensions)
+
   for info, sub_df in group_traces(df, spec, dimensions):
-    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions)
+    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by)
     color = palettes.get_color(color_index, palette)
     name = trace_name(info, dimensions, spec, units)
     legend_group = None
     if spec.has("legend_groups") and spec.legend_group_by and spec.legend_group_by != NONE_VALUE:
-      legend_group = info.get(spec.legend_group_by)
+      group_value = info.get(spec.legend_group_by)
+      if group_value is not None:
+        legend_group = str(spec.legend_group_by) + ": " + str(group_value)
 
     common = dict(
       name=name,
@@ -221,8 +285,46 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
 
 
 def _x_categories(df, spec):
-  values = _dimension_series(df, spec.x).unique() if spec.x in df.columns else []
-  return schema.sort_values(values)
+  """Order of the categories of a symbolic x axis.
+
+  By default the values are ordered naturally (numeric-aware). "Sort X by"
+  dimensions take priority over that, in the order picked, exactly as "Sort by"
+  does for traces; the x order then decides the last key (the value itself, or
+  its y value) and whether the whole order is reversed.
+  """
+  if spec.x not in df.columns:
+    return []
+  values = _dimension_series(df, spec.x)
+  categories = schema.sort_values(values.unique())
+
+  order = spec.sort_x_order or "natural"
+  sort_dims = [dim for dim in (spec.sort_x_by or ()) if dim in df.columns and dim != spec.x]
+  by_y = order in ("y_asc", "y_desc")
+  if not sort_dims and not by_y and order != "reverse":
+    return categories
+
+  frame = pd.DataFrame({dim: _dimension_series(df, dim) for dim in sort_dims})
+  frame["__x"] = values
+  if by_y:
+    frame["__y"] = pd.to_numeric(df[spec.y], errors="coerce") if spec.y in df.columns else float("nan")
+
+  natural_rank = {category: rank for rank, category in enumerate(categories)}
+  keys = {}
+  for category, sub in frame.groupby("__x", sort=False):
+    # A category can span several rows: rank it by its first dimension values
+    # and by its mean y, so the order stays defined whatever the traces are.
+    dim_key = tuple(min(schema.sort_key(value) for value in sub[dim]) for dim in sort_dims)
+    if by_y:
+      mean = sub["__y"].mean()
+      last = (1, 0.0) if pd.isna(mean) else (0, float(mean))  # missing y goes last
+    else:
+      last = (0, natural_rank.get(category, 0))
+    keys[category] = (dim_key, last)
+
+  ordered = sorted(categories, key=lambda category: keys[category])
+  if order in ("reverse", "y_desc"):
+    ordered.reverse()
+  return ordered
 
 
 def _x_label(category, spec):
@@ -231,17 +333,28 @@ def _x_label(category, spec):
   return str(category)
 
 
+def _x_labels(categories, spec):
+  """The x axis labels, in order and without duplicates.
+
+  Dissociated dimensions are stripped from the labels, so several categories
+  ("...+partition_none", "...+partition_cyclic") collapse into a single label:
+  that is exactly the point of dissociating, each trace then holding one point
+  per label instead of one point and holes where the other traces sit.
+  """
+  return list(dict.fromkeys(_x_label(category, spec) for category in categories))
+
+
 def _categorical_xy(sub_df, spec, categories):
-  """Align a trace on the shared x categories (None where a category has no value)."""
+  """Align a trace on the shared x labels (None where a label has no value)."""
   series = pd.to_numeric(sub_df[spec.y], errors="coerce") if spec.y in sub_df.columns else pd.Series(dtype=float)
-  by_category = {}
+  by_label = {}
   if spec.x in sub_df.columns:
     x_values = _dimension_series(sub_df, spec.x)
     for x_value, y_value in zip(x_values, series):
       if pd.notna(y_value):
-        by_category[x_value] = y_value
-  x = [_x_label(category, spec) for category in categories]
-  y = [by_category.get(category) for category in categories]
+        by_label[_x_label(x_value, spec)] = y_value
+  x = _x_labels(categories, spec)
+  y = [by_label.get(label) for label in x]
   return x, y
 
 
@@ -374,6 +487,13 @@ def _apply_axis_scale(axis, log_on, zero_on):
   """
   if log_on:
     axis["type"] = "log"
+    axis["dtick"] = 1
+    axis["minor"] = dict(
+      showgrid=axis.get("showgrid", True),
+      gridcolor=axis.get("gridcolor"),
+      griddash="dot",
+      ticks="",
+    )
   elif zero_on:
     axis["rangemode"] = "tozero"
   return axis
@@ -433,7 +553,7 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
     xaxis = dict(title=str(spec.x) if categories else schema.axis_title(spec.x, units), **grid)
     if categories:
       xaxis["categoryorder"] = "array"
-      xaxis["categoryarray"] = [_x_label(category, spec) for category in categories]
+      xaxis["categoryarray"] = _x_labels(categories, spec)
     else:
       # Numeric x axis only: log scale / start-at-zero (ignored for categorical x).
       zero_x = spec.has("zero_x") or (spec.kind != "scatter" and spec.has("zero_y"))
@@ -474,7 +594,8 @@ def legend_entries(df, spec, dimensions, global_dimensions=None, palette=palette
   if global_dimensions is None:
     global_dimensions = dimensions
   entries = []
+  auto_color_by = _auto_line_color_dimension(spec, dimensions)
   for info, _ in group_traces(df, spec, dimensions):
-    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions)
+    color_index, symbol_index = style_indices(info, spec, dimensions, global_dimensions, color_by=auto_color_by)
     entries.append((trace_name(info, dimensions, spec, {}), palettes.get_color(color_index, palette), palettes.get_marker_symbol(symbol_index)))
   return entries

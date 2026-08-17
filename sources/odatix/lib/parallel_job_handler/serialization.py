@@ -68,12 +68,16 @@ def serialize_command(command):
         for stage, tasks in sorted(command.items(), key=lambda item: _stage_sort_key(item[0])):
             stage_tasks = []
             for task in tasks:
-                stage_tasks.append(
-                    {
-                        "name": _task_name(task),
-                        "command": _task_command(task),
-                    }
-                )
+                entry = {
+                    "name": _task_name(task),
+                    "command": _task_command(task),
+                }
+                # A task running a whole session of the tool covers several
+                # steps: the daemon has to know which ones to record them.
+                steps = task.get("steps") if isinstance(task, dict) else getattr(task, "steps", None)
+                if isinstance(steps, list) and steps:
+                    entry["steps"] = [str(name) for name in steps]
+                stage_tasks.append(entry)
             stages.append(
                 {
                     "stage": stage,
@@ -117,12 +121,14 @@ def deserialize_command(payload):
             for task in tasks:
                 if not isinstance(task, dict):
                     raise ValueError("invalid task entry in pipeline command")
-                normalized_tasks.append(
-                    {
-                        "name": str(task.get("name", "task")),
-                        "command": str(task.get("command", "")),
-                    }
-                )
+                normalized = {
+                    "name": str(task.get("name", "task")),
+                    "command": str(task.get("command", "")),
+                }
+                steps = task.get("steps")
+                if isinstance(steps, list) and steps:
+                    normalized["steps"] = [str(name) for name in steps]
+                normalized_tasks.append(normalized)
 
             command[stage_key] = normalized_tasks
         return command
@@ -134,6 +140,10 @@ def job_to_payload(job):
     post_run_export = getattr(job, "post_run_export", None)
     if not isinstance(post_run_export, dict):
         post_run_export = None
+
+    step_tracking = getattr(job, "step_tracking", None)
+    if not isinstance(step_tracking, dict):
+        step_tracking = None
 
     return {
         "command": serialize_command(job.command),
@@ -149,6 +159,11 @@ def job_to_payload(job):
         "log_size_limit": int(getattr(job, "log_size_limit", 200)),
         "progress_mode": str(getattr(job, "progress_mode", "default")),
         "post_run_export": post_run_export,
+        # Step pipeline bookkeeping (see odatix.lib.job_steps); absent for jobs
+        # that are not split into steps.
+        "step_tracking": step_tracking,
+        "step_names": [str(name) for name in (getattr(job, "step_names", None) or [])],
+        "resume_step_index": int(getattr(job, "resume_step_index", 0) or 0),
     }
 
 
@@ -181,5 +196,14 @@ def payload_to_job(payload, default_log_size_limit=200):
     post_run_export = payload.get("post_run_export")
     if isinstance(post_run_export, dict):
         job.post_run_export = post_run_export
+
+    step_tracking = payload.get("step_tracking")
+    if isinstance(step_tracking, dict):
+        job.step_tracking = step_tracking
+        job.step_names = [str(name) for name in (payload.get("step_names") or [])]
+        try:
+            job.resume_step_index = int(payload.get("resume_step_index", 0) or 0)
+        except (TypeError, ValueError):
+            job.resume_step_index = 0
 
     return job

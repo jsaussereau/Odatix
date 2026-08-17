@@ -312,10 +312,12 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.55;
     display: flex;
     align-items: center;
     gap: 2px;
+}
+.odx-panel-caption > span {
+    opacity: 0.65;
 }
 .odx-panel.padded > .odx-panel-caption {
     margin-bottom: var(--space-3);
@@ -474,10 +476,33 @@
     white-space: nowrap;
     opacity: 0.85;
 }
-.odx-badge.accent {
-    background: var(--theme-badge-background-color);
-    color: var(--theme-badge-text-color);
+/* Colored variants: a variant only sets --odx-badge-color, the tinted
+   background and the text color follow. Any theme color works, so a page
+   needing an unlisted one can set the variable inline instead of adding a
+   class. */
+.odx-badge.accent,
+.odx-badge.primary,
+.odx-badge.success,
+.odx-badge.warning,
+.odx-badge.caution,
+.odx-badge.error {
+    background: color-mix(in srgb, var(--odx-badge-color) 14%, transparent);
+    color: var(--odx-badge-color);
     opacity: 1;
+}
+.odx-badge.accent,
+.odx-badge.primary {
+    --odx-badge-color: var(--theme-primary-color);
+}
+.odx-badge.success {
+    --odx-badge-color: var(--theme-success-color);
+}
+.odx-badge.warning {
+    --odx-badge-color: var(--theme-warning-color);
+}
+.odx-badge.caution,
+.odx-badge.error {
+    --odx-badge-color: var(--theme-caution-color);
 }
 .odx-empty {
     padding: var(--space-6);
@@ -491,6 +516,17 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+/* Chips sitting on a row of their own controls (the head of a step), where they
+   are one choice among several and should not weigh more than the rest. */
+.odx-chips.small {
+    flex-wrap: nowrap;
+    gap: 4px;
+}
+.odx-chips.small label {
+    padding: 2px 9px;
+    font-size: 12px;
+    white-space: nowrap;
 }
 /* dcc.Checklist writes an inline "display: block" on every label, hence the
    !important here and in .odx-check-list. */
@@ -516,6 +552,19 @@
     background: var(--theme-primary-color);
     color: var(--theme-contrast-text-color);
     border-color: transparent;
+}
+/* A read-only choice (the job types of a built-in flow): still readable, and
+   plainly not yours to change. */
+.odx-chips label:has(input:disabled) {
+    cursor: default;
+    opacity: 0.55;
+}
+.odx-chips label:has(input:disabled):hover {
+    border-color: rgba(128, 128, 128, 0.3);
+}
+.odx-chips label:has(input:disabled:checked) {
+    background: rgba(128, 128, 128, 0.45);
+    color: inherit;
 }
 
 /* --- Row checklist ----------------------------------------------------- */
@@ -551,6 +600,16 @@
     font-weight: 600;
 }
 
+/* Read-only recap line, laid out like a checklist row but with nothing to
+   click (see the simulation preview in /run_jobs?type=simulation). */
+.odx-preview-item {
+    padding: 3px 8px;
+    border-radius: var(--theme-small-border-radius);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
 /* --- Item cards (configs, variables, tasks) ---------------------------- */
 .odx-cards {
     display: grid;
@@ -574,7 +633,7 @@
     box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
     box-sizing: border-box;
     min-width: 0;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    /* transition: border-color 0.18s ease, box-shadow 0.18s ease; */
 }
 .odx-card:hover {
     box-shadow: var(--theme-shadow-color) 0px 6px 16px -6px;
@@ -636,37 +695,15 @@
     font-weight: normal;
     resize: vertical;
 }
-/* "Add ..." card: dashed placeholder that matches the card grid. */
-.odx-add-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-1);
-    min-height: 120px;
-    padding: var(--space-4);
-    border: 1px dashed rgba(128, 128, 128, 0.45);
-    border-radius: var(--theme-normal-border-radius);
-    background: transparent;
-    color: var(--theme-text-color);
-    cursor: pointer;
-    box-sizing: border-box;
-    transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+
+.odx-add-card-plus{
+	font-size: 1.75em;
+	transform: translateY(-1px);
 }
-.odx-add-card:hover {
-    border-color: var(--theme-primary-color);
-    color: var(--theme-primary-color);
-    background: var(--theme-badge-background-color);
-}
-.odx-add-card-plus {
-    font-size: 26px;
-    line-height: 1;
-    font-weight: 300;
-}
+
 .odx-add-card-text {
-    font-size: 13px;
     font-weight: 600;
-}
+} 
 
 /* --- Status text ------------------------------------------------------- */
 .odx-status {
@@ -682,4 +719,633 @@
    look for: keep the wrapper transparent for the grid. */
 .odx-add-card-wrap {
     display: contents;
+}
+
+/* --- Tool selection cards (/choose_eda_tool) ---------------------------- */
+/* One card per eda tool, holding whatever that tool leaves to choose: its
+   flows as buttons, and, for a flow split into steps, its steps as "run up to
+   here" buttons. Every button leads straight to the job settings, so picking a
+   tool is a single click whatever it offers. */
+.odx-tool-grid {
+    --odx-tool-col: 236px;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-4);
+    justify-content: center;
+    max-width: 1120px;
+    margin: 0 auto;
+}
+.odx-tool-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-3);
+    box-sizing: border-box;
+    text-decoration: none;
+    color: var(--card-text-color);
+    background-color: var(--card-background);
+    border: var(--card-border);
+    border-radius: var(--card-border-radius);
+    box-shadow: var(--card-box-shadow);
+    backdrop-filter: var(--card-backdrop-filter);
+}
+/* A tool with nothing to choose is one big link, and lifts like a menu card. */
+.odx-tool-card.single {
+    justify-content: center;
+    padding-bottom: var(--space-4);
+    min-height: 188px;
+}
+.odx-tool-card.single:hover {
+    cursor: pointer;
+    box-shadow: var(--card-hover-box-shadow);
+    transform: var(--card-hover-transform);
+}
+
+.odx-tool-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-align: center;
+}
+.odx-tool-img {
+    max-height: 56px;
+    max-width: 60%;
+    object-fit: contain;
+    margin-bottom: 2px;
+}
+.odx-tool-name {
+    font-size: 1.05em;
+    font-weight: 700;
+}
+.odx-tool-desc {
+    font-size: 0.86em;
+    line-height: 1.35;
+    opacity: 0.65;
+}
+
+/* Flows spread over as many columns as the card was given (--odx-tool-cols,
+   set from the number of flows): stacking a dozen of them would make a card
+   taller than the page. */
+.odx-tool-flows {
+    display: grid;
+    grid-template-columns: repeat(var(--odx-tool-cols, 1), minmax(0, 1fr));
+    align-items: start;
+    gap: 6px;
+    margin-top: auto;
+    padding-top: var(--space-3);
+    border-top: 1px solid rgba(128, 128, 128, 0.16);
+}
+
+/* A flow that runs in one shot: a single button. */
+.odx-flow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 9px 12px;
+    border-radius: var(--theme-normal-border-radius);
+    background: var(--theme-tertiary-color);
+    color: var(--theme-text-color);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.odx-flow:hover {
+    background: var(--theme-primary-color);
+    color: var(--theme-contrast-text-color);
+}
+.odx-flow-name {
+    flex: 1;
+    min-width: 0;
+}
+.odx-flow-go {
+    opacity: 0.45;
+}
+/* A flow the workspace added to a built-in tool. Drawn in the button's own
+   colour rather than a fixed one, so it survives the hover turning the button
+   into a solid primary block. */
+.odx-flow-custom-badge {
+    flex: none;
+    padding: 0 7px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: transparent;
+    color: inherit;
+    border: 1px solid currentColor;
+    opacity: 0.5;
+}
+.odx-flow:hover .odx-flow-custom-badge {
+    opacity: 0.85;
+}
+.odx-flow:hover .odx-flow-go {
+    opacity: 1;
+}
+
+/* A flow split into steps: the button still runs the whole flow, and the
+   stopping points wait in an overlay until the flow is hovered. */
+.odx-flow-block {
+    position: relative;
+}
+/* Hint that there is more here than the button: a chevron in the gutter the
+   overlay comes out of. */
+.odx-flow.has-steps::after {
+    content: "›";
+    position: absolute;
+    right: -11px;
+    top: 50%;
+    transform: translateY(-50%);
+    line-height: 1;
+    font-size: 15px;
+    font-weight: 700;
+    opacity: 0.35;
+    transition: opacity 0.15s ease;
+}
+.odx-flow-block:hover .odx-flow.has-steps::after {
+    opacity: 1;
+}
+
+/* The overlay itself. Its left padding is a bridge the pointer crosses without
+   ever leaving the block, so the panel does not vanish on the way to it. */
+.odx-steps-pop {
+    position: absolute;
+    top: -6px;
+    left: 100%;
+    z-index: 20;
+    padding-left: 12px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-4px);
+    transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+.odx-flow-block:hover .odx-steps-pop,
+.odx-flow-block:focus-within .odx-steps-pop {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+}
+/* Stacked rather than chained side by side: the steps read as an ordered list,
+   and a long step name does not push the chain onto a second line. */
+.odx-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 168px;
+    padding: 9px 10px 10px;
+    border-radius: var(--theme-normal-border-radius);
+    background: var(--card-background);
+    border: var(--card-border);
+    box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
+    backdrop-filter: var(--card-backdrop-filter);
+}
+.odx-steps-title {
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.45;
+}
+.odx-step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 6px 10px;
+    border-radius: var(--theme-normal-border-radius);
+    background: var(--theme-element-background-color);
+    color: var(--theme-text-color);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.odx-step:hover {
+    background: var(--theme-primary-color);
+    color: var(--theme-contrast-text-color);
+}
+.odx-step-index {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    border-radius: 999px;
+    background: var(--theme-tertiary-color);
+    font-size: 10px;
+    font-weight: 700;
+}
+.odx-step:hover .odx-step-index {
+    background: var(--theme-contrast-text-color);
+    color: var(--theme-primary-color);
+}
+.odx-step.default {
+    box-shadow: inset 0 0 0 1px var(--theme-primary-color);
+}
+/* Where the flow stops when nothing is asked for: the same run as the flow
+   button itself, so it is named rather than highlighted like a choice apart. */
+.odx-step-default {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.5;
+}
+/* "Built-in tools", between two card grids. */
+.odx-choose-subhead {
+    justify-content: center;
+    margin: var(--space-5) 0 var(--space-3);
+}
+
+/* --- Flow editor (/tool_editor) ---------------------------------------- */
+/* One card per flow of the tool, each holding what that flow runs on each
+   platform. The cards are stacked rather than gridded: a flow is wide (two
+   platforms side by side) and reads top to bottom. */
+.odx-flows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin: 0 auto var(--space-6);
+    width: 100%;
+    /* Same column as the tiles of the sections around it. */
+    max-width: calc(2 * var(--tile-width) + var(--tile-gap));
+}
+.odx-flow-card {
+    padding: var(--space-4);
+}
+/* The default flow is the one the others start from: mark it without shouting. */
+.odx-flow-card.default {
+    border-left: 3px solid var(--theme-primary-color);
+}
+.odx-flow-head {
+    margin-bottom: var(--space-3);
+}
+/* Folded down to its head: no room left for a body that is not there. */
+.odx-flow-card.collapsed .odx-flow-head {
+    margin-bottom: 0;
+}
+.odx-flow-head .odx-card-name {
+    flex: 0 1 auto;
+    min-width: 120px;
+}
+.tile.config .odx-field-row > .odx-field,
+.odx-flow-card .odx-field-row > .odx-field {
+    flex: 1;
+}
+.odx-flow-add {
+    height: 60px !important;
+}
+
+/* One job type of one platform: what it runs, and how. */
+.odx-job {
+    padding: var(--space-2) 0;
+    border-top: 1px solid rgba(128, 128, 128, 0.14);
+}
+.odx-job:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+.odx-job-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    row-gap: 6px;
+    margin-bottom: 6px;
+}
+.odx-job-head .odx-chips label {
+    padding: 2px 10px;
+    font-size: 12px;
+}
+.odx-job-inherited {
+    font-size: 12px;
+    font-style: italic;
+    opacity: 0.5;
+    padding: 2px 0 4px;
+}
+.odx-job textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: monospace;
+    font-weight: normal;
+    resize: vertical;
+}
+
+/* How a job type opens the tool: one session for all the steps of a run,
+   rather than one process per step. Set apart from the steps it frames. */
+.odx-job-session {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--space-2);
+    border-radius: var(--theme-normal-border-radius);
+    border: 1px dashed rgba(128, 128, 128, 0.35);
+}
+.odx-job-session-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* A job type split into ordered, resumable steps. */
+.odx-jobsteps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.odx-jobstep {
+    padding: var(--space-2);
+    border-radius: var(--theme-normal-border-radius);
+    background: var(--theme-tertiary-color);
+}
+.odx-jobstep-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.odx-jobstep-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    font-size: 13px;
+}
+.odx-jobstep-add {
+    align-self: flex-start;
+    padding: 3px 12px;
+    border: var(--add-card-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--theme-text-color);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+	width: 100%;
+	height: 40px;
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+.odx-jobstep-add:hover {
+    background: var(--add-card-background-hover);
+    border: var(--add-card-border);
+    border-color: var(--theme-primary-color);
+    color: var(--theme-primary-color);
+}
+
+/* The flow used when none is asked for: a chip that reads as a state, and is
+   only clickable on the flows that are not it. */
+.odx-flow-default-chip {
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    background: transparent;
+    color: var(--theme-text-color);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.odx-flow-default-chip:hover:not(:disabled) {
+    border-color: var(--theme-primary-color);
+    color: var(--theme-primary-color);
+    opacity: 1;
+}
+.odx-flow-default-chip.active {
+    background: var(--theme-primary-color);
+    color: var(--theme-contrast-text-color);
+    border-color: transparent;
+    opacity: 1;
+    cursor: default;
+}
+.odx-flow-default-chip:disabled:not(.active) {
+    cursor: not-allowed;
+    opacity: 0.3;
+}
+
+/* A flow of a built-in tool: shown, not editable. */
+.odx-flow-builtin-badge {
+    margin-right: var(--space-1);
+    flex-shrink: 0;
+}
+.odx-flow-card.locked {
+    border-style: dashed;
+}
+.odx-flow-card.locked input:disabled,
+.odx-flow-card.locked textarea:disabled {
+    opacity: 0.75;
+    cursor: default;
+}
+
+/* --- Architectures of a simulation (/sim_editor) ------------------------ */
+/* One card per architecture the testbench is written for, each holding what the
+   simulation changes for it. Stacked and one tile wide, like the task cards of
+   the section below: the list reads top to bottom, in the same column as the
+   tiles of the sections around it. */
+.odx-arch-cards {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin: 0 auto var(--space-6);
+    width: 100%;
+    max-width: calc(2 * var(--tile-width) + var(--tile-gap));
+}
+.odx-arch-cards > * {
+    width: var(--tile-width);
+    max-width: 100%;
+}
+.odx-arch-card {
+    padding: var(--space-4);
+}
+/* Half a column is not much: the head wraps rather than squeezing the name. */
+.odx-arch-head {
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
+}
+/* Folded down to its head: no room left for a body that is not there. */
+.odx-arch-card.collapsed .odx-arch-head {
+    margin-bottom: 0;
+}
+/* The architecture the card is about: as wide as a name needs, no wider. */
+.odx-arch-name {
+    flex: 1 1 160px;
+    min-width: 120px;
+}
+.odx-arch-badge {
+    flex-shrink: 0;
+}
+.odx-arch-card .odx-field-row > .odx-field {
+    flex: 1;
+}
+.odx-add-card.horizontal {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 0;
+    padding: var(--space-3) var(--space-4);
+    align-self: stretch;
+    height: 71px;
+}
+
+/* The parameter domains this simulation substitutes differently. */
+.odx-domain-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+.odx-domain-row {
+    padding: var(--space-2);
+    border-radius: var(--theme-normal-border-radius);
+    /* background: var(--theme-tertiary-color); */
+    border: solid 1px var(--theme-border-color);
+}
+.odx-domain-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+/* The domain of the architecture this row is about. */
+.odx-domain-name {
+    flex: 1 1 130px;
+    min-width: 110px;
+    font-size: 13px;
+}
+.odx-domain-head .odx-chips label {
+    padding: 2px 10px;
+    font-size: 12px;
+}
+/* Nothing to override: said in the card, where a row would have been. */
+.odx-domain-empty {
+    font-size: 12px;
+    font-style: italic;
+    opacity: 0.5;
+    padding: 2px 0 4px;
+}
+
+/* What editing a built-in tool can and cannot change. */
+/* Sizing comes from the "tile title" classes it is given, so the notice is
+   always exactly as wide as the title tile above it (breakpoints included). */
+.odx-notice.tile {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid rgba(128, 128, 128, 0.18);
+    border-top: none;
+    background: var(--theme-tertiary-color);
+    box-shadow: none;
+    box-sizing: border-box;
+}
+.odx-notice-text {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    font-size: 13px;
+    line-height: 1.6;
+    opacity: 0.9;
+}
+.odx-notice-text > span {
+    width: fit-content;
+}
+
+/* Gear opening the tool editor, in the top right corner of a tool card, level
+   with its logo. Outside the card in the markup: a card with a single flow is
+   itself a link. */
+/* Width follows the content: one column of flows per --odx-tool-cols, plus the
+   gaps between them. The card may shrink below that on a narrow window, never
+   grow past it. */
+.odx-tool-card-wrap {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex: 0 1 calc(
+        var(--odx-tool-col, 236px) * var(--odx-tool-cols, 1)
+        + 6px * (var(--odx-tool-cols, 1) - 1)
+        + 2 * var(--space-4)
+    );
+}
+.odx-tool-card-wrap > .odx-tool-card {
+    flex: 1;
+    min-width: 0;
+}
+.odx-tool-gear {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    text-decoration: none;
+    /* The icons stroke with currentColor: the container picks the color. */
+    color: var(--card-text-color);
+    opacity: 0.35;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+.odx-tool-gear:hover {
+    opacity: 1;
+    background: var(--theme-tertiary-color);
+}
+
+/* --- Overrides (/arch_editor) ------------------------------------------- */
+/* One card per rule the architecture applies to a part of its jobs, stacked in
+   the column of the tile that holds them rather than side by side: the order of
+   the rules is what decides which one has the last word, so the section has to
+   read top to bottom. */
+.odx-override-cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
+    margin-top: var(--space-2);
+}
+.odx-override-card {
+    padding: var(--space-4);
+    gap: var(--space-3);
+}
+.odx-override-head {
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.16);
+}
+/* "Applies to" heads the selectors, which are what the card is about. */
+.odx-override-card .odx-card-name {
+    font-size: 16px;
+}
+/* Both fmax bounds hold a short number: half a card each, side by side. */
+.odx-override-card .odx-field-row > .odx-field {
+    flex: 1;
+    min-width: 0;
+}
+.odx-override-card textarea {
+    min-height: 64px;
+}
+.odx-override-empty {
+    padding: var(--space-2) 0;
+}
+/* The add card sits in the same column as the cards, and reads as their dashed
+   outline rather than as a card of its own. */
+.odx-add-card.odx-override-add {
+    width: 100%;
+    height: auto;
+    min-height: 52px;
+    border-radius: var(--theme-normal-border-radius);
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }

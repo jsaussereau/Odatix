@@ -1,0 +1,19 @@
+##############################################
+# Settings for this simulation
+##############################################
+
+# What to do for this simulation. The "main" task is the entry point
+tasks:
+- name: main
+  commands:
+  - make sim CFG_WIDTH=${width} CFG_ITERATIONS=${iterations} --no-print-directory
+
+# Where Odatix should look for progress information, and how to parse it
+progress:
+  file: "log/progress.log"
+  regex: "(.*): ([0-9]+)%(.*)"
+
+# Architectures this testbench runs on. Only an indication: running it on
+# another one works, and only prints a warning.
+architectures:
+- Example_Cordic_vhdl

@@ -42,22 +42,25 @@ import re
 import pandas as pd
 
 import odatix.explorer.core.query as query
+import odatix.explorer.core.rules as rules
 import odatix.explorer.core.schema as schema
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
 from odatix.explorer.charts.spec import (
   CAPABILITIES,
   KIND_LABELS,
+  MULTI_CONTROLS,
   NONE_VALUE,
   OVERVIEW_LAYOUTS,
   TOGGLE_LABELS,
+  X_ORDERS,
 )
 
 VIEWS_DIRNAME = "explorer_views"
 VIEW_SCHEMA_KEY = "odatix_explorer_view"
 VIEW_SCHEMA_VERSION = 1
 
-CONTROL_KEYS = ("x", "y", "z", "color_by", "symbol_by", "legend_group_by", "dissociate")
+CONTROL_KEYS = ("x", "y", "z", "color_by", "symbol_by", "legend_group_by", "sort_by", "sort_x_by", "sort_x_order", "dissociate")
 EXPORT_FORMATS = ("svg", "png", "jpeg", "webp")
 EXPORT_BACKGROUNDS = ("transparent", "white", "theme")
 OVERVIEW_CHART_TYPES = ("lines", "columns", "radar")
@@ -158,6 +161,33 @@ def load_view(result_path, name):
 ######################################
 
 
+def _sanitize_rules(node, metrics, warnings):
+  """
+  Drop, recursively, the rules comparing a metric this data does not have, then
+  the groups left empty by that. Returns the pruned node.
+  """
+  if node.get("kind") != "group":
+    # "other" only matters while the rule compares two metrics: an unused
+    # leftover from the constant mode must not disqualify the rule.
+    fields = ("metric", "other") if node.get("operand") == rules.OPERAND_METRIC else ("metric",)
+    for field in fields:
+      metric = node.get(field)
+      if metric and metric not in metrics:
+        warnings.append('Rule metric "' + metric + '" does not exist in this data')
+        return None
+    return node
+
+  children = []
+  for child in node.get("children") or []:
+    kept = _sanitize_rules(child, metrics, warnings)
+    if kept is not None:
+      children.append(kept)
+  node["children"] = children
+  if not children and node["id"] != rules.ROOT_ID:
+    return None
+  return node
+
+
 def sanitize_view(view, store):
   """
   Check a loaded view against the current store content, repairing anything
@@ -205,13 +235,34 @@ def sanitize_view(view, store):
     "color_by": dim_choices,
     "symbol_by": dim_choices,
     "legend_group_by": dim_choices,
+    "sort_by": dim_choices,
+    "sort_x_by": dim_choices,
+    "sort_x_order": set(X_ORDERS),
     "dissociate": dim_choices,
   }
   controls = {}
   for key in CONTROL_KEYS:
     if key not in saved_controls or saved_controls[key] is None:
       continue
-    value = str(saved_controls[key])
+    saved = saved_controls[key]
+    if key in MULTI_CONTROLS:
+      # Multi controls hold a list of dimensions (a plain string in views saved
+      # when they were single-valued).
+      values = list(saved) if isinstance(saved, (list, tuple)) else [saved]
+      kept = []
+      for value in (str(value) for value in values):
+        if value == NONE_VALUE:
+          continue
+        if value in allowed[key]:
+          kept.append(value)
+        else:
+          warnings.append('"' + value + '" (' + key.replace("_", " ") + ") does not exist in this data")
+      if kept or not values:
+        controls[key] = kept
+      # else: every saved dimension is gone — leave the key out so the generic
+      # defaults pick one, as for the single-valued controls above.
+      continue
+    value = str(saved)
     if value in allowed[key]:
       controls[key] = value
     else:
@@ -230,6 +281,11 @@ def sanitize_view(view, store):
       warnings.append('Filtered-out values missing from "' + dimension + '": ' + ", ".join(unknown))
     if known:
       filter_state[dimension] = {value: False for value in known}
+
+  # --- Metric rules ---
+  # Absent from views saved before rules existed: normalize() then yields an
+  # empty set, which restores as "no rule".
+  rule_state = _sanitize_rules(rules.normalize(view.get("rules")), metrics, warnings)
 
   # --- Style / display / export ---
   palette = view.get("palette")
@@ -265,6 +321,7 @@ def sanitize_view(view, store):
     "sources": sources,
     "controls": controls,
     "filter_state": filter_state,
+    "rule_state": rule_state,
     "palette": palette,
     "plot_theme": plot_theme,
     "toggles": toggles,
@@ -323,6 +380,10 @@ def make_thumbnail(df, kind, x, y, color_by, dimensions):
 
   if df is None or df.empty or not y or y not in df.columns:
     return None
+
+  if isinstance(color_by, (list, tuple)):
+    # "Color by" can name several dimensions; the sketch only splits on the first
+    color_by = color_by[0] if color_by else None
 
   if color_by in df.columns and color_by in (dimensions or {}):
     values = dimensions[color_by]

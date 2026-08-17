@@ -25,6 +25,10 @@ import yaml
 import argparse
 
 import odatix.lib.printc as printc
+import odatix.lib.eda_tools as eda_tools
+import odatix.lib.hard_settings as hard_settings
+import odatix.lib.job_steps as job_steps
+import odatix.lib.metrics as metrics_lib
 import odatix.lib.results_schema as results_schema
 from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
@@ -138,12 +142,95 @@ def validate_tool_settings(file_path):
       return None
 
 
+def resolve_metrics_file(tool, custom_metrics_file=None, flow=None):
+  """
+  Path of the highest precedence metrics definition file of a tool for a given
+  flow, or None when there is none.
+
+  Metrics are not read from that single file: every file defining the tool is
+  merged (see odatix.lib.metrics), which is what load_metrics_for_tool does.
+  This function is only kept for callers that need a path to point at.
+  """
+  if custom_metrics_file is not None:
+    return custom_metrics_file if os.path.isfile(custom_metrics_file) else None
+  files = metrics_lib.metrics_files(tool, flow=flow)
+  return files[-1] if files else None
+
+
+def load_metrics_file(metrics_file):
+  """Load a metrics definition file, or None when it is not valid YAML."""
+  with open(metrics_file, "r") as file:
+    try:
+      metrics_data = yaml.safe_load(file)
+    except yaml.YAMLError as e:
+      printc.error("Error in metrics definition file: " + str(e), script_name)
+      return None
+  return metrics_data if metrics_data is not None else {}
+
+
 ######################################
 # Extract Tool Metrics
 ######################################
 
 
-def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis"):
+def resolve_step_path(file, step):
+  """Replace "$step"/"${step}" in the file of a metric by the step it declares."""
+  if not step or not isinstance(file, str):
+    return file
+  return file.replace("${step}", str(step)).replace("$step", str(step))
+
+
+def metrics_definitions(metrics_data, metrics_file, type="fmax_synthesis"):
+  """
+  The metric definitions that apply to a result type: the section of that type,
+  completed by the common "metrics" section.
+  """
+  metrics = {}
+  section = {
+    "fmax_synthesis": "fmax_synthesis_metrics",
+    "custom_freq_synthesis": "custom_freq_synthesis_metrics",
+    "pnr": "pnr_metrics",
+  }.get(type)
+
+  for key in ([section] if section else []) + ["metrics"]:
+    definitions = read_from_list(key, metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
+    if definitions != False:
+      metrics.update(definitions)
+
+  return metrics
+
+
+def metric_step(content):
+  """The step a metric definition declares ("step:"), or None when it declares none."""
+  step = content.get("step") if isinstance(content, dict) else None
+  return str(step) if step else None
+
+
+def is_step_scoped(file):
+  """Whether the file a metric reads is written per step (it holds "$step")."""
+  return isinstance(file, str) and ("$step" in file or "${step}" in file)
+
+
+def step_file(cur_path, file, step):
+  """Path of the file a metric reads, for the step being exported."""
+  return os.path.join(cur_path, resolve_step_path(file, step))
+
+
+def missing_is_an_error(file, path, error_if_missing):
+  """
+  Whether a missing file must be reported for this metric.
+
+  A report written per step ("$step" in its path) that a step did not write is
+  not a missing file: that step simply produces nothing for this metric, the way
+  writing a bitstream produces no utilization report. Only the metrics reading a
+  file the whole job shares are held to "error_if_missing".
+  """
+  if is_step_scoped(file) and not os.path.isfile(path):
+    return False
+  return error_if_missing
+
+
+def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type="fmax_synthesis", step=None):
   """
   Extract metrics from synthesis results based on tool-specific settings.
 
@@ -162,13 +249,21 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       benchmark_file (str): Path to the benchmark YAML file.
       type (str): Type of synthesis (e.g., "fmax_synthesis" or "custom_freq_synthesis").
                   Defaults to "fmax_synthesis".
+      step (str | None): Step of the flow being exported, None for a job whose
+                  flow has none. A metric declaring a step ("step:") belongs to
+                  that step alone; a metric declaring none is extracted for every
+                  step, "$step" in the file it reads resolving to this one.
 
   Returns:
-      tuple: 
+      tuple:
           - results (dict): A dictionary containing extracted metric values.
             Keys are metric names, and values are the corresponding extracted results.
           - units (dict): A dictionary mapping metric names to their units, if specified.
             If no unit is defined for a metric, it is omitted from this dictionary.
+          - measured (bool): Whether at least one value belongs to this step in
+            particular — a metric declared for it, or one read from a report the
+            step wrote of its own. A step that measured nothing new adds no
+            record of its own (see process_configuration).
 
   Raises:
       KeyNotInListError: If a required key is missing in `metrics_data`.
@@ -176,39 +271,43 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       ValueError: When parsing or formatting a metric value fails.
 
   Notes:
-      - Metrics are extracted from files (regex, CSV, or YAML) defined in the tool 
+      - Metrics are extracted from files (regex, CSV, or YAML) defined in the tool
         settings. Each metric can specify its own type and extraction settings.
       - Metrics marked as "benchmark_only" are only included if `use_benchmark` is True.
       - Global lists `banned_metrics` and `banned_arch` are updated to exclude metrics
         or architectures that encounter errors during extraction.
+      - An "operation" metric reads the values extracted for the same record, so
+        it may combine a stepless metric with a metric of the step being
+        exported, but not metrics of two different steps.
 
   Examples:
-      For `type="fmax_synthesis"`, metrics defined under "fmax_synthesis_metrics" 
-      in the `metrics_data` file are prioritized. Common metrics (defined under 
+      For `type="fmax_synthesis"`, metrics defined under "fmax_synthesis_metrics"
+      in the `metrics_data` file are prioritized. Common metrics (defined under
       "metrics") are always included.
   """
   global banned_metrics
   results = {}
   units = {}
+  # Whether anything read here belongs to this step in particular, rather than
+  # to the job as a whole: see the "measured" return value.
+  measured = False
   error_prefix =  arch_path + " => "
-  metrics = {}
-  
-  if type == "fmax_synthesis":
-    fmax_metrics = read_from_list("fmax_synthesis_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
-    if fmax_metrics != False:
-      metrics.update(fmax_metrics)
-  elif type == "custom_freq_synthesis":
-    range_metrics = read_from_list("custom_freq_synthesis_metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
-    if range_metrics != False:
-      metrics.update(range_metrics)
-
-  common_metrics = read_from_list("metrics", metrics_data, metrics_file, raise_if_missing=False, print_error=False, script_name=script_name)
-  if common_metrics != False:
-    metrics.update(common_metrics)
+  metrics = metrics_definitions(metrics_data, metrics_file, type)
 
   for metric, content in metrics.items():
     if metric in banned_metrics:
       continue
+
+    # A metric may declare the step of the flow it belongs to ("step:"), and
+    # then belongs to the record of that step and to no other one. Most metrics
+    # declare none: they are extracted for every step of the job, from that
+    # step's own report ("$step" in the file they read), which is what makes the
+    # same metric comparable from one step to the next.
+    this_step = metric_step(content)
+    if this_step is not None and this_step != step:
+      continue
+
+    file = None  # the file this metric reads, when it reads one
 
     try:
       type = read_from_list("type", content, metrics_file, parent=metric, script_name=script_name)
@@ -232,7 +331,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_regex(os.path.join(cur_path, file), pattern, group_id, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_regex(path, pattern, group_id, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "csv":
       try:
         file = read_from_list( "file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -240,7 +340,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       except (KeyNotInListError, BadValueInListError):
         banned_metrics.append(metric)
         continue
-      value = parse_csv(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_csv(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "yaml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -248,7 +349,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_yaml(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_yaml(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "json":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -256,7 +358,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_json(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_json(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "xml":
       try:
         file = read_from_list("file", settings, metrics_file, parent=metric + "[settings]", script_name=script_name)
@@ -264,7 +367,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
         banned_metrics.append(metric)
         continue
       key, _ = get_from_dict("key", settings, metrics_file, parent=metric + "[settings]", silent=True, default_value=None, script_name=script_name)
-      value = parse_xml(os.path.join(cur_path, file), key, error_if_missing, error_prefix)
+      path = step_file(cur_path, file, step)
+      value = parse_xml(path, key, missing_is_an_error(file, path, error_if_missing), error_prefix)
     elif type == "benchmark":
       if not use_benchmark:
         banned_metrics.append(metric)
@@ -289,7 +393,8 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       value = calculate_operation(op, results, error_if_missing, error_prefix)
     else:
       printc.error(
-        'Unsupported metric type "' + type + '" specified for metric "' + metric + '" in "' + metrics_file + '"',
+        # type can be None when the metric declares an empty "type:" key
+        'Unsupported metric type "' + str(type) + '" specified for metric "' + metric + '" in "' + metrics_file + '"',
         script_name=script_name,
       )
       banned_metrics.append(metric)
@@ -307,10 +412,14 @@ def extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_b
       results[metric] = value
       if "unit" in content:
         units[metric] = content["unit"]
+      # A value read from this step alone: either the metric is declared for it,
+      # or it comes from a report this step wrote of its own.
+      if this_step is not None or is_step_scoped(file):
+        measured = True
     else:
       results[metric] = None
 
-  return results, units
+  return results, units, measured
 
 
 ######################################
@@ -334,7 +443,59 @@ def corrupted_directory(directory):
 # Export Results
 ######################################
 
-def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file):
+# Job types whose results the per-job (as-they-finish) export can write.
+SUPPORTED_JOB_RESULT_TYPES = ("fmax_synthesis", "custom_freq_synthesis", "pnr")
+
+
+def tool_work_dirs(type_dir, tool):
+  """
+  Work directories holding the jobs of a tool inside a job type directory, one
+  per flow it has been run with.
+
+  Returns:
+      list: (directory name, flow name or None) pairs, the default flow (bare
+      tool name) first.
+  """
+  found = []
+  try:
+    entries = sorted(os.listdir(type_dir))
+  except OSError:
+    return found
+  for entry in entries:
+    if not os.path.isdir(os.path.join(type_dir, entry)):
+      continue
+    entry_tool, entry_flow = eda_tools.split_tool_work_dirname(entry)
+    if entry_tool == tool:
+      found.append((entry, entry_flow))
+  # The bare tool name (default flow) comes first.
+  return sorted(found, key=lambda item: (item[1] is not None, item[1] or ""))
+
+
+def _subdirectories(path):
+  """The sub-directories of a directory, sorted; empty when it cannot be read."""
+  try:
+    return sorted(entry for entry in os.listdir(path) if os.path.isdir(os.path.join(path, entry)))
+  except OSError:
+    return []
+
+
+def _walk_configurations(job_root, has_frequency_level):
+  """
+  Walk the job directories under a work directory, yielding what identifies each
+  of them: (target, architecture, configuration, frequency), the frequency being
+  None when the job type has no such level.
+  """
+  for target in _subdirectories(job_root):
+    for architecture in _subdirectories(os.path.join(job_root, target)):
+      for configuration in _subdirectories(os.path.join(job_root, target, architecture)):
+        if has_frequency_level:
+          for frequency in _subdirectories(os.path.join(job_root, target, architecture, configuration)):
+            yield target, architecture, configuration, frequency
+        else:
+          yield target, architecture, configuration, None
+
+
+def process_configuration(input, target, architecture, configuration, frequency, type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file, tool=None, flow=None, source=None):
   """
   Process the configuration for a specific architecture and extract relevant metrics.
 
@@ -354,10 +515,13 @@ def process_configuration(input, target, architecture, configuration, frequency,
       metrics_file (str): Path to the YAML file containing tool settings.
       use_benchmark (bool): Whether to use benchmark values for metric extraction.
       benchmark_file (str): Path to the benchmark YAML file.
+      tool (str | None): eda tool the job ran with, written to the record meta.
+      flow (str | None): flow of that tool the job ran with, written to the record meta.
 
   Returns:
-      dict | None: The extracted result record, or None if the synthesis
-      directory is incomplete or corrupted.
+      list | None: The extracted result records, one per step of the job (see
+      the "completed" steps of log/steps.yml), or None if the directory is incomplete or
+      corrupted.
 
   Notes:
       - This function ensures the synthesis status is checked before attempting
@@ -369,14 +533,54 @@ def process_configuration(input, target, architecture, configuration, frequency,
   if type == "custom_freq_synthesis":
     arch = architecture + "[" + configuration + "] @ " + frequency
     arch_path = os.path.join(target, architecture, configuration, frequency)
-    status_filename = "synth_status.log"
+    status_filenames = ["synth_status.log"]
+  elif type == "pnr":
+    # A place & route job directory always has a last segment, "<N>MHz" when it
+    # started from a custom frequency synthesis and "fmax" when it started from
+    # an fmax search, so both kinds sit side by side at the same depth.
+    arch = architecture + "[" + configuration + "] @ " + frequency
+    arch_path = os.path.join(target, architecture, configuration, frequency)
+    # A place & route tool may report progress through either status file.
+    status_filenames = ["synth_status.log", "status.log"]
   else:
     arch = architecture + "[" + configuration + "]"
     arch_path = os.path.join(target, architecture, configuration)
-    status_filename = "status.log"
+    status_filenames = ["status.log"]
 
   cur_path = os.path.join(input, arch_path)
-  status_log = os.path.join(cur_path, "log", status_filename)
+  status_log = next(
+    (
+      os.path.join(cur_path, "log", filename)
+      for filename in status_filenames
+      if os.path.isfile(os.path.join(cur_path, "log", filename))
+    ),
+    os.path.join(cur_path, "log", status_filenames[0]),
+  )
+
+  # A flow split into steps writes one record per step, and can stop early (e.g.
+  # implemented but no bitstream): the steps this job actually completed are what
+  # it has results for.
+  completed_steps = job_steps.completed_step_names(cur_path)
+
+  if not flow:
+    # A full re-export does not know which flow ran: read it back from the
+    # "flow.txt" the runner wrote in the job directory.
+    flow_file = os.path.join(cur_path, hard_settings.flow_filename)
+    if os.path.isfile(flow_file):
+      try:
+        with open(flow_file, "r") as f:
+          flow = f.read().strip() or None
+      except OSError:
+        flow = None
+
+  if type == "pnr" and not source:
+    # A full re-export does not know which synthesis this job started from: read
+    # it back from the "pnr.yml" the runner wrote in the job directory. Deriving
+    # it from the path is not enough, since nothing there says where the source
+    # tool name stops and its flow begins.
+    from odatix.components.pnr_common import read_pnr_source_file
+
+    source = read_pnr_source_file(cur_path)
 
   # Check if synthesis completed
   if not os.path.isfile(status_log):
@@ -388,25 +592,68 @@ def process_configuration(input, target, architecture, configuration, frequency,
       corrupted_directory(arch_path)
       return None
 
-  # Get values
-  metrics, cur_units = extract_metrics(metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type)
-
-  # Build the result record
-  meta = {
+  # Common part of the meta, shared by every record of this job
+  base_meta = {
     results_schema.META_TYPE: str(result_key),
     results_schema.META_TARGET: str(target),
     results_schema.META_ARCHITECTURE: str(architecture),
     results_schema.META_CONFIGURATION: str(configuration),
   }
+  if tool:
+    base_meta[results_schema.META_TOOL] = str(tool)
+  if flow:
+    base_meta[results_schema.META_FLOW] = str(flow)
   if frequency is not None:
     frequency_value = results_schema.parse_frequency_label(frequency)
-    meta[results_schema.META_FREQUENCY] = frequency_value if frequency_value is not None else str(frequency)
-  param_domains = metrics.pop(results_schema.PARAM_DOMAINS_KEY, None)
-  results_schema.flatten_param_domains(param_domains, meta)
+    if frequency_value is not None:
+      base_meta[results_schema.META_FREQUENCY] = frequency_value
+    elif str(frequency) != hard_settings.pnr_fmax_dirname:
+      base_meta[results_schema.META_FREQUENCY] = str(frequency)
+    # A place & route job whose source is an fmax search has no target
+    # frequency: the one it reached is a metric, not a dimension.
 
-  # Update units
-  units.update(cur_units)
-  return results_schema.make_record(meta, metrics)
+  if isinstance(source, dict):
+    for meta_key in (
+      results_schema.META_SOURCE_TYPE,
+      results_schema.META_SOURCE_TOOL,
+      results_schema.META_SOURCE_FLOW,
+    ):
+      value = source.get(meta_key)
+      if value:
+        base_meta[meta_key] = str(value)
+
+  # One record per step, so that the same metric of two steps is two values of
+  # one dimension rather than two differently named metrics.
+  records = []
+  for step in (completed_steps if completed_steps else [None]):
+    metrics, cur_units, measured = extract_metrics(
+      metrics_data, metrics_file, cur_path, arch, arch_path, use_benchmark, benchmark_file, type, step=step
+    )
+
+    param_domains = metrics.pop(results_schema.PARAM_DOMAINS_KEY, None)
+
+    last_step = step is None or step == completed_steps[-1]
+    # A step that measured nothing of its own gets no record: it would repeat
+    # the metrics of the whole job under another step name. The last step always
+    # keeps its record, so how far the job went stays readable.
+    if not last_step and not measured:
+      continue
+
+    meta = dict(base_meta)
+    if step is not None:
+      meta[results_schema.META_STEP] = str(step)
+      meta[results_schema.META_STEP_INDEX] = completed_steps.index(step)
+      # Always written, including when false: "no flag" means "this job has no
+      # steps at all", which is not the same as "this is not the last one".
+      meta[results_schema.META_LAST_STEP] = last_step
+
+    results_schema.flatten_param_domains(param_domains, meta)
+
+    # Update units
+    units.update(cur_units)
+    records.append(results_schema.make_record(meta, metrics))
+
+  return records
 
 
 def export_results(input, output, tools, format, use_benchmark, benchmark_file, result_types, custom_metrics_file=None):
@@ -475,7 +722,9 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
         type_dir = os.path.join(input_path, work_path)
         if os.path.isdir(type_dir):
           tools += [item for item in os.listdir(type_dir) if os.path.isdir(os.path.join(input, result_type, item))]
-      tools = list(set(tools))
+      # A work directory is named "<tool>" or "<tool>@<flow>": every flow of a
+      # tool is exported into that tool's single results file.
+      tools = list(set(eda_tools.split_tool_work_dirname(item)[0] for item in tools))
 
   for tool in tools:
     _reset_banned_lists()
@@ -483,40 +732,18 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
     records = []
     units = {}
 
-    # Get tool setting file
-    tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, tool_settings_filename)
-    tool_settings = validate_tool_settings(tool_settings_file)
-    if tool_settings is None:
+    if eda_tools.get_tool_dir(tool) is None:
+      printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
       if len(tools) == 1:
         sys.exit(-1)
       else:
         continue
 
-    # Get the default_metrics_file from the tool settings file
-    if custom_metrics_file is None:
-      metrics_file, defined = get_from_dict("default_metrics_file", tool_settings, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
-      if not defined:
-        continue
-    else:
-      metrics_file = custom_metrics_file
-
-    # Define user accessible variables
-    variables = Variables(
-      odatix_path=OdatixSettings.odatix_path,
-      odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
-    )
-
-    # Replace variables in command
-    metrics_file = replace_variables(metrics_file, variables)
-
-    if not os.path.isfile(metrics_file):
-      printc.error('Metrics definition file "' + os.path.realpath(metrics_file) + '" does not exist', script_name)
-      continue
-    with open(metrics_file, "r") as file:
-      try:
-        metrics_data = yaml.safe_load(file)
-      except yaml.YAMLError as e:
-        printc.error("Error in metrics definition file: " + str(e), script_name)
+    metrics_data, metrics_file = load_metrics_for_tool(tool, custom_metrics_file=custom_metrics_file)
+    if metrics_data is None:
+      if len(tools) == 1:
+        sys.exit(-1)
+      else:
         continue
 
     for result_type in result_types:
@@ -524,25 +751,35 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
       work_path = result_types[result_type]["path"]
       printc.cyan("Export " + tool + " " + result_key + " results", script_name)
 
-      input = os.path.join(input_path, work_path, tool)
+      # A tool can have run through several flows, each in its own work
+      # directory ("vivado", "vivado@power_opt", ...). They all land in the same
+      # results file, told apart by the "flow" meta key.
+      for work_dirname, flow in tool_work_dirs(os.path.join(input_path, work_path), tool):
+        input = os.path.join(input_path, work_path, work_dirname)
 
-      try:
-        dirs = sorted(next(os.walk(input))[1])
-      except StopIteration:
-        continue
+        # A place & route job also carries the synthesis it started from, spelled
+        # in the work tree one level below the tool that ran it
+        # ("pnr/innovus/design_compiler@dcnxt/..."), so that Design Compiler +
+        # Innovus and Genus + Innovus results do not land in the same directory.
+        if result_type == "pnr":
+          job_roots = [os.path.join(input, source_dirname) for source_dirname in _subdirectories(input)]
+        else:
+          job_roots = [input]
 
-      for target in dirs:
-        for architecture in sorted(next(os.walk(os.path.join(input, target)))[1]):
-          for configuration in sorted(next(os.walk(os.path.join(input, target, architecture)))[1]):
-            if result_type == "custom_freq_synthesis":
-              for frequency in sorted(next(os.walk(os.path.join(input, target, architecture, configuration)))[1]):
-                record = process_configuration(input, target, architecture, configuration, frequency, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file)
-                if record is not None:
-                  records.append(record)
-            else:
-              record = process_configuration(input, target, architecture, configuration, None, result_type, result_key, units, metrics_data, metrics_file, use_benchmark, benchmark_file)
-              if record is not None:
-                records.append(record)
+        # Every job type but an fmax search has a last level below the
+        # configuration: the frequency it was run at for a custom frequency
+        # synthesis, and for a place & route either that or "fmax".
+        has_frequency_level = result_type in ("custom_freq_synthesis", "pnr")
+
+        for job_root in job_roots:
+          for target, architecture, configuration, frequency in _walk_configurations(job_root, has_frequency_level):
+            job_records = process_configuration(
+              job_root, target, architecture, configuration, frequency,
+              result_type, result_key, units, metrics_data, metrics_file,
+              use_benchmark, benchmark_file, tool=tool, flow=flow,
+            )
+            if job_records is not None:
+              records += job_records
 
     # Export to the desired format
     output_file = os.path.join(output, "results_" + tool + ".yml")
@@ -602,40 +839,20 @@ def export_analysis(input_work_path, output, analysis_work_path, tools="all"):
     export_analysis_results(summary, output, tool)
 
 
-def _load_metrics_for_tool(tool, custom_metrics_file=None):
-  tool_settings_file = os.path.join(OdatixSettings.odatix_eda_tools_path, tool, tool_settings_filename)
-  tool_settings = validate_tool_settings(tool_settings_file)
-  if tool_settings is None:
-    return None, None
+def load_metrics_for_tool(tool, custom_metrics_file=None, flow=None):
+  """
+  Load the metrics definitions used to export a tool's results: the built-in
+  ones completed and overridden by the workspace metrics.yml, unless an explicit
+  metrics file is given (see odatix.lib.metrics.load_metrics).
 
-  if custom_metrics_file is None:
-    metrics_file, defined = get_from_dict("default_metrics_file", tool_settings, tool_settings_file, behavior=Key.MANTADORY, script_name=script_name)
-    if not defined:
-      return None, None
-  else:
-    metrics_file = custom_metrics_file
+  Returns:
+      tuple: (metrics_data, source) or (None, None) when they cannot be loaded.
+  """
+  return metrics_lib.load_metrics(tool, custom_metrics_file=custom_metrics_file, flow=flow)
 
-  variables = Variables(
-    odatix_path=OdatixSettings.odatix_path,
-    odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
-  )
-  metrics_file = replace_variables(metrics_file, variables)
 
-  if not os.path.isfile(metrics_file):
-    printc.error('Metrics definition file "' + os.path.realpath(metrics_file) + '" does not exist', script_name)
-    return None, None
-
-  with open(metrics_file, "r") as file:
-    try:
-      metrics_data = yaml.safe_load(file)
-    except yaml.YAMLError as e:
-      printc.error("Error in metrics definition file: " + str(e), script_name)
-      return None, None
-
-  if metrics_data is None:
-    metrics_data = {}
-
-  return metrics_data, metrics_file
+# Deprecated alias.
+_load_metrics_for_tool = load_metrics_for_tool
 
 
 # Backward-compatible alias: the shared loader (odatix.components.export_common)
@@ -650,6 +867,7 @@ def configure_synthesis_job_exports(
   work_path,
   tool,
   output_dir,
+  flow=None,
   use_benchmark=False,
   benchmark_file=None,
   custom_metrics_file=None,
@@ -657,11 +875,18 @@ def configure_synthesis_job_exports(
   if work_path is None or output_dir is None or tool is None:
     return 0
 
-  if result_type not in ("fmax_synthesis", "custom_freq_synthesis"):
+  if result_type not in SUPPORTED_JOB_RESULT_TYPES:
     printc.error('Unsupported synthesis result type "' + str(result_type) + '" for per-job export', script_name)
     return 0
 
-  input_tool_path = os.path.realpath(os.path.join(str(work_path), str(tool)))
+  # Resolve the flow the same way the runner does, so the exported records carry
+  # the flow that actually ran even when none was explicitly requested.
+  if flow in (None, ""):
+    flow = eda_tools.get_default_flow(tool, job_type=result_type)
+
+  batch_tool_path = os.path.realpath(
+    os.path.join(str(work_path), eda_tools.tool_work_dirname(tool, flow, job_type=result_type))
+  )
   output_dir = os.path.realpath(str(output_dir))
 
   configured = 0
@@ -670,32 +895,52 @@ def configure_synthesis_job_exports(
     if not tmp_dir:
       continue
 
-    try:
-      rel_path = os.path.relpath(tmp_dir, input_tool_path)
-    except Exception:
-      continue
+    # A job that already knows where its result belongs says so. Place & route
+    # jobs do: their work directory has one level more (the tool that ran the
+    # source synthesis), and it varies from one job of the same batch to the
+    # next, so it cannot be derived from the batch's own path.
+    coordinates = getattr(job, "export_coordinates", None)
+    if isinstance(coordinates, dict):
+      input_tool_path = str(coordinates.get("input_tool_path", batch_tool_path))
+      target = coordinates.get("target")
+      architecture = coordinates.get("architecture")
+      configuration = coordinates.get("configuration")
+      frequency = coordinates.get("frequency")
+      source = coordinates.get("source")
+      if not (target and architecture and configuration):
+        continue
+    else:
+      input_tool_path = batch_tool_path
+      source = None
 
-    if rel_path.startswith(".."):
-      continue
+      try:
+        rel_path = os.path.relpath(tmp_dir, input_tool_path)
+      except Exception:
+        continue
 
-    parts = [part for part in rel_path.split(os.sep) if part not in ("", ".")]
-    if len(parts) < 3:
-      continue
+      if rel_path.startswith(".."):
+        continue
 
-    target = parts[0]
-    architecture = parts[1]
-    configuration = parts[2]
-    frequency = parts[3] if len(parts) >= 4 else None
+      parts = [part for part in rel_path.split(os.sep) if part not in ("", ".")]
+      if len(parts) < 3:
+        continue
 
-    if result_type == "custom_freq_synthesis" and frequency is None:
+      target = parts[0]
+      architecture = parts[1]
+      configuration = parts[2]
+      frequency = parts[3] if len(parts) >= 4 else None
+
+    if result_type in ("custom_freq_synthesis", "pnr") and frequency is None:
       continue
 
     job.post_run_export = {
       "kind": "synthesis",
       "result_type": result_type,
       "tool": str(tool),
+      "flow": str(flow) if flow else None,
       "input_tool_path": input_tool_path,
       "output_dir": output_dir,
+      "source": source,
       "target": str(target),
       "architecture": str(architecture),
       "configuration": str(configuration),
@@ -716,11 +961,12 @@ def export_single_job_result(job, export_config=None):
     return False
 
   result_type = str(config.get("result_type", ""))
-  if result_type not in ("fmax_synthesis", "custom_freq_synthesis"):
+  if result_type not in SUPPORTED_JOB_RESULT_TYPES:
     printc.error('Unsupported synthesis result type "' + result_type + '"', script_name=script_name)
     return False
 
   tool = str(config.get("tool", ""))
+  flow = config.get("flow", None)
   input_tool_path = str(config.get("input_tool_path", ""))
   output_dir = str(config.get("output_dir", ""))
   target = str(config.get("target", ""))
@@ -738,7 +984,7 @@ def export_single_job_result(job, export_config=None):
     printc.error("Per-job export target/architecture/configuration is missing", script_name=script_name)
     return False
 
-  if result_type == "custom_freq_synthesis" and (frequency is None or frequency == ""):
+  if result_type in ("custom_freq_synthesis", "pnr") and (frequency is None or frequency == ""):
     printc.error("Per-job custom frequency export is missing frequency", script_name=script_name)
     return False
 
@@ -751,6 +997,7 @@ def export_single_job_result(job, export_config=None):
   metrics_data, metrics_file = _load_metrics_for_tool(
     tool=tool,
     custom_metrics_file=config.get("custom_metrics_file", None),
+    flow=flow,
   )
   if metrics_data is None:
     return False
@@ -761,7 +1008,7 @@ def export_single_job_result(job, export_config=None):
   output_file = os.path.join(output_dir, "results_" + tool + ".yml")
   units, records = _load_existing_results(output_file)
 
-  record = process_configuration(
+  job_records = process_configuration(
     input=input_tool_path,
     target=target,
     architecture=architecture,
@@ -774,16 +1021,19 @@ def export_single_job_result(job, export_config=None):
     metrics_file=metrics_file,
     use_benchmark=use_benchmark,
     benchmark_file=benchmark_file,
+    tool=tool,
+    flow=flow,
+    source=config.get("source", None),
   )
 
-  if record is None:
+  if not job_records:
     printc.warning(
       "Could not export results for " + target + "/" + architecture + "/" + configuration,
       script_name=script_name,
     )
     return False
 
-  records = results_schema.upsert_records(records, [record])
+  records = results_schema.upsert_records(records, job_records)
 
   try:
     results_schema.dump_results_file(output_file, units, records)
@@ -836,7 +1086,7 @@ def main(args, settings=None):
   if not os.path.isdir(input):
     printc.error('Could not find work directory "' + input + '"', script_name=script_name)
     printc.note("Run fmax synthesis using the 'odatix fmax' command before exporting the results", script_name=script_name)
-    printc.note("Or run custom frequency synthesis using the 'odatix freq' command before exporting the results", script_name=script_name)
+    printc.note("Or run custom frequency synthesis using the 'odatix synth' command before exporting the results", script_name=script_name)
     sys.exit(-1)
 
   if args.respath is not None:

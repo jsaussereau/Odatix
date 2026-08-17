@@ -32,12 +32,15 @@ sys.path.append(sources_dir)
 from odatix.components.motd import *
 import odatix.components.run_simulations as run_sim
 import odatix.components.run_fmax_synthesis as run_synth
-import odatix.components.run_range_synthesis as run_range
+import odatix.components.run_custom_synthesis as run_custom_synthesis_module
+import odatix.components.run_pnr as run_pnr_cmd
 import odatix.components.run_analysis as analyze
 import odatix.components.run_workflow as run_workflow
 import odatix.components.export_results as exp_res
 import odatix.components.export_benchmark as exp_bench
+import odatix.components.export_simulation_results as exp_sim_res
 import odatix.components.export_workflow_results as exp_workflow_res
+import odatix.components.export_derived_metrics as exp_derived
 import odatix.components.clean as cln
 import odatix.components.generate_configs as gen_configs
 import odatix.components.replace_params as replace_params
@@ -102,11 +105,17 @@ class ArgParser:
     ArgParser.fmax_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.fmax_parser)
 
-    # Define parser for the 'freq' command
-    ArgParser.range_parser = subparsers.add_parser("freq", help="run synthesis at custom frequencies", formatter_class=formatter)
-    run_range.add_arguments(ArgParser.range_parser)
+    # Define parser for the 'synth' command (formerly 'freq', kept as alias)
+    ArgParser.range_parser = subparsers.add_parser("synth", aliases=["synthesis", "freq"], help="run synthesis at custom frequencies", formatter_class=formatter)
+    run_custom_synthesis_module.add_arguments(ArgParser.range_parser)
     ArgParser.range_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after synthesis')
     ArgParser.add_nobanner(ArgParser.range_parser)
+
+    # Define parser for the 'pnr' command
+    ArgParser.pnr_parser = subparsers.add_parser("pnr", help="place & route designs already synthesized by another eda tool", formatter_class=formatter)
+    run_pnr_cmd.add_arguments(ArgParser.pnr_parser)
+    ArgParser.pnr_parser.add_argument('-e', '--noexport', action='store_true', help='do not export results after place & route')
+    ArgParser.add_nobanner(ArgParser.pnr_parser)
 
     # Define parser for the 'analyze' command
     ArgParser.analyze_parser = subparsers.add_parser("analyze", help="run rtl analysis", formatter_class=formatter)
@@ -175,6 +184,16 @@ class ArgParser:
     exp_workflow_res.add_arguments(ArgParser.exp_workflow_res_parser)
     ArgParser.add_nobanner(ArgParser.exp_workflow_res_parser)
 
+    # Define parser for the 'res_simulation' command
+    ArgParser.exp_sim_res_parser = subparsers.add_parser("res_simulation", help="export simulation results")
+    exp_sim_res.add_arguments(ArgParser.exp_sim_res_parser)
+    ArgParser.add_nobanner(ArgParser.exp_sim_res_parser)
+
+    # Define parser for the 'res_derived' command
+    ArgParser.exp_derived_parser = subparsers.add_parser("res_derived", help="apply derived metrics to the result files")
+    exp_derived.add_arguments(ArgParser.exp_derived_parser)
+    ArgParser.add_nobanner(ArgParser.exp_derived_parser)
+
     # Define parser for the 'clean' command
     ArgParser.clean_parser = subparsers.add_parser("clean", help="clean directory", formatter_class=formatter)
     cln.add_arguments(ArgParser.clean_parser)
@@ -206,6 +225,9 @@ class ArgParser:
     print()
     printc.bold("Custom Frequency Synthesis:\n  ", printc.colors.CYAN, end="")
     ArgParser.range_parser.print_help()
+    print()
+    printc.bold("Place & Route:\n  ", printc.colors.CYAN, end="")
+    ArgParser.pnr_parser.print_help()
     print()
     printc.bold("RTL Analysis:\n  ", printc.colors.CYAN, end="")
     ArgParser.analyze_parser.print_help()
@@ -245,6 +267,18 @@ class ArgParser:
     print(ArgParser.exp_workflow_res_parser.format_usage(), end="")
     print("  run ", end="")
     printc.bold(prog + " res_workflow -h", end="")
+    print(" for more details")
+    print()
+    printc.cyan("- Simulation Results:\n  ", end="")
+    print(ArgParser.exp_sim_res_parser.format_usage(), end="")
+    print("  run ", end="")
+    printc.bold(prog + " res_simulation -h", end="")
+    print(" for more details")
+    print()
+    printc.cyan("- Derived Metrics:\n  ", end="")
+    print(ArgParser.exp_derived_parser.format_usage(), end="")
+    print("  run ", end="")
+    printc.bold(prog + " res_derived -h", end="")
     print(" for more details")
     print()
     printc.bold("Clean:\n  ", printc.colors.CYAN, end="")
@@ -337,10 +371,22 @@ def run_fmax_synthesis(args):
     success = False
   return success
 
-def run_range_synthesis(args):
+def run_custom_synthesis(args):
   success = True
   try:
-    run_range.main(args)
+    run_custom_synthesis_module.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
+def run_place_and_route(args):
+  success = True
+  try:
+    run_pnr_cmd.main(args)
   except SystemExit as e:
     if e.code != EXIT_SUCCESS:
       success = False
@@ -477,6 +523,18 @@ def export_workflow_results(args):
     success = False
   return success
 
+def export_simulation_results(args):
+  success = True
+  try:
+    exp_sim_res.main(args)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
 def export_all_results(args):
   success = True
   try:
@@ -509,6 +567,26 @@ def export_all_results(args):
       config = args.config,
     )
     exp_res.main(newargs)
+  except SystemExit as e:
+    if e.code != EXIT_SUCCESS:
+      success = False
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+
+  # Derived metrics come last: they read the records the exports above just
+  # wrote, plus the simulation and workflow ones already on disk.
+  try:
+    exp_derived.run(result_path=args.respath, config_file=args.config)
+  except Exception as e:
+    internal_error(e, error_logfile, script_name)
+    success = False
+  return success
+
+def export_derived_metrics(args):
+  success = True
+  try:
+    exp_derived.main(args)
   except SystemExit as e:
     if e.code != EXIT_SUCCESS:
       success = False
@@ -561,7 +639,7 @@ def main(args=None):
   except AttributeError:
     args.nobanner = False
 
-  if args.command == "monitor" or args.command == "stop" or args.command == "ls":
+  if args.command in ("monitor", "stop", "ls"):
     args.nobanner = True
 
   # Display init dialog
@@ -589,8 +667,10 @@ def main(args=None):
     success = list_daemons(args)
   elif args.command == "fmax":
     success = run_fmax_synthesis(args)
-  elif args.command == "freq":
-    success = run_range_synthesis(args)
+  elif args.command in ("synth", "synthesis", "freq"):
+    success = run_custom_synthesis(args)
+  elif args.command == "pnr":
+    success = run_place_and_route(args)
   elif args.command == "analyze":
     success = run_analysis(args)
   elif args.command == "results":
@@ -601,6 +681,10 @@ def main(args=None):
     success = export_results(args)
   elif args.command == "res_workflow":
     success = export_workflow_results(args)
+  elif args.command == "res_simulation":
+    success = export_simulation_results(args)
+  elif args.command == "res_derived":
+    success = export_derived_metrics(args)
   elif args.command in "generate":
     success = generate_configs(args)
   elif args.command in "replace":

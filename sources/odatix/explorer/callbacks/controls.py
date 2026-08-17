@@ -25,12 +25,12 @@ repaired when they disappear from the selection.
 """
 
 import dash
-from dash import Input, Output, State
+from dash import ALL, Input, Output, State
 
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.schema as schema
-from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, resolve_defaults
+from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, normalize_dims, resolve_defaults, x_is_symbolic
 
 
 def _options(names):
@@ -42,7 +42,7 @@ def _dimension_options(dimensions, include_none=True):
   return [{"label": "None" if name == NONE_VALUE else name, "value": name} for name in names]
 
 
-def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group_by, dissociate):
+def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate):
   """Store only controls supported by the current chart kind.
 
   The sidebar keeps all dropdowns mounted so figure callbacks have stable
@@ -59,6 +59,9 @@ def _merge_control_state(state, kind, x, y, z, color_by, symbol_by, legend_group
     color_by=color_by,
     symbol_by=symbol_by,
     legend_group_by=legend_group_by,
+    sort_by=sort_by,
+    sort_x_by=sort_x_by,
+    sort_x_order=sort_x_order,
     dissociate=dissociate,
   )
   return state
@@ -99,6 +102,11 @@ def register_callbacks():
     Output("xp-symbol-by", "value"),
     Output("xp-legend-group-by", "options"),
     Output("xp-legend-group-by", "value"),
+    Output("xp-sort-by", "options"),
+    Output("xp-sort-by", "value"),
+    Output("xp-sort-x-by", "options"),
+    Output("xp-sort-x-by", "value"),
+    Output("xp-sort-x-order", "value"),
     Output("xp-dissociate-by", "options"),
     Output("xp-dissociate-by", "value"),
     Input("xp-data-version", "data"),
@@ -110,11 +118,14 @@ def register_callbacks():
     State("xp-color-by", "value"),
     State("xp-symbol-by", "value"),
     State("xp-legend-group-by", "value"),
+    State("xp-sort-by", "value"),
+    State("xp-sort-x-by", "value"),
+    State("xp-sort-x-order", "value"),
     State("xp-dissociate-by", "value"),
     State("xp-control-state", "data"),
     State("xp-chart-kind", "data"),
   )
-  def update_control_options(_version, sources, _restore, x, y, z, color_by, symbol_by, legend_group_by, dissociate, stored, kind):
+  def update_control_options(_version, sources, _restore, x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, stored, kind):
     # Values chosen on any chart page are remembered in xp-control-state (session
     # storage) so they survive switching chart kinds. On a fresh page the live
     # component values are empty (Dash persistence drops them while options are
@@ -126,6 +137,9 @@ def register_callbacks():
     color_by = stored.get("color_by", color_by)
     symbol_by = stored.get("symbol_by", symbol_by)
     legend_group_by = stored.get("legend_group_by", legend_group_by)
+    sort_by = stored.get("sort_by", sort_by)
+    sort_x_by = stored.get("sort_x_by", sort_x_by)
+    sort_x_order = stored.get("sort_x_order", sort_x_order)
     dissociate = stored.get("dissociate", dissociate)
 
     df = query.select_dataframe(STORE, sources=sources)
@@ -136,7 +150,7 @@ def register_callbacks():
       kind=kind if kind != "overview" else "lines",
       x=x, y=y, z=z,
       color_by=color_by, symbol_by=symbol_by, legend_group_by=legend_group_by,
-      dissociate=None if dissociate in (None, NONE_VALUE) else dissociate,
+      sort_by=sort_by, sort_x_by=sort_x_by, sort_x_order=sort_x_order, dissociate=dissociate,
     )
     resolve_defaults(spec, dimensions, metrics)
 
@@ -152,16 +166,41 @@ def register_callbacks():
       z_options = _options(metrics)
 
     dim_options = _dimension_options(dimensions)
+    # The multi dropdowns express "none" as an empty selection, so they have no
+    # "None" option of their own.
+    multi_options = _dimension_options(dimensions, include_none=False)
 
     return (
       x_options, spec.x,
       y_options, spec.y,
       z_options, spec.z,
-      dim_options, spec.color_by,
-      dim_options, spec.symbol_by,
+      multi_options, list(spec.color_by),
+      multi_options, list(spec.symbol_by),
       dim_options, spec.legend_group_by,
-      dim_options, spec.dissociate if spec.dissociate else NONE_VALUE,
+      multi_options, list(spec.sort_by),
+      multi_options, list(spec.sort_x_by),
+      spec.sort_x_order,
+      multi_options, list(spec.dissociate),
     )
+
+  @dash.callback(
+    Output("xp-row-sort-x-by", "style"),
+    Output("xp-row-sort-x-order", "style"),
+    Input("xp-axis-x", "value"),
+    Input("xp-source-select", "value"),
+    Input("xp-overview-chart-type", "value"),
+    State("xp-chart-kind", "data"),
+  )
+  def toggle_x_order_rows(x, sources, overview_chart_type, kind):
+    """Show the x ordering controls only when the x axis holds categories."""
+    kind = (overview_chart_type or "lines") if kind == "overview" else kind
+    hidden = {"display": "none"}
+    if "x" not in CAPABILITIES.get(kind, {}).get("axes", ()):
+      return hidden, hidden  # no x axis at all (table)
+    df = query.select_dataframe(STORE, sources=sources)
+    dimensions, metrics = query.discover(df, STORE, sources)
+    style = None if x_is_symbolic(kind, x, dimensions, metrics) else hidden
+    return style, style
 
   # The controls below (unlike the axis/style dropdowns, which go through
   # xp-control-state) used to rely on Dash persistence to survive navigation.
@@ -219,12 +258,41 @@ def register_callbacks():
     prevent_initial_call=True,
   )
   def sync_color_with_dissociate(dissociate, color_by):
-    """Dissociating a dimension pulls it out of the x labels into its own traces;
-    coloring by that same dimension is almost always what the user wants, so keep
-    "Color by" in sync when a real dimension is chosen for "Dissociate"."""
-    if dissociate in (None, NONE_VALUE) or dissociate == color_by:
+    """Dissociating dimensions pulls them out of the x labels into their own traces;
+    coloring by those same dimensions is almost always what the user wants, so keep
+    "Color by" in sync when real dimensions are chosen for "Dissociate"."""
+    dissociate = normalize_dims(dissociate) or ()
+    if not dissociate or dissociate == (normalize_dims(color_by) or ()):
       raise dash.exceptions.PreventUpdate
-    return dissociate
+    return list(dissociate)
+
+  @dash.callback(
+    Output("xp-dissociate-by", "value", allow_duplicate=True),
+    Input({"type": "xp-filter", "dim": ALL}, "value"),
+    State({"type": "xp-filter", "dim": ALL}, "id"),
+    State("xp-dissociate-by", "value"),
+    prevent_initial_call=True,
+  )
+  def sync_dissociate_with_step_scope(values, ids, dissociate):
+    """Showing the intermediate steps puts several records on the same
+    configuration: dissociate the step so they become separate traces instead of
+    stacking on one x label. Unchecking it again takes the step back out."""
+    triggered = dash.callback_context.triggered_id
+    if not isinstance(triggered, dict) or triggered.get("dim") != schema.COL_STEP_SCOPE:
+      raise dash.exceptions.PreventUpdate
+
+    scopes = next(
+      (value or [] for value, id in zip(values or [], ids or []) if id["dim"] == schema.COL_STEP_SCOPE),
+      [],
+    )
+    dissociate = list(normalize_dims(dissociate) or ())
+    if schema.STEP_SCOPE_INTERMEDIATE in scopes:
+      if schema.COL_STEP in dissociate:
+        raise dash.exceptions.PreventUpdate
+      return dissociate + [schema.COL_STEP]
+    if schema.COL_STEP not in dissociate:
+      raise dash.exceptions.PreventUpdate
+    return [dimension for dimension in dissociate if dimension != schema.COL_STEP]
 
   @dash.callback(
     Output("xp-control-state", "data"),
@@ -234,12 +302,15 @@ def register_callbacks():
     Input("xp-color-by", "value"),
     Input("xp-symbol-by", "value"),
     Input("xp-legend-group-by", "value"),
+    Input("xp-sort-by", "value"),
+    Input("xp-sort-x-by", "value"),
+    Input("xp-sort-x-order", "value"),
     Input("xp-dissociate-by", "value"),
     State("xp-control-state", "data"),
     State("xp-chart-kind", "data"),
     prevent_initial_call=True,
   )
-  def remember_control_state(x, y, z, color_by, symbol_by, legend_group_by, dissociate, state, kind):
+  def remember_control_state(x, y, z, color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, state, kind):
     """Remember the data-dependent control values across chart pages and reloads."""
     if x is None:
       # Transient state right after a page swap: the axis dropdowns are not
@@ -249,5 +320,5 @@ def register_callbacks():
       raise dash.exceptions.PreventUpdate
     return _merge_control_state(
       state, kind, x, y, z,
-      color_by, symbol_by, legend_group_by, dissociate,
+      color_by, symbol_by, legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate,
     )

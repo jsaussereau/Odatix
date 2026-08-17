@@ -24,7 +24,7 @@
 ########################################################
 
 WORK_DIR = .
-RTL_DIR = ../../../examples/counter_vhdl
+RTL_DIR = rtl
 OBJ_DIR = $(WORK_DIR)/obj
 LOG_DIR = $(WORK_DIR)/log
 VCD_DIR = $(WORK_DIR)/vcd
@@ -37,9 +37,12 @@ TB_DIR  = $(WORK_DIR)/tb
 MODULE = counter
 TB_MODULE = tb_$(MODULE)
 VCD_FILE = $(VCD_DIR)/$(MODULE).vcd
+RESULT_FILE = $(WORK_DIR)/results.yml
 EXECUTABLE = $(MODULE)
 TMP_EXECUTABLE = $(MODULE)
 PROGRESS_FILE = $(LOG_DIR)/progress.log
+CLOCK_SIGNAL =
+TOP_LEVEL_MODULE = $(MODULE)
 
 ########################################################
 # Tools Commands
@@ -109,6 +112,7 @@ clean:
 	@rm -rf $(LOG_DIR)
 	@rm -rf $(OBJ_DIR)
 	@rm -rf $(VCD_DIR)
+	@rm -f $(RESULT_FILE)
 
 .PHONY: makedir
 makedir:
