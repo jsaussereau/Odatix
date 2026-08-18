@@ -51,7 +51,11 @@ import odatix.explorer.core.schema as schema
 import odatix.explorer.core.views as views
 import odatix.explorer.charts.palettes as palettes
 import odatix.explorer.charts.plot_themes as plot_themes
-from odatix.explorer.charts.spec import DEFAULT_TOGGLES, NONE_VALUE
+import odatix.explorer.charts.builder as builder
+import odatix.explorer.charts.app_theme_bridge as app_theme_bridge
+from odatix.explorer.charts.spec import (
+  DEFAULT_TOGGLES, NONE_VALUE, FigureSpec, normalize_dims, normalize_metrics, resolve_defaults
+)
 
 # Default number of recommendations returned to the gallery.
 DEFAULT_LIMIT = 12
@@ -486,6 +490,68 @@ def make_view(ctx, kind, controls=None, toggles=None, name=None, description="",
   }
 
 
+def _view_thumbnail(ctx, view, thumb_kind):
+  """
+  Sketch a recommended chart from the figure the card actually opens.
+
+  Deriving the sketch from the dataframe instead means re-implementing the
+  chart builder -- trace splitting, category order, log axes, start-at-zero --
+  and every divergence shows up as a thumbnail that does not look like the
+  chart. So the figure is built here for real, exactly as the chart page would
+  build it, and read back. Falls back to the dataframe sketch if anything in
+  that path fails, since a rough thumbnail beats an empty card.
+  """
+  controls = view.get("controls") or {}
+  if view.get("kind") == "table" or thumb_kind == "table":
+    return views.make_table_thumbnail(ctx.df)
+  try:
+    # The view may narrow the selection further than the context (see the
+    # ``restrict`` argument of make_view); its hidden values say by how much.
+    filters = {}
+    for dimension, dropped in (view.get("filters") or {}).items():
+      hidden = set(str(value) for value in dropped)
+      filters[dimension] = [
+        value for value in ctx.base_dimensions.get(dimension, []) if str(value) not in hidden
+      ]
+    df = query.select_dataframe(
+      ctx.store, sources=ctx.sources, filters=filters or None, rule_state=ctx.rule_state
+    )
+    dimensions, metrics = query.discover(df, ctx.store, ctx.sources)
+    toggles = tuple(view.get("toggles") or ())
+    spec = resolve_defaults(
+      FigureSpec(
+        kind=thumb_kind,
+        x=controls.get("x"), y=controls.get("y"), z=controls.get("z"),
+        color_by=normalize_dims(controls.get("color_by"), dimensions),
+        symbol_by=normalize_dims(controls.get("symbol_by"), dimensions),
+        legend_group_by=controls.get("legend_group_by"),
+        sort_by=normalize_dims(controls.get("sort_by"), dimensions),
+        sort_x_by=normalize_dims(controls.get("sort_x_by"), dimensions),
+        sort_x_order=controls.get("sort_x_order"),
+        dissociate=normalize_dims(controls.get("dissociate"), dimensions),
+        y_metrics=normalize_metrics(controls.get("y_metrics"), metrics),
+        stable_index="stable_index" in toggles,
+        toggles=toggles,
+      ),
+      dimensions, metrics,
+    )
+    figure = builder.build_figure(
+      df, spec, dimensions, metrics, ctx.units, app_theme_bridge.get_chrome(None),
+      global_dimensions=ctx.base_dimensions,
+      palette=view.get("palette") or palettes.DEFAULT_PALETTE,
+      plot_theme=view.get("plot_theme") or plot_themes.DEFAULT_PLOT_THEME,
+    )
+    thumb = views.make_figure_thumbnail(figure.to_plotly_json(), thumb_kind)
+    if thumb:
+      return thumb
+  except Exception:
+    pass
+  color_by = controls.get("color_by")
+  if isinstance(color_by, (list, tuple)):
+    color_by = color_by[0] if color_by else None
+  return views.make_thumbnail(ctx.df, thumb_kind, controls.get("x"), controls.get("y"), color_by, ctx.dimensions)
+
+
 class Recommendation(object):
   """One proposed chart: what it is, why it is worth a look, and its view."""
 
@@ -897,12 +963,7 @@ def recommend(ctx, intent=None, limit=DEFAULT_LIMIT):
     for title, why, score, view in built or []:
       view["name"] = title
       thumb_kind = "lines" if view["kind"] == "overview" else view["kind"]
-      controls = view.get("controls") or {}
-      view["thumb"] = views.make_thumbnail(
-        ctx.df, thumb_kind, controls.get("x"), controls.get("y"),
-        (controls.get("color_by") or [None])[0] if isinstance(controls.get("color_by"), (list, tuple)) else controls.get("color_by"),
-        ctx.dimensions,
-      )
+      view["thumb"] = _view_thumbnail(ctx, view, thumb_kind)
       candidates.append(
         Recommendation(recipe.id, title, why, score * _intent_boost(view, intent), view, scope=ctx.label)
       )

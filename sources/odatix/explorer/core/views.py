@@ -34,10 +34,14 @@ the file: sanitize_view() checks every field against the live store, repairs
 what it can and reports what was dropped.
 """
 
+import array
+import base64
 import datetime
 import json
+import math
 import os
 import re
+import sys
 
 import pandas as pd
 
@@ -69,7 +73,7 @@ OVERVIEW_CHART_TYPES = ("lines", "columns", "radar")
 THUMB_WIDTH = 100
 THUMB_HEIGHT = 44
 THUMB_MAX_SERIES = 4
-THUMB_MAX_POINTS = 16
+THUMB_MAX_POINTS = 48
 THUMB_MAX_BARS = 12
 THUMB_TABLE_MAX_COLS = 5
 THUMB_TABLE_MAX_ROWS = 4
@@ -354,6 +358,50 @@ def filters_to_hidden(filter_state, dimensions):
 ######################################
 
 
+def _downsample(points, limit, scatter):
+  """
+  Reduce a point list to at most `limit` points while keeping the shape.
+
+  A plain `points[::step]` stride both misses the peaks between samples and,
+  when the length is not a multiple of the step, silently drops the tail of the
+  curve. For ordered data we use LTTB (largest-triangle-three-buckets), which
+  keeps the first and last points and picks, in each bucket, the sample that
+  carries the most visual area, so extrema survive. Unordered scatter clouds
+  have no shape to preserve, so an even spread over the whole range is enough.
+  """
+  count = len(points)
+  if count <= limit:
+    return points
+  if scatter or limit < 3:
+    # Evenly spaced indices across the full range, endpoints included
+    return [points[round(index * (count - 1) / (limit - 1))] for index in range(limit)]
+
+  sampled = [points[0]]
+  bucket_size = (count - 2) / (limit - 2)
+  previous = points[0]
+  for bucket in range(limit - 2):
+    start = int(bucket * bucket_size) + 1
+    end = min(int((bucket + 1) * bucket_size) + 1, count - 1)
+    next_start = end
+    next_end = min(int((bucket + 2) * bucket_size) + 1, count - 1)
+    if next_end <= next_start:
+      next_start, next_end = count - 1, count
+    avg_count = next_end - next_start
+    avg_x = sum(point[0] for point in points[next_start:next_end]) / avg_count
+    avg_y = sum(point[1] for point in points[next_start:next_end]) / avg_count
+    best, best_area = points[start], -1.0
+    for point in points[start:end]:
+      area = abs(
+        (previous[0] - avg_x) * (point[1] - previous[1]) - (previous[0] - point[0]) * (avg_y - previous[1])
+      )
+      if area > best_area:
+        best, best_area = point, area
+    sampled.append(best)
+    previous = best
+  sampled.append(points[-1])
+  return sampled
+
+
 def make_table_thumbnail(df):
   """
   Sketch of a data table for the home-page card: a grid of a few rows and
@@ -407,8 +455,7 @@ def make_thumbnail(df, kind, x, y, color_by, dimensions):
       continue
     if not scatter:
       points.sort(key=lambda point: point[0])
-    step = max(1, len(points) // THUMB_MAX_POINTS)
-    series.append({"c": color_index, "p": points[::step][:THUMB_MAX_POINTS]})
+    series.append({"c": color_index, "p": _downsample(points, THUMB_MAX_POINTS, scatter)})
 
   if not series:
     return None
@@ -422,19 +469,194 @@ def make_thumbnail(df, kind, x, y, color_by, dimensions):
   y_span = (y_max - y_min) or 1.0
   for serie in series:
     serie["p"] = [
-      [round((px - x_min) / x_span * THUMB_WIDTH), round(THUMB_HEIGHT - (py - y_min) / y_span * THUMB_HEIGHT)]
+      [
+        round((px - x_min) / x_span * THUMB_WIDTH, 1),
+        round(THUMB_HEIGHT - (py - y_min) / y_span * THUMB_HEIGHT, 1),
+      ]
       for px, py in serie["p"]
     ]
 
   if kind == "columns":
     # Interleave the series' bars so multi-source views stay recognizable
     bars = []
-    for offset in range(THUMB_MAX_POINTS):
+    for offset in range(max(len(serie["p"]) for serie in series)):
       for serie in series:
         if offset < len(serie["p"]):
           bars.append([serie["c"], serie["p"][offset][1]])
     return {"t": "bars", "b": bars[:THUMB_MAX_BARS]}
 
+  return {"t": "dots" if scatter else "lines", "s": series}
+
+
+# Plotly serializes numeric columns as base64 typed arrays ("bdata"/"dtype")
+_DTYPE_FORMATS = {
+  "f4": "f", "f8": "d",
+  "i1": "b", "i2": "h", "i4": "i", "i8": "q",
+  "u1": "B", "u2": "H", "u4": "I", "u8": "Q",
+}
+
+
+def _figure_values(raw):
+  """Read a trace coordinate array, decoding plotly's base64 typed arrays."""
+  if isinstance(raw, dict):
+    fmt = _DTYPE_FORMATS.get(raw.get("dtype"))
+    data = raw.get("bdata")
+    if not fmt or not data:
+      return []
+    decoded = array.array(fmt)
+    decoded.frombytes(base64.b64decode(data))
+    if sys.byteorder == "big":
+      decoded.byteswap()  # bdata is little-endian
+    return list(decoded)
+  if raw is None:
+    return []
+  return list(raw)
+
+
+def _trace_color(trace):
+  """The color plotly actually painted the trace with, if it is a single one."""
+  for holder in (trace.get("line"), trace.get("marker")):
+    color = holder.get("color") if isinstance(holder, dict) else None
+    if isinstance(color, str):
+      return color
+  color = trace.get("marker", {}).get("line", {}).get("color") if isinstance(trace.get("marker"), dict) else None
+  return color if isinstance(color, str) else None
+
+
+def _axis_settings(layout, axis):
+  """The layout dict for one axis, cartesian or inside the 3d scene."""
+  if axis + "axis" in layout:
+    return layout.get(axis + "axis") or {}
+  scene = layout.get("scene") or {}
+  return scene.get(axis + "axis") or {}
+
+
+def _figure_bounds(values, axis_layout, log):
+  """Data extent corrected the way plotly corrects it (explicit range, tozero)."""
+  low, high = min(values), max(values)
+  explicit = axis_layout.get("range")
+  if isinstance(explicit, (list, tuple)) and len(explicit) == 2:
+    try:
+      low, high = float(explicit[0]), float(explicit[1])
+    except (TypeError, ValueError):
+      pass
+  elif axis_layout.get("rangemode") == "tozero" and not log:
+    low, high = min(low, 0.0), max(high, 0.0)
+  return low, high
+
+
+def make_figure_thumbnail(figure, kind):
+  """
+  Build the sketch from the figure the user is actually looking at.
+
+  Re-deriving it from the dataframe means re-implementing how the chart
+  builder splits traces, orders categories and scales axes -- and any
+  divergence shows up as a thumbnail that does not look like the chart. The
+  rendered figure already holds the final coordinates, so read them from
+  there and only normalize. Returns None when the figure carries nothing
+  plottable; the caller then falls back to the dataframe sketch.
+  """
+  if kind == "table" or not isinstance(figure, dict):
+    return None
+  traces = [
+    trace for trace in (figure.get("data") or [])
+    if isinstance(trace, dict)
+    and trace.get("visible") not in (False, "legendonly")
+    and str(trace.get("type", "scatter")).startswith(("scatter", "bar"))
+  ]
+  if not traces:
+    return None
+
+  layout = figure.get("layout") or {}
+  x_axis, y_axis = _axis_settings(layout, "x"), _axis_settings(layout, "y")
+  x_log, y_log = x_axis.get("type") == "log", y_axis.get("type") == "log"
+
+  # Categorical x: plotly places categories at their rank, in the layout's order
+  categories = list(x_axis.get("categoryarray") or [])
+
+  def category_index(value):
+    label = str(value)
+    if label not in categories:
+      categories.append(label)
+    return float(categories.index(label))
+
+  def coordinate(value, log):
+    try:
+      number = float(value)
+    except (TypeError, ValueError):
+      return None
+    if log:
+      return math.log10(number) if number > 0 else None
+    return number
+
+  scatter = kind in ("scatter", "scatter3d")
+  series = []
+  # Empty traces are common (one legend entry per combination, only some of
+  # which hold rows), so collect what actually carries points first, then keep
+  # a spread of those: the first few would all come from the same corner of the
+  # chart, and the sketch would show one color where the chart shows several.
+  drawn = []
+  for trace in traces:
+    y_raw = _figure_values(trace.get("y"))
+    x_raw = _figure_values(trace.get("x"))
+    if not y_raw:
+      continue
+    points = []
+    for index, y_value in enumerate(y_raw):
+      py = coordinate(y_value, y_log)
+      if py is None:
+        continue
+      if index < len(x_raw):
+        px = coordinate(x_raw[index], x_log)
+        if px is None:
+          px = category_index(x_raw[index])
+      else:
+        px = float(index)
+      points.append((px, py))
+    if not points:
+      continue
+    drawn.append((trace, points))
+
+  if not drawn:
+    return None
+  if len(drawn) > THUMB_MAX_SERIES:
+    step = (len(drawn) - 1) / float(THUMB_MAX_SERIES - 1) if THUMB_MAX_SERIES > 1 else 0
+    drawn = [drawn[int(round(rank * step))] for rank in range(THUMB_MAX_SERIES)]
+  for trace, points in drawn:
+    serie = {"c": len(series), "p": _downsample(points, THUMB_MAX_POINTS, scatter)}
+    color = _trace_color(trace)
+    if color:
+      serie["k"] = color  # exact trace color, so the sketch matches the chart
+    series.append(serie)
+
+  xs = [px for serie in series for px, _ in serie["p"]]
+  ys = [py for serie in series for _, py in serie["p"]]
+  x_min, x_max = _figure_bounds(xs, x_axis, x_log)
+  y_min, y_max = _figure_bounds(ys, y_axis, y_log)
+  x_span = (x_max - x_min) or 1.0
+  y_span = (y_max - y_min) or 1.0
+  for serie in series:
+    serie["p"] = [
+      [
+        round((px - x_min) / x_span * THUMB_WIDTH, 1),
+        round(THUMB_HEIGHT - (py - y_min) / y_span * THUMB_HEIGHT, 1),
+      ]
+      for px, py in serie["p"]
+    ]
+
+  if kind == "columns":
+    bars = []
+    for offset in range(max(len(serie["p"]) for serie in series)):
+      for serie in series:
+        if offset < len(serie["p"]):
+          bars.append([serie.get("k", serie["c"]), serie["p"][offset][1]])
+    return {"t": "bars", "b": bars[:THUMB_MAX_BARS]}
+
+  # Markers without lines are a cloud, whatever the chart kind says
+  if not scatter:
+    modes = [str(trace.get("mode") or "lines") for trace, _ in drawn]
+    if all("lines" not in mode for mode in modes):
+      return {"t": "dots", "s": series}
   return {"t": "dots" if scatter else "lines", "s": series}
 
 

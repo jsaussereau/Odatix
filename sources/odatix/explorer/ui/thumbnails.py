@@ -232,11 +232,12 @@ def view_thumbnail(view):
         children.append(Rect(
           x=str(round(index * slot + (slot - width) / 2)), y=str(top),
           width=str(width), height=str(max(1, views.THUMB_HEIGHT - top)),
-          rx="1", fill=palettes.get_color(color, palette),
+          rx="1", fill=color if isinstance(color, str) else palettes.get_color(color, palette),
         ))
   else:
     for serie in thumb.get("s") or []:
-      color = palettes.get_color(serie.get("c", 0), palette)
+      # Sketches built from the rendered figure carry the trace color itself
+      color = serie.get("k") or palettes.get_color(serie.get("c", 0), palette)
       points = serie.get("p") or []
       if thumb.get("t") == "dots":
         children += [Circle(cx=str(x), cy=str(y), r="2.5", fill=color) for x, y in points]
