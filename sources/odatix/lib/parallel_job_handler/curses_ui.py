@@ -220,14 +220,30 @@ def update_progress_window(handler, progress_win):
     progress_win.erase()
 
     # The pinned jobs come first and never scroll away: what runs a run is what
-    # tells the rest of the list what it is doing there.
-    for id, (real_id, job) in enumerate(handler.visible_jobs(rows=rows)):
+    # tells the rest of the list what it is doing there. A separator marks
+    # where they end and the scrolled jobs begin. Jobs scrolled off above the
+    # visible window would normally be counted on separator_top_win, but once
+    # there are pinned jobs that separator has nothing left to say (it sits
+    # above the pinned jobs, not above the scrolled ones) so the "N more"
+    # message is shown here instead.
+    visible = handler.visible_jobs(rows=rows)
+    pinned_count = sum(1 for _, job in visible if job.pinned)
+    row = 0
+    for i, (real_id, job) in enumerate(visible):
+        if i == pinned_count and pinned_count > 0:
+            try:
+                dim = handler.showing_help and curses.A_DIM
+                text = build_separator_text(handler, handler.job_index_start, 0, width)
+                progress_win.addstr(row, 0, text, dim)
+            except curses.error:
+                pass
+            row += 1
         selected = (handler.selected_job_index == real_id)
         elapsed_time = get_elapsed_time_str(job.start_time, job.stop_time)
         try:
             progress_bar(
                 handler=handler,
-                id=id,
+                id=row,
                 real_id=real_id,
                 window=progress_win,
                 progress=job.progress,
@@ -240,20 +256,24 @@ def update_progress_window(handler, progress_win):
             )
         except curses.error:
             pass
+        row += 1
     progress_win.refresh()
     progress_win.attroff(curses.A_DIM)
+
+
+def build_separator_text(handler, val, ref, width):
+    remaining = max(0, int(val) - int(ref))
+    if remaining == 0:
+        return handler.theme.get("bar") * (width - 1)
+    message = f"{remaining} more"
+    padding = 4
+    return handler.theme.get("bar") * padding + message + handler.theme.get("bar") * (width - len(message) - padding - 1)
 
 
 def update_separator(handler, separator_win, val, ref, width):
     dim = handler.showing_help and curses.A_DIM
     separator_win.erase()
-    remaining = max(0, int(val) - int(ref))
-    if remaining == 0:
-        separator_text = handler.theme.get("bar") * (width - 1)
-    else:
-        message = f"{remaining} more"
-        padding = 4
-        separator_text = handler.theme.get("bar") * padding + message + handler.theme.get("bar") * (width - len(message) - padding - 1)
+    separator_text = build_separator_text(handler, val, ref, width)
     try:
         separator_win.addstr(0, 0, separator_text, dim)
     except curses.error:
@@ -602,6 +622,12 @@ def click_on_job(handler, progress_win, y, x):
         relative_y = y - progress_win.getbegyx()[0]
         rows = progress_win.getmaxyx()[0]
         visible = handler.visible_jobs(rows=rows)
+        pinned_count = sum(1 for _, job in visible if job.pinned)
+        if pinned_count > 0:
+            if relative_y == pinned_count:
+                return -1  # clicked on the pinned/scrollable separator
+            if relative_y > pinned_count:
+                relative_y -= 1
         if 0 <= relative_y < len(visible):
             return visible[relative_y][0]
     return -1
@@ -658,12 +684,22 @@ def curses_main(handler, stdscr):
         # Header + top separator + progress + middle separator + logs + help bar.
         return max(1, int(screen_height) - header_height - 2 * separator_height - help_height)
 
+    def _max_useful_progress_height():
+        # Total rows needed to show every job: pinned + scrollable + the separator
+        # row between them (only present when both groups are non-empty).
+        pinned_count = len(handler.pinned_job_list)
+        scrollable_count = handler.scrollable_count
+        return pinned_count + scrollable_count + (1 if pinned_count and scrollable_count else 0)
+
     def _clamp_progress_height(desired_height, screen_height):
-        return max(1, min(int(desired_height), _max_progress_height(screen_height), handler.job_count))
+        return max(1, min(int(desired_height), _max_progress_height(screen_height), _max_useful_progress_height()))
 
     def scroll_room():
-        """How many rows are left for the jobs that scroll, once the pinned ones are drawn."""
-        return max(1, progress_height - len(handler.pinned_job_list))
+        """How many rows are left for the jobs that scroll, once the pinned ones (and their
+        separator, when there also are scrolled jobs) are drawn."""
+        pinned_count = len(handler.pinned_job_list)
+        reserved = pinned_count + (1 if pinned_count and handler.scrollable_count else 0)
+        return max(1, progress_height - reserved)
 
     def sync_progress_indices():
         # The window scrolls over the jobs that are not pinned: the pinned ones
@@ -674,9 +710,16 @@ def curses_main(handler, stdscr):
             handler.job_index_end = 0
             return
 
+        room = scroll_room()
         max_start = max(0, scrollable - 1)
         handler.job_index_start = max(0, min(handler.job_index_start, max_start))
-        handler.job_index_end = min(scrollable, handler.job_index_start + scroll_room())
+        # If there is more room than jobs left below the current start, pull the
+        # start back up (revealing jobs hidden above) so the window fills all the
+        # way to the bottom instead of leaving blank rows there.
+        shortfall = (handler.job_index_start + room) - scrollable
+        if shortfall > 0:
+            handler.job_index_start = max(0, handler.job_index_start - shortfall)
+        handler.job_index_end = min(scrollable, handler.job_index_start + room)
         if handler.job_index_end <= handler.job_index_start:
             handler.job_index_end = handler.job_index_start + 1
 
@@ -837,7 +880,7 @@ def curses_main(handler, stdscr):
             help_static_drawn = False
 
             update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
-            update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
+            update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
 
             # Keep the local selected_job reference synchronized with handler state.
             # This is required when job objects are replaced (e.g. daemon attach mode).
@@ -857,7 +900,7 @@ def curses_main(handler, stdscr):
             # Draw a single dimmed snapshot behind the popup, then keep it stable
             # while help is open to avoid flicker from continuous progress redraws.
             update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
-            update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
+            update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
             update_progress_window(handler, progress_win)
             update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
             update_logs(handler, logs_win, selected_job, logs_height, width)
@@ -886,7 +929,7 @@ def curses_main(handler, stdscr):
                 # Dim the whole background behind the popup, like the help menu does.
                 handler.showing_help = True
                 update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
-                update_separator(handler, separator_top_win, handler.job_index_start, 0, width)
+                update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
                 update_progress_window(handler, progress_win)
                 update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
                 update_logs(handler, logs_win, selected_job, logs_height, width)

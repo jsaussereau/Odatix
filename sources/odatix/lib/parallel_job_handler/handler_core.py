@@ -468,7 +468,8 @@ class ParallelJobHandler:
 
         if rows is None:
             rows = max(0, int(self.job_index_end) - int(self.job_index_start))
-        room = max(0, int(rows) - len(pinned))
+        reserved = len(pinned) + (1 if pinned and scrollable else 0)
+        room = max(0, int(rows) - reserved)
         start = max(0, int(self.job_index_start))
         return pinned + scrollable[start:start + room]
 
