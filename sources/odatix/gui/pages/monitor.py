@@ -23,8 +23,8 @@ import dash
 from dash import html, dcc, Input, Output, State, ctx, ALL
 from typing import Optional#, Literal
 import os
-import requests
 import socket
+import threading
 from dash.exceptions import PreventUpdate
 from dash import no_update
 
@@ -34,6 +34,7 @@ import odatix.gui.ui_components as ui
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import daemon_control
 from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
+from odatix.lib.parallel_job_handler.transport import ApiError, Endpoint
 
 page_path = "/monitor"
 
@@ -54,7 +55,7 @@ DEFAULT_HOST = hard_settings.daemon_default_host
 DEFAULT_PORT = hard_settings.daemon_default_port
 
 # Status buckets, shared by filtering, KPI counting and sorting.
-RUNNING_STATUSES = ("running", "starting", "exporting")
+RUNNING_STATUSES = ("running", "starting", "export")
 QUEUED_STATUSES = ("queued", "paused")
 DONE_STATUSES = ("success",)
 FAILED_STATUSES = ("failed", "killed", "canceled")
@@ -63,7 +64,7 @@ FAILED_STATUSES = ("failed", "killed", "canceled")
 _STATUS_SORT_PRIORITY = {
     "running": 0,
     "starting": 1,
-    "exporting": 2,
+    "export": 2,
     "paused": 3,
     "queued": 4,
     "success": 5,
@@ -147,6 +148,50 @@ def _pick_session_value(daemons, selector: Optional[str]) -> Optional[str]:
     return None
 
 
+# Session endpoints (and the tokens they carry) stay in the server process:
+# the browser store only ever holds the query key that names one. A token in a
+# dcc.Store would be a token in the page, readable by anything running there.
+_ENDPOINTS = {}
+_ENDPOINTS_LOCK = threading.Lock()
+
+
+def _remember_endpoint(key: str, state: dict):
+    endpoint = daemon_control.endpoint_for_state(state)
+    with _ENDPOINTS_LOCK:
+        _ENDPOINTS[str(key)] = endpoint
+    return endpoint
+
+
+def _endpoint(daemon_state) -> Endpoint:
+    """The endpoint for a resolved daemon state, re-resolving if needed."""
+    if not isinstance(daemon_state, dict):
+        raise ValueError("No session selected")
+
+    key = str(daemon_state.get("query_key", ""))
+    with _ENDPOINTS_LOCK:
+        endpoint = _ENDPOINTS.get(key)
+    if endpoint is not None:
+        return endpoint
+
+    # The cache is empty (GUI restarted, session re-resolved elsewhere): read
+    # the session's own state file again rather than failing the callback.
+    # The session id comes first, because it identifies the session whatever
+    # its transport -- a unix session has no host/port to be found by.
+    selector = (
+        str(daemon_state.get("session_id") or "").strip()
+        or str(daemon_state.get("session") or "").strip()
+        or None
+    )
+    if selector is not None:
+        state = daemon_control._resolve_state_for_attach_or_stop(session=selector)
+    else:
+        state = daemon_control._resolve_state_for_attach_or_stop(
+            host=daemon_state.get("host"),
+            port=daemon_state.get("port"),
+        )
+    return _remember_endpoint(key, state)
+
+
 def _query_key(query: dict) -> str:
     host = query.get("host")
     port = query.get("port")
@@ -171,8 +216,11 @@ def _resolve_daemon_target(
     key = _query_key(query)
 
     if isinstance(current_daemon_state, dict):
-        if current_daemon_state.get("query_key") == key and current_daemon_state.get("base_url"):
-            return current_daemon_state
+        if current_daemon_state.get("query_key") == key and current_daemon_state.get("address"):
+            with _ENDPOINTS_LOCK:
+                known = key in _ENDPOINTS
+            if known:
+                return current_daemon_state
 
     try:
         state = daemon_control._resolve_state_for_attach_or_stop(
@@ -191,8 +239,8 @@ def _resolve_daemon_target(
         else:
             raise
 
-    host = str(state.get("host", query.get("host") or DEFAULT_HOST))
-    port = int(state.get("port", query.get("port") or DEFAULT_PORT))
+    host = state.get("host", query.get("host"))
+    port = state.get("port", query.get("port"))
     session = (
         state.get("session")
         or state.get("session_id")
@@ -201,6 +249,10 @@ def _resolve_daemon_target(
         or ""
     )
 
+    _remember_endpoint(key, state)
+
+    # Everything here goes into a browser store, so it must stay free of the
+    # session token (see daemon_control.public_state).
     return {
         "query_key": key,
         "host": host,
@@ -208,7 +260,7 @@ def _resolve_daemon_target(
         "session": str(session),
         "session_name": str(state.get("session_name", "")),
         "session_id": str(state.get("session_id", "")),
-        "base_url": f"http://{host}:{port}",
+        "address": daemon_control._state_address(state),
     }
 
 
@@ -225,8 +277,21 @@ def _local_addresses():
     return addresses
 
 
+def _is_local_session(daemon_state) -> bool:
+    """Whether the session runs on this machine (so its directories are openable).
+
+    A unix socket cannot be reached from anywhere else, so a session using one
+    is local by construction and has no host to compare.
+    """
+    if not isinstance(daemon_state, dict):
+        return False
+    if str(daemon_state.get("address", "")).startswith("unix:"):
+        return True
+    return _is_local_host(daemon_state.get("host"))
+
+
 def _is_local_host(host) -> bool:
-    """Whether `host` points at the local machine (so its directories are openable)."""
+    """Whether `host` points at the local machine."""
     if host is None:
         return False
     host = str(host).strip().lower()
@@ -251,31 +316,26 @@ def _format_monitor_error(error, daemon_state: Optional[dict] = None):
             )
         return str(error)
 
-    if isinstance(error, requests.RequestException):
+    if isinstance(error, (ApiError, OSError)):
         if isinstance(daemon_state, dict):
-            host = daemon_state.get("host", DEFAULT_HOST)
-            port = daemon_state.get("port", DEFAULT_PORT)
+            address = daemon_state.get("address") or "the daemon API"
             session_id = str(daemon_state.get("session_id", "")).strip()
             if session_id != "":
-                return f"Could not reach daemon session '{session_id}' on {host}:{port}"
-            return f"Could not reach daemon on {host}:{port}"
+                return f"Could not reach daemon session '{session_id}' on {address}"
+            return f"Could not reach daemon on {address}"
         return "Could not reach daemon API"
 
     return str(error)
 
 
 def _session_option(daemon):
-    host = str(daemon.get("host", DEFAULT_HOST))
-    port = int(daemon.get("port", DEFAULT_PORT))
+    address = daemon_control._state_address(daemon)
     session_id = str(daemon.get("session_id", "")).strip()
     session_name = str(daemon.get("session_name", "")).strip()
 
-    value = session_id or session_name or f"{host}:{port}"
-    hover_text = f"{host}:{port}"
-    if session_id:
-        label = f"{session_id}"
-    else:
-        label = f"{host}:{port}"
+    value = session_id or session_name or address
+    hover_text = address
+    label = session_id or address
     return {
         "label": label,
         "value": value,
@@ -290,22 +350,37 @@ def _options_signature(options):
         if isinstance(option, dict)
     )
 
-def _api_get(base_url: str, path: str):
-    r = requests.get(str(base_url).rstrip("/") + path, timeout=0.4)
-    r.raise_for_status()
-    return r.json()
+def _stop_resolved_session(resolved_daemon):
+    """Stop exactly the session the page is attached to.
 
-def _api_get_slow(base_url: str, path: str, timeout: float = 2.0):
-    r = requests.get(str(base_url).rstrip("/") + path, timeout=float(timeout))
-    r.raise_for_status()
-    return r.json()
+    Selecting it by session id matters: a session on a unix socket has no
+    host/port to identify it by, and falling back to "the workspace session"
+    could stop somebody else's.
+    """
+    selector = (
+        str(resolved_daemon.get("session_id") or "").strip()
+        or str(resolved_daemon.get("session") or "").strip()
+        or None
+    )
+    if selector is not None:
+        return daemon_control.stop_daemon(session=selector)
+    return daemon_control.stop_daemon(
+        host=resolved_daemon.get("host"),
+        port=resolved_daemon.get("port"),
+    )
 
-def _api_post(base_url: str, path: str, params: Optional[dict] = None):
-    r = requests.post(str(base_url).rstrip("/") + path, params=params or {}, timeout=0.6)
-    r.raise_for_status()
-    if r.headers.get("content-type", "").startswith("application/json"):
-        return r.json()
-    return {"ok": True}
+
+def _api_get(daemon_state, path: str):
+    return _endpoint(daemon_state).get(path, timeout=0.4)
+
+def _api_get_slow(daemon_state, path: str, timeout: float = 2.0):
+    return _endpoint(daemon_state).get(path, timeout=float(timeout))
+
+def _api_post(daemon_state, path: str, params: Optional[dict] = None):
+    if params:
+        query = "&".join(f"{key}={value}" for key, value in params.items())
+        path = path + ("&" if "?" in path else "?") + query
+    return _endpoint(daemon_state).post(path, payload={}, timeout=0.6) or {"ok": True}
 
 
 ######################################
@@ -594,7 +669,6 @@ def _update_session_dropdown(_n, last_action, search, current_value, daemon_stat
 def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_state, search, selected_session):
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
-        base_url = resolved_daemon.get("base_url")
 
         # 1 request per tick: jobs + optional log deltas for selected job.
         path = "/status"
@@ -617,7 +691,7 @@ def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_stat
         if job_id is not None and offset_i is not None:
             path = f"/status?logs_job_id={job_id}&logs_offset={offset_i}&logs_limit=500"
 
-        snap = _api_get(base_url, path)
+        snap = _api_get(resolved_daemon, path)
 
         # Merge returned deltas into the log store.
         new_logs_state = no_update
@@ -835,7 +909,7 @@ def _change_nb_jobs(_inc, _dec, current_value, daemon_state, search, selected_se
 
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
-        _api_post(resolved_daemon.get("base_url"), "/config", params={"nb_jobs": new_value})
+        _api_post(resolved_daemon, "/config", params={"nb_jobs": new_value})
     except Exception:
         # Keep the optimistic value; the next poll reconciles if the post failed.
         pass
@@ -1088,9 +1162,8 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, se
 
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
-        base_url = resolved_daemon.get("base_url")
         # Full log for this job (server supports logs_limit=-1)
-        snap = _api_get_slow(base_url, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
+        snap = _api_get_slow(resolved_daemon, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
         logs_any = snap.get("logs") if isinstance(snap, dict) else None
         logs = logs_any if isinstance(logs_any, dict) else {}
         lines_any = logs.get("lines")
@@ -1254,7 +1327,6 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
 
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
-        base_url = resolved_daemon.get("base_url")
     except Exception as e:
         return {"ok": False, "error": _format_monitor_error(e, daemon_state)}
 
@@ -1277,10 +1349,7 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
         try:
             # stop_daemon waits for the process to be gone and removes its state
             # files, so the session list can be refreshed right after.
-            daemon_control.stop_daemon(
-                host=resolved_daemon.get("host"),
-                port=resolved_daemon.get("port"),
-            )
+            _stop_resolved_session(resolved_daemon)
             return {"ok": True, "action": "shutdown", "session": resolved_daemon.get("session", "")}
         except Exception as e:
             return {"ok": False, "action": "shutdown", "error": _format_monitor_error(e, daemon_state)}
@@ -1291,7 +1360,7 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
         except Exception:
             raise PreventUpdate
         try:
-            _api_post(base_url, f"/jobs/{job_id}/open")
+            _api_post(resolved_daemon, f"/jobs/{job_id}/open")
             return {"ok": True, "action": "open", "job_id": job_id}
         except Exception as e:
             return {"ok": False, "action": "open", "error": _format_monitor_error(e, daemon_state)}
@@ -1310,13 +1379,13 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
 
     try:
         if action_type == "task-start":
-            _api_post(base_url, f"/jobs/{job_id}/start")
+            _api_post(resolved_daemon, f"/jobs/{job_id}/start")
             return {"ok": True, "action": "start", "job_id": job_id}
         if action_type == "task-pause":
-            _api_post(base_url, f"/jobs/{job_id}/pause")
+            _api_post(resolved_daemon, f"/jobs/{job_id}/pause")
             return {"ok": True, "action": "pause", "job_id": job_id}
         if action_type == "task-stop":
-            _api_post(base_url, f"/jobs/{job_id}/kill")
+            _api_post(resolved_daemon, f"/jobs/{job_id}/kill")
             return {"ok": True, "action": "kill", "job_id": job_id}
 
         return {"ok": False, "error": f"Unknown action type: {action_type}"}
@@ -1341,11 +1410,10 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
 def _toggle_open_path(_n, selected_session, search, daemon_state):
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
-        host = resolved_daemon.get("host")
     except Exception:
-        host = None
+        resolved_daemon = None
 
-    if _is_local_host(host):
+    if _is_local_session(resolved_daemon):
         return False, "Open task directory"
     return True, "Directory not available: the daemon is running on a remote host"
 
@@ -1475,10 +1543,7 @@ def _quit_to_explorer(_keep_clicks, _close_clicks, _close_only_clicks, daemon_st
     if triggered in ("monitor-finished-close", "monitor-finished-close-only"):
         try:
             resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
-            daemon_control.stop_daemon(
-                host=resolved_daemon.get("host"),
-                port=resolved_daemon.get("port"),
-            )
+            _stop_resolved_session(resolved_daemon)
         except Exception as e:
             return no_update, no_update, _format_monitor_error(e, daemon_state)
 

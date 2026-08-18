@@ -27,7 +27,13 @@ what a command line wants. A script does not: it gets these instead, carrying
 what would have been printed.
 """
 
-__all__ = ["RunError", "RunCancelled"]
+__all__ = ["RunError", "RunCancelled", "NOTHING_TO_RUN"]
+
+#: Exit code of a run that has nothing left to do because every job it selected
+#: is already done. Not a failure: the results are there, they were produced
+#: earlier. A caller that can use them (the exploration does) tells this case
+#: apart from a real refusal by :attr:`RunError.code`.
+NOTHING_TO_RUN = 2
 
 
 class RunError(Exception):

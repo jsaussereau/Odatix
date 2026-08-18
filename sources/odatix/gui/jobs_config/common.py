@@ -29,6 +29,7 @@ from odatix.workspace.jobs import job_config
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 from odatix.gui.utils import get_key_from_url
+from odatix.lib.parallel_job_handler import daemon_control
 from odatix.lib.settings import OdatixSettings
 
 page_path = "/run_jobs"
@@ -75,17 +76,16 @@ def _normalize_session_selector(value: Optional[str]) -> Optional[str]:
 
 
 def _session_option(daemon: dict) -> dict:
-    host = str(daemon.get("host", hard_settings.daemon_default_host))
-    port = int(daemon.get("port", hard_settings.daemon_default_port))
+    address = daemon_control._state_address(daemon)
     session_id = str(daemon.get("session_id", "")).strip()
     session_name = str(daemon.get("session_name", "")).strip()
 
-    value = session_id or session_name or f"{host}:{port}"
-    label = session_id or session_name or f"{host}:{port}"
+    value = session_id or session_name or address
+    label = session_id or session_name or address
     return {
         "label": label,
         "value": value,
-        "title": f"{host}:{port}",
+        "title": address,
     }
 
 def _checklist_enabled(value) -> bool:

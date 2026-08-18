@@ -263,13 +263,22 @@ def register_callbacks():
     Output("xp-color-by", "value", allow_duplicate=True),
     Input("xp-dissociate-by", "value"),
     State("xp-color-by", "value"),
+    State("xp-control-state", "data"),
     prevent_initial_call=True,
   )
-  def sync_color_with_dissociate(dissociate, color_by):
+  def sync_color_with_dissociate(dissociate, color_by, stored):
     """Dissociating dimensions pulls them out of the x labels into their own traces;
     coloring by those same dimensions is almost always what the user wants, so keep
-    "Color by" in sync when real dimensions are chosen for "Dissociate"."""
+    "Color by" in sync when real dimensions are chosen for "Dissociate".
+
+    Only user edits of the dropdown may do this: a restored view (or a page mount
+    re-applying xp-control-state) must keep its own "Color by" exactly as saved.
+    Those writes come from update_control_options, which replays the value already
+    held in xp-control-state, so a value equal to the stored one is not a user edit.
+    """
     dissociate = normalize_dims(dissociate) or ()
+    if dissociate == (normalize_dims((stored or {}).get("dissociate")) or ()):
+      raise dash.exceptions.PreventUpdate
     if not dissociate or dissociate == (normalize_dims(color_by) or ()):
       raise dash.exceptions.PreventUpdate
     return list(dissociate)
