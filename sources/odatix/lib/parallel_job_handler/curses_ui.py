@@ -805,6 +805,7 @@ def curses_main(handler, stdscr):
                 selected_job=selected_job,
                 on_selected_retired=lambda: update_logs(handler, logs_win, selected_job, logs_height, width),
             )
+            handler._check_resource_guard_unlocked()
 
         sync_progress_indices()
 

@@ -99,12 +99,43 @@ class _JobLogWriter(io.TextIOBase):
 ######################################
 
 class ParallelJobHandler:
-    def __init__(self, job_list, nb_jobs=4, process_group=True, auto_exit=False, format_yaml=None, log_size_limit=200):
+    def __init__(
+        self,
+        job_list,
+        nb_jobs=4,
+        process_group=True,
+        auto_exit=False,
+        format_yaml=None,
+        log_size_limit=200,
+        resource_guard=True,
+        cpu_limit=98.0,
+        mem_limit=98.0,
+        resource_check_interval=2.0,
+    ):
         self.job_list = list(job_list) if job_list is not None else []
         self.nb_jobs = int(nb_jobs)
         self.process_group = bool(process_group)
         self.auto_exit = bool(auto_exit)
         self.log_size_limit = int(log_size_limit)
+
+        # Resource guard: pause running jobs when the system is too loaded
+        # (CPU or memory), resume them once it settles back down. Disabled
+        # automatically on platforms/setups where it cannot work (Windows has
+        # no SIGSTOP/SIGCONT, psutil may be missing).
+        self.resource_guard_enabled = bool(resource_guard) and sys.platform != "win32"
+        self.cpu_limit = float(cpu_limit)
+        self.mem_limit = float(mem_limit)
+        # Hysteresis: only resume once usage has dropped well below the
+        # pause threshold, so we don't pause/resume the same job repeatedly
+        # when load hovers right around the limit.
+        self.cpu_resume_limit = max(0.0, self.cpu_limit - 5.0)
+        self.mem_resume_limit = max(0.0, self.mem_limit - 5.0)
+        self.resource_check_interval = float(resource_check_interval)
+        self._resource_guard_last_check = 0.0
+        self._resource_guard_last_cpu = None
+        self._resource_guard_last_mem = None
+        self._auto_paused_jobs = []
+        self._resource_guard_warned = False
 
         self.version = read_version()
 
@@ -270,6 +301,14 @@ class ParallelJobHandler:
                     "queued": int(self.job_queue.qsize()),
                     "retired": len(self.retired_job_list),
                     "theme": getattr(self.theme, "theme", None),
+                    "resource_guard": {
+                        "enabled": bool(self.resource_guard_enabled),
+                        "cpu_limit": float(self.cpu_limit),
+                        "mem_limit": float(self.mem_limit),
+                        "cpu": self._resource_guard_last_cpu,
+                        "mem": self._resource_guard_last_mem,
+                        "auto_paused": len(self._auto_paused_jobs),
+                    },
                 },
                 "jobs": jobs,
                 "logs": logs,
@@ -311,7 +350,17 @@ class ParallelJobHandler:
         with self._lock:
             self._headless_logs_height = max(1, int(height))
 
-    def configure_runtime(self, nb_jobs=None, process_group=None, auto_exit=None, log_size_limit=None, format_yaml=None):
+    def configure_runtime(
+        self,
+        nb_jobs=None,
+        process_group=None,
+        auto_exit=None,
+        log_size_limit=None,
+        format_yaml=None,
+        resource_guard=None,
+        cpu_limit=None,
+        mem_limit=None,
+    ):
         """Update runtime scheduling options (daemon mode).
 
         Any argument set to None keeps the current value.
@@ -327,6 +376,14 @@ class ParallelJobHandler:
                 self.log_size_limit = int(log_size_limit)
             if format_yaml is not None:
                 self._set_formatter(format_yaml)
+            if resource_guard is not None:
+                self.resource_guard_enabled = bool(resource_guard) and sys.platform != "win32"
+            if cpu_limit is not None:
+                self.cpu_limit = float(cpu_limit)
+                self.cpu_resume_limit = max(0.0, self.cpu_limit - 15.0)
+            if mem_limit is not None:
+                self.mem_limit = float(mem_limit)
+                self.mem_resume_limit = max(0.0, self.mem_limit - 15.0)
 
             self._fill_running_slots_from_queue_unlocked()
 
@@ -401,6 +458,76 @@ class ParallelJobHandler:
         if job_index < 0 or job_index >= len(self.job_list) or self.job_list[job_index].pinned:
             return None
         return sum(1 for job in self.job_list[:job_index] if not job.pinned)
+
+    def _check_resource_guard_unlocked(self):
+        """
+        Pause/resume running jobs to keep the host system from freezing under
+        too much CPU or memory pressure. Runs on every tick but only actually
+        samples the system every `resource_check_interval` seconds, since
+        psutil.cpu_percent() needs to be spaced out to mean anything.
+        """
+        if not self.resource_guard_enabled:
+            return
+
+        try:
+            import psutil
+        except ImportError:
+            # Not installed: disable rather than fail repeatedly.
+            self.resource_guard_enabled = False
+            if not self._resource_guard_warned:
+                self._resource_guard_warned = True
+                printc.warning(
+                    "psutil is not installed: resource guard (auto-pause on high CPU/memory) is disabled",
+                    script_name,
+                )
+            return
+
+        now = time.time()
+        if now - self._resource_guard_last_check < self.resource_check_interval:
+            return
+        self._resource_guard_last_check = now
+
+        try:
+            cpu = float(psutil.cpu_percent(interval=None))
+            mem = float(psutil.virtual_memory().percent)
+        except Exception:
+            return
+
+        self._resource_guard_last_cpu = cpu
+        self._resource_guard_last_mem = mem
+
+        # Drop jobs that are no longer paused (killed, or resumed by hand) from
+        # our own bookkeeping so we don't try to resume them later.
+        self._auto_paused_jobs = [job for job in self._auto_paused_jobs if job.status == "paused"]
+
+        overloaded_cpu = cpu >= self.cpu_limit
+        overloaded_mem = mem >= self.mem_limit
+
+        if overloaded_cpu or overloaded_mem:
+            candidates = [job for job in self.running_job_list if job.status == "running" and job.takes_a_slot]
+            if candidates:
+                # Pause the most recently started job first: it has the least
+                # work invested in it, and pausing it disrupts the batch least.
+                job = candidates[-1]
+                job.pause()
+                if job.status == "paused":
+                    self._auto_paused_jobs.append(job)
+                    reason = "CPU" if overloaded_cpu else "memory"
+                    job.log_history.append(
+                        printc.colors.YELLOW
+                        + f"Job auto-paused: system {reason} usage too high "
+                        + f"({cpu:.0f}% CPU, {mem:.0f}% mem)"
+                        + printc.colors.ENDC
+                    )
+            return
+
+        if cpu < self.cpu_resume_limit and mem < self.mem_resume_limit and self._auto_paused_jobs:
+            job = self._auto_paused_jobs.pop(0)
+            if job.status == "paused":
+                job.resume()
+                job.log_history.append(
+                    printc.colors.GREEN + "Job auto-resumed: system load back to normal" + printc.colors.ENDC
+                )
 
     def _fill_running_slots_from_queue_unlocked(self):
         while self.used_slots < self.nb_jobs and not self.job_queue.empty():
@@ -851,6 +978,7 @@ class ParallelJobHandler:
         """One scheduling + IO tick (headless, no curses)."""
         with self._lock:
             self._update_jobs_state()
+            self._check_resource_guard_unlocked()
 
             # Collect stdout and stderr pipes
             self.read_process_output()
