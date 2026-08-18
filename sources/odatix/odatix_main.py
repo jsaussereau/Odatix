@@ -146,6 +146,8 @@ class ArgParser:
     ArgParser.monitor_parser.add_argument('-S', '--session', default=None, help='daemon session name or selector')
     ArgParser.monitor_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
     ArgParser.monitor_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
+    ArgParser.monitor_parser.add_argument('--token', default=None, help='session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)')
+    ArgParser.monitor_parser.add_argument('-R', '--remote', default=None, help='attach to a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace')
 
     # Define parser for the 'stop' command
     ArgParser.stop_parser = subparsers.add_parser("stop", help="stop background daemon", formatter_class=formatter)
@@ -155,6 +157,8 @@ class ArgParser:
     ArgParser.stop_parser.add_argument('-z', '--zombies', action='store_true', help='also kill zombie sessions (unresponsive daemons and leftover state files)')
     ArgParser.stop_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
     ArgParser.stop_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
+    ArgParser.stop_parser.add_argument('--token', default=None, help='session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)')
+    ArgParser.stop_parser.add_argument('-R', '--remote', default=None, help='stop a session on another machine over ssh, e.g. user@host or user@host:/path/to/workspace')
 
     # Define parser for the 'ls' command
     ArgParser.ls_parser = subparsers.add_parser("ls", help="list active background daemons", formatter_class=formatter)
@@ -162,6 +166,9 @@ class ArgParser:
     ArgParser.ls_parser.add_argument('-z', '--zombies', action='store_true', help='also list zombie sessions (unresponsive daemons and leftover state files)')
     ArgParser.ls_parser.add_argument('--host', default=None, help='daemon API host (optional explicit endpoint)')
     ArgParser.ls_parser.add_argument('--port', type=int, default=None, help='daemon API port (optional explicit endpoint)')
+    ArgParser.ls_parser.add_argument('--token', default=None, help='session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)')
+    ArgParser.ls_parser.add_argument('-R', '--remote', default=None, help='list the sessions of another machine over ssh, e.g. user@host or user@host:/path/to/workspace')
+    ArgParser.ls_parser.add_argument('--json', action='store_true', help='print the session list as JSON, session tokens included (this is what a remote odatix reads over ssh: do not pipe it anywhere public)')
 
     # Define parser for the 'results' command
     ArgParser.res_parser = subparsers.add_parser("results", help="export benchmark results", formatter_class=formatter)
@@ -431,7 +438,13 @@ def run_analysis(args):
 def monitor_daemon(args):
   success = True
   try:
-    daemon_control.attach_monitor(host=args.host, port=args.port, session=args.session)
+    daemon_control.attach_monitor(
+      host=args.host,
+      port=args.port,
+      session=args.session,
+      token=getattr(args, "token", None),
+      remote=getattr(args, "remote", None),
+    )
   except daemon_control.MultipleDaemonsError as e:
     if args.session is not None and args.session != "":
       printc.warning(f"Multiple sessions match '{args.session}':", script_name)
@@ -477,7 +490,7 @@ def stop_daemon(args):
         return success
 
     if args.all:
-      result = daemon_control.stop_all_daemons(host=args.host, port=args.port)
+      result = daemon_control.stop_all_daemons(host=args.host, port=args.port, token=getattr(args, "token", None))
       total = int(result.get("total", 0))
       stopped = int(result.get("stopped", 0))
       failed = result.get("failed", [])
@@ -497,7 +510,13 @@ def stop_daemon(args):
       success = False
       return success
 
-    stopped = daemon_control.stop_daemon(host=args.host, port=args.port, session=args.session)
+    stopped = daemon_control.stop_daemon(
+      host=args.host,
+      port=args.port,
+      session=args.session,
+      token=getattr(args, "token", None),
+      remote=getattr(args, "remote", None),
+    )
     session_label = args.session if args.session not in (None, "") else "daemon"
     if stopped:
       printc.note(f"Session {session_label} stopped", script_name)
@@ -524,14 +543,31 @@ def list_daemons(args):
   success = True
   try:
     show_zombies = getattr(args, "zombies", False)
+    remote = getattr(args, "remote", None)
 
-    daemons = daemon_control.list_daemons(host=args.host, port=args.port, session=args.session)
+    daemons = daemon_control.list_daemons(
+      host=args.host,
+      port=args.port,
+      session=args.session,
+      token=getattr(args, "token", None),
+      remote=remote,
+    )
+
+    if getattr(args, "json", False):
+      # The consumer of this is a remote odatix reading it through an ssh
+      # pipe, so the tokens are part of the payload. Anything printed for a
+      # human goes through format_daemons_table(), which never shows them.
+      print(daemon_control.daemons_to_json(daemons, include_secrets=True))
+      return success
 
     # Zombies are only meaningful when scanning the system, not when an
     # explicit endpoint is given.
     zombies = []
-    if show_zombies and args.host is None and args.port is None:
+    if show_zombies and args.host is None and args.port is None and remote is None:
       zombies = daemon_control.list_zombie_daemons(session=args.session)
+      # A daemon answering intermittently can show up in both scans: keep it
+      # in the zombie section only, never advertise it as an active session.
+      daemons = daemon_control.exclude_zombies(daemons, zombies)
 
     if len(daemons) == 0:
       printc.note("No active session found", script_name)
