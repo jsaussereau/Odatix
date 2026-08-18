@@ -66,6 +66,7 @@ nav_groups = [
         ("Table", "/explorer/table"),
         ("Overview", "/explorer/overview"),
         ("RTL Analysis", "/explorer/analysis"),
+        ("Design Space Exploration", "/explorer/dse"),
     ]),
     ("Workspace", "", [
         ("Clean", "/clean"),
