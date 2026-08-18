@@ -688,6 +688,7 @@ def curses_main(handler, stdscr):
     start_x = (width - popup_width) // 2
     start_y = (height - popup_height) // 2
     sync_progress_indices()
+    last_job_count = handler.job_count
 
     def recreate_windows():
         nonlocal header_win, separator_top_win, progress_win, separator_middle_win
@@ -782,6 +783,22 @@ def curses_main(handler, stdscr):
                 pass
 
         height, width = stdscr.getmaxyx()
+
+        # Jobs added while the monitor is attached: grow the progress window so the
+        # new ones are visible, unless it already takes more than half the screen.
+        current_job_count = handler.job_count
+        if current_job_count > last_job_count:
+            grown = progress_height
+            for _ in range(current_job_count - last_job_count):
+                if grown > height // 2:
+                    break
+                grown = _clamp_progress_height(grown + 1, height)
+            if grown != progress_height:
+                progress_height = grown
+                sync_progress_indices()
+                resize = True
+        last_job_count = current_job_count
+
         if height != old_height or width != old_width or resize:
             try:
                 recreate_windows()
