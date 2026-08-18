@@ -1863,3 +1863,265 @@ button.xpa-stat-card:hover {
     opacity: 0.6;
     font-style: italic;
 }
+
+/* ---------- Filter chips (generic, explorer-wide) ---------- */
+
+.xp-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+}
+.xp-chips:empty {
+    display: none;
+}
+
+.xp-chip {
+    font-family: inherit;
+    font-size: 0.85em;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--theme-text-color);
+    background: var(--theme-element-background-color);
+    border: 1px solid var(--theme-border-color);
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.xp-chip:hover {
+    border-color: var(--theme-primary-color);
+}
+.xp-chip-active {
+    background: var(--theme-primary-color);
+    border-color: var(--theme-primary-color);
+    color: #fff;
+}
+
+/* ---------- Insights gallery (generated view cards) ---------- */
+
+.xp-insights-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 1100px;
+    margin: 0 auto 22px auto;
+    padding: 12px 16px;
+    border-radius: var(--theme-small-border-radius, 12px);
+    background-color: var(--theme-element-background-color);
+    border: 1px solid var(--theme-border-color);
+    box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+}
+/* A single-source workspace has nothing to filter: no empty bar. */
+.xp-insights-bar:has(.xp-chips:empty) {
+    display: none;
+}
+
+.xp-insights-bar-label {
+    flex: none;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.55;
+}
+
+.xp-insights-status {
+    max-width: 1100px;
+    margin: 0 auto 18px auto;
+}
+.xp-insights-status:empty {
+    display: none;
+}
+
+.xp-reco-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.xp-reco-card {
+    /* min-width: 0 keeps a long title or tag from stretching its grid column
+       and pushing the neighbouring cards out of the grid. */
+    min-width: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    gap: 12px;
+    border-radius: var(--theme-small-border-radius, 12px);
+    color: var(--card-text-color, var(--theme-text-color));
+    background-color: var(--card-background, var(--theme-element-background-color));
+    border: 1px solid var(--theme-border-color);
+    box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.xp-reco-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--theme-primary-color) 45%, var(--theme-border-color));
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+
+.xp-reco-card > button:hover {
+    background: none;
+    border: none;
+}
+/* Stretched hit area: the whole card opens the chart, while the Save button
+   stays a real button on top of it (see _card). */
+.xp-reco-hit {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+    border: none;
+    border-radius: inherit;
+}
+.xp-reco-hit:focus-visible {
+    outline: 2px solid var(--theme-primary-color);
+    outline-offset: 2px;
+}
+
+.xp-reco-thumb-box {
+    position: relative;
+    height: 104px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    overflow: hidden;
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--theme-primary-color) 8%, var(--theme-background-color)),
+        var(--theme-background-color));
+}
+
+.xp-reco-thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 10px 14px;
+}
+.xp-reco-thumb .xp-view-thumb {
+    width: 100%;
+    height: 100%;
+}
+.xp-reco-thumb .xp-card-pictogram {
+    width: 52px;
+    height: 52px;
+    margin: 0;
+}
+
+.xp-reco-kind {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 4px 9px;
+    border-radius: 999px;
+    color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-element-background-color) 82%, transparent);
+    backdrop-filter: blur(2px);
+}
+
+.xp-reco-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+}
+
+.xp-reco-title {
+    font-weight: 600;
+    font-size: 14.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.xp-reco-why {
+    font-size: 12.5px;
+    opacity: 0.75;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.xp-reco-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+
+.xp-reco-tags {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 5px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.xp-reco-tag {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.8;
+    background: var(--theme-background-color);
+}
+.xp-reco-tag-more {
+    flex: none;
+    opacity: 0.6;
+}
+
+.xp-reco-save {
+    position: relative;
+    z-index: 2;
+    flex: none;
+    padding: 5px 12px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+    color: var(--theme-text-color);
+    background: var(--theme-element-background-color);
+    border: 1px solid var(--theme-border-color);
+    border-radius: 999px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.xp-reco-save:hover {
+    color: #fff;
+    background: var(--theme-primary-color);
+    border-color: var(--theme-primary-color);
+}
+
+.xp-insights .xp-view-ok,
+.xp-insights .xp-view-warning {
+    margin-bottom: 14px;
+}
+
+/* The scope a proposal was measured on ("vivado", "3 sources compared"): the
+   card's most identifying piece of metadata, so it reads as a label. */
+.xp-reco-tag-scope {
+    color: var(--theme-primary-color);
+    background: color-mix(in srgb, var(--theme-primary-color) 12%, transparent);
+    opacity: 1;
+    font-weight: 600;
+}

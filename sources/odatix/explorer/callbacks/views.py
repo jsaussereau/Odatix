@@ -51,13 +51,21 @@ def view_options():
   return [{"label": view["name"], "value": view["name"]} for view in views.list_views(STORE.result_path)]
 
 
-def restore_payload(name):
-  """Load + sanitize a view; returns (payload, ui_state patch, warnings)."""
-  view = views.load_view(STORE.result_path, name)
+def restore_generated(view):
+  """Sanitize an in-memory view; returns (payload, ui_state patch, warnings).
+
+  Used by the views the insights gallery generates, which never touch disk
+  unless the user saves one.
+  """
   payload, warnings = views.sanitize_view(view, STORE)
   ui_patch = {key: payload[key] for key in _UI_KEYS}
   ui_patch["view_notice"] = notice_data(payload["name"], warnings)
   return payload, ui_patch, warnings
+
+
+def restore_payload(name):
+  """Load + sanitize a saved view; returns (payload, ui_state patch, warnings)."""
+  return restore_generated(views.load_view(STORE.result_path, name))
 
 
 def notice_data(name, warnings):
