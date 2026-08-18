@@ -429,9 +429,10 @@ def start_parallel_jobs(
     """
     _state, _response = enqueue_parallel_jobs(parallel_jobs, session=session, configure=configure)
     if not detach:
+        # Attach to the session the jobs actually went to, by its id: a session
+        # listening on a unix socket has no host/port to be found by, and
+        # falling back to the default endpoint would attach to nothing.
         attach_monitor(
-            host=_state.get("host", hard_settings.daemon_default_host),
-            port=int(_state.get("port", hard_settings.daemon_default_port)),
-            session=session,
+            session=str(_state.get("session_id") or _state.get("session_name") or session or "") or None,
             auto_exit=bool(getattr(parallel_jobs, "auto_exit", False)),
         )

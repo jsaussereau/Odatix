@@ -29,10 +29,21 @@ import signal
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 
+from odatix.lib.parallel_job_handler.auth import (
+    SCOPE_CONTROL,
+    SCOPE_READ,
+    TOKEN_ENV_VAR,
+    secure_makedirs,
+)
+from odatix.lib.parallel_job_handler import diagnostics
 from odatix.lib.parallel_job_handler.serialization import job_to_payload
+from odatix.lib.parallel_job_handler.transport import (
+    TRANSPORT_TCP,
+    TRANSPORT_UNIX,
+    AuthError,
+    Endpoint,
+)
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
@@ -47,6 +58,17 @@ DAEMON_STATE_PREFIX = hard_settings.daemon_state_prefix
 DAEMON_STATE_SUFFIX = hard_settings.daemon_state_suffix
 DAEMON_LOG_PREFIX = hard_settings.daemon_log_prefix
 DAEMON_LOG_SUFFIX = hard_settings.daemon_log_suffix
+
+#: How long a session is given to answer a job listing. Short by default: the
+#: monitor and the GUI ask often and would rather show a session as busy than
+#: freeze on it. Something that acts on the answer -- an exploration deciding
+#: whether its jobs are done -- passes a longer one, because a session carrying
+#: a long batch answers between two scheduling ticks and reading the silence as
+#: "the jobs are gone" is worse than waiting (see daemon_jobs_report).
+JOBS_QUERY_TIMEOUT = 1.0
+
+#: What a caller that acts on the answer should wait, in seconds.
+JOBS_QUERY_TIMEOUT_BLOCKING = 30.0
 
 
 class DaemonControlError(RuntimeError):
@@ -236,43 +258,49 @@ def _decorate_session_fields(state):
         return state
     state["session_name"] = _session_name_from_state(state)
     state["session_id"] = _session_id_from_state(state)
+    state["address"] = _state_address(state)
     return state
 
 
-def _api_request(base_url, method, path, payload=None, timeout=1.0):
-    data = None
-    headers = {}
-    if payload is not None:
-        data = json.dumps(payload).encode("utf-8")
-        headers["Content-Type"] = "application/json"
+def endpoint_for_state(state, scope=SCOPE_CONTROL):
+    """The endpoint to talk to a session described by ``state``.
 
-    req = urllib.request.Request(
-        url=base_url.rstrip("/") + path,
-        data=data,
-        headers=headers,
-        method=str(method).upper(),
+    The session token lives in the state file, which only its owner can read:
+    being able to build this endpoint is exactly the right to use the session.
+    """
+    return Endpoint.from_state(state, scope=scope)
+
+
+def _api_request(state, method, path, payload=None, timeout=1.0, scope=SCOPE_CONTROL):
+    return endpoint_for_state(state, scope=scope).request(
+        method, path, payload=payload, timeout=timeout
     )
 
-    with urllib.request.urlopen(req, timeout=float(timeout)) as resp:
-        raw = resp.read()
 
-    if not raw:
-        return {}
-
-    return json.loads(raw.decode("utf-8"))
-
-
-def _state_base_url(state):
-    host = str(state.get("host", DEFAULT_HOST))
-    port = int(state.get("port", DEFAULT_PORT))
-    return "http://{}:{}".format(host, port)
+def _state_address(state):
+    """Human-readable address of a session, whatever its transport."""
+    if not isinstance(state, dict):
+        return ""
+    socket_path = state.get("socket_path") or state.get("socket")
+    if socket_path and state.get("transport", TRANSPORT_UNIX) == TRANSPORT_UNIX:
+        return "unix:{}".format(socket_path)
+    host = state.get("host")
+    port = state.get("port")
+    if host is None and port is None:
+        return ""
+    return "{}:{}".format(host or DEFAULT_HOST, int(port or DEFAULT_PORT))
 
 
 def daemon_is_alive(state, timeout=0.6):
     if not isinstance(state, dict):
         return False
     try:
-        _api_request(_state_base_url(state), "GET", "/status?logs_job_id=-1", timeout=float(timeout))
+        _api_request(state, "GET", "/status?logs_job_id=-1", timeout=float(timeout), scope=SCOPE_READ)
+        return True
+    except AuthError:
+        # It answered, so it is alive; we simply hold no valid token for it.
+        # Reporting it dead here would have callers start a second daemon on
+        # top of a perfectly running one.
         return True
     except Exception:
         return False
@@ -317,19 +345,15 @@ def _state_key(state):
         pid = int(state.get("pid", 0))
     except Exception:
         pid = 0
-    host = str(state.get("host", DEFAULT_HOST))
-    try:
-        port = int(state.get("port", DEFAULT_PORT))
-    except Exception:
-        port = DEFAULT_PORT
-    return (pid, host, port)
+    return (pid, _state_address(state))
 
 
 def _format_session_hint(daemon):
     session_id = str(daemon.get("session_id", "?"))
-    host = str(daemon.get("host", DEFAULT_HOST))
-    port = str(daemon.get("port", DEFAULT_PORT))
-    return "{} ({})".format(session_id, host + ":" + port)
+    address = _state_address(daemon)
+    if address == "":
+        return session_id
+    return "{} ({})".format(session_id, address)
 
 
 def _selector_tokens(daemon):
@@ -442,6 +466,17 @@ def _daemon_is_alive_patiently(state, total_timeout=60.0, timeout=0.6, max_timeo
         current = min(float(max_timeout), current * 1.5)
 
 
+def _daemon_is_alive_for_listing(state):
+    """Is this session alive, judged patiently enough to survive an export?
+
+    A job completing makes the handler export its results with the scheduler
+    lock held, which keeps `/status` silent for seconds. Discovery must outlast
+    that: a session dropped from the listing reads as "no session found", and
+    the DSE driver waiting on its own batch then has nothing left to ask.
+    """
+    return _daemon_is_alive_with_retries(state, attempts=4, timeout=1.5, backoff=0.4)
+
+
 def _pid_is_running(pid):
     try:
         pid = int(pid)
@@ -497,8 +532,20 @@ def _pid_claiming_session(paths, session_name):
     return None
 
 
-def _spawn_daemon(paths, host, port, jobs, logsize, session_name=None, daemon_log_enabled=None):
-    os.makedirs(paths["state_dir"], exist_ok=True)
+def _spawn_daemon(
+    paths,
+    host,
+    port,
+    jobs,
+    logsize,
+    session_name=None,
+    daemon_log_enabled=None,
+    transport=None,
+    expose=False,
+):
+    # 0700: the state file inside holds the session token, which is the right
+    # to run commands as this user.
+    secure_makedirs(paths["state_dir"], 0o700)
     session_name = _normalize_session_name(session_name, default_name=host)
     daemon_log_enabled = (
         hard_settings.daemon_log_enabled_default
@@ -506,12 +553,16 @@ def _spawn_daemon(paths, host, port, jobs, logsize, session_name=None, daemon_lo
         else bool(daemon_log_enabled)
     )
 
+    transport = str(transport or "auto")
+
     command = [
         sys.executable,
         "-m",
         "odatix.lib.parallel_job_handler.daemon_server",
         "--state-file",
         paths["state_file"],
+        "--transport",
+        transport,
         "--host",
         str(host),
         "--port",
@@ -523,6 +574,9 @@ def _spawn_daemon(paths, host, port, jobs, logsize, session_name=None, daemon_lo
         "--logsize",
         str(int(logsize)),
     ]
+
+    if expose:
+        command.append("--expose")
 
     env = os.environ.copy()
     sources_dir = os.path.join(paths["workspace_root"], "sources")
@@ -571,6 +625,8 @@ def ensure_daemon_running(
     startup_timeout=15.0,
     create=True,
     stuck_timeout=60.0,
+    transport=None,
+    expose=False,
 ):
     """
     The daemon for `session`, started if there is none.
@@ -583,6 +639,11 @@ def ensure_daemon_running(
             reason to start a second one somewhere else.
         stuck_timeout (float): how long to keep asking a session that owns a
             live process but is not answering, before giving up on it.
+        transport (str): "unix", "tcp" or None for the platform default (see
+            daemon_server.resolve_transport).
+        expose (bool): let the session bind a non-loopback TCP address. Off by
+            default: a session in reach of the network is a decision, not a
+            side effect.
     """
     workspace_root = detect_workspace_root(workspace_root)
     session_selector = str(session).strip() if session is not None else None
@@ -675,6 +736,8 @@ def ensure_daemon_running(
         logsize=logsize,
         session_name=session_name,
         daemon_log_enabled=daemon_log_enabled,
+        transport=transport,
+        expose=expose,
     )
 
     deadline = time.time() + float(startup_timeout)
@@ -751,7 +814,7 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
         }
 
     response = _api_request(
-        _state_base_url(state),
+        state,
         "POST",
         "/jobs/enqueue",
         payload=payload,
@@ -763,12 +826,23 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
     return state, response
 
 
-def _resolve_state_for_attach_or_stop(workspace_root=None, host=None, port=None, session=None):
+def explicit_endpoint_state(host=None, port=None, token=None):
+    """A state dict for an endpoint given by hand (--host/--port).
+
+    No state file is involved, so the token has to come from the caller or
+    from the environment: without one the session will refuse every call.
+    """
+    return {
+        "transport": TRANSPORT_TCP,
+        "host": str(host or DEFAULT_HOST),
+        "port": int(port or DEFAULT_PORT),
+        "token": str(token or os.environ.get(TOKEN_ENV_VAR, "")),
+    }
+
+
+def _resolve_state_for_attach_or_stop(workspace_root=None, host=None, port=None, session=None, token=None):
     if host is not None or port is not None:
-        state = {
-            "host": str(host or DEFAULT_HOST),
-            "port": int(port or DEFAULT_PORT),
-        }
+        state = explicit_endpoint_state(host=host, port=port, token=token)
         _decorate_session_fields(state)
         return state
 
@@ -803,18 +877,27 @@ def _resolve_state_for_attach_or_stop(workspace_root=None, host=None, port=None,
     raise DaemonControlError("No session found")
 
 
-def attach_monitor(workspace_root=None, host=None, port=None, session=None, auto_exit=False):
-    state = _resolve_state_for_attach_or_stop(workspace_root=workspace_root, host=host, port=port, session=session)
+def attach_monitor(
+    workspace_root=None, host=None, port=None, session=None, auto_exit=False, token=None, remote=None
+):
+    from odatix.lib.parallel_job_handler.daemon_monitor import run_monitor
+
+    if remote is not None:
+        from odatix.lib.parallel_job_handler.remote import open_remote_endpoint
+
+        tunnel, endpoint, _state = open_remote_endpoint(remote, session=session)
+        try:
+            return run_monitor(endpoint=endpoint, auto_exit=bool(auto_exit))
+        finally:
+            tunnel.close()
+
+    state = _resolve_state_for_attach_or_stop(
+        workspace_root=workspace_root, host=host, port=port, session=session, token=token
+    )
     if not daemon_is_alive(state):
         raise DaemonControlError("Daemon is not running")
 
-    from odatix.lib.parallel_job_handler.daemon_monitor import run_monitor
-
-    run_monitor(
-        host=state.get("host", DEFAULT_HOST),
-        port=int(state.get("port", DEFAULT_PORT)),
-        auto_exit=bool(auto_exit),
-    )
+    return run_monitor(endpoint=endpoint_for_state(state), auto_exit=bool(auto_exit))
 
 
 def _terminate_pid(pid):
@@ -844,23 +927,16 @@ def _delete_state_files_for_daemon(paths, target_state):
             _delete_log_file(os.path.join(paths["state_dir"], _log_filename_for_session(session_name)))
 
     target_key = _state_key(target_state)
-    target_host = str((target_state or {}).get("host", DEFAULT_HOST)) if isinstance(target_state, dict) else DEFAULT_HOST
-    try:
-        target_port = int((target_state or {}).get("port", DEFAULT_PORT)) if isinstance(target_state, dict) else DEFAULT_PORT
-    except Exception:
-        target_port = DEFAULT_PORT
+    # Compared as a full address rather than host/port: unix sessions carry no
+    # port at all, and defaulting them all to the same host:port would make
+    # every session in the directory look like the one being stopped.
+    target_address = _state_address(target_state) if isinstance(target_state, dict) else ""
 
     for state_file in _iter_state_files(paths):
         loaded = _read_json_file(state_file)
         loaded_key = _state_key(loaded)
-        try:
-            loaded_port = int((loaded or {}).get("port", DEFAULT_PORT)) if isinstance(loaded, dict) else DEFAULT_PORT
-        except Exception:
-            loaded_port = DEFAULT_PORT
-        same_endpoint = (
-            str((loaded or {}).get("host", DEFAULT_HOST)) == target_host
-            and loaded_port == target_port
-        ) if isinstance(loaded, dict) else False
+        loaded_address = _state_address(loaded) if isinstance(loaded, dict) else ""
+        same_endpoint = target_address != "" and loaded_address == target_address
         if loaded_key == target_key or same_endpoint:
             session_name = _session_name_from_state(loaded)
             if session_name != "":
@@ -893,7 +969,7 @@ def _stop_daemon_from_state(state, workspace_root):
     paths = get_daemon_paths(cleanup_workspace_root)
 
     try:
-        _api_request(_state_base_url(state), "POST", "/shutdown", payload={}, timeout=1.0)
+        _api_request(state, "POST", "/shutdown", payload={}, timeout=1.0)
     except Exception:
         pass
 
@@ -924,20 +1000,41 @@ def _stop_daemon_from_state(state, workspace_root):
     return stopped
 
 
-def stop_daemon(workspace_root=None, host=None, port=None, session=None):
+def stop_daemon(workspace_root=None, host=None, port=None, session=None, token=None, remote=None):
+    if remote is not None:
+        return stop_remote_daemon(remote, session=session)
+
     workspace_root = detect_workspace_root(workspace_root)
     state = _resolve_state_for_attach_or_stop(
         workspace_root=workspace_root,
         host=host,
         port=port,
         session=session,
+        token=token,
     )
     return _stop_daemon_from_state(state, workspace_root)
 
 
-def stop_all_daemons(workspace_root=None, host=None, port=None):
+def stop_remote_daemon(remote, session=None):
+    """Stop a session on another machine, through an SSH tunnel.
+
+    The shutdown goes through the same authenticated API as a local stop: the
+    tunnel only decides how the request travels, never what it is allowed to
+    do.
+    """
+    from odatix.lib.parallel_job_handler.remote import open_remote_endpoint
+
+    tunnel, endpoint, _state = open_remote_endpoint(remote, session=session)
+    try:
+        endpoint.post("/shutdown", payload={}, timeout=5.0)
+        return True
+    finally:
+        tunnel.close()
+
+
+def stop_all_daemons(workspace_root=None, host=None, port=None, token=None):
     workspace_root = detect_workspace_root(workspace_root)
-    daemons = list_daemons(workspace_root=workspace_root, host=host, port=port)
+    daemons = list_daemons(workspace_root=workspace_root, host=host, port=port, token=token)
 
     if len(daemons) == 0:
         _cleanup_workspace_daemon_dir_if_empty(workspace_root)
@@ -967,7 +1064,32 @@ def daemon_endpoint(workspace_root=None, session_name=None):
     state = load_daemon_state(workspace_root, session_name=session_name)
     if state is None:
         return None
-    return "{}:{}".format(state.get("host", DEFAULT_HOST), int(state.get("port", DEFAULT_PORT)))
+    return _state_address(state)
+
+
+SECRET_STATE_FIELDS = ("token", "read_token")
+
+
+def public_state(state):
+    """A session descriptor with its secrets removed.
+
+    Anything leaving this process without a private channel -- a browser store,
+    a log line, a printed table -- must go through here.
+    """
+    if not isinstance(state, dict):
+        return state
+    return dict((k, v) for k, v in state.items() if k not in SECRET_STATE_FIELDS)
+
+
+def daemons_to_json(daemons, include_secrets=False, indent=2):
+    """Serialize a session list.
+
+    ``include_secrets`` keeps the tokens in, which only makes sense for a
+    consumer reached through a private channel (``odatix ls --json`` read over
+    SSH by a remote client).
+    """
+    sessions = [d if include_secrets else public_state(d) for d in (daemons or [])]
+    return json.dumps({"sessions": sessions}, indent=indent, default=str)
 
 
 def _extract_cli_option(tokens, option):
@@ -1031,10 +1153,18 @@ def _iter_system_daemon_candidates():
         host = _extract_cli_option(tokens, "--host")
         port = _extract_cli_option(tokens, "--port")
         session_name = _extract_cli_option(tokens, "--session-name")
+        transport = _extract_cli_option(tokens, "--transport")
 
         try:
             port = int(port) if port is not None else None
         except Exception:
+            port = None
+
+        # A session on a unix socket has no address of its own here: --host
+        # and --port were only the *requested* fallback, and passing them on
+        # would have callers dial a TCP endpoint nothing listens on.
+        if transport == TRANSPORT_UNIX:
+            host = None
             port = None
 
         workspace_root = _workspace_root_from_state_file(state_file)
@@ -1056,13 +1186,8 @@ def _iter_system_daemon_candidates():
 
 def _daemon_sort_key(daemon):
     session_id = str(daemon.get("session_id", ""))
-    host = str(daemon.get("host", DEFAULT_HOST))
     workspace_root = str(daemon.get("workspace_root", ""))
-    try:
-        port = int(daemon.get("port", DEFAULT_PORT))
-    except Exception:
-        port = DEFAULT_PORT
-    return (workspace_root, session_id, host, port)
+    return (workspace_root, session_id, _state_address(daemon))
 
 
 def _daemon_uptime_str(state):
@@ -1092,23 +1217,27 @@ def _filter_daemons_by_session_selector(daemons, session_selector):
     return []
 
 
-def list_daemons(workspace_root=None, host=None, port=None, session=None):
+def list_daemons(workspace_root=None, host=None, port=None, session=None, token=None, remote=None):
     """Return a list of active daemon descriptors.
 
     By default, this inspects running daemon processes on the system.
     If host and/or port are provided, it checks that explicit endpoint instead.
+    If ``remote`` is given, the sessions of that machine are listed over SSH.
     """
     daemons = []
 
+    if remote is not None:
+        from odatix.lib.parallel_job_handler.remote import RemoteHost
+
+        host_obj = remote if hasattr(remote, "list_sessions") else RemoteHost(remote)
+        return host_obj.list_sessions(session=session)
+
     if host is not None or port is not None:
-        state = {
-            "host": str(host or DEFAULT_HOST),
-            "port": int(port or DEFAULT_PORT),
-            "workspace_root": os.path.realpath(workspace_root or os.getcwd()),
-        }
+        state = explicit_endpoint_state(host=host, port=port, token=token)
+        state["workspace_root"] = os.path.realpath(workspace_root or os.getcwd())
         state["uptime_s"] = _daemon_uptime_str(state)
         _decorate_session_fields(state)
-        if daemon_is_alive(state):
+        if _daemon_is_alive_with_retries(state):
             daemons.append(state)
         return _filter_daemons_by_session_selector(daemons, session)
 
@@ -1124,10 +1253,17 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None):
 
         # Keep runtime values from state file when available: cmdline can keep
         # the requested startup port while the daemon may actually bind another
-        # free port (find_free_port).
-        if state.get("host") in (None, "") and candidate.get("host") is not None:
+        # free port (find_free_port). A unix session has neither.
+        if state.get("transport") == TRANSPORT_UNIX:
+            state.pop("host", None)
+            state.pop("port", None)
+        elif state.get("host") in (None, "") and candidate.get("host") is not None:
             state["host"] = candidate["host"]
-        if state.get("port") is None and candidate.get("port") is not None:
+        if (
+            state.get("transport") != TRANSPORT_UNIX
+            and state.get("port") is None
+            and candidate.get("port") is not None
+        ):
             state["port"] = candidate["port"]
         if state.get("session_name") in (None, "") and candidate.get("session_name") is not None:
             state["session_name"] = str(candidate["session_name"])
@@ -1147,7 +1283,11 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None):
         state["uptime_s"] = _daemon_uptime_str(state)
         _decorate_session_fields(state)
 
-        if not daemon_is_alive(state):
+        # Retries, not a single 0.6s probe: a session under load holds its
+        # handler lock for seconds at a time, and dropping it from the listing
+        # there makes callers -- the DSE driver above all -- conclude that no
+        # session exists at all.
+        if not _daemon_is_alive_for_listing(state):
             continue
 
         # Deduplicate by logical daemon identity rather than candidate pid.
@@ -1178,15 +1318,28 @@ def list_daemons(workspace_root=None, host=None, port=None, session=None):
         if not isinstance(state, dict):
             continue
 
-        if daemon_is_alive(state):
+        # Cheapest question first: a state file whose process is gone needs no
+        # probing, and probing patiently for one would cost seconds per listing.
+        if not _pid_is_running(state.get("pid")):
+            diagnostics.log_to(
+                diagnostics.diagnostics_path(state_file),
+                "state file deleted",
+                reason="process gone",
+                pid=state.get("pid"),
+            )
+            _delete_state_file(state_file)
+            continue
+
+        # The process is there, so the state file stays whatever the probe says.
+        # Deleting it under a busy daemon is unrecoverable: the session keeps
+        # running its jobs with nothing able to find it again.
+        if _daemon_is_alive_for_listing(state):
             state = dict(state)
             state["workspace_root"] = paths["workspace_root"]
             state["state_file"] = state_file
             state["uptime_s"] = _daemon_uptime_str(state)
             _decorate_session_fields(state)
             daemons.append(state)
-        else:
-            _delete_state_file(state_file)
 
     daemons = sorted(daemons, key=_daemon_sort_key)
     return _filter_daemons_by_session_selector(daemons, session)
@@ -1197,45 +1350,65 @@ def list_daemon_jobs(workspace_root=None, session=None):
 
     Each returned job dictionary includes daemon metadata fields:
     ``session_id``, ``session_name``, ``host`` and ``port``.
+
+    Sessions that do not answer are simply left out. Anything that needs to
+    tell that apart from a session with no such job wants
+    :func:`daemon_jobs_report` instead.
+    """
+    return daemon_jobs_report(workspace_root=workspace_root, session=session)["jobs"]
+
+
+def daemon_jobs_report(workspace_root=None, session=None, timeout=JOBS_QUERY_TIMEOUT):
+    """The jobs of the active sessions, and which sessions did not answer.
+
+    :func:`list_daemon_jobs` cannot tell "this session has no such job" from
+    "this session did not answer in time", because it drops both. That
+    difference matters to anything waiting on a job: a caller that reads a
+    missed reply as "the job is gone" concludes the job finished, when all
+    that happened is that the daemon was busy.
+
+    Returns:
+        dict: ``jobs`` (as :func:`list_daemon_jobs` returns them), ``queried``
+        (how many sessions were asked) and ``unreachable`` (the addresses of
+        those that did not answer).
     """
     jobs = []
+    unreachable = []
     daemons = list_daemons(workspace_root=workspace_root, session=session)
 
     for daemon in daemons:
         try:
             snapshot = _api_request(
-                _state_base_url(daemon),
+                daemon,
                 "GET",
                 "/status?logs_job_id=-1",
-                timeout=1.0,
+                timeout=float(timeout),
             )
-        except Exception:
+        except Exception as error:
+            unreachable.append("{0} ({1})".format(_state_address(daemon), error.__class__.__name__))
             continue
 
         daemon_jobs = snapshot.get("jobs", [])
         if not isinstance(daemon_jobs, list):
+            unreachable.append("{0} (malformed status)".format(_state_address(daemon)))
             continue
 
         session_id = str(daemon.get("session_id", _session_id_from_state(daemon)))
         session_name = str(daemon.get("session_name", _session_name_from_state(daemon)))
-        host = str(daemon.get("host", DEFAULT_HOST))
-        try:
-            port = int(daemon.get("port", DEFAULT_PORT))
-        except Exception:
-            port = DEFAULT_PORT
+        address = _state_address(daemon)
 
         for job in daemon_jobs:
             if not isinstance(job, dict):
                 continue
-
             entry = dict(job)
             entry["session_id"] = session_id
             entry["session_name"] = session_name
-            entry["host"] = host
-            entry["port"] = port
+            entry["address"] = address
+            entry["host"] = daemon.get("host")
+            entry["port"] = daemon.get("port")
             jobs.append(entry)
 
-    return jobs
+    return {"jobs": jobs, "queried": len(daemons), "unreachable": unreachable}
 
 
 def format_daemons_table(daemons, zombies=False):
@@ -1247,8 +1420,7 @@ def format_daemons_table(daemons, zombies=False):
     columns = [
         ("workspace", "workspace_root"),
         ("session", "session_id"),
-        ("host", "host"),
-        ("port", "port"),
+        ("address", "address"),
         ("pid", "pid"),
         ("uptime", "uptime_s"),
     ]
@@ -1297,11 +1469,21 @@ def _zombie_key(zombie):
     pid = zombie.get("pid")
     if pid is not None:
         return ("pid", str(pid))
-    return (
-        "endpoint",
-        str(zombie.get("host", DEFAULT_HOST)),
-        str(zombie.get("port", DEFAULT_PORT)),
-    )
+    return ("endpoint", _state_address(zombie))
+
+
+def exclude_zombies(daemons, zombies):
+    """Remove from ``daemons`` the sessions also reported as zombies.
+
+    :func:`list_daemons` and :func:`list_zombie_daemons` are two independent
+    snapshots, and they do not probe the same way: the former accepts a single
+    reply as proof of life, the latter retries before giving up. A daemon that
+    answers intermittently can therefore land in both lists, and be advertised
+    as usable while it is in fact a leftover. The zombie verdict is the more
+    thorough one, so it wins.
+    """
+    zombie_keys = set(_zombie_key(zombie) for zombie in zombies)
+    return [daemon for daemon in daemons if _zombie_key(daemon) not in zombie_keys]
 
 
 def list_zombie_daemons(workspace_root=None, session=None):
@@ -1336,10 +1518,14 @@ def list_zombie_daemons(workspace_root=None, session=None):
             if isinstance(loaded_state, dict):
                 state.update(loaded_state)
 
-        if state.get("host") in (None, "") and candidate.get("host") is not None:
-            state["host"] = candidate["host"]
-        if state.get("port") is None and candidate.get("port") is not None:
-            state["port"] = candidate["port"]
+        if state.get("transport") == TRANSPORT_UNIX:
+            state.pop("host", None)
+            state.pop("port", None)
+        else:
+            if state.get("host") in (None, "") and candidate.get("host") is not None:
+                state["host"] = candidate["host"]
+            if state.get("port") is None and candidate.get("port") is not None:
+                state["port"] = candidate["port"]
         if state.get("session_name") in (None, "") and candidate.get("session_name") is not None:
             state["session_name"] = str(candidate["session_name"])
         if state.get("pid") is None:

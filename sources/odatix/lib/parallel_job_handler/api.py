@@ -24,10 +24,17 @@
 This module is intentionally imported lazily (see ParallelJobHandler.run_api)
 so that Odatix can be used without FastAPI/uvicorn installed.
 
+Every request must carry a session token (see auth.py): enqueuing a job runs
+a command line on this machine, so an unauthenticated API is a remote shell.
+Tokens come in two scopes -- ``read`` may only look, ``control`` may act. Read
+requests are the GETs; everything else acts.
+
 Protocol overview
 -----------------
 REST endpoints expose command-style operations and snapshots.
 WebSocket /ws pushes periodic snapshots and accepts command messages.
+The WebSocket carries the same Authorization header as the REST calls, and is
+refused before the handshake is accepted when it does not.
 
 WebSocket client->server messages (JSON):
 - {"type": "snapshot"}  -> server replies with a snapshot immediately
@@ -43,10 +50,26 @@ Server->client messages (JSON):
 
 import asyncio
 import importlib
+import time
 from typing import Any, Dict, Optional, Set
 
+from odatix.lib.parallel_job_handler.auth import (
+    AUTH_HEADER,
+    SCOPE_CONTROL,
+    SCOPE_READ,
+    ApiAuth,
+    is_loopback_host,
+    scope_satisfies,
+)
 from odatix.lib.parallel_job_handler.serialization import payload_to_job
+from odatix.lib.parallel_job_handler.transport import TRANSPORT_UNIX
+from odatix.lib.parallel_job_handler import diagnostics
 import odatix.lib.hard_settings as hard_settings
+
+#: A request slower than this made every other client of the session wait for
+#: it, and is written to the session diagnostics (see the ``measure``
+#: middleware). Callers time out at one second, so this is already too slow.
+SLOW_REQUEST_S = 0.5
 
 
 def _null_uvicorn_log_config() -> Dict[str, Any]:
@@ -86,14 +109,56 @@ def _require_fastapi():
 def create_parallel_job_app(
     handler,
     *,
+    auth,
     tick_interval: float = 0.1,
     ws_push_interval: float = 0.25,
     start_headless_on_startup: bool = True,
     shutdown_callback=None,
 ):
+    """Build the session app.
+
+    Args:
+        auth (ApiAuth): the session's tokens and accepted Host values. Required:
+            an app without it would let anyone reaching the socket or port run
+            commands as the user owning the session.
+    """
+    if not isinstance(auth, ApiAuth):
+        raise ValueError("create_parallel_job_app() requires an ApiAuth instance")
+
     FastAPI, WebSocket, WebSocketDisconnect, JSONResponse = _require_fastapi()
 
     app = FastAPI(title="Odatix ParallelJob API")
+    app.state.auth = auth
+
+    @app.middleware("http")
+    async def measure(request, call_next):
+        # The event loop is shared by every client of the session -- the
+        # monitor, the GUI, and the exploration driver polling for its jobs.
+        # A request that takes seconds is one that made all the others wait,
+        # and it is what a session "going unresponsive" looks like from here.
+        started = time.time()
+        try:
+            return await call_next(request)
+        finally:
+            elapsed = time.time() - started
+            if elapsed >= SLOW_REQUEST_S:
+                diagnostics.log(
+                    "slow request",
+                    seconds=elapsed,
+                    method=request.method,
+                    path=str(request.url.path),
+                    jobs=len(getattr(handler, "job_list", ())),
+                )
+
+    @app.middleware("http")
+    async def authenticate(request, call_next):
+        # GETs only read; anything else acts on the session, and acting is
+        # what a read-only token must not be able to do.
+        required = SCOPE_READ if request.method.upper() in ("GET", "HEAD") else SCOPE_CONTROL
+        status, message = auth.authorize(request.headers, required_scope=required)
+        if status:
+            return JSONResponse(status_code=status, content={"ok": False, "error": message})
+        return await call_next(request)
 
     # Avoid referencing FastAPI WebSocket class in type expressions (lazy import)
     connections: Set[Any] = set()
@@ -107,12 +172,16 @@ def create_parallel_job_app(
             return False
 
     async def broadcaster():
+        loop = asyncio.get_event_loop()
         while True:
             await asyncio.sleep(float(ws_push_interval))
             if not connections:
                 continue
-            # Keep periodic broadcasts lightweight (no logs).
-            data = handler.snapshot(logs_job_id=-1)
+            # Keep periodic broadcasts lightweight (no logs), and off the event
+            # loop: snapshot() takes the handler lock, which the scheduler
+            # holds for the whole of a tick. Taken inline, one slow tick froze
+            # every other client of the session with it.
+            data = await loop.run_in_executor(None, lambda: handler.snapshot(logs_job_id=-1))
             payload = {"type": "snapshot", "data": data}
             dead: Set[Any] = set()
             for ws in list(connections):
@@ -141,7 +210,7 @@ def create_parallel_job_app(
             handler.terminate_all_jobs()
 
     @app.get("/status")
-    async def get_status(
+    def get_status(
         logs_job_id: Optional[int] = None,
         logs_offset: Optional[int] = None,
         logs_limit: Optional[int] = None,
@@ -152,13 +221,13 @@ def create_parallel_job_app(
         return handler.snapshot(logs_job_id=logs_job_id, logs_offset=logs_offset, logs_limit=logs_limit)
 
     @app.get("/jobs")
-    async def list_jobs():
+    def list_jobs():
         snap = handler.snapshot(logs_job_id=-1)  # keep logs null
         snap["logs"] = None
         return snap
 
     @app.get("/jobs/{job_id}")
-    async def get_job(job_id: int, logs_offset: Optional[int] = None, logs_limit: Optional[int] = None):
+    def get_job(job_id: int, logs_offset: Optional[int] = None, logs_limit: Optional[int] = None):
         return handler.snapshot(logs_job_id=job_id, logs_offset=logs_offset, logs_limit=logs_limit)
 
     def _ok(message: str, **extra):
@@ -167,27 +236,27 @@ def create_parallel_job_app(
         return payload
 
     @app.post("/jobs/{job_id}/pause")
-    async def pause_job(job_id: int):
+    def pause_job(job_id: int):
         handler.enqueue_command("pause", job_id=job_id)
         return _ok("pause requested", job_id=job_id)
 
     @app.post("/jobs/{job_id}/start")
-    async def start_job(job_id: int):
+    def start_job(job_id: int):
         handler.enqueue_command("start", job_id=job_id)
         return _ok("start/resume requested", job_id=job_id)
 
     @app.post("/jobs/{job_id}/kill")
-    async def kill_job(job_id: int):
+    def kill_job(job_id: int):
         handler.enqueue_command("kill", job_id=job_id)
         return _ok("kill/cancel requested", job_id=job_id)
 
     @app.post("/jobs/{job_id}/open")
-    async def open_job(job_id: int):
+    def open_job(job_id: int):
         handler.enqueue_command("open", job_id=job_id)
         return _ok("open requested", job_id=job_id)
 
     @app.post("/jobs/enqueue")
-    async def enqueue_jobs(payload: Dict[str, Any]):
+    def enqueue_jobs(payload: Dict[str, Any]):
         if not isinstance(payload, dict):
             raise ValueError("payload must be a JSON object")
 
@@ -221,7 +290,7 @@ def create_parallel_job_app(
         return _ok("jobs enqueued", added=added, total_jobs=len(handler.job_list))
 
     @app.post("/config")
-    async def set_config(
+    def set_config(
         nb_jobs: Optional[int] = None,
         process_group: Optional[bool] = None,
         auto_exit: Optional[bool] = None,
@@ -253,6 +322,15 @@ def create_parallel_job_app(
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: Any):
+        # Authenticate before accepting: a rejected handshake never reaches
+        # application code, and a browser page cannot read the token file.
+        status, message = auth.authorize(ws.headers, required_scope=SCOPE_READ)
+        if status:
+            await ws.close(code=1008, reason=message)
+            return
+
+        ws_scope = auth.scope_for_token(auth.token_from_header(ws.headers.get(AUTH_HEADER)))
+
         await ws.accept()
         connections.add(ws)
 
@@ -272,6 +350,10 @@ def create_parallel_job_app(
                     continue
 
                 if msg_type == "command":
+                    if not scope_satisfies(ws_scope, SCOPE_CONTROL):
+                        await ws.send_json({"type": "error", "message": "This token is read-only"})
+                        continue
+
                     name = msg.get("name")
                     job_id = msg.get("job_id")
                     if name in ("pause", "start", "kill", "open"):
@@ -306,20 +388,50 @@ def create_parallel_job_app(
 def create_uvicorn_server(
     handler,
     *,
-    host: str = "0.0.0.0",
+    auth=None,
+    transport: str = "tcp",
+    host: str = hard_settings.daemon_default_host,
     port: int = hard_settings.daemon_default_port,
+    socket_path: Optional[str] = None,
+    allow_remote_bind: bool = False,
     log_level: str = "info",
     start_headless_on_startup: bool = True,
     quiet: bool = False,
     shutdown_callback=None,
 ):
+    """Build the uvicorn server for a session.
+
+    Args:
+        auth (ApiAuth): the session tokens. Generated when omitted, in which
+            case read them back from ``server.odatix_auth`` -- a caller that
+            never reads them has built a session nothing can talk to.
+        transport (str): "unix" to listen on ``socket_path``, "tcp" otherwise.
+        allow_remote_bind (bool): required to bind a TCP address other than
+            loopback. Listening on a routable address puts the session in
+            reach of the whole network, so it is never done by accident.
+    """
     try:
         uvicorn = importlib.import_module("uvicorn")
     except ImportError as e:  # pragma: no cover
         raise RuntimeError("uvicorn is not installed. Install with: pip install uvicorn") from e
 
+    transport = str(transport or "tcp")
+    if transport == TRANSPORT_UNIX and not socket_path:
+        raise ValueError("transport 'unix' requires a socket path")
+
+    if transport != TRANSPORT_UNIX and not is_loopback_host(host) and not allow_remote_bind:
+        raise ValueError(
+            "Refusing to bind {} : this exposes the session to the network. "
+            "Pass allow_remote_bind=True (odatix daemon --expose) if that is "
+            "really what you want, and prefer an SSH tunnel.".format(host)
+        )
+
+    if auth is None:
+        auth = ApiAuth.generate(bound_host=host)
+
     app = create_parallel_job_app(
         handler,
+        auth=auth,
         start_headless_on_startup=start_headless_on_startup,
         shutdown_callback=shutdown_callback,
     )
@@ -332,29 +444,43 @@ def create_uvicorn_server(
         log_level = "critical"
         log_config = _null_uvicorn_log_config()
 
-    config = uvicorn.Config(
-        app,
-        host=str(host),
-        port=int(port),
-        log_level=str(log_level),
-        access_log=bool(access_log),
-        log_config=log_config,
-    )
-    return uvicorn.Server(config)
+    config_kwargs = {
+        "log_level": str(log_level),
+        "access_log": bool(access_log),
+        "log_config": log_config,
+    }
+    if transport == TRANSPORT_UNIX:
+        config_kwargs["uds"] = str(socket_path)
+    else:
+        config_kwargs["host"] = str(host)
+        config_kwargs["port"] = int(port)
+
+    config = uvicorn.Config(app, **config_kwargs)
+    server = uvicorn.Server(config)
+    server.odatix_auth = auth
+    return server
 
 
 def run_parallel_job_api(
     handler,
     *,
-    host: str = "0.0.0.0",
+    auth=None,
+    transport: str = "tcp",
+    host: str = hard_settings.daemon_default_host,
     port: int = hard_settings.daemon_default_port,
+    socket_path: Optional[str] = None,
+    allow_remote_bind: bool = False,
     log_level: str = "info",
     start_headless_on_startup: bool = True,
 ):
     server = create_uvicorn_server(
         handler,
+        auth=auth,
+        transport=transport,
         host=host,
         port=port,
+        socket_path=socket_path,
+        allow_remote_bind=allow_remote_bind,
         log_level=log_level,
         start_headless_on_startup=start_headless_on_startup,
     )

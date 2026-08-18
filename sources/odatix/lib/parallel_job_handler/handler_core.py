@@ -53,6 +53,7 @@ from odatix.lib.parallel_job_handler.theme import Theme
 from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str, read_pipe_windows
 from odatix.lib.parallel_job_handler import curses_ui
+from odatix.lib.parallel_job_handler import diagnostics
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
 
@@ -141,6 +142,13 @@ class ParallelJobHandler:
 
         self.running_job_list = []
         self.retired_job_list = []
+        # Membership mirrors of the two lists above. A long exploration retires
+        # thousands of jobs into the same session, and `job in list` on every
+        # tick made the scheduler quadratic in the number of jobs it had ever
+        # run -- with the handler lock held, which is what made a busy daemon
+        # stop answering. See _update_jobs_state.
+        self._running_jobs = set()
+        self._retired_jobs = set()
         self.job_queue = queue.Queue()
 
         # Work to run once, when nothing is running and nothing is queued
@@ -187,12 +195,27 @@ class ParallelJobHandler:
         self._lock = threading.RLock()
         self._command_queue = queue.Queue()
         self._stop_event = threading.Event()
+        # Exports run on their own thread, one at a time. They rewrite a shared
+        # results file, so they must stay serialized -- but not on the scheduler
+        # thread, which holds the handler lock and would keep the whole session
+        # (API included) silent for as long as an export takes. See
+        # _submit_post_success_export.
+        self._export_queue = queue.Queue()
+        self._export_thread = None
+        self._exports_pending = 0
         self._headless_thread = None
         self._headless_running = False
         self._headless_initialized = False
         self._headless_logs_height = 40
         self.showing_help = False
         self._request_curses_exit = False
+
+        # What the diagnostics file reports about the scheduler (see _heartbeat).
+        self._tick_count = 0
+        self._tick_time_total = 0.0
+        self._tick_time_max = 0.0
+        self._tick_failures = 0
+        self._last_heartbeat = time.time()
 
         # API server (optional)
         self._api_thread = None
@@ -806,16 +829,69 @@ class ParallelJobHandler:
 
             self._append_job_log(job, chunk, stream_key=stream_key)
 
-    def _run_post_success_export(self, job):
+    #: An export slower than this is worth a line: the session cannot answer
+    #: anyone while it runs.
+    SLOW_EXPORT_S = 0.5
+
+    def _submit_post_success_export(self, job):
+        """
+        Hand a finished job's export to the export thread, and come straight back.
+
+        The caller is the scheduler, holding the handler lock: running the export
+        here means the session answers nobody -- not the monitor, not the GUI,
+        not an exploration waiting on its own batch -- for as long as it takes,
+        which grows with the results file being rewritten. Sessions were being
+        declared dead over exactly that.
+
+        The job stays in status "exporting" until the export is over, so nothing
+        that waits for a job to finish sees it as finished too early.
+        """
         export_config = getattr(job, "post_run_export", None)
         if not isinstance(export_config, dict):
-            return True
+            return False
 
-        export_kind = str(export_config.get("kind", "")).strip().lower()
-        if export_kind == "":
-            return True
+        if str(export_config.get("kind", "")).strip().lower() == "":
+            return False
 
         job.status = "exporting"
+        self._exports_pending += 1
+        self._ensure_export_thread()
+        self._export_queue.put(job)
+        return True
+
+    def _ensure_export_thread(self):
+        """Start the export thread on first use, and restart it if it ever died."""
+        if self._export_thread is not None and self._export_thread.is_alive():
+            return
+        self._export_thread = threading.Thread(target=self._export_loop, daemon=True)
+        self._export_thread.start()
+
+    def _export_loop(self):
+        """Run queued exports one at a time, without the handler lock."""
+        while True:
+            try:
+                job = self._export_queue.get(timeout=0.5)
+            except queue.Empty:
+                if self._stop_event.is_set():
+                    return
+                continue
+
+            try:
+                success = self._run_post_success_export(job)
+            except Exception as e:
+                success = False
+                diagnostics.log("export thread error", job=job.display_name, error=str(e))
+
+            with self._lock:
+                job.status = "success" if success else "failed"
+                self._exports_pending = max(0, self._exports_pending - 1)
+                self._run_post_batch_action_if_drained()
+
+    def _run_post_success_export(self, job):
+        """Run one job's export. Called on the export thread, lock-free."""
+        export_config = getattr(job, "post_run_export", None)
+        export_kind = str(export_config.get("kind", "")).strip().lower()
+
         self._append_job_log(
             job,
             printc.colors.CYAN + "Export job results..." + printc.colors.ENDC + "\n",
@@ -850,8 +926,19 @@ class ParallelJobHandler:
                 return False
 
             writer = _JobLogWriter(lambda data: self._append_job_log(job, data, stream_key="export"))
+            # Timed even off the scheduler thread: an export slower than the
+            # jobs it follows is what makes a batch look stalled at the end.
+            export_started = time.time()
             with contextlib.redirect_stdout(writer), contextlib.redirect_stderr(writer):
                 success = bool(export_fn(job=job, export_config=export_config))
+            export_duration = time.time() - export_started
+            if export_duration >= self.SLOW_EXPORT_S:
+                diagnostics.log(
+                    "slow export",
+                    seconds=export_duration,
+                    kind=export_kind,
+                    job=job.display_name,
+                )
         except Exception as e:
             self._append_job_log(
                 job,
@@ -862,7 +949,6 @@ class ParallelJobHandler:
             return False
 
         if success:
-            job.status = "success"
             self._append_job_log(
                 job,
                 printc.colors.GREEN + "Export finished" + printc.colors.ENDC + "\n",
@@ -918,14 +1004,18 @@ class ParallelJobHandler:
             return
         if len(self.working_job_list) > 0 or not self.job_queue.empty():
             return
+        # An export still running is a record not written yet, and a derived
+        # metric reads the records of the jobs it derives from.
+        if self._exports_pending > 0:
+            return
         self._post_batch_done = True
         self._run_post_batch_action()
 
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
         for job in self.job_list:
-            if job in self.retired_job_list:
+            if job in self._retired_jobs:
                 job.progress = getattr(job, "progress", 0)
-            elif job not in self.running_job_list or job.process is None:
+            elif job not in self._running_jobs or job.process is None:
                 job.progress = 0
             else:
                 job.progress = job.get_progress()
@@ -949,8 +1039,9 @@ class ParallelJobHandler:
                             job.status = "success"
 
                         if job.status == "success":
-                            if not self._run_post_success_export(job):
-                                job.status = "failed"
+                            # Retires right away either way: the export runs on
+                            # its own thread and settles the final status there.
+                            self._submit_post_success_export(job)
                     else:
                         job.status = "failed"
                         if hasattr(job, "_current_task_name"):
@@ -974,8 +1065,64 @@ class ParallelJobHandler:
                         if callable(on_selected_retired):
                             on_selected_retired()
 
+    #: A tick that takes longer than this is worth knowing about: the handler
+    #: lock is held throughout, so nothing answers while it runs.
+    SLOW_TICK_S = 1.0
+
+    #: How often the scheduler says it is still alive, in seconds.
+    HEARTBEAT_S = 60.0
+
     def _tick(self):
         """One scheduling + IO tick (headless, no curses)."""
+        started = time.time()
+        self._tick_once()
+        duration = time.time() - started
+
+        self._tick_count += 1
+        self._tick_time_total += duration
+        if duration > self._tick_time_max:
+            self._tick_time_max = duration
+        if duration >= self.SLOW_TICK_S:
+            diagnostics.log(
+                "slow tick",
+                seconds=duration,
+                jobs=len(self.job_list),
+                running=len(self.running_job_list),
+                queued=self.job_queue.qsize(),
+                retired=len(self.retired_job_list),
+            )
+        self._heartbeat(started)
+
+    def _heartbeat(self, now):
+        """
+        Say, once in a while, what the session is carrying.
+
+        A frozen daemon leaves no other trace: the heartbeat stopping, and the
+        tick times just before it stopped, are what says whether it was killed
+        or ground to a halt.
+        """
+        if now - self._last_heartbeat < self.HEARTBEAT_S:
+            return
+        self._last_heartbeat = now
+        ticks = max(1, self._tick_count)
+        diagnostics.log(
+            "heartbeat",
+            jobs=len(self.job_list),
+            running=len(self.running_job_list),
+            queued=self.job_queue.qsize(),
+            retired=len(self.retired_job_list),
+            log_lines=sum(len(job.log_history) for job in self.job_list),
+            ticks=self._tick_count,
+            tick_avg=self._tick_time_total / ticks,
+            tick_max=self._tick_time_max,
+            threads=threading.active_count(),
+            failures=self._tick_failures,
+        )
+        self._tick_count = 0
+        self._tick_time_total = 0.0
+        self._tick_time_max = 0.0
+
+    def _tick_once(self):
         with self._lock:
             self._update_jobs_state()
             self._check_resource_guard_unlocked()
@@ -1002,17 +1149,30 @@ class ParallelJobHandler:
                         self.process_pending_commands(max_commands=200)
                 except Exception as e:
                     # Keep running; record error in selected job log (best-effort)
+                    diagnostics.log_exception("API command failed", e)
                     with self._lock:
                         if 0 <= self.selected_job_index < len(self.job_list):
                             self.job_list[self.selected_job_index].log_history.append(
                                 printc.colors.RED + f"API command error: {e}" + printc.colors.ENDC
                             )
 
-                self._tick()
+                try:
+                    self._tick()
+                except Exception as error:
+                    # An exception here used to end the scheduler thread while
+                    # the API kept answering: the session stayed reachable,
+                    # reported its jobs, and never advanced a single one of
+                    # them again. Keep going, and leave a trace of why.
+                    diagnostics.log_exception("tick failed", error)
+                    self._tick_failures += 1
                 time.sleep(float(tick_interval))
+        except BaseException as error:
+            diagnostics.log_exception("scheduler thread stopped", error)
+            raise
         finally:
             with self._lock:
                 self._headless_running = False
+            diagnostics.log("scheduler stopped", jobs=len(self.job_list), failures=self._tick_failures)
 
     def start_headless(self, tick_interval: float = 0.1):
         """Start a background thread that runs the job scheduler without curses."""
@@ -1031,18 +1191,49 @@ class ParallelJobHandler:
         t = self._headless_thread
         if t is not None:
             t.join(timeout=float(timeout))
+        # Exports outlive the scheduler on purpose: a job that ran for an hour
+        # and whose record is still being written must not lose it because the
+        # session was asked to stop.
+        e = self._export_thread
+        if e is not None:
+            e.join(timeout=float(timeout))
         if terminate_jobs:
             with self._lock:
                 self.terminate_all_jobs()
 
-    def run_api(self, host: str = "0.0.0.0", port: int = hard_settings.daemon_default_port, log_level: str = "info"):
+    def run_api(
+        self,
+        host: str = hard_settings.daemon_default_host,
+        port: int = hard_settings.daemon_default_port,
+        log_level: str = "info",
+        auth=None,
+        allow_remote_bind: bool = False,
+    ):
         """Run a FastAPI+Uvicorn server exposing REST + WebSocket controls.
 
         Imports are lazy so this file does not require FastAPI unless you call run_api().
+
+        The API is authenticated: when no ``auth`` is given, tokens are
+        generated and printed once on stdout, since a caller with no way to
+        learn them could not use the server it just started. It binds loopback
+        only unless ``allow_remote_bind`` says otherwise.
         """
         from odatix.lib.parallel_job_handler.api import run_parallel_job_api
+        from odatix.lib.parallel_job_handler.auth import ApiAuth
 
-        return run_parallel_job_api(self, host=host, port=int(port), log_level=str(log_level))
+        if auth is None:
+            auth = ApiAuth.generate(bound_host=host)
+            printc.note("Session control token: " + auth.control_token, script_name)
+            printc.note("Session read-only token: " + auth.read_token, script_name)
+
+        return run_parallel_job_api(
+            self,
+            auth=auth,
+            host=host,
+            port=int(port),
+            log_level=str(log_level),
+            allow_remote_bind=bool(allow_remote_bind),
+        )
 
     def start_api_background(
         self,
@@ -1051,6 +1242,7 @@ class ParallelJobHandler:
         log_level: str = "info",
         start_headless_on_startup: bool = False,
         quiet: bool = True,
+        auth=None,
     ):
         """Start the FastAPI/Uvicorn server in a background thread.
 
@@ -1068,6 +1260,7 @@ class ParallelJobHandler:
 
             self._api_server = create_uvicorn_server(
                 self,
+                auth=auth,
                 host=host,
                 port=int(port),
                 log_level=str(log_level),
@@ -1107,6 +1300,7 @@ class ParallelJobHandler:
         if not job.generate_rtl:
             self.run_job(job)
             self.running_job_list.append(job)
+            self._running_jobs.add(job)
             return
 
         try:
@@ -1129,6 +1323,7 @@ class ParallelJobHandler:
             job.status = "starting"
             job.start_time = time.time()
             self.running_job_list.append(job)
+            self._running_jobs.add(job)
         except subprocess.CalledProcessError:
             job.status = "failed"
             self.retire_job(job, progress=0)
@@ -1378,9 +1573,17 @@ class ParallelJobHandler:
 
     def retire_job(self, job, progress=100):
         job.stop_time = time.time()
-        self.running_job_list.remove(job)
+        # A job can be retired before it ever started running -- rtl generation
+        # that failed outright never made it into the running list -- and
+        # list.remove() would raise there, killing the scheduler thread.
+        try:
+            self.running_job_list.remove(job)
+        except ValueError:
+            pass
+        self._running_jobs.discard(job)
         job.progress = progress
         self.retired_job_list.append(job)
+        self._retired_jobs.add(job)
 
     def terminate_all_jobs(self):
         for job in self.running_job_list:

@@ -22,48 +22,26 @@
 """Curses monitor attached to a running daemon, using the legacy curses UI."""
 
 import argparse
-import json
+import os
 import shutil
 import time
-import urllib.request
 
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import curses_ui
 from odatix.lib.parallel_job_handler.handler_core import ParallelJobHandler
+from odatix.lib.parallel_job_handler.auth import TOKEN_ENV_VAR
 from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
+from odatix.lib.parallel_job_handler.transport import Endpoint
 from odatix.lib.utils import open_path_in_explorer
 
 
-def _api_request(base_url, method, path, payload=None, timeout=1.0):
-    data = None
-    headers = {}
-    if payload is not None:
-        data = json.dumps(payload).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-
-    req = urllib.request.Request(
-        url=base_url.rstrip("/") + path,
-        data=data,
-        headers=headers,
-        method=str(method).upper(),
-    )
-
-    with urllib.request.urlopen(req, timeout=float(timeout)) as resp:
-        raw = resp.read()
-
-    if not raw:
-        return {}
-
-    return json.loads(raw.decode("utf-8"))
+def _api_get(endpoint, path, timeout=1.0):
+    return endpoint.request("GET", path, timeout=timeout)
 
 
-def _api_get(base_url, path, timeout=1.0):
-    return _api_request(base_url, "GET", path, timeout=timeout)
-
-
-def _api_post(base_url, path, payload=None, timeout=1.0):
-    return _api_request(base_url, "POST", path, payload=payload, timeout=timeout)
+def _api_post(endpoint, path, payload=None, timeout=1.0):
+    return endpoint.request("POST", path, payload=payload, timeout=timeout)
 
 
 def _extract_jobs(snapshot):
@@ -119,14 +97,18 @@ class DaemonMonitorHandler(ParallelJobHandler):
 
     def __init__(
         self,
+        endpoint=None,
         host=hard_settings.daemon_default_host,
         port=hard_settings.daemon_default_port,
         poll_interval=0.25,
         auto_exit=False,
+        token=None,
     ):
         super().__init__(job_list=[], nb_jobs=1, process_group=True, auto_exit=bool(auto_exit), log_size_limit=200)
 
-        self._base_url = "http://{}:{}".format(str(host), int(port))
+        if endpoint is None:
+            endpoint = Endpoint.tcp(host, port, token=token or os.environ.get(TOKEN_ENV_VAR, ""))
+        self._endpoint = endpoint
         self._poll_interval = max(0.05, float(poll_interval))
         self._last_poll = 0.0
         self._last_logs_poll = 0.0
@@ -234,7 +216,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
             return
 
         try:
-            snapshot = _api_get(self._base_url, "/status?logs_job_id=-1", timeout=0.8)
+            snapshot = _api_get(self._endpoint, "/status?logs_job_id=-1", timeout=0.8)
         except Exception as e:
             self._last_poll = now
             self._append_error(e)
@@ -370,7 +352,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 limit = int(getattr(job, "log_size_limit", self.log_size_limit))
                 if limit == -1:
                     snap = _api_get(
-                        self._base_url,
+                        self._endpoint,
                         "/status?logs_job_id={}&logs_offset=0&logs_limit=-1".format(remote_id),
                         timeout=2.0,
                     )
@@ -384,7 +366,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     job.log_changed = True
                 else:
                     meta = _api_get(
-                        self._base_url,
+                        self._endpoint,
                         "/status?logs_job_id={}&logs_offset=0&logs_limit=0".format(remote_id),
                         timeout=1.2,
                     )
@@ -393,7 +375,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     total = max(0, int(total))
                     fetch_offset = max(0, total - max(0, int(limit)))
                     snap = _api_get(
-                        self._base_url,
+                        self._endpoint,
                         "/status?logs_job_id={}&logs_offset={}&logs_limit={}".format(remote_id, fetch_offset, max(0, int(limit))),
                         timeout=1.8,
                     )
@@ -408,7 +390,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 offset = int(getattr(job, "_remote_log_total", 0))
                 limit = int(getattr(job, "log_size_limit", self.log_size_limit))
                 snap = _api_get(
-                    self._base_url,
+                    self._endpoint,
                     "/status?logs_job_id={}&logs_offset={}&logs_limit=500".format(remote_id, offset),
                     timeout=1.0,
                 )
@@ -422,7 +404,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     limit = int(getattr(job, "log_size_limit", self.log_size_limit))
                     if limit == -1:
                         full = _api_get(
-                            self._base_url,
+                            self._endpoint,
                             "/status?logs_job_id={}&logs_offset=0&logs_limit=-1".format(remote_id),
                             timeout=2.0,
                         )
@@ -436,7 +418,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                         job.log_changed = True
                     else:
                         meta = _api_get(
-                            self._base_url,
+                            self._endpoint,
                             "/status?logs_job_id={}&logs_offset=0&logs_limit=0".format(remote_id),
                             timeout=1.2,
                         )
@@ -445,7 +427,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                         full_total = max(0, int(full_total))
                         fetch_offset = max(0, full_total - max(0, int(limit)))
                         full = _api_get(
-                            self._base_url,
+                            self._endpoint,
                             "/status?logs_job_id={}&logs_offset={}&logs_limit={}".format(remote_id, fetch_offset, max(0, int(limit))),
                             timeout=1.8,
                         )
@@ -472,7 +454,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                         fetch_limit = max(0, int(limit))
                         fetch_offset = max(0, int(total) - fetch_limit)
                         tail_snap = _api_get(
-                            self._base_url,
+                            self._endpoint,
                             "/status?logs_job_id={}&logs_offset={}&logs_limit={}".format(
                                 remote_id,
                                 fetch_offset,
@@ -496,7 +478,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                         # In that case total_lines does not grow, so probe the tail line explicitly.
                         tail_offset = max(0, int(total) - 1)
                         tail_snap = _api_get(
-                            self._base_url,
+                            self._endpoint,
                             "/status?logs_job_id={}&logs_offset={}&logs_limit=1".format(remote_id, tail_offset),
                             timeout=1.0,
                         )
@@ -538,13 +520,13 @@ class DaemonMonitorHandler(ParallelJobHandler):
 
     def _post_job_action(self, action, remote_id):
         if action == "start":
-            _api_post(self._base_url, "/jobs/{}/start".format(int(remote_id)), timeout=1.0)
+            _api_post(self._endpoint, "/jobs/{}/start".format(int(remote_id)), timeout=1.0)
         elif action == "pause":
-            _api_post(self._base_url, "/jobs/{}/pause".format(int(remote_id)), timeout=1.0)
+            _api_post(self._endpoint, "/jobs/{}/pause".format(int(remote_id)), timeout=1.0)
         elif action == "kill":
-            _api_post(self._base_url, "/jobs/{}/kill".format(int(remote_id)), timeout=1.0)
+            _api_post(self._endpoint, "/jobs/{}/kill".format(int(remote_id)), timeout=1.0)
         elif action == "open":
-            _api_post(self._base_url, "/jobs/{}/open".format(int(remote_id)), timeout=1.0)
+            _api_post(self._endpoint, "/jobs/{}/open".format(int(remote_id)), timeout=1.0)
 
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
         self._sync_snapshot(force=False)
@@ -604,7 +586,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
         # locally; the new value is reflected back on the next snapshot poll.
         new_value = max(1, int(nb_jobs))
         try:
-            _api_post(self._base_url, "/config?nb_jobs={}".format(new_value), timeout=1.0)
+            _api_post(self._endpoint, "/config?nb_jobs={}".format(new_value), timeout=1.0)
             self.nb_jobs = new_value  # optimistic; reconciled by _sync_snapshot
         except Exception as e:
             self._append_error(e)
@@ -620,7 +602,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 except Exception as e:
                     self._append_error(e)
         try:
-            _api_post(self._base_url, "/shutdown", payload={}, timeout=1.0)
+            _api_post(self._endpoint, "/shutdown", payload={}, timeout=1.0)
         except Exception as e:
             self._append_error(e)
 
@@ -639,22 +621,26 @@ class DaemonMonitorHandler(ParallelJobHandler):
             return
 
         try:
-            _api_post(self._base_url, "/shutdown", payload={}, timeout=1.0)
+            _api_post(self._endpoint, "/shutdown", payload={}, timeout=1.0)
         except Exception as e:
             self._append_error(e)
 
 
 def run_monitor(
+    endpoint=None,
     host=hard_settings.daemon_default_host,
     port=hard_settings.daemon_default_port,
     poll_interval=0.25,
     auto_exit=False,
+    token=None,
 ):
     handler = DaemonMonitorHandler(
+        endpoint=endpoint,
         host=str(host),
         port=int(port),
         poll_interval=float(poll_interval),
         auto_exit=bool(auto_exit),
+        token=token,
     )
     return curses_ui.run(handler)
 
@@ -662,6 +648,11 @@ def run_monitor(
 def add_arguments(parser):
     parser.add_argument("--host", default=hard_settings.daemon_default_host, help="Daemon API host")
     parser.add_argument("--port", type=int, default=hard_settings.daemon_default_port, help="Daemon API port")
+    parser.add_argument(
+        "--token",
+        default=None,
+        help="Session token (default: ${})".format(TOKEN_ENV_VAR),
+    )
     parser.add_argument("--poll", type=float, default=0.25, help="Polling interval in seconds")
     parser.add_argument("--auto-exit", action="store_true", help="Exit monitor when all jobs are completed")
 
@@ -675,7 +666,13 @@ def parse_arguments():
 def main(args=None):
     if args is None:
         args = parse_arguments()
-    run_monitor(host=args.host, port=args.port, poll_interval=args.poll, auto_exit=args.auto_exit)
+    run_monitor(
+        host=args.host,
+        port=args.port,
+        poll_interval=args.poll,
+        auto_exit=args.auto_exit,
+        token=args.token,
+    )
 
 
 if __name__ == "__main__":
