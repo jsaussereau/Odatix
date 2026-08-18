@@ -22,6 +22,10 @@
 """
 Insights gallery: charts the explorer proposes on its own.
 
+Rendered as a section of the Explorer landing page (below the saved views)
+rather than as a page of its own, so the suggestions sit next to the views the
+user already kept.
+
 core.recommend measures the data and returns ranked view payloads, in the very
 same shape as a hand-saved view file. Nothing here is stored: a card is opened
 by writing the session stores and navigating to its chart page (exactly what
@@ -39,14 +43,13 @@ rather than an average of unrelated result files.
 import dash
 from dash import dcc, html, Input, Output, State, ALL
 
-from odatix.components import home_shared
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.recommend as recommend
 import odatix.explorer.core.schema as schema
 import odatix.explorer.core.views as views
 import odatix.explorer.callbacks.views as views_callbacks
-from odatix.explorer.ui.thumbnails import view_thumbnail
+from odatix.explorer.ui.thumbnails import section_header, view_thumbnail
 
 # The gallery recomputes only when the data or the source selection changed, so
 # this can poll often.
@@ -198,11 +201,12 @@ def _empty_state(has_sources):
 
 
 ######################################
-# Page
+# Section
 ######################################
 
 
-def layout(**kwargs):
+def insights_section():
+  """The gallery, as a block to drop into the Explorer landing page."""
   return html.Div(
     [
       dcc.Interval(id="xp-insights-poll", interval=POLL_INTERVAL),
@@ -211,7 +215,11 @@ def layout(**kwargs):
       dcc.Location(id="xp-insights-url", refresh=True),
       dcc.Store(id="xp-insights-views", data={}),
       dcc.Store(id="xp-insights-sources", data=[], storage_type="session"),
-      home_shared.home_header("Insights", "Charts Odatix suggests from what your results actually contain."),
+      section_header("Insights"),
+      html.Div(
+        "Charts Odatix suggests from what your results actually contain.",
+        className="xp-insights-subtitle",
+      ),
       html.Div(
         [
           html.Div("Sources", className="xp-insights-bar-label"),
@@ -221,13 +229,10 @@ def layout(**kwargs):
         className="xp-insights-bar",
       ),
       html.Div(id="xp-insights-status", className="xp-insights-status"),
-      html.Div(id="xp-insights-grid", className="xp-home-section"),
+      html.Div(id="xp-insights-grid"),
     ],
-    className="xp-home xp-insights",
+    className="xp-home-section xp-insights",
   )
-
-
-dash.register_page(__name__, path="/explorer/insights", name="Insights", title="Odatix Explorer - Insights", order=19, layout=layout)
 
 
 @dash.callback(

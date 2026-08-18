@@ -31,6 +31,7 @@ from odatix.components import home_shared
 from odatix.explorer.core.store import STORE
 import odatix.explorer.core.views as views
 import odatix.explorer.callbacks.views as views_callbacks
+from odatix.explorer.ui.insights import insights_section
 from odatix.explorer.ui.thumbnails import pictogram, section_header, view_thumbnail
 
 _CHART_CARDS = [
@@ -45,7 +46,6 @@ _CHART_CARDS = [
 ]
 
 _REPORT_CARDS = [
-  {"name": "Insights", "link": "/explorer/insights", "kind": "insights", "description": "Charts Odatix suggests from your results"},
   {"name": "RTL Analysis", "link": "/explorer/analysis", "kind": "analysis", "description": "RTL analysis warnings and errors dashboard"},
   {"name": "Design Space Exploration", "link": "/explorer/dse", "kind": "dse", "description": "Pareto front and progress of a design space exploration"},
 ]
@@ -151,6 +151,7 @@ def layout(**kwargs):
       home_shared.home_card_grid(_REPORT_CARDS, _card_visual),
       html.Div(id="xp-home-sources", className="xp-home-section"),
       html.Div(id="xp-home-views", className="xp-home-section"),
+      insights_section(),
     ],
     className="xp-home",
   )

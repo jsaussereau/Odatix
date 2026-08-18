@@ -1899,6 +1899,15 @@ button.xpa-stat-card:hover {
 
 /* ---------- Insights gallery (generated view cards) ---------- */
 
+/* Sits under the section header, which the sibling sections do not have: the
+   suggestions need a word of explanation, saved views do not. */
+.xp-insights-subtitle {
+    max-width: 1100px;
+    margin: -6px auto 18px auto;
+    font-size: 14px;
+    opacity: 0.7;
+}
+
 .xp-insights-bar {
     display: flex;
     align-items: center;
