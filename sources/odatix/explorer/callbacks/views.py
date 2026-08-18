@@ -151,12 +151,13 @@ def register_callbacks():
     State({"type": "xp-filter", "dim": ALL}, "value"),
     State({"type": "xp-filter", "dim": ALL}, "id"),
     State("xp-rule-state", "data"),
+    State("xp-graph", "figure"),
     prevent_initial_call=True,
   )
   def save_current_view(n_clicks, name, suggested, description, kind, sources, x, y, z, color_by, symbol_by,
                         legend_group_by, sort_by, sort_x_by, sort_x_order, dissociate, y_metrics, palette, plot_theme, toggles,
                         overview_chart_type, overview_layout, dl_format, dl_background,
-                        filter_state, filter_values, filter_ids, rule_state):
+                        filter_state, filter_values, filter_ids, rule_state, figure):
     if not n_clicks:
       raise dash.exceptions.PreventUpdate
 
@@ -190,7 +191,9 @@ def register_callbacks():
         "toggles": toggles or [],
         "overview": {"chart_type": overview_chart_type, "layout": overview_layout},
         "export": {"format": dl_format, "background": dl_background},
-        "thumb": views.make_thumbnail(df, thumb_kind, x, y, color_by, dimensions),
+        # Sketch the figure on screen; fall back to the dataframe when it has none
+        "thumb": (views.make_figure_thumbnail(figure, thumb_kind)
+                  or views.make_thumbnail(df, thumb_kind, x, y, color_by, dimensions)),
       }
       slug = views.save_view(STORE.result_path, name, view)
     except (OSError, ValueError) as e:

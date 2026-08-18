@@ -266,6 +266,15 @@ def _ordinal_values(values):
   return numbers
 
 
+def _as_list(value):
+  """One name, several, or none -- always a list."""
+  if value is None:
+    return []
+  if isinstance(value, str):
+    return [value]
+  return [item for item in value if item]
+
+
 class Context(object):
   """
   Everything the recipes are allowed to look at: the current selection, its
@@ -343,20 +352,26 @@ class Context(object):
     return ranked
 
   def supporting_rows(self, requires=(), metric=None):
-    """Mask of the rows that actually carry every named dimension and metric."""
+    """
+    Mask of the rows that actually carry every named dimension and metric.
+
+    ``metric`` takes one name or several: a chart of X against Y needs both on
+    the same row, so both are required together rather than one at a time.
+    """
     mask = pd.Series(True, index=self.df.index)
     for dimension in requires:
       if dimension in self.df.columns:
         column = self.df[dimension].fillna(schema.MISSING_VALUE).astype(str)
         mask = mask & (column != schema.MISSING_VALUE) & (column != "")
-    if metric and metric in self.df.columns:
-      mask = mask & pd.to_numeric(self.df[metric], errors="coerce").notna()
+    for name in _as_list(metric):
+      if name in self.df.columns:
+        mask = mask & pd.to_numeric(self.df[name], errors="coerce").notna()
     return mask
 
   def restrict_to(self, requires=(), metric=None):
     """
     Which architectures and workflows a chart should keep once it insists on
-    those dimensions and that metric.
+    those dimensions and those metrics.
 
     A parameter domain rarely spans the whole workspace: charting it while
     every architecture stays checked leaves the user unchecking the ones that
@@ -374,6 +389,35 @@ class Context(object):
       if kept and len(kept) < len(self.dimensions[dimension]):
         restrict[dimension] = kept
     return restrict
+
+  def curves_overlap(self, x, y, split):
+    """
+    True when two of the curves would be drawn on top of each other.
+
+    Lines are the readable default, but a line hidden underneath another one is
+    a line the user never sees: that is the case where side-by-side columns say
+    strictly more than a plot of the same data.
+    """
+    for column in (x, y, split):
+      if column not in self.df.columns:
+        return False
+    frame = self.df[[x, split]].astype(str)
+    frame["__y__"] = pd.to_numeric(self.df[y], errors="coerce")
+    try:
+      table = frame.pivot_table(index=x, columns=split, values="__y__", aggfunc="mean")
+    except Exception:
+      return False
+    names = list(table.columns)
+    for first in range(len(names)):
+      for second in range(first + 1, len(names)):
+        pair = table[[names[first], names[second]]].dropna()
+        if len(pair) < 2:
+          continue
+        left, right = pair.iloc[:, 0], pair.iloc[:, 1]
+        scale = left.abs().clip(lower=1e-12)
+        if bool(((left - right).abs() / scale < 1e-9).all()):
+          return True
+    return False
 
   def paired_rows(self, left, right):
     """How many rows hold a value for both metrics -- i.e. how many points a
@@ -452,6 +496,23 @@ def make_view(ctx, kind, controls=None, toggles=None, name=None, description="",
   for key in ("x", "y", "z", "color_by", "symbol_by", "legend_group_by",
               "sort_by", "sort_x_by", "sort_x_order", "dissociate", "y_metrics"):
     controls.setdefault(key, None)
+
+  # Several frequencies put several records on the same configuration, so they
+  # would stack on one x label. Dissociating them gives each frequency its own
+  # trace, in the thumbnail and in the view the card opens alike -- added to
+  # whatever the recipe already dissociates by, never replacing it.
+  if len(ctx.dimensions.get(schema.COL_FREQUENCY, ())) > 1:
+    dissociate = controls.get("dissociate") or []
+    if isinstance(dissociate, str):
+      dissociate = [dissociate]
+    if schema.COL_FREQUENCY not in dissociate:
+      controls["dissociate"] = list(dissociate) + [schema.COL_FREQUENCY]
+    # ... and colour by it too, so the split is readable at thumbnail size.
+    color_by = controls.get("color_by") or []
+    if isinstance(color_by, str):
+      color_by = [color_by]
+    if schema.COL_FREQUENCY not in color_by:
+      controls["color_by"] = list(color_by) + [schema.COL_FREQUENCY]
 
   effective = dict(ctx.filters or {})
   for dimension, allowed in (restrict or {}).items():
@@ -706,7 +767,10 @@ def _pareto_recipe(ctx):
 
   built = []
   for score, cost, gain, correlation, paired in pairs[:3]:
-    restrict = ctx.restrict_to(metric=gain)
+    # The chart is cost against gain: an architecture or workflow measuring
+    # only one of the two draws nothing, so it is unchecked rather than left
+    # for the user to notice from an empty legend entry.
+    restrict = ctx.restrict_to(metric=(cost, gain))
     color_by = _color_for(ctx, gain)
 
     why = "How much " + _display(cost) + " each point of " + _display(gain) + " costs, over " + str(paired) + " designs."
@@ -789,7 +853,8 @@ def _scaling_recipe(ctx):
 
 def _comparison_recipe(ctx):
   """
-  Side-by-side bars: the same metric across the values of a dimension.
+  The same metric across the values of a dimension, one curve per value --
+  side-by-side columns instead when those curves would overlap.
 
   Reads best when the compared dimension is small (one color per value) and the
   x axis carries whatever else varies.
@@ -818,19 +883,30 @@ def _comparison_recipe(ctx):
         continue
       restrict = ctx.restrict_to(requires=(split, axis[0]), metric=metric)
 
+      overlap = ctx.curves_overlap(axis[0], metric, split)
       why = (_display(metric) + " compared across the " + str(len(compared)) + " values of "
-             + _display(split) + ", one group per " + _display(axis[0]) + ".")
+             + _display(split) + ", "
+             + ("one group per " if overlap else "along ") + _display(axis[0]) + ".")
       why += _involved(ctx, restrict)
       score = 0.45 + 0.3 * ctx.dimension_stats[split].interest + 0.25 * ctx.metric_stats[metric].interest
 
+      # Lines are the default reading of a metric across a dimension; columns
+      # earn their place only when they show something lines cannot, namely
+      # curves that would sit exactly on top of one another.
       toggles = [toggle for toggle in DEFAULT_TOGGLES]
-      if "zero_y" not in toggles:
+      if overlap and "zero_y" not in toggles:
         toggles.append("zero_y")  # bar lengths only compare honestly from zero
 
+      controls = {"x": axis[0], "y": metric, "color_by": [split]}
+      if overlap:
+        controls["sort_x_order"] = "y_desc"
+      else:
+        controls["sort_x_order"] = "natural"
+        controls["dissociate"] = [axis[0]]
+
       view = make_view(
-        ctx, "columns",
-        controls={"x": axis[0], "y": metric, "color_by": [split], "sort_x_order": "y_desc"},
-        toggles=toggles, description=why, restrict=restrict,
+        ctx, "columns" if overlap else "lines",
+        controls=controls, toggles=toggles, description=why, restrict=restrict,
       )
       built.append((_display(metric) + " by " + _display(split), why, score, view))
       if len(built) >= 3:
@@ -849,7 +925,9 @@ def _parcoords_recipe(ctx):
 
   chosen = metrics[:5]
   why = "All " + str(len(chosen)) + " varying metrics on one picture: follow a line to read a whole design."
-  restrict = ctx.restrict_to(metric=chosen[0])
+  # A line only exists where every axis of the parallel coordinates has a
+  # value, so the scopes missing one of them are unchecked.
+  restrict = ctx.restrict_to(metric=chosen)
   why += _involved(ctx, restrict)
   score = 0.4 + 0.1 * min(4, len(chosen))
 
