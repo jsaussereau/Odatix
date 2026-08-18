@@ -152,12 +152,14 @@ class ArgParser:
     stop_selector_group = ArgParser.stop_parser.add_mutually_exclusive_group()
     stop_selector_group.add_argument('-S', '--session', default=None, help='daemon session name or selector')
     stop_selector_group.add_argument('-a', '--all', action='store_true', help='stop all daemon sessions')
+    ArgParser.stop_parser.add_argument('-z', '--zombies', action='store_true', help='also kill zombie sessions (unresponsive daemons and leftover state files)')
     ArgParser.stop_parser.add_argument('--host', default=None, help='daemon API host (default: current workspace daemon host)')
     ArgParser.stop_parser.add_argument('--port', type=int, default=None, help='daemon API port (default: current workspace daemon port)')
 
     # Define parser for the 'ls' command
     ArgParser.ls_parser = subparsers.add_parser("ls", help="list active background daemons", formatter_class=formatter)
     ArgParser.ls_parser.add_argument('-S', '--session', default=None, help='filter daemon sessions by name/prefix')
+    ArgParser.ls_parser.add_argument('-z', '--zombies', action='store_true', help='also list zombie sessions (unresponsive daemons and leftover state files)')
     ArgParser.ls_parser.add_argument('--host', default=None, help='daemon API host (optional explicit endpoint)')
     ArgParser.ls_parser.add_argument('--port', type=int, default=None, help='daemon API port (optional explicit endpoint)')
 
@@ -446,9 +448,34 @@ def monitor_daemon(args):
     success = False
   return success
 
+def kill_zombie_sessions(args):
+  result = daemon_control.kill_zombie_daemons(session=args.session)
+  total = int(result.get("total", 0))
+  killed = int(result.get("killed", 0))
+  failed = result.get("failed", [])
+
+  if total == 0:
+    printc.note("No zombie session found", script_name)
+    return True
+
+  if len(failed) == 0:
+    printc.cyan(f"Killed {killed} zombie session(s)", script_name)
+    return True
+
+  printc.warning(f"Killed {killed}/{total} zombie session(s)", script_name)
+  printc.cyan("Zombie sessions that could not be killed:", script_name)
+  print(daemon_control.format_daemons_table(failed, zombies=True))
+  return False
+
 def stop_daemon(args):
   success = True
   try:
+    if getattr(args, "zombies", False):
+      success = kill_zombie_sessions(args)
+      # '-z' alone only targets zombies, without touching responsive sessions.
+      if not args.all and args.session in (None, ""):
+        return success
+
     if args.all:
       result = daemon_control.stop_all_daemons(host=args.host, port=args.port)
       total = int(result.get("total", 0))
@@ -496,11 +523,29 @@ def stop_daemon(args):
 def list_daemons(args):
   success = True
   try:
+    show_zombies = getattr(args, "zombies", False)
+
     daemons = daemon_control.list_daemons(host=args.host, port=args.port, session=args.session)
+
+    # Zombies are only meaningful when scanning the system, not when an
+    # explicit endpoint is given.
+    zombies = []
+    if show_zombies and args.host is None and args.port is None:
+      zombies = daemon_control.list_zombie_daemons(session=args.session)
+
     if len(daemons) == 0:
       printc.note("No active session found", script_name)
-      return success
-    print(daemon_control.format_daemons_table(daemons))
+    else:
+      print(daemon_control.format_daemons_table(daemons))
+
+    if show_zombies:
+      print()
+      if len(zombies) == 0:
+        printc.note("No zombie session found", script_name)
+      else:
+        printc.warning("Zombie sessions:", script_name)
+        print(daemon_control.format_daemons_table(zombies, zombies=True))
+        printc.note("Use '" + prog + " stop -z' to kill them", script_name)
   except Exception as e:
     printc.error(str(e), script_name)
     success = False

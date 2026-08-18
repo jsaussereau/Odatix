@@ -419,6 +419,29 @@ def _daemon_is_alive_with_retries(state, attempts=3, timeout=0.6, backoff=0.3):
     return False
 
 
+def _daemon_is_alive_patiently(state, total_timeout=60.0, timeout=0.6, max_timeout=5.0, backoff=1.0):
+    """
+    The long version of :func:`_daemon_is_alive_with_retries`, for when giving
+    up has real consequences.
+
+    A daemon busy with a large wave of jobs (a synthesis batch finishing, logs
+    being flushed) can stay unresponsive for tens of seconds without being in
+    any trouble. When the alternative to waiting is refusing to enqueue -- or
+    worse, replacing a live session -- it is always cheaper to keep asking, so
+    this keeps polling for `total_timeout` seconds with a request timeout that
+    grows up to `max_timeout`.
+    """
+    deadline = time.time() + float(total_timeout)
+    current = float(timeout)
+    while True:
+        if daemon_is_alive(state, timeout=current):
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(float(backoff))
+        current = min(float(max_timeout), current * 1.5)
+
+
 def _pid_is_running(pid):
     try:
         pid = int(pid)
@@ -546,7 +569,21 @@ def ensure_daemon_running(
     session=None,
     daemon_log_enabled=None,
     startup_timeout=15.0,
+    create=True,
+    stuck_timeout=60.0,
 ):
+    """
+    The daemon for `session`, started if there is none.
+
+    Args:
+        create (bool): whether a missing session may be started. Callers that
+            are themselves running *inside* the session they enqueue into (an
+            exploration adding batches to its own, see odatix.dse) must pass
+            False: for them a missing session is an error to report, never a
+            reason to start a second one somewhere else.
+        stuck_timeout (float): how long to keep asking a session that owns a
+            live process but is not answering, before giving up on it.
+    """
     workspace_root = detect_workspace_root(workspace_root)
     session_selector = str(session).strip() if session is not None else None
 
@@ -570,14 +607,59 @@ def ensure_daemon_running(
             # running (see the "dse-<pid>" duplicate-session incident).
             stuck_pid = _pid_claiming_session(paths, session_name)
             if stuck_pid is not None:
+                # Still owned by a live process: it is busy or stuck, not gone.
+                # Keep asking -- a daemon in the middle of a heavy wave of jobs
+                # can go quiet for a while and come back perfectly fine.
+                if _daemon_is_alive_patiently(matched, total_timeout=stuck_timeout):
+                    return matched
                 raise DaemonControlError(
-                    "Daemon session '{0}' is not responding, but its process (pid {1}) is "
-                    "still running. Stop it explicitly (odatix daemon stop -S {0}) before "
-                    "starting a new one.".format(session_name, stuck_pid)
+                    "Daemon session '{0}' is not responding after {2:.0f}s, but its process "
+                    "(pid {1}) is still running. Stop it explicitly (kill -9 {1}) before "
+                    "starting a new one.".format(session_name, stuck_pid, float(stuck_timeout))
+                )
+            if not create:
+                raise DaemonControlError(
+                    "Daemon session '{}' is gone. Not starting a new one: this run is part "
+                    "of that session.".format(session_name)
                 )
         else:
             session_name = _normalize_session_name(session_selector, default_name=host)
             paths = get_daemon_paths(workspace_root, session_name=session_name)
+
+            # list_daemons() scans /proc and can transiently miss an existing
+            # daemon under load, coming back with no match even though the
+            # session is very much alive. Trusting that absence here would
+            # spawn a second daemon under the exact same session name -- the
+            # "dse-<pid>" duplicate-session incident again, just reached from
+            # the listing side instead of the alive-check side. Read this
+            # session's own state file directly before assuming there is
+            # nothing to find.
+            state = _read_json_file(paths["state_file"])
+            if state and _daemon_is_alive_with_retries(state):
+                state = dict(state)
+                state["workspace_root"] = workspace_root
+                state["state_file"] = paths["state_file"]
+                _decorate_session_fields(state)
+                return state
+
+            stuck_pid = _pid_claiming_session(paths, session_name)
+            if stuck_pid is not None:
+                if state and _daemon_is_alive_patiently(state, total_timeout=stuck_timeout):
+                    state = dict(state)
+                    state["workspace_root"] = workspace_root
+                    state["state_file"] = paths["state_file"]
+                    _decorate_session_fields(state)
+                    return state
+                raise DaemonControlError(
+                    "Daemon session '{0}' is not responding after {2:.0f}s, but its process "
+                    "(pid {1}) is still running. Stop it explicitly (kill -9 {1}) before "
+                    "starting a new one.".format(session_name, stuck_pid, float(stuck_timeout))
+                )
+            if not create:
+                raise DaemonControlError(
+                    "Daemon session '{}' is gone. Not starting a new one: this run is part "
+                    "of that session.".format(session_name)
+                )
     else:
         # By default, launching jobs creates a fresh daemon session.
         # Existing sessions are reused only when an explicit selector is given.
@@ -618,7 +700,7 @@ def ensure_daemon_running(
     raise DaemonControlError("Could not start Odatix daemon")
 
 
-def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, configure=True):
+def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, configure=True, create=None):
     """
     Hand jobs to a daemon session, starting one when there is none.
 
@@ -634,7 +716,13 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
             things: something enqueueing *into* a session it is already part of
             (an exploration adding a batch to its own, see odatix.dse) must not
             reconfigure it under everything else that is running there.
+        create (bool): whether a missing session may be started. Defaults to
+            `configure`, since a run that is part of the session it enqueues
+            into is exactly the run that must never start a second one: if its
+            own session is gone, that is an error, not a reason to spawn.
     """
+    if create is None:
+        create = bool(configure)
     job_list = list(getattr(parallel_jobs, "job_list", []) or [])
 
     format_yaml = getattr(parallel_jobs, "format_yaml", None)
@@ -648,6 +736,7 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
         logsize=getattr(parallel_jobs, "log_size_limit", 200),
         session=session,
         daemon_log_enabled=getattr(parallel_jobs, "daemon_log_enabled", None),
+        create=create,
     )
 
     payload = {"jobs": [job_to_payload(job) for job in job_list]}
@@ -666,7 +755,10 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
         "POST",
         "/jobs/enqueue",
         payload=payload,
-        timeout=3.0,
+        # Generous on purpose: a daemon busy with a wave of jobs can take a
+        # while to get to this, and dropping the batch on a slow reply loses
+        # real work.
+        timeout=15.0,
     )
     return state, response
 
@@ -1146,8 +1238,12 @@ def list_daemon_jobs(workspace_root=None, session=None):
     return jobs
 
 
-def format_daemons_table(daemons):
-    """Format the daemon list into a table with aligned columns."""
+def format_daemons_table(daemons, zombies=False):
+    """Format the daemon list into a table with aligned columns.
+
+    With ``zombies=True``, a ``status`` column is added to tell unresponsive
+    daemons apart from leftover state files.
+    """
     columns = [
         ("workspace", "workspace_root"),
         ("session", "session_id"),
@@ -1156,6 +1252,8 @@ def format_daemons_table(daemons):
         ("pid", "pid"),
         ("uptime", "uptime_s"),
     ]
+    if zombies:
+        columns.append(("status", "status"))
 
     # Build printable rows once, then compute per-column widths from headers + values.
     rows = []
@@ -1171,3 +1269,163 @@ def format_daemons_table(daemons):
     table = [printc.colors.BOLD + row_format.format(*[header for header, _ in columns]) + printc.colors.BOLD_END]
     table.extend(row_format.format(*row) for row in rows)
     return "\n".join(table)
+
+
+def _kill_pid(pid):
+    """SIGKILL (or forced taskkill) a pid, ignoring processes already gone."""
+    pid = int(pid)
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except Exception:
+            pass
+
+
+def _zombie_key(zombie):
+    state_file = str(zombie.get("state_file") or "")
+    if state_file != "":
+        return ("state_file", os.path.realpath(os.path.expanduser(state_file)))
+    pid = zombie.get("pid")
+    if pid is not None:
+        return ("pid", str(pid))
+    return (
+        "endpoint",
+        str(zombie.get("host", DEFAULT_HOST)),
+        str(zombie.get("port", DEFAULT_PORT)),
+    )
+
+
+def list_zombie_daemons(workspace_root=None, session=None):
+    """Return daemon sessions that are neither usable nor properly cleaned up.
+
+    Two kinds of leftovers are reported:
+
+    - ``unresponsive``: a daemon process is still running but does not answer
+      its HTTP API anymore, so no client can attach to it or enqueue into it.
+    - ``stale``: a state file is still there while its daemon is gone, which
+      keeps advertising a session that no longer exists.
+
+    These are deliberately excluded from :func:`list_daemons`, which only
+    reports sessions that actually answer.
+    """
+    zombies = []
+    seen = set()
+
+    def _add(zombie):
+        key = _zombie_key(zombie)
+        if key in seen:
+            return
+        seen.add(key)
+        zombies.append(zombie)
+
+    # Running daemon processes that stopped answering.
+    for candidate in _iter_system_daemon_candidates() or []:
+        state = {}
+        state_file = candidate.get("state_file")
+        if state_file:
+            loaded_state = _read_json_file(state_file)
+            if isinstance(loaded_state, dict):
+                state.update(loaded_state)
+
+        if state.get("host") in (None, "") and candidate.get("host") is not None:
+            state["host"] = candidate["host"]
+        if state.get("port") is None and candidate.get("port") is not None:
+            state["port"] = candidate["port"]
+        if state.get("session_name") in (None, "") and candidate.get("session_name") is not None:
+            state["session_name"] = str(candidate["session_name"])
+        if state.get("pid") is None:
+            state["pid"] = int(candidate["pid"])
+        state["state_file"] = state_file
+
+        if candidate.get("workspace_root") is not None:
+            state["workspace_root"] = os.path.realpath(candidate["workspace_root"])
+        else:
+            state["workspace_root"] = os.path.realpath(workspace_root or os.getcwd())
+
+        if _daemon_is_alive_with_retries(state):
+            continue
+
+        state["uptime_s"] = _daemon_uptime_str(state)
+        state["status"] = "unresponsive"
+        state["process_pid"] = int(candidate["pid"])
+        _decorate_session_fields(state)
+        _add(state)
+
+    # State files left behind by daemons that are gone.
+    paths = get_daemon_paths(workspace_root)
+    for state_file in _iter_state_files(paths):
+        state = _read_json_file(state_file)
+        if not isinstance(state, dict):
+            state = {}
+        state = dict(state)
+        state["state_file"] = state_file
+        state.setdefault("workspace_root", paths["workspace_root"])
+
+        if _pid_is_running(state.get("pid")):
+            continue
+        if daemon_is_alive(state, timeout=0.6):
+            continue
+
+        state["uptime_s"] = _daemon_uptime_str(state)
+        state["status"] = "stale"
+        _decorate_session_fields(state)
+        _add(state)
+
+    zombies = sorted(zombies, key=_daemon_sort_key)
+    return _filter_daemons_by_session_selector(zombies, session)
+
+
+def kill_zombie_daemons(workspace_root=None, session=None):
+    """Kill unresponsive daemon processes and remove leftover state files.
+
+    Returns a dict with ``total``, ``killed`` and ``failed`` (the zombie
+    descriptors that survived).
+    """
+    workspace_root = detect_workspace_root(workspace_root)
+    zombies = list_zombie_daemons(workspace_root=workspace_root, session=session)
+
+    killed = 0
+    failed = []
+
+    for zombie in zombies:
+        pid = zombie.get("process_pid", zombie.get("pid"))
+
+        if _pid_is_running(pid):
+            try:
+                _terminate_pid(pid)
+            except Exception:
+                pass
+
+            deadline = time.time() + 2.0
+            while time.time() < deadline and _pid_is_running(pid):
+                time.sleep(0.1)
+
+            if _pid_is_running(pid):
+                _kill_pid(pid)
+                deadline = time.time() + 2.0
+                while time.time() < deadline and _pid_is_running(pid):
+                    time.sleep(0.1)
+
+        if _pid_is_running(pid):
+            failed.append(zombie)
+            continue
+
+        cleanup_root = zombie.get("workspace_root", workspace_root)
+        try:
+            _delete_state_files_for_daemon(get_daemon_paths(cleanup_root), zombie)
+        except Exception:
+            pass
+        killed += 1
+
+    _cleanup_workspace_daemon_dir_if_empty(workspace_root)
+
+    return {"total": len(zombies), "killed": killed, "failed": failed}
