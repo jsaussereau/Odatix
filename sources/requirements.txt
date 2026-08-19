@@ -4,6 +4,7 @@ argcomplete
 dash<4.0
 Flask
 numpy
+scipy
 pandas
 plotly
 waitress
