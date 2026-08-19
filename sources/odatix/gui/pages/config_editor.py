@@ -1275,7 +1275,8 @@ def rules_of(domain):
     return {config.filename: config for config in domain.resolve_configurations() if config.from_rules}
 
 
-def unsaved_rule_configurations(names, templates, stores, field_values, domain_metadata, only=None):
+def unsaved_rule_configurations(names, templates, stores, field_values, domain_metadata, only=None,
+                                constraint_texts=()):
     """
     Generated configurations currently described by unsaved rule fields.
     `only` restricts the work to a set of domain uuids: expanding a rule space
@@ -1295,9 +1296,12 @@ def unsaved_rule_configurations(names, templates, stores, field_values, domain_m
         variables = config_rules.variables_of(field_values, indices.get(domain_uuid, []))
         name = names[i] if i < len(names) else ""
         template = templates[i] if i < len(templates) else ""
+        constraints = config_rules.constraints_of_text(
+            constraint_texts[i] if i < len(constraint_texts or ()) else ""
+        )
         saved = stores[i] if i < len(stores) and stores[i] else config_rules.rules_settings("", "", {})
         current = config_rules.form_rules_settings(
-            name, template, variables, names_by_uuid.get(domain_uuid), saved,
+            name, template, variables, names_by_uuid.get(domain_uuid), saved, constraints=constraints,
         )
         if current == saved:
             continue
@@ -1305,6 +1309,7 @@ def unsaved_rule_configurations(names, templates, stores, field_values, domain_m
         space = config_rules.effective_rules(
             name, template, variables,
             blacklist=config_rules.configuration_blacklist(saved),
+            constraints=constraints,
         )
         if not space.generates:
             continue
@@ -2194,6 +2199,7 @@ dash.clientside_callback(
     Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     *config_rules.variable_inputs(),
     # Card rows are rebuilt after a blacklist toggle. Metadata must be an input
@@ -2210,7 +2216,7 @@ def update_preview_all(
     search, param_domains_update,
     params_enables, target_files, start_delims, stop_delims, settings_list,
     content_debounce, config_contents_list,
-    selected_configs, rule_names, rule_templates, rule_stores, *rest
+    selected_configs, rule_names, rule_templates, rule_constraints, rule_stores, *rest
 ):
     rule_field_values = rest[:len(config_rules.FIELD_PATTERNS)]
     config_metadata = rest[len(config_rules.FIELD_PATTERNS)] if len(rest) > len(config_rules.FIELD_PATTERNS) else []
@@ -2254,7 +2260,7 @@ def update_preview_all(
 
     rule_configurations_by_domain = unsaved_rule_configurations(
         rule_names, rule_templates, rule_stores, rule_field_values, domain_metadata,
-        only=stale_domains,
+        only=stale_domains, constraint_texts=rule_constraints,
     )
 
     # Generate previews for each domain

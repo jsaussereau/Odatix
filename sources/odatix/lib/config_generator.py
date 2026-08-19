@@ -46,6 +46,54 @@ legacy_variables_parent = "generate_configurations_settings"
 #: Key holding the name and the template the configurations are built from.
 configurations_key = "configurations"
 
+#: Key holding the constraints, next to the name and the template.
+constraints_key = "constraints"
+
+
+def parse_constraints(rules):
+  """
+  The constraints declared next to a name and a template, normalized.
+
+  A constraint is a boolean expression over the variables that a point has to
+  satisfy to exist at all. It is written either as the expression alone, or as
+  a mapping carrying the message to show when it is what rules a point out::
+
+      constraints:
+        - "$p_rf_sp <= $p_rf_read_buf"
+        - expr: "$width >= $depth"
+          message: "the word has to be at least as wide as the address"
+
+  Args:
+      rules (dict): the block the name and the template are read from.
+
+  Returns:
+      list: ``[(expression, message), ...]``, in declaration order. Empty when
+      nothing is declared.
+  """
+  if not isinstance(rules, dict):
+    return []
+  declared = rules.get(constraints_key)
+  if declared is None:
+    return []
+  if not isinstance(declared, (list, tuple)):
+    declared = [declared]
+
+  constraints = []
+  for entry in declared:
+    if isinstance(entry, dict):
+      expression = entry.get("expr", entry.get("expression", ""))
+      message = entry.get("message", "")
+    elif isinstance(entry, (list, tuple)):
+      # Already normalized, as this function hands them back.
+      expression = entry[0] if entry else ""
+      message = entry[1] if len(entry) > 1 else ""
+    else:
+      expression, message = entry, ""
+    expression = str(expression).strip() if expression is not None else ""
+    if expression:
+      constraints.append((expression, str(message).strip() if message else ""))
+  return constraints
+
 
 def get_variables(settings):
   """
@@ -152,6 +200,9 @@ class ConfigGenerator:
     self.template = ""
     self.name_template = ""
     self.variables = {}
+    self.constraints = []
+    #: Constraints whose evaluation failed, reported once instead of per point.
+    self._broken_constraints = set()
     self.valid = False
     self.enabled = False
     self.error_messages = []
@@ -216,6 +267,7 @@ class ConfigGenerator:
     if configurations_defined and isinstance(configurations, dict) and configurations.get("name"):
       self.name_template, name_template_defined = get_from_dict("name", configurations, self.yaml_file, parent=configurations_key, type=str, behavior=Key.MANTADORY, script_name=script_name)
       self.template, template_defined = get_from_dict("template", configurations, self.yaml_file, parent=configurations_key, default_value="", silent=True, script_name=script_name)
+      self.constraints = parse_constraints(configurations)
       if not variables_defined:
         get_from_dict("variables", data, self.yaml_file, type=dict, behavior=Key.MANTADORY, script_name=script_name)
       self.valid = name_template_defined and variables_defined
@@ -223,6 +275,7 @@ class ConfigGenerator:
     elif generate_settings_defined:
       self.template, template_defined = get_from_dict("template", generate_settings, self.yaml_file, parent="generate_configurations_settings", behavior=Key.MANTADORY, script_name=script_name)
       self.name_template, name_template_defined = get_from_dict("name", generate_settings, self.yaml_file, parent="generate_configurations_settings", type=str, behavior=Key.MANTADORY, script_name=script_name)
+      self.constraints = parse_constraints(generate_settings)
       if not variables_defined:
         # Report the missing key where it is now expected: at the root.
         get_from_dict("variables", data, self.yaml_file, type=dict, behavior=Key.MANTADORY, script_name=script_name)
@@ -241,13 +294,15 @@ class ConfigGenerator:
 
     self.enabled = generate_enabled
 
-  def evaluate_expression(self, expr, values_map):
+  def evaluate_expression(self, expr, values_map, silent=False):
     """
     Evaluate a mathematical expression using the current values of variables.
 
     Args:
         expr (str): The expression to evaluate.
         values_map (dict): A dictionary containing values for referenced variables.
+        silent (bool): If True, do not report a failed evaluation -- for a
+            caller that reports it itself, once instead of per point.
 
     Returns:
         Any: The result of evaluating the expression.
@@ -261,8 +316,47 @@ class ConfigGenerator:
     try:
       return eval(expr, {"__builtins__": None}, safe_env)
     except Exception as e:
-      printc.error(f"Failed to evaluate expression '{expr}': {e}", script_name)
+      if not silent:
+        printc.error(f"Failed to evaluate expression '{expr}': {e}", script_name)
       return None
+
+  def satisfies(self, value_map):
+    """
+    Whether an assignment of the variables satisfies every constraint.
+
+    A point that does not is not *hidden*, it does not exist: the constraints
+    say which combinations mean something, so a rejected one is left out of the
+    space the way an axis leaves out a value it does not offer. This is what
+    tells them apart from the configuration blacklist, which names points that
+    exist but are not run.
+
+    An expression that cannot be evaluated is reported once and treated as
+    unsatisfied, so that a typo empties the space loudly instead of quietly
+    keeping every point.
+
+    Args:
+        value_map (dict): the value of each variable, derived ones included.
+
+    Returns:
+        bool: True when the point belongs to the space.
+    """
+    for expression, message in self.constraints:
+      result = self.evaluate_expression(expression, value_map, silent=True)
+      if result is None:
+        if expression not in self._broken_constraints:
+          self._broken_constraints.add(expression)
+          printc.error(
+            f'Constraint "{expression}" could not be evaluated, in "{self.yaml_file}". '
+            'No configuration will be generated as long as it cannot be.',
+            script_name,
+          )
+        return False
+      if not result:
+        if self.debug:
+          detail = f" ({message})" if message else ""
+          printc.note(f'Constraint "{expression}" rejects {value_map}{detail}', script_name)
+        return False
+    return True
 
   def generate(self):
     """
@@ -444,11 +538,20 @@ class ConfigGenerator:
       value_map = {}
       for row in group_combo:
         value_map.update(row)
+      # Computed into a dict of its own, and merged only once the point is
+      # known to exist: a value a constraint rules out is not a value the
+      # variable takes, and the preview must not offer it.
+      point_values = {}
       for variable, config in self.variables.items():
         value_type, _ = get_from_dict("type", config, self.yaml_file, parent=variable, behavior=Key.MANTADORY, script_name=script_name)
         if value_type in combo_types:
-          self._apply_derived_variable(variable, config, value_map, computed_values)
+          self._apply_derived_variable(variable, config, value_map, point_values)
 
+      if not self.satisfies(value_map):
+        continue
+
+      for variable, values in point_values.items():
+        computed_values.setdefault(variable, set()).update(values)
       points.append(self.render_point(value_map))
 
     if self.debug:
@@ -542,13 +645,17 @@ class ConfigGenerator:
         assignment (dict): the value of each dimension variable.
 
     Returns:
-        GeneratedPoint: the name, the values and the rendered text.
+        GeneratedPoint: the name, the values and the rendered text, or None
+        when the assignment does not satisfy the constraints -- that point is
+        not part of the space.
     """
     value_map = dict(assignment)
     for variable, config in self.variables.items():
       value_type = config.get("type") if isinstance(config, dict) else None
       if value_type in combo_types:
         self._apply_derived_variable(variable, config, value_map, {})
+    if not self.satisfies(value_map):
+      return None
     return self.render_point(value_map)
 
   def _variable_group(self, variable):

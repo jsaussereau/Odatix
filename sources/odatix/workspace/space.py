@@ -52,7 +52,7 @@ import os
 from natsort import natsorted
 
 import odatix.lib.printc as printc
-from odatix.lib.config_generator import ConfigGenerator, duplicate_point_names, get_variables
+from odatix.lib.config_generator import ConfigGenerator, duplicate_point_names, get_variables, parse_constraints
 from odatix.workspace.errors import WorkspaceError
 
 __all__ = [
@@ -351,7 +351,8 @@ class ParameterSpace(object):
     """
 
     def __init__(self, variables, name="", template=None, source="", debug=False,
-                 implicit_name=False, implicit_template=False, blacklist=()):
+                 implicit_name=False, implicit_template=False, blacklist=(),
+                 constraints=()):
         #: ``{variable name: declaration}``, as written in the settings file.
         self.variables = dict(variables) if variables else {}
         #: Template the name of a configuration is built from.
@@ -367,6 +368,12 @@ class ParameterSpace(object):
         self.implicit_template = implicit_template
         #: Names the rules produce but that this domain does not run.
         self.blacklist = frozenset(str(name) for name in (blacklist or ()))
+        #: Boolean expressions over the variables a point has to satisfy. A
+        #: point that does not is not part of the space at all -- unlike a
+        #: blacklisted one, which exists but is not run.
+        #: Normalized as ``[(expression, message), ...]``, whichever of the
+        #: two forms they were written in.
+        self.constraints = parse_constraints({"constraints": list(constraints or ())})
         #: Where this came from, for error messages.
         self.source = source
         self.debug = debug
@@ -397,6 +404,11 @@ class ParameterSpace(object):
                 },
                 "variables": self.variables,
             }
+            if self.constraints:
+                data[CONFIGURATIONS_KEY]["constraints"] = [
+                    {"expr": expression, "message": message}
+                    for expression, message in self.constraints
+                ]
             self._generator = ConfigGenerator(data=data, silent=True, debug=self.debug)
         return self._generator
 
@@ -470,6 +482,10 @@ class ParameterSpace(object):
         This is what a budget is compared against: a space of ten million
         points is counted in the time it takes to multiply a few numbers, and
         that number is precisely the reason not to sweep it.
+
+        Constraints are not applied here -- they are known only once a point is
+        assembled -- so this is an upper bound as soon as there is one. What
+        the space really holds is :meth:`count`, which enumerates.
         """
         total = 1
         for axis in self.axes():
@@ -906,9 +922,12 @@ def config_set_rules(settings, source="", implicit=False):
         blacklist = rules.get("blacklist", ())
         if not isinstance(blacklist, (list, tuple, set)):
             blacklist = ()
-        return declared(str(rules.get("name", "") or ""), template, written=True, blacklist=blacklist)
+        return declared(
+            str(rules.get("name", "") or ""), template, written=True,
+            blacklist=blacklist, constraints=parse_constraints(rules),
+        )
 
-    def declared(name, template, written=False, blacklist=()):
+    def declared(name, template, written=False, blacklist=(), constraints=()):
         """
         The rules, with what a domain leaves unsaid filled in.
 
@@ -930,6 +949,7 @@ def config_set_rules(settings, source="", implicit=False):
             implicit_name=implied_name,
             implicit_template=implied_template,
             blacklist=blacklist,
+            constraints=constraints,
         )
 
     rules = settings.get(CONFIGURATIONS_KEY)
@@ -940,7 +960,7 @@ def config_set_rules(settings, source="", implicit=False):
         rules.get("enabled")
         or rules.get("name")
         or rules.get("template")
-        or (implicit and rules.get("blacklist"))
+        or (implicit and (rules.get("blacklist") or rules.get("constraints")))
     ):
         return space_of(rules)
 

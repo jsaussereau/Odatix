@@ -334,6 +334,14 @@ class Configurations(Settings):
         factory=list, type="list", style="flow", skip_if_empty=True,
         doc="Generated configuration names excluded from runs.",
     )
+    # A blacklisted configuration exists and is not run; a combination the
+    # constraints reject is not a configuration at all -- it is never named,
+    # never counted and never shown.
+    constraints = Setting(
+        factory=list, type="list", skip_if_empty=True,
+        doc="Boolean expressions over the variables, e.g. \"${a} <= ${b}\". "
+            "A combination that does not satisfy them all is not part of the domain.",
+    )
 
 
 class ConfigGeneration(Settings):

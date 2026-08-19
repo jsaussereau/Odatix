@@ -503,7 +503,14 @@ class Campaign(object):
                 break
             for genome in proposed:
                 design = self.space.design(genome)
-                if design is None or design.genome in self.seen:
+                if design is None:
+                    # The genome names nothing runnable -- a configuration the
+                    # domain blacklists, or a combination its constraints rule
+                    # out. Marked as seen so a constrained space is not asked
+                    # about the same hole over and over.
+                    self.seen.add(self.space.clamp(genome))
+                    continue
+                if design.genome in self.seen:
                     continue
                 self.seen.add(design.genome)
                 designs.append(design)

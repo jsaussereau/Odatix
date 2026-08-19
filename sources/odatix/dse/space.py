@@ -159,7 +159,8 @@ class DomainSpace(object):
         Returns:
             tuple: ``{domain: configuration}`` and ``{variable: value}``, or
             (None, {}) when the choice names nothing runnable -- a
-            configuration the domain blacklists.
+            configuration the domain blacklists, or a combination its
+            constraints rule out.
         """
         if self.kind == SearchAxis.CONFIGURATION:
             if not self.axes:
@@ -763,7 +764,8 @@ class ArchitectureSpace(object):
 
         Returns:
             Design: the design, or None when the genome names a configuration
-            the architecture does not run (one its domain blacklists).
+            the architecture does not run -- one its domain blacklists, or a
+            combination the constraints of that domain rule out.
         """
         genome = self.clamp(genome)
         # What the selection fixed is part of every design: it is not searched,

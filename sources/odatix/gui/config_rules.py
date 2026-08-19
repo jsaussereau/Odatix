@@ -53,6 +53,7 @@ from odatix.gui.icons import icon
 from odatix.gui.utils import get_instance_collection_context
 import odatix.lib.hard_settings as hard_settings
 from odatix.workspace.domains import ParameterDomain
+from odatix.lib.config_generator import parse_constraints
 from odatix.workspace.configs import CONFIGURATIONS_KEY
 from odatix.workspace.configs import CONFIG_EXTENSION
 from odatix.workspace.space import (
@@ -75,6 +76,8 @@ PAGE_PATH = "/config_editor"
 #: What a domain with no rules yet starts from, once the user asks for rules.
 DEFAULT_NAME = "${var}"
 DEFAULT_TEMPLATE = "${var}"
+#: Shown in the empty constraints field: what one looks like, not one that is used.
+DEFAULT_CONSTRAINTS = "${var} <= ${other_var}"
 DEFAULT_VARIABLE_SETTINGS = {"type": "range", "settings": {"from": 1, "to": 4, "step": 1}}
 
 #: What a variable may be called, so that ``${name}`` resolves to it.
@@ -112,7 +115,26 @@ def configuration_blacklist(settings):
     return [str(name) for name in blacklist if str(name)]
 
 
-def rules_settings(name, template, variables, enabled=False, blacklist=()):
+def configuration_constraints(settings):
+    """The constraints saved rules put on the values of their variables."""
+    configurations = (settings or {}).get(CONFIGURATIONS_KEY, {})
+    if not isinstance(configurations, dict):
+        return []
+    return [expression for expression, _message in parse_constraints(configurations)]
+
+
+def constraints_text(constraints):
+    """The constraints as the field shows them: one expression per line."""
+    return "\n".join(constraints or ())
+
+
+def constraints_of_text(text):
+    """The constraints a field holds, blank lines and comments left out."""
+    lines = str(text or "").splitlines()
+    return [line.strip() for line in lines if line.strip() and not line.strip().startswith("#")]
+
+
+def rules_settings(name, template, variables, enabled=False, blacklist=(), constraints=()):
     """The settings block a domain writes to say how it describes its configurations."""
     configurations = {
         "name": name or "",
@@ -122,6 +144,8 @@ def rules_settings(name, template, variables, enabled=False, blacklist=()):
         configurations["enabled"] = True
     if blacklist:
         configurations["blacklist"] = list(blacklist)
+    if constraints:
+        configurations["constraints"] = list(constraints)
     return {
         CONFIGURATIONS_KEY: configurations,
         "variables": variables,
@@ -134,7 +158,7 @@ def configuration_defaults_enabled(settings):
     return isinstance(configurations, dict) and bool(configurations.get("enabled"))
 
 
-def form_rules_settings(name, template, variables, domain_name, saved=None):
+def form_rules_settings(name, template, variables, domain_name, saved=None, constraints=()):
     """The rules the form currently means, including the main-domain defaults."""
     enabled = configuration_defaults_enabled(saved) or (
         domain_name == hard_settings.main_parameter_domain
@@ -145,17 +169,19 @@ def form_rules_settings(name, template, variables, domain_name, saved=None):
     return rules_settings(
         name, template, variables, enabled=enabled,
         blacklist=configuration_blacklist(saved),
+        constraints=constraints,
     )
 
 
-def effective_rules(name, template, variables, implicit=True, blacklist=()):
+def effective_rules(name, template, variables, implicit=True, blacklist=(), constraints=()):
     """
     The rules as Odatix reads them, from what the form holds: a domain of a
     single variable says everything by declaring it, and both templates are
     then filled in for it (see :func:`implicit_template`).
     """
     return config_set_rules(
-        rules_settings(name, template, variables, blacklist=blacklist), implicit=implicit,
+        rules_settings(name, template, variables, blacklist=blacklist, constraints=constraints),
+        implicit=implicit,
     )
 
 
@@ -214,7 +240,7 @@ def add_variable_card(domain_uuid):
     )
 
 
-def rules_form(domain_uuid, name, template, variables=None, implicit=True):
+def rules_form(domain_uuid, name, template, variables=None, implicit=True, constraints=()):
     """The two templates: what a configuration is called, and what it writes."""
     # A domain does not have to write either of them down: the placeholder is
     # then what Odatix would actually use, not an example.
@@ -258,11 +284,26 @@ def rules_form(domain_uuid, name, template, variables=None, implicit=True):
                     style={"width": "calc(100% - 12px)", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
                 ),
             ], style={"marginBottom": "12px"}),
+            html.Div([
+                html.Label("Constraints"),
+                ui.tooltip_icon(
+                    "One boolean expression per line, over the variables of this domain (e.g. ${p_rf_sp} <= ${p_rf_read_buf}). "
+                    "A combination of values that does not satisfy every one of them is not a configuration of this domain at all: "
+                    "unlike a blacklisted configuration, it is never named and never shown. Lines starting with '#' are ignored."
+                ),
+                dcc.Textarea(
+                    id={"type": "cfg-gen-constraints", "domain_uuid": domain_uuid},
+                    value=constraints_text(constraints),
+                    className="auto-resize-textarea odatix-command-field",
+                    placeholder=DEFAULT_CONSTRAINTS,
+                    style={"width": "calc(100% - 12px)", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
+                ),
+            ], style={"marginBottom": "12px"}),
         ],
     )
 
 
-def advanced_section(domain_uuid, name, template, variables, implicit, open=False):
+def advanced_section(domain_uuid, name, template, variables, implicit, open=False, constraints=()):
     """
     The two templates, behind a fold: a domain says everything by declaring its
     variables, and only a domain that names or writes its configurations some
@@ -297,7 +338,7 @@ def advanced_section(domain_uuid, name, template, variables, implicit, open=Fals
                         "how a configuration is named and what it contains",
                         style={"opacity": "0.65", "fontSize": "13px"},
                     ),
-                    rules_form(domain_uuid, name, template, variables, implicit),
+                    rules_form(domain_uuid, name, template, variables, implicit, constraints),
                 ],
                 id={"type": "cfg-advanced-panel", "domain_uuid": domain_uuid},
                 style={"marginTop": "12px"} if open else Style.hidden,
@@ -314,11 +355,14 @@ def domain_advanced_section(domain_uuid, settings, domain_name=None):
     which is the one place they belong.
     """
     name, template, variables = rules_of_settings(settings)
+    constraints = configuration_constraints(settings)
     return advanced_section(
         domain_uuid, name, template, variables, True,
-        # Opened by itself only when it holds something: templates already
-        # written. Empty, it stays folded, main domain included.
-        open=bool(name or template),
+        # Opened by itself only when it holds something: templates or
+        # constraints already written. Empty, it stays folded, main domain
+        # included.
+        open=bool(name or template or constraints),
+        constraints=constraints,
     )
 
 
@@ -401,6 +445,7 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None):
                     name, template, variables,
                     enabled=configuration_defaults_enabled(settings),
                     blacklist=configuration_blacklist(settings),
+                    constraints=configuration_constraints(settings),
                 ),
             ),
             # Bumped on every save, so the configurations of the domain are read again.
@@ -709,6 +754,7 @@ def _card_name(card):
     Output({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "placeholder"),
     Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     # The preview cards follow the configuration cards below them, layout
     # included: they are the same list, one part of it not written yet.
@@ -724,7 +770,7 @@ def _card_name(card):
     State({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
 )
-def update_rules_preview(names, templates, stores, layout, *rest):
+def update_rules_preview(names, templates, constraint_texts, stores, layout, *rest):
     """
     What the rules of each domain currently say: the values of every variable,
     how many configurations they add up to, and -- while they differ from what
@@ -761,17 +807,20 @@ def update_rules_preview(names, templates, stores, layout, *rest):
     for i, domain_uuid in enumerate(uuids):
         name = names[i] if i < len(names) else ""
         template = templates[i] if i < len(templates) else ""
+        constraints = constraints_of_text(constraint_texts[i] if i < len(constraint_texts) else "")
         variables = variables_of(field_values, indices.get(domain_uuid, []))
         saved = stores[i] if i < len(stores) and stores[i] else rules_settings("", "", {})
         blacklist = configuration_blacklist(saved)
-        space = effective_rules(name, template, variables, blacklist=blacklist)
+        space = effective_rules(name, template, variables, blacklist=blacklist, constraints=constraints)
         placeholders.append((
             implicit_config_name(variables),
             implicit_template(variables),
         ))
         # Once the form says what the file says, the configuration cards below
         # are the real thing: previewing them again would only be noise.
-        current = form_rules_settings(name, template, variables, domain_names.get(domain_uuid), saved)
+        current = form_rules_settings(
+            name, template, variables, domain_names.get(domain_uuid), saved, constraints=constraints,
+        )
         unsaved = current != saved
         held = held_configurations(config_metadata, domain_uuid)
         if not space.generates:
@@ -970,11 +1019,12 @@ def variable_values_inline(values):
     Output({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "data-tooltip"),
     Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     *variable_inputs(),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
 )
-def update_save_rules_button(names, templates, stores, *rest):
+def update_save_rules_button(names, templates, constraint_texts, stores, *rest):
     """
     Light up the save button of a domain whose rules differ from what its
     settings file says. The page-wide save button of the configuration editor
@@ -1001,6 +1051,7 @@ def update_save_rules_button(names, templates, stores, *rest):
             variables_of(field_values, indices.get(domain_uuid, [])),
             names_by_uuid.get(domain_uuid),
             saved,
+            constraints=constraints_of_text(constraint_texts[i] if i < len(constraint_texts) else ""),
         )
         if current != saved:
             classes.append(enabled)
@@ -1018,6 +1069,7 @@ def update_save_rules_button(names, templates, stores, *rest):
     Input({"page": PAGE_PATH, "action": "save-all"}, "n_clicks"),
     State({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
     State({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL}, "value"),
     *variable_states(),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
@@ -1026,7 +1078,7 @@ def update_save_rules_button(names, templates, stores, *rest):
     State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
-def save_rules(n_clicks, save_all_clicks, names, templates, *rest):
+def save_rules(n_clicks, save_all_clicks, names, templates, constraint_texts, *rest):
     """
     Write the rules of a domain, in the form Odatix reads now -- a
     "configurations" block and the variables at the root of the settings file.
@@ -1075,6 +1127,7 @@ def save_rules(n_clicks, save_all_clicks, names, templates, *rest):
             variables_of(field_values, indices.get(domain_uuid, [])),
             names_by_uuid.get(domain_uuid),
             saved,
+            constraints=constraints_of_text(constraint_texts[index] if index < len(constraint_texts) else ""),
         )
         if settings == saved:
             continue
