@@ -410,10 +410,6 @@ class SimulationHandler:
                 return None
               else:
                 architecture.param_target_filename = param_target_filename
-          else:
-            # No deprecated block: the architecture's own parameter domains are the only
-            # source of substitution, adjusted by "param_domains" below.
-            architecture.use_parameters = False
 
           # get override_parameters (optional, defaults to no override)
           try:
@@ -513,6 +509,18 @@ class SimulationHandler:
               # "_settings.yml": read it here, so the rest of this reads one
               # mapping whichever file it was written in.
               domain_overrides = sim_architectures.domain_settings(domain_overrides, source_sim_dir)
+
+              # "__main__" names the architecture's own substitution (its configurations),
+              # which is not one of its "param_domains": it is described by the architecture
+              # itself. The entry inherits from it whatever it does not say, and "combine"
+              # says whether the architecture's own substitution still happens.
+              if domain_name == hard_settings.main_parameter_domain:
+                if sim_architectures.combine_mode(domain_overrides) != sim_architectures.COMBINE_BOTH:
+                  architecture.use_parameters = False
+                domain_overrides = dict(domain_overrides)
+                domain_overrides.setdefault('start_delimiter', architecture.start_delimiter)
+                domain_overrides.setdefault('stop_delimiter', architecture.stop_delimiter)
+                domain_overrides.setdefault('param_target_file', architecture.param_target_filename)
 
               existing_domain = next((pd for pd in architecture.param_domains if pd.domain == domain_name), None)
 
