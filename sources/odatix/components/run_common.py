@@ -279,15 +279,23 @@ def normalize_run_settings(overwrite, noask, exit_when_done, log_size_limit, nb_
     return overwrite, ask_continue, exit_when_done, log_size_limit, nb_jobs
 
 
-def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, script_name=None):
+def confirm_valid_jobs(valid_count, ask_continue, ask_to_continue_callback, script_name=None, plan=None):
     if valid_count > 0:
         if ask_continue:
             from odatix.lib import printc
 
             printc.bold("\nTotal: " + str(valid_count))
             ask_to_continue_callback()
-    else:
-        raise SystemExit(-1)
+        return
+
+    if plan is not None:
+        from odatix.lib.run_report import Category
+        from odatix.run.errors import NOTHING_TO_RUN
+
+        counts = plan.counts()
+        if counts.get(Category.CACHED, 0) and not counts.get(Category.ERROR, 0):
+            raise SystemExit(NOTHING_TO_RUN)
+    raise SystemExit(-1)
 
 
 def settle_tool_checks(tool_checks, tool_check_sink=None):

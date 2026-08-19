@@ -579,7 +579,7 @@ def check_settings(
 
     plan.print_summary(noun="workflows")
 
-    confirm_valid_jobs(plan.run_count(), ask_continue, ask_to_continue, script_name=script_name)
+    confirm_valid_jobs(plan.run_count(), ask_continue, ask_to_continue, script_name=script_name, plan=plan)
 
     print()
 

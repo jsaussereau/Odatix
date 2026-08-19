@@ -261,7 +261,7 @@ def check_settings(
     pnr_handler.print_summary()
 
     settle_tool_checks([context["tool_check"]], tool_check_sink)
-    confirm_valid_jobs(pnr_handler.get_valid_arch_count(), context["ask_continue"], ask_to_continue, script_name=script_name)
+    confirm_valid_jobs(pnr_handler.get_valid_arch_count(), context["ask_continue"], ask_to_continue, script_name=script_name, plan=pnr_handler.plan)
 
     print()
 

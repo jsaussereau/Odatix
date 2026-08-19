@@ -287,7 +287,7 @@ def check_settings(
     # print checklist summary
     sim_handler.print_summary()
 
-    confirm_valid_jobs(sim_handler.get_valid_sim_count(), ask_continue, ask_to_continue, script_name=script_name)
+    confirm_valid_jobs(sim_handler.get_valid_sim_count(), ask_continue, ask_to_continue, script_name=script_name, plan=sim_handler.plan)
 
     print()
 

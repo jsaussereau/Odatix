@@ -52,8 +52,10 @@ def add_arguments(parser):
                         help="flow of that tool (repeatable: the search chooses)")
     parser.add_argument("-T", "--target", action="append", dest="targets",
                         help="target the evaluations run on (repeatable: the search chooses)")
+    parser.add_argument("-p", "--campaign", action="append", dest="campaigns",
+                        help="campaign to run (repeatable, overrides the settings file)")
     parser.add_argument("-a", "--architecture", action="append", dest="architectures",
-                        help="architecture to explore (repeatable, overrides the settings file)")
+                        help="architecture to explore (repeatable, overrides the campaign file)")
     parser.add_argument("-r", "--run", help="what evaluating one design runs (fmax_synthesis, ...)")
     parser.add_argument("-s", "--strategy", help="how the designs to evaluate are chosen "
                                                  "(genetic, random, exhaustive, bayesian)")
@@ -80,18 +82,17 @@ def add_arguments(parser):
 
 
 def apply_arguments(settings, args):
-    """What the command line says, on top of what the settings file says."""
-    for name in ("run", "nb_jobs"):
-        value = getattr(args, name, None)
-        if value:
-            settings[name] = value
-    # What runs a design is one name or several, and the command line says
-    # either the same way: a single "-t vivado" stays a plain name in the
-    # settings file the exploration writes for itself.
-    for setting, name in (("tool", "tools"), ("flow", "flows"), ("target", "targets")):
-        value = getattr(args, name, None)
-        if value:
-            settings[setting] = value[0] if len(value) == 1 else list(value)
+    """
+    What the command line says about the run, on top of what
+    "dse_settings.yml" says.
+
+    What it says about the campaigns themselves is applied to each of them (see
+    :func:`apply_campaign_arguments`): the two files answer two questions, and
+    a flag belongs to the one it changes.
+    """
+    value = getattr(args, "nb_jobs", None)
+    if value:
+        settings.nb_jobs = value
     # A number that came from a command line is a string, and the settings file
     # the exploration hands to its own jobs must say it as a number.
     if isinstance(settings.nb_jobs, str) and settings.nb_jobs.strip().isdigit():
@@ -100,14 +101,31 @@ def apply_arguments(settings, args):
         settings.overwrite = True
     if getattr(args, "noask", False):
         settings.ask_continue = False
+    if getattr(args, "campaigns", None):
+        settings.campaigns = list(args.campaigns)
+    return settings
+
+
+def apply_campaign_arguments(campaign, args):
+    """What the command line says about what is searched, on top of its file."""
+    value = getattr(args, "run", None)
+    if value:
+        campaign.run = value
+    # What runs a design is one name or several, and the command line says
+    # either the same way: a single "-t vivado" stays a plain name in the
+    # settings file the exploration writes for itself.
+    for setting, name in (("tool", "tools"), ("flow", "flows"), ("target", "targets")):
+        value = getattr(args, name, None)
+        if value:
+            campaign[setting] = value[0] if len(value) == 1 else list(value)
     if getattr(args, "architectures", None):
-        settings.architectures = list(args.architectures)
+        campaign.architectures = list(args.architectures)
 
     for name in ("strategy", "mode", "budget", "batch", "seed"):
         value = getattr(args, name, None)
         if value is not None:
-            settings.search[name] = value
-    return settings
+            campaign.search[name] = value
+    return campaign
 
 
 ######################################
@@ -154,7 +172,17 @@ def main(args, settings=None):
             sys.exit(-1)
         return EXIT_SUCCESS
 
-    exploration = Exploration(workspace, settings, session=session)
+    from odatix.dse.campaigns import CampaignNotFoundError, resolve_campaigns
+
+    try:
+        selected = resolve_campaigns(workspace, settings)
+    except CampaignNotFoundError as error:
+        printc.error(str(error), script_name)
+        sys.exit(-1)
+    for campaign in selected:
+        apply_campaign_arguments(campaign, args)
+
+    exploration = Exploration(workspace, settings, session=session, campaigns=selected)
     try:
         campaigns = exploration.check()
         if getattr(args, "check", False):
@@ -175,6 +203,7 @@ def main(args, settings=None):
         workspace, settings,
         session=session,
         detach=getattr(args, "detach", False),
-        architectures=[campaign.name for campaign in campaigns],
+        architectures=list(dict.fromkeys(campaign.name for campaign in campaigns)),
+        campaigns=selected,
     )
     return EXIT_SUCCESS

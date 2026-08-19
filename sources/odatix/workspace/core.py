@@ -74,6 +74,7 @@ PATH_SETTINGS = (
     ("analysis_settings_file", "DEFAULT_ANALYSIS_SETTINGS_FILE"),
     ("workflow_settings_file", "DEFAULT_WORKFLOW_SETTINGS_FILE"),
     ("dse_settings_file", "DEFAULT_DSE_SETTINGS_FILE"),
+    ("dse_campaign_path", "DEFAULT_DSE_CAMPAIGN_PATH"),
     ("derived_metrics_file", "DEFAULT_DERIVED_METRICS_FILE"),
 )
 
