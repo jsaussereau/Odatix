@@ -31,9 +31,29 @@ them, is the "architectures" block of "<simulation>/_settings.yml"::
           param_domains:
             width:
               param_target_file: "tb/tb_cordic.sv"
+            width:                            # the same domain, substituted a second time
+              combine: both                   # the architecture's substitution still applies
+              param_target_file: "tb/tb_top.sv"
+              param_dir: "tb_params"          # one configuration per value of the domain
           metrics_file: "_metrics_sv.yml"
 
       - Example_Cordic_vhdl        # runs on it, nothing to change
+
+What a "param_domains" entry substitutes is said either with "param_file" (the
+same parameters whichever configuration of the domain runs) or with "param_dir",
+a directory of the simulation holding one configuration per value of the domain
+-- ".txt" files, rules in its own "_settings.yml", or both, exactly like the
+configurations of a parameter domain of an architecture. Both together make
+"param_file" the default of the domain: the values the directory does not
+describe fall back to it.
+
+An entry named after a domain the architecture already has customizes what that
+domain substitutes. "combine" says how: "replace" (the default) means only the
+substitution described here is done, in place of the architecture's, while
+"both" leaves the architecture's substitution alone and does a second one -- the
+same domain written into the testbench as well as into the design, each with its
+own target file, delimiters and parameters, anything unsaid being inherited from
+the architecture's domain.
 
 An architecture that is listed with nothing under it is simply an architecture
 the simulation is meant to run on. Listing them is an indication, not a
@@ -51,7 +71,9 @@ their own way.
 """
 
 import fnmatch
+import os
 
+import odatix.workspace.space as space
 from odatix.workspace.selection import Message
 
 __all__ = [
@@ -62,6 +84,12 @@ __all__ = [
     "names",
     "settings_for",
     "to_yaml",
+    "COMBINE_REPLACE",
+    "COMBINE_BOTH",
+    "COMBINE_MODES",
+    "DOMAIN_SETTING_KEYS",
+    "combine_mode",
+    "resolve_param_file",
 ]
 
 
@@ -72,6 +100,136 @@ ARCHITECTURES_KEY = "architectures"
 # else under an entry is kept as it is, so a settings file is never truncated by
 # a version of Odatix that does not know a key yet.
 ARCH_SETTING_KEYS = ("param_domains", "metrics_file")
+
+#: What one entry of "param_domains" may hold. Anything else is left untouched,
+#: for the same reason as ARCH_SETTING_KEYS.
+DOMAIN_SETTING_KEYS = (
+    "use_parameters",
+    "param_target_file",
+    "start_delimiter",
+    "stop_delimiter",
+    "param_file",
+    "param_dir",
+    "domain_value",
+    "combine",
+)
+
+#: Only the substitution the simulation describes is done, in place of the one
+#: the architecture's domain describes.
+COMBINE_REPLACE = "replace"
+
+#: The architecture's substitution is done as usual, and the one the simulation
+#: describes is done as well: the same domain substituted in two places.
+COMBINE_BOTH = "both"
+
+#: What "both" used to be called, when it meant appending to the same
+#: substitution. Still read, so settings files written then keep working.
+COMBINE_ALIASES = {"append": COMBINE_BOTH, "add": COMBINE_BOTH}
+
+COMBINE_MODES = (COMBINE_REPLACE, COMBINE_BOTH)
+
+
+def combine_mode(overrides):
+    """
+    How one "param_domains" entry combines with what the architecture's domain
+    of the same name already substitutes: :data:`COMBINE_REPLACE` (the default,
+    the simulation's substitution instead of the architecture's) or
+    :data:`COMBINE_BOTH` (both substitutions done).
+
+    An unknown value falls back to replacing, which is what every simulation
+    written before this did.
+    """
+    if not isinstance(overrides, dict):
+        return COMBINE_REPLACE
+    value = str(overrides.get("combine", "") or "").strip().lower()
+    value = COMBINE_ALIASES.get(value, value)
+    return value if value in COMBINE_MODES else COMBINE_REPLACE
+
+
+def resolve_param_file(overrides, sim_dir, domain_value="", messages=None, where=""):
+    """
+    The file holding the parameters one "param_domains" entry substitutes.
+
+    A simulation says it two ways:
+
+    - ``param_file``, one file substituted whichever configuration of the domain
+      runs;
+    - ``param_dir``, a directory of the simulation holding one configuration per
+      value of the domain -- written as ".txt" files, described by rules in its
+      own "_settings.yml", or both, exactly like the configurations of a
+      parameter domain of an architecture.
+
+    Given both, the directory is looked up first and ``param_file`` is the
+    default: the configurations the directory does not describe fall back to it,
+    instead of being an error.
+
+    Args:
+        overrides (dict): what the entry holds.
+        sim_dir (str): directory of the simulation, the paths are relative to.
+        domain_value (str): the configuration of the domain being run, which is
+            what a "param_dir" is looked up by.
+        messages (list): filled with what the user should be told about it.
+        where (str): how to name the entry in those messages.
+
+    Returns:
+        str: path of the file, or None when the entry names none (or names one
+        that does not exist, a message then saying so).
+    """
+    messages = messages if messages is not None else []
+    where = where or '"param_domains"'
+
+    if not isinstance(overrides, dict):
+        return None
+
+    param_file = str(overrides.get("param_file", "") or "")
+    param_dir = str(overrides.get("param_dir", "") or "")
+
+    # The default the directory falls back to, resolved first so a missing file
+    # is reported whether or not the directory ends up covering the
+    # configuration being run.
+    default_path = None
+    if param_file:
+        default_path = os.path.join(sim_dir, param_file)
+        if not os.path.isfile(default_path):
+            messages.append(Message("error", 'There is no parameter file "' + default_path + '", referenced by ' + where))
+            return None
+
+    if not param_dir:
+        return default_path
+
+    directory = os.path.join(sim_dir, param_dir)
+    if not os.path.isdir(directory):
+        if default_path is not None:
+            return default_path
+        messages.append(Message("error", 'There is no parameter directory "' + directory + '", referenced by ' + where))
+        return None
+
+    if not domain_value:
+        if default_path is not None:
+            return default_path
+        messages.append(Message(
+            "error",
+            where + ' holds a "param_dir" but the domain has no configuration to look up in it',
+            ['Give "param_file" instead, or "domain_value" to name the configuration to run'],
+        ))
+        return None
+
+    # Files and rules alike, resolved on the fly: nothing has to be generated
+    # beforehand, the same way an architecture's configurations are read.
+    path = space.config_file(directory, domain_value)
+    if path is None:
+        # A "param_file" given alongside is the default of the domain: the
+        # configurations the directory does not describe use it.
+        if default_path is not None:
+            return default_path
+        known = space.resolved_names(directory)
+        messages.append(Message(
+            "error",
+            'There is no configuration "' + domain_value + '" in "' + directory + '", referenced by ' + where,
+            ['This directory holds: ' + (", ".join(known) if known else "nothing")],
+        ))
+        return None
+    return path
 
 
 class ArchitectureEntry(object):

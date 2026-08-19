@@ -31,12 +31,17 @@ to run (a Makefile, sources, ...).
 import os
 
 import odatix.lib.hard_settings as hard_settings
+import odatix.workspace.sim_architectures as sim_architectures
+from odatix.workspace.domains import ParameterDomain, ParameterDomainCollection
 from odatix.workspace.entries import Collection, Entry
 from odatix.workspace.metrics import METRICS_FILENAME, MetricsFile
 from odatix.workspace.settings import Setting, Settings, load_settings, save_settings
 from odatix.workspace.yaml_io import file_header
 
-__all__ = ["ProgressSettings", "SimulationSettings", "Simulation", "SimulationCollection"]
+__all__ = [
+    "ProgressSettings", "SimulationSettings", "Simulation", "SimulationCollection",
+    "SimulationDomainCollection",
+]
 
 
 ######################################
@@ -59,7 +64,11 @@ class SimulationSettings(Settings):
         factory=list, type="list", skip_if_empty=True, section="Architectures",
         doc="Architectures this simulation runs on, and what it changes for each of them: a list "
             "of names, a name optionally holding \"param_domains\" (per-domain parameter "
-            "substitution) and \"metrics_file\" (the metrics file to extract with, instead of "
+            "substitution: \"param_file\" for the same parameters whichever configuration runs, "
+            "\"param_dir\" for one configuration per value of the domain, and \"combine\" to say "
+            "whether the substitution described there is done instead of the architecture's or "
+            "as well as it) and "
+            "\"metrics_file\" (the metrics file to extract with, instead of "
             "\"_metrics.yml\"). Names accept wildcards, \"*\" standing for every architecture, and "
             "entries matching the architecture under test are applied in the order they are "
             "written. Listing an architecture is an indication, not a restriction: running the "
@@ -155,6 +164,36 @@ class Simulation(Entry):
         return self.save()
 
     ######################################
+    # Architectures and parameters
+    ######################################
+
+    @property
+    def architecture_entries(self):
+        """What this simulation says about the architectures it runs on."""
+        return sim_architectures.parse(self.settings.architectures)
+
+    @property
+    def param_dirs(self):
+        """
+        The configuration directories this simulation substitutes parameters
+        from, in the order they are written and without repetition.
+        """
+        directories = []
+        for entry in self.architecture_entries:
+            for overrides in entry.param_domains.values():
+                if not isinstance(overrides, dict):
+                    continue
+                param_dir = overrides.get("param_dir")
+                if param_dir and str(param_dir) not in directories:
+                    directories.append(str(param_dir))
+        return directories
+
+    @property
+    def domains(self):
+        """The configuration directories of this simulation, as parameter domains."""
+        return SimulationDomainCollection(self)
+
+    ######################################
     # Metrics
     ######################################
 
@@ -166,6 +205,36 @@ class Simulation(Entry):
     def metrics(self):
         """The metrics this simulation extracts from its runs."""
         return MetricsFile(self.metrics_path)
+
+
+class SimulationDomainCollection(ParameterDomainCollection):
+    """
+    The configuration directories a simulation substitutes parameters from.
+
+    A simulation has no parameter domains of its own: what it has are the
+    "param_dir" directories its architecture entries point at, one configuration
+    per value of the domain they override. They hold configuration files and
+    rules like an architecture's domains do, so they are presented as domains,
+    named by the path they are written as. There is no main domain: a simulation
+    directory is not a configuration directory.
+    """
+
+    def names(self):
+        return self.instance.param_dirs
+
+    def sub_names(self):
+        return self.names()
+
+    @property
+    def main(self):
+        """A simulation has no main domain."""
+        return None
+
+    def _make(self, name):
+        return ParameterDomain(self.instance, name)
+
+    def __repr__(self):
+        return "<SimulationDomainCollection {0}>".format(self.names())
 
 
 class SimulationCollection(Collection):

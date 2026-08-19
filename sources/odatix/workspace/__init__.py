@@ -121,6 +121,7 @@ from odatix.workspace.settings import Setting, Settings
 from odatix.workspace.simulations import (
     Simulation,
     SimulationCollection,
+    SimulationDomainCollection,
     SimulationSettings,
 )
 from odatix.workspace.targets import Target, TargetFile, TargetFileCollection
@@ -187,6 +188,7 @@ __all__ = [
     # Simulations
     "Simulation",
     "SimulationCollection",
+    "SimulationDomainCollection",
     "SimulationSettings",
     # Workflows
     "Workflow",
