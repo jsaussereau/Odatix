@@ -559,12 +559,12 @@ def metric_card(
                     card_field(
                         name, "metric", "Source Metric", value=metric_value, default_style=import_style,
                         placeholder="same name",
-                        tooltip="Metric to read in the source result. Defaults to the name of this metric.",
+                        tooltip="Metric to read in the source result. Defaults to the name of this metric. Use \"meta.<key>\" (for instance \"meta.frequency\") to read a meta field instead of a metric.",
                     ),
                     card_field(
                         name, "op", "Operation", value=op_value, default_style=operation_style,
                         placeholder="Cycles / Frequency",
-                        tooltip="Expression evaluated from the metrics the result already has, imported ones included.",
+                        tooltip="Expression evaluated from the metrics the result already has, imported ones included. \"meta.<key>\" (for instance \"meta.frequency\") reads a meta field of the result.",
                     ),
                     card_field(
                         name, "for", "For", value=for_value, placeholder="* or @cpus",

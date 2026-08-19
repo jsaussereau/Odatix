@@ -71,6 +71,28 @@ That default is refined per metric by ``match``:
                 dimension from the join;
   * ``map``:    the same dimension is not named the same on both sides.
 
+Reading the meta of a record
+----------------------------
+
+Not everything worth computing with is a metric: the frequency a custom
+frequency synthesis ran at, the target it ran on, or the value of a parameter
+domain live in the record's meta. ``meta.<key>`` reaches them, both as the
+metric an import copies and inside an operation::
+
+    derived_metrics:
+      Frequency:
+        from: custom_freq
+        metric: meta.frequency     # the meta of the *source* record
+        unit: MHz
+      Runtime:
+        type: operation
+        op: "Cycles / meta.frequency"   # the meta of the record being computed
+
+Values that read as numbers are converted, the others are left as text. A key
+the record does not carry makes the operation skip that record, exactly like an
+unknown metric name does. ``meta["Data width"]`` is the form to use for a key
+that is not a valid Python name.
+
 Steps
 -----
 
@@ -123,6 +145,13 @@ DERIVED_META_KEY = "_derived"
 
 KIND_IMPORT = "import"
 KIND_OPERATION = "operation"
+
+# Namespace giving access to the meta of a record, where a metric name is
+# expected. A record's frequency, target or parameter values live in its meta,
+# not in its metrics, so without this they would be unreachable from a derived
+# metric ("metric: meta.frequency", "op: Cycles / meta.frequency").
+META_NAMESPACE = "meta"
+META_PREFIX = META_NAMESPACE + "."
 
 # "from"/"apply_to" accept a record type, one of these aliases, or a list of both.
 TYPE_ALIASES = {
@@ -218,6 +247,61 @@ def matches_any(value, patterns):
 ######################################
 # Record dimensions
 ######################################
+
+
+def meta_key(name):
+  """
+  The meta key a "meta.<key>" reference names, or None for a plain metric name.
+  """
+  name = str(name)
+  return name[len(META_PREFIX):] if name.startswith(META_PREFIX) else None
+
+
+def meta_value(meta, key):
+  """
+  A meta value, as a number when it reads as one.
+
+  Meta is free-form text (a parameter domain value is whatever the user named
+  it), but the ones worth computing with — a frequency, a width — are numbers
+  written as strings. Anything else is returned untouched, so a comparison
+  against it still works in an operation.
+  """
+  value = meta.get(key)
+  if isinstance(value, bool) or not isinstance(value, str):
+    return value
+  try:
+    return int(value)
+  except ValueError:
+    pass
+  try:
+    return float(value)
+  except ValueError:
+    return value
+
+
+class MetaNamespace:
+  """
+  The ``meta`` name an operation expression sees: ``meta.frequency`` and
+  ``meta["Data width"]`` both read a meta key of the record being computed.
+
+  A missing key raises, like an unknown metric name does, which is what makes
+  the operation skip the record instead of yielding a wrong value.
+  """
+
+  def __init__(self, meta):
+    self._meta = meta
+
+  def __getattr__(self, key):
+    if key not in self._meta:
+      raise NameError('unknown meta key "' + key + '"')
+    return meta_value(self._meta, key)
+
+  def __getitem__(self, key):
+    return self.__getattr__(str(key))
+
+  def __contains__(self, key):
+    return str(key) in self._meta
+
 
 
 def base_configuration(meta):
@@ -337,6 +421,9 @@ class DerivedMetric:
     self.kind = str(definition.get("type", "")).strip().lower()
     self.op = definition.get("op")
     self.source_metric = str(definition.get("metric", self.name))
+    # "metric: meta.frequency" reads the source record's meta instead of its
+    # metrics. None when the metric is read from the metrics, as usual.
+    self.source_meta_key = meta_key(self.source_metric)
     self.unit = definition.get("unit")
     self.overwrite = bool(definition.get("overwrite", False))
     self.optional = bool(definition.get("optional", False))
@@ -659,10 +746,14 @@ def _clear_previous(record):
   return changed
 
 
-def _evaluate_operation(op, metrics, error_prefix=""):
+def _evaluate_operation(op, metrics, meta, error_prefix=""):
   from odatix.components.export_common import calculate_operation
 
-  return calculate_operation(op, metrics, error_if_missing=False, error_prefix=error_prefix)
+  # "meta" is a reserved name in an operation: a metric named that way would
+  # shadow the record's own meta, which is the more useful of the two here.
+  values = dict(metrics)
+  values[META_NAMESPACE] = MetaNamespace(meta)
+  return calculate_operation(op, values, error_if_missing=False, error_prefix=error_prefix)
 
 
 def _record_label(meta):
@@ -722,7 +813,10 @@ def apply_derived_metrics(config, records, units=None):
         dimensions = metric.source_dimensions(meta)
         if not metric.pin_satisfied(dimensions):
           continue
-        value = record.get("metrics", {}).get(metric.source_metric)
+        if metric.source_meta_key is not None:
+          value = meta_value(meta, metric.source_meta_key) if metric.source_meta_key in meta else None
+        else:
+          value = record.get("metrics", {}).get(metric.source_metric)
         if value is None:
           continue
         sources.append((dimensions, value))
@@ -756,7 +850,7 @@ def apply_derived_metrics(config, records, units=None):
         if not ok:
           continue
       else:
-        value = _evaluate_operation(metric.op, metrics, _record_label(meta))
+        value = _evaluate_operation(metric.op, metrics, meta, _record_label(meta))
         if value is None:
           continue
 
