@@ -213,7 +213,11 @@ def domain_names(root, entry):
     path = os.path.join(root, entry)
     if not os.path.isdir(path):
         return []
-    return natsorted([name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))])
+    return natsorted([
+        name for name in os.listdir(path)
+        if os.path.isdir(os.path.join(path, name))
+        and not name.startswith("_") and not name.startswith(".")
+    ])
 
 
 def expand(requests, root, messages=None):

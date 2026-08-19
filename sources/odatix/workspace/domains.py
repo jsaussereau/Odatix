@@ -436,7 +436,8 @@ class ParameterDomainCollection(object):
             return []
         return natsorted([
             entry for entry in os.listdir(path)
-            if os.path.isdir(os.path.join(path, entry)) and not entry.startswith("_")
+            if os.path.isdir(os.path.join(path, entry))
+            and not entry.startswith("_") and not entry.startswith(".")
         ])
 
     def names(self):

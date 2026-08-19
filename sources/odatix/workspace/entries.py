@@ -192,6 +192,7 @@ class Collection(object):
         return natsorted([
             entry for entry in os.listdir(path)
             if os.path.isdir(os.path.join(path, entry))
+            and not entry.startswith("_") and not entry.startswith(".")
         ])
 
     def __iter__(self):
