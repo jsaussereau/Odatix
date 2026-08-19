@@ -151,9 +151,12 @@ class GeneticSearch(Strategy):
         tournament (int): how many designs a parent is picked out of. Larger
             means a greedier search.
         population (int): how many designs the search keeps to look around.
-            Defaults to four batches' worth: enough that a batch cannot take
-            the whole population over on its own, small enough that a design on
-            the front stays likely to be picked.
+            Defaults to four batches' worth -- four times how many designs a
+            campaign runs at once, whether that is a batch's size in ``batch``
+            mode or the queue depth in ``async`` mode, both of which reach
+            this strategy the same way, as ``batch`` -- enough that no single
+            round of decisions can take the whole population over on its own,
+            small enough that a design on the front stays likely to be picked.
         elite (int): how many of the best designs are proposed again unchanged
             when they have not been evaluated yet. Kept at zero: Odatix never
             evaluates the same design twice, so the elite survives by being in
@@ -190,12 +193,24 @@ class GeneticSearch(Strategy):
         """
         Keep the best of the population, and nothing else.
 
-        The batch that was just observed and what was already there are ranked
-        together and cut down to size -- which is what NSGA-II calls the
-        environmental selection, and what keeps the search from losing its grip
-        as the archive grows.
+        What was observed since the last selection and what was already there
+        are ranked together and cut down to size -- which is what NSGA-II
+        calls the environmental selection, and what keeps the search from
+        losing its grip as the archive grows.
+
+        Trimmed once the overflow reaches a margin, not on every single design
+        observed: in ``async`` mode a wave is one design at a time, and
+        re-ranking the whole population -- a full non-dominated sort plus
+        crowding distances -- after each of them would make the bookkeeping
+        between two proposals cost more than a batch's worth of it needs to.
+        Letting a bit of overflow build up first amortizes that cost back down
+        to about what ``batch`` mode already pays once per batch, without
+        changing what ends up kept: nothing here is proposed out of the
+        overflow, so a few extra designs sitting past ``size`` for a moment
+        make no difference to what :meth:`propose` draws from.
         """
-        if len(self.population) <= self.size:
+        margin = max(1, self.size // 4)
+        if len(self.population) <= self.size + margin:
             return
         kept = self.ranked()[:self.size]
         self.population = [self.population[index] for index in kept]

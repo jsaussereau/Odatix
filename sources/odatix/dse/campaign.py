@@ -83,7 +83,8 @@ class Campaign(object):
     Args:
         workspace (Workspace): the workspace being explored.
         architecture (Architecture): what is searched.
-        settings (DseSettings): what the exploration was asked to do.
+        settings (RunSettings): the campaign being run, and the run it is part
+            of (see :class:`~odatix.dse.campaigns.RunSettings`).
         evaluator (Evaluator): what runs a design and measures it. One is built
             from the settings when none is given; handing one over is what lets
             an exploration be tested without synthesizing anything.
@@ -99,6 +100,10 @@ class Campaign(object):
         self.workspace = workspace
         self.architecture = architecture
         self.settings = settings
+        # The campaign this comes from, which is what it is named after (see
+        # :attr:`name`). Empty when a campaign is built by hand, from settings
+        # rather than from a file of the campaign directory.
+        self.campaign_name = str(getattr(settings, "name", "") or "")
         # What the entry that asked for this campaign says about the parameter
         # domains of the architecture: which of them are searched, and what the
         # others are fixed to (see :class:`~odatix.dse.space.DomainSelection`).
@@ -166,12 +171,30 @@ class Campaign(object):
     @property
     def name(self):
         """
-        What this campaign is called: the architecture, and what the entry fixed
-        when it fixed anything. Searching an architecture with one of its
-        domains fixed is not searching the same space as searching it with
-        another, so the two are two campaigns and not one.
+        What this campaign is called, which is what its archive is called.
+
+        It is the name of the campaign file: what makes two searches two
+        campaigns is what they are looking for, not only the space they look
+        in, and only the file says that. A campaign file naming several
+        architectures searches each of them separately, and the name then says
+        which one -- the architecture, and what the entry fixed when it fixed
+        anything.
         """
-        return self.selection.slug or self.architecture.name
+        selection = self.selection.slug or self.architecture.name
+        if not self.campaign_name:
+            return selection
+        if len(self.settings.architecture_entries()) <= 1:
+            return self.campaign_name
+        return "{0}_{1}".format(self.campaign_name, selection)
+
+    @property
+    def source(self):
+        """The file this campaign is written in, which is where it is fixed."""
+        from odatix.dse.campaigns import campaign_path
+
+        if not self.campaign_name:
+            return self.workspace.paths.dse_settings_file
+        return campaign_path(self.workspace, self.campaign_name)
 
     @property
     def archive_path(self):
@@ -233,7 +256,7 @@ class Campaign(object):
             raise CampaignError(
                 "The exploration runs simulation(s) that do not exist: {0}. "
                 "Check \"simulations\" in \"{1}\".".format(
-                    ", ".join(missing), self.workspace.paths.dse_settings_file
+                    ", ".join(missing), self.source
                 )
             )
         return self
@@ -241,11 +264,12 @@ class Campaign(object):
     def describe(self):
         """One line saying what this campaign is about to do."""
         return (
-            "Exploring \"{0}\": {1} designs, {2} of them evaluated at most, "
+            "{9}Exploring \"{0}\": {1} designs, {2} of them evaluated at most, "
             "{3} at a time, by {4} search.{5}{6}{7}{8}".format(
                 self.selection.describe(), self.space.size(), self.budget,
                 self.search.batch, self.strategy.name, self.describe_frequencies(),
                 self.describe_toolchains(), self.describe_simulations(), self.describe_mode(),
+                "[{0}] ".format(self.campaign_name) if self.campaign_name else "",
             )
             + self.describe_constraints()
         )
@@ -672,17 +696,27 @@ class Campaign(object):
 
 class Exploration(object):
     """
-    Every campaign one "odatix dse" runs: one per architecture it names.
+    Every campaign one "odatix dse" runs: the ones its settings file selects,
+    each searching the architectures its own file names.
 
     Two architectures do not share parameters, so a design of one says nothing
     about a design of the other: they are searched one after the other, each
     with its own budget and its own answer.
+
+    Args:
+        workspace (Workspace): the workspace being explored.
+        settings (DseSettings): how the run is run, and which campaigns it
+            runs.
+        campaigns (list): the campaigns, already read. They are read from the
+            campaign directory when none is given (see
+            :mod:`odatix.dse.campaigns`).
     """
 
     def __init__(self, workspace, settings=None, cancel_event=None, session=None,
-                 progress_file=None):
+                 progress_file=None, campaigns=None):
         self.workspace = workspace
         self.settings = settings if settings is not None else self.load(workspace)
+        self._campaign_settings = campaigns
         self.cancel_event = cancel_event
         self.session = session
         #: Where how far along the exploration is gets written, as a percentage
@@ -703,23 +737,46 @@ class Exploration(object):
 
         return load_settings(DseSettings, workspace.paths.dse_settings_file)
 
+    def campaign_settings(self):
+        """
+        The campaigns this run selects, read from the campaign directory.
+
+        Raises:
+            CampaignError: one of them does not exist.
+        """
+        from odatix.dse.campaigns import CampaignNotFoundError, resolve_campaigns
+
+        if self._campaign_settings is not None:
+            return self._campaign_settings
+        try:
+            self._campaign_settings = resolve_campaigns(self.workspace, self.settings)
+        except CampaignNotFoundError as error:
+            raise CampaignError(str(error))
+        return self._campaign_settings
+
     def campaigns(self):
-        """One campaign per architecture named, in the order they were named."""
+        """
+        One campaign per architecture named, campaign file by campaign file, in
+        the order they were named.
+        """
+        from odatix.dse.campaigns import RunSettings
         from odatix.workspace.errors import NotFoundError
 
         campaigns = []
-        for selection in self.settings.architecture_selections():
-            try:
-                architecture = self.workspace.architectures[selection.entry]
-            except NotFoundError as error:
-                raise CampaignError(str(error))
-            campaigns.append(
-                Campaign(
-                    self.workspace, architecture, self.settings,
-                    cancel_event=self.cancel_event, session=self.session,
-                    on_progress=self.progress, selection=selection,
+        for campaign_settings in self.campaign_settings():
+            settings = RunSettings(campaign_settings, self.settings)
+            for selection in settings.architecture_selections():
+                try:
+                    architecture = self.workspace.architectures[selection.entry]
+                except NotFoundError as error:
+                    raise CampaignError(str(error))
+                campaigns.append(
+                    Campaign(
+                        self.workspace, architecture, settings,
+                        cancel_event=self.cancel_event, session=self.session,
+                        on_progress=self.progress, selection=selection,
+                    )
                 )
-            )
         return campaigns
 
     def check(self):
@@ -729,11 +786,21 @@ class Exploration(object):
         Raises:
             CampaignError: it cannot be run.
         """
+        if not self.campaign_settings():
+            raise CampaignError(
+                "The exploration names no campaign. Say which campaigns to run under "
+                "\"campaigns\" in \"{0}\", or name one with \"-p\".".format(
+                    self.workspace.paths.dse_settings_file
+                )
+            )
         campaigns = self.campaigns()
         if not campaigns:
             raise CampaignError(
-                "The exploration names no architecture. Say which architectures to explore under "
-                "\"architectures\" in \"{0}\".".format(self.workspace.paths.dse_settings_file)
+                "The campaign(s) {0} name no architecture. Say which architectures to explore "
+                "under \"architectures\" in their file, in \"{1}\".".format(
+                    ", ".join('"{0}"'.format(settings.name) for settings in self.campaign_settings()),
+                    self.workspace.paths.dse_campaign_path,
+                )
             )
         return [campaign.check() for campaign in campaigns]
 

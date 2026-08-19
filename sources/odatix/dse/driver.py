@@ -76,7 +76,7 @@ def default_session(session=None):
     return session or "dse-{0}".format(os.getpid())
 
 
-def build_driver(workspace, settings, session, paths=None, architectures=None):
+def build_driver(workspace, settings, session, paths=None, architectures=None, campaigns=None):
     """
     The exploration, as a job the daemon can run.
 
@@ -88,21 +88,29 @@ def build_driver(workspace, settings, session, paths=None, architectures=None):
         paths (dict): where its files go (see :func:`driver_paths`).
         architectures (list): what it explores, for the name shown in the
             monitor.
+        campaigns (list): the campaigns the run selects, as the command line
+            left them. They are written into the settings file the worker
+            reads, so that it runs what was resolved here rather than reading
+            the campaign files again.
 
     Returns:
         ParallelJobHandler: the driver, ready to be enqueued.
     """
+    from odatix.dse.campaigns import inline
     from odatix.workspace.settings import save_settings
 
     paths = paths if paths is not None else driver_paths(workspace, session)
 
     # The worker reads what the command line already resolved, rather than being
     # handed the flags again: there is one place where what an exploration does
-    # is decided, and it is the settings object.
+    # is decided, and it is the settings object -- campaigns included, written
+    # into it whole so that the worker needs nothing but this one file.
+    if campaigns is not None:
+        inline(settings, campaigns)
     save_settings(settings, paths["settings_file"], regenerate=True)
     _forget(paths["progress_file"])
 
-    names = list(architectures or settings.architecture_names())
+    names = list(architectures or settings.campaign_names())
     display_name = "exploration: {0}".format(", ".join(names)) if names else "exploration"
 
     command = " ".join([
@@ -150,7 +158,8 @@ def build_driver(workspace, settings, session, paths=None, architectures=None):
     return handler
 
 
-def start_exploration(workspace, settings, session=None, detach=False, architectures=None):
+def start_exploration(workspace, settings, session=None, detach=False, architectures=None,
+                      campaigns=None):
     """
     Hand the exploration to the daemon, and show it the way a run shows its jobs.
 
@@ -160,7 +169,9 @@ def start_exploration(workspace, settings, session=None, detach=False, architect
     from odatix.components.run_common import start_parallel_jobs
 
     session = default_session(session)
-    handler = build_driver(workspace, settings, session, architectures=architectures)
+    handler = build_driver(
+        workspace, settings, session, architectures=architectures, campaigns=campaigns
+    )
     start_parallel_jobs(handler, detach=detach, session=session)
     return session
 

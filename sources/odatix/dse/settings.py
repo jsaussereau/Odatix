@@ -24,7 +24,7 @@ already describe, with the rules they already declare. What is written here is
 only what a sweep never had to say -- what makes a design good, how long to
 look for it, and how to look.
 
-    # odatix_userconfig/dse_settings.yml
+    # odatix_userconfig/dse_campaigns/alu_area_speed.yml
 
     run: fmax_synthesis
     tool: vivado
@@ -50,12 +50,17 @@ look for it, and how to look.
 
     architectures:
       - Example_ALU_sv
+
+and one line in "odatix_userconfig/dse_settings.yml" saying to run it::
+
+    campaigns:
+      - alu_area_speed
 """
 
 from odatix.workspace.jobs import JobSettings
 from odatix.workspace.settings import Setting, Settings
 
-__all__ = ["FrequencyRangeSettings", "FrequencySettings", "SearchSettings", "DseSettings"]
+__all__ = ["FrequencyRangeSettings", "FrequencySettings", "SearchSettings", "CampaignSettings", "DseSettings"]
 
 
 class FrequencyRangeSettings(Settings):
@@ -195,20 +200,23 @@ class SearchSettings(Settings):
     )
 
 
-class DseSettings(JobSettings):
-    """Settings of an "odatix dse" run."""
+class CampaignSettings(Settings):
+    """
+    One campaign: an architecture, what makes its designs good, and how long to
+    look for them.
 
-    selection_key = "architectures"
+    This is what a file of the campaign directory holds
+    ("odatix_userconfig/dse_campaigns/<name>.yml"). It says nothing about how
+    the exploration is run -- how many jobs at once, whether to ask before
+    starting -- which belongs to the run and not to the question being asked,
+    and is written once in "dse_settings.yml".
+
+    A campaign is named after its file, and that name is what its archive is
+    called: two campaigns searching the same architecture with the same domains
+    fixed, for two different things, are two files and two answers.
+    """
 
     write_all_settings = True
-
-    # An exploration commits to hours of synthesis out of a few lines of
-    # settings: it asks before it starts, like every other run does.
-    ask_continue = Setting(
-        True, type="bool", style="yesno", section=" prompt 'Continue? (Y/n)' after settings checks",
-        comment="overridden by -y / --noask",
-        doc="Whether the exploration stops for a confirmation once it knows what it will do.",
-    )
 
     run = Setting(
         "fmax_synthesis", type="str", section=" what evaluating one design runs",
@@ -261,6 +269,12 @@ class DseSettings(JobSettings):
         factory=list, type="any", section=" architectures to explore, one search each",
         doc="Architectures whose parameters are searched.",
     )
+
+    def __init__(self, **values):
+        super(CampaignSettings, self).__init__(**values)
+        #: What the campaign is called: the name of the file it was read from,
+        #: set by whoever read it (see :mod:`odatix.dse.campaigns`).
+        object.__setattr__(self, "name", "")
 
     ######################################
     # What it amounts to
@@ -384,3 +398,64 @@ class DseSettings(JobSettings):
     def architecture_names(self):
         """The architectures to search, as plain names."""
         return [selection.entry for selection in self.architecture_selections()]
+
+
+class DseSettings(JobSettings):
+    """
+    Settings of an "odatix dse" run: how the exploration is run, and which
+    campaigns it runs.
+
+    What each campaign is looking for is not written here but in a file of its
+    own, under "odatix_userconfig/dse_campaigns" (see
+    :class:`CampaignSettings`). This file only names the ones to run, so that
+    switching campaigns is choosing a name rather than rewriting a file.
+    """
+
+    selection_key = "campaigns"
+
+    write_all_settings = True
+
+    # An exploration commits to hours of synthesis out of a few lines of
+    # settings: it asks before it starts, like every other run does.
+    ask_continue = Setting(
+        True, type="bool", style="yesno", section=" prompt 'Continue? (Y/n)' after settings checks",
+        comment="overridden by -y / --noask",
+        doc="Whether the exploration stops for a confirmation once it knows what it will do.",
+    )
+
+    campaigns = Setting(
+        factory=list, type="any", section=" campaigns to run, one after the other",
+        comment=(
+            "each one is a file of the campaign directory, without its extension"
+            "\n - overridden by -p / --campaign"
+        ),
+        doc="Campaigns to run, named after their file in the campaign directory.",
+    )
+
+    def campaign_entries(self):
+        """
+        The campaigns to run, as (name, body) pairs in the order they were named.
+
+        A campaign is ordinarily named and nothing more: its body is in its own
+        file, and is read from there. A body written here instead is what an
+        exploration handed to the daemon holds -- everything the command line
+        resolved, in one file the worker can read on its own (see
+        :mod:`odatix.dse.driver`).
+        """
+        entries = self.campaigns
+        if isinstance(entries, str):
+            entries = [entries]
+        if isinstance(entries, dict):
+            entries = [{name: body} for name, body in entries.items()]
+        pairs = []
+        for entry in (entries or []):
+            if isinstance(entry, dict):
+                for name, body in entry.items():
+                    pairs.append((str(name).strip(), body if isinstance(body, dict) else None))
+            elif str(entry).strip():
+                pairs.append((str(entry).strip(), None))
+        return pairs
+
+    def campaign_names(self):
+        """The campaigns to run, as plain names."""
+        return [name for name, _ in self.campaign_entries()]

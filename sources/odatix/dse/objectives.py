@@ -51,6 +51,7 @@ __all__ = [
     "non_dominated_sort",
     "crowding_distances",
     "hypervolume",
+    "hypervolume_improvement",
     "Progress",
 ]
 
@@ -441,6 +442,82 @@ def _hypervolume(points, reference):
         below = [other[:-1] for other in order[:position + 1]]
         total += depth * _hypervolume(below, reference[:-1])
     return total
+
+
+def hypervolume_improvement(vector, front, reference):
+    """
+    How much one point would add to what a front covers, without measuring
+    either of them.
+
+    :func:`hypervolume` recomputes the whole union of boxes, which costs about
+    ``n**d`` for ``n`` points over ``d`` objectives -- fine once a batch, ruinous
+    inside an acquisition that scores thousands of candidates against the same
+    front (see :mod:`odatix.dse.bayesian`). What is wanted there is only the
+    difference, and the difference has a much smaller shape: the box the new
+    point owns alone is its own box minus the part of it every front point
+    already covers, and that part is itself a union of boxes -- one per front
+    point, each starting at the corner where the two boxes meet.
+
+    So the volume computed here is over the front *clipped to the new point*,
+    which collapses to a handful of points, most of them dominating each other
+    and thrown away before anything is computed. The result is exact: it is
+    what ``hypervolume(front + [vector]) - hypervolume(front)`` returns, for a
+    fraction of the work and without needing the front's own volume at all.
+
+    Args:
+        vector: the cost vector to score, to be minimized like the front's.
+        front (list): cost vectors already covered.
+        reference (tuple): the corner the volume is measured against.
+
+    Returns:
+        float: the volume the vector adds, zero when it adds nothing -- which
+        is what a point outside the reference, or one the front already
+        dominates, adds.
+    """
+    reference = tuple(reference)
+    point = tuple(vector)
+    if len(point) != len(reference) or not all(v < b for v, b in zip(point, reference)):
+        return 0.0
+
+    own = 1.0
+    for value, bound in zip(point, reference):
+        own *= bound - value
+
+    # Each front point covers, of the new point's box, the box between the
+    # corner where the two meet and the reference -- empty whenever they meet
+    # at the reference itself on any objective.
+    clipped = []
+    for other in front:
+        if other is None:
+            continue
+        capped = tuple(max(value, bound) for value, bound in zip(point, other))
+        if all(value < bound for value, bound in zip(capped, reference)):
+            clipped.append(capped)
+    if not clipped:
+        return own
+
+    return max(0.0, own - _hypervolume(_maxima(clipped), reference))
+
+
+def _maxima(points):
+    """
+    The points of a set that no other point of it is below on every axis.
+
+    The union of the boxes is the same with them as without them -- a point
+    another one dominates lies entirely inside that one's box -- and dropping
+    them is what keeps the volume above being computed over a handful of
+    points rather than over the whole front.
+    """
+    kept = []
+    for index, point in enumerate(points):
+        if any(
+            all(value <= mine for value, mine in zip(other, point))
+            and (other != point or position < index)
+            for position, other in enumerate(points)
+        ):
+            continue
+        kept.append(point)
+    return kept
 
 
 def _least_violation(vectors):

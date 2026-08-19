@@ -60,6 +60,17 @@ FINISHED_STATUSES = ("success", "done", "finished", "failed", "killed", "cancele
 #: takes minutes at the very least, so asking more often only costs requests.
 POLL_INTERVAL = 5.0
 
+#: How long the daemon may stay unreachable before the exploration gives up on
+#: it, in seconds. Waiting forever on a session that will never answer again is
+#: the other way an exploration hangs; treating one missed reply as the end of
+#: a batch is the way it silently reads results that were never produced.
+DAEMON_GRACE = 300.0
+
+#: How often the wait says it is still waiting, in seconds. A batch of long
+#: syntheses is otherwise hours of nothing in the driver log, which is
+#: indistinguishable from a wait that will never end.
+WAIT_HEARTBEAT = 300.0
+
 
 @contextlib.contextmanager
 def _quiet():
@@ -470,7 +481,7 @@ class Evaluator(object):
             not (None when it did).
         """
         from odatix.run import Run
-        from odatix.run.errors import RunError
+        from odatix.run.errors import NOTHING_TO_RUN, RunError
 
         settings_file = self.write_batch_settings(designs, toolchain, frequency)
         run = Run(
@@ -497,6 +508,11 @@ class Evaluator(object):
                 parallel_jobs = run.prepare()
                 run.start()
         except RunError as error:
+            if error.code == NOTHING_TO_RUN:
+                # Every design of the group was already run by someone else.
+                # Nothing to start, and nothing to report: the results are in
+                # the results file, where measure() reads them from.
+                return None, None
             return None, "The exploration could not run its batch of {0} design(s){1}{2}: {3}{4}".format(
                 len(designs),
                 "" if toolchain is None else " with {0}".format(toolchain.label),
@@ -534,7 +550,7 @@ class Evaluator(object):
             return None, None
 
         from odatix.run import Run
-        from odatix.run.errors import RunError
+        from odatix.run.errors import NOTHING_TO_RUN, RunError
 
         settings_file = self.write_simulation_settings(designs)
         run = Run(
@@ -555,6 +571,8 @@ class Evaluator(object):
                 parallel_jobs = run.prepare()
                 run.start()
         except RunError as error:
+            if error.code == NOTHING_TO_RUN:
+                return None, None
             return None, "The exploration could not simulate its batch of {0} design(s): {1}{2}".format(
                 len(designs), error, _details(said.getvalue()),
             )
@@ -694,6 +712,56 @@ class Evaluator(object):
         frequencies.override = True
         return settings
 
+    def _daemon_statuses(self, waited_since, what):
+        """
+        What the daemon says about its jobs, by work directory.
+
+        Returns ``None`` when the session could not be reached, rather than an
+        empty answer: a caller that cannot tell those apart concludes that
+        every job it was waiting on has finished, and goes on to read results
+        that do not exist. Raises once the session has been silent for
+        :data:`DAEMON_GRACE`, so that an exploration whose daemon died ends
+        with a reason instead of polling forever.
+        """
+        from odatix.lib.parallel_job_handler.daemon_control import (
+            JOBS_QUERY_TIMEOUT_BLOCKING,
+            daemon_jobs_report,
+        )
+
+        try:
+            report = daemon_jobs_report(
+                workspace_root=self.workspace.root, timeout=JOBS_QUERY_TIMEOUT_BLOCKING
+            )
+        except Exception as error:
+            report = None
+            reason = "{0}: {1}".format(error.__class__.__name__, error)
+        else:
+            reason = ", ".join(report["unreachable"])
+
+        if report is None or report["unreachable"] or not report["queried"]:
+            silent_for = time.time() - waited_since[0]
+            if silent_for >= DAEMON_GRACE:
+                raise EvaluationError(
+                    "The daemon session stopped answering while {0} ({1:.0f}s without a reply): {2}".format(
+                        what, silent_for, reason or "no session found"
+                    )
+                )
+            printc.warning(
+                "daemon did not answer while {0} ({1:.0f}s so far): {2}".format(
+                    what, silent_for, reason or "no session found"
+                ),
+                script_name,
+            )
+            return None
+
+        waited_since[0] = time.time()
+        statuses = {}
+        for job in report["jobs"]:
+            directory = job.get("tmp_dir") if isinstance(job, dict) else None
+            if directory:
+                statuses[os.path.realpath(str(directory))] = str(job.get("status", "")).strip().lower()
+        return statuses
+
     def wait_for(self, parallel_jobs):
         """
         Block until the daemon is done with every job of the batch.
@@ -703,8 +771,6 @@ class Evaluator(object):
         jobs are followed by their work directories, which is what the daemon
         reports them under.
         """
-        from odatix.lib.parallel_job_handler.daemon_control import list_daemon_jobs
-
         pending = set(
             os.path.realpath(str(job.tmp_dir))
             for job in (getattr(parallel_jobs, "job_list", None) or [])
@@ -713,6 +779,10 @@ class Evaluator(object):
         if not pending:
             return
 
+        total = len(pending)
+        started = time.time()
+        answered_at = [started]
+        last_heartbeat = started
         first = True
         while pending:
             if self.cancel_event is not None and self.cancel_event.is_set():
@@ -720,16 +790,10 @@ class Evaluator(object):
             if not first:
                 time.sleep(POLL_INTERVAL)
             first = False
-            try:
-                running = list_daemon_jobs(workspace_root=self.workspace.root)
-            except Exception:
-                continue
 
-            known = {}
-            for job in running:
-                directory = job.get("tmp_dir") if isinstance(job, dict) else None
-                if directory:
-                    known[os.path.realpath(str(directory))] = str(job.get("status", "")).strip().lower()
+            known = self._daemon_statuses(answered_at, "waiting for a batch")
+            if known is None:
+                continue
 
             for directory in list(pending):
                 status = known.get(directory)
@@ -737,6 +801,14 @@ class Evaluator(object):
                     # Either the daemon is done with it, or it does not know it
                     # any more -- a session that exited took its jobs with it.
                     pending.discard(directory)
+
+            now = time.time()
+            if pending and now - last_heartbeat >= WAIT_HEARTBEAT:
+                last_heartbeat = now
+                printc.say(
+                    "still waiting on {0}/{1} job(s) after {2:.0f}s".format(len(pending), total, now - started),
+                    script_name,
+                )
 
     ######################################
     # Running one design at a time
@@ -822,14 +894,15 @@ class Evaluator(object):
             list: the designs that are ready to :meth:`collect`, in no
             particular order.
         """
-        from odatix.lib.parallel_job_handler.daemon_control import list_daemon_jobs
-
         resolved = [item for item in pending if item.ready]
         if resolved:
             for item in resolved:
                 pending.remove(item)
             return resolved
 
+        started = time.time()
+        answered_at = [started]
+        last_heartbeat = started
         first = True
         while True:
             if cancel_event is not None and cancel_event.is_set():
@@ -837,16 +910,18 @@ class Evaluator(object):
             if not first:
                 time.sleep(POLL_INTERVAL)
             first = False
-            try:
-                running = list_daemon_jobs(workspace_root=self.workspace.root)
-            except Exception:
+
+            known = self._daemon_statuses(answered_at, "waiting for designs")
+            if known is None:
                 continue
 
-            known = {}
-            for job in running:
-                directory = job.get("tmp_dir") if isinstance(job, dict) else None
-                if directory:
-                    known[os.path.realpath(str(directory))] = str(job.get("status", "")).strip().lower()
+            now = time.time()
+            if now - last_heartbeat >= WAIT_HEARTBEAT:
+                last_heartbeat = now
+                printc.say(
+                    "still waiting on {0} design(s) after {1:.0f}s".format(len(pending), now - started),
+                    script_name,
+                )
 
             finished = []
             for item in pending:

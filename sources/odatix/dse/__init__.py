@@ -52,6 +52,13 @@ Read from the inside out, it is four pieces:
 from odatix.dse.archive import Archive
 from odatix.dse.bayesian import BayesianSearch
 from odatix.dse.campaign import Campaign, CampaignError, Exploration
+from odatix.dse.campaigns import (
+    CampaignNotFoundError,
+    RunSettings,
+    available_campaigns,
+    load_campaign,
+    resolve_campaigns,
+)
 from odatix.dse.constraints import Constraint, Constraints
 from odatix.dse.evaluation import Evaluation, EvaluationError, Evaluator
 from odatix.dse.gp import GaussianProcess
@@ -64,7 +71,7 @@ from odatix.dse.objectives import (
     hypervolume,
     pareto_front,
 )
-from odatix.dse.settings import DseSettings, SearchSettings
+from odatix.dse.settings import CampaignSettings, DseSettings, SearchSettings
 from odatix.dse.space import (
     ArchitectureSpace,
     Design,
@@ -79,6 +86,8 @@ __all__ = [
     "BayesianSearch",
     "Campaign",
     "CampaignError",
+    "CampaignNotFoundError",
+    "CampaignSettings",
     "Constraint",
     "Constraints",
     "Costs",
@@ -94,13 +103,17 @@ __all__ = [
     "Objective",
     "Objectives",
     "Progress",
+    "RunSettings",
     "SearchSettings",
     "STRATEGIES",
     "Strategy",
+    "available_campaigns",
     "dominates",
     "hypervolume",
     "explore",
+    "load_campaign",
     "pareto_front",
+    "resolve_campaigns",
     "strategy_for",
 ]
 
@@ -112,7 +125,9 @@ def explore(workspace=None, **overrides):
     Args:
         workspace (Workspace): the workspace to explore. The one of the current
             directory when not given.
-        **overrides: any exploration setting, e.g. ``tool="vivado"``.
+        **overrides: any setting of the run (``nb_jobs=4``, ``campaigns=[...]``)
+            or of the campaigns it runs (``tool="vivado"``), which is applied to
+            every campaign selected.
 
     Returns:
         list: what each campaign found, one :class:`Archive` per architecture.
@@ -121,6 +136,17 @@ def explore(workspace=None, **overrides):
 
     workspace = workspace if workspace is not None else Workspace.open()
     settings = Exploration.load(workspace)
-    if overrides:
-        settings.update(overrides)
-    return Exploration(workspace, settings).run()
+    # A setting the run does not hold is one of the campaigns: the caller says
+    # "explore(tool='vivado')" and means the campaigns it is about to run, not
+    # a key of a file that does not have it.
+    run_overrides = dict(
+        (key, value) for key, value in overrides.items() if DseSettings.spec(key) is not None
+    )
+    settings.update(run_overrides)
+    campaigns = resolve_campaigns(workspace, settings)
+    for key, value in overrides.items():
+        if key in run_overrides:
+            continue
+        for campaign in campaigns:
+            campaign[key] = value
+    return Exploration(workspace, settings, campaigns=campaigns).run()
