@@ -33,6 +33,11 @@ import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 import odatix.gui.variable_editor as ve
 from odatix.lib.config_generator import get_variables
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "workflow_editor"
 
 # Variable-editor id namespace for this page.
 VE_PREFIX = "wf-"
@@ -740,15 +745,7 @@ def update_wf_param_domains(search, page, odatix_settings):
 
 # Push the parameter domains to the client and ask the highlighter to redraw.
 dash.clientside_callback(
-    """
-    function(domains) {
-        window.__odatixHlParamDomains = domains || [];
-        // The workflow's variables are read live from its variable cards.
-        window.__odatixHlVariables = [];
-        document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
-        return "";
-    }
-    """,
+    dash.ClientsideFunction(namespace="odatix_highlight", function_name="push_names"),
     Output("wf-hl-dummy", "data"),
     Input("wf-hl-param-domains", "data"),
 )
@@ -973,7 +970,7 @@ def update_workflow_title(search):
         workflow_name = ""
     return workflow_title(workflow_name)
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     [
         Output({"type": "wf-variable-field-from-div", "name": dash.ALL}, "style"),
         Output({"type": "wf-variable-field-to-div", "name": dash.ALL}, "style"),
@@ -1011,7 +1008,7 @@ def update_wf_variable_fields_visibility(types):
         styles_by_field["group"],
     )
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "wf-more-variable-field-div", "name": dash.ALL}, "style"),
     Output({"type": "wf-more-fields-icon", "name": dash.ALL}, "className"),
     Input({"type": "wf-more-fields", "name": dash.ALL}, "n_clicks"),
@@ -1026,7 +1023,7 @@ def toggle_wf_more_fields(n_clicks, expandable_area_styles, icon_classes, metada
     names = [m.get("name") if isinstance(m, dict) else None for m in (metadata or [])]
     return ve.toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, names, trigger_id.get("name"))
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "wf-more-task-field-div", "name": dash.ALL}, "style"),
     Output({"type": "wf-more-task-fields-icon", "name": dash.ALL}, "className"),
     Input({"type": "wf-more-fields-task", "name": dash.ALL}, "n_clicks"),
@@ -1205,3 +1202,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

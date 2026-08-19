@@ -45,6 +45,11 @@ from odatix.gui.icons import icon
 from odatix.gui.utils import get_workspace
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "clean"
 
 page_path = "/clean"
 
@@ -253,7 +258,7 @@ def save_and_status(n_clicks, patterns_text, page, initial, saved, odatix_settin
     return disabled[0], disabled[1], dash.no_update
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("clean-confirm", "displayed"),
     Output("clean-confirm", "message"),
     Input({"page": page_path, "action": "run"}, "n_clicks"),
@@ -361,3 +366,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

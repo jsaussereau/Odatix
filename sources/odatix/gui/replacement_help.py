@@ -40,6 +40,11 @@ from dash import html, Input, Output
 
 from odatix.gui.icons import icon
 import odatix.lib.hard_settings as hard_settings
+from odatix.gui.page_scope import page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "config_editor"
 
 #: What the diagram shows when the domain has not been set up yet. Not defaults
 #: Odatix would use -- just something readable to point at.
@@ -188,7 +193,7 @@ def help_section(domain_uuid="page", settings=None, domain_name=None, open=False
     )
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "cfg-help-panel", "domain_uuid": dash.ALL}, "style"),
     Output({"type": "cfg-help-icon", "domain_uuid": dash.ALL}, "className"),
     Input({"type": "cfg-help-toggle", "domain_uuid": dash.ALL}, "n_clicks"),

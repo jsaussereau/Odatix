@@ -60,6 +60,11 @@ from odatix.gui.jobs_config.simulation import (
     _save_listed_architectures,
     _simulation_job_sections,
 )
+from odatix.gui.page_scope import page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "jobs_config"
 
 @dash.callback(
     Output({"page": page_path, "action": "session-dropdown"}, "options"),
@@ -330,7 +335,7 @@ def update_param_domains(
     return job_sections, context["title"], main_title, saved_baseline
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "param-domains-container", "arch": dash.MATCH}, "className"),
     Output({"type": "job-section", "arch": dash.MATCH}, "className"),
     Input({"type": "arch-title", "arch": dash.MATCH, "is_switch": True}, "value"),
@@ -345,7 +350,7 @@ def toggle_param_domains(switch_value):
     )
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "arch-count", "arch": dash.ALL}, "children"),
     Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
@@ -530,7 +535,7 @@ def toggle_job_settings(n_clicks):
 
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "domain-selections", "arch": dash.MATCH}, "data"),
     Input({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "id"),
@@ -545,7 +550,7 @@ def update_domain_selections(selected_per_domain, domain_ids):
             domains_configs[domain] = values
     return domains_configs
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.MATCH}, "value"),
     Input({"type": "domain-config-select-all", "arch": dash.MATCH, "domain": dash.MATCH, "action": dash.ALL}, "n_clicks"),
     State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.MATCH}, "options"),
@@ -559,7 +564,7 @@ def domain_select_all(n_clicks, options):
         return [option["value"] for option in options or []]
     return []
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value", allow_duplicate=True),
     Input({"type": "preview-config-select-all", "arch": dash.MATCH, "action": dash.ALL}, "n_clicks"),
     State({"type": "preview-config-checklist", "arch": dash.MATCH}, "options"),
@@ -575,7 +580,7 @@ def preview_select_all(n_clicks, options):
         return [option["value"] for option in options or [] if not option.get("disabled")]
     return []
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
     Input({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "arch": dash.MATCH, "domain": dash.ALL}, "id"),
@@ -715,7 +720,7 @@ def sync_preview_values(
     return result
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "preview-config-checklist", "arch": dash.MATCH}, "value", allow_duplicate=True),
     Input({"type": "default-config-checklist", "arch": dash.MATCH, "domain": "default"}, "value"),
     State({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
@@ -735,7 +740,7 @@ def sync_default_to_preview(default_value, preview_value, arch_metadata):
     raise dash.exceptions.PreventUpdate
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "default-config-checklist", "arch": dash.MATCH, "domain": "default"}, "value"),
     Input({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
     State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),
@@ -747,7 +752,7 @@ def sync_preview_to_default(preview_value, arch_metadata):
     return [arch_name] if arch_name in (preview_value or []) else []
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "preview-config-title", "arch": dash.MATCH}, "children"),
     Input({"type": "preview-config-checklist", "arch": dash.MATCH}, "value"),
     State({"type": "arch-metadata", "arch": dash.MATCH}, "data"),

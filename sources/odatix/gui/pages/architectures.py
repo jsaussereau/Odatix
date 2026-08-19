@@ -30,6 +30,11 @@ from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.gui.utils import get_workspace
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "architectures"
 
 page_path = "/architectures"
 
@@ -167,7 +172,7 @@ def update_cards(_, odatix_settings):
     sim_cards.append(add_card("Create New Simulation", "sim"))
     return arch_cards, sim_cards
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("arch-cards-matrix", "children", allow_duplicate=True),
     Output("sim-cards-matrix", "children", allow_duplicate=True),
     Input({"type": "button-duplicate", "card_type": dash.ALL, "name": dash.ALL}, "n_clicks_timestamp"),
@@ -221,7 +226,7 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     return arch_cards, sim_cards
 
 # Open deletion popup
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("delete-popup", "className"),
     Output("delete-popup-message", "children"),
     Output("delete-info", "data"),
@@ -284,7 +289,7 @@ def do_delete(n_clicks, info, odatix_settings):
     sim_cards.append(add_card("Create New Simulation", "sim"))
     return "overlay-odatix", "", arch_cards, sim_cards
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "update_url", "id": page_path}, "data"),
     Input({"type": "button-add", "card_type": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "button-add", "card_type": dash.ALL}, "id"),
@@ -415,36 +420,10 @@ layout = html.Div(
 # offset that the cards are about to push down. Both the target and the cards
 # above it are therefore waited for before scrolling.
 dash.clientside_callback(
-    """
-    function(href) {
-        if (!href || href.indexOf("#simulations") === -1) {
-            return "";
-        }
-        // A navigation supersedes the wait started by the previous one.
-        const token = (window.__odatixScrollToken || 0) + 1;
-        window.__odatixScrollToken = token;
-
-        let frames = 0;
-        const maxFrames = 90;  // ~1.5 s, then scroll to wherever it is
-        const attempt = function() {
-            if (window.__odatixScrollToken !== token) {
-                return;
-            }
-            const target = document.getElementById("simulations");
-            const archCards = document.getElementById("arch-cards-matrix");
-            const rendered = target && archCards && archCards.childElementCount > 0;
-            if (target && (rendered || frames >= maxFrames)) {
-                target.scrollIntoView({behavior: "smooth", block: "start"});
-                return;
-            }
-            if (frames++ < maxFrames) {
-                window.requestAnimationFrame(attempt);
-            }
-        };
-        window.requestAnimationFrame(attempt);
-        return "";
-    }
-    """,
+    dash.ClientsideFunction(namespace="odatix_architectures", function_name="scroll_to_simulations"),
     Output("scroll-to-hash-dummy", "data"),
     Input("url", "href"),
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

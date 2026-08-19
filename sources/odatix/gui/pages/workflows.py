@@ -27,6 +27,11 @@ import odatix.gui.ui_components as ui
 from odatix.gui.icons import icon
 import odatix.gui.navigation as navigation
 from odatix.gui.utils import get_workspace
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "workflows"
 
 page_path = "/workflows"
 
@@ -156,7 +161,7 @@ def add_card(text: str):
 def update_cards(_, odatix_settings):
     return build_workflow_cards(get_workspace(odatix_settings).workflows)
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("workflow-cards-matrix", "children", allow_duplicate=True),
     Input({"type": "workflow-button-duplicate", "name": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "workflow-button-duplicate", "name": dash.ALL}, "id"),
@@ -196,7 +201,7 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
 
     return build_workflow_cards(workflows)
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("workflow-delete-popup", "className"),
     Output("workflow-delete-popup-message", "children"),
     Output("workflow-delete-info", "data"),
@@ -244,7 +249,7 @@ def do_delete(n_clicks, info, odatix_settings):
 
     return "overlay-odatix", "", build_workflow_cards(workflows)
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "update_url", "id": page_path}, "data"),
     Input({"type": "workflow-button-add"}, "n_clicks_timestamp"),
     State("odatix-settings", "data"),
@@ -323,3 +328,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

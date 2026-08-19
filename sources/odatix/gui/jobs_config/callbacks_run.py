@@ -53,13 +53,18 @@ from odatix.gui.jobs_config.prepare_state import (
 )
 from odatix.gui.jobs_config.run_popup import _run_popup_body, _run_popup_render_key
 from odatix.gui.jobs_config.settings_io import _collect_run_settings, _write_temp_run_settings
+from odatix.gui.page_scope import page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "jobs_config"
 
 #: What the page can run. Every other job type is configured here but started
 #: from a terminal.
 RUNNABLE_MODES = ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analyze", "simulation", "workflow")
 
 # Open run popup
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("run-popup", "className"),
     Output("run-popup-opened", "data"),
     Output("run-popup-title", "children"),
@@ -83,7 +88,7 @@ def show_run_popup(n_click):
 def close_run_popup(n):
     return "overlay-odatix", False
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("jobs-config-run-status", "data"),
     Input({"page": page_path, "action": "run-jobs"}, "n_clicks"),
     State("overwrite", "value"),
@@ -459,14 +464,7 @@ def confirm_prepare_jobs(n_clicks, run_status):
 # current, possibly unsaved, config): tell the unsaved-changes guard to skip its
 # "leave without saving?" prompt for that navigation.
 dash.clientside_callback(
-    """
-    function(n_clicks) {
-        if (n_clicks) {
-            window.__odatixSkipUnsavedGuard = true;
-        }
-        return "";
-    }
-    """,
+    dash.ClientsideFunction(namespace="odatix_jobs", function_name="skip_unsaved_guard"),
     Output("unsaved-guard-bypass", "data"),
     Input("run-confirm-btn", "n_clicks"),
     prevent_initial_call=True,
@@ -475,15 +473,7 @@ dash.clientside_callback(
 # Restore the guard if the run does not end up navigating away (error/canceled),
 # so unsaved changes are protected again.
 dash.clientside_callback(
-    """
-    function(run_status) {
-        var status = run_status && run_status.status;
-        if (status === "error" || status === "canceled") {
-            window.__odatixSkipUnsavedGuard = false;
-        }
-        return "";
-    }
-    """,
+    dash.ClientsideFunction(namespace="odatix_jobs", function_name="restore_unsaved_guard"),
     Output("unsaved-guard-bypass", "data", allow_duplicate=True),
     Input("jobs-config-run-status", "data"),
     prevent_initial_call=True,

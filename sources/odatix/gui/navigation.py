@@ -198,14 +198,7 @@ def side_bar(gui):
 def setup_callbacks(gui):
     # Toggle the mobile burger menu on click, close it on navigation
     gui.app.clientside_callback(
-        """
-        function(n_clicks, pathname, cls) {
-            const ctx = window.dash_clientside.callback_context;
-            const trigger = (ctx.triggered && ctx.triggered.length) ? ctx.triggered[0].prop_id : "";
-            const open = trigger.startsWith("nav-burger") && !(cls || "").includes("open");
-            return [open ? "nav-menu open" : "nav-menu", open ? "nav-burger open" : "nav-burger"];
-        }
-        """,
+        dash.ClientsideFunction(namespace="odatix_nav", function_name="toggle_burger_menu"),
         [Output("nav-menu", "className"), Output("nav-burger", "className")],
         [Input("nav-burger", "n_clicks"), Input("url-global", "pathname")],
         [State("nav-menu", "className")],
@@ -224,14 +217,10 @@ def setup_callbacks(gui):
     # Persist the chosen theme to a cookie so it survives page refreshes and
     # app restarts (read back server-side via themes.theme_from_cookie).
     gui.app.clientside_callback(
-        f"""
-        function(theme) {{
-            document.cookie = "{themes.cookie_name}=" + theme + ";path=/;max-age=31536000;samesite=Lax";
-            return window.dash_clientside.no_update;
-        }}
-        """,
+        dash.ClientsideFunction(namespace="odatix_nav", function_name="persist_theme"),
         Output("theme-cookie-sync", "data"),
         Input("theme-dropdown", "value"),
+        State("theme-cookie-name", "data"),
     )
     
     @gui.app.callback(

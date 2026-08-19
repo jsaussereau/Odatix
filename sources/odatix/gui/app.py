@@ -102,6 +102,8 @@ class OdatixApp:
                 dcc.Store(id="previous-url", data=""),
                 dcc.Store(id="odatix-settings", data=self.odatix_settings.to_dict() if self.odatix_settings.valid else {}),
                 dcc.Store(id="theme-cookie-sync"),
+                # Cookie name for the client-side theme persistence (assets/navigation.js).
+                dcc.Store(id="theme-cookie-name", data=themes.cookie_name),
                 *explorer_shell.explorer_state_stores(),
                 html.Div(
                     [dash.page_container],

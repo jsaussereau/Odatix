@@ -67,6 +67,11 @@ import odatix.gui.navigation as navigation
 import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "tool_editor"
 
 page_path = "/tool_editor"
 
@@ -1200,7 +1205,7 @@ def _step_index(step_ids, key, step_uid):
     )
     return uids.index(step_uid) if step_uid in uids else None
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "tool-flow-body", "flow": dash.MATCH}, "className"),
     Output({"type": "tool-flow-toggle-icon", "flow": dash.MATCH}, "className"),
     Output({"type": "tool-flow-card", "flow": dash.MATCH}, "className"),
@@ -1657,7 +1662,7 @@ RESET_SECTIONS = {
     "behaviour": ("process_group", "report_path", "target_file", "default_metrics_file"),
 }
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("tool-form-container", "children", allow_duplicate=True),
     Output("tool-log-format-container", "children", allow_duplicate=True),
     Output("tool-replace-cards-row", "children", allow_duplicate=True),
@@ -1928,3 +1933,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

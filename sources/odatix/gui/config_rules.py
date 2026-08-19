@@ -59,6 +59,11 @@ from odatix.workspace.space import (
     ORIGIN_BLACKLISTED, ORIGIN_EDITED, ORIGIN_GENERATED, config_set_rules, implicit_config_name,
     implicit_template,
 )
+from odatix.gui.page_scope import page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "config_editor"
 
 #: Id namespace of the variable cards of this editor.
 VE_PREFIX = "cfg-"
@@ -496,7 +501,7 @@ def domain_names_of(domain_metadata):
 # Callbacks
 ######################################
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "cfg-advanced-panel", "domain_uuid": dash.ALL}, "style"),
     Output({"type": "cfg-advanced-icon", "domain_uuid": dash.ALL}, "className"),
     Input({"type": "cfg-advanced-toggle", "domain_uuid": dash.ALL}, "n_clicks"),
@@ -528,7 +533,7 @@ def toggle_advanced_panel(n_clicks, styles):
     return new_styles, new_classes
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     [
         Output({"type": "cfg-variable-field-from-div", "name": dash.ALL, "domain_uuid": dash.ALL}, "style"),
         Output({"type": "cfg-variable-field-to-div", "name": dash.ALL, "domain_uuid": dash.ALL}, "style"),
@@ -557,7 +562,7 @@ def update_variable_fields_visibility(types):
     return [styles_by_field[field] for field in ve.VARIABLE_FIELDS]
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "cfg-variable-fields-container", "name": dash.ALL, "domain_uuid": dash.ALL}, "style"),
     Output({"type": "cfg-variable-collapse-icon", "name": dash.ALL, "domain_uuid": dash.ALL}, "className"),
     Input({"type": "cfg-variable-collapse", "name": dash.ALL, "domain_uuid": dash.ALL}, "n_clicks"),
@@ -589,7 +594,7 @@ def toggle_variable_card(n_clicks, styles, icon_classes):
     return new_styles, new_classes
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "cfg-variable-cards-row", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "cfg-new-variable", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "cfg-duplicate-var", "name": dash.ALL, "domain_uuid": dash.ALL}, "n_clicks"),
@@ -960,7 +965,7 @@ def variable_values_inline(values):
     ]
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "className"),
     Output({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "data-tooltip"),
     Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
@@ -1006,7 +1011,7 @@ def update_save_rules_button(names, templates, stores, *rest):
     return classes, tooltips
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     Output({"type": "cfg-rules-saved", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "n_clicks"),

@@ -23,6 +23,12 @@ import dash
 
 from odatix.gui.jobs_config.common import page_path
 from odatix.gui.jobs_config.layout import layout
+from odatix.gui.page_scope import scoped
+
+# Callbacks of the jobs_config package (callbacks_config / _run / _sim) are
+# anchored to this scope, which only this page embeds.
+PAGE_SCOPE = "jobs_config"
+layout = scoped(PAGE_SCOPE, layout)
 
 from odatix.gui.jobs_config import callbacks_config
 from odatix.gui.jobs_config import callbacks_run

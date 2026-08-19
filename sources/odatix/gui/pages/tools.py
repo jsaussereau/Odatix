@@ -44,6 +44,11 @@ import odatix.gui.navigation as navigation
 import odatix.lib.eda_tools as eda_tools
 from odatix.gui.utils import get_workspace
 from odatix.lib.utils import open_path_in_explorer
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "tools"
 
 page_path = "/tools"
 
@@ -298,7 +303,7 @@ def update_cards(_, odatix_settings):
     tools = get_workspace(odatix_settings).tools
     return build_tool_cards(tools), build_builtin_cards(tools)
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("tool-cards-matrix", "children", allow_duplicate=True),
     Output("builtin-tool-cards-matrix", "children", allow_duplicate=True),
     Input({"type": "tool-button-duplicate", "name": dash.ALL}, "n_clicks_timestamp"),
@@ -338,7 +343,7 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
 
     return build_tool_cards(tools), build_builtin_cards(tools)
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("tool-cards-matrix", "children", allow_duplicate=True),
     Output("builtin-tool-cards-matrix", "children", allow_duplicate=True),
     Input({"type": "tool-button-fork", "name": dash.ALL}, "n_clicks_timestamp"),
@@ -377,7 +382,7 @@ def fork_builtin(fork_timestamps, btn_ids, odatix_settings):
 
     return build_tool_cards(tools), build_builtin_cards(tools)
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("tool-open-dummy", "data"),
     Input({"type": "tool-button-open", "name": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "tool-button-open", "name": dash.ALL}, "id"),
@@ -407,7 +412,7 @@ def open_tool_directory(open_timestamps, btn_ids, odatix_settings):
 
     return dash.no_update
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("tool-delete-popup", "className"),
     Output("tool-delete-popup-message", "children"),
     Output("tool-delete-info", "data"),
@@ -455,7 +460,7 @@ def do_delete(n_clicks, info, odatix_settings):
 
     return "overlay-odatix", "", build_tool_cards(tools), build_builtin_cards(tools)
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "update_url", "id": page_path}, "data"),
     Input({"type": "tool-button-add"}, "n_clicks_timestamp"),
     State("odatix-settings", "data"),
@@ -545,3 +550,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

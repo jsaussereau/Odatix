@@ -30,6 +30,7 @@ from dash import dcc, html
 
 import odatix.explorer.core.rules as rules
 import odatix.explorer.ui.sidebar as sidebar
+from odatix.gui.page_scope import anchor
 
 POLL_INTERVAL_MS = 2000
 
@@ -77,6 +78,9 @@ def explorer_shell(kind):
 
   return html.Div(
     [
+      # Anchors the shared explorer callbacks (explorer/callbacks/*) to the
+      # chart pages: without it their ALL-patterns match on every page of the app.
+      anchor("explorer_shell"),
       dcc.Store(id="xp-chart-kind", data=kind),
       dcc.Store(id="xp-data-version", data=-1),
       dcc.Interval(id="xp-poll", interval=POLL_INTERVAL_MS),

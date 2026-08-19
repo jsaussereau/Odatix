@@ -421,3 +421,14 @@
   document.addEventListener("mouseleave", hideTooltip, true);
   window.addEventListener("scroll", hideTooltip, true);
 })();
+
+window.dash_clientside.odatix_highlight = window.dash_clientside.odatix_highlight || {};
+
+window.dash_clientside.odatix_highlight.push_names = function(domains, variables) {
+    // `variables` is absent for the pages that declare no variable of their own
+    // (workflow and simulation editors read theirs live from the variable cards).
+    window.__odatixHlParamDomains = domains || [];
+    window.__odatixHlVariables = variables || [];
+    document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
+    return "";
+};

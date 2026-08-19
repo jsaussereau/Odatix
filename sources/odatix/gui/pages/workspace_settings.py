@@ -29,6 +29,11 @@ import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "workspace_settings"
 
 page_path = "/workspace"
 
@@ -273,7 +278,7 @@ def save_and_status(
     return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, dash.no_update
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("arch_path", "value"),
     Output("sim_path", "value"),
     Output("target_path", "value"),
@@ -366,3 +371,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

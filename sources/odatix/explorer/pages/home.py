@@ -33,6 +33,11 @@ import odatix.explorer.core.views as views
 import odatix.explorer.callbacks.views as views_callbacks
 from odatix.explorer.ui.insights import insights_section
 from odatix.explorer.ui.thumbnails import pictogram, section_header, view_thumbnail
+from odatix.gui.page_scope import anchor, page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "explorer_home"
 
 _CHART_CARDS = [
   {"name": "Lines", "link": "/explorer/lines", "kind": "lines", "description": "Metric vs any dimension, point by point"},
@@ -139,6 +144,7 @@ def _empty_sources():
 def layout(**kwargs):
   return html.Div(
     [
+      anchor(PAGE_SCOPE),
       dcc.Interval(id="xp-home-poll", interval=3000),
       # refresh=True: full reload so the target chart page rehydrates the session
       # stores written by open_view_from_home and mounts already restored (see
@@ -198,7 +204,7 @@ def update_home_views(_intervals, settings):
   ]
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
   Output("xp-control-state", "data", allow_duplicate=True),
   Output("xp-filter-state", "data", allow_duplicate=True),
   Output("xp-rule-state", "data", allow_duplicate=True),

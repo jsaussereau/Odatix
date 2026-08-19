@@ -29,6 +29,11 @@ from odatix.gui.css_helper import Style
 import odatix.gui.navigation as navigation
 import odatix.lib.eda_tools as eda_tools
 from odatix.gui.utils import get_workspace
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "select_targets"
 
 page_path = "/select_targets"
 
@@ -226,7 +231,7 @@ def load_page(search, odatix_settings):
 
 
 # Show/hide the extra fields of a target card
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "target-extra-div", "name": MATCH}, "style"),
     Output({"type": "target-more-icon", "name": MATCH}, "className"),
     Input({"type": "target-more", "name": MATCH}, "n_clicks"),
@@ -243,7 +248,7 @@ def toggle_extra_fields(n_clicks, current_style):
 
 
 # Dim the card when the target is disabled
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "target-card", "name": MATCH}, "className"),
     Input({"type": "target-enable", "name": MATCH}, "value"),
     prevent_initial_call=True,
@@ -253,7 +258,7 @@ def update_card_enabled_style(enable_value):
 
 
 # Enable the save button on any edit, save all changes on click
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output("target-cards-row", "children", allow_duplicate=True),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
@@ -333,7 +338,7 @@ def handle_add_target(n_clicks, search, odatix_settings):
 
 
 # Duplicate a target
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("target-cards-row", "children", allow_duplicate=True),
     Input({"type": "target-duplicate", "name": ALL}, "n_clicks_timestamp"),
     State({"type": "target-duplicate", "name": ALL}, "id"),
@@ -371,7 +376,7 @@ def handle_duplicate_target(timestamps, btn_ids, search, odatix_settings):
 
 
 # Open the delete confirmation popup
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("target-delete-popup", "className"),
     Output("target-delete-popup-message", "children"),
     Output("target-delete-info", "data"),
@@ -487,3 +492,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

@@ -29,7 +29,7 @@ import os
 
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 
 import odatix.gui
 import odatix.gui.themes as gui_themes
@@ -159,6 +159,7 @@ class ExplorerStandaloneApp:
           dcc.Location(id="url-global"),
           dcc.Store(id="odatix-settings", data={"result_path": self.result_path}),
           dcc.Store(id="theme-cookie-sync"),
+          dcc.Store(id="theme-cookie-name", data=gui_themes.cookie_name),
           *explorer_state_stores(),
           html.Div([dash.page_container], id="content", className="content", style={"height": "100%"}),
         ],
@@ -179,14 +180,10 @@ class ExplorerStandaloneApp:
     # Persist the chosen theme to a cookie so it survives page refreshes and
     # app restarts (read back server-side via gui_themes.theme_from_cookie).
     self.app.clientside_callback(
-      f"""
-      function(theme) {{
-          document.cookie = "{gui_themes.cookie_name}=" + theme + ";path=/;max-age=31536000;samesite=Lax";
-          return window.dash_clientside.no_update;
-      }}
-      """,
+      dash.ClientsideFunction(namespace="odatix_nav", function_name="persist_theme"),
       Output("theme-cookie-sync", "data"),
       Input("theme-dropdown", "value"),
+      State("theme-cookie-name", "data"),
     )
 
   def run(self):

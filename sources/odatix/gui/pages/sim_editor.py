@@ -34,6 +34,11 @@ import odatix.gui.navigation as navigation
 import odatix.gui.builtin_variables as builtin_variables
 import odatix.lib.hard_settings as hard_settings
 import odatix.workspace.sim_architectures as sim_architectures
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "sim_editor"
 
 page_path = "/sim_editor"
 
@@ -1048,7 +1053,7 @@ def _arch_index(cards, uid):
 # Callbacks
 ######################################
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "sim-arch-body", "arch": dash.MATCH}, "className"),
     Output({"type": "sim-arch-toggle-icon", "arch": dash.MATCH}, "className"),
     Output({"type": "sim-arch-card", "arch": dash.MATCH}, "className"),
@@ -1079,7 +1084,7 @@ def toggle_architecture(n_clicks, collapsed, card_class):
     )
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("sim-hl-param-domains", "data"),
     Input({"type": "sim-arch-name", "arch": dash.ALL}, "value"),
     State("odatix-settings", "data"),
@@ -1107,15 +1112,7 @@ def update_sim_param_domains(arch_names, odatix_settings):
 
 # Push the parameter domains to the client and ask the highlighter to redraw.
 dash.clientside_callback(
-    """
-    function(domains) {
-        window.__odatixHlParamDomains = domains || [];
-        // A simulation defines no variable of its own.
-        window.__odatixHlVariables = [];
-        document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
-        return "";
-    }
-    """,
+    dash.ClientsideFunction(namespace="odatix_highlight", function_name="push_names"),
     Output("sim-hl-dummy", "data"),
     Input("sim-hl-param-domains", "data"),
 )
@@ -1513,7 +1510,7 @@ def update_sim_title(search):
     return simulation_title(get_key_from_url(search, "sim") or "")
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "sim-more-task-field-div", "name": dash.ALL}, "style"),
     Output({"type": "sim-more-task-fields-icon", "name": dash.ALL}, "className"),
     Input({"type": "sim-more-fields-task", "name": dash.ALL}, "n_clicks"),
@@ -1640,3 +1637,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

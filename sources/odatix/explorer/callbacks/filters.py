@@ -34,6 +34,11 @@ import odatix.explorer.core.rules as rules
 from odatix.explorer.charts.spec import NONE_VALUE
 import odatix.explorer.ui.filters as ui_filters
 import odatix.explorer.ui.rules as ui_rules
+from odatix.gui.page_scope import page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "explorer_shell"
 
 
 def build_filters_dict(values, ids):
@@ -73,7 +78,7 @@ def register_callbacks():
       stable_index="stable_index" in (toggles or []),
     )
 
-  @dash.callback(
+  @page_callback(PAGE_SCOPE,
     Output("xp-filter-state", "data"),
     Input({"type": "xp-filter", "dim": ALL}, "value"),
     State({"type": "xp-filter", "dim": ALL}, "id"),
@@ -93,7 +98,7 @@ def register_callbacks():
       state[dimension] = remembered
     return state
 
-  @dash.callback(
+  @page_callback(PAGE_SCOPE,
     Output({"type": "xp-filter", "dim": MATCH}, "value"),
     Input({"type": "xp-filter-all", "dim": MATCH, "action": ALL}, "n_clicks"),
     State({"type": "xp-filter", "dim": MATCH}, "options"),
@@ -125,7 +130,7 @@ def register_callbacks():
     matched = len(rules.apply_rules(df, rule_state)) if not df.empty else 0
     return ui_rules.build_rules_section(metrics, rule_state, STORE.units(sources), matched=matched, total=len(df))
 
-  @dash.callback(
+  @page_callback(PAGE_SCOPE,
     Output("xp-rule-state", "data"),
     Input({"type": "xp-rule-field", "id": ALL, "field": ALL}, "value"),
     Input({"type": "xp-rule-remove", "id": ALL}, "n_clicks"),

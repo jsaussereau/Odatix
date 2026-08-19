@@ -31,6 +31,11 @@ from odatix.explorer.core.store import STORE
 import odatix.explorer.core.query as query
 import odatix.explorer.core.schema as schema
 from odatix.explorer.charts.spec import CAPABILITIES, FigureSpec, NONE_VALUE, normalize_dims, normalize_metrics, resolve_defaults, x_is_symbolic
+from odatix.gui.page_scope import page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "explorer_shell"
 
 
 def _options(names):
@@ -283,7 +288,7 @@ def register_callbacks():
       raise dash.exceptions.PreventUpdate
     return list(dissociate)
 
-  @dash.callback(
+  @page_callback(PAGE_SCOPE,
     Output("xp-dissociate-by", "value", allow_duplicate=True),
     Input({"type": "xp-filter", "dim": ALL}, "value"),
     State({"type": "xp-filter", "dim": ALL}, "id"),

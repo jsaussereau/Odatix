@@ -21,7 +21,6 @@
 
 import os
 import re
-import json
 import dash
 from dash import html, dcc, Input, Output, State, ctx, Patch
 from dash.exceptions import MissingCallbackContextException
@@ -42,6 +41,11 @@ from odatix.workspace.domains import ParameterDomain
 from odatix.workspace.space import ORIGIN_BLACKLISTED, ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_MANUAL
 from odatix.gui.icons import icon
 from odatix.gui.css_helper import Style
+from odatix.gui.page_scope import page_callback, page_clientside_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "config_editor"
 
 verbose = False
 
@@ -1375,41 +1379,9 @@ def preview_domains_to_refresh(debounce):
 # Typing must not reach the server: a preview reads a file and substitutes over
 # it, per domain. This holds the keystrokes on the client and, once they stop,
 # hands the preview the domains that actually changed.
-dash.clientside_callback(
-    """
-    function(_contents) {
-        const state = window.__odatixPreviewDebounce = window.__odatixPreviewDebounce
-            || {domains: {}, all: false, timer: null};
-        const context = window.dash_clientside.callback_context;
-        (context.triggered || []).forEach(function(trigger) {
-            const raw = trigger.prop_id || "";
-            const cut = raw.lastIndexOf(".");
-            let id = null;
-            if (cut > 0) {
-                try { id = JSON.parse(raw.slice(0, cut)); } catch (error) { id = null; }
-            }
-            if (id && id.domain_uuid) {
-                state.domains[id.domain_uuid] = true;
-            } else {
-                state.all = true;
-            }
-        });
-        if (state.timer) {
-            clearTimeout(state.timer);
-        }
-        state.timer = setTimeout(function() {
-            const payload = {
-                stamp: Date.now(),
-                domains: state.all ? null : Object.keys(state.domains),
-            };
-            state.domains = {};
-            state.all = false;
-            state.timer = null;
-            window.dash_clientside.set_props("config-content-debounce", {data: payload});
-        }, 400);
-        return window.dash_clientside.no_update;
-    }
-    """,
+page_clientside_callback(
+    PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_config_editor", function_name="debounce_content"),
     Output("config-content-debounce", "data"),
     Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     prevent_initial_call=True,
@@ -1419,7 +1391,7 @@ dash.clientside_callback(
     Output(f"param-domain-title-div-{hard_settings.main_parameter_domain}", "children"),
     Input("param-domains-section", "children"),
     State("url", "search"),
-    preview_initial_call=True
+    prevent_initial_call=True,
 )
 def update_main_domain_title(_, search):
     mode, instance_name = get_instance_mode(search)
@@ -1984,7 +1956,7 @@ def update_config_cards(
     ]
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     # The row is patched, not rewritten: the cards already there are what the
     # user is editing, and the point of showing them a few at a time is lost if
     # the whole list travels back and forth to add to it.
@@ -2095,7 +2067,7 @@ def rules_with_configuration_blacklist(saved_rules, config_name, blacklisted):
     return rules
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
     Output({"type": "cfg-rules-saved", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
     # The cards of the domain are rewritten here rather than left to the callback
@@ -2191,38 +2163,8 @@ def toggle_generated_configuration_blacklist(
     )
     return stores, counters, rows
 
-# Fill the preview config selector of each domain with its configs. Renaming a
-# configuration retitles its entry as it is typed, so this answers every
-# keystroke of every title: it is a relabelling of data the client already
-# holds, and it stays there.
-PREVIEW_SELECT_JS = """
-    function(_section, titles, metadata, domains, currentValues) {
-        const optionsOut = [];
-        const valuesOut = [];
-        (domains || []).forEach(function(domain, i) {
-            const domainUuid = (domain && domain.domain_uuid) || "";
-            const options = [];
-            (metadata || []).forEach(function(config, j) {
-                if (!config || (config.domain_uuid || "") !== domainUuid) {
-                    return;
-                }
-                const title = (titles && titles[j]) ? titles[j] : (config.config_name || "");
-                options.push({label: title, value: config.config_uuid || ""});
-            });
-            let current = i < (currentValues || []).length ? currentValues[i] : null;
-            const known = options.some(function(option) { return option.value === current; });
-            if (!known) {
-                current = options.length ? options[0].value : null;
-            }
-            optionsOut.push(options);
-            valuesOut.push(current);
-        });
-        return [optionsOut, valuesOut];
-    }
-"""
-
 dash.clientside_callback(
-    PREVIEW_SELECT_JS,
+    dash.ClientsideFunction(namespace="odatix_config_editor", function_name="sync_preview_select"),
     Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "options"),
     Output({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
     Input("param-domains-section", "children"),
@@ -2344,63 +2286,8 @@ def update_preview_all(
         results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text, base_path=base_path))
     return results
 
-# The dirty state of a card is nothing but string comparisons, and it is the one
-# thing that has to answer every keystroke. Run on the client: a domain with a
-# few hundred configurations would otherwise send every title and every content
-# to the server, and take back a class name per card, on every character typed.
-SAVE_STATUS_JS = """
-function(_section, titles, contents, initialTitles, initialContents) {
-    const invalid = __INVALID_CHARS__;
-    const base = "icon-button tooltip delay bottom small";
-    const context = window.dash_clientside.callback_context;
-    const outputs = (context && context.outputs_list && context.outputs_list[0]) || [];
-    // Names are only taken within their own domain: two domains can each have a "12"
-    const domains = outputs.map(function(output) {
-        return (output && output.id && output.id.domain_uuid) || "";
-    });
-    const takenByDomain = {};
-    for (let i = 0; i < initialTitles.length; i++) {
-        const domain = domains[i] === undefined ? "" : domains[i];
-        (takenByDomain[domain] = takenByDomain[domain] || []).push(initialTitles[i]);
-    }
-    const classes = [];
-    const tooltips = [];
-    for (let i = 0; i < titles.length; i++) {
-        const title = titles[i];
-        const initialTitle = initialTitles[i];
-        let error = null;
-        if (!title) {
-            error = "Configuration name cannot be empty";
-        } else {
-            for (let c = 0; c < invalid.length; c++) {
-                if (title.indexOf(invalid[c]) !== -1) {
-                    const shown = invalid[c] === " " ? "' ' (space)" : "'" + invalid[c] + "'";
-                    error = "Unauthorized character in configuration name: " + shown;
-                    break;
-                }
-            }
-            if (!error && title !== initialTitle
-                    && (takenByDomain[domains[i]] || []).indexOf(title) !== -1) {
-                error = "A configuration with this name already exists in the domain.";
-            }
-        }
-        if (error) {
-            classes.push("color-button error-status " + base);
-            tooltips.push(error);
-        } else if (title !== initialTitle || contents[i] !== initialContents[i]) {
-            classes.push("color-button warning " + base);
-            tooltips.push("Unsaved changes!");
-        } else {
-            classes.push("color-button disabled " + base);
-            tooltips.push("Nothing to save");
-        }
-    }
-    return [classes, tooltips];
-}
-""".replace("__INVALID_CHARS__", json.dumps(hard_settings.invalid_filename_characters))
-
 dash.clientside_callback(
-    SAVE_STATUS_JS,
+    dash.ClientsideFunction(namespace="odatix_config_editor", function_name="save_status"),
     Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data-tooltip"),
     Input("param-domains-section", "children"),
@@ -2408,6 +2295,7 @@ dash.clientside_callback(
     Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     Input({"type": "initial-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     Input({"type": "initial-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State("cfg-invalid-chars", "data"),
 )
 
 def filter_stat(domain_uuid, origin, count, label, filtered, className=""):
@@ -2426,7 +2314,7 @@ def filter_stat(domain_uuid, origin, count, label, filtered, className=""):
     )
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "config-counters", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     Input({"type": "config-hidden", "domain_uuid": dash.ALL}, "data"),
@@ -2477,36 +2365,9 @@ def update_config_counters(config_metadata, hidden_counts, filter_states, domain
     return counters
 
 
-# Clicking a filter stat only flips the origin it names, and only for its own
-# domain: the strips of the other domains keep whatever they were filtering.
-CONFIG_FILTER_TOGGLE_JS = """
-    function(clicks, states, stateIds) {
-        const dc = window.dash_clientside;
-        const context = dc.callback_context;
-        const trigger = context.triggered && context.triggered[0];
-        if (!trigger || !trigger.value) {
-            return dc.no_update;
-        }
-        const id = JSON.parse(trigger.prop_id.substring(0, trigger.prop_id.lastIndexOf(".")));
-        return (states || []).map(function(state, i) {
-            const stateId = (stateIds || [])[i] || {};
-            if ((stateId.domain_uuid || "") !== (id.domain_uuid || "")) {
-                return dc.no_update;
-            }
-            const filtered = (state || []).slice();
-            const at = filtered.indexOf(id.origin);
-            if (at >= 0) {
-                filtered.splice(at, 1);
-            } else {
-                filtered.push(id.origin);
-            }
-            return filtered;
-        });
-    }
-"""
-
-dash.clientside_callback(
-    CONFIG_FILTER_TOGGLE_JS,
+page_clientside_callback(
+    PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_config_editor", function_name="filter_toggle"),
     Output({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "config-filter", "domain_uuid": dash.ALL, "origin": dash.ALL}, "n_clicks"),
     State({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
@@ -2514,32 +2375,16 @@ dash.clientside_callback(
     prevent_initial_call=True,
 )
 
-# Filtered cards are hidden rather than dropped: what a card holds is unsaved
-# work as often as not, and its style is the one thing the layout switch does
-# not rewrite, so the two never fight over the same property.
-CONFIG_FILTER_APPLY_JS = """
-    function(states, metadata, stateIds) {
-        const filtered = {};
-        (stateIds || []).forEach(function(stateId, i) {
-            filtered[(stateId && stateId.domain_uuid) || ""] = (states || [])[i] || [];
-        });
-        return (metadata || []).map(function(config) {
-            config = config || {};
-            const hidden = filtered[config.domain_uuid || ""] || [];
-            return hidden.indexOf(config.origin || "manual") >= 0 ? {"display": "none"} : {};
-        });
-    }
-"""
-
-dash.clientside_callback(
-    CONFIG_FILTER_APPLY_JS,
+page_clientside_callback(
+    PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_config_editor", function_name="filter_apply"),
     Output({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "style"),
     Input({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "config-filter-state", "domain_uuid": dash.ALL}, "id"),
 )
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "config-origin", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "children"),
     Output({"type": "config-origin", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data-tooltip"),
     Output({"type": "delete-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
@@ -2562,7 +2407,7 @@ def update_origin_indicators(config_metadata):
         read_only.append(origin in (ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_BLACKLISTED))
     return badges, badge_tooltips, delete_classes, delete_tooltips, read_only
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "save-params-btn", "domain_uuid": dash.ALL}, "className"),
     Input({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
@@ -2607,20 +2452,9 @@ def update_params_save_button(
 # The "warning" class is also what the unsaved-changes guard looks for to warn
 # before leaving the page. Clientside, since it answers every keystroke through
 # the card save buttons -- and reading a class name needs no server.
-dash.clientside_callback(
-    """
-    function(configClasses, paramsClasses, rulesClasses) {
-        const base = "icon-button tooltip bottom auto caution";
-        const all = [].concat(configClasses || [], paramsClasses || [], rulesClasses || []);
-        const dirty = all.some(function(name) {
-            return typeof name === "string" && name.indexOf("warning") !== -1;
-        });
-        if (dirty) {
-            return ["color-button warning " + base, "Save all changes"];
-        }
-        return ["color-button disabled " + base, "Nothing to save"];
-    }
-    """,
+page_clientside_callback(
+    PAGE_SCOPE,
+    dash.ClientsideFunction(namespace="odatix_config_editor", function_name="save_all_status"),
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Input({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
@@ -2628,7 +2462,7 @@ dash.clientside_callback(
     Input({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "className"),
 )
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "initial-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     Output({"type": "initial-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     Output({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
@@ -2800,7 +2634,7 @@ def update_layout_style(layout_value, config_card_classes, add_card_classes, sho
         config_row_classes = ["card-matrix configs" for _ in range(len(config_row_classes))]
     return config_card_classes, add_card_classes, show_more_classes, config_row_classes
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
     Output({"type": "simarch-entry-store", "domain_uuid": dash.ALL}, "data"),
     Output("sim-arch-reload", "data"),
@@ -2880,7 +2714,7 @@ def save_config_parameters(
             )
     return nothing
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "params-config-fields", "domain_uuid": dash.ALL}, "className"),
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "style"),
     # The rules preview is part of that list: it goes away with it.
@@ -2909,7 +2743,7 @@ def update_instance_title(search):
         instance_name = "New_" + instance_label(mode)
     return instance_title(mode, instance_name, arch=sim_arch_name(search))
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "save-domain-title", "domain_uuid": dash.ALL}, "className"),
     Output({"type": "save-domain-title", "domain_uuid": dash.ALL}, "data-tooltip"),
     Output({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
@@ -3004,6 +2838,9 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
 layout = html.Div(
     children=[
         dcc.Location(id="url"),
+        # Characters a configuration name may not contain, handed to the
+        # client-side name validation (see assets/config_editor.js).
+        dcc.Store(id="cfg-invalid-chars", data=hard_settings.invalid_filename_characters),
         html.Div(id={"page": page_path, "type": "instance-title-div"}, style={"marginTop": "20px"}),
         # What this page does, said once, above every domain of it -- folded
         # away, since it is only ever read once.
@@ -3034,3 +2871,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

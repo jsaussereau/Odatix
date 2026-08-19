@@ -36,6 +36,11 @@ from odatix.gui.jobs_config.callbacks_config import (
 )
 from odatix.gui.jobs_config.common import _simulation_badge_text
 from odatix.gui.jobs_config.simulation import _sim_arch_card, _sim_entry_from_combo
+from odatix.gui.page_scope import page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "jobs_config"
 
 ######################################
 # Simulation callbacks
@@ -48,7 +53,7 @@ from odatix.gui.jobs_config.simulation import _sim_arch_card, _sim_entry_from_co
 # implementations the architecture-keyed widgets use.
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "sim-architectures", "sim": dash.MATCH}, "data"),
     Output({"type": "sim-arch-card", "sim": dash.MATCH, "arch": dash.ALL}, "style"),
     Output({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
@@ -156,7 +161,7 @@ def update_listed_architectures(
     return listed, styles, switches, options, None, metadata, new_children, note_style
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "sim-arch-body", "sim": dash.MATCH, "arch": dash.MATCH}, "className"),
     Output({"type": "sim-arch-card", "sim": dash.MATCH, "arch": dash.MATCH}, "className"),
     Input({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
@@ -170,7 +175,7 @@ def toggle_sim_arch(switch_value):
     )
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "domain-selections", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
     Input({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "id"),
@@ -179,7 +184,7 @@ def sim_update_domain_selections(selected_per_domain, domain_ids):
     return update_domain_selections(selected_per_domain, domain_ids)
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.MATCH}, "value"),
     Input({"type": "domain-config-select-all", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.MATCH, "action": dash.ALL}, "n_clicks"),
     State({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.MATCH}, "options"),
@@ -189,7 +194,7 @@ def sim_domain_select_all(n_clicks, options):
     return domain_select_all(n_clicks, options)
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value", allow_duplicate=True),
     Input({"type": "preview-config-select-all", "sim": dash.MATCH, "arch": dash.MATCH, "action": dash.ALL}, "n_clicks"),
     State({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "options"),
@@ -199,7 +204,7 @@ def sim_preview_select_all(n_clicks, options):
     return preview_select_all(n_clicks, options)
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
     Input({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "value"),
     State({"type": "domain-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": dash.ALL}, "id"),
@@ -213,7 +218,7 @@ def sim_sync_preview_values(selected_per_domain, domain_ids, current_preview_val
     )
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value", allow_duplicate=True),
     Input({"type": "default-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": "default"}, "value"),
     State({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
@@ -224,7 +229,7 @@ def sim_sync_default_to_preview(default_value, preview_value, arch_metadata):
     return sync_default_to_preview(default_value, preview_value, arch_metadata)
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "default-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH, "domain": "default"}, "value"),
     Input({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
     State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
@@ -234,7 +239,7 @@ def sim_sync_preview_to_default(preview_value, arch_metadata):
     return sync_preview_to_default(preview_value, arch_metadata)
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "preview-config-title", "sim": dash.MATCH, "arch": dash.MATCH}, "children"),
     Input({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.MATCH}, "value"),
     State({"type": "arch-metadata", "sim": dash.MATCH, "arch": dash.MATCH}, "data"),
@@ -244,7 +249,7 @@ def sim_update_preview_title(preview_value, arch_metadata):
     return update_preview_title(preview_value, arch_metadata)
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "arch-count", "sim": dash.MATCH, "arch": dash.ALL}, "children"),
     Input({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
     Input({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
@@ -264,7 +269,7 @@ def sim_update_arch_count(preview_values, switch_values, preview_ids, switch_ids
     return update_arch_count(preview_values, switch_values, preview_ids, switch_ids, count_ids, metadatas)
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "sim-selection", "sim": dash.MATCH}, "data"),
     Input({"type": "preview-config-checklist", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
     Input({"type": "sim-arch-switch", "sim": dash.MATCH, "arch": dash.ALL}, "value"),
@@ -301,7 +306,7 @@ def sync_simulation_selection(
     return list(dict.fromkeys(entries))
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": "sim-count", "sim": dash.ALL}, "children"),
     Input({"type": "sim-selection", "sim": dash.ALL}, "data"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),

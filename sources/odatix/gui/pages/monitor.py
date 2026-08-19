@@ -35,6 +35,11 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import daemon_control
 from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
 from odatix.lib.parallel_job_handler.transport import ApiError, Endpoint
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "monitor"
 
 page_path = "/monitor"
 
@@ -916,7 +921,7 @@ def _change_nb_jobs(_inc, _dec, current_value, daemon_state, search, selected_se
     return str(new_value)
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output("monitor-selected-job", "data"),
     Input({"type": "task-container", "task_id": ALL}, "n_clicks"),
     State("monitor-selected-job", "data"),
@@ -1890,3 +1895,6 @@ layout = html.Div(
         "flexDirection": "column",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

@@ -35,6 +35,11 @@ from dash import html, dcc, Input, Output, State, ALL
 from odatix.explorer.core.store import STORE
 import odatix.explorer.ui.components as components
 import odatix.components.export_analysis as export_analysis
+from odatix.gui.page_scope import anchor, page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "explorer_analysis"
 
 POLL_INTERVAL_MS = 2000
 
@@ -323,6 +328,7 @@ def _list_children(records, active_status, search):
 def layout(**kwargs):
   return html.Div(
     [
+      anchor(PAGE_SCOPE),
       dcc.Interval(id="xpa-poll", interval=POLL_INTERVAL_MS),
       dcc.Store(id="xpa-data-version", data=-1),
       dcc.Store(id="xpa-status-filter", data="all"),
@@ -400,7 +406,7 @@ def poll(_intervals, _clicks, settings, current_version):
   return STORE.version, status
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
   Output("xpa-status-filter", "data"),
   Input({"type": "xpa-stat", "status": ALL}, "n_clicks"),
   State("xpa-status-filter", "data"),
@@ -415,7 +421,7 @@ def toggle_status_filter(_clicks, current):
   return "all" if status == current else status
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
   Output("xpa-tool-filter", "data"),
   Input({"type": "xpa-tool", "tool": ALL}, "n_clicks"),
   State("xpa-tool-filter", "data"),

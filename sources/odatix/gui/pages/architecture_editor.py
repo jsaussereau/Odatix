@@ -976,14 +976,7 @@ def update_arch_highlight_names(search, page, odatix_settings):
 
 # Push the names to the client and ask the highlighter to redraw.
 dash.clientside_callback(
-    """
-    function(domains, variables) {
-        window.__odatixHlParamDomains = domains || [];
-        window.__odatixHlVariables = variables || [];
-        document.dispatchEvent(new CustomEvent("odatix:refresh-var-highlight"));
-        return "";
-    }
-    """,
+    dash.ClientsideFunction(namespace="odatix_highlight", function_name="push_names"),
     Output("arch-hl-dummy", "data"),
     Input("arch-hl-param-domains", "data"),
     Input("arch-hl-variables", "data"),

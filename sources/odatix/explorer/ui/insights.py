@@ -50,6 +50,11 @@ import odatix.explorer.core.schema as schema
 import odatix.explorer.core.views as views
 import odatix.explorer.callbacks.views as views_callbacks
 from odatix.explorer.ui.thumbnails import section_header, view_thumbnail
+from odatix.gui.page_scope import page_callback
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "explorer_home"
 
 # The gallery recomputes only when the data or the source selection changed, so
 # this can poll often.
@@ -253,7 +258,7 @@ def update_source_chips(_intervals, settings, selection, previous):
   return chips
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
   Output("xp-insights-sources", "data"),
   Input({"type": "xp-insights-source", "name": ALL}, "n_clicks"),
   State("xp-insights-sources", "data"),
@@ -329,7 +334,7 @@ def _clicked_view(clicks, store):
   return saved[index]
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
   Output("xp-control-state", "data", allow_duplicate=True),
   Output("xp-filter-state", "data", allow_duplicate=True),
   Output("xp-rule-state", "data", allow_duplicate=True),
@@ -355,7 +360,7 @@ def open_recommendation(clicks, store, ui_state):
   return payload["controls"], payload["filter_state"], payload["rule_state"], ui_state, "/explorer/" + payload["kind"]
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
   Output("xp-insights-status", "children"),
   Input({"type": "xp-reco-save", "index": ALL}, "n_clicks"),
   State("xp-insights-views", "data"),

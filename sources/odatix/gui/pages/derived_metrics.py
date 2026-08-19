@@ -53,6 +53,11 @@ from odatix.gui.icons import icon
 from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "derived_metrics"
 
 page_path = "/derived_metrics"
 
@@ -921,7 +926,7 @@ def update_group_cards(new_click, duplicate_clicks, delete_clicks, cards, names,
     return dash.no_update
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": f"{METRIC_PREFIX}-field-from-div", "name": dash.MATCH}, "style"),
     Output({"type": f"{METRIC_PREFIX}-field-metric-div", "name": dash.MATCH}, "style"),
     Output({"type": f"{METRIC_PREFIX}-field-op-div", "name": dash.MATCH}, "style"),
@@ -946,7 +951,7 @@ def toggle_kind_fields(kind):
     )
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"type": f"{METRIC_PREFIX}-more-field-div", "name": dash.MATCH}, "style"),
     Output({"type": f"{METRIC_PREFIX}-more-fields-icon", "name": dash.MATCH}, "className"),
     Input({"type": f"{METRIC_PREFIX}-more-fields", "name": dash.MATCH}, "n_clicks"),
@@ -978,7 +983,7 @@ def init_page(page, odatix_settings):
     return metric_cards(metrics), group_cards(groups), initial
 
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("dm-saved", "data"),
@@ -1094,3 +1099,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)

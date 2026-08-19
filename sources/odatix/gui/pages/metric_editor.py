@@ -72,6 +72,11 @@ from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
+from odatix.gui.page_scope import page_callback, scoped
+
+# Scope anchoring the callbacks below: they are dispatched only on the pages
+# embedding the matching anchor store (see odatix.gui.page_scope).
+PAGE_SCOPE = "metric_editor"
 
 page_path = "/metric_editor"
 
@@ -941,7 +946,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
             )
         return children, styles, reset_styles
 
-    @dash.callback(
+    @page_callback(PAGE_SCOPE,
         [
             Output({"type": f"{prefix}-field-file-div", "name": dash.ALL}, "style"),
             Output({"type": f"{prefix}-field-pattern-div", "name": dash.ALL}, "style"),
@@ -965,7 +970,7 @@ def register_section_callbacks(prefix, name_stem, add_text):
             styles_by_field["op"],
         )
 
-    @dash.callback(
+    @page_callback(PAGE_SCOPE,
         Output({"type": f"{prefix}-more-field-div", "name": dash.ALL}, "style"),
         Output({"type": f"{prefix}-more-fields-icon", "name": dash.ALL}, "className"),
         Input({"type": f"{prefix}-more-fields", "name": dash.ALL}, "n_clicks"),
@@ -1094,7 +1099,7 @@ def init_page(search, page, odatix_settings):
         builtin_defs,
     )
 
-@dash.callback(
+@page_callback(PAGE_SCOPE,
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("metric-saved", "data"),
@@ -1292,3 +1297,6 @@ layout = html.Div(
         "min-height": f"calc(100vh - {navigation.top_bar_height})",
     },
 )
+
+# Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
+layout = scoped(PAGE_SCOPE, layout)
