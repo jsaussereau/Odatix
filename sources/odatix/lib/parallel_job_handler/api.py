@@ -214,11 +214,21 @@ def create_parallel_job_app(
         logs_job_id: Optional[int] = None,
         logs_offset: Optional[int] = None,
         logs_limit: Optional[int] = None,
+        since: Optional[int] = None,
+        epoch: Optional[str] = None,
     ):
         # Keep /status lightweight by default (no logs).
         if logs_job_id is None:
             logs_job_id = -1
-        return handler.snapshot(logs_job_id=logs_job_id, logs_offset=logs_offset, logs_limit=logs_limit)
+        # `since`/`epoch` ask for a delta: only the jobs that changed since that
+        # revision. Omitting them keeps the full-snapshot behavior.
+        return handler.snapshot(
+            logs_job_id=logs_job_id,
+            logs_offset=logs_offset,
+            logs_limit=logs_limit,
+            since=since,
+            epoch=epoch,
+        )
 
     @app.get("/jobs")
     def list_jobs():

@@ -20,11 +20,12 @@
 #
 
 import dash
-from dash import html, dcc, Input, Output, State, ctx, ALL
+from dash import html, dcc, Input, Output, State, ctx, ClientsideFunction
 from typing import Optional#, Literal
 import os
 import socket
 import threading
+from html import escape as html_escape
 from dash.exceptions import PreventUpdate
 from dash import no_update
 
@@ -35,7 +36,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.lib.parallel_job_handler import daemon_control
 from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
 from odatix.lib.parallel_job_handler.transport import ApiError, Endpoint
-from odatix.gui.page_scope import page_callback, scoped
+from odatix.gui.page_scope import scoped
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -58,26 +59,6 @@ dash.register_page(
 
 DEFAULT_HOST = hard_settings.daemon_default_host
 DEFAULT_PORT = hard_settings.daemon_default_port
-
-# Status buckets, shared by filtering, KPI counting and sorting.
-RUNNING_STATUSES = ("running", "starting", "export")
-QUEUED_STATUSES = ("queued", "paused")
-DONE_STATUSES = ("success",)
-FAILED_STATUSES = ("failed", "killed", "canceled")
-
-# Sort priority when sorting by status (most "active" first).
-_STATUS_SORT_PRIORITY = {
-    "running": 0,
-    "starting": 1,
-    "export": 2,
-    "paused": 3,
-    "queued": 4,
-    "success": 5,
-    "failed": 6,
-    "killed": 7,
-    "canceled": 8,
-}
-
 
 def _normalize_optional_str(value: Optional[str]) -> Optional[str]:
     if value is None:
@@ -119,18 +100,25 @@ def _monitor_query(search: Optional[str]) -> dict:
 
 
 def _pick_session_value(daemons, selector: Optional[str]) -> Optional[str]:
+    """The dropdown value of the session `selector` names, or None.
+
+    Matching goes through `daemon_control._selector_tokens`, the same rule the
+    CLI resolves `--session` with: a session id is "<pid>.<name>", so a URL
+    asking for `?session=perftest` has to match the session whose id is
+    "12345.perftest". Being stricter here than the backend left the dropdown
+    permanently unselected -- which, besides showing no session, made the
+    monitor rescan every daemon on every poll (see _update_session_dropdown).
+    """
     selector = _normalize_optional_str(selector)
     if selector is None:
         return None
+    selector_lower = selector.lower()
 
     def _value_from_daemon(entry):
         session_id = _normalize_optional_str(entry.get("session_id"))
         if session_id is not None:
             return session_id
-        session_name = _normalize_optional_str(entry.get("session_name"))
-        if session_name is not None:
-            return session_name
-        return None
+        return _normalize_optional_str(entry.get("session_name"))
 
     exact = []
     prefix = []
@@ -139,13 +127,14 @@ def _pick_session_value(daemons, selector: Optional[str]) -> Optional[str]:
         if value is None:
             continue
 
-        value_lower = value.lower()
-        selector_lower = selector.lower()
-        if value_lower == selector_lower:
+        tokens = [str(token).lower() for token in daemon_control._selector_tokens(daemon)]
+        if selector_lower in tokens:
             exact.append(value)
-        elif value_lower.startswith(selector_lower):
+        elif any(token.startswith(selector_lower) for token in tokens):
             prefix.append(value)
 
+    # An ambiguous selector selects nothing: picking one of several sessions
+    # for the user would silently monitor the wrong run.
     if len(exact) == 1:
         return exact[0]
     if len(prefix) == 1:
@@ -392,167 +381,162 @@ def _api_post(daemon_state, path: str, params: Optional[dict] = None):
 # Small helpers
 ######################################
 
-def _job_progress(job) -> int:
-    progress_val = job.get("progress", 0) if isinstance(job, dict) else 0
-    try:
-        progress = int(round(float(progress_val)))
-    except Exception:
-        progress = 0
-    return max(0, min(100, progress))
-
-
-def _elapsed_seconds(job) -> int:
-    elapsed = str(job.get("elapsed_time") or "") if isinstance(job, dict) else ""
-    parts = elapsed.split(":")
-    if len(parts) != 3:
-        return 0
-    try:
-        return max(0, int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2]))
-    except Exception:
-        return 0
-
-
-def _job_matches_filter(status_norm: str, filter_value: str) -> bool:
-    if filter_value in (None, "", "all"):
-        return True
-    if filter_value == "running":
-        return status_norm in RUNNING_STATUSES
-    if filter_value == "queued":
-        return status_norm in QUEUED_STATUSES
-    if filter_value == "done":
-        return status_norm in DONE_STATUSES
-    if filter_value == "failed":
-        return status_norm in FAILED_STATUSES
-    return True
-
-
-def _sort_key(job, sort_value: str):
-    status_norm = str(job.get("status") or "").lower().strip()
-    name = str(job.get("display_name") or "").lower()
-    job_id = job.get("id", 0)
-    try:
-        job_id = int(job_id)
-    except Exception:
-        job_id = 0
-
-    if sort_value == "name":
-        return (name, job_id)
-    if sort_value == "status":
-        return (_STATUS_SORT_PRIORITY.get(status_norm, 99), name, job_id)
-    if sort_value == "progress":
-        return (-_job_progress(job), job_id)
-    if sort_value == "runtime":
-        return (-_elapsed_seconds(job), job_id)
-    # default: by id
-    return (job_id,)
-
-
 ######################################
 # UI Components
 ######################################
 
-def monitor_task(
-    name: str,
-    status: str,
-    runtime: str,
-    progress: int,
-    task_id: int = 0,
-    selected: bool = False,
-):
-    status_norm = str(status).lower().strip()
+# HTML attribute name for a Dash/dash_svg prop. Anything not listed keeps its
+# name as written: SVG presentation attributes (`fill`, `stroke`, `d`, `x1`...)
+# and the `data-*` props are already spelled the way the DOM wants them, and the
+# HTML parser restores the camelCase of `viewBox` on its own.
+_HTML_ATTRIBUTE_NAMES = {
+    "className": "class",
+    "htmlFor": "for",
+    "tabIndex": "tabindex",
+    "strokeWidth": "stroke-width",
+    "strokeLinecap": "stroke-linecap",
+    "strokeLinejoin": "stroke-linejoin",
+    "strokeDasharray": "stroke-dasharray",
+    "fillRule": "fill-rule",
+    "clipRule": "clip-rule",
+}
 
+# Props that must not reach the DOM: Dash bookkeeping, or (for `id`) ids that
+# would collide with the real Dash components once the row is cloned N times.
+_SKIPPED_PROPS = ("children", "id", "key", "n_clicks", "loading_state", "setProps")
+
+_VOID_TAGS = ("br", "hr", "img", "input", "path", "circle", "rect", "line", "polyline", "polygon", "ellipse", "use")
+
+
+def _css_property_name(name: str) -> str:
+    """`minWidth` -> `min-width`; already-hyphenated names pass through."""
+    out = []
+    for char in str(name):
+        if char.isupper():
+            out.append("-")
+            out.append(char.lower())
+        else:
+            out.append(char)
+    return "".join(out)
+
+
+def _style_to_css(style) -> str:
+    if not isinstance(style, dict):
+        return str(style)
+    return ";".join(f"{_css_property_name(key)}:{value}" for key, value in style.items())
+
+
+def _component_to_html(component) -> str:
+    """Serialize a Dash component tree to plain HTML markup.
+
+    The monitor renders its task rows in the browser (see assets/monitor_tasks.js),
+    but the row markup must not be transcribed by hand into JavaScript: the
+    icons come from `odatix.gui.icons` and the class names from style.css, and a
+    second copy would drift. So the row is still declared as a component tree
+    here, and shipped to the client as the HTML it serializes to.
+    """
+    if component is None or isinstance(component, bool):
+        return ""
+    if isinstance(component, (str, int, float)):
+        return html_escape(str(component))
+    if isinstance(component, (list, tuple)):
+        return "".join(_component_to_html(child) for child in component)
+
+    payload = component.to_plotly_json()
+    tag = str(payload.get("type", "div")).lower()
+    props = payload.get("props", {}) or {}
+
+    attributes = []
+    for name, value in props.items():
+        if name in _SKIPPED_PROPS or value is None:
+            continue
+        if name == "style":
+            value = _style_to_css(value)
+            if not value:
+                continue
+        elif isinstance(value, bool):
+            # Boolean attributes are present or absent, never `="False"`.
+            if value:
+                attributes.append(_HTML_ATTRIBUTE_NAMES.get(name, name))
+            continue
+        attributes.append(
+            '{}="{}"'.format(_HTML_ATTRIBUTE_NAMES.get(name, name), html_escape(str(value), quote=True))
+        )
+
+    opening = tag + (" " + " ".join(attributes) if attributes else "")
+    if tag in _VOID_TAGS:
+        return f"<{opening}/>"
+    return f"<{opening}>{_component_to_html(props.get('children'))}</{tag}>"
+
+
+def _task_action_button(action: str, glyph: str, color: str, tooltip: str):
+    """One row action button, marked up for the client-side event delegation.
+
+    `data-wrap` both names the action for the delegated click handler and marks
+    the wrapper shown or hidden per status. It is not a Dash id, so the row can
+    be cloned for every visible job without creating N components.
+    """
     return html.Div(
-        className="monitor-task-container" + (" selected" if selected else ""),
-        id={"type": "task-container", "task_id": task_id},
-        n_clicks=0,
+        **{"data-wrap": action},
+        children=[
+            ui.icon_button(
+                icon=icon(glyph, className="icon solid", offset=(action == "start")),
+                color=color,
+                multiline=True,
+                tooltip=tooltip,
+                tooltip_options="top small",
+            ),
+        ],
+    )
+
+
+def monitor_task_template():
+    """The markup of one task row, with every value left empty.
+
+    Rendered once at import time and handed to the browser, which stamps a copy
+    per *visible* row and fills the values in place. `data-role` attributes mark
+    the parts the client updates; there are deliberately no Dash ids and no
+    `n_clicks`, so the list costs nothing on the Python side however many jobs
+    the session holds.
+    """
+    return html.Div(
+        className="monitor-task-container",
         children=[
             html.Div(
-                className="monitor-task " + status,
-                id={"type": "task-row", "task_id": task_id},
+                className="monitor-task",
+                **{"data-role": "row"},
                 children=[
+                    html.Div(className="monitor-task-dot"),
+                    html.Div(className="monitor-task-name", **{"data-role": "name"}),
                     html.Div(
-                        className="monitor-task-dot",
-                        id={"type": "task-dot", "task_id": task_id},
-                    ),
-                    html.Div(
-                        f"{name}",
-                        className="monitor-task-name",
-                        id={"type": "task-display-name", "task_id": task_id},
-                        n_clicks=0,
-                    ),
-                    html.Div(
-                        children=[
-                            html.Div(
-                                id={"type": "task-progress-bar", "task_id": task_id},
-                                style={"width": f"{progress}%"},
-                                className="monitor-task-progress-bar",
-                            ),
-                        ],
                         className="monitor-task-progress",
-                    ),
-                    html.Div(
-                        f"{progress} %",
-                        id={"type": "task-progress-text", "task_id": task_id},
-                        className="monitor-task-progress-text",
-                    ),
-                    html.Div(
-                        f"{runtime}",
-                        id={"type": "task-runtime", "task_id": task_id},
-                        className=f"monitor-task-runtime",
-                    ),
-                    html.Div(
-                        f"{status}",
-                        id={"type": "task-status", "task_id": task_id},
-                        className=f"monitor-task-status {status}",
-                    ),
-                    html.Div(
                         children=[
                             html.Div(
-                                id={"type": "task-start-wrap", "task_id": task_id},
-                                children=[
-                                    ui.icon_button(
-                                        id={"type": "task-start", "task_id": task_id},
-                                        icon=icon("play_solid", className="icon solid", offset=True),
-                                        color="success",
-                                        multiline=True,
-                                        tooltip="Start task",
-                                        tooltip_options="top small",
-                                    ),
-                                ],
-                            ),
-                            html.Div(
-                                id={"type": "task-pause-wrap", "task_id": task_id},
-                                children=[
-                                    ui.icon_button(
-                                        id={"type": "task-pause", "task_id": task_id},
-                                        icon=icon("pause_solid", className="icon solid"),
-                                        color="primary",
-                                        multiline=True,
-                                        tooltip="Pause task",
-                                        tooltip_options="top small",
-                                    ),
-                                ],
-                            ),
-                            html.Div(
-                                id={"type": "task-stop-wrap", "task_id": task_id},
-                                children=[
-                                    ui.icon_button(
-                                        id={"type": "task-stop", "task_id": task_id},
-                                        icon=icon("cross_solid", className="icon solid"),
-                                        color="caution",
-                                        multiline=True,
-                                        tooltip="Kill task",
-                                        tooltip_options="top small",
-                                    ),
-                                ],
+                                className="monitor-task-progress-bar",
+                                **{"data-role": "bar"},
+                                style={"width": "0%"},
                             ),
                         ],
+                    ),
+                    html.Div(className="monitor-task-progress-text", **{"data-role": "progress"}),
+                    html.Div(className="monitor-task-runtime", **{"data-role": "runtime"}),
+                    html.Div(className="monitor-task-status", **{"data-role": "status"}),
+                    html.Div(
                         className="monitor-task-button-container",
-                    )
-                ]
+                        children=[
+                            _task_action_button("start", "play_solid", "success", "Start task"),
+                            _task_action_button("pause", "pause_solid", "primary", "Pause task"),
+                            _task_action_button("stop", "cross_solid", "caution", "Kill task"),
+                        ],
+                    ),
+                ],
             ),
-        ]
+        ],
     )
+
+
+# Serialized once at import: the markup never varies, only the values inside it.
+MONITOR_TASK_TEMPLATE_HTML = _component_to_html(monitor_task_template())
 
 
 def _stat(value_id: str, label: str, kind: str):
@@ -582,7 +566,8 @@ def _mode_button(id, label, tooltip):
 @dash.callback(
     Output("session-dropdown", "options"),
     Output("session-dropdown", "value"),
-    Input("monitor-refresh", "n_intervals"),
+    Input("monitor-session-refresh", "n_intervals"),
+    Input("session-dropdown-open", "data"),
     Input("monitor-last-action", "data"),
     State(f"url_{page_path}", "search"),
     State("session-dropdown", "value"),
@@ -590,7 +575,7 @@ def _mode_button(id, label, tooltip):
     State("session-dropdown-open", "data"),
     State("session-dropdown", "options"),
 )
-def _update_session_dropdown(_n, last_action, search, current_value, daemon_state, dropdown_open, current_options):
+def _update_session_dropdown(_n, _open, last_action, search, current_value, daemon_state, dropdown_open, current_options):
     # A session that was just shut down must disappear from the list, whether or
     # not the dropdown is open. One-shot: the store keeps its value afterwards,
     # so gate on the trigger, not on the value.
@@ -659,11 +644,13 @@ def _update_session_dropdown(_n, last_action, search, current_value, daemon_stat
 
 @dash.callback(
     Output("monitor-snapshot", "data"),
+    Output("monitor-format", "data"),
+    Output("monitor-sync", "data"),
     Output("monitor-logs", "data", allow_duplicate=True),
     Output("monitor-error", "data"),
     Output("monitor-daemon", "data"),
     Input("monitor-refresh", "n_intervals"),
-    State("monitor-snapshot", "data"),
+    State("monitor-sync", "data"),
     State("monitor-selected-job", "data"),
     State("monitor-logs", "data"),
     State("monitor-daemon", "data"),
@@ -671,12 +658,22 @@ def _update_session_dropdown(_n, last_action, search, current_value, daemon_stat
     State("session-dropdown", "value"),
     prevent_initial_call=True,
 )
-def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_state, search, selected_session):
+def _poll_status(_n, sync_state, selected_job_id, logs_state, daemon_state, search, selected_session):
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
 
-        # 1 request per tick: jobs + optional log deltas for selected job.
-        path = "/status"
+        # 1 request per tick: changed jobs + optional log deltas for the
+        # selected job. `since`/`epoch` come from the last snapshot we merged,
+        # so the daemon sends back only the jobs that actually moved -- a
+        # handful, whatever the size of the session. The very first tick (no
+        # sync state) asks for everything.
+        params = []
+        if isinstance(sync_state, dict):
+            revision = sync_state.get("revision")
+            epoch = sync_state.get("epoch")
+            if revision is not None and epoch:
+                params.append(f"since={int(revision)}")
+                params.append(f"epoch={epoch}")
 
         job_id = None
         try:
@@ -694,7 +691,9 @@ def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_stat
                 offset_i = 0
 
         if job_id is not None and offset_i is not None:
-            path = f"/status?logs_job_id={job_id}&logs_offset={offset_i}&logs_limit=500"
+            params.extend([f"logs_job_id={job_id}", f"logs_offset={offset_i}", "logs_limit=500"])
+
+        path = "/status" + ("?" + "&".join(params) if params else "")
 
         snap = _api_get(resolved_daemon, path)
 
@@ -715,62 +714,30 @@ def _poll_status(_n, previous_snapshot, selected_job_id, logs_state, daemon_stat
                 merged = list((logs_state or {}).get("lines") or []) + list(map(str, new_lines))
                 new_logs_state = {"job_id": job_id, "lines": merged, "total_lines": total_i}
 
-        return snap, new_logs_state, "", resolved_daemon
+        # The log payload is already in `monitor-logs`; leaving a copy inside
+        # the snapshot would ship every log delta twice to the browser.
+        if isinstance(snap, dict):
+            snap = dict(snap)
+            snap.pop("logs", None)
+
+        new_sync = no_update
+        if isinstance(snap, dict) and snap.get("epoch"):
+            new_sync = {"revision": snap.get("revision"), "epoch": snap.get("epoch")}
+
+        # The tool.yml path, carved out of the snapshot for the log formatter.
+        # Feeding _render_logs the whole snapshot would upload it back to the
+        # server on every tick -- exactly what the delta exists to avoid. It
+        # never changes within a session, so this store fires once.
+        handler = snap.get("handler") if isinstance(snap, dict) else None
+        new_format = handler.get("format_yaml") or "" if isinstance(handler, dict) else no_update
+
+        return snap, new_format, new_sync, new_logs_state, "", resolved_daemon
     except Exception as e:
-        # Keep the last known state so the UI does not flicker
+        # Keep the last known state so the UI does not flicker. The snapshot is
+        # not rewritten: the browser already holds the merged job list, and a
+        # dropped tick must not make it re-render or lose its revision.
         err = _format_monitor_error(e, daemon_state)
-        if previous_snapshot is None:
-            return {}, no_update, err, None
-        return previous_snapshot, no_update, err, None
-
-
-@dash.callback(
-    Output("monitor-container", "children"),
-    Output("monitor-job-ids", "data"),
-    Input("monitor-snapshot", "data"),
-    State("monitor-job-ids", "data"),
-    State("monitor-selected-job", "data"),
-)
-def _sync_job_list(snapshot, previous_job_ids, selected_job):
-    if not isinstance(snapshot, dict):
-        raise PreventUpdate
-
-    jobs = snapshot.get("jobs")
-    if not isinstance(jobs, list):
-        raise PreventUpdate
-
-    # Keep a stable ascending-by-id order. Dash aligns pattern-matching ALL
-    # outputs by sorted id, so the DOM order, `monitor-job-ids`, and the
-    # per-task update callbacks must all agree on this ordering. Visual
-    # sorting is applied on top of this via CSS `order` (see _apply_filter_sort).
-    jobs = [job for job in jobs if isinstance(job, dict)]
-    jobs.sort(key=lambda job: (int(job.get("id", 0)) if str(job.get("id", "")).lstrip("-").isdigit() else 0))
-
-    job_ids = [job.get("id") for job in jobs]
-
-    # Only rebuild the task components if the job list changed.
-    if isinstance(previous_job_ids, list) and job_ids == previous_job_ids:
-        return no_update, no_update
-
-    children = []
-    for job in jobs:
-        name = job.get("display_name") or f"job{job.get('id', '')}"
-        status = str(job.get("status") or "unknown")
-        progress = _job_progress(job)
-        runtime = str(job.get("elapsed_time") or "--:--:--")
-        task_id = job.get("id", 0)
-        children.append(
-            monitor_task(
-                name=name,
-                status=status,
-                runtime=runtime,
-                progress=progress,
-                task_id=task_id,
-                selected=(task_id == selected_job)
-            )
-        )
-
-    return children, job_ids
+        return no_update, no_update, no_update, no_update, err, None
 
 
 @dash.callback(
@@ -786,104 +753,6 @@ def _toggle_sort_direction(n_clicks, reverse):
         reverse = not reverse
     base = "color-button secondary icon-button icon-only tooltip bottom"
     return reverse, f"{base} active" if reverse else base
-
-
-@dash.callback(
-    Output({"type": "task-container", "task_id": ALL}, "style"),
-    Input("monitor-snapshot", "data"),
-    Input("monitor-filter", "value"),
-    Input("monitor-sort", "value"),
-    Input("monitor-sort-reverse", "data"),
-    State("monitor-job-ids", "data"),
-)
-def _apply_filter_sort(snapshot, filter_value, sort_value, sort_reverse, job_ids):
-    """Filter (hide non-matching) and sort (CSS `order`) task rows without a DOM rebuild."""
-    if not isinstance(job_ids, list) or not job_ids:
-        raise PreventUpdate
-
-    jobs = snapshot.get("jobs") if isinstance(snapshot, dict) else None
-    by_id = {}
-    if isinstance(jobs, list):
-        for job in jobs:
-            if isinstance(job, dict) and "id" in job:
-                by_id[job["id"]] = job
-
-    # Compute visual order ranks from the chosen sort criterion.
-    visible_ids = [jid for jid in job_ids if _job_matches_filter(
-        str(by_id.get(jid, {}).get("status") or "").lower().strip(), filter_value)]
-    ranked = sorted(visible_ids, key=lambda jid: _sort_key(by_id.get(jid, {"id": jid}), sort_value))
-    if sort_reverse:
-        ranked.reverse()
-    order_by_id = {jid: rank for rank, jid in enumerate(ranked)}
-
-    styles = []
-    for jid in job_ids:
-        status_norm = str(by_id.get(jid, {}).get("status") or "").lower().strip()
-        if not _job_matches_filter(status_norm, filter_value):
-            styles.append({"display": "none"})
-        else:
-            styles.append({"order": order_by_id.get(jid, 0)})
-    return styles
-
-
-@dash.callback(
-    Output("kpi-total", "children"),
-    Output("kpi-running", "children"),
-    Output("kpi-queued", "children"),
-    Output("kpi-done", "children"),
-    Output("kpi-failed", "children"),
-    Output("monitor-overall-bar", "style"),
-    Output("monitor-overall-text", "children"),
-    Input("monitor-snapshot", "data"),
-)
-def _update_kpis(snapshot):
-    jobs = snapshot.get("jobs") if isinstance(snapshot, dict) else None
-    if not isinstance(jobs, list):
-        jobs = []
-    jobs = [job for job in jobs if isinstance(job, dict)]
-
-    total = len(jobs)
-    running = queued = done = failed = 0
-    progress_sum = 0
-    for job in jobs:
-        status_norm = str(job.get("status") or "").lower().strip()
-        if status_norm in RUNNING_STATUSES:
-            running += 1
-        elif status_norm in QUEUED_STATUSES:
-            queued += 1
-        elif status_norm in DONE_STATUSES:
-            done += 1
-        elif status_norm in FAILED_STATUSES:
-            failed += 1
-        progress_sum += _job_progress(job)
-
-    overall = int(round(progress_sum / total)) if total > 0 else 0
-    return (
-        str(total),
-        str(running),
-        str(queued),
-        str(done),
-        str(failed),
-        {"width": f"{overall}%"},
-        f"{overall}%",
-    )
-
-
-@dash.callback(
-    Output("monitor-nbjobs-value", "children"),
-    Input("monitor-snapshot", "data"),
-)
-def _update_nbjobs_display(snapshot):
-    handler = snapshot.get("handler") if isinstance(snapshot, dict) else None
-    if not isinstance(handler, dict):
-        raise PreventUpdate
-    nb = handler.get("nb_jobs")
-    if nb is None:
-        raise PreventUpdate
-    try:
-        return str(max(1, int(nb)))
-    except Exception:
-        raise PreventUpdate
 
 
 @dash.callback(
@@ -921,229 +790,20 @@ def _change_nb_jobs(_inc, _dec, current_value, daemon_state, search, selected_se
     return str(new_value)
 
 
-@page_callback(PAGE_SCOPE,
-    Output("monitor-selected-job", "data"),
-    Input({"type": "task-container", "task_id": ALL}, "n_clicks"),
-    State("monitor-selected-job", "data"),
-    prevent_initial_call=True,
-)
-def _select_job_from_click(_row_clicks, selected_job):
-    if not ctx.triggered:
-        raise PreventUpdate
-
-    # Ignore triggers caused by re-render/component list changes.
-    prop_id = ctx.triggered[0].get("prop_id")
-    if not prop_id:
-        raise PreventUpdate
-    triggered_value = ctx.inputs.get(prop_id)
-    try:
-        if triggered_value is None or int(triggered_value) <= 0:
-            raise PreventUpdate
-    except PreventUpdate:
-        raise
-    except Exception:
-        raise PreventUpdate
-
-    # If the user clicked a task container, select that job for the Dash view.
-    triggered = ctx.triggered_id
-    if isinstance(triggered, dict) and triggered.get("type") == "task-container":
-        task_id = triggered.get("task_id")
-        if task_id is None:
-            raise PreventUpdate
-        try:
-            return int(task_id)
-        except Exception:
-            raise PreventUpdate
-
-    # Fallback: keep current selection
-    raise PreventUpdate
-
-
-@dash.callback(
-    Output({"type": "task-container", "task_id": ALL}, "className"),
-    Input("monitor-selected-job", "data"),
-    State("monitor-job-ids", "data"),
-    prevent_initial_call=True,
-)
-def _highlight_selected(selected_job, job_ids):
-    if not isinstance(job_ids, list):
-        raise PreventUpdate
-    try:
-        selected_i = int(selected_job) if selected_job is not None else None
-    except Exception:
-        selected_i = None
-
-    class_names = []
-    for job_id in job_ids:
-        is_selected = selected_i is not None and job_id == selected_i
-        class_names.append("monitor-task-container" + (" selected" if is_selected else ""))
-    return class_names
-
-
-@dash.callback(
-    Output({"type": "task-row", "task_id": ALL}, "className"),
-    Output({"type": "task-display-name", "task_id": ALL}, "children"),
-    Output({"type": "task-progress-bar", "task_id": ALL}, "style"),
-    Output({"type": "task-progress-text", "task_id": ALL}, "children"),
-    Output({"type": "task-runtime", "task_id": ALL}, "children"),
-    Output({"type": "task-status", "task_id": ALL}, "children"),
-    Output({"type": "task-status", "task_id": ALL}, "className"),
-    Output({"type": "task-start-wrap", "task_id": ALL}, "style"),
-    Output({"type": "task-pause-wrap", "task_id": ALL}, "style"),
-    Output({"type": "task-stop-wrap", "task_id": ALL}, "style"),
-    Input("monitor-snapshot", "data"),
-    State("monitor-job-ids", "data"),
-)
-def _update_tasks(snapshot, job_ids):
-    if not isinstance(snapshot, dict):
-        raise PreventUpdate
-    if not isinstance(job_ids, list) or not job_ids:
-        raise PreventUpdate
-
-    jobs = snapshot.get("jobs")
-    if not isinstance(jobs, list):
-        raise PreventUpdate
-
-    by_id = {}
-    for job in jobs:
-        if isinstance(job, dict) and "id" in job:
-            by_id[job["id"]] = job
-
-    row_class = []
-    bar_style = []
-    display_name_text = []
-    progress_text = []
-    runtime_text = []
-    status_text = []
-    status_class = []
-    start_style = []
-    pause_style = []
-    stop_style = []
-
-    for job_id in job_ids:
-
-        job = by_id.get(job_id, {})
-        display_name = str(job.get("display_name") or f"job{job_id}")
-        status = str(job.get("status") or "unknown")
-        status_norm = status.lower().strip()
-
-        progress = _job_progress(job)
-        runtime = str(job.get("elapsed_time") or "--:--:--")
-
-        display_name_text.append(display_name)
-        row_class.append("monitor-task " + status)
-        bar_style.append({"width": f"{progress}%"})
-        progress_text.append(f"{progress} %")
-        runtime_text.append(runtime)
-        status_text.append(status)
-        status_class.append(f"monitor-task-status {status}")
-
-        # Button visibility rules
-        show_start = status_norm in ("queued", "paused")
-        show_pause = status_norm in ("running", "starting")
-        show_stop = status_norm in ("queued", "paused", "running", "starting")
-
-        start_style.append({"display": "block"} if show_start else {"display": "none"})
-        pause_style.append({"display": "block"} if show_pause else {"display": "none"})
-        stop_style.append({"display": "block"} if show_stop else {"display": "none"})
-
-    return (
-        row_class,
-        display_name_text,
-        bar_style,
-        progress_text,
-        runtime_text,
-        status_text,
-        status_class,
-        start_style,
-        pause_style,
-        stop_style,
-    )
-
-
-@dash.callback(
-    Output("monitor-log-title", "children"),
-    Output("monitor-log-title", "className"),
-    Input("monitor-selected-job", "data"),
-    Input("monitor-snapshot", "data"),
-)
-def _update_log_header(selected_job, snapshot):
-    try:
-        selected_i = int(selected_job) if selected_job is not None else None
-    except Exception:
-        selected_i = None
-
-    if selected_i is None:
-        return "No task selected", "monitor-log-title"
-
-    job = None
-    jobs = snapshot.get("jobs") if isinstance(snapshot, dict) else None
-    if isinstance(jobs, list):
-        for candidate in jobs:
-            if isinstance(candidate, dict) and candidate.get("id") == selected_i:
-                job = candidate
-                break
-
-    if job is None:
-        return f"job{selected_i}", "monitor-log-title"
-
-    name = str(job.get("display_name") or f"job{selected_i}")
-    status = str(job.get("status") or "").lower().strip()
-    return (
-        [html.Span(name, className="monitor-log-title-name"),
-         html.Span(status, className=f"monitor-log-title-status {status}")],
-        "monitor-log-title",
-    )
-
-
-@dash.callback(
-    Output("monitor-selected-job", "data", allow_duplicate=True),
-    Input("monitor-snapshot", "data"),
-    State("monitor-selected-job", "data"),
-    prevent_initial_call=True,
-)
-def _init_selected_job(snapshot, selected_job):
-    # Pick a default only while nothing is selected: on page load, and after a
-    # session switch cleared the selection. Afterwards selection is user-driven.
-    if selected_job is not None:
-        raise PreventUpdate
-    if not isinstance(snapshot, dict):
-        raise PreventUpdate
-
-    handler = snapshot.get("handler")
-    idx = handler.get("selected_job_index") if isinstance(handler, dict) else None
-
-    if idx is None:
-        # No job selected daemon-side: fall back to the first job of the session
-        # so the log pane shows something right away.
-        jobs = snapshot.get("jobs")
-        jobs = [job for job in jobs if isinstance(job, dict)] if isinstance(jobs, list) else []
-        if not jobs:
-            raise PreventUpdate
-        idx = min(
-            (job.get("id") for job in jobs if str(job.get("id", "")).lstrip("-").isdigit()),
-            key=int,
-            default=None,
-        )
-        if idx is None:
-            raise PreventUpdate
-    try:
-        return int(idx)
-    except Exception:
-        raise PreventUpdate
-
-
 @dash.callback(
     Output("monitor-selected-job", "data", allow_duplicate=True),
     Output("monitor-logs", "data", allow_duplicate=True),
+    Output("monitor-sync", "data", allow_duplicate=True),
     Input("session-dropdown", "value"),
     prevent_initial_call=True,
 )
 def _reset_selection_on_session_change(_selected_session):
     # Job ids are session-local: keeping the previous selection would leave the
     # log pane frozen on a job of the session we just left. Clearing it lets
-    # _init_selected_job pick a job of the new session on the next snapshot.
-    return None, None
+    # the client-side initSelection pick a job of the new session on the next
+    # snapshot. Clearing the sync state asks the new session for a full
+    # snapshot rather than a delta against revisions that are not its own.
+    return None, None, None
 
 
 @dash.callback(
@@ -1284,18 +944,19 @@ def _get_formatter(format_yaml):
     Output("monitor-error-container", "className"),
     Input("monitor-logs", "data"),
     Input("monitor-error", "data"),
-    State("monitor-snapshot", "data"),
+    # The tool.yml path, not the snapshot: this only needs the formatter, and
+    # taking the snapshot would upload it back on every tick.
+    State("monitor-format", "data"),
     State(f"url_{page_path}", "search"),
 )
-def _render_logs(logs_state, error_message, snapshot, search):
+def _render_logs(logs_state, error_message, format_yaml, search):
     if not isinstance(logs_state, dict):
         logs_state = {}
     lines_any = logs_state.get("lines")
     lines = lines_any if isinstance(lines_any, list) else []
     lines = [str(line).rstrip("\n") for line in lines]
 
-    handler = snapshot.get("handler") if isinstance(snapshot, dict) else None
-    formatter = _get_formatter(handler.get("format_yaml") if isinstance(handler, dict) else None)
+    formatter = _get_formatter(format_yaml)
     if formatter is not None:
         lines = [formatter.replace_in_line(line) for line in lines]
 
@@ -1312,11 +973,19 @@ def _render_logs(logs_state, error_message, snapshot, search):
     return ansi_to_html_spans(text), status, main_class_name, error_class_name
 
 
+# Per-row actions arrive through a single store written by the delegated click
+# handler in assets/monitor_tasks.js, not through one pattern-matching input per
+# button: with `ALL` inputs every click uploaded three arrays of N click counts.
+_ROW_ACTION_ENDPOINTS = {
+    "start": "start",
+    "pause": "pause",
+    "stop": "kill",
+}
+
+
 @dash.callback(
     Output("monitor-last-action", "data"),
-    Input({"type": "task-start", "task_id": ALL}, "n_clicks"),
-    Input({"type": "task-pause", "task_id": ALL}, "n_clicks"),
-    Input({"type": "task-stop", "task_id": ALL}, "n_clicks"),
+    Input("monitor-task-command", "data"),
     Input("monitor-stop-all", "n_clicks"),
     Input("monitor-open-path", "n_clicks"),
     State("monitor-selected-job", "data"),
@@ -1325,7 +994,7 @@ def _render_logs(logs_state, error_message, snapshot, search):
     State("session-dropdown", "value"),
     prevent_initial_call=True,
 )
-def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, open_clicks,
+def _task_action(task_command, stop_all_clicks, open_clicks,
                  selected_job, daemon_state, search, selected_session):
     if not ctx.triggered:
         raise PreventUpdate
@@ -1335,21 +1004,35 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
     except Exception as e:
         return {"ok": False, "error": _format_monitor_error(e, daemon_state)}
 
-    # Dash will also trigger this callback when components are added/removed
-    # during polling refreshes. Only treat it as an action on a real click.
-    prop_id = ctx.triggered[0].get("prop_id")
-    if not prop_id:
-        raise PreventUpdate
-    triggered_value = ctx.inputs.get(prop_id)
-    try:
-        if triggered_value is None or int(triggered_value) <= 0:
+    triggered = ctx.triggered_id
+
+    if triggered == "monitor-task-command":
+        if not isinstance(task_command, dict):
             raise PreventUpdate
-    except PreventUpdate:
-        raise
-    except Exception:
+        action_type = str(task_command.get("action") or "")
+        endpoint = _ROW_ACTION_ENDPOINTS.get(action_type)
+        if endpoint is None:
+            return {"ok": False, "error": f"Unknown action type: {action_type}"}
+        try:
+            job_id = int(task_command.get("job_id"))
+        except Exception:
+            return {"ok": False, "error": "Invalid task id: {}".format(task_command.get("job_id"))}
+        try:
+            _api_post(resolved_daemon, f"/jobs/{job_id}/{endpoint}")
+            return {"ok": True, "action": action_type, "job_id": job_id}
+        except Exception as e:
+            return {
+                "ok": False,
+                "action": action_type,
+                "job_id": job_id,
+                "error": _format_monitor_error(e, daemon_state),
+            }
+
+    # The remaining inputs are plain buttons: ignore the initial render, where
+    # n_clicks is 0 rather than an actual click.
+    if not ctx.triggered[0].get("value"):
         raise PreventUpdate
 
-    triggered = ctx.triggered_id
     if triggered == "monitor-stop-all":
         try:
             # stop_daemon waits for the process to be gone and removes its state
@@ -1370,49 +1053,21 @@ def _task_action(_start_clicks, _pause_clicks, _stop_clicks, stop_all_clicks, op
         except Exception as e:
             return {"ok": False, "action": "open", "error": _format_monitor_error(e, daemon_state)}
 
-    if not isinstance(triggered, dict):
-        raise PreventUpdate
-
-    action_type = triggered.get("type")
-    task_id = triggered.get("task_id")
-    if task_id is None:
-        return {"ok": False, "error": "Missing task_id"}
-    try:
-        job_id = int(task_id)
-    except Exception:
-        return {"ok": False, "error": f"Invalid task_id: {task_id}"}
-
-    try:
-        if action_type == "task-start":
-            _api_post(resolved_daemon, f"/jobs/{job_id}/start")
-            return {"ok": True, "action": "start", "job_id": job_id}
-        if action_type == "task-pause":
-            _api_post(resolved_daemon, f"/jobs/{job_id}/pause")
-            return {"ok": True, "action": "pause", "job_id": job_id}
-        if action_type == "task-stop":
-            _api_post(resolved_daemon, f"/jobs/{job_id}/kill")
-            return {"ok": True, "action": "kill", "job_id": job_id}
-
-        return {"ok": False, "error": f"Unknown action type: {action_type}"}
-    except Exception as e:
-        return {
-            "ok": False,
-            "action": action_type,
-            "job_id": job_id,
-            "error": _format_monitor_error(e, daemon_state),
-        }
+    raise PreventUpdate
 
 
 
 @dash.callback(
     Output("monitor-open-path", "disabled"),
     Output("monitor-open-path", "data-tooltip"),
-    Input("monitor-refresh", "n_intervals"),
+    # Driven by the session, not by the poll tick: what this answers only
+    # changes when the monitor attaches somewhere else. Polling it cost one
+    # round trip a second to re-send the same two values.
     Input("session-dropdown", "value"),
     State(f"url_{page_path}", "search"),
     State("monitor-daemon", "data"),
 )
-def _toggle_open_path(_n, selected_session, search, daemon_state):
+def _toggle_open_path(selected_session, search, daemon_state):
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
     except Exception:
@@ -1446,33 +1101,33 @@ def _format_hms(seconds: int) -> str:
     Output("monitor-finished-message", "children"),
     Output("monitor-finished-stats", "children"),
     Output("monitor-finished-announced", "data"),
-    Input("monitor-snapshot", "data"),
+    Input("monitor-finished-summary", "data"),
     State("monitor-finished-announced", "data"),
     State("session-dropdown", "value"),
     State("monitor-daemon", "data"),
     prevent_initial_call=True,
 )
-def _announce_finished(snapshot, announced, selected_session, daemon_state):
-    """Pop the completion dialog once per session, when every job is done."""
-    jobs = snapshot.get("jobs") if isinstance(snapshot, dict) else None
-    if not isinstance(jobs, list):
-        raise PreventUpdate
-    jobs = [job for job in jobs if isinstance(job, dict)]
-    if not jobs:
+def _announce_finished(counts, announced, selected_session, daemon_state):
+    """Pop the completion dialog once per session, when every job is done.
+
+    Reads the daemon's aggregates rather than walking the job list: the
+    snapshot only carries the jobs that changed since the last tick, and this
+    stays O(1) whatever the size of the session. And the store it reads is
+    written client-side only once the session is actually over, so a tick where
+    jobs are still running costs no round trip at all.
+    """
+    if not isinstance(counts, dict):
         raise PreventUpdate
 
-    total = len(jobs)
-    done = failed = 0
-    longest = 0
-    for job in jobs:
-        status_norm = str(job.get("status") or "").lower().strip()
-        if status_norm in RUNNING_STATUSES or status_norm in QUEUED_STATUSES:
-            raise PreventUpdate
-        if status_norm in DONE_STATUSES:
-            done += 1
-        elif status_norm in FAILED_STATUSES:
-            failed += 1
-        longest = max(longest, _elapsed_seconds(job))
+    total = int(counts.get("total") or 0)
+    if total <= 0:
+        raise PreventUpdate
+    if int(counts.get("running") or 0) > 0 or int(counts.get("queued") or 0) > 0:
+        raise PreventUpdate
+
+    done = int(counts.get("done") or 0)
+    failed = int(counts.get("failed") or 0)
+    longest = int(counts.get("longest_elapsed") or 0)
 
     if done + failed < total:
         raise PreventUpdate
@@ -1736,7 +1391,16 @@ log_panel = html.Div(
         html.Div(
             className="monitor-panel-header",
             children=[
-                html.Div("No task selected", id="monitor-log-title", className="monitor-log-title"),
+                html.Div(
+                    id="monitor-log-title",
+                    className="monitor-log-title",
+                    children=[
+                        html.Span("No task selected", id="monitor-log-title-name",
+                                  className="monitor-log-title-name"),
+                        html.Span("", id="monitor-log-title-status",
+                                  className="monitor-log-title-status"),
+                    ],
+                ),
                 html.Div(
                     className="monitor-panel-tools",
                     children=[
@@ -1878,13 +1542,35 @@ layout = html.Div(
         dcc.Store(id={"type": "update_url", "id": page_path}),
         dcc.Store(id="monitor-finished-announced", data=None),
         dcc.Interval(id="monitor-refresh", interval=1000, n_intervals=0),
+        # Listing sessions scans /proc and pings every candidate, so it gets a
+        # slower beat of its own instead of riding the job poll. Opening the
+        # dropdown refreshes it immediately (session-dropdown-open).
+        dcc.Interval(id="monitor-session-refresh", interval=3000, n_intervals=0),
         dcc.Store(id="monitor-snapshot", data=None),
         dcc.Store(id="monitor-error", data=""),
         dcc.Store(id="monitor-last-action", data=None),
         dcc.Store(id="monitor-daemon", data=None),
         dcc.Store(id="monitor-selected-job", data=0),
         dcc.Store(id="monitor-logs", data=None),
-        dcc.Store(id="monitor-job-ids", data=[]),
+        # Revision + epoch of the last snapshot merged in the browser: what
+        # `_poll_status` sends back as `?since=` to get a delta (see
+        # ParallelJobHandler.snapshot).
+        dcc.Store(id="monitor-sync", data=None),
+        # Job counts + longest runtime, written only once every job is done.
+        dcc.Store(id="monitor-finished-summary", data=None),
+        # tool.yml path of the session, for the log formatter.
+        dcc.Store(id="monitor-format", data=None),
+        # Row markup, built once server-side and stamped per visible row by
+        # assets/monitor_tasks.js.
+        dcc.Store(id="monitor-row-template", data=MONITOR_TASK_TEMPLATE_HTML),
+        # One row action ({action, job_id, nonce}), written by the delegated
+        # click handler, read by _task_action.
+        dcc.Store(id="monitor-task-command", data=None),
+        # Output of the client-side renderer. Nothing reads it: a clientside
+        # callback needs an output, and this one's work is the DOM it draws.
+        dcc.Store(id="monitor-tasks-sink", data=None),
+        # Tab visibility, written by assets/monitor_tasks.js.
+        dcc.Store(id="monitor-visibility", data=True),
         dcc.Store(id="monitor-sort-reverse", data=False),
         dcc.Store(id="session-dropdown-open", data=False),
         dcc.Store(id="monitor-layout", data="split"),
@@ -1898,3 +1584,87 @@ layout = html.Div(
 
 # Anchor of PAGE_SCOPE: makes this page the only one dispatching its callbacks.
 layout = scoped(PAGE_SCOPE, layout)
+
+
+######################################
+# Client-side callbacks
+######################################
+#
+# Everything below runs in the browser, on data it already holds. These used to
+# be Python callbacks fed by `monitor-snapshot`, which meant re-uploading the
+# whole snapshot to the server several times per second and patching O(number
+# of jobs) component properties back -- the reason the monitor collapsed on
+# large sessions. See assets/monitor_tasks.js.
+
+# The task list: merges the snapshot delta into the client-side job model and
+# redraws the *visible* rows only (virtualized list + delegated clicks).
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="render"),
+    Output("monitor-tasks-sink", "data"),
+    Input("monitor-snapshot", "data"),
+    Input("monitor-filter", "value"),
+    Input("monitor-sort", "value"),
+    Input("monitor-sort-reverse", "data"),
+    Input("monitor-selected-job", "data"),
+    Input("monitor-row-template", "data"),
+)
+
+# KPIs and overall progress, straight from the daemon's aggregates.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="kpis"),
+    Output("kpi-total", "children"),
+    Output("kpi-running", "children"),
+    Output("kpi-queued", "children"),
+    Output("kpi-done", "children"),
+    Output("kpi-failed", "children"),
+    Output("monitor-overall-bar", "style"),
+    Output("monitor-overall-text", "children"),
+    Input("monitor-snapshot", "data"),
+)
+
+# Parallel-jobs display. `_change_nb_jobs` keeps the optimistic value on click;
+# this reconciles it with what the daemon reports.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="nbJobs"),
+    Output("monitor-nbjobs-value", "children"),
+    Input("monitor-snapshot", "data"),
+)
+
+# Name + status of the selected job above the log pane.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="logTitle"),
+    Output("monitor-log-title-name", "children"),
+    Output("monitor-log-title-status", "children"),
+    Output("monitor-log-title-status", "className"),
+    Input("monitor-selected-job", "data"),
+    Input("monitor-snapshot", "data"),
+)
+
+# Default selection on page load / after a session switch. Uses the daemon's
+# own selection, falling back to the first job of the session.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="initSelection"),
+    Output("monitor-selected-job", "data", allow_duplicate=True),
+    Input("monitor-snapshot", "data"),
+    State("monitor-selected-job", "data"),
+    prevent_initial_call=True,
+)
+
+# Completion gate: writes the totals the dialog needs only once the session is
+# actually over, so the (Python) dialog callback is not woken on every tick.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="finishedSummary"),
+    Output("monitor-finished-summary", "data"),
+    Input("monitor-snapshot", "data"),
+    prevent_initial_call=True,
+)
+
+# Polling cadence: stop entirely while the tab is hidden, and slow down on
+# large sessions, where a 1 s round trip buys nothing a 2 s one does not.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="refreshRate"),
+    Output("monitor-refresh", "interval"),
+    Output("monitor-refresh", "disabled"),
+    Input("monitor-snapshot", "data"),
+    Input("monitor-visibility", "data"),
+)

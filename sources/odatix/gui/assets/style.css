@@ -1939,6 +1939,40 @@ input[type="checkbox"] {
     overflow: visible;
     height: auto;
 }
+/* Virtualized task list (assets/monitor_tasks.js): the container is sized to
+   the full list, but only the rows inside the viewport exist in the DOM, each
+   positioned at its own offset. Rows must therefore be absolutely positioned
+   and of a *fixed* height -- the renderer measures one row and derives every
+   offset from it, so a row that could grow would break the mapping between a
+   scroll position and an index. */
+.monitor-list-scroll .monitor-container.virtual {
+    display: block;
+    position: relative;
+    /* `row-gap` has no layout effect on a block container, but it stays the one
+       place the spacing between rows is written: the renderer reads it back and
+       adds it to the measured row height to get the row pitch. */
+    row-gap: var(--space-2);
+}
+.monitor-task-container.virtual-row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* Row pitch = this height + the gap the renderer reads off the container.
+       Kept in sync with .monitor-list-panel .monitor-task's padding below. */
+    height: 34px;
+    box-sizing: border-box;
+    /* Rows are moved by transform, never re-laid-out: scrolling a long list
+       must not make the browser reflow the whole panel. Recycling a row means
+       jumping it to another offset, so the base transform transition must not
+       apply here -- it would animate rows flying across the panel. */
+    will-change: transform;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.monitor-task-container.virtual-row .monitor-task {
+    height: 100%;
+    box-sizing: border-box;
+}
 .monitor-task-container {
     border: 1px solid transparent;
     border-radius: var(--theme-small-border-radius);

@@ -31,6 +31,7 @@ import subprocess
 import curses
 import locale
 import io
+import uuid
 import contextlib
 import threading
 
@@ -54,6 +55,15 @@ from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str, read_pipe_windows
 from odatix.lib.parallel_job_handler import curses_ui
 from odatix.lib.parallel_job_handler import diagnostics
+from odatix.lib.parallel_job_handler.job_status import (
+    DONE_STATUSES,
+    FAILED_STATUSES,
+    QUEUED_STATUSES,
+    RUNNING_STATUSES,
+    STATUS_BUCKETS,
+    STATUS_SORT_PRIORITY,
+    elapsed_to_seconds,
+)
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
 
@@ -191,6 +201,17 @@ class ParallelJobHandler:
         except Exception:
             self.theme = Theme('ASCII_Highlight')
 
+        # Snapshot revisions: `snapshot(since=...)` returns only the jobs whose
+        # public state changed since that revision, so a monitor watching
+        # thousands of jobs receives the handful that actually move. The epoch
+        # identifies this handler instance: a client holding a revision from a
+        # previous daemon gets a full snapshot instead of silently missing
+        # updates, since revisions restart at 0 with every new handler.
+        self._snapshot_epoch = uuid.uuid4().hex[:12]
+        self._snapshot_revision = 0
+        self._job_digests = {}
+        self._job_revisions = {}
+
         # Headless / API control state (thread-safe)
         self._lock = threading.RLock()
         self._command_queue = queue.Queue()
@@ -250,28 +271,115 @@ class ParallelJobHandler:
     # Headless control / snapshot API
     ######################################
 
-    def snapshot(self, logs_job_id=None, logs_offset=None, logs_limit=None):
+    def _refresh_job_revisions(self, entries):
+        """Stamp the revision at which each job's public state last changed.
+
+        Called with the handler lock held. The digest covers exactly the fields
+        a monitor renders: a running job's elapsed time ticks every second, so
+        running jobs naturally stay in every delta while finished ones drop out
+        of them for good.
+        """
+        bumped = False
+
+        for entry in entries:
+            job_id = entry["id"]
+            digest = (
+                entry["status"],
+                entry["progress"],
+                entry["elapsed_time"],
+                entry["display_name"],
+            )
+            if self._job_digests.get(job_id) != digest:
+                if not bumped:
+                    self._snapshot_revision += 1
+                    bumped = True
+                self._job_digests[job_id] = digest
+                self._job_revisions[job_id] = self._snapshot_revision
+
+        # Ids that disappeared (a shorter job list) invalidate every client's
+        # incremental view: there is no per-job revision able to express a
+        # removal, so force everyone back to a full snapshot.
+        live_ids = {entry["id"] for entry in entries}
+        stale_ids = [job_id for job_id in self._job_digests if job_id not in live_ids]
+        if stale_ids:
+            self._snapshot_epoch = uuid.uuid4().hex[:12]
+            self._snapshot_revision += 1
+            for job_id in stale_ids:
+                self._job_digests.pop(job_id, None)
+                self._job_revisions.pop(job_id, None)
+
+    def snapshot(self, logs_job_id=None, logs_offset=None, logs_limit=None, since=None, epoch=None):
         """Return a JSON-serializable snapshot of handler + job state.
 
         If logs_job_id is None, returns logs for the selected job.
+
+        With `since` (a revision from a previous snapshot) and the matching
+        `epoch`, "jobs" holds only the jobs that changed since then and "full"
+        is False. The aggregate counts under "handler" always cover every job,
+        so a client on deltas never has to hold the whole list to show totals.
         """
         with self._lock:
             jobs = []
+            counts = {"total": 0, "running": 0, "queued": 0, "done": 0, "failed": 0}
+            progress_sum = 0
+            longest_elapsed = 0
+            first_job_id = None
+
             for idx, job in enumerate(self.job_list):
-                jobs.append(
-                    {
-                        "id": idx,
-                        "display_name": job.display_name,
-                        "kind": getattr(job, "kind", JOB_KIND),
-                        "status": job.status,
-                        "progress": getattr(job, "progress", 0),
-                        "directory": job.directory,
-                        "tmp_dir": job.tmp_dir,
-                        "target": job.target,
-                        "arch": job.arch,
-                        "elapsed_time": get_elapsed_time_str(job.start_time, job.stop_time),
-                    }
-                )
+                entry = {
+                    "id": idx,
+                    "display_name": job.display_name,
+                    "kind": getattr(job, "kind", JOB_KIND),
+                    "status": job.status,
+                    "progress": getattr(job, "progress", 0),
+                    "directory": job.directory,
+                    "tmp_dir": job.tmp_dir,
+                    "target": job.target,
+                    "arch": job.arch,
+                    "elapsed_time": get_elapsed_time_str(job.start_time, job.stop_time),
+                }
+                jobs.append(entry)
+
+                if first_job_id is None:
+                    first_job_id = idx
+
+                status_norm = str(entry["status"] or "").lower().strip()
+                counts["total"] += 1
+                if status_norm in RUNNING_STATUSES:
+                    counts["running"] += 1
+                elif status_norm in QUEUED_STATUSES:
+                    counts["queued"] += 1
+                elif status_norm in DONE_STATUSES:
+                    counts["done"] += 1
+                elif status_norm in FAILED_STATUSES:
+                    counts["failed"] += 1
+
+                try:
+                    progress = int(round(float(entry["progress"] or 0)))
+                except Exception:
+                    progress = 0
+                progress_sum += max(0, min(100, progress))
+                longest_elapsed = max(longest_elapsed, elapsed_to_seconds(entry["elapsed_time"]))
+
+            self._refresh_job_revisions(jobs)
+
+            # Delta selection. Anything unexpected (foreign epoch, revision from
+            # the future, unparsable value) falls back to a full snapshot: being
+            # slow once beats showing a stale list forever.
+            full = True
+            if since is not None and str(epoch or "") == self._snapshot_epoch:
+                try:
+                    since_i = int(since)
+                except Exception:
+                    since_i = None
+                if since_i is not None and 0 <= since_i <= self._snapshot_revision:
+                    jobs = [
+                        entry for entry in jobs
+                        if self._job_revisions.get(entry["id"], 0) > since_i
+                    ]
+                    full = False
+
+            overall = int(round(progress_sum / counts["total"])) if counts["total"] > 0 else 0
 
             if self.job_count > 0:
                 selected_id = int(self.selected_job_index)
@@ -332,8 +440,20 @@ class ParallelJobHandler:
                         "mem": self._resource_guard_last_mem,
                         "auto_paused": len(self._auto_paused_jobs),
                     },
+                    # Aggregates over *every* job, so a client receiving only
+                    # deltas can still render totals, the overall progress bar
+                    # and the completion dialog without holding the full list.
+                    "counts": counts,
+                    "overall_progress": overall,
+                    "longest_elapsed": longest_elapsed,
+                    "first_job_id": first_job_id,
+                    "status_buckets": STATUS_BUCKETS,
+                    "status_sort_priority": STATUS_SORT_PRIORITY,
                 },
                 "jobs": jobs,
+                "full": full,
+                "revision": int(self._snapshot_revision),
+                "epoch": self._snapshot_epoch,
                 "logs": logs,
             }
 
