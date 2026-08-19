@@ -1932,6 +1932,16 @@ input[type="checkbox"] {
     padding: var(--space-3);
     border-radius: 0 0 var(--theme-normal-border-radius) var(--theme-normal-border-radius);
 }
+/* The list takes the focus to drive the selection from the keyboard, but it is
+   a scroll box, not a control: only show the ring when the focus came from the
+   keyboard. */
+.monitor-list-scroll:focus {
+    outline: none;
+}
+.monitor-list-scroll:focus-visible {
+    outline: 1px solid var(--theme-primary-color);
+    outline-offset: -1px;
+}
 .monitor-list-scroll .monitor-container {
     display: flex;
     flex-direction: column;

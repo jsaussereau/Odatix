@@ -1404,6 +1404,9 @@ list_panel = html.Div(
         ),
         html.Div(
             className="monitor-list-scroll",
+            # Focusable so the arrow / PageUp / PageDown / Home / End keys can
+            # move the selection (assets/monitor_tasks.js).
+            tabIndex="0",
             children=[
                 html.Div(children=[], id="monitor-container", className="monitor-container"),
             ],

@@ -48,6 +48,7 @@
     jobs: new Map(),          // id -> job payload
     epoch: null,
     order: [],                // visible job ids, in display order
+    indexById: new Map(),     // job id -> position in `order`, for keyboard nav
     orderDirty: true,
     filter: null,
     sort: null,
@@ -187,7 +188,11 @@
     order.sort(sortComparator(state.sort));
     if (state.reverse) order.reverse();
 
+    var indexById = new Map();
+    for (var k = 0; k < order.length; k++) indexById.set(order[k], k);
+
     state.order = order;
+    state.indexById = indexById;
     state.orderDirty = false;
   }
 
@@ -361,6 +366,77 @@
     schedule();
   }
 
+  /* -------------------------------------------------------- keyboard nav */
+
+  // How many rows a PageUp/PageDown moves: one viewport worth, minus one row of
+  // overlap so the user keeps a visual anchor.
+  function pageStep() {
+    if (!state.scroller) return 1;
+    var rows = Math.floor(state.scroller.clientHeight / (state.pitch || DEFAULT_PITCH));
+    return Math.max(1, rows - 1);
+  }
+
+  // Scroll just enough to bring `index` inside the viewport. Derived from the
+  // pitch rather than from the row element: the target row may not be in the
+  // DOM yet (it is virtualized), and this runs before the next draw.
+  function scrollIndexIntoView(index) {
+    if (!state.scroller || !state.container) return;
+    var pitch = state.pitch || DEFAULT_PITCH;
+    var scroller = state.scroller;
+    var offset = scroller.scrollTop
+      + (state.container.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
+
+    var top = offset + index * pitch;
+    var bottom = top + pitch;
+    if (top < scroller.scrollTop) {
+      scroller.scrollTop = top;
+    } else if (bottom > scroller.scrollTop + scroller.clientHeight) {
+      scroller.scrollTop = bottom - scroller.clientHeight;
+    }
+  }
+
+  function selectIndex(index) {
+    var total = state.order.length;
+    if (total === 0) return;
+    index = Math.max(0, Math.min(index, total - 1));
+    var jobId = state.order[index];
+    scrollIndexIntoView(index);
+    if (jobId === state.selected) return;
+    // Paint the new selection now; the Dash store round trip only drives the
+    // log pane, and waiting for it would make the arrow keys feel laggy.
+    state.selected = jobId;
+    schedule();
+    setProps("monitor-selected-job", { data: jobId });
+  }
+
+  function onKeyDown(event) {
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    // Let the search box and the dropdowns above the list keep their own keys.
+    var target = event.target;
+    if (target && target !== state.scroller && target.closest("input, textarea, select, [contenteditable=true]")) {
+      return;
+    }
+    if (state.orderDirty) rebuildOrder();
+    var total = state.order.length;
+    if (total === 0) return;
+
+    var current = state.indexById.has(state.selected) ? state.indexById.get(state.selected) : -1;
+    var next;
+    switch (event.key) {
+      case "ArrowDown": next = current < 0 ? 0 : current + 1; break;
+      case "ArrowUp": next = current < 0 ? total - 1 : current - 1; break;
+      case "PageDown": next = current < 0 ? 0 : current + pageStep(); break;
+      case "PageUp": next = current < 0 ? total - 1 : current - pageStep(); break;
+      case "Home": next = 0; break;
+      case "End": next = total - 1; break;
+      default: return;
+    }
+    // The list owns these keys once it has focus: no native scroll on top of
+    // the move we just did.
+    event.preventDefault();
+    selectIndex(next);
+  }
+
   function onClick(event) {
     var row = event.target.closest("[data-job-id]");
     if (!row || !state.container.contains(row)) return;
@@ -385,6 +461,11 @@
       return;
     }
 
+    // Clicking a row hands the list the focus, so the arrow keys continue from
+    // where the user just pointed without a separate tab stop.
+    if (state.scroller && typeof state.scroller.focus === "function") {
+      state.scroller.focus({ preventScroll: true });
+    }
     setProps("monitor-selected-job", { data: jobId });
   }
 
@@ -408,6 +489,7 @@
 
     if (state.scroller) {
       state.scroller.addEventListener("scroll", onScroll, { passive: true });
+      state.scroller.addEventListener("keydown", onKeyDown);
     }
     container.addEventListener("click", onClick);
     return true;
