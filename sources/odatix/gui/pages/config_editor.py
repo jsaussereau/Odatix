@@ -1307,7 +1307,8 @@ def update_config_cards(
                     if not config_new_title.endswith(".txt"):
                         config_new_title = config_new_title + ".txt"
                     if config_new_title != config_old_title:
-                        print(f"Renaming config from '{config_old_title}' to '{config_new_title}'")
+                        if verbose:
+                            print(f"Renaming config from '{config_old_title}' to '{config_new_title}'")
                         if config_new_title in trig_domain_configs:
                             if verbose:
                                 print(f"File '{config_new_title}' already exists.")
