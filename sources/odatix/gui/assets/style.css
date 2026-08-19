@@ -2583,3 +2583,23 @@ input[type="checkbox"] {
     .monitor-finished-stat:nth-child(2) { border-right: none; }
     .monitor-finished-stat:nth-child(-n+2) { border-bottom: 1px solid rgba(128, 128, 128, 0.14); }
 }
+
+.tile.config.preview-tile {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.preview-pane-container {
+    flex: 1 1 auto;
+    position: relative;
+    min-height: 270px;
+}
+.preview-pane-container > .preview-pane {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    overflow: auto;
+}

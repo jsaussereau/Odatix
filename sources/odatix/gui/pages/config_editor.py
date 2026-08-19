@@ -868,15 +868,10 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             id={"type": "preview-pre", "domain_uuid": domain_uuid},
             className="preview-pane",
             style={
-                "width": "100%",
-                "height": "270px",
-                "min-height": "270px",
                 "fontFamily": "monospace",
                 "fontWeight": "normal",
                 "padding": "5px",
-                "overflow": "auto",
                 "whiteSpace": "pre-wrap",
-                "resize": "vertical",
                 "box-sizing": "border-box",
             }
         )
@@ -948,9 +943,12 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                     html.Div(
                         children=[
                             preview_header(domain_uuid),
-                            html.Div(id={"type": "preview-pane", "domain_uuid": domain_uuid}),
+                            html.Div(
+                                id={"type": "preview-pane", "domain_uuid": domain_uuid},
+                                className="preview-pane-container",
+                            ),
                         ],
-                        className="tile config",
+                        className="tile config preview-tile",
                     ),
                 ], 
                 className="card-matrix config",
