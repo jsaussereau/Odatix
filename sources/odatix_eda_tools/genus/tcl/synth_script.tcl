@@ -1,76 +1,40 @@
 #################################################################################
-# GENUS SYNTHESIS SCRIPT
+# GENUS SYNTHESIS ENTRY SCRIPT
 #################################################################################
-set effort high
+
+# Choose synthesis type:
+#   logical
+#   physical
+#set synth_mode "physical"
+
+#################################################################################
+# COMMON SETUP
+#################################################################################
 
 source scripts/settings.tcl
-#source scripts/is_slack_met.tcl
-report_progress 28 $synth_statusfile
 
 #################################################################################
-# ELABORATE
+# SELECT SYNTHESIS FLOW
 #################################################################################
 
-#elaborate $top_level_module
+if {$synth_mode eq "logical"} {
 
-#check_design
+    puts "=========================================="
+    puts "Selected synthesis mode: LOGICAL"
+    puts "=========================================="
 
-#################################################################################
-# CONSTRAINTS
-#################################################################################
+    source scripts/synth_script_logical.tcl
 
-read_sdc $constraints_file
-report_clocks
-report_timing -lint
-check_timing_intent
+} elseif {$synth_mode eq "physical"} {
 
-report_progress 40 $synth_statusfile
+    puts "=========================================="
+    puts "Selected synthesis mode: PHYSICAL"
+    puts "=========================================="
 
+    source scripts/synth_script_physical.tcl
 
-#################################################################################
-# SYNTHESIS
-#################################################################################
+} else {
 
-set_db syn_global_effort $effort
+    error "Invalid synthesis mode '$synth_mode'. Use 'logical' or 'physical'."
 
-syn_generic
-report_progress 50 $synth_statusfile
-
-syn_map
-report_progress 70 $synth_statusfile
-
-syn_opt
-report_progress 90 $synth_statusfile
-
-#################################################################################
-# REPORTS
-#################################################################################
-
-
-report_timing > $timing_rep
-report_area > $area_rep
-report_power -unit mw > $power_rep
-report_qor > $report_path/qor.rep
-report_area -detail > $utilization_rep
-
-
-report_timing 
-report_area 
-report_power -unit mw
-
-report_progress 95 $synth_statusfile
-
-
-#################################################################################
-# NETLIST
-#################################################################################
-
-write_hdl > $result_path/${top_level_module}_netlist.v
-write_sdf > $result_path/${top_level_module}.sdf
-write_sdc > $result_path/${top_level_module}.sdc
-
-
-
-
-report_progress 100 $synth_statusfile
-puts "Synthesis completed successfully!"
+}
