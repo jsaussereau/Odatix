@@ -48,10 +48,14 @@ def get_workspace(odatix_settings=None):
 
 def get_instance_collection(workspace, mode):
     """
-    The architectures or the workflows of a workspace, depending on which of the
-    two a page is showing (see :func:`get_instance_mode`).
+    The architectures, the workflows or the simulations of a workspace,
+    depending on which of them a page is showing (see :func:`get_instance_mode`).
     """
-    return workspace.workflows if mode == "workflow" else workspace.architectures
+    if mode == "workflow":
+        return workspace.workflows
+    if mode == "simulation":
+        return workspace.simulations
+    return workspace.architectures
 
 def get_key_from_url(url, key):
     """
@@ -64,13 +68,18 @@ def get_key_from_url(url, key):
 
 def get_instance_mode(url):
     """
-    Determine whether a URL refers to a workflow (?workflow=...) or an
-    architecture (?arch=...), and return (mode, name). Defaults to "arch"
-    when neither is present.
+    Determine whether a URL refers to a workflow (?workflow=...), a simulation
+    (?simulation=...) or an architecture (?arch=...), and return (mode, name).
+    Defaults to "arch" when none is present.
     """
     workflow_name = get_key_from_url(url, "workflow")
     if workflow_name:
         return "workflow", workflow_name
+    # Pages disagree on the name of the key ("sim" for the simulation editor,
+    # "simulation" elsewhere), so both are read.
+    simulation_name = get_key_from_url(url, "simulation") or get_key_from_url(url, "sim")
+    if simulation_name:
+        return "simulation", simulation_name
     return "arch", get_key_from_url(url, "arch")
 
 def get_instance_context(url, odatix_settings):
@@ -87,9 +96,9 @@ def get_instance_context(url, odatix_settings):
 
 def get_instance_collection_context(url, odatix_settings):
     """
-    What a page editing "an architecture or a workflow" is working on:
-    ``(mode, name, collection)``, where the collection is the one of the two the
-    URL points at.
+    What a page editing an architecture, a workflow or a simulation is working on:
+    ``(mode, name, collection)``, where the collection is the one the URL points
+    at.
     """
     mode, name = get_instance_mode(url)
     return mode, name, get_instance_collection(get_workspace(odatix_settings), mode)

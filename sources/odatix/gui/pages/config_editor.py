@@ -265,11 +265,38 @@ def add_card(text: str = "Add design configuration", domain_uuid: str = hard_set
         },
     )
 
+#: How each kind of instance the page edits is named to a user.
+INSTANCE_LABELS = {"workflow": "Workflow", "simulation": "Simulation", "arch": "Architecture"}
+
+
+def instance_label(mode:str="arch"):
+    return INSTANCE_LABELS.get(mode, INSTANCE_LABELS["arch"])
+
+
+def no_instance_message(mode:str="arch"):
+    return "No " + instance_label(mode).lower() + " selected."
+
+
+def main_domain_placeholder():
+    """
+    Stands in for the main domain title of a simulation, which has none: the
+    callback filling that title needs its div to exist whatever is shown.
+    """
+    return html.Div(
+        id=f"param-domain-title-div-{hard_settings.main_parameter_domain}",
+        style={"display": "none"},
+    )
+
+
 def instance_title(mode:str="arch", instance_name:str=""):
     if mode == "workflow":
         back_link = "/workflows"
         settings_link = f"/workflow_editor?workflow={instance_name}"
         settings_text = "Workflow Settings"
+    elif mode == "simulation":
+        back_link = "/architectures"
+        settings_link = f"/sim_editor?sim={instance_name}"
+        settings_text = "Simulation Settings"
     else:
         back_link = "/architectures"
         settings_link = f"/arch_editor?arch={instance_name}"
@@ -335,6 +362,9 @@ def instance_title(mode:str="arch", instance_name:str=""):
     )
 
 def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, domain_uuid:str=hard_settings.main_parameter_domain, mode:str="arch", instance_name:str=""):
+    # A simulation does not own its domains: they are the directories its
+    # settings point at, so they are named, duplicated and deleted there.
+    is_simulation = mode == "simulation"
     if domain_uuid == hard_settings.main_parameter_domain:
         text = "Main parameter domain"
         buttons = html.Div(
@@ -372,15 +402,20 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
                 )
             ],
             className="inline-flex-buttons param-domain-title",
+            style={"display": "none"} if is_simulation else {},
         )
         title_content = html.Div([
             html.Div([
-                html.H3("Parameter domain:", style={"display": "inline-block", "marginBottom": "0px", "marginRight": "10px"}),
+                html.H3(
+                    "Parameter directory:" if is_simulation else "Parameter domain:",
+                    style={"display": "inline-block", "marginBottom": "0px", "marginRight": "10px"},
+                ),
                 dcc.Input(
                     value=domain_name,
                     type="text",
                     id={"type": "domain-title-input", "domain_uuid": domain_uuid},
                     placeholder="Parameter domain name...",
+                    disabled=is_simulation,
                     className="title-input domain",
                     style={
                         "marginBottom": "0",
@@ -503,6 +538,10 @@ def show_newlines(text: str):
     return components
 
 def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str):
+    # Where a simulation writes its parameters is said in its own settings, one
+    # entry per architecture: there is no single file to preview here.
+    if mode == "simulation":
+        return None
     use_parameters = domain_settings.get("use_parameters", True)
     if not use_parameters:
         return html.Div("Parameter replacement disabled.", style={"color": "#888"})
@@ -582,7 +621,7 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         )
     else:
         if base_path == "" or param_target_file == "":
-            label = "workflow" if mode == "workflow" else "architecture"
+            label = instance_label(mode).lower()
             text = f"Invalid {label} settings. Unable to preview."
         elif settings == {}:
             text = f"No settings found."
@@ -654,6 +693,12 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                     ),
                 ], 
                 className="card-matrix config",
+                # A simulation says where its parameters go, and with which
+                # delimiters, in its own settings: one entry per architecture,
+                # so neither the form nor the preview means anything here. They
+                # are still built, hidden, so that every callback keeps seeing
+                # one of each per domain.
+                style={"display": "none"} if mode == "simulation" else {},
             ),
             config_rules.rules_section(domain_uuid, settings, open=open_rules, domain_name=domain),
             # Which origins the stat strip of this domain currently filters out.
@@ -995,7 +1040,7 @@ dash.clientside_callback(
 def update_main_domain_title(_, search):
     mode, instance_name = get_instance_mode(search)
     if not instance_name:
-        return "No architecture or workflow selected."
+        return no_instance_message(mode)
     return parameter_domain_title(domain_uuid=hard_settings.main_parameter_domain, mode=mode, instance_name=instance_name)
 
 @dash.callback(
@@ -1027,7 +1072,7 @@ def update_param_domains(
     if not instance_name:
         return html.Div(
             children=[
-                html.Div("No architecture or workflow selected.", className="error")
+                html.Div(no_instance_message(mode), className="error")
             ],
             className="card-matrix config",
         ), dash.no_update, dash.no_update
@@ -1040,6 +1085,42 @@ def update_param_domains(
         ],
         className="card-matrix config",
     )
+
+    # The domains of a simulation are the "param_dir" directories its settings
+    # point at: they are added, named and removed there, and only their
+    # configurations are edited here.
+    if mode == "simulation":
+        if instance_name not in instances:
+            return [
+                main_domain_placeholder(),
+                html.Div(
+                    html.Div("No such simulation: " + instance_name, className="error"),
+                    className="card-matrix config",
+                ),
+            ], True, dash.no_update
+        if triggered_id != {"page": page_path, "type": "instance-title-div"}:
+            return dash.no_update, dash.no_update, dash.no_update
+        simulation = instances[instance_name]
+        domain_sections = [main_domain_placeholder()]
+        for domain in simulation.domains:
+            domain_sections.append(
+                domain_section(
+                    domain.name, mode, instance_name, settings=domain.settings.to_dict(),
+                    open_rules=(domain.name == requested_domain),
+                )
+            )
+        if len(domain_sections) == 1:
+            domain_sections.append(html.Div(
+                html.Div([
+                    html.Div("This simulation has no parameter directory."),
+                    html.Div(
+                        "Give a domain a \"parameter directory\" in the simulation settings to "
+                        "run one configuration per value of that domain."
+                    ),
+                ], className="error warning"),
+                className="card-matrix config",
+            ))
+        return domain_sections, True, dash.no_update
 
     if instance_name not in instances:
         domain_sections = []
@@ -1184,7 +1265,7 @@ def update_config_cards(
 ):
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
-        return [html.Div("No architecture or workflow selected.", className="error")]
+        return [html.Div(no_instance_message(mode), className="error")]
 
     triggered_id = ctx.triggered_id
     # A blacklist toggle answers the very click this callback answers. Dash holds
@@ -1693,7 +1774,7 @@ def update_preview_all(
     odatix_settings = rest[len(config_rules.FIELD_PATTERNS) + 2] if len(rest) > len(config_rules.FIELD_PATTERNS) + 2 else {}
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name or instance_name not in instances:
-        label = "Workflow" if mode == "workflow" else "Architecture"
+        label = instance_label(mode)
         return [
             html.Div([
                 html.Div(f"{label} is not created yet."),
@@ -2222,7 +2303,7 @@ def toggle_params_fields(enabled_values):
 def update_instance_title(search):
     mode, instance_name = get_instance_mode(search)
     if not instance_name:
-        instance_name = "New_Workflow" if mode == "workflow" else "New_Architecture"
+        instance_name = "New_" + instance_label(mode)
     return instance_title(mode, instance_name)
 
 @dash.callback(
@@ -2251,6 +2332,16 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
         raise dash.exceptions.PreventUpdate
+
+    # The directories of a simulation are named in the simulation settings, not
+    # here, so their titles are read-only and there is no main domain to skip.
+    if mode == "simulation":
+        nothing = [dash.no_update] * len(domain_metadata)
+        return (
+            ["color-button invisible icon-button tooltip delay bottom small"] * len(domain_metadata),
+            ["Parameter directories are named in the simulation settings"] * len(domain_metadata),
+            nothing,
+        )
 
     domain_metadata = domain_metadata[1:] # Remove main domain entry
     new_metadata.append(dash.no_update)  # Placeholder for main domain
@@ -2292,7 +2383,7 @@ def update_params_title_save_button(_, title_input, domain_metadata, search, oda
                     tooltips.append("Parameter domain name cannot be empty")
                 elif new_domain_name in instances.entry(instance_name).domains:
                     save_classes.append(error_class)
-                    label = "workflow" if mode == "workflow" else "architecture"
+                    label = instance_label(mode).lower()
                     tooltips.append(f"Parameter domain '{new_domain_name}' already exists for this {label}")
                 else:
                     save_classes.append(enabled_class)

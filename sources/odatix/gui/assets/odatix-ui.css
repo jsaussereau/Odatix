@@ -384,7 +384,7 @@
 .odx-field-row:last-child {
     margin-bottom: 0;
 }
-.odx-field-row > .odx-field {
+.odx-field-row .odx-field {
     margin-bottom: 0;
 }
 

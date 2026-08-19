@@ -450,6 +450,7 @@
     --dropdown-background-hover: var(--docs-gray-100);
     --dropdown-border: 1px solid var(--theme-border-color);
     --dropdown-menu-hover: var(--docs-primary-50);
+    --dropdown-border-radius: var(--theme-small-border-radius);
     --navbar-dropdown-background: var(--docs-slate-800);
     --navbar-dropdown-background-hover: var(--docs-slate-700);
     --navbar-dropdown-text-color: var(--theme-contrast-text-color);

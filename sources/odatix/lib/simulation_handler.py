@@ -482,7 +482,11 @@ class SimulationHandler:
           # What the simulation changes for the architecture under test, taken from the
           # "architectures" block (see odatix.workspace.sim_architectures): the entries
           # matching this architecture, merged in the order they are written.
-          arch_settings = sim_architectures.settings_for(self.get_architecture_entries(sim), arch)
+          # The "architectures" block names architectures, not configurations: match it
+          # against the architecture name alone, the way check_architectures does. "arch"
+          # here is the parameter directory ("AsteRISC/M0000"), which no entry would match.
+          arch_entry_name = str(arch_full).split("+", 1)[0].split("/", 1)[0].strip()
+          arch_settings = sim_architectures.settings_for(self.get_architecture_entries(sim), arch_entry_name)
           if sim in self.banned_sim_param:
             self.plan.add(sim_display_name, Category.ERROR)
             return None
@@ -497,7 +501,7 @@ class SimulationHandler:
           if arch_settings.get("param_domains"):
             for domain_name, domain_overrides in arch_settings["param_domains"].items():
               domain_name = str(domain_name)
-              domain_id = arch + ": param_domains: " + domain_name
+              domain_id = arch_entry_name + ": param_domains: " + domain_name
               if not isinstance(domain_overrides, dict):
                 printc.error("\"architectures: " + domain_id + "\" in \"" + settings_filename + "\" must be a mapping", script_name)
                 self.banned_sim_param.append(sim)
@@ -507,42 +511,75 @@ class SimulationHandler:
               existing_domain = next((pd for pd in architecture.param_domains if pd.domain == domain_name), None)
 
               if existing_domain is not None:
+                # "combine" says what to do with the architecture's own substitution for
+                # this domain: "replace" customizes it in place (the default), "both"
+                # leaves it alone and does a second substitution, described here and
+                # inheriting from it whatever it does not say.
+                if sim_architectures.combine_mode(domain_overrides) == sim_architectures.COMBINE_BOTH:
+                  target_domain = ParamDomain(
+                    domain=existing_domain.domain,
+                    domain_value=existing_domain.domain_value,
+                    use_parameters=existing_domain.use_parameters,
+                    start_delimiter=existing_domain.start_delimiter,
+                    stop_delimiter=existing_domain.stop_delimiter,
+                    param_target_file=existing_domain.param_target_file,
+                    param_file=existing_domain.param_file,
+                  )
+                  architecture.param_domains.append(target_domain)
+                else:
+                  target_domain = existing_domain
+
                 if 'use_parameters' in domain_overrides:
-                  existing_domain.use_parameters = bool(domain_overrides['use_parameters'])
+                  target_domain.use_parameters = bool(domain_overrides['use_parameters'])
                 if 'start_delimiter' in domain_overrides:
-                  existing_domain.start_delimiter = domain_overrides['start_delimiter']
+                  target_domain.start_delimiter = domain_overrides['start_delimiter']
                 if 'stop_delimiter' in domain_overrides:
-                  existing_domain.stop_delimiter = domain_overrides['stop_delimiter']
+                  target_domain.stop_delimiter = domain_overrides['stop_delimiter']
                 if 'param_target_file' in domain_overrides:
-                  existing_domain.param_target_file = domain_overrides['param_target_file']
-                elif existing_domain.param_target_file == "":
+                  target_domain.param_target_file = domain_overrides['param_target_file']
+                elif target_domain.param_target_file == "":
                   # The architecture had the domain switched off, so it never resolved a target
                   # file for it. Re-enabling it here has to fall back to the top level, as the
                   # architecture would have.
-                  existing_domain.param_target_file = architecture.top_level_filename
-                if existing_domain.use_parameters and (existing_domain.start_delimiter == "" or existing_domain.stop_delimiter == ""):
+                  target_domain.param_target_file = architecture.top_level_filename
+                if target_domain.use_parameters and (target_domain.start_delimiter == "" or target_domain.stop_delimiter == ""):
                   printc.error("\"architectures: " + domain_id + "\" in \"" + settings_filename + "\" enables the replacement but no \"start_delimiter\"/\"stop_delimiter\" is defined, here or in the architecture", script_name)
                   self.banned_sim_param.append(sim)
                   self.plan.add(sim_display_name, Category.ERROR)
                   return None
-                if 'param_file' in domain_overrides:
-                  domain_param_file = os.path.join(source_sim_dir, domain_overrides['param_file'])
-                  if not isfile(domain_param_file):
-                    printc.error("There is no parameter file \"" + domain_param_file + "\", referenced by \"architectures: " + domain_id + "\" in \"" + settings_filename + "\"", script_name)
-                    self.plan.add(sim_display_name, Category.ERROR)
-                    return None
-                  existing_domain.param_file = domain_param_file
+                # What the simulation substitutes for this domain: one file for every
+                # configuration ("param_file"), or one per configuration of the domain
+                # ("param_dir", files or rules, like an architecture's configurations).
+                domain_messages = []
+                domain_param_file = sim_architectures.resolve_param_file(
+                  domain_overrides, source_sim_dir,
+                  domain_value=target_domain.domain_value,
+                  messages=domain_messages,
+                  where="\"architectures: " + domain_id + "\" in \"" + settings_filename + "\"",
+                )
+                printc.messages(domain_messages, script_name)
+                if any(message.level == "error" for message in domain_messages):
+                  self.plan.add(sim_display_name, Category.ERROR)
+                  return None
+                if domain_param_file is not None:
+                  target_domain.param_file = domain_param_file
               else:
                 # Standalone override: not tied to any architecture domain, so everything
                 # needed to run a substitution has to be given here.
-                if 'param_file' not in domain_overrides:
-                  printc.error("Cannot find key \"param_file\" in \"architectures: " + domain_id + "\" in \"" + settings_filename + "\", required since \"" + domain_name + "\" is not a domain of this architecture", script_name)
+                if 'param_file' not in domain_overrides and 'param_dir' not in domain_overrides:
+                  printc.error("Cannot find key \"param_file\" or \"param_dir\" in \"architectures: " + domain_id + "\" in \"" + settings_filename + "\", required since \"" + domain_name + "\" is not a domain of this architecture", script_name)
                   self.banned_sim_param.append(sim)
                   self.plan.add(sim_display_name, Category.ERROR)
                   return None
-                new_domain_param_file = os.path.join(source_sim_dir, domain_overrides['param_file'])
-                if not isfile(new_domain_param_file):
-                  printc.error("There is no parameter file \"" + new_domain_param_file + "\", referenced by \"architectures: " + domain_id + "\" in \"" + settings_filename + "\"", script_name)
+                domain_messages = []
+                new_domain_param_file = sim_architectures.resolve_param_file(
+                  domain_overrides, source_sim_dir,
+                  domain_value=str(domain_overrides.get('domain_value', '')),
+                  messages=domain_messages,
+                  where="\"architectures: " + domain_id + "\" in \"" + settings_filename + "\"",
+                )
+                printc.messages(domain_messages, script_name)
+                if new_domain_param_file is None or any(message.level == "error" for message in domain_messages):
                   self.plan.add(sim_display_name, Category.ERROR)
                   return None
                 new_domain_use_parameters = bool(domain_overrides.get('use_parameters', True))

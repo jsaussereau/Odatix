@@ -469,7 +469,7 @@ def form_area(
     )
 
 
-def form_dropdown(label: str, id: Union[str, dict], options, value=None, tooltip: str="", placeholder: str="", clearable: bool=True, className: str="") -> Component:
+def form_dropdown(label: str, id: Union[str, dict], options, value=None, tooltip: str="", placeholder: str="", clearable: bool=True, className: str="", style: Optional[dict]=None) -> Component:
     """Labelled dropdown."""
     return html.Div(
         children=[
@@ -483,6 +483,7 @@ def form_dropdown(label: str, id: Union[str, dict], options, value=None, tooltip
             dcc.Dropdown(id=id, options=options, value=value, placeholder=placeholder, clearable=clearable),
         ],
         className=f"odx-field {className}".strip(),
+        style=style or {},
     )
 
 

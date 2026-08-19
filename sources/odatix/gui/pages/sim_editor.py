@@ -92,7 +92,9 @@ def format_invariant_domains(domains):
     )
 
 
-PARAM_DOMAIN_TEXT_KEYS = ("param_target_file", "start_delimiter", "stop_delimiter", "param_file")
+PARAM_DOMAIN_TEXT_KEYS = (
+    "param_target_file", "start_delimiter", "stop_delimiter", "param_file", "param_dir",
+)
 
 # The text fields of a parameter domain row, by the suffix their component id
 # carries.
@@ -101,6 +103,7 @@ FIELD_KEYS = {
     "start-delimiter": "start_delimiter",
     "stop-delimiter": "stop_delimiter",
     "param-file": "param_file",
+    "param-dir": "param_dir",
 }
 
 # What a parameter domain row says about being substituted at all. "Inherit"
@@ -110,6 +113,13 @@ DOMAIN_MODE_OPTIONS = [
     {"label": "Inherit", "value": "inherit"},
     {"label": "Replace", "value": "yes"},
     {"label": "No replacement", "value": "no"},
+]
+
+# Whether the substitution the simulation describes for a domain is done instead
+# of the architecture's own, or as well as it.
+DOMAIN_COMBINE_OPTIONS = [
+    {"label": "Instead of the architecture's", "value": sim_architectures.COMBINE_REPLACE},
+    {"label": "As well as the architecture's", "value": sim_architectures.COMBINE_BOTH},
 ]
 
 
@@ -126,6 +136,8 @@ def normalize_param_domain(overrides):
     normalized = {}
     if "use_parameters" in overrides:
         normalized["use_parameters"] = _parse_bool(overrides["use_parameters"], True)
+    if sim_architectures.combine_mode(overrides) == sim_architectures.COMBINE_BOTH:
+        normalized["combine"] = sim_architectures.COMBINE_BOTH
     for key in PARAM_DOMAIN_TEXT_KEYS:
         if key in overrides and str(overrides[key] or "") != "":
             normalized[key] = str(overrides[key])
@@ -201,6 +213,7 @@ def arch_cards_from_settings(architectures):
                     "inherit" if not isinstance(overrides, dict) or "use_parameters" not in overrides
                     else ("yes" if _parse_bool(overrides["use_parameters"], True) else "no")
                 ),
+                combine=sim_architectures.combine_mode(overrides),
             )
             for domain, overrides in (entry.get("param_domains") or {}).items()
         ]
@@ -241,6 +254,9 @@ def arch_cards_to_settings(cards):
             overrides = {}
             if domain.get("mode") in ("yes", "no"):
                 overrides["use_parameters"] = domain.get("mode") == "yes"
+            # Replacing is the default, and stays unwritten.
+            if domain.get("combine") == sim_architectures.COMBINE_BOTH:
+                overrides["combine"] = sim_architectures.COMBINE_BOTH
             for key in PARAM_DOMAIN_TEXT_KEYS:
                 value = str(domain.get(key, "") or "").strip()
                 if value != "":
@@ -738,13 +754,14 @@ def domain_row(arch_uid, domain_uid, domain, options=None):
     """
     name = str(domain.get("name", "") or "")
 
-    def field(label, key, placeholder="", tooltip=""):
+    def field(label, key, placeholder="", tooltip="", style=None):
         return ui.form_field(
             label,
             {"type": "sim-domain-" + key, "arch": arch_uid, "domain": domain_uid},
             value=str(domain.get(FIELD_KEYS[key], "") or ""),
             placeholder=placeholder,
             tooltip=tooltip,
+            style=style
         )
 
     return html.Div(
@@ -760,6 +777,7 @@ def domain_row(arch_uid, domain_uid, domain, options=None):
                             clearable=False,
                         ),
                         className="odx-domain-name",
+                        style={"marginRight": "8px"}
                     ),
                     dcc.RadioItems(
                         id={"type": "sim-domain-mode", "arch": arch_uid, "domain": domain_uid},
@@ -785,10 +803,52 @@ def domain_row(arch_uid, domain_uid, domain, options=None):
                         tooltip="File of the simulation sources the values are written into, "
                                 "instead of the one the architecture writes them into.",
                     ),
+                    ui.form_dropdown(
+                        "Rule application",
+                        {"type": "sim-domain-combine", "arch": arch_uid, "domain": domain_uid},
+                        options=DOMAIN_COMBINE_OPTIONS,
+                        value=domain.get("combine") or sim_architectures.COMBINE_REPLACE,
+                        clearable=False,
+                        tooltip="Whether the substitution described here replaces the one the "
+                                "architecture does for this domain, or is done as well as it, so "
+                                "the domain is written in two places.",
+                    ),
+                ],
+                className="odx-field-row",
+            ),
+            html.Div(
+                children=[
+                    html.Div(
+                        children=[
+                            field(
+                                "Parameter directory", "param-dir", placeholder="sim_params/width",
+                                tooltip="Directory of the simulation holding one configuration per value of "
+                                        "the domain, written as \".txt\" files or described by rules in its "
+                                        "own \"_settings.yml\", like the configurations of an architecture.",
+                                style={"width": "100%"},
+                            ),
+                            ui.icon_button(
+                                id={"type": "sim-domain-configs", "arch": arch_uid, "domain": domain_uid},
+                                icon=icon("edit", className="icon"),
+                                color="default",
+                                tooltip="Edit the configurations of this directory",
+                                tooltip_options="bottom auto delay",
+                                link="",
+                                style={"marginBottom": "0"},
+                            ),
+                        ],
+                        # The button opens what the field names, so it sits with
+                        # it rather than in a row of its own.
+                        style={"display": "flex", "alignItems": "flex-end", "gap": "8px", "flex": "1"},
+                    ),
                     field(
-                        "Parameter file", "param-file", placeholder="sim_params.txt",
-                        tooltip="File of the simulation holding the values, instead of the "
-                                "configuration's. Required for a domain the architecture does not define.",
+                        "Default parameter file", "param-file", placeholder="sim_params.txt",
+                        tooltip="File of the simulation holding the values, whichever configuration "
+                                "of the domain runs. Given along a parameter directory, it is the "
+                                "default the configurations that directory does not describe fall "
+                                "back to. Required for a domain the architecture does not define, "
+                                "unless a parameter directory is given.",
+                        style={"width": "100%"},
                     ),
                 ],
                 className="odx-field-row",
@@ -982,8 +1042,9 @@ def new_arch_card(used, available):
 
 def new_domain():
     """A parameter domain override that changes nothing yet."""
-    return {"name": "", "mode": "inherit", "param_target_file": "", "start_delimiter": "",
-            "stop_delimiter": "", "param_file": ""}
+    return {"name": "", "mode": "inherit", "combine": sim_architectures.COMBINE_REPLACE,
+            "param_target_file": "", "start_delimiter": "", "stop_delimiter": "",
+            "param_file": "", "param_dir": ""}
 
 
 def sim_task_card(name="main", dependencies_value="", commands_value="", path_value="", platforms_value=""):
@@ -1190,6 +1251,7 @@ def gather_architectures(
     arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
     domain_ids, domain_names, domain_modes,
     domain_target_files, domain_param_files, domain_start_delimiters, domain_stop_delimiters,
+    domain_param_dirs=None, domain_combines=None,
 ):
     """
     Rebuild the architecture cards from what is currently in the page. Used both
@@ -1202,10 +1264,17 @@ def gather_architectures(
     collapsed = _by_arch(arch_ids, arch_collapsed)
 
     domains = {}
-    for domain_id, name, mode, target_file, param_file, start_delimiter, stop_delimiter in zip(
+    domain_count = len(domain_ids or [])
+    domain_param_dirs = list(domain_param_dirs or []) + [""] * domain_count
+    domain_combines = list(domain_combines or []) + [""] * domain_count
+    for (
+        domain_id, name, mode, target_file, param_file, start_delimiter, stop_delimiter,
+        param_dir, combine,
+    ) in zip(
         domain_ids or [], domain_names or [], domain_modes or [],
         domain_target_files or [], domain_param_files or [],
         domain_start_delimiters or [], domain_stop_delimiters or [],
+        domain_param_dirs, domain_combines,
     ):
         if not isinstance(domain_id, dict):
             continue
@@ -1216,6 +1285,8 @@ def gather_architectures(
                 "mode": mode or "inherit",
                 "param_target_file": str(target_file or ""),
                 "param_file": str(param_file or ""),
+                "param_dir": str(param_dir or ""),
+                "combine": combine or sim_architectures.COMBINE_REPLACE,
                 "start_delimiter": str(start_delimiter or ""),
                 "stop_delimiter": str(stop_delimiter or ""),
             },
@@ -1260,6 +1331,8 @@ def arch_dependencies(field_dep):
         field_dep(dict(domain_pattern, type="sim-domain-param-file"), "value"),
         field_dep(dict(domain_pattern, type="sim-domain-start-delimiter"), "value"),
         field_dep(dict(domain_pattern, type="sim-domain-stop-delimiter"), "value"),
+        field_dep(dict(domain_pattern, type="sim-domain-param-dir"), "value"),
+        field_dep(dict(domain_pattern, type="sim-domain-combine"), "value"),
     ]
 
 
@@ -1398,6 +1471,7 @@ def update_architectures(
     arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
     domain_ids, domain_names, domain_modes,
     domain_target_files, domain_param_files, domain_start_delimiters, domain_stop_delimiters,
+    domain_param_dirs, domain_combines,
     odatix_settings,
 ):
     """
@@ -1418,6 +1492,7 @@ def update_architectures(
         arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
         domain_ids, domain_names, domain_modes,
         domain_target_files, domain_param_files, domain_start_delimiters, domain_stop_delimiters,
+        domain_param_dirs, domain_combines,
     )
     index = _arch_index(cards, arch_uid) if arch_uid is not None else None
 
@@ -1643,6 +1718,8 @@ def save_and_status(
     domain_param_files,
     domain_start_delimiters,
     domain_stop_delimiters,
+    domain_param_dirs,
+    domain_combines,
     task_names,
     task_dependencies,
     task_commands,
@@ -1670,6 +1747,7 @@ def save_and_status(
             arch_ids, arch_names, arch_metrics_files, arch_extras, arch_collapsed,
             domain_ids, domain_names, domain_modes,
             domain_target_files, domain_param_files, domain_start_delimiters, domain_stop_delimiters,
+            domain_param_dirs, domain_combines,
         )),
         "progress": {
             "file": progress_file or "",
@@ -1829,6 +1907,21 @@ def toggle_sim_task_more_fields(n_clicks, expandable_area_styles, icon_classes, 
             new_expandable_area_styles[index] = Style.visible
             new_icon_classes[index] = "icon normal rotate rotated"
     return new_expandable_area_styles, new_icon_classes
+
+
+# The configuration editor opens on a directory, so the link of a row follows
+# what its "parameter directory" field says, before it is even saved. A row
+# naming no directory has nothing to open: its button stays in place, greyed
+# out, and says why through its tooltip.
+dash.clientside_callback(
+    dash.ClientsideFunction(namespace="odatix_sim", function_name="domainConfigLinks"),
+    Output({"type": "sim-domain-configs", "arch": dash.ALL, "domain": dash.ALL, "is_link": True}, "href"),
+    Output({"type": "sim-domain-configs", "arch": dash.ALL, "domain": dash.ALL, "is_link": True}, "style"),
+    Output({"type": "sim-domain-configs", "arch": dash.ALL, "domain": dash.ALL}, "className"),
+    Output({"type": "sim-domain-configs", "arch": dash.ALL, "domain": dash.ALL}, "data-tooltip"),
+    Input({"type": "sim-domain-param-dir", "arch": dash.ALL, "domain": dash.ALL}, "value"),
+    Input(f"url_{page_path}", "search"),
+)
 
 
 ######################################

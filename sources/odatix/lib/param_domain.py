@@ -64,7 +64,7 @@ class ParamDomain:
     self.stop_delimiter = stop_delimiter
     self.param_target_file = param_target_file
     self.param_file = param_file
-  
+
   def __repr__(self):
     """Returns a string representation of the object for debugging purposes."""
     out = f"domain: {self.domain}\n"

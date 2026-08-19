@@ -498,7 +498,7 @@ textarea {
 .dash-dropdown{
     font-size: var(--dropdown-font-size); 
     margin-bottom: 5px;
-    width: 250px;
+    /* width: 250px; */
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s; 
