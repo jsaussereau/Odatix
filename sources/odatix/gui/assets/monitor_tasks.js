@@ -425,7 +425,10 @@
   /* ------------------------------------------------- clientside callbacks */
 
   window.dash_clientside = window.dash_clientside || {};
-  window.dash_clientside.odatixMonitor = {
+  // Merge, never replace: assets/monitor_log.js publishes `appendLog` under the
+  // same namespace, and asset files load in alphabetical order.
+  window.dash_clientside.odatixMonitor = window.dash_clientside.odatixMonitor || {};
+  Object.assign(window.dash_clientside.odatixMonitor, {
     render: function (snapshot, filterValue, sortValue, sortReverse, selectedJob, template) {
       if (template && template !== state.template) {
         state.template = template;
@@ -539,5 +542,5 @@
       // A hidden tab shows nothing: polling it only costs the daemon requests.
       return [interval, visible === false];
     },
-  };
+  });
 })();

@@ -116,6 +116,12 @@ class DaemonMonitorHandler(ParallelJobHandler):
         self._logs_poll_interval_active = max(0.10, self._poll_interval)
         self._logs_poll_interval_idle = max(0.75, self._poll_interval * 2.0)
         self._jobs_by_remote_id = {}
+        # Snapshot delta cursor: with a revision and its matching epoch the
+        # daemon returns only the jobs whose state moved since then (see
+        # ParallelJobHandler.snapshot). Both stay None until the first reply,
+        # which is therefore a full snapshot.
+        self._snapshot_revision = None
+        self._snapshot_epoch = None
         self._queue_counter = _QueueCounter()
         self.job_queue = self._queue_counter
 
@@ -210,13 +216,46 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 job.start_time = None
                 job.stop_time = None
 
+    def _status_path(self):
+        """`/status` for the next poll, asking for a delta when we can."""
+        path = "/status?logs_job_id=-1"
+        if self._snapshot_epoch is not None and self._snapshot_revision is not None:
+            path += "&since={}&epoch={}".format(int(self._snapshot_revision), self._snapshot_epoch)
+        return path
+
+    def _apply_job_updates(self, remote_jobs, full, now):
+        """Merge a snapshot's job entries into the local mirror.
+
+        A delta carries only the jobs that changed, so the mirror -- not the
+        response -- is what holds the job list. Only a full snapshot may drop
+        jobs: the daemon rerolls its epoch when its list shrinks, which forces
+        one, so a delta never means "the missing ids are gone".
+        """
+        if full:
+            live_ids = {int(remote_job.get("id", -1)) for remote_job in remote_jobs}
+            for stale_id in [job_id for job_id in self._jobs_by_remote_id if job_id not in live_ids]:
+                self._jobs_by_remote_id.pop(stale_id, None)
+
+        for remote_job in remote_jobs:
+            remote_id = int(remote_job.get("id", -1))
+            job = self._jobs_by_remote_id.get(remote_id)
+            if job is None:
+                job = self._new_local_job(
+                    remote_id=remote_id,
+                    display_name=remote_job.get("display_name", "job"),
+                    directory=remote_job.get("directory", "."),
+                    tmp_dir=remote_job.get("tmp_dir", "."),
+                )
+                self._jobs_by_remote_id[remote_id] = job
+            self._sync_job_from_remote(job, remote_job, now)
+
     def _sync_snapshot(self, force=False):
         now = time.time()
         if not force and (now - self._last_poll) < self._poll_interval:
             return
 
         try:
-            snapshot = _api_get(self._endpoint, "/status?logs_job_id=-1", timeout=0.8)
+            snapshot = _api_get(self._endpoint, self._status_path(), timeout=0.8)
         except Exception as e:
             self._last_poll = now
             self._append_error(e)
@@ -227,6 +266,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
         handler_data = _extract_handler(snapshot)
         remote_jobs = _extract_jobs(snapshot)
 
+        # The aggregates always cover every job, delta or not.
         self._remote_running = int(handler_data.get("running", 0))
         self._remote_queued = int(handler_data.get("queued", 0))
         self._remote_retired = int(handler_data.get("retired", 0))
@@ -247,30 +287,25 @@ class DaemonMonitorHandler(ParallelJobHandler):
 
         self._queue_counter.set(self._remote_queued)
 
-        if remote_jobs:
-            new_job_list = []
-            seen = set()
-            for remote_job in remote_jobs:
-                remote_id = int(remote_job.get("id", -1))
-                seen.add(remote_id)
-                job = self._jobs_by_remote_id.get(remote_id)
-                if job is None:
-                    job = self._new_local_job(
-                        remote_id=remote_id,
-                        display_name=remote_job.get("display_name", "job"),
-                        directory=remote_job.get("directory", "."),
-                        tmp_dir=remote_job.get("tmp_dir", "."),
-                    )
-                    self._jobs_by_remote_id[remote_id] = job
+        # A reply that says nothing about its revision cannot be followed up on;
+        # dropping the cursor asks for a full snapshot next time rather than
+        # replaying a stale `since`.
+        epoch = snapshot.get("epoch") if isinstance(snapshot, dict) else None
+        revision = snapshot.get("revision") if isinstance(snapshot, dict) else None
+        full = bool(snapshot.get("full", True)) if isinstance(snapshot, dict) else True
+        if epoch != self._snapshot_epoch:
+            full = True
+        if isinstance(epoch, str) and isinstance(revision, int):
+            self._snapshot_epoch = epoch
+            self._snapshot_revision = revision
+        else:
+            self._snapshot_epoch = None
+            self._snapshot_revision = None
 
-                self._sync_job_from_remote(job, remote_job, now)
-                new_job_list.append(job)
+        self._apply_job_updates(remote_jobs, full, now)
 
-            stale_ids = [job_id for job_id in self._jobs_by_remote_id.keys() if job_id not in seen]
-            for stale_id in stale_ids:
-                self._jobs_by_remote_id.pop(stale_id, None)
-
-            self.job_list = new_job_list
+        if self._jobs_by_remote_id:
+            self.job_list = [self._jobs_by_remote_id[job_id] for job_id in sorted(self._jobs_by_remote_id)]
             self.job_count = len(self.job_list)
             self.max_title_length = max(len(job.display_name) for job in self.job_list)
             self.selected_job_index = max(0, min(int(self.selected_job_index), self.job_count - 1))
@@ -299,7 +334,6 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 job for job in self.job_list if job.status in ("success", "failed", "killed", "canceled")
             ]
         else:
-            self._jobs_by_remote_id.clear()
             self.job_list = [self._placeholder]
             self.job_count = 1
             self.selected_job_index = 0
@@ -353,7 +387,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 if limit == -1:
                     snap = _api_get(
                         self._endpoint,
-                        "/status?logs_job_id={}&logs_offset=0&logs_limit=-1".format(remote_id),
+                        "/status?logs_job_id={}&include_jobs=0&logs_offset=0&logs_limit=-1".format(remote_id),
                         timeout=2.0,
                     )
                     logs = snap.get("logs") if isinstance(snap, dict) else {}
@@ -367,7 +401,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 else:
                     meta = _api_get(
                         self._endpoint,
-                        "/status?logs_job_id={}&logs_offset=0&logs_limit=0".format(remote_id),
+                        "/status?logs_job_id={}&include_jobs=0&logs_offset=0&logs_limit=0".format(remote_id),
                         timeout=1.2,
                     )
                     meta_logs = meta.get("logs") if isinstance(meta, dict) else {}
@@ -376,7 +410,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     fetch_offset = max(0, total - max(0, int(limit)))
                     snap = _api_get(
                         self._endpoint,
-                        "/status?logs_job_id={}&logs_offset={}&logs_limit={}".format(remote_id, fetch_offset, max(0, int(limit))),
+                        "/status?logs_job_id={}&include_jobs=0&logs_offset={}&logs_limit={}".format(remote_id, fetch_offset, max(0, int(limit))),
                         timeout=1.8,
                     )
                     logs = snap.get("logs") if isinstance(snap, dict) else {}
@@ -391,7 +425,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                 limit = int(getattr(job, "log_size_limit", self.log_size_limit))
                 snap = _api_get(
                     self._endpoint,
-                    "/status?logs_job_id={}&logs_offset={}&logs_limit=500".format(remote_id, offset),
+                    "/status?logs_job_id={}&include_jobs=0&logs_offset={}&logs_limit=500".format(remote_id, offset),
                     timeout=1.0,
                 )
                 logs = snap.get("logs") if isinstance(snap, dict) else {}
@@ -405,7 +439,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     if limit == -1:
                         full = _api_get(
                             self._endpoint,
-                            "/status?logs_job_id={}&logs_offset=0&logs_limit=-1".format(remote_id),
+                            "/status?logs_job_id={}&include_jobs=0&logs_offset=0&logs_limit=-1".format(remote_id),
                             timeout=2.0,
                         )
                         full_logs = full.get("logs") if isinstance(full, dict) else {}
@@ -419,7 +453,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                     else:
                         meta = _api_get(
                             self._endpoint,
-                            "/status?logs_job_id={}&logs_offset=0&logs_limit=0".format(remote_id),
+                            "/status?logs_job_id={}&include_jobs=0&logs_offset=0&logs_limit=0".format(remote_id),
                             timeout=1.2,
                         )
                         meta_logs = meta.get("logs") if isinstance(meta, dict) else {}
@@ -428,7 +462,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                         fetch_offset = max(0, full_total - max(0, int(limit)))
                         full = _api_get(
                             self._endpoint,
-                            "/status?logs_job_id={}&logs_offset={}&logs_limit={}".format(remote_id, fetch_offset, max(0, int(limit))),
+                            "/status?logs_job_id={}&include_jobs=0&logs_offset={}&logs_limit={}".format(remote_id, fetch_offset, max(0, int(limit))),
                             timeout=1.8,
                         )
                         full_logs = full.get("logs") if isinstance(full, dict) else {}
@@ -455,7 +489,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                         fetch_offset = max(0, int(total) - fetch_limit)
                         tail_snap = _api_get(
                             self._endpoint,
-                            "/status?logs_job_id={}&logs_offset={}&logs_limit={}".format(
+                            "/status?logs_job_id={}&include_jobs=0&logs_offset={}&logs_limit={}".format(
                                 remote_id,
                                 fetch_offset,
                                 fetch_limit,
@@ -479,7 +513,7 @@ class DaemonMonitorHandler(ParallelJobHandler):
                         tail_offset = max(0, int(total) - 1)
                         tail_snap = _api_get(
                             self._endpoint,
-                            "/status?logs_job_id={}&logs_offset={}&logs_limit=1".format(remote_id, tail_offset),
+                            "/status?logs_job_id={}&include_jobs=0&logs_offset={}&logs_limit=1".format(remote_id, tail_offset),
                             timeout=1.0,
                         )
                         tail_logs = tail_snap.get("logs") if isinstance(tail_snap, dict) else {}

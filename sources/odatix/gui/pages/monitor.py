@@ -22,6 +22,7 @@
 import dash
 from dash import html, dcc, Input, Output, State, ctx, ClientsideFunction
 from typing import Optional#, Literal
+import itertools
 import os
 import socket
 import threading
@@ -646,19 +647,22 @@ def _update_session_dropdown(_n, _open, last_action, search, current_value, daem
     Output("monitor-snapshot", "data"),
     Output("monitor-format", "data"),
     Output("monitor-sync", "data"),
-    Output("monitor-logs", "data", allow_duplicate=True),
+    Output("monitor-log-chunk", "data", allow_duplicate=True),
+    Output("monitor-log-cursor", "data", allow_duplicate=True),
     Output("monitor-error", "data"),
     Output("monitor-daemon", "data"),
     Input("monitor-refresh", "n_intervals"),
     State("monitor-sync", "data"),
     State("monitor-selected-job", "data"),
-    State("monitor-logs", "data"),
+    State("monitor-log-cursor", "data"),
+    State("monitor-format", "data"),
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
     State("session-dropdown", "value"),
     prevent_initial_call=True,
 )
-def _poll_status(_n, sync_state, selected_job_id, logs_state, daemon_state, search, selected_session):
+def _poll_status(_n, sync_state, selected_job_id, cursor_state, format_yaml,
+                 daemon_state, search, selected_session):
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
 
@@ -683,8 +687,8 @@ def _poll_status(_n, sync_state, selected_job_id, logs_state, daemon_state, sear
             job_id = None
 
         offset_i = None
-        if job_id is not None and isinstance(logs_state, dict) and logs_state.get("job_id") == job_id:
-            offset = logs_state.get("total_lines", 0)
+        if job_id is not None and isinstance(cursor_state, dict) and cursor_state.get("job_id") == job_id:
+            offset = cursor_state.get("total_lines", 0)
             try:
                 offset_i = max(0, int(offset))
             except Exception:
@@ -697,8 +701,24 @@ def _poll_status(_n, sync_state, selected_job_id, logs_state, daemon_state, sear
 
         snap = _api_get(resolved_daemon, path)
 
-        # Merge returned deltas into the log store.
-        new_logs_state = no_update
+        # The tool.yml path, carved out of the snapshot for the log formatter.
+        # Feeding a log callback the whole snapshot would upload it back to the
+        # server on every tick -- exactly what the delta exists to avoid. It
+        # never changes within a session, so this store fires once; the value
+        # is resolved here rather than read from the store because the store
+        # State is a tick behind on the very first poll.
+        handler = snap.get("handler") if isinstance(snap, dict) else None
+        snap_format = handler.get("format_yaml") or "" if isinstance(handler, dict) else None
+        new_format = snap_format if snap_format is not None else no_update
+        if snap_format:
+            format_yaml = snap_format
+
+        # Ship the *new* lines only, already formatted, for the browser to
+        # append to the log pane. Keeping the accumulated text in a store
+        # instead would upload the whole log back to the server on every tick,
+        # growing without bound for the lifetime of a job.
+        new_chunk = no_update
+        new_cursor = no_update
         if job_id is not None and offset_i is not None and isinstance(snap, dict):
             logs_any = snap.get("logs")
             logs = logs_any if isinstance(logs_any, dict) else {}
@@ -711,11 +731,12 @@ def _poll_status(_n, sync_state, selected_job_id, logs_state, daemon_state, sear
                 except Exception:
                     total_i = offset_i + len(new_lines)
 
-                merged = list((logs_state or {}).get("lines") or []) + list(map(str, new_lines))
-                new_logs_state = {"job_id": job_id, "lines": merged, "total_lines": total_i}
+                new_chunk = _log_chunk(job_id, new_lines, format_yaml, mode="append",
+                                       leading_newline=offset_i > 0)
+                new_cursor = {"job_id": job_id, "total_lines": total_i}
 
-        # The log payload is already in `monitor-logs`; leaving a copy inside
-        # the snapshot would ship every log delta twice to the browser.
+        # The log payload is already in `monitor-log-chunk`; leaving a copy
+        # inside the snapshot would ship every log delta twice to the browser.
         if isinstance(snap, dict):
             snap = dict(snap)
             snap.pop("logs", None)
@@ -724,20 +745,13 @@ def _poll_status(_n, sync_state, selected_job_id, logs_state, daemon_state, sear
         if isinstance(snap, dict) and snap.get("epoch"):
             new_sync = {"revision": snap.get("revision"), "epoch": snap.get("epoch")}
 
-        # The tool.yml path, carved out of the snapshot for the log formatter.
-        # Feeding _render_logs the whole snapshot would upload it back to the
-        # server on every tick -- exactly what the delta exists to avoid. It
-        # never changes within a session, so this store fires once.
-        handler = snap.get("handler") if isinstance(snap, dict) else None
-        new_format = handler.get("format_yaml") or "" if isinstance(handler, dict) else no_update
-
-        return snap, new_format, new_sync, new_logs_state, "", resolved_daemon
+        return snap, new_format, new_sync, new_chunk, new_cursor, "", resolved_daemon
     except Exception as e:
         # Keep the last known state so the UI does not flicker. The snapshot is
         # not rewritten: the browser already holds the merged job list, and a
         # dropped tick must not make it re-render or lose its revision.
         err = _format_monitor_error(e, daemon_state)
-        return no_update, no_update, no_update, no_update, err, None
+        return no_update, no_update, no_update, no_update, no_update, err, None
 
 
 @dash.callback(
@@ -792,7 +806,8 @@ def _change_nb_jobs(_inc, _dec, current_value, daemon_state, search, selected_se
 
 @dash.callback(
     Output("monitor-selected-job", "data", allow_duplicate=True),
-    Output("monitor-logs", "data", allow_duplicate=True),
+    Output("monitor-log-chunk", "data", allow_duplicate=True),
+    Output("monitor-log-cursor", "data", allow_duplicate=True),
     Output("monitor-sync", "data", allow_duplicate=True),
     Input("session-dropdown", "value"),
     prevent_initial_call=True,
@@ -803,20 +818,21 @@ def _reset_selection_on_session_change(_selected_session):
     # the client-side initSelection pick a job of the new session on the next
     # snapshot. Clearing the sync state asks the new session for a full
     # snapshot rather than a delta against revisions that are not its own.
-    return None, None, None
+    return None, _log_chunk(None, [], None, mode="replace"), None, None
 
 
 @dash.callback(
-    Output("monitor-logs", "data"),
+    Output("monitor-log-chunk", "data"),
+    Output("monitor-log-cursor", "data"),
     Output("monitor-error", "data", allow_duplicate=True),
     Input("monitor-selected-job", "data"),
-    State("monitor-logs", "data"),
+    State("monitor-format", "data"),
     State("monitor-daemon", "data"),
     State(f"url_{page_path}", "search"),
     State("session-dropdown", "value"),
     prevent_initial_call="initial_duplicate",
 )
-def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, search, selected_session):
+def _fetch_full_log_on_selection(selected_job_id, format_yaml, daemon_state, search, selected_session):
     if selected_job_id is None:
         raise PreventUpdate
 
@@ -828,7 +844,7 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, se
     try:
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
         # Full log for this job (server supports logs_limit=-1)
-        snap = _api_get_slow(resolved_daemon, f"/status?logs_job_id={job_id}&logs_offset=0&logs_limit=-1")
+        snap = _api_get_slow(resolved_daemon, f"/status?logs_job_id={job_id}&include_jobs=0&logs_offset=0&logs_limit=-1")
         logs_any = snap.get("logs") if isinstance(snap, dict) else None
         logs = logs_any if isinstance(logs_any, dict) else {}
         lines_any = logs.get("lines")
@@ -839,14 +855,15 @@ def _fetch_full_log_on_selection(selected_job_id, current_logs, daemon_state, se
         except Exception:
             total_i = len(lines)
 
-        return {
-            "job_id": job_id,
-            "lines": list(map(str, lines)),
-            "total_lines": total_i,
-        }, ""
+        return (
+            _log_chunk(job_id, lines, format_yaml, mode="replace"),
+            {"job_id": job_id, "total_lines": total_i},
+            "",
+        )
     except Exception as e:
-        # Keep current logs, but surface error to switch UI to error container.
-        return current_logs if current_logs is not None else {}, _format_monitor_error(e, daemon_state)
+        # Keep the log pane as it is, but surface the error to switch the UI to
+        # the error container.
+        return no_update, no_update, _format_monitor_error(e, daemon_state)
 
 
 ######################################
@@ -937,40 +954,51 @@ def _get_formatter(format_yaml):
     return _formatter_cache[path]
 
 
-@dash.callback(
-    Output("monitor-log", "children"),
-    Output("monitor-status", "children"),
-    Output("monitor-main-container", "className"),
-    Output("monitor-error-container", "className"),
-    Input("monitor-logs", "data"),
-    Input("monitor-error", "data"),
-    # The tool.yml path, not the snapshot: this only needs the formatter, and
-    # taking the snapshot would upload it back on every tick.
-    State("monitor-format", "data"),
-    State(f"url_{page_path}", "search"),
-)
-def _render_logs(logs_state, error_message, format_yaml, search):
-    if not isinstance(logs_state, dict):
-        logs_state = {}
-    lines_any = logs_state.get("lines")
-    lines = lines_any if isinstance(lines_any, list) else []
-    lines = [str(line).rstrip("\n") for line in lines]
+_log_chunk_nonce = itertools.count()
+
+
+def _log_chunk(job_id, lines, format_yaml, mode="append", leading_newline=False):
+    """A batch of log lines, formatted server-side, for the browser to splice in.
+
+    The log pane is written by the client-side ``appendLog`` handler rather
+    than by a Dash ``children`` output, because a Dash-owned log would have to
+    live in a store: every tick would then upload the whole accumulated text
+    back to the server, growing without bound over the life of a job. Only the
+    new lines travel, and only downwards.
+
+    `mode` is "replace" (a job was selected, or the pane must be cleared) or
+    "append" (a poll delta). ANSI state does not carry across chunks: a color
+    left open at the end of one batch does not bleed into the next, which is
+    what the per-line formatter rules assume anyway.
+    """
+    lines = [str(line).rstrip("\n") for line in (lines or [])]
 
     formatter = _get_formatter(format_yaml)
     if formatter is not None:
         lines = [formatter.replace_in_line(line) for line in lines]
 
     text = "\n".join(lines)
-    status = ""
-    main_class_name = "monitor-dashboard visible"
-    error_class_name = "hidden"
+    if leading_newline and text:
+        text = "\n" + text
 
+    return {
+        "nonce": next(_log_chunk_nonce),
+        "job_id": job_id,
+        "mode": mode,
+        "html": _component_to_html(ansi_to_html_spans(text)) if text else "",
+    }
+
+
+@dash.callback(
+    Output("monitor-status", "children"),
+    Output("monitor-main-container", "className"),
+    Output("monitor-error-container", "className"),
+    Input("monitor-error", "data"),
+)
+def _render_error(error_message):
     if error_message:
-        text = ""
-        status = str(error_message)
-        main_class_name = "monitor-dashboard hidden"
-        error_class_name = "visible"
-    return ansi_to_html_spans(text), status, main_class_name, error_class_name
+        return str(error_message), "monitor-dashboard hidden", "visible"
+    return "", "monitor-dashboard visible", "hidden"
 
 
 # Per-row actions arrive through a single store written by the delegated click
@@ -1551,7 +1579,14 @@ layout = html.Div(
         dcc.Store(id="monitor-last-action", data=None),
         dcc.Store(id="monitor-daemon", data=None),
         dcc.Store(id="monitor-selected-job", data=0),
-        dcc.Store(id="monitor-logs", data=None),
+        # Log pane transport: `monitor-log-chunk` carries one batch of
+        # already-formatted lines (append or replace) that assets/monitor_log.js
+        # splices into <pre id="monitor-log">, and `monitor-log-cursor` holds
+        # just the line count `_poll_status` needs to ask for the next delta.
+        # Neither grows with the length of the log.
+        dcc.Store(id="monitor-log-chunk", data=None),
+        dcc.Store(id="monitor-log-cursor", data=None),
+        dcc.Store(id="monitor-log-sink", data=None),
         # Revision + epoch of the last snapshot merged in the browser: what
         # `_poll_status` sends back as `?since=` to get a delta (see
         # ParallelJobHandler.snapshot).
@@ -1657,6 +1692,15 @@ dash.clientside_callback(
     Output("monitor-finished-summary", "data"),
     Input("monitor-snapshot", "data"),
     prevent_initial_call=True,
+)
+
+# Log pane: splices each batch of formatted lines into <pre id="monitor-log">.
+# The scrollback stays in the DOM instead of a store, so a tick costs the new
+# lines and nothing else. See assets/monitor_log.js.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="appendLog"),
+    Output("monitor-log-sink", "data"),
+    Input("monitor-log-chunk", "data"),
 )
 
 # Polling cadence: stop entirely while the tab is hidden, and slow down on

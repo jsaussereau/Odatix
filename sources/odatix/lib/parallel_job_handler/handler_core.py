@@ -308,7 +308,7 @@ class ParallelJobHandler:
                 self._job_digests.pop(job_id, None)
                 self._job_revisions.pop(job_id, None)
 
-    def snapshot(self, logs_job_id=None, logs_offset=None, logs_limit=None, since=None, epoch=None):
+    def snapshot(self, logs_job_id=None, logs_offset=None, logs_limit=None, since=None, epoch=None, include_jobs=True):
         """Return a JSON-serializable snapshot of handler + job state.
 
         If logs_job_id is None, returns logs for the selected job.
@@ -317,6 +317,11 @@ class ParallelJobHandler:
         `epoch`, "jobs" holds only the jobs that changed since then and "full"
         is False. The aggregate counts under "handler" always cover every job,
         so a client on deltas never has to hold the whole list to show totals.
+
+        With `include_jobs` false, "jobs" comes back empty whatever `since`
+        says: a caller after log lines alone pays for the aggregates, not for
+        serializing every job. Revisions are still stamped, so such a call
+        never makes a delta client miss an update.
         """
         with self._lock:
             jobs = []
@@ -367,7 +372,12 @@ class ParallelJobHandler:
             # the future, unparsable value) falls back to a full snapshot: being
             # slow once beats showing a stale list forever.
             full = True
-            if since is not None and str(epoch or "") == self._snapshot_epoch:
+            if not include_jobs:
+                # Never "full": an empty job list here means "not asked for",
+                # not "there are no jobs left".
+                jobs = []
+                full = False
+            elif since is not None and str(epoch or "") == self._snapshot_epoch:
                 try:
                     since_i = int(since)
                 except Exception:

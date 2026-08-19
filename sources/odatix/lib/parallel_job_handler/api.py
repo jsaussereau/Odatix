@@ -216,6 +216,7 @@ def create_parallel_job_app(
         logs_limit: Optional[int] = None,
         since: Optional[int] = None,
         epoch: Optional[str] = None,
+        include_jobs: bool = True,
     ):
         # Keep /status lightweight by default (no logs).
         if logs_job_id is None:
@@ -228,6 +229,7 @@ def create_parallel_job_app(
             logs_limit=logs_limit,
             since=since,
             epoch=epoch,
+            include_jobs=include_jobs,
         )
 
     @app.get("/jobs")
