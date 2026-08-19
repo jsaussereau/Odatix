@@ -47,6 +47,13 @@ configurations of a parameter domain of an architecture. Both together make
 "param_file" the default of the domain: the values the directory does not
 describe fall back to it.
 
+Where a "param_dir" is given, that directory also says how its parameters are
+written -- "use_parameters", "param_target_file", "start_delimiter" and
+"stop_delimiter" in its own "_settings.yml", the way a parameter domain of an
+architecture says them -- and the entry is left with what points at it. The same
+keys written in the entry are still read, and still win, so nothing written
+before this stops working (see :func:`domain_settings`).
+
 An entry named after a domain the architecture already has customizes what that
 domain substitutes. "combine" says how: "replace" (the default) means only the
 substitution described here is done, in place of the architecture's, while
@@ -73,8 +80,10 @@ their own way.
 import fnmatch
 import os
 
+import odatix.lib.hard_settings as hard_settings
 import odatix.workspace.space as space
 from odatix.workspace.selection import Message
+from odatix.workspace.yaml_io import read_yaml
 
 __all__ = [
     "ARCHITECTURES_KEY",
@@ -90,6 +99,8 @@ __all__ = [
     "DOMAIN_SETTING_KEYS",
     "combine_mode",
     "resolve_param_file",
+    "DIRECTORY_SETTING_KEYS",
+    "domain_settings",
 ]
 
 
@@ -127,6 +138,56 @@ COMBINE_BOTH = "both"
 COMBINE_ALIASES = {"append": COMBINE_BOTH, "add": COMBINE_BOTH}
 
 COMBINE_MODES = (COMBINE_REPLACE, COMBINE_BOTH)
+
+
+#: What a "param_dir" says about the substitution in its own "_settings.yml",
+#: instead of in the entry pointing at it. A directory of configurations
+#: describes how its parameters are written the way an architecture's parameter
+#: domain does, so the same keys are read from the same file, and the entry is
+#: left with what points at it ("param_dir", "param_file", "combine",
+#: "domain_value").
+DIRECTORY_SETTING_KEYS = (
+    "use_parameters",
+    "param_target_file",
+    "start_delimiter",
+    "stop_delimiter",
+)
+
+
+def directory_settings(param_dir, sim_dir):
+    """
+    What the "_settings.yml" of a "param_dir" says about the substitution: the
+    keys of :data:`DIRECTORY_SETTING_KEYS` it actually holds, and nothing else.
+
+    Only the keys written in the file are returned, so that "said nothing about
+    it" stays different from "said the default", the way an entry's own keys
+    already read.
+    """
+    if not param_dir or not sim_dir:
+        return {}
+    path = os.path.join(sim_dir, str(param_dir), hard_settings.param_settings_filename)
+    data = read_yaml(path, default=None)
+    if not isinstance(data, dict):
+        return {}
+    return dict((key, data[key]) for key in DIRECTORY_SETTING_KEYS if key in data)
+
+
+def domain_settings(overrides, sim_dir):
+    """
+    The substitution one "param_domains" entry describes, wherever it is written.
+
+    Where the entry points at a directory of configurations, that directory's
+    own "_settings.yml" says how its parameters are written, so it is read
+    first; what the entry itself still holds refines it, which is what the
+    settings files written before this said everything with.
+    """
+    if not isinstance(overrides, dict):
+        return {}
+    settings = directory_settings(overrides.get("param_dir"), sim_dir)
+    if not settings:
+        return dict(overrides)
+    settings.update(overrides)
+    return settings
 
 
 def combine_mode(overrides):

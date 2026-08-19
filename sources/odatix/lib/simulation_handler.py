@@ -508,6 +508,12 @@ class SimulationHandler:
                 self.plan.add(sim_display_name, Category.ERROR)
                 return None
 
+              # Where the entry points at a directory of configurations, that
+              # directory says how its parameters are written, in its own
+              # "_settings.yml": read it here, so the rest of this reads one
+              # mapping whichever file it was written in.
+              domain_overrides = sim_architectures.domain_settings(domain_overrides, source_sim_dir)
+
               existing_domain = next((pd for pd in architecture.param_domains if pd.domain == domain_name), None)
 
               if existing_domain is not None:

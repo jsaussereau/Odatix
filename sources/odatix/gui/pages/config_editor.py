@@ -32,10 +32,12 @@ from natsort import natsorted
 import odatix.gui.ui_components as ui
 import odatix.gui.config_rules as config_rules
 import odatix.gui.replacement_help as replacement_help
-from odatix.gui.utils import get_instance_mode, get_instance_collection_context, get_key_from_url
+import odatix.gui.sim_domains as sim_domains
+from odatix.gui.utils import get_instance_mode, get_instance_collection_context, get_key_from_url, get_workspace
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
 import odatix.components.replace_params as replace_params
+import odatix.workspace.sim_architectures as sim_architectures
 from odatix.workspace.domains import ParameterDomain
 from odatix.workspace.space import ORIGIN_BLACKLISTED, ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_MANUAL
 from odatix.gui.icons import icon
@@ -73,6 +75,35 @@ def split_by_domain(flat_list, lengths):
 
 def get_uuid():
     return str(uuid.uuid4())
+
+def sim_arch_name(search):
+    """
+    The architecture a simulation page is opened on, or None: what
+    "?sim=<simulation>&arch=<architecture>" names, which is a simulation's
+    parameter domain overrides for that architecture rather than the
+    configuration directories of the whole simulation.
+    """
+    mode, instance_name = get_instance_mode(search)
+    if mode != "simulation" or not instance_name:
+        return None
+    arch = get_key_from_url(search, "arch")
+    return str(arch) if arch else None
+
+
+def sim_arch_context(search, odatix_settings):
+    """
+    What a "?sim=&arch=" page works on: ``(simulation, arch, entries, position)``.
+    The simulation is None when the URL names none or names one that does not
+    exist, and the position is None when it lists no such architecture.
+    """
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
+    arch = sim_arch_name(search)
+    if not arch or instance_name not in instances:
+        return None, arch, [], None
+    simulation = instances[instance_name]
+    entries, position = sim_domains.find_entry(simulation, arch, get_key_from_url(search, "entry"))
+    return simulation, arch, entries, position
+
 
 def config_title_error(title, other_titles, initial_title):
     """
@@ -288,14 +319,21 @@ def main_domain_placeholder():
     )
 
 
-def instance_title(mode:str="arch", instance_name:str=""):
+def instance_title(mode:str="arch", instance_name:str="", arch:str=None):
+    title = instance_name
+    if mode == "simulation" and arch:
+        # What this simulation substitutes for one architecture: the page is
+        # opened from that architecture's card, and goes back to it.
+        title = instance_name + "  \u2192  " + arch
     if mode == "workflow":
         back_link = "/workflows"
         settings_link = f"/workflow_editor?workflow={instance_name}"
         settings_text = "Workflow Settings"
     elif mode == "simulation":
-        back_link = "/architectures"
         settings_link = f"/sim_editor?sim={instance_name}"
+        # Opened on one architecture, the page goes back to the card it was
+        # opened from rather than to the list of designs.
+        back_link = settings_link if arch else "/architectures"
         settings_text = "Simulation Settings"
     else:
         back_link = "/architectures"
@@ -304,7 +342,7 @@ def instance_title(mode:str="arch", instance_name:str=""):
 
     title_content = html.Div(
         children=[
-            html.H3(instance_name, id=f"main_title", style={"marginBottom": "0px"}),
+            html.H3(title, id=f"main_title", style={"marginBottom": "0px"}),
             html.Div(
                 children=[
                     ui.icon_button(
@@ -361,10 +399,88 @@ def instance_title(mode:str="arch", instance_name:str=""):
         style={"marginBottom": "0px"},
     )
 
-def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, domain_uuid:str=hard_settings.main_parameter_domain, mode:str="arch", instance_name:str=""):
+def sim_arch_domain_title(domain_uuid, entry):
+    """
+    The head of a section of the "?sim=&arch=" page: which parameter domain of
+    the architecture the simulation substitutes its own way.
+
+    The name is picked among the domains the architecture declares, since that
+    is what an override is attached to -- a name it does not declare is a
+    substitution of the simulation's own, and stays an option of its own.
+    """
+    name = str(entry.get("name", "") or "")
+    return html.Div(
+        [html.Div(
+            children=[
+                html.Div([
+                    html.H3(
+                        "Parameter domain:",
+                        style={"display": "inline-block", "marginBottom": "0px", "marginRight": "10px"},
+                    ),
+                    html.Div(
+                        dcc.Dropdown(
+                            id={"type": "simarch-domain", "domain_uuid": domain_uuid},
+                            options=entry.get("options") or [],
+                            value=name or None,
+                            placeholder="Domain...",
+                            clearable=False,
+                        ),
+                        style={"minWidth": "260px"},
+                    ),
+                    # The rename machinery of an architecture domain has nothing
+                    # to do here -- the name is a key of the simulation settings,
+                    # saved with the rest of the section -- but every callback
+                    # keyed on a domain still expects to find its components.
+                    html.Div(
+                        children=[
+                            dcc.Input(
+                                value=name,
+                                type="text",
+                                id={"type": "domain-title-input", "domain_uuid": domain_uuid},
+                            ),
+                            ui.icon_button(
+                                id={"type": "save-domain-title", "domain_uuid": domain_uuid},
+                                icon=icon("check", className="icon invisible"),
+                                color="invisible",
+                            ),
+                        ],
+                        style={"display": "none"},
+                    ),
+                ],
+                style={"display": "flex", "alignItems": "center", "justifyContent": "flex-start"}),
+                html.Div(
+                    # The same domain is never listed twice under one
+                    # architecture, so there is nothing to duplicate here.
+                    children=[
+                        ui.delete_button(
+                            id={"action": "delete-domain", "domain_uuid": domain_uuid},
+                            large=False,
+                            tooltip="Stop substituting this domain the simulation's way",
+                        ),
+                    ],
+                    className="inline-flex-buttons param-domain-title",
+                ),
+            ],
+            className="title-tile-flex",
+            style={
+                "display": "flex",
+                "alignItems": "center",
+                "padding": "0px",
+                "justifyContent": "space-between",
+            },
+        )],
+        id={"type": "param-domain-title", "domain_uuid": domain_uuid},
+        className="tile title",
+        style={"marginTop": "50px"},
+    )
+
+
+def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, domain_uuid:str=hard_settings.main_parameter_domain, mode:str="arch", instance_name:str="", entry=None):
     # A simulation does not own its domains: they are the directories its
-    # settings point at, so they are named, duplicated and deleted there.
-    is_simulation = mode == "simulation"
+    # settings point at, so they are named, duplicated and deleted there --
+    # unless the page is opened on one architecture, where each section is one
+    # domain of that architecture the simulation substitutes its own way.
+    is_simulation = mode == "simulation" and entry is None
     if domain_uuid == hard_settings.main_parameter_domain:
         text = "Main parameter domain"
         buttons = html.Div(
@@ -404,6 +520,9 @@ def parameter_domain_title(domain_name:str=hard_settings.main_parameter_domain, 
             className="inline-flex-buttons param-domain-title",
             style={"display": "none"} if is_simulation else {},
         )
+        if entry is not None:
+            return sim_arch_domain_title(domain_uuid, entry)
+
         title_content = html.Div([
             html.Div([
                 html.H3(
@@ -470,7 +589,79 @@ def add_parameter_domain_button(text:str="Main parameter domain"):
         },
     )
 
-def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None):
+#: Whether the substitution a simulation describes for a domain is done instead
+#: of the architecture's own, or as well as it.
+DOMAIN_COMBINE_OPTIONS = [
+    {"label": "Instead of the architecture's", "value": sim_architectures.COMBINE_REPLACE},
+    {"label": "As well as the architecture's", "value": sim_architectures.COMBINE_BOTH},
+]
+
+
+def sim_arch_entry_form(domain_uuid, entry):
+    """
+    What one section of the "?sim=&arch=" page points at: the directory holding
+    the configurations of the domain, the file its values fall back to, and
+    whether the architecture's own substitution still applies.
+
+    Where those values are written, and with which delimiters, is said under it
+    like every other set of configurations says it -- in the "_settings.yml" of
+    that directory.
+    """
+    overrides = entry.get("overrides") or {}
+    return html.Div(
+        children=[
+            ui.subtitle_div(text="Substituted for the architecture"),
+            ui.form_dropdown(
+                "Rule application",
+                {"type": "simarch-combine", "domain_uuid": domain_uuid},
+                options=DOMAIN_COMBINE_OPTIONS,
+                value=sim_architectures.combine_mode(overrides),
+                clearable=False,
+                tooltip="Whether the substitution described here replaces the one the architecture "
+                        "does for this domain, or is done as well as it, so the domain is written "
+                        "in two places.",
+            ),
+            ui.form_field(
+                "Parameter directory",
+                {"type": "simarch-param-dir", "domain_uuid": domain_uuid},
+                value=str(overrides.get("param_dir", "") or ""),
+                placeholder="sim_params/width",
+                tooltip="Directory of the simulation holding one configuration per value of the "
+                        "domain. Its configurations are the ones edited below, and it says how "
+                        "they are written into the sources, like a parameter domain of an "
+                        "architecture does.",
+            ),
+            ui.form_field(
+                "Default parameter file",
+                {"type": "simarch-param-file", "domain_uuid": domain_uuid},
+                value=str(overrides.get("param_file", "") or ""),
+                placeholder="sim_params.txt",
+                tooltip="File of the simulation holding the values, whichever configuration of "
+                        "the domain runs. Given along a parameter directory, it is the default "
+                        "the configurations that directory does not describe fall back to. "
+                        "Required for a domain the architecture does not define, unless a "
+                        "parameter directory is given.",
+            ),
+            # What the section was opened on: what it points at now is compared
+            # to it, and what it holds that this page does not edit is kept.
+            dcc.Store(
+                id={"type": "simarch-entry-store", "domain_uuid": domain_uuid},
+                data={
+                    "name": entry.get("name", ""),
+                    "overrides": overrides,
+                    # Where the section sits in the file. Dash hands the fields
+                    # of the page back ordered by component id, which is not the
+                    # order the domains are written in.
+                    "position": entry.get("position", 0),
+                },
+            ),
+        ],
+        className="odx-simarch-entry",
+        style={"marginBottom": "18px"},
+    )
+
+
+def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None, entry=None):
     defval = lambda k, v=None: settings.get(k, v)
 
     save_button = html.Div(
@@ -489,6 +680,7 @@ def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None)
     use_parameters = defval("use_parameters", True)
     return html.Div(
         children=[
+            sim_arch_entry_form(domain_uuid, entry) if entry is not None else html.Div(style={"display": "none"}),
             ui.subtitle_div(text="Configuration Parameters", buttons=save_button),
             dcc.Checklist(
                 options=[{"label": "Enable parameter replacement", "value": True}],
@@ -537,17 +729,86 @@ def show_newlines(text: str):
         components.append(line)
     return components
 
-def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str):
-    # Where a simulation writes its parameters is said in its own settings, one
-    # entry per architecture: there is no single file to preview here.
-    if mode == "simulation":
+def resolve_preview_file(base_path, param_target_file):
+    """
+    The file a preview reads, among the directories a target file may live in.
+
+    ``base_path`` is one directory, or several of them when the file may come
+    from any of them: the first one holding it is the one read, the same way the
+    run resolves it, and the first one is what an error message names when none
+    does. An entry can also be a ``(directory, prefix)`` pair, for a directory
+    that the run copies under ``prefix``: a target file written against the work
+    directory names it through that prefix, which is stripped to read the
+    sources here.
+    """
+    bases = [base_path] if isinstance(base_path, str) else list(base_path or [""])
+    if not bases:
+        bases = [""]
+    for base in bases:
+        if isinstance(base, tuple):
+            base, prefix = base
+            prefix = prefix.strip("/") + "/"
+            if not param_target_file.replace(os.sep, "/").startswith(prefix):
+                continue
+            candidate = os.path.join(base, param_target_file.replace(os.sep, "/")[len(prefix):])
+        else:
+            candidate = os.path.join(base, param_target_file)
+        if os.path.isfile(candidate):
+            return candidate
+    first = bases[0]
+    if isinstance(first, tuple):
+        first = first[0]
+    return os.path.join(first, param_target_file)
+
+
+def default_param_text(sim_dir, param_file):
+    """
+    What the "param_file" of a simulation holds, as the values a preview writes.
+
+    A "param_domains" entry names its values two ways: a directory holding one
+    configuration per value of the domain, and a file substituted whichever
+    configuration runs. Given both, the directory is looked up first and this
+    file is what the configurations it does not describe fall back to -- so it
+    is what a domain with nothing to select previews.
+
+    Returns:
+        str: the content of the file, or None when the entry names none, or
+        names one that does not exist.
+    """
+    param_file = str(param_file or "").strip()
+    if not param_file:
+        return None
+    path = os.path.join(sim_dir or "", param_file)
+    if not os.path.isfile(path):
+        return None
+    return replace_params.read_file(path)
+
+
+def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str, base_path=None):
+    """
+    What the target file looks like once the selected configuration is written
+    into it. ``base_path`` says where that file is looked up, for the pages that
+    know it without reading the instance settings -- a simulation writes into
+    its own sources, as well as into the RTL of the architecture it runs on,
+    hence several directories.
+    """
+    # Where a simulation writes its parameters is said per architecture: opened
+    # on the whole simulation, there is no single file to preview here.
+    if mode == "simulation" and base_path is None:
         return None
     use_parameters = domain_settings.get("use_parameters", True)
     if not use_parameters:
         return html.Div("Parameter replacement disabled.", style={"color": "#888"})
     param_target_file = domain_settings.get("param_target_file", "")
 
-    if mode == "workflow":
+    if base_path is not None:
+        if not param_target_file:
+            return html.Div(
+                "No target file: say which file of the simulation the values of this domain are "
+                "written into.",
+                className="error warning",
+            )
+    elif mode == "workflow":
         sources = settings.get("sources", {})
         base_path = sources.get("path", "") if isinstance(sources, dict) else ""
         if not base_path:
@@ -570,7 +831,7 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             base_path = rtl_path
             if param_target_file == "":
                 param_target_file = os.path.join(settings.get("top_level_file", ""))
-    param_target_file = os.path.join(base_path, param_target_file)
+    param_target_file = resolve_preview_file(base_path, param_target_file)
     if os.path.isfile(param_target_file):
         base_text = replace_params.read_file(param_target_file)
         start_delimiter = domain_settings.get("start_delimiter", "")
@@ -620,7 +881,7 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             }
         )
     else:
-        if base_path == "" or param_target_file == "":
+        if not base_path or param_target_file == "":
             label = instance_label(mode).lower()
             text = f"Invalid {label} settings. Unable to preview."
         elif settings == {}:
@@ -653,7 +914,7 @@ def preview_header(domain_uuid):
         },
     )
 
-def domain_section(domain: str, mode: str = "arch", instance_name: str = "", settings: dict = {}, domain_uuid=None, open_rules: bool = False):
+def domain_section(domain: str, mode: str = "arch", instance_name: str = "", settings: dict = {}, domain_uuid=None, open_rules: bool = False, entry=None):
     # Generate a unique UUID for non-main domains
     if not domain_uuid:
         domain_uuid = get_uuid() if domain != hard_settings.main_parameter_domain else domain
@@ -670,7 +931,7 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
             html.Div(
                 children=[
                     *title_hidden_divs,
-                    parameter_domain_title(domain_name=domain, domain_uuid=domain_uuid, mode=mode, instance_name=instance_name)
+                    parameter_domain_title(domain_name=domain, domain_uuid=domain_uuid, mode=mode, instance_name=instance_name, entry=entry)
                 ], 
                 id=f"param-domain-title-div-{domain_uuid}",
                 className="card-matrix config",
@@ -680,7 +941,7 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                     *content_hidden_divs,
                     html.Div(
                         children=[
-                            config_parameters_form(domain_uuid, settings, mode, domain_name=domain),
+                            config_parameters_form(domain_uuid, settings, mode, domain_name=domain, entry=entry),
                         ],
                         id={"type": "config-parameters", "domain_uuid": domain_uuid}, 
                         className="tile config"),
@@ -698,9 +959,12 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                 # so neither the form nor the preview means anything here. They
                 # are still built, hidden, so that every callback keeps seeing
                 # one of each per domain.
-                style={"display": "none"} if mode == "simulation" else {},
+                style={"display": "none"} if (mode == "simulation" and entry is None) else {},
             ),
-            config_rules.rules_section(domain_uuid, settings, open=open_rules, domain_name=domain),
+            html.Div(
+                config_rules.rules_section(domain_uuid, settings, open=open_rules, domain_name=domain),
+                style={"display": "none"} if (entry is not None and not domain) else {},
+            ),
             # Which origins the stat strip of this domain currently filters out.
             # Only the browser reads it: hiding a card is a matter of style, and
             # nothing of the domain itself changes.
@@ -718,15 +982,29 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
             # Kept in the same wrapper as the cards it introduces: the rules
             # preview hides that whole wrapper while it stands in for it (see
             # ".odx-configs-diff" in the stylesheet).
+            # A section pointing at no directory of configurations has none to
+            # show: what it substitutes is one file, said above.
             html.Div([
                 html.Div(
                     children=[add_card(domain_uuid=domain_uuid)],
                     id={"type": "config-cards-row", "domain_uuid": domain_uuid},
                     className=f"card-matrix configs",
                 ),
-            ]),
+            ], style={"display": "none"} if (entry is not None and not domain) else {}),
             dcc.Store(id={"type": "config-params-store", "domain_uuid": domain_uuid}, data=settings),
-            dcc.Store(id={"type": "domain-metadata", "domain_uuid": domain_uuid}, data={"domain_name": domain, "domain_uuid": domain_uuid}),
+            # "domain_name" is what the configurations are held in -- a domain
+            # of the instance, or the directory a simulation points at, which is
+            # what every callback resolves a file through. A simulation section
+            # also carries the domain of the architecture it substitutes, which
+            # is what its settings file names it by.
+            dcc.Store(
+                id={"type": "domain-metadata", "domain_uuid": domain_uuid},
+                data={
+                    "domain_name": domain,
+                    "domain_uuid": domain_uuid,
+                    "entry_domain": (entry or {}).get("name", ""),
+                },
+            ),
         ],
         id = {"type": "param-domain-section", "domain_uuid": domain_uuid},
         # The highlighter of the two templates looks for the variables of this
@@ -741,8 +1019,112 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
 
 
 def instance_domain(instances, instance_name, domain_name):
-    """One parameter domain of the architecture or workflow being edited."""
+    """
+    One parameter domain of the architecture or workflow being edited, or the
+    directory of configurations a simulation points at.
+
+    None when there is no such directory: a simulation may substitute one file
+    whichever configuration runs, and there is then nothing holding
+    configurations -- writing into the instance itself is what an empty name
+    would otherwise mean.
+    """
+    if not domain_name:
+        return None
     return ParameterDomain(instances.entry(instance_name), domain_name)
+
+
+######################################
+# What a simulation substitutes for one architecture
+######################################
+
+#: The fields of a "?sim=&arch=" section that point at what is substituted, as
+#: the callbacks saving them read them.
+SIM_ARCH_STATES = [
+    State({"type": "simarch-domain", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "simarch-combine", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "simarch-param-file", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "simarch-param-dir", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "simarch-entry-store", "domain_uuid": dash.ALL}, "data"),
+]
+
+
+def sim_arch_values(entry_names, combines, param_files, param_dirs, stores, index):
+    """What one section of the "?sim=&arch=" page currently points at."""
+    def at(values, default=""):
+        return values[index] if index < len(values) and values[index] is not None else default
+    return {
+        "name": str(at(entry_names)).strip(),
+        "combine": at(combines, sim_architectures.COMBINE_REPLACE),
+        "param_file": str(at(param_files)).strip(),
+        "param_dir": str(at(param_dirs)).strip(),
+        "store": at(stores, {}) or {},
+    }
+
+
+def sim_arch_param_dir(entry_names, param_dirs, index, metadata):
+    """
+    The directory a section holds its configurations in: what its field says,
+    which is where a save writes even when the field was just changed. Empty
+    when the section is not one of a "?sim=&arch=" page, or points at no
+    directory.
+    """
+    if index >= len(entry_names):
+        return metadata.get("domain_name", "")
+    return str(param_dirs[index] if index < len(param_dirs) and param_dirs[index] else "").strip()
+
+
+def save_sim_arch_entries(
+    search, odatix_settings, domain_metadata,
+    entry_names, combines, param_files, param_dirs, stores, substitutions=None,
+):
+    """
+    Write back what every section of a "?sim=&arch=" page points at, in one go:
+    the "param_domains" of that architecture entry are one mapping, so they are
+    written from the whole page rather than one section at a time.
+
+    Returns ``(reload, stores)``: whether a section now points somewhere else --
+    which the sections have to be built again from -- and what each of them
+    holds once saved.
+    """
+    if not entry_names:
+        return False, []
+    simulation, _arch, entries, position = sim_arch_context(search, odatix_settings)
+    if simulation is None or position is None:
+        return False, []
+
+    substitutions = substitutions or {}
+    reload_needed = False
+    saved = {}
+    for index in range(len(domain_metadata)):
+        values = sim_arch_values(entry_names, combines, param_files, param_dirs, stores, index)
+        store = values["store"]
+        previous = store.get("overrides") or {}
+        overrides = sim_domains.entry_overrides(
+            dict(values, **(substitutions.get(index) or {})), previous,
+        )
+        saved[index] = (values["name"], overrides)
+        if values["name"] != str(store.get("name", "")):
+            reload_needed = True
+        if overrides.get("param_dir", "") != str(previous.get("param_dir", "") or ""):
+            reload_needed = True
+
+    # Written in the order the sections are shown, which is the order the file
+    # holds them in: dash hands them back ordered by component id instead.
+    order = sorted(
+        saved,
+        key=lambda index: (stores[index] or {}).get("position", index)
+        if index < len(stores) and stores[index] else index,
+    )
+    positions = {index: place for place, index in enumerate(order)}
+    sim_domains.save_param_domains(simulation, position, [saved[index] for index in order])
+    return reload_needed, [
+        {
+            "name": saved[index][0],
+            "overrides": saved[index][1],
+            "position": positions[index],
+        }
+        for index in range(len(domain_metadata))
+    ]
 
 
 def origin_of(domain, filename):
@@ -858,6 +1240,10 @@ def build_config_cards(domain, domain_uuid, config_layout, shown=None):
     add cards. Only the first `shown` configurations get a card -- the rest are
     counted, and read again when the show more card is clicked.
     """
+    if domain is None:
+        # A section holding no configurations still has a row: every callback
+        # keyed on a domain expects to find one.
+        return [add_card(domain_uuid=domain_uuid)]
     configurations = domain_configurations(domain)
     if shown is None:
         shown = configs_per_page
@@ -1043,6 +1429,103 @@ def update_main_domain_title(_, search):
         return no_instance_message(mode)
     return parameter_domain_title(domain_uuid=hard_settings.main_parameter_domain, mode=mode, instance_name=instance_name)
 
+def sim_arch_error(text, hints=None):
+    """One section standing in for the whole page when the URL names nothing editable."""
+    return [
+        main_domain_placeholder(),
+        html.Div(
+            html.Div(
+                [html.Div(text)] + [html.Div(hint) for hint in (hints or [])],
+                className="error warning",
+            ),
+            className="card-matrix config",
+        ),
+    ], True, dash.no_update
+
+
+def sim_arch_sections(search, odatix_settings, triggered_id, metadata, requested_domain):
+    """
+    The sections of the "?sim=&arch=" page: one per parameter domain this
+    simulation substitutes its own way for that architecture.
+
+    A domain added or removed is a change of the simulation's settings, written
+    before the page is built again: the sections themselves hold what the
+    directories say, and are read from them.
+    """
+    simulation, arch, entries, position = sim_arch_context(search, odatix_settings)
+    if simulation is None:
+        return sim_arch_error("No such simulation.")
+    if position is None:
+        return sim_arch_error(
+            'This simulation does not list the architecture "' + str(arch) + '".',
+            ['Add it under "Architectures" in the simulation settings, then come back here.'],
+        )
+
+    architectures = get_workspace(odatix_settings).architectures
+    domains = sim_domains.param_domains_of(entries[position])
+
+    # A domain added or removed: write it, then show what the file now holds.
+    # A click is only an action once the button has been clicked: a value of 0 is
+    # a button that was just rendered.
+    action = triggered_id.get("action", "") if isinstance(triggered_id, dict) else ""
+    try:
+        clicked = bool(ctx.triggered[0]["value"]) if ctx.triggered else False
+    except MissingCallbackContextException:
+        # Called outside a callback: what it was given is what it acts on.
+        clicked = True
+    if not clicked:
+        action = ""
+    if action == "add-domain":
+        name = sim_domains.new_domain_name(
+            architectures, entries[position].name, [domain for domain, _ in domains]
+        )
+        domains.append((name, {}))
+        sim_domains.save_param_domains(simulation, position, domains)
+    elif action == "delete-domain":
+        deleted_uuid = triggered_id.get("domain_uuid", "")
+        deleted = next(
+            (data.get("entry_domain", "") for data in metadata or []
+             if data.get("domain_uuid", "") == deleted_uuid),
+            None,
+        )
+        if deleted is None:
+            return dash.no_update, dash.no_update, dash.no_update
+        domains = [(name, overrides) for name, overrides in domains if name != deleted]
+        sim_domains.save_param_domains(simulation, position, domains)
+
+    sections = [main_domain_placeholder()]
+    for position_index, (name, overrides) in enumerate(domains):
+        param_dir = str(overrides.get("param_dir", "") or "").strip()
+        sections.append(domain_section(
+            param_dir, "simulation", simulation.name,
+            settings=sim_domains.domain_settings(simulation, overrides),
+            open_rules=bool(param_dir) and param_dir == requested_domain,
+            entry={
+                "name": name,
+                "overrides": overrides,
+                "position": position_index,
+                "options": sim_domains.domain_options(architectures, entries[position].name, name),
+            },
+        ))
+    if not domains:
+        sections.append(html.Div(
+            html.Div([
+                html.Div("This simulation substitutes nothing of its own for this architecture."),
+                html.Div(
+                    "Every parameter domain of the architecture is substituted the way the "
+                    "architecture declares it. Add one to write its values somewhere else, to "
+                    "leave them out, or to take them from configurations of the simulation."
+                ),
+            ], className="error warning"),
+            className="card-matrix config",
+        ))
+    sections.append(html.Div(
+        children=[add_parameter_domain_button("Add a parameter domain to substitute")],
+        className="card-matrix config",
+    ))
+    return sections, True, dash.no_update
+
+
 @dash.callback(
     Output("param-domains-section", "children"),
     Output("param-domains-section-initialized", "data"),
@@ -1053,6 +1536,7 @@ def update_main_domain_title(_, search):
     Input({"action": "add-domain", "type": dash.ALL}, "n_clicks"),
     Input({"action": "duplicate-domain", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"action": "delete-domain", "domain_uuid": dash.ALL}, "n_clicks"),
+    Input("sim-arch-reload", "data"),
     State("odatix-settings", "data"),
     State("param-domains-section", "children"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
@@ -1060,7 +1544,7 @@ def update_main_domain_title(_, search):
     prevent_initial_call=True
 )
 def update_param_domains(
-    _, search, page, add_domain_click, duplicate_domain_click, delete_domain_click,
+    _, search, page, add_domain_click, duplicate_domain_click, delete_domain_click, sim_arch_reload,
     odatix_settings, domain_sections, metadata, update_flag
 ):
     triggered_id = ctx.triggered_id
@@ -1085,6 +1569,13 @@ def update_param_domains(
         ],
         className="card-matrix config",
     )
+
+    # Opened on one architecture, the page shows what the simulation substitutes
+    # for it: one section per parameter domain it overrides, holding what points
+    # at the configurations, how they are written, and the configurations
+    # themselves.
+    if mode == "simulation" and get_key_from_url(search, "arch"):
+        return sim_arch_sections(search, odatix_settings, triggered_id, metadata, requested_domain)
 
     # The domains of a simulation are the "param_dir" directories its settings
     # point at: they are added, named and removed there, and only their
@@ -1323,6 +1814,11 @@ def update_config_cards(
             # edited in the other domains stays as the user left it.
             return [cards if i == trig_domain_idx else dash.no_update for i in range(len(config_cards_row))]
 
+        # A section holding no directory of configurations shows none, so none
+        # of the actions below can have come from it.
+        if trig_type in ["new-config", "save-config", "delete-config", "duplicate-config"] and not trig_domain_name:
+            return [dash.no_update for _ in range(len(config_cards_row))]
+
         if trig_type in ["new-config", "save-config", "delete-config", "duplicate-config"]:
             # Every branch below rewrites this one row, and only this one.
             changed_rows.add(trig_domain_idx)
@@ -1532,6 +2028,9 @@ def show_more_configs(
         return nothing, nothing, nothing, nothing, nothing
 
     domain = instance_domain(instances, instance_name, domain_metadata[index].get("domain_name", ""))
+    if domain is None:
+        return nothing, nothing, nothing, nothing, nothing
+
     shown = [
         (data or {}).get("config_name", "")
         for data in config_metadata
@@ -1666,6 +2165,8 @@ def toggle_generated_configuration_blacklist(
 
     domain_name = domain_metadata[index].get("domain_name", "")
     domain = instance_domain(instances, instance_name, domain_name)
+    if domain is None:
+        return nothing, nothing, nothing
     saved = rules_stores[index] if index < len(rules_stores) and rules_stores[index] else domain.settings.to_dict()
     filename = (metadata or {}).get("config_name", "")
     config_name = filename[:-4] if filename.endswith(".txt") else filename
@@ -1760,6 +2261,9 @@ dash.clientside_callback(
     Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
+    # The default a domain falls back to, previewed when it has no
+    # configuration of its own to select.
+    Input({"type": "simarch-param-file", "domain_uuid": dash.ALL}, "value"),
     prevent_initial_call=True
 )
 def update_preview_all(
@@ -1772,7 +2276,20 @@ def update_preview_all(
     config_metadata = rest[len(config_rules.FIELD_PATTERNS)] if len(rest) > len(config_rules.FIELD_PATTERNS) else []
     domain_metadata = rest[len(config_rules.FIELD_PATTERNS) + 1] if len(rest) > len(config_rules.FIELD_PATTERNS) + 1 else []
     odatix_settings = rest[len(config_rules.FIELD_PATTERNS) + 2] if len(rest) > len(config_rules.FIELD_PATTERNS) + 2 else {}
+    entry_param_files = rest[len(config_rules.FIELD_PATTERNS) + 3] if len(rest) > len(config_rules.FIELD_PATTERNS) + 3 else []
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
+    # A simulation writes its parameters into its own sources, or into the RTL
+    # of the architecture it runs on, which is copied next to them: both are
+    # where the file a section previews is looked up.
+    arch = sim_arch_name(search)
+    base_path = None
+    if arch and instance_name in instances:
+        arch_paths = sim_domains.architecture_source_paths(get_workspace(odatix_settings).architectures, arch)
+        base_path = [instances[instance_name].path]
+        # The RTL is copied under "rtl/" in the work directory, so a target file
+        # can name it either way: through that prefix, or against the sources.
+        base_path += [(path, hard_settings.work_rtl_path) for path in arch_paths]
+        base_path += arch_paths
     if not instance_name or instance_name not in instances:
         label = instance_label(mode)
         return [
@@ -1816,11 +2333,17 @@ def update_preview_all(
         domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
         domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
         selected_config = selected_configs[i] if i < len(selected_configs) else None
+        domain_rules = rule_configurations_by_domain.get(domain_uuid, {})
         replacement_text = replacement_text_for_preview(
-            selected_config, domain_uuid, domain_contents, config_metadata,
-            rule_configurations_by_domain.get(domain_uuid, {}),
+            selected_config, domain_uuid, domain_contents, config_metadata, domain_rules,
         )
-        results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text))
+        # Nothing to select: the entry substitutes its default file, the way a
+        # run does for a configuration its directory does not describe.
+        if not domain_contents and not domain_rules and len(entry_param_files) == len(domain_metadata):
+            default_text = default_param_text(instances[instance_name].path, entry_param_files[i])
+            if default_text is not None:
+                replacement_text = default_text
+        results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text, base_path=base_path))
     return results
 
 # The dirty state of a card is nothing but string comparisons, and it is the one
@@ -2048,14 +2571,37 @@ def update_origin_indicators(config_metadata):
     Input({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
+    Input({"type": "simarch-domain", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "simarch-combine", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "simarch-param-file", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "simarch-param-dir", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "simarch-entry-store", "domain_uuid": dash.ALL}, "data"),
 )
-def update_params_save_button(params_enables, target_files, start_delims, stop_delims, settings_list):
+def update_params_save_button(
+    params_enables, target_files, start_delims, stop_delims, settings_list,
+    entry_names, combines, entry_param_files, entry_param_dirs, entry_stores,
+):
     save_classes = []
     disabled_class = "color-button disabled icon-button"
     enabled_class = "color-button warning icon-button"
 
-    for use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings in zip(params_enables, target_files, start_delims, stop_delims, settings_list):
+    for index, (use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings) in enumerate(
+        zip(params_enables, target_files, start_delims, stop_delims, settings_list)
+    ):
         dirty = params_are_dirty(use_parameters, param_target_file, start_delimiter, stop_delimiter, domain_settings)
+        # What the section points at is saved by the same button, so it makes it
+        # dirty just as the substitution does.
+        if not dirty and index < len(entry_names):
+            values = sim_arch_values(
+                entry_names, combines, entry_param_files, entry_param_dirs, entry_stores, index,
+            )
+            previous = values["store"].get("overrides") or {}
+            dirty = (
+                values["name"] != str(values["store"].get("name", ""))
+                or values["param_dir"] != str(previous.get("param_dir", "") or "")
+                or values["param_file"] != str(previous.get("param_file", "") or "")
+                or values["combine"] != sim_architectures.combine_mode(previous)
+            )
         save_classes.append(enabled_class if dirty else disabled_class)
     return save_classes
 
@@ -2089,6 +2635,8 @@ dash.clientside_callback(
     Output({"type": "initial-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     Output({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     Output({"type": "config-params-store", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
+    Output({"type": "simarch-entry-store", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
+    Output("sim-arch-reload", "data", allow_duplicate=True),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     State({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
@@ -2099,6 +2647,8 @@ dash.clientside_callback(
     State({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     State({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    *SIM_ARCH_STATES,
+    State("sim-arch-reload", "data"),
     State("url", "search"),
     State("odatix-settings", "data"),
     prevent_initial_call=True,
@@ -2106,6 +2656,7 @@ dash.clientside_callback(
 def save_all(
     n_clicks, title_values, contents, config_metadata,
     params_enables, target_files, start_delims, stop_delims, params_stores, domain_metadata,
+    entry_names, combines, entry_param_files, entry_param_dirs, entry_stores, reload_count,
     search, odatix_settings
 ):
     """
@@ -2117,13 +2668,16 @@ def save_all(
     nb_domains = len(domain_metadata)
     no_config_update = [dash.no_update] * nb_configs
     no_domain_update = [dash.no_update] * nb_domains
+    no_entry_update = [dash.no_update] * len(entry_names)
+    nothing = (no_config_update, no_config_update, no_config_update, no_domain_update,
+               no_entry_update, dash.no_update)
 
     if not n_clicks:
-        return no_config_update, no_config_update, no_config_update, no_domain_update
+        return nothing
 
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
-        return no_config_update, no_config_update, no_config_update, no_domain_update
+        return nothing
 
     domain_names = {data.get("domain_uuid", ""): data.get("domain_name", "") for data in domain_metadata}
 
@@ -2155,6 +2709,8 @@ def save_all(
 
         new_name = new_title if new_title.endswith(".txt") else new_title + ".txt"
         domain = instance_domain(instances, instance_name, domain_name)
+        if domain is None:
+            continue
         if new_name != old_name:
             if verbose:
                 print(f"Renaming config from '{old_name}' to '{new_name}'")
@@ -2174,6 +2730,9 @@ def save_all(
 
     # Configuration parameters
     new_params = list(no_domain_update)
+    # What each section says about the substitution, for the ones a simulation
+    # writes in its own settings file rather than in a directory.
+    substitutions = {}
     for i, metadata in enumerate(domain_metadata):
         use_parameters = params_enables[i] if i < len(params_enables) else False
         param_target_file = target_files[i] if i < len(target_files) else ""
@@ -2191,10 +2750,29 @@ def save_all(
             "start_delimiter": start_delimiter,
             "stop_delimiter": stop_delimiter,
         }
-        instance_domain(instances, instance_name, metadata.get("domain_name", "")).update(settings)
+        domain_name = sim_arch_param_dir(
+            entry_names, entry_param_dirs, i, metadata,
+        ) if entry_names else metadata.get("domain_name", "")
+        if domain_name:
+            instance_domain(instances, instance_name, domain_name).update(settings)
         new_params[i] = settings
+        substitutions[i] = settings
 
-    return new_titles, new_contents, new_metadata, new_params
+    # What the simulation substitutes for one architecture is written whole,
+    # whether or not a section's own fields changed: it is one mapping.
+    new_entry_stores = no_entry_update
+    reload_needed = False
+    if entry_names:
+        reload_needed, new_entry_stores = save_sim_arch_entries(
+            search, odatix_settings, domain_metadata,
+            entry_names, combines, entry_param_files, entry_param_dirs, entry_stores,
+            substitutions=substitutions,
+        )
+
+    return (
+        new_titles, new_contents, new_metadata, new_params, new_entry_stores,
+        (reload_count or 0) + 1 if reload_needed else dash.no_update,
+    )
 
 @dash.callback(
     Output({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
@@ -2226,6 +2804,8 @@ def update_layout_style(layout_value, config_card_classes, add_card_classes, sho
 
 @dash.callback(
     Output({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
+    Output({"type": "simarch-entry-store", "domain_uuid": dash.ALL}, "data"),
+    Output("sim-arch-reload", "data"),
     Input({"type": "save-params-btn", "domain_uuid": dash.ALL}, "n_clicks"),
     State({"type": "use_parameters", "domain_uuid": dash.ALL}, "value"),
     State({"type": "param_target_file", "domain_uuid": dash.ALL}, "value"),
@@ -2233,15 +2813,19 @@ def update_layout_style(layout_value, config_card_classes, add_card_classes, sho
     State({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
+    *SIM_ARCH_STATES,
+    State("sim-arch-reload", "data"),
     State("url", "search"),
     State("odatix-settings", "data"),
 )
 def save_config_parameters(
     n_clicks, 
     use_parameters, param_target_files, start_delimiters, stop_delimiters, domain_metadata, config_params_stores,
+    entry_names, combines, entry_param_files, entry_param_dirs, entry_stores, reload_count,
     search, odatix_settings
 ):
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
+    nothing = ([dash.no_update] * len(domain_metadata), [dash.no_update] * len(entry_names), dash.no_update)
 
     triggered = ctx.triggered_id
     if isinstance(triggered, dict):        
@@ -2273,9 +2857,30 @@ def save_config_parameters(
             settings["start_delimiter"] = start_delimiter
             settings["stop_delimiter"] = stop_delimiter
 
-            instance_domain(instances, instance_name, trig_domain_name).update(settings)
-            return [settings if i == idx else dash.no_update for i in range(len(domain_metadata))]
-    return [dash.no_update for _ in range(len(domain_metadata))]
+            # What this simulation substitutes for one architecture: the whole
+            # mapping is written at once, since it is one mapping, and what a
+            # section says about the substitution goes with the directory it
+            # points at -- or with the entry itself, when it points at none.
+            new_entry_stores = [dash.no_update] * len(entry_names)
+            reload_needed = False
+            if entry_names:
+                reload_needed, new_entry_stores = save_sim_arch_entries(
+                    search, odatix_settings, domain_metadata,
+                    entry_names, combines, entry_param_files, entry_param_dirs, entry_stores,
+                    substitutions={idx: settings},
+                )
+                trig_domain_name = sim_arch_param_dir(
+                    entry_names, entry_param_dirs, idx, domain_metadata[idx],
+                )
+
+            if trig_domain_name:
+                instance_domain(instances, instance_name, trig_domain_name).update(settings)
+            return (
+                [settings if i == idx else dash.no_update for i in range(len(domain_metadata))],
+                new_entry_stores,
+                (reload_count or 0) + 1 if reload_needed else dash.no_update,
+            )
+    return nothing
 
 @dash.callback(
     Output({"type": "params-config-fields", "domain_uuid": dash.ALL}, "className"),
@@ -2304,7 +2909,7 @@ def update_instance_title(search):
     mode, instance_name = get_instance_mode(search)
     if not instance_name:
         instance_name = "New_" + instance_label(mode)
-    return instance_title(mode, instance_name)
+    return instance_title(mode, instance_name, arch=sim_arch_name(search))
 
 @dash.callback(
     Output({"type": "save-domain-title", "domain_uuid": dash.ALL}, "className"),
@@ -2415,6 +3020,10 @@ layout = html.Div(
         html.Div(id="param-domains-section", style={"marginBottom": "10px"}),
         dcc.Store(id="param-domains-section-initialized", data=False),
         dcc.Store(id="param-domains-section-update", data=""),
+        # Bumped when a section of a "?sim=&arch=" page comes to point at
+        # another domain or another directory: what it holds is then read from
+        # somewhere else, so the sections are built again.
+        dcc.Store(id="sim-arch-reload", data=0),
         # Typing in a configuration does not reach the server: this store does,
         # once the typing stops, naming the domains whose preview is now stale.
         dcc.Store(id="config-content-debounce", data=None),
