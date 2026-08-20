@@ -52,7 +52,13 @@ lappend LIBS \
 #foreach lib $LIBS {
 #    read_libs $lib
 #}
-read_mmmc scripts/genus_mmmc.tcl
+if {$synth_mode eq "physical"} {
+    read_mmmc scripts/genus_mmmc.tcl
+} else {
+    foreach lib $LIBS {
+        read_libs $lib
+    }
+}
 
 #-----------------------------------------------------------------------------
 # PHYSICAL LIBRARIES
