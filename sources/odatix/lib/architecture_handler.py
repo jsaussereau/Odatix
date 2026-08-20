@@ -55,8 +55,8 @@ class Architecture:
         self, arch_name, arch_display_name, lib_name, target, local_rtl_path, tmp_script_path, tmp_report_path, tmp_log_path, tmp_dir, 
         design_path, design_path_whitelist, design_path_blacklist, rtl_path, log_path, arch_path,
         clock_signal, reset_signal, top_level_module, top_level_filename, use_parameters, start_delimiter, stop_delimiter,
-        file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, 
-        fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
+        file_copy_enable, file_copy_source, file_copy_dest, script_copy_enable, script_copy_source, script_copy_mmmc_enable, 
+        script_copy_mmmc_source, fmax_lower_bound, fmax_upper_bound, range_list, target_frequency,
         param_target_filename, generate_rtl, generate_command, constraint_filename, install_path, 
         param_domains, continue_on_error=False, force_single_thread=False, virtual_param_domains=None,
         constraint_files=None,
@@ -85,6 +85,8 @@ class Architecture:
         self.file_copy_dest = file_copy_dest
         self.script_copy_enable = script_copy_enable
         self.script_copy_source = script_copy_source
+        self.script_copy_mmmc_enable = script_copy_mmmc_enable
+        self.script_copy_mmmc_source = script_copy_mmmc_source
         self.fmax_lower_bound = fmax_lower_bound
         self.fmax_upper_bound = fmax_upper_bound
         self.range_list = range_list
@@ -155,6 +157,8 @@ class Architecture:
             'file_copy_dest': arch.file_copy_dest,
             'script_copy_enable': arch.script_copy_enable,
             'script_copy_source': arch.script_copy_source,
+            'script_copy_mmmc_enable': arch.script_copy_mmmc_enable,
+            'script_copy_mmmc_source': arch.script_copy_mmmc_source,
             'fmax_lower_bound': arch.fmax_lower_bound,
             'fmax_upper_bound': arch.fmax_upper_bound,
             'range_list': arch.range_list,
@@ -240,7 +244,9 @@ class Architecture:
                 file_copy_source         = get_from_dict("file_copy_source", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 file_copy_dest           = get_from_dict("file_copy_dest", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 script_copy_enable       = get_from_dict("script_copy_enable", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
-                script_copy_source       = get_from_dict("script_copy_source", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
+                script_copy_source       = get_from_dict("script_copy_source", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],
+                script_copy_mmmc_enable  = get_from_dict("script_copy_mmmc_enable", yaml_data, config_file, default_value="", silent = True, script_name=script_name)[0],   
+                script_copy_mmmc_source  = get_from_dict("script_copy_mmmc_source", yaml_data, config_file, default_value="", silent = True, script_name=script_name)[0],     
                 fmax_lower_bound         = get_from_dict("fmax_lower_bound", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 fmax_upper_bound         = get_from_dict("fmax_upper_bound", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
                 range_list               = get_from_dict("range_list", yaml_data, config_file, behavior=Key.MANTADORY_RAISE, script_name=script_name)[0],   
@@ -452,6 +458,8 @@ class ArchitectureHandler:
             settings_data = {}
             script_copy_enable = False
             script_copy_source = "/dev/null"
+            script_copy_mmmc_enable = False
+            script_copy_mmmc_source = "/dev/null"
             target_settings = {}
             base_constraints = []
         else:
@@ -478,6 +486,21 @@ class ArchitectureHandler:
             except (KeyNotInListError, BadValueInListError):
                 script_copy_enable = False
                 script_copy_source = "/dev/null"
+
+            try:
+                script_copy_mmmc_enable = read_from_list('script_copy_mmmc_enable', settings_data, self.eda_target_filename, type=bool, optional=True, script_name=script_name)
+                if script_copy_mmmc_enable:
+                    script_copy_mmmc_source = read_from_list('script_copy_mmmc_source', settings_data, self.eda_target_filename, optional=True, script_name=script_name)
+                    script_copy_mmmc_source = replace_variables(script_copy_mmmc_source, variables) # Replace variables in command
+
+                    if not os.path.isfile(script_copy_mmmc_source):
+                        printc.note("The script source file \"" + script_copy_mmmc_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
+                        raise BadValueInListError
+                else:
+                    raise BadValueInListError
+            except (KeyNotInListError, BadValueInListError):
+                script_copy_mmmc_enable = False
+                script_copy_mmmc_source = "/dev/null"
 
             try:
                 target_settings = read_from_list("target_settings", settings_data, self.eda_target_filename, optional=True, print_error=False, script_name=script_name)
@@ -528,6 +551,20 @@ class ArchitectureHandler:
                             script_copy_enable = False
                             script_copy_source = "/dev/null"
 
+
+                        try:
+                            script_copy_mmmc_enable = read_from_list('script_copy_mmmc_enable', this_target_settings, self.eda_target_filename, type=bool, optional=True, parent="target_settings/" + target, script_name=script_name)
+                            if script_copy_mmmc_enable:
+                                script_copy_mmmc_source = read_from_list('script_copy_mmmc_source', this_target_settings, self.eda_target_filename, optional=True, parent="target_settings/" + target, script_name=script_name)        
+                                script_copy_mmmc_source = replace_variables(script_copy_mmmc_source, variables) # Replace variables in command
+
+                                if not os.path.isfile(script_copy_mmmc_source):
+                                    printc.note("The script source file \"" + script_copy_mmmc_source + "\" specified in \"" + self.eda_target_filename + "\" does not exist. Script copy disabled.", script_name)
+                                    raise BadValueInListError
+                        except (KeyNotInListError, BadValueInListError):
+                            script_copy_mmmc_enable = False
+                            script_copy_mmmc_source = "/dev/null"
+
                         # Constraint files of this target only: an IO placement
                         # is a property of the part or the board, not of the tool.
                         try:
@@ -552,6 +589,8 @@ class ArchitectureHandler:
                         only_one_target = only_one_target,
                         script_copy_enable = script_copy_enable,
                         script_copy_source = script_copy_source,
+                        script_copy_mmmc_enable = script_copy_mmmc_enable,
+                        script_copy_mmmc_source = script_copy_mmmc_source,
                         synthesis = True,
                         constraint_filename = constraint_filename,
                         target_constraints = target_constraints,
@@ -757,7 +796,7 @@ class ArchitectureHandler:
         # A setting left empty reads as an empty string rather than as "None".
         return {name: str(value) if value is not None else "" for name, value in substitutions.items()}
 
-    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp="", command_substitutions=None, target_constraints=None):
+    def get_architecture(self, arch, target="", only_one_target=True, script_copy_enable=False, script_copy_source="/dev/null", script_copy_mmmc_enable=False, script_copy_mmmc_source="/dev/null", synthesis=False, constraint_filename="", install_path="", run_mode="fmax", keep=False, timestamp="", command_substitutions=None, target_constraints=None):
         
         arch, arch_param_dir, arch_config, arch_display_name, arch_param_dir_work, arch_config_dir_work, requested_param_domains = ArchitectureHandler.get_basic(arch, target, only_one_target)
 
@@ -1210,6 +1249,8 @@ class ArchitectureHandler:
             file_copy_dest=file_copy_dest,
             script_copy_enable = script_copy_enable,
             script_copy_source = script_copy_source,
+            script_copy_mmmc_enable = script_copy_mmmc_enable,
+            script_copy_mmmc_source = script_copy_mmmc_source,
             fmax_lower_bound=fmax_lower_bound,
             fmax_upper_bound=fmax_upper_bound,
             range_list=range_list,

@@ -574,6 +574,23 @@ def build_prepare_synthesis_job(
                 print(str(e))
                 return
 
+    # Add enable copy script mmmc for physical synthesis in Genus
+        if arch_instance.script_copy_mmmc_enable:
+            try:
+                shutil.copy2(arch_instance.script_copy_mmmc_source, arch_instance.tmp_script_path)
+            except Exception as e:
+                printc.error(
+                    'Could not copy "'
+                    + arch_instance.script_copy_mmmc_source
+                    + '" to "'
+                    + os.path.realpath(arch_instance.tmp_script_path)
+                    + '"',
+                    script_name,
+                )
+                printc.cyan("error details: ", end="", script_name=script_name)
+                print(str(e))
+                return
+
         if not constraint_files.copy_constraint_files(arch_instance):
             return
 
