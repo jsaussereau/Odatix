@@ -37,6 +37,14 @@ report_progress 70 $synth_statusfile
 syn_opt
 report_progress 90 $synth_statusfile
 
+
+report_timing > $report_path/timing.rep
+report_area > $report_path/area.rep
+report_power -unit mw > $report_path/power.rep
+report_area -detail > $report_path/utilization.rep
+report_qor > $report_path/qor.rep
+
+
 #################################################################################
 # LOGICAL REPORT PATH
 #################################################################################
@@ -49,19 +57,12 @@ file mkdir $logical_report_path
 #################################################################################
 
 
-report_timing > $timing_rep
-report_timing > $report_path/timing_logical.rep
+report_timing > $logical_report_path/timing_logical.rep
+report_area > $logical_report_path/area_logical.rep
+report_power -unit mw > $logical_report_path/power_logical.rep
+report_area -detail > $logical_report_path/utilization_logical.rep
 
-report_area > $area_rep
-report_area > $report_path/area_logical.rep
-
-report_power -unit mw > $power_rep
-report_power -unit mw > $report_path/power_logical.rep
-
-report_area -detail > $utilization_rep
-report_area -detail > $report_path/utilization_logical.rep
-
-report_qor > $report_path/qor_logical.rep
+report_qor > $logical_report_path/qor_logical.rep
 
 report_timing
 report_area

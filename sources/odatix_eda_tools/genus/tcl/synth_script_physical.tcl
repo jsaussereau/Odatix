@@ -26,7 +26,10 @@ init_design
 # CONSTRAINTS
 #################################################################################
 
-read_sdc $constraints_file
+if { $synth_mode != "physical" } {
+    read_sdc $constraints_file
+}
+
 report_clocks
 report_timing -lint
 check_timing_intent
@@ -65,31 +68,56 @@ report_progress 70 $synth_statusfile
 syn_opt -spatial
 report_progress 90 $synth_statusfile
 
+
+report_timing > $report_path/timing.rep
+report_area > $report_path/area.rep
+report_power -unit mw > $report_path/power.rep
+report_area -detail > $report_path/utilization.rep
+report_qor > $report_path/qor.rep
+
+#################################################################################
+# PHYSICAL REPORT PATH
+#################################################################################
+
+set physical_report_path "$report_path/physical"
+file mkdir $physical_report_path
+
+
 #################################################################################
 # REPORTS
 #################################################################################
 
-report_timing > $timing_rep
-report_timing > $report_path/timing_physical.rep
+report_timing > $physical_report_path/timing_physical.rep
+report_area > $physical_report_path/area_physical.rep
+report_power -unit mw > $physical_report_path/power_physical.rep
+report_area -detail > $physical_report_path/utilization_physical.rep
 
-report_area > $area_rep
-report_area > $report_path/area_physical.rep
+report_qor > $physical_report_path/qor_physical.rep
 
-report_power -unit mw > $power_rep
-report_power -unit mw > $report_path/power_physical.rep
+report_timing
+report_area
+report_power -unit mw
 
-report_area -detail > $utilization_rep
-report_area -detail > $report_path/utilization_physical.rep
+report_progress 95 $synth_statusfile
 
-report_qor > $report_path/qor_physical.rep
+
+#################################################################################
+# PHYSICAL RESULT PATH
+#################################################################################
+
+set physical_result_path "$result_path/physical"
+file mkdir $physical_result_path
 
 #################################################################################
 # NETLIST / OUTPUTS
 #################################################################################
 
-write_hdl > $result_path/${top_level_module}_netlist.v
-write_sdf > $result_path/${top_level_module}.sdf
-write_sdc > $result_path/${top_level_module}.sdc
+write_hdl > $physical_result_path/${top_level_module}_netlist.v
+write_sdf > $physical_result_path/${top_level_module}.sdf
+
+
+#write_sdc -view VIEW_SETUP > $result_path/${top_level_module}_setup.sdc
+#write_sdc -view VIEW_HOLD  > $result_path/${top_level_module}_hold.sdc
 
 #################################################################################
 # FINISH
