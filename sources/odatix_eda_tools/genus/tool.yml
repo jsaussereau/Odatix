@@ -30,7 +30,7 @@ unix:
     - *genus_unix
     - "-log log/fmax.log"
     - *genus_args
-    - "'source scripts/find_fmax.tcl; quit'"
+    - "'synth_mode physical; source scripts/find_fmax.tcl; quit'"
 
   # Command for RTL analysis
   analysis_command:
@@ -46,7 +46,7 @@ unix:
     - *genus_unix
     - "-log log/custom_freq.log"
     - *genus_args
-    - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
+    - "'set synth_mode logical; source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
 
 # Log formatting
 format:
