@@ -193,18 +193,19 @@ The configuration file holds the fragment to write between the delimiters:
 An ALU has a deeper critical path than a counter, so its search ranges start lower:
 
 {{< code lang=yaml filename="architectures/Example_ALU_sv/_settings.yml" >}}
-xc7a100t-csg324-1:
-  fmax_synthesis:
-    lower_bound: 150
-    upper_bound: 450
-xc7k70t-fbg676-2:
-  fmax_synthesis:
-    lower_bound: 50
-    upper_bound: 1200
-XFAB180CMOS:
-  fmax_synthesis:
-    lower_bound: 300
-    upper_bound: 700
+overrides:
+  - targets: xc7a100t-csg324-1
+    fmax_synthesis:
+      lower_bound: 150
+      upper_bound: 450
+  - targets: xc7k70t-fbg676-2
+    fmax_synthesis:
+      lower_bound: 50
+      upper_bound: 1200
+  - targets: XFAB180CMOS
+    fmax_synthesis:
+      lower_bound: 300
+      upper_bound: 700
 {{< /code >}}
 
 Compare with the counter's `250 – 900` on the same Artix-7 part: the counter's carry chain is the only thing in its way, the ALU also has to get through a barrel shifter and a result multiplexer.

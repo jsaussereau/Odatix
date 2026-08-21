@@ -130,21 +130,22 @@ Everything between `counter #(` and `)(` is replaced by the content of the selec
 
 ### Per-target frequency bounds
 
-Below the defaults, each architecture may narrow the [fmax search](/docs/features/rtl_fmax_synthesis/) range per [target](/docs/reference/targets/). The binary search converges faster when it starts from a range that actually contains the answer:
+Below the defaults, each architecture may narrow the [fmax search](/docs/features/rtl_fmax_synthesis/) range for the jobs of one [target](/docs/reference/targets/), with an [override](/docs/reference/architecture/#overrides). The binary search converges faster when it starts from a range that actually contains the answer:
 
 {{< code lang=yaml filename="architectures/Example_Counter_verilog/_settings.yml" >}}
-xc7a100t-csg324-1:
-  fmax_synthesis:
-    lower_bound: 250
-    upper_bound: 900
-  custom_freq_synthesis:
-    list: [50, 100]
-AMS350CMOS:
-  fmax_synthesis:
-    lower_bound: 60
-    upper_bound: 160
-  custom_freq_synthesis:
-    list: [50, 100]
+overrides:
+  - targets: xc7a100t-csg324-1
+    fmax_synthesis:
+      lower_bound: 250
+      upper_bound: 900
+    custom_freq_synthesis:
+      list: [50, 100]
+  - targets: AMS350CMOS
+    fmax_synthesis:
+      lower_bound: 60
+      upper_bound: 160
+    custom_freq_synthesis:
+      list: [50, 100]
 {{< /code >}}
 
 A 350 nm ASIC process and a 28 nm FPGA do not live in the same decade of frequencies, so a single global range would waste most of its iterations on either one.

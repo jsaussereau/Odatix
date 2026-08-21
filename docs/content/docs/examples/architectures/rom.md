@@ -11,7 +11,7 @@ The ROM example sweeps a **generated** sine lookup table over two independent di
 Everything about it is generated twice over: the ROM content is computed in Scala at elaboration time, and the configuration list is computed by Odatix from a variable declaration.
 
 {{< details title="What this example demonstrates" >}}
-- **[Parameter domains](/docs/configurations/param_domains/) with generated configurations** — `generate_configurations` inside a domain, so no `.txt` file is written by hand.
+- **[Parameter domains](/docs/configurations/param_domains/) with generated configurations** — a `configurations` block inside a domain, so no `.txt` file is written by hand.
 - **[Configuration generation](/docs/configurations/config_generation/) applied to real work** — `list` and `range` variables, plus a `format` variable that only exists to make the run names sort correctly.
 - **Substitution into a generator, not into RTL** — the values land in a Scala source, and the SystemVerilog does not exist yet when they do.
 - **A design whose size is data, not logic** — a genuinely two-dimensional cost surface, since depth and width multiply.
@@ -95,11 +95,9 @@ odatix_userconfig/
     └── Example_Rom_Chisel/
         ├── _settings.yml          # main architecture settings
         ├── addr/                  # 'addr' parameter domain
-        │   ├── _settings.yml      # generates 08bits.txt … 32bits.txt
-        │   └── (generated)
+        │   └── _settings.yml      # describes 04bits … 16bits
         └── data/                  # 'data' parameter domain
-            ├── _settings.yml      # generates 08bits.txt … 14bits.txt
-            └── (generated)
+            └── _settings.yml      # describes 08bits … 14bits
 {{< /code >}}
 
 ## Architecture settings
@@ -138,10 +136,9 @@ start_delimiter: "  val addr_bits = "
 stop_delimiter: " // Address width"
 param_target_file: "src/main/scala/rom.scala"
 
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "${bits}"
+configurations:
   name: "${formatted_bits}bits"
+  template: "${bits}"
 
 variables:
   bits:
@@ -161,10 +158,9 @@ start_delimiter: "  val data_bits = "
 stop_delimiter: " // Data width"
 param_target_file: "src/main/scala/rom.scala"
 
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "${bits}"
+configurations:
   name: "${formatted_bits}bits"
+  template: "${bits}"
 
 variables:
   bits:

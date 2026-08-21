@@ -50,10 +50,9 @@ Every sub-directory follows the same shape:
 start_delimiter: "  // test parameters begin"
 stop_delimiter: "  // test parameters end"
 
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "parameter VALUE = $var;"   # what is written into the source
+configurations:
   name: "config_${var}"                 # what the configuration is called
+  template: "parameter VALUE = $var;"   # what is written into the source
 
 variables:
   var:
@@ -76,10 +75,9 @@ Odatix takes the cross-product of the variables, then writes one configuration p
 ### `range` — every integer from A to B
 
 {{< code lang=yaml filename="architectures/Example_Config_Generation/01_Range/_settings.yml" >}}
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "parameter VALUE = $var;"
+configurations:
   name: "config_${var}"
+  template: "parameter VALUE = $var;"
 
 variables:
   var:
@@ -156,7 +154,7 @@ The remaining types do not produce values of their own: they **compute** them fr
 ### `function` — compute from another variable
 
 {{< code lang=yaml filename="architectures/Example_Config_Generation/05_Function/_settings.yml" >}}
-generate_configurations_settings:
+configurations:
   template: "parameter VALUE_START = $var;\n parameter VALUE_END = ${var_func};"
   name: "config_${var}..${var_func}"
 
@@ -267,10 +265,9 @@ Order matters here, unlike the other three.
 The last sub-directory puts it together: two independent dimensions, each with a derived companion, all written by a single multi-line template.
 
 {{< code lang=yaml filename="architectures/Example_Config_Generation/10_Multiple_Parameters/_settings.yml" >}}
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "\n  parameter p_dmem_depth_pw2  = $dmem_depth,\n  parameter p_imem_depth_pw2  = $imem_depth,\n"
+configurations:
   name: "DMEM_${dmem_depth_pw2}-IMEM_${imem_depth_pw2}"
+  template: "\n  parameter p_dmem_depth_pw2  = $dmem_depth,\n  parameter p_imem_depth_pw2  = $imem_depth,\n"
 
 variables:
   dmem_depth:

@@ -54,14 +54,15 @@ A `BITS`-wide shift register with a direction input. On every rising edge, `i_bi
 This is the **cheapest possible** `BITS` sweep: `BITS` flip-flops, one 2-to-1 multiplexer per bit, and no carry, no comparison, nothing chained. The critical path is one multiplexer and is **independent of `BITS`**, which is why its fmax bounds are the highest of all the examples:
 
 {{< code lang=yaml filename="architectures/Example_Shift_Register_sv/_settings.yml" >}}
-xc7a100t-csg324-1:
-  fmax_synthesis:
-    lower_bound: 650
-    upper_bound: 1000
-xc7k70t-fbg676-2:
-  fmax_synthesis:
-    lower_bound: 450
-    upper_bound: 2500
+overrides:
+  - targets: xc7a100t-csg324-1
+    fmax_synthesis:
+      lower_bound: 650
+      upper_bound: 1000
+  - targets: xc7k70t-fbg676-2
+    fmax_synthesis:
+      lower_bound: 450
+      upper_bound: 2500
 {{< /code >}}
 
 Plotted against the counter and the ALU, it gives the **flat reference line** the other curves bend away from.
@@ -179,14 +180,15 @@ A combinational multiplier is the **opposite** of the shift register. Its area g
 That discontinuity is visible in the frequency bounds — much wider than the shift register's, because the answer moves a lot across the sweep:
 
 {{< code lang=yaml filename="architectures/Example_Mult/_settings.yml" >}}
-xc7a100t-csg324-1:
-  fmax_synthesis:
-    lower_bound: 100
-    upper_bound: 600
-XFAB180CMOS:
-  fmax_synthesis:
-    lower_bound: 150
-    upper_bound: 1400
+overrides:
+  - targets: xc7a100t-csg324-1
+    fmax_synthesis:
+      lower_bound: 100
+      upper_bound: 600
+  - targets: XFAB180CMOS
+    fmax_synthesis:
+      lower_bound: 150
+      upper_bound: 1400
 {{< /code >}}
 
 > [!INFO]

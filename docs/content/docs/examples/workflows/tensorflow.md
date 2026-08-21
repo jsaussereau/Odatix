@@ -54,10 +54,9 @@ start_delimiter: 'EPOCHS = '
 stop_delimiter: "\n"
 param_target_file: "train.py"
 
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "${epochs}"
+configurations:
   name: "${epochs}"
+  template: "${epochs}"
 
 variables:
   epochs:
