@@ -566,11 +566,27 @@ def dump_results_file(path, units, records):
   directory = os.path.dirname(path)
   if directory != "":
     os.makedirs(directory, exist_ok=True)
-  with open(path, "w") as file:
-    yaml.dump(
-      {"schema": SCHEMA_VERSION, "units": units if units else {}, "results": records if records else []},
-      file,
-      default_style=None,
-      default_flow_style=False,
-      sort_keys=False,
-    )
+  # Written atomically: results files are hot-reloaded by the explorer while jobs
+  # keep exporting, and rewriting in place would expose a truncated or partially
+  # written file to a reader polling at the wrong moment (the charts would then
+  # blink empty until the next poll). A temporary file in the same directory
+  # followed by os.replace() makes the new content appear in one step.
+  temporary_path = path + ".tmp." + str(os.getpid())
+  try:
+    with open(temporary_path, "w") as file:
+      yaml.dump(
+        {"schema": SCHEMA_VERSION, "units": units if units else {}, "results": records if records else []},
+        file,
+        default_style=None,
+        default_flow_style=False,
+        sort_keys=False,
+      )
+      file.flush()
+      os.fsync(file.fileno())
+    os.replace(temporary_path, path)
+  except BaseException:
+    try:
+      os.remove(temporary_path)
+    except OSError:
+      pass
+    raise

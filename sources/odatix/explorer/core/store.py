@@ -199,11 +199,21 @@ class ResultStore:
     except Exception as e:
       source.error = str(e)
       return
+    if results_file.schema_detected == results_schema.FORMAT_UNKNOWN and not results_file.records:
+      # Valid YAML but nothing recognizable: either a genuinely broken file, or a
+      # snapshot taken while an export was rewriting it. Keeping the last good
+      # data (like a parse error does) is what stops the charts from blinking
+      # empty at every job export; a real format problem stays flagged.
+      source.error = "unrecognized results format"
+      if source.name in self._files:
+        return
+      source.schema = results_file.schema_detected
+      source.record_count = 0
+      self._files[source.name] = results_file
+      return
     source.error = None
     source.schema = results_file.schema_detected
     source.record_count = len(results_file.records)
-    if results_file.schema_detected == results_schema.FORMAT_UNKNOWN and not results_file.records:
-      source.error = "unrecognized results format"
     self._files[source.name] = results_file
 
   ######################################
