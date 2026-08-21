@@ -50,6 +50,11 @@ __all__ = ["Campaign", "Exploration", "CampaignError"]
 
 script_name = os.path.basename(__file__)
 
+#: Past this many combinations, the designs an exclusion leaves out are not
+#: counted: walking the space to say how big it is costs more than the answer is
+#: worth, and a search that large never enumerates it anyway.
+EXCLUSION_COUNT_LIMIT = 5000
+
 
 def _number(value):
     """A metric as a log shows it: readable, and not fifteen decimals long."""
@@ -132,6 +137,7 @@ class Campaign(object):
                 frequencies=settings.frequency_values() if settings.explores_frequency() else None,
                 toolchains=self.toolchains,
                 selection=self.selection,
+                exclusions=settings.exclusion_set(),
             )
         except UnknownConfigurationError as error:
             raise CampaignError(str(error))
@@ -158,6 +164,9 @@ class Campaign(object):
         #: which is what makes a budget mean "this many designs", not "this many
         #: jobs, some of them the same".
         self.seen = set()
+        #: How many designs the space holds once its exclusions are applied,
+        #: counted on first use (see :attr:`space_size`).
+        self._space_size = None
         #: Which batch is running, and when the campaign started: an exploration
         #: is read while it runs, and "how long has this been going" is the
         #: question its log is opened for.
@@ -261,18 +270,51 @@ class Campaign(object):
             )
         return self
 
+    @property
+    def space_size(self):
+        """
+        How many designs this campaign may evaluate.
+
+        What the space holds once its exclusions are applied, when that can be
+        counted without walking a space too large to walk -- the number the
+        budget is compared against has to be the number of designs that exist,
+        not the number of combinations of the axes.
+        """
+        if getattr(self, "_space_size", None) is None:
+            size, _counted = self.space.feasible_size(limit=EXCLUSION_COUNT_LIMIT)
+            object.__setattr__(self, "_space_size", size)
+        return self._space_size
+
     def describe(self):
         """One line saying what this campaign is about to do."""
         return (
             "{9}Exploring \"{0}\": {1} designs, {2} of them evaluated at most, "
             "{3} at a time, by {4} search.{5}{6}{7}{8}".format(
-                self.selection.describe(), self.space.size(), self.budget,
+                self.selection.describe(), self.space_size, self.budget,
                 self.search.batch, self.strategy.name, self.describe_frequencies(),
                 self.describe_toolchains(), self.describe_simulations(), self.describe_mode(),
                 "[{0}] ".format(self.campaign_name) if self.campaign_name else "",
             )
+            + self.describe_exclusions()
             + self.describe_constraints()
         )
+
+    def describe_exclusions(self):
+        """What the campaign leaves out of the space, when it leaves anything out."""
+        rules = self.space.exclusions.active()
+        if not rules:
+            return ""
+        left_out = self.space.size() - self.space_size
+        kinds = []
+        for kind in ("illegal", "duplicate", "dominated"):
+            count = len([rule for rule in rules if rule.kind == kind])
+            if count:
+                kinds.append("{0} {1}".format(count, kind))
+        if left_out > 0:
+            return " {0} exclusion(s) ({1}) take {2} combination(s) out of the space.".format(
+                len(rules), ", ".join(kinds), left_out,
+            )
+        return " {0} exclusion(s) ({1}) apply.".format(len(rules), ", ".join(kinds))
 
     def describe_mode(self):
         """Whether the campaign waits for a whole batch, or fills slots as they free up."""
@@ -331,7 +373,7 @@ class Campaign(object):
         twelve is a sweep, and saying so is more useful than pretending to
         search.
         """
-        return min(int(self.search.budget), self.space.size())
+        return min(int(self.search.budget), self.space_size)
 
     ######################################
     # Doing it

@@ -291,6 +291,7 @@ def update_param_domains(
                         "arch_name": arch_name,
                         "n_combos": n_combos,
                         "virtual_variants": info["virtual_variants"],
+                        "excluded": info.get("excluded") or [],
                         "virtual_domains": info["virtual_domains"],
                     },
                 ),
@@ -678,6 +679,17 @@ def sync_preview_values(
             for base in [[arch_name]] + all_combos
             for tokens in kept_variants
         ]
+    # A combination the architecture excludes was never offered when the page
+    # was rendered, and is not added back by a click on one of its domains.
+    excluded = set((arch_metadata or {}).get("excluded") or [])
+    if excluded:
+        def physical_part(combo):
+            return " + ".join(
+                token for token in combo
+                if token.partition("/")[0] not in virtual_domains
+            )
+
+        all_combos = [combo for combo in all_combos if physical_part(combo) not in excluded]
     all_combo_strings = {" + ".join(c) for c in all_combos}
 
     # Values are domain-scoped in combos as "<domain>/<cfg>" (or "<arch_name>/<cfg>" for main).

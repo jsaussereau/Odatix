@@ -28,6 +28,7 @@ import itertools
 from typing import Optional
 
 import odatix.lib.printc as printc
+import odatix.lib.expressions as expressions
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.get_from_dict import get_from_dict, Key
 
@@ -514,17 +515,11 @@ class ConfigGenerator:
     Returns:
         Any: The result of evaluating the expression.
     """
-    safe_env = {var: values_map[var] for var in values_map}
-    safe_env["math"] = math
-    expr = expr.replace("^", "**")  # Replace '^' with '**' for Python exponentiation
-    expr = expr.replace("$", "")
-    expr = expr.replace("{", "")
-    expr = expr.replace("}", "")
     try:
-      return eval(expr, {"__builtins__": None}, safe_env)
-    except Exception as e:
+      return expressions.evaluate(expr, values_map)
+    except expressions.ExpressionError as e:
       if not silent:
-        printc.error(f"Failed to evaluate expression '{expr}': {e}", script_name)
+        printc.error(str(e), script_name)
       return None
 
   def satisfies(self, value_map):

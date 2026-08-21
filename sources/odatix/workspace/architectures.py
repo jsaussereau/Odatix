@@ -44,6 +44,7 @@ from odatix.workspace.configs import (
 )
 from odatix.workspace.domains import ParameterDomain, ParameterDomainCollection
 from odatix.workspace.entries import Collection, Entry
+from odatix.workspace.exclusions import parse_exclusions
 from odatix.workspace.selection import Message
 from odatix.workspace.settings import Setting, Settings
 from odatix.workspace.yaml_io import parse_bool
@@ -210,6 +211,22 @@ class ArchitectureSettings(WithVariables, Settings):
         doc="Definition of each variable, by name. Variables are the values the "
             "configurations are built from. An architecture with no template "
             "substitutes them as \"${name}\" into its commands instead.",
+    )
+
+    attributes = Setting(
+        factory=dict, type="dict", section="Attributes", skip_if_empty=True,
+        doc="How to read values off the name or the content of the configurations of the "
+            "main domain, so that exclusions can be written about hand-written ones. "
+            "\"defaults\", \"from_name\", \"from_content\" and \"values\". See "
+            "odatix.workspace.attributes.",
+    )
+
+    exclusions = Setting(
+        factory=list, type="any", section="Exclusions", skip_if_empty=True,
+        doc="Combinations of the parameter domains of this architecture that are not part "
+            "of its design space. Each one has a \"when\", optionally a \"require\" naming "
+            "what it should be instead, a \"kind\" among \"illegal\", \"duplicate\" and "
+            "\"dominated\", and a \"message\". See odatix.workspace.exclusions.",
     )
 
     # Read so that the files written before "configurations" existed keep
@@ -562,6 +579,32 @@ class Architecture(Entry):
     def configs(self):
         """The configurations of the main parameter domain."""
         return self._main.configs
+
+    @property
+    def attributes(self):
+        """
+        How the configurations of each of its domains are read, as a
+        ``{domain: Attributes}`` mapping (see
+        :mod:`odatix.workspace.attributes`).
+        """
+        return {domain.name: domain.attributes for domain in self.domains}
+
+    def exclusions(self, applied=None):
+        """
+        The combinations of its parameter domains this architecture does not
+        have (see :mod:`odatix.workspace.exclusions`).
+
+        Args:
+            applied (list): which kinds to apply -- ``illegal`` and
+                ``duplicate`` when nothing says otherwise, a campaign being the
+                one entitled to ask for ``dominated`` too.
+
+        Returns:
+            ExclusionSet: the rules, empty when the architecture declares none.
+        """
+        return parse_exclusions(
+            self.settings.to_dict(), source=self.settings_path, applied=applied,
+        )
 
     def parameter_domains(self):
         """

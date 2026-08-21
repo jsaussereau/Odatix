@@ -92,7 +92,16 @@ from odatix.workspace.domains import (
     ParameterDomain,
     ParameterDomainCollection,
 )
+from odatix.workspace.attributes import Attributes, parse_attributes
 from odatix.workspace.entries import Collection, Entry
+from odatix.workspace.exclusions import (
+    DOMINATED,
+    DUPLICATE,
+    ILLEGAL,
+    Exclusion,
+    ExclusionSet,
+    parse_exclusions,
+)
 from odatix.workspace.errors import (
     AlreadyExistsError,
     InvalidNameError,
@@ -185,6 +194,15 @@ __all__ = [
     "ConfigGeneration",
     "combinations",
     "count_combinations",
+    # What a design space does not hold
+    "Attributes",
+    "parse_attributes",
+    "Exclusion",
+    "ExclusionSet",
+    "parse_exclusions",
+    "ILLEGAL",
+    "DUPLICATE",
+    "DOMINATED",
     # Simulations
     "Simulation",
     "SimulationCollection",

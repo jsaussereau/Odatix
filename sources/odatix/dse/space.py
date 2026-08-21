@@ -45,6 +45,8 @@ import itertools
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import get_variables
 from odatix.lib.virtual_param_domain import sanitize_value
+from odatix.workspace.attributes import read_value
+from odatix.workspace.exclusions import ExclusionSet, context as exclusion_context
 from odatix.workspace.space import Axis, ParameterSpace, config_set_rules
 
 __all__ = [
@@ -142,6 +144,12 @@ class DomainSpace(object):
     def __init__(self, name, config_set):
         self.name = name
         self.config_set = config_set
+        #: What is written in the hand-written configurations of this domain,
+        #: read once and only when an exclusion asks for it.
+        self._files = None
+        #: Which choice names each configuration, built the first time an
+        #: exclusion pins this domain to one of them.
+        self._choices = None
         space = config_set.space
         if space.generates and space.valid and space.axes():
             self.kind = SearchAxis.VARIABLE
@@ -162,19 +170,71 @@ class DomainSpace(object):
             configuration the domain blacklists, or a combination its
             constraints rule out.
         """
+        chosen, values, _contents = self.resolve(choice)
+        return chosen, values
+
+    def resolve(self, choice):
+        """
+        The same thing, plus what is written in the configuration.
+
+        The content is what an ``attributes`` block reads when the name does not
+        say enough (see :mod:`odatix.workspace.attributes`), which is the case a
+        hand-written domain is in.
+
+        Returns:
+            tuple: ``{domain: configuration}``, ``{variable: value}`` and
+            ``{domain: content}``.
+        """
         if self.kind == SearchAxis.CONFIGURATION:
             if not self.axes:
-                return None, {}
+                return None, {}, {}
             row = self.axes[0].axis.rows[choice[0] % len(self.axes[0])]
-            return {self.name: list(row.values())[0]}, {}
+            name = list(row.values())[0]
+            return {self.name: name}, {}, {self.name: self.content_of(name)}
 
         assignment = {}
         for axis, index in zip(self.axes, choice):
             assignment.update(axis.axis.rows[index % len(axis)])
         resolved = self.config_set.resolve_point(assignment)
         if resolved is None:
-            return None, {}
-        return {self.name: resolved.name}, dict(resolved.values)
+            return None, {}, {}
+        return {self.name: resolved.name}, dict(resolved.values), {self.name: resolved.content}
+
+    def choice_for(self, name):
+        """
+        Which choice of this domain names a given configuration, or None when
+        none does.
+
+        A domain holding files answers with the row of that file. A domain
+        described by rules has to look: a name is what its rules *produce*, and
+        the only honest way back is to ask each of its points what it is called.
+        The domains this is asked of are the ones an exclusion pins, so the
+        answer is worth building once and keeping.
+        """
+        name = str(name)
+        if self.kind == SearchAxis.CONFIGURATION:
+            if not self.axes:
+                return None
+            axis = self.axes[0]
+            for index, row in enumerate(axis.axis.rows):
+                if str(list(row.values())[0]) == name:
+                    return (index,)
+            return None
+
+        if self._choices is None:
+            self._choices = {}
+            for choice in itertools.product(*[range(len(axis)) for axis in self.axes]):
+                chosen, _values, _contents = self.resolve(choice)
+                if chosen is None:
+                    continue
+                self._choices.setdefault(str(chosen[self.name]), choice)
+        return self._choices.get(name)
+
+    def content_of(self, name):
+        """What is written in one configuration of this domain, read once."""
+        if self._files is None:
+            self._files = self.config_set.files()
+        return self._files.get(name, "")
 
     def __repr__(self):
         return "<DomainSpace {0} ({1} axes)>".format(self.name, len(self.axes))
@@ -214,6 +274,11 @@ class VirtualDomainSpace(object):
 
     def configurations(self, choice):
         """One selection segment per variable, spelled as a job directory is."""
+        chosen, values, _contents = self.resolve(choice)
+        return chosen, values
+
+    def resolve(self, choice):
+        """The same thing, with no content to read: a variable has no file."""
         import yaml
 
         assignment = {}
@@ -221,14 +286,14 @@ class VirtualDomainSpace(object):
             assignment.update(axis.axis.rows[index % len(axis)])
         point = self.space.point(assignment)
         if point is None:
-            return None, {}
+            return None, {}, {}
 
         try:
             rendered = yaml.load(point.content, Loader=yaml.loader.BaseLoader)
         except yaml.YAMLError:
-            return None, {}
+            return None, {}, {}
         if not isinstance(rendered, dict):
-            return None, {}
+            return None, {}, {}
 
         configurations = {}
         for name in self.names:
@@ -237,7 +302,7 @@ class VirtualDomainSpace(object):
             declaration = self.variables.get(name, {})
             unit = str(declaration.get("unit", "") or "") if isinstance(declaration, dict) else ""
             configurations[name] = sanitize_value(value + unit)
-        return configurations, dict(point.values)
+        return configurations, dict(point.values), {}
 
     def __repr__(self):
         return "<VirtualDomainSpace {0}>".format(", ".join(self.names))
@@ -626,10 +691,24 @@ class ArchitectureSpace(object):
     other would mean nothing; asking for several is asking for several searches.
     """
 
-    def __init__(self, architecture, frequencies=None, toolchains=None, selection=None):
+    def __init__(self, architecture, frequencies=None, toolchains=None, selection=None,
+                 exclusions=None):
         self.architecture = architecture
         self.name = architecture.name
         self.parts = []
+        #: What the architecture says its design space does not hold, and what a
+        #: campaign says on top of it (see
+        #: :mod:`odatix.workspace.exclusions`). Read from the architecture when
+        #: the caller passes nothing.
+        self.exclusions = self._exclusions_of(architecture, exclusions)
+        #: How the configurations of each domain are read beyond their name, so
+        #: that an exclusion can be written about a hand-written one.
+        self.attributes = self._attributes_of(architecture)
+        #: The keys of "configurations" that are variables of the commands
+        #: rather than parameter domains: they are values, and are read as such.
+        self._virtual_keys = set()
+        #: Where a pinned name lives in a genome, built on first use.
+        self._pin_targets = None
         #: What the selection fixed: ``{domain: configuration}``. Those domains
         #: are part of every design of the space and are not searched.
         self.pinned = {}
@@ -667,6 +746,29 @@ class ArchitectureSpace(object):
         self.toolchains = ToolchainSpace(toolchains)
         if self.toolchains.axes:
             self.parts.append(self.toolchains)
+
+    @staticmethod
+    def _exclusions_of(architecture, exclusions):
+        """The exclusions of the architecture, plus what a campaign adds to them."""
+        declared = None
+        reader = getattr(architecture, "exclusions", None)
+        if callable(reader):
+            try:
+                declared = reader()
+            except Exception:
+                declared = None
+        if declared is None:
+            return exclusions if exclusions is not None else ExclusionSet()
+        return declared.merge(exclusions)
+
+    @staticmethod
+    def _attributes_of(architecture):
+        found = {}
+        try:
+            found = dict(getattr(architecture, "attributes", {}) or {})
+        except Exception:
+            found = {}
+        return found
 
     def virtual_domains(self):
         """
@@ -757,21 +859,48 @@ class ArchitectureSpace(object):
             cursor += width
         return choices
 
-    def design(self, genome):
+    def design(self, genome, project=True):
         """
         What a genome stands for: the entry a run selects, and the parameters
         behind it.
 
+        Args:
+            genome (tuple): a place in the space.
+            project (bool): move the genome to the design an exclusion says it
+                should be, when it names one -- which is what keeps a
+                ``duplicate`` from emptying the space instead of folding it (see
+                :meth:`project`).
+
         Returns:
             Design: the design, or None when the genome names a configuration
-            the architecture does not run -- one its domain blacklists, or a
-            combination the constraints of that domain rule out.
+            the architecture does not run -- one its domain blacklists, a
+            combination the constraints of that domain rule out, or one its
+            exclusions take out of the space.
         """
         genome = self.clamp(genome)
+        built = self._build(genome)
+        if built is None:
+            return None
+
+        excluded = self.excluded(built)
+        if excluded is None:
+            return built
+
+        if project and excluded.pins:
+            moved = self.project(genome, excluded.pins)
+            if moved is not None and moved != genome:
+                # Once: a projection that lands on another excluded point is a
+                # point that is out, not a reason to keep moving.
+                return self.design(moved, project=False)
+        return None
+
+    def _build(self, genome):
+        """The design a genome stands for, before its exclusions are applied."""
         # What the selection fixed is part of every design: it is not searched,
         # but it is still what the run selects and where the results are read.
         configurations = dict(self.pinned)
         values = {}
+        contents = {}
         frequency = None
         # What runs the design when the search is not the one choosing it.
         toolchain = self.toolchains.toolchain((0,))
@@ -782,10 +911,13 @@ class ArchitectureSpace(object):
             if isinstance(part, ToolchainSpace):
                 toolchain = part.toolchain(choice)
                 continue
-            chosen, assigned = part.configurations(choice)
+            chosen, assigned, written = part.resolve(choice)
             if chosen is None:
                 return None
             configurations.update(chosen)
+            contents.update(written)
+            if isinstance(part, VirtualDomainSpace):
+                self._virtual_keys.update(chosen)
             prefix = "" if getattr(part, "name", MAIN_DOMAIN) == MAIN_DOMAIN else part.name + "."
             for variable, value in assigned.items():
                 values[prefix + variable] = value
@@ -793,10 +925,181 @@ class ArchitectureSpace(object):
             self.name, genome, configurations, values,
             frequency=frequency, toolchain=toolchain,
             chose_toolchain=bool(self.toolchains.axes),
+            contents=contents,
         )
+
+    ######################################
+    # What the space does not hold
+    ######################################
+
+    def excluded(self, design):
+        """
+        Why one design is not part of the space, or None when it is.
+
+        Returns:
+            Excluded: the rule that rejects it, and what it would have it be
+            instead.
+        """
+        if design is None or not len(self.exclusions):
+            return None
+        return self.exclusions.check(self.context(design))
+
+    def context(self, design):
+        """What the expressions of an exclusion read, for one design."""
+        configurations = {
+            domain: name for domain, name in design.configurations.items()
+            if domain not in self._virtual_keys
+        }
+        return exclusion_context(
+            self.name, configurations, design.values,
+            attributes=self.attributes, contents=design.contents,
+            main_domain=MAIN_DOMAIN,
+            extra={"frequency": design.frequency} if design.frequency is not None else None,
+        )
+
+    def project(self, genome, pins):
+        """
+        The genome moved to the values an exclusion pins it to.
+
+        A ``duplicate`` says which of several identical designs is the one to
+        run. Folding the others onto it, rather than dropping them, is what
+        keeps a search from spending its budget proposing points that do not
+        exist -- and it is the honest answer, since they *are* that design.
+
+        Args:
+            genome (tuple): where the search wanted to go.
+            pins (dict): ``{name: value}``, as an exclusion writes them.
+
+        Returns:
+            tuple: the genome moved, or None when nothing could be moved --
+            the pin names something that is not an axis, or a value the axis
+            does not offer.
+        """
+        moved = list(self.clamp(genome))
+        for name, value in pins.items():
+            name = str(name)
+            target = self.pin_targets().get(name)
+            if target is not None:
+                position, variable, rows = target
+                index = _row_index(rows, variable, value)
+                if index is None:
+                    return None
+                moved[position] = index
+                continue
+
+            # Not a variable: a domain pinned to one of its configurations,
+            # which is how a rule says "this one is the one to run".
+            part = self.domain_parts().get(name)
+            if part is None:
+                return None
+            choice = part.choice_for(value)
+            if choice is None:
+                return None
+            start = self.position_of(part)
+            for offset, index in enumerate(choice):
+                moved[start + offset] = index
+        return tuple(moved)
+
+    def domain_parts(self):
+        """The parts of the space that are parameter domains, by name."""
+        found = {}
+        for part in self.parts:
+            if not isinstance(part, DomainSpace):
+                continue
+            name = getattr(part, "name", MAIN_DOMAIN)
+            found[name] = part
+            if name == MAIN_DOMAIN:
+                # The names an exclusion calls the main domain by.
+                found["config"] = part
+                found["main"] = part
+        return found
+
+    def position_of(self, part):
+        """Where the axes of one part start, in a genome."""
+        position = 0
+        for candidate in self.parts:
+            if candidate is part:
+                return position
+            position += len(candidate.axes)
+        return position
+
+    def pin_targets(self):
+        """
+        Where each name an exclusion may pin lives in a genome:
+        ``{name: (position, variable, rows)}``.
+
+        A variable of the main domain is reachable by its bare name, one of
+        another domain as "<domain>.<variable>", and a domain holding files by
+        its own name -- which is exactly how an exclusion writes them.
+        """
+        if getattr(self, "_pin_targets", None) is not None:
+            return self._pin_targets
+
+        targets = {}
+        position = 0
+        for part in self.parts:
+            domain = getattr(part, "name", MAIN_DOMAIN)
+            for axis in part.axes:
+                rows = axis.axis.rows
+                for variable in axis.axis.variables:
+                    if axis.kind == SearchAxis.CONFIGURATION:
+                        targets[domain] = (position, variable, rows)
+                    elif axis.kind == SearchAxis.VIRTUAL:
+                        targets[variable] = (position, variable, rows)
+                    elif domain == MAIN_DOMAIN:
+                        targets[variable] = (position, variable, rows)
+                        targets["config." + variable] = (position, variable, rows)
+                        targets["main." + variable] = (position, variable, rows)
+                    else:
+                        targets["{0}.{1}".format(domain, variable)] = (position, variable, rows)
+                position += 1
+        self._pin_targets = targets
+        return targets
+
+    def feasible_size(self, limit=100000):
+        """
+        How many designs the space actually holds, once its exclusions are
+        applied.
+
+        Counted by walking the space, so it is only worth asking of a space
+        small enough to walk: past `limit` genomes the count is what
+        :meth:`size` says, since a search that large is never going to enumerate
+        it anyway.
+
+        Returns:
+            tuple: the number of designs, and whether it was actually counted.
+        """
+        total = self.size()
+        if not len(self.exclusions) or total > limit:
+            return total, not len(self.exclusions)
+        # Counted as designs, not as genomes: several genomes fold onto the one
+        # configuration a "duplicate" says is the canonical one, and they are
+        # that design rather than as many designs.
+        found = set()
+        for genome in self.genomes():
+            design = self.design(genome)
+            if design is not None:
+                found.add(design.genome)
+        return len(found), True
 
     def __repr__(self):
         return "<ArchitectureSpace {0} ({1} designs)>".format(self.name, self.size())
+
+
+def _row_index(rows, variable, value):
+    """
+    Which row of an axis carries a given value of one of its variables.
+
+    Both are read the way an expression reads them, so that "1" pins an axis
+    that offers 1, and "On" one that offers On.
+    """
+    wanted = read_value(value)
+    for index, row in enumerate(rows):
+        if variable not in row:
+            continue
+        if read_value(row[variable]) == wanted:
+            return index
+    return None
 
 
 class Design(object):
@@ -810,11 +1113,11 @@ class Design(object):
 
     __slots__ = (
         "architecture", "genome", "configurations", "values", "frequency",
-        "toolchain", "chose_toolchain",
+        "toolchain", "chose_toolchain", "contents",
     )
 
     def __init__(self, architecture, genome, configurations, values, frequency=None,
-                 toolchain=None, chose_toolchain=False):
+                 toolchain=None, chose_toolchain=False, contents=None):
         self.architecture = architecture
         self.genome = tuple(genome)
         #: What runs the design: the eda tool, its flow and its target. None
@@ -838,6 +1141,9 @@ class Design(object):
         #: ``{variable: value}``, named "<domain>.<variable>" outside the main
         #: domain, empty for a configuration written by hand.
         self.values = dict(values)
+        #: ``{domain: content}``, what is written in each configuration, when it
+        #: was at hand. Read by an "attributes" block, and by nothing else.
+        self.contents = dict(contents or {})
 
     @property
     def configuration(self):

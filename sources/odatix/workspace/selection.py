@@ -45,8 +45,12 @@ import re
 
 from natsort import natsorted
 
+import odatix.lib.hard_settings as hard_settings
+from odatix.lib.expressions import Ref
+from odatix.workspace.attributes import parse_attributes, read_value
 from odatix.workspace.configs import CONFIG_EXTENSION, configuration_names
-from odatix.workspace.space import resolved_names
+from odatix.workspace.exclusions import expose as expose_exclusion_context, parse_exclusions
+from odatix.workspace.space import config_set_at, load_domain_settings, resolved_names
 
 __all__ = [
     "JobRequest",
@@ -54,6 +58,9 @@ __all__ = [
     "parse",
     "expand",
     "domain_names",
+    "ExclusionFilter",
+    "NATURAL_ORDER_LIMIT",
+    "filter_excluded",
 ]
 
 
@@ -220,6 +227,56 @@ def domain_names(root, entry):
     ])
 
 
+#: Past this many entries, a selection is a design space rather than a list,
+#: and is left in the order its wildcards produced it.
+NATURAL_ORDER_LIMIT = 100
+
+
+class _LeftOut(object):
+    """
+    What the exclusions of one architecture took out of one entry of a
+    selection, gathered so that it is said once per rule instead of once per
+    combination.
+    """
+
+    def __init__(self, architecture):
+        self.architecture = architecture
+        # Rules in the order they first rejected something, each with how many
+        # points it took and the first of them, which is what an example is.
+        self.rules = {}
+        self.order = []
+
+    def add(self, entry, excluded):
+        key = excluded.rule.identifier
+        if key not in self.rules:
+            self.rules[key] = [excluded.rule, 0, entry]
+            self.order.append(key)
+        self.rules[key][1] += 1
+
+    def report(self, messages, strict=False):
+        """
+        Say what was left out, and how loudly. Asking for a combination that
+        does not exist is an error; sweeping over one is a note.
+        """
+        if messages is None:
+            return
+        level = "error" if strict else "note"
+        for key in self.order:
+            rule, count, example = self.rules[key]
+            if count == 1:
+                messages.append(Message(level, '"{0}" is not part of the design space of "{1}": {2}'.format(
+                    example, self.architecture, rule.describe()
+                )))
+                continue
+            messages.append(Message(
+                level,
+                '{0} combinations are not part of the design space of "{1}": {2}'.format(
+                    count, self.architecture, rule.describe()
+                ),
+                hints=['For example "{0}"'.format(example)],
+            ))
+
+
 def expand(requests, root, messages=None):
     """
     Turn a selection into the entries it stands for, resolving its wildcards
@@ -234,11 +291,14 @@ def expand(requests, root, messages=None):
             and what cannot is reported.
 
     Returns:
-        list: one string per entry, deduplicated and in natural order.
+        list: one string per entry, deduplicated. In natural order, unless the
+            selection stands for more entries than :data:`NATURAL_ORDER_LIMIT`,
+            which are left in the order the wildcards produced them.
     """
     if messages is None:
         messages = []
 
+    filters = {}
     expanded = []
     for text in requests or []:
         request = parse(text)
@@ -251,6 +311,24 @@ def expand(requests, root, messages=None):
             continue
 
         before = len(expanded)
+        # What this architecture says its design space does not hold. A
+        # combination an exclusion rules out is not part of the sweep, whether
+        # it was reached by a wildcard or written out: the difference is only in
+        # how loudly it is said.
+        excluder = filters.get(request.entry)
+        if excluder is None:
+            excluder = ExclusionFilter(root, request.entry)
+            filters[request.entry] = excluder
+        strict = not _has_wildcard(request)
+
+        # A wildcard over several domains stands for the product of everything
+        # it names, and a rule may take tens of thousands of those out at once.
+        # Saying so once per point would bury what the run is about under its
+        # own explanation, so what is left out is counted per rule and said at
+        # the end of the entry -- an explicitly named point still gets its own
+        # message, there being exactly one of it.
+        left_out = _LeftOut(request.entry)
+
         if domain_values:
             domains = list(domain_values.keys())
             for path in matched:
@@ -258,16 +336,242 @@ def expand(requests, root, messages=None):
                     selectors = "+".join(
                         "{0}/{1}".format(domain, value) for domain, value in zip(domains, combination)
                     )
-                    expanded.append("{0}+{1}".format(path, selectors))
+                    entry = "{0}+{1}".format(path, selectors)
+                    excluded = excluder.check(entry)
+                    if excluded is None:
+                        expanded.append(entry)
+                    else:
+                        left_out.add(entry, excluded)
         else:
-            expanded.extend(matched)
+            for entry in matched:
+                excluded = excluder.check(entry)
+                if excluded is None:
+                    expanded.append(entry)
+                else:
+                    left_out.add(entry, excluded)
+
+        left_out.report(messages, strict=strict)
+
+        for message in excluder.take_errors():
+            messages.append(Message("error", message))
 
         if _has_wildcard(request) and len(expanded) == before:
             messages.append(
                 Message("warning", 'Wildcard "{0}" did not match any configuration'.format(request.text))
             )
 
-    return natsorted(list(dict.fromkeys(expanded)))
+    unique = list(dict.fromkeys(expanded))
+    # Natural order is what puts "8bits" before "16bits", and it is worth what
+    # it costs on the handful of entries a run usually names. On a design space
+    # it is not: the entries already come out in that order -- every wildcard is
+    # resolved in natural order and the product preserves it -- and sorting a
+    # quarter of a million strings by natural order costs more than working out
+    # which of them exist in the first place.
+    if len(unique) > NATURAL_ORDER_LIMIT:
+        return unique
+    return natsorted(unique)
+
+
+######################################
+# What a sweep leaves out
+######################################
+
+MAIN_DOMAIN = hard_settings.main_parameter_domain
+
+
+class ExclusionFilter(object):
+    """
+    The exclusions of one architecture, applied to the entries of a sweep.
+
+    A sweep crosses the parameter domains of an architecture, and some of those
+    combinations are not designs: the RTL does not build, or the very same
+    hardware is described twice. Until now the only way to leave them out was
+    not to write the line that produces them, once per run settings file. Here
+    they are read from the architecture itself, so that a sweep and a search
+    leave out exactly the same points -- and so that the reason is written down
+    next to the design instead of in three settings files.
+
+    Everything is read lazily and once: an architecture that declares no
+    exclusion costs a single settings file read, which is what most of them are.
+    """
+
+    def __init__(self, root, entry, applied=None):
+        self.root = root
+        self.entry = entry
+        self.path = os.path.join(root, entry)
+        self._applied = applied
+        self._exclusions = None
+        self._attributes = {}
+        self._configs = {}
+        self._references = {}
+
+    @staticmethod
+    def of(instance):
+        """
+        The filter of an architecture that is already at hand, rather than of a
+        directory -- what the graphical interface has.
+        """
+        if instance is None:
+            return ExclusionFilter("", "")
+        return ExclusionFilter(os.path.dirname(instance.path), instance.name)
+
+    @property
+    def exclusions(self):
+        if self._exclusions is None:
+            settings = load_domain_settings(self.path) if os.path.isdir(self.path) else {}
+            self._exclusions = parse_exclusions(
+                settings,
+                source=os.path.join(self.path, "_settings.yml"),
+                applied=self._applied,
+            )
+            self._attributes[MAIN_DOMAIN] = parse_attributes(settings)
+        return self._exclusions
+
+    @property
+    def empty(self):
+        """Whether this architecture leaves anything out at all."""
+        return not len(self.exclusions)
+
+    ######################################
+    # What one configuration is worth
+    ######################################
+
+    def _domain_path(self, domain):
+        return self.path if domain == MAIN_DOMAIN else os.path.join(self.path, domain)
+
+    def _attributes_of(self, domain):
+        if domain not in self._attributes:
+            self._attributes[domain] = parse_attributes(load_domain_settings(self._domain_path(domain)))
+        return self._attributes[domain]
+
+    def _configs_of(self, domain):
+        """``{name: ResolvedConfig}`` of one domain, resolved once."""
+        if domain not in self._configs:
+            path = self._domain_path(domain)
+            found = {}
+            if os.path.isdir(path):
+                try:
+                    for config in config_set_at(path).resolve():
+                        found[config.name] = config
+                except Exception:
+                    found = {}
+            self._configs[domain] = found
+        return self._configs[domain]
+
+    def _reference(self, domain, name):
+        """
+        What one configuration of one domain is worth inside an expression.
+
+        A sweep crosses each configuration once per combination of all the other
+        domains -- thousands of times over -- and what it is worth never depends
+        on them. It is therefore read once and kept.
+        """
+        key = (domain, name)
+        reference = self._references.get(key)
+        if reference is None:
+            known = {}
+            config = self._configs_of(domain).get(name)
+            content = None
+            if config is not None:
+                content = config.content
+                known = dict(config.values or {})
+            reader = self._attributes_of(domain)
+            if reader.declared:
+                known = reader.of(name, content, known)
+            else:
+                known = {variable: read_value(value) for variable, value in known.items()}
+            reference = Ref(name, known)
+            self._references[key] = reference
+        return reference
+
+    def context(self, entry):
+        """What the expressions of an exclusion read, for one entry of a sweep."""
+        request = parse(entry, keep_extension_note=False)
+        references = {}
+        if request.has_configuration:
+            references[MAIN_DOMAIN] = self._reference(MAIN_DOMAIN, request.configuration)
+        for selector in request.domains:
+            domain, _, configuration = selector.partition("/")
+            if domain and configuration:
+                references[domain] = self._reference(domain, configuration)
+
+        return expose_exclusion_context(self.entry, references, main_domain=MAIN_DOMAIN)
+
+    ######################################
+    # Applying them
+    ######################################
+
+    def check(self, entry):
+        """Why one entry is not part of the space, or None when it is."""
+        if self.empty:
+            return None
+        return self.exclusions.check(self.context(entry))
+
+    def keeps(self, entry, messages=None, strict=False):
+        """
+        Whether one entry of a sweep is run, saying why when it is not.
+
+        Args:
+            entry (str): the entry, as a selection writes it.
+            messages (list): appended with what to tell the user.
+            strict (bool): the entry was written out rather than reached by a
+                wildcard. Asking for a combination that does not exist is worth
+                an error; sweeping over one is worth a note.
+        """
+        excluded = self.check(entry)
+        if excluded is None:
+            return True
+        if messages is not None:
+            text = '"{0}" is not part of the design space of "{1}": {2}'.format(
+                entry, self.entry, excluded.rule.describe()
+            )
+            messages.append(Message("error" if strict else "note", text))
+        return False
+
+    def take_errors(self):
+        """The exclusions that could not be evaluated, reported once each."""
+        if self._exclusions is None:
+            return []
+        return self._exclusions.take_errors()
+
+    def __repr__(self):
+        return "<ExclusionFilter {0} ({1} rules)>".format(self.entry, len(self.exclusions))
+
+
+def filter_excluded(entries, root, messages=None, applied=None):
+    """
+    The entries of a selection an architecture actually holds.
+
+    Args:
+        entries (list): entries, already expanded.
+        root (str): the directory holding the architectures.
+        messages (list): appended with what to tell the user.
+        applied (list): which kinds of exclusion to apply (see
+            :mod:`odatix.workspace.exclusions`).
+
+    Returns:
+        list: the entries that are part of the design space.
+    """
+    filters = {}
+    left_out = {}
+    kept = []
+    for entry in entries or []:
+        name = parse(entry, keep_extension_note=False).entry
+        if name not in filters:
+            filters[name] = ExclusionFilter(root, name, applied=applied)
+            left_out[name] = _LeftOut(name)
+        excluded = filters[name].check(entry)
+        if excluded is None:
+            kept.append(entry)
+        else:
+            left_out[name].add(entry, excluded)
+    for report in left_out.values():
+        report.report(messages)
+    for excluder in filters.values():
+        for message in excluder.take_errors():
+            if messages is not None:
+                messages.append(Message("error", message))
+    return kept
 
 
 def _has_wildcard(request):

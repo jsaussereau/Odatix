@@ -31,6 +31,7 @@ from dash import dcc, html
 import odatix.gui.ui_components as ui
 import odatix.lib.hard_settings as hard_settings
 from odatix.workspace.configs import combinations, count_combinations
+from odatix.workspace.selection import ExclusionFilter
 import odatix.lib.virtual_param_domain as virtual_param_domain
 
 from odatix.gui.jobs_config.common import (
@@ -305,8 +306,24 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
     formatted_combinations = []
     filtered_selected = []
     unmatched = []
+    excluded = []
     if not too_many:
         physical_combos = combinations(domains_configs, arch_name)
+        # What the architecture says its design space does not hold is not
+        # offered: a combination an exclusion rules out is not a run waiting to
+        # be checked, it is a design that does not exist (see
+        # odatix.workspace.exclusions).
+        excluder = ExclusionFilter.of(instances.get(arch_name))
+        if not excluder.empty:
+            kept = []
+            for combo in physical_combos:
+                if excluder.keeps("+".join(combo)):
+                    kept.append(combo)
+                else:
+                    excluded.append(" + ".join(combo))
+            physical_combos = kept
+            n_physical_combos = len(physical_combos)
+            n_combos = (n_physical_combos + 1) * len(virtual_variants) if virtual_variants else n_physical_combos
         if virtual_variants:
             non_default_combos = [
                 base + tokens
@@ -393,6 +410,7 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
         "unmatched": unmatched,
         "too_many": too_many,
         "virtual_variants": virtual_variants,
+        "excluded": excluded,
         "virtual_domains": list(virtual_domain_values or {}),
         "initial_selections": initial_selections,
     }

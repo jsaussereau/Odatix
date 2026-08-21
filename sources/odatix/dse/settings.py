@@ -270,6 +270,18 @@ class CampaignSettings(Settings):
         doc="Architectures whose parameters are searched.",
     )
 
+    exclusions = Setting(
+        factory=dict, type="any", section=" what this campaign leaves out of the space",
+        comment=(
+            "\"apply\": which kinds of exclusion to apply, among illegal, duplicate and dominated;"
+            "\n \"ignore\": the ids of the ones this campaign does not want;"
+            "\n \"rules\": exclusions of its own, written like those of an architecture"
+        ),
+        doc="Which of the exclusions of the architecture this campaign applies, and the ones "
+            "it adds. A \"dominated\" exclusion is knowledge about an objective, so it is only "
+            "applied when a campaign asks for it.",
+    )
+
     def __init__(self, **values):
         super(CampaignSettings, self).__init__(**values)
         #: What the campaign is called: the name of the file it was read from,
@@ -295,6 +307,19 @@ class CampaignSettings(Settings):
         from odatix.dse.constraints import Constraints
 
         return Constraints.from_list(self.constraints)
+
+    def exclusion_set(self):
+        """
+        What this campaign says about the exclusions of the architecture it
+        searches (see :mod:`odatix.workspace.exclusions`).
+
+        Merged into what the architecture declares, which is where the rules
+        themselves usually live: an exclusion is a property of the design, and a
+        campaign only decides which of them its question is entitled to apply.
+        """
+        from odatix.workspace.exclusions import parse_exclusions
+
+        return parse_exclusions(self.exclusions, source=self.name or "")
 
     def simulation_names(self):
         """

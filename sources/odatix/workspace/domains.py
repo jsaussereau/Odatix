@@ -49,6 +49,7 @@ from odatix.workspace.configs import (
     VariablesSetting,
     WithVariables,
 )
+from odatix.workspace.attributes import parse_attributes
 from odatix.workspace.entries import check_name
 from odatix.workspace.errors import AlreadyExistsError, InvalidNameError, NotFoundError
 from odatix.workspace.settings import Setting, Settings, load_settings, save_settings
@@ -107,6 +108,14 @@ class DomainSettings(WithVariables, Settings):
         doc="Definition of each variable, by name. Variables are the values the "
             "configurations are built from. A domain with no template substitutes "
             "them as \"${name}\" into commands instead.",
+    )
+
+    attributes = Setting(
+        factory=dict, type="dict", section="Attributes", skip_if_empty=True,
+        doc="How to read values off the name or the content of the configurations of "
+            "this domain, so that exclusions can be written about hand-written ones. "
+            "\"defaults\", \"from_name\", \"from_content\" and \"values\". See "
+            "odatix.workspace.attributes.",
     )
 
     # Read so that the files written before "configurations" existed keep
@@ -261,6 +270,18 @@ class ParameterDomain(object):
                 self.settings.to_dict(), source=self.settings_path, implicit=not self.is_main
             ),
         )
+
+    @property
+    def attributes(self):
+        """
+        How the configurations of this domain are read beyond their name (see
+        :mod:`odatix.workspace.attributes`).
+
+        This is what makes a hand-written configuration readable by an
+        exclusion: a topology whose name says where its pipeline barriers are
+        becomes ``$config.stage_EX``, without a variable having to exist.
+        """
+        return parse_attributes(self.settings.to_dict(), source=self.settings_path)
 
     def resolve_configurations(self):
         """The configurations of this domain, rules and files together."""
