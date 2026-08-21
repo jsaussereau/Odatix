@@ -69,6 +69,14 @@ write_hdl > $result_path/${top_level_module}_netlist.v
 write_sdf > $result_path/${top_level_module}.sdf
 write_sdc > $result_path/${top_level_module}.sdc
 
+# Publish them under the names "odatix pnr" looks for, so this synthesis can be
+# placed & routed by Innovus, ICC2 or any other tool declaring a pnr flow.
+odatix_publish_handoff \
+    $result_path/${top_level_module}_netlist.v \
+    $result_path/${top_level_module}.sdc \
+    $result_path/${top_level_module}.sdf \
+    "<grey>\[synth_script.tcl\]<end>"
+
 
 
 

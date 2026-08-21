@@ -12,6 +12,10 @@ process_group: True
 # Default metrics file for this tool
 default_metrics_file: $eda_tools_path/genus/metrics.yml
 
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: synthesis
+
 unix:
   # Optional constants (anchors) for reuse
   constants:
@@ -47,6 +51,17 @@ unix:
     - "-log log/custom_freq.log"
     - *genus_args
     - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
+
+##############################################
+# Flows
+##############################################
+# Different ways of running the same job type with this tool. The commands
+# declared in the platform sections above are those of the default flow.
+
+flows:
+  synthesis:
+    label: "Synthesis"
+    description: "Logic synthesis"
 
 # Log formatting
 format:
