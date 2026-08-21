@@ -28,6 +28,11 @@ import logging
 import argparse
 from waitress import serve
 
+try:
+    from urllib.parse import urlencode
+except ImportError:  # Python 2 fallback, kept for safety
+    from urllib import urlencode
+
 if sys.platform == "win32":
     import msvcrt
 else:
@@ -59,19 +64,112 @@ start_port = 8052
 # Parse Arguments
 ######################################
 
-def add_arguments(parser):
-    parser.add_argument('-i', '--input', type=str, default='results', help='Directory of the result YAML files')
-    parser.add_argument('-n', '--network', action='store_true', help='Run the server on the network')
-    parser.add_argument('-p', '--port', type=int, default=start_port, help='Port to run the server on')
-    parser.add_argument('-N', '--normal_term_mode', action='store_true', help='Do not change terminal mode')
-    parser.add_argument('--safe_mode', action='store_true', help='Do not exit on internal error')
-    parser.add_argument('-B', '--nobrowser', action='store_true', help='Do not open browser')
-    parser.add_argument('-T', '--theme', default=None, help='Use a specific theme')
-    parser.add_argument("-c", "--config", default=OdatixSettings.DEFAULT_SETTINGS_FILE, help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
+job_types = ["fmax_synthesis", "custom_freq_synthesis", "pnr", "analyze", "workflow", "simulation"]
+synthesis_job_types = ["fmax_synthesis", "custom_freq_synthesis", "pnr"]
+
+class PageOption:
+    """A page-specific command line option, forwarded to the page as an url parameter."""
+
+    def __init__(self, flags, url_key, help, dest=None, type=str, choices=None):
+        self.flags = flags if isinstance(flags, (list, tuple)) else [flags]
+        self.url_key = url_key
+        self.help = help
+        self.dest = dest if dest is not None else "page_" + url_key
+        self.type = type
+        self.choices = choices
+
+    def add_to(self, parser):
+        parser.add_argument(*self.flags, dest=self.dest, default=None, type=self.type, choices=self.choices, help=self.help)
+
+    def value(self, args):
+        return getattr(args, self.dest, None)
+
+# Pages that can be opened directly from the command line.
+# Each entry maps a command name to the path of the corresponding Dash page,
+# and to the options this page accepts (forwarded as url parameters).
+gui_pages = {
+    "home": ("/", []),
+    "monitor": ("/monitor", [
+        PageOption(['-S', '--session'], "session", "daemon session name or selector"),
+        PageOption(['--host'], "host", "daemon API host (default: current workspace daemon host)"),
+        PageOption(['--port'], "port", "daemon API port (default: current workspace daemon port)", type=int),
+    ]),
+    "jobs": ("/choose_job_type", []),
+    "run_jobs": ("/run_jobs", [
+        PageOption(['--type'], "type", "job type to run", choices=job_types),
+        PageOption(['--tool'], "tool", "eda tool to use"),
+        PageOption(['--flow'], "flow", "flow to run"),
+        PageOption(['--until'], "until", "last step to run"),
+    ]),
+    "eda_tool": ("/choose_eda_tool", [
+        PageOption(['--type'], "type", "job type to choose an eda tool for", choices=synthesis_job_types),
+    ]),
+    "select_targets": ("/select_targets", [
+        PageOption(['--tool'], "tool", "eda tool to select targets for"),
+    ]),
+    "architectures": ("/architectures", []),
+    "arch_editor": ("/arch_editor", [
+        PageOption(['--arch'], "arch", "architecture to edit"),
+    ]),
+    "config_editor": ("/config_editor", []),
+    "workflows": ("/workflows", []),
+    "workflow_editor": ("/workflow_editor", [
+        PageOption(['--workflow'], "workflow", "workflow to edit"),
+    ]),
+    "tools": ("/tools", []),
+    "tool_editor": ("/tool_editor", [
+        PageOption(['--tool'], "tool", "eda tool to edit"),
+    ]),
+    "sim_editor": ("/sim_editor", [
+        PageOption(['--sim'], "sim", "simulation to edit"),
+    ]),
+    "metric_editor": ("/metric_editor", [
+        PageOption(['--tool'], "tool", "edit the exported metrics of this eda tool"),
+        PageOption(['--workflow'], "workflow", "edit the exported metrics of this workflow"),
+        PageOption(['--simulation'], "simulation", "edit the exported metrics of this simulation"),
+    ]),
+    "derived_metrics": ("/derived_metrics", []),
+    "clean": ("/clean", []),
+    "workspace": ("/workspace", []),
+}
+
+default_page = "home"
+
+def add_arguments(parser, suppress_defaults=False, skip_flags=()):
+    def default(value):
+        return argparse.SUPPRESS if suppress_defaults else value
+
+    def add(flags, **kwargs):
+        if any(flag in skip_flags for flag in flags):
+            return
+        parser.add_argument(*flags, **kwargs)
+
+    add(['-i', '--input'], type=str, default=default('results'), help='Directory of the result YAML files')
+    add(['-n', '--network'], action='store_true', default=default(False), help='Run the server on the network')
+    add(['-p', '--port'], type=int, default=default(start_port), help='Port to run the server on')
+    add(['-N', '--normal_term_mode'], action='store_true', default=default(False), help='Do not change terminal mode')
+    add(['--safe_mode'], action='store_true', default=default(False), help='Do not exit on internal error')
+    add(['-B', '--nobrowser'], action='store_true', default=default(False), help='Do not open browser')
+    add(['-T', '--theme'], default=default(None), help='Use a specific theme')
+    add(["-c", "--config"], default=default(OdatixSettings.DEFAULT_SETTINGS_FILE), help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")")
+
+def add_page_parsers(parser):
+    subparsers = parser.add_subparsers(dest='page', help='page to open (default: ' + default_page + ')')
+    for page, (path, options) in gui_pages.items():
+        page_parser = subparsers.add_parser(page, help='open the ' + path + ' page')
+        # Global options are also accepted after the page name, unless the page defines
+        # an option with the same flag (for instance '--port' on the monitor page refers
+        # to the daemon port, as in `odatix monitor`). In that case, the global option
+        # is only available before the page name.
+        page_flags = [flag for option in options for flag in option.flags]
+        add_arguments(page_parser, suppress_defaults=True, skip_flags=page_flags)
+        for option in options:
+            option.add_to(page_parser)
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Odatix - Start Result Explorer')
+    parser = argparse.ArgumentParser(description='Odatix - Start Graphical User Interface')
     add_arguments(parser)
+    add_page_parsers(parser)
     # Try enabling autocompletion if argcomplete is installed
     try:
         import argcomplete
@@ -80,22 +178,40 @@ def parse_arguments():
         pass  # No error if argcomplete is missing
     return parser.parse_args()
 
+def get_landing_page(args):
+    """Build the url path (with query string) of the page to open, from parsed arguments."""
+    page = getattr(args, 'page', None) or default_page
+    path, options = gui_pages.get(page, gui_pages[default_page])
+
+    query = {}
+    for option in options:
+        value = option.value(args)
+        if value is not None:
+            query[option.url_key] = value
+
+    if query:
+        path = path + '?' + urlencode(query)
+    return path
+
 ######################################
 # Misc functions
 ######################################
 
 def open_browser():
-    webbrowser.open("http://" + ip_address + ':' + str(port), new=0, autoraise=True)
+    webbrowser.open("http://" + ip_address + ':' + str(port) + landing_page, new=0, autoraise=True)
 
 def close_server(old_settings):
     if old_settings is not None:
         term_mode.restore_mode(old_settings)
     os._exit(0)
 
-def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None):
+def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False, safe_mode=False, do_not_open_browser=False, config_file=OdatixSettings.DEFAULT_SETTINGS_FILE, theme=None, page="/"):
 
     global ip_address
     global port
+    global landing_page
+
+    landing_page = page if page.startswith("/") else "/" + page
 
     # Default ip address: local
     host_address = '127.0.0.1'
@@ -112,7 +228,7 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
     else:
         port = find_free_port(host_address, start_port)
 
-    printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + '/' + printc.colors.ENDC, end="", script_name=script_name)
+    printc.say("Server running on " + printc.colors.BLUE + "http://" + ip_address + ":" + str(port) + landing_page + printc.colors.ENDC, end="", script_name=script_name)
     if network:
         print(" (network-accessible)")
     else:
@@ -183,7 +299,7 @@ def main(args=None):
     config_file = args.config
     port = args.port
 
-    start_odatix_app(network, port, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme)
+    start_odatix_app(network, port, normal_term_mode, safe_mode, do_not_open_browser, config_file, args.theme, get_landing_page(args))
 
 if __name__ == "__main__":
     main()
