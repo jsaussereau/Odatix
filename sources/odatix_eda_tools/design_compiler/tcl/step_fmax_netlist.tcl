@@ -19,38 +19,32 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-# One synthesis at the frequency currently written in the constraints file.
+# Step "netlist" of an fmax search: the synthesis that gets handed over.
 #
-# This is what an fmax search runs at every iteration of its binary search, in
-# the process that runs the search itself: the RTL has been analyzed once by
-# find_fmax.tcl, so only elaboration, compilation and reporting are replayed.
-# No netlist is exported here — the frequency this iteration ran at is not
-# necessarily the one the search converges to (see step_fmax_netlist.tcl).
+# The search leaves the constraints file at the highest frequency it found the
+# timing met at, but the design left in memory is the one of its last iteration,
+# which may well be a violating one. So this step synthesizes once more, at the
+# frequency the search converged to, and publishes that netlist for
+# "odatix pnr". Its reports replace the search's, for the same frequency.
+#
+# The RTL has been analyzed by analyze_script.tcl in the same process.
 
 if {[catch {
 
-    set signature "<grey>\[synth_script.tcl\]<end>"
+    set signature "<grey>\[step_fmax_netlist.tcl\]<end>"
 
     source scripts/settings.tcl
     source scripts/step_common.tcl
 
     set basename ${top_level_module}
 
-    report_progress 2 $synth_statusfile
+    report_progress 0 $synth_statusfile
 
     odatix_dc_elaborate $signature
 
     report_progress 10 $synth_statusfile
 
-    puts "<bold>"
-    puts "**************************************"
-    puts "  Save Database for further loading"
-    puts "**************************************"
-    puts "<end>"
-
     odatix_write_ddc "${basename}.ddc" $signature
-
-    report_progress 13 $synth_statusfile
 
     set frequency [odatix_dc_constrain $signature]
 
@@ -58,13 +52,15 @@ if {[catch {
 
     odatix_dc_compile $signature
 
-    report_progress 90 $synth_statusfile
+    report_progress 80 $synth_statusfile
 
     odatix_write_ddc "${basename}_gates.ddc" $signature
 
-    report_progress 93 $synth_statusfile
-
     odatix_dc_reports $frequency $signature
+
+    report_progress 90 $synth_statusfile
+
+    odatix_dc_netlist $signature
 
     report_progress 100 $synth_statusfile
 

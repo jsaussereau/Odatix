@@ -1,0 +1,276 @@
+# ********************************************************************** #
+#                                Odatix                                  #
+# ********************************************************************** #
+#
+# Copyright (C) 2022 Jonathan Saussereau
+#
+# This file is part of Odatix.
+# Odatix is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Odatix is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+#
+
+# Helpers shared by the steps of a Design Compiler synthesis.
+#
+# Each step is its own dc_shell process, so nothing survives in memory from one
+# step to the next: a step hands its design over through a .ddc database, and
+# the next step reads it back instead of starting again from the RTL.
+
+source scripts/settings.tcl
+
+proc odatix_ddc_path {name} {
+    global result_path
+    return [file join $result_path $name]
+}
+
+# The technology library setup every process needs, whether it reads the RTL or
+# a database written by an earlier step.
+proc odatix_dc_setup {signature} {
+    global lib_name work_path
+    define_design_lib $lib_name -path $work_path
+    if {[catch {
+        source scripts/synopsys_dc_setup.tcl
+    } errmsg]} {
+        puts "$signature <bold><red>error: could not source 'synopsys_dc_setup.tcl'<end>"
+        puts "$signature <cyan>note: design compiler needs a technology file, make sure you added one in 'target_design_compiler.yml'<end>"
+        exit -1
+    }
+}
+
+proc odatix_write_ddc {name signature} {
+    global result_path
+    file mkdir $result_path
+    set path [odatix_ddc_path $name]
+    if {[catch {
+        write -hierarchy -format ddc -output $path
+    } errmsg]} {
+        puts "$signature <bold><red>error: failed writing database $name<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        exit -1
+    }
+    puts "$signature <cyan>wrote database $path<end>"
+}
+
+proc odatix_read_ddc {name signature previous_step} {
+    global top_level_module
+    set path [odatix_ddc_path $name]
+    if {![file exists $path]} {
+        puts "$signature <bold><red>error: missing database $name<end>"
+        puts "$signature <cyan>note: this step continues the \"$previous_step\" step, which has to run first<end>"
+        exit -1
+    }
+    if {[catch {
+        read_ddc $path
+        current_design $top_level_module
+        link
+    } errmsg]} {
+        puts "$signature <bold><red>error: failed reading database $name<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+        exit -1
+    }
+    puts "$signature <cyan>read database $path<end>"
+}
+
+# Elaboration, resolution of references and uniquification: everything that
+# turns the analyzed RTL into a design ready to be constrained and compiled.
+proc odatix_dc_elaborate {signature} {
+    global top_level_module lib_name continue_on_error
+
+    puts "<bold>"
+    puts "**************************************"
+    puts "          Elaborate Design"
+    puts "**************************************"
+    puts "<end>"
+
+    redirect -variable result {
+        elaborate ${top_level_module} -library $lib_name
+    }
+    set result [string trimright $result "\n0"]
+    puts $result
+    if {[regexp -nocase -line {^Error:} $result]} {
+        puts "$signature <bold><red>error: failed elaborating design<end>"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
+    }
+
+    link
+
+    puts "<bold>"
+    puts "**************************************"
+    puts "          Uniquify Design"
+    puts "**************************************"
+    puts "<end>"
+    uniquify
+
+    # remove "remove constant", "merge register" and "complemented port" information
+    suppress_message { OPT-1206 OPT-319 OPT-1215 }
+}
+
+# Timing constraints, read from the frequency Odatix wrote in the constraints
+# file. Returns the target frequency in MHz.
+proc odatix_dc_constrain {signature} {
+    global constraints_file clock_signal reset_signal continue_on_error
+
+    puts "<bold>"
+    puts "**************************************"
+    puts "           Create Clock "
+    puts "**************************************"
+    puts "<end>"
+
+    # Get frequency from constraints file
+    set frequency [read [open $constraints_file r]]
+
+    # Timing Constraints - Clock Frequency
+    set clock_period [expr 1000.0 / $frequency]
+
+    set clock_skew  0.1
+    set jitter 0.0
+    set margin 0.0
+    set clock_uncertainty [expr $clock_skew + $jitter + $margin]
+
+    set input_delay [expr 0.1 * $clock_period]
+    set output_delay [expr 0.1 * $clock_period]
+
+    redirect -variable result {
+        create_clock -name $clock_signal -period $clock_period -waveform [list 0.0 [expr $clock_period / 2.0]] [list $clock_signal]
+    }
+    set result [string trimright $result "\n0"]
+    puts $result
+    if {[regexp -nocase -line {^Error:} $result]} {
+        puts "$signature <bold><red>error: failed creating clock<end>"
+        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
+    }
+
+    set_wire_load_mode segmented
+    set_clock_uncertainty -hold $clock_skew $clock_signal
+    set_clock_uncertainty -setup $clock_skew $clock_signal
+    set_max_transition 0.5 $reset_signal
+
+    check_timing
+
+    return $frequency
+}
+
+proc odatix_dc_compile {signature} {
+    puts "<bold>"
+    puts "**************************************"
+    puts "     Synthesis and Optimization"
+    puts "**************************************"
+    puts "<end>"
+
+    set_fix_multiple_port_nets -all [all_designs]
+    set_fix_multiple_port_nets -outputs -feedthroughs -constants
+    #compile -map_effort medium -boundary_optimization
+    #compile_ultra -area_high_effort_script -retime
+    compile
+    #compile_ultra -timing_high_effort_script -retime
+}
+
+# Metrics are exported when the run ends, whichever step it ended on, so the
+# step that compiles the design writes the reports the metrics are read from.
+proc odatix_dc_reports {frequency signature} {
+    global power_rep area_rep utilization_rep timing_rep freq_rep ref_rep
+
+    puts "<bold>"
+    puts "**************************************"
+    puts "            Write Reports"
+    puts "**************************************"
+    puts "<end>"
+
+    if {[catch {
+        # Report Power
+        puts "Writing power report file '$power_rep'."
+        report_power > $power_rep
+    } errmsg]} {
+        puts "$signature <bold><red>error: could not write power report<end>"
+        puts "$signature tool says -> $errmsg"
+    }
+    if {[catch {
+        # Report Area
+        puts "Writing area report file '$area_rep'."
+        report_area -nosplit -hierarchy > $area_rep
+        # create the utilization_rep file
+        close [open $utilization_rep w]
+        echo -n "Cell count:                     " > $utilization_rep
+        sizeof_collection [ get_cells  -hier  *] >> $utilization_rep
+    } errmsg]} {
+        puts "$signature <bold><red>error: could not write area report<end>"
+        puts "$signature tool says -> $errmsg"
+    }
+    if {[catch {
+        # Report Timing
+        puts "Writing timing report file '$timing_rep'."
+        report_timing -path full -delay max -nworst 1 -max_paths 1 -significant_digits 4 -sort_by group > $timing_rep
+        echo -n "Target frequency:               $frequency" > $freq_rep
+    } errmsg]} {
+        puts "$signature <bold><red>error: could not write timing report<end>"
+        puts "$signature tool says -> $errmsg"
+    }
+    if {[catch {
+        # Report Reference
+        puts "Writing reference report file '$ref_rep'."
+        report_reference -hierarchy > $ref_rep
+    } errmsg]} {
+        puts "$signature <bold><red>error: could not write reference report<end>"
+        puts "$signature tool says -> $errmsg"
+    }
+}
+
+# The gate level netlist, its constraints and its delays, published under the
+# names "odatix pnr" looks for so this synthesis can be placed & routed by
+# Innovus, ICC2 or any other tool declaring a pnr flow.
+proc odatix_dc_netlist {signature} {
+    global result_path top_level_module
+
+    set basename ${top_level_module}
+    set runname gates_dc
+
+    puts "<bold>"
+    puts "**************************************"
+    puts "       Export Verilog Netlist "
+    puts "**************************************"
+    puts "<end>"
+
+    # Verilog output settings
+    set verilogout_equation	false
+    set verilogout_no_tri	true
+    set verilogout_single_bit  false
+    set verilogout_show_unconnected_pins true
+
+    change_names -rules verilog -hierarchy -verbose > change_names_verilog
+
+    write -hierarchy -format verilog -output ${result_path}/${basename}_${runname}.v
+
+    puts "<bold>"
+    puts "**************************************"
+    puts "     Generate SDF and SDC files"
+    puts "**************************************"
+    puts "<end>"
+
+    write_sdf ${result_path}/${basename}_${runname}.sdf
+    write_sdc ${result_path}/${basename}_${runname}.sdc
+
+    odatix_publish_handoff \
+        ${result_path}/${basename}_${runname}.v \
+        ${result_path}/${basename}_${runname}.sdc \
+        ${result_path}/${basename}_${runname}.sdf \
+        $signature
+}

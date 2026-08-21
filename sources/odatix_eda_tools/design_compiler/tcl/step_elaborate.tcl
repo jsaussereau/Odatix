@@ -19,28 +19,24 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-# One synthesis at the frequency currently written in the constraints file.
+# Step "elaborate": elaboration, resolution of references and uniquification.
 #
-# This is what an fmax search runs at every iteration of its binary search, in
-# the process that runs the search itself: the RTL has been analyzed once by
-# find_fmax.tcl, so only elaboration, compilation and reporting are replayed.
-# No netlist is exported here — the frequency this iteration ran at is not
-# necessarily the one the search converges to (see step_fmax_netlist.tcl).
+# The RTL has been analyzed by analyze_script.tcl in the same process. What this
+# step leaves behind is the elaborated database the "synthesis" step reads back,
+# so changing the target frequency only replays the compilation.
 
 if {[catch {
 
-    set signature "<grey>\[synth_script.tcl\]<end>"
+    set signature "<grey>\[step_elaborate.tcl\]<end>"
 
     source scripts/settings.tcl
     source scripts/step_common.tcl
 
-    set basename ${top_level_module}
-
-    report_progress 2 $synth_statusfile
+    report_progress 0 $synth_statusfile
 
     odatix_dc_elaborate $signature
 
-    report_progress 10 $synth_statusfile
+    report_progress 60 $synth_statusfile
 
     puts "<bold>"
     puts "**************************************"
@@ -48,23 +44,7 @@ if {[catch {
     puts "**************************************"
     puts "<end>"
 
-    odatix_write_ddc "${basename}.ddc" $signature
-
-    report_progress 13 $synth_statusfile
-
-    set frequency [odatix_dc_constrain $signature]
-
-    report_progress 15 $synth_statusfile
-
-    odatix_dc_compile $signature
-
-    report_progress 90 $synth_statusfile
-
-    odatix_write_ddc "${basename}_gates.ddc" $signature
-
-    report_progress 93 $synth_statusfile
-
-    odatix_dc_reports $frequency $signature
+    odatix_write_ddc "${top_level_module}.ddc" $signature
 
     report_progress 100 $synth_statusfile
 

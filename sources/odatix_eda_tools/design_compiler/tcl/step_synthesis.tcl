@@ -19,38 +19,26 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-# One synthesis at the frequency currently written in the constraints file.
+# Step "synthesis": constraints, compilation and reports.
 #
-# This is what an fmax search runs at every iteration of its binary search, in
-# the process that runs the search itself: the RTL has been analyzed once by
-# find_fmax.tcl, so only elaboration, compilation and reporting are replayed.
-# No netlist is exported here — the frequency this iteration ran at is not
-# necessarily the one the search converges to (see step_fmax_netlist.tcl).
+# It continues the "elaborate" step through its database instead of reading the
+# RTL again, and leaves the mapped design behind for the "netlist" step. This is
+# the step metrics are read from: a run stopped here ("--until synthesis") still
+# exports area, timing and power.
 
 if {[catch {
 
-    set signature "<grey>\[synth_script.tcl\]<end>"
+    set signature "<grey>\[step_synthesis.tcl\]<end>"
 
     source scripts/settings.tcl
     source scripts/step_common.tcl
 
-    set basename ${top_level_module}
+    report_progress 0 $synth_statusfile
 
-    report_progress 2 $synth_statusfile
-
-    odatix_dc_elaborate $signature
+    odatix_dc_setup $signature
+    odatix_read_ddc "${top_level_module}.ddc" $signature "elaborate"
 
     report_progress 10 $synth_statusfile
-
-    puts "<bold>"
-    puts "**************************************"
-    puts "  Save Database for further loading"
-    puts "**************************************"
-    puts "<end>"
-
-    odatix_write_ddc "${basename}.ddc" $signature
-
-    report_progress 13 $synth_statusfile
 
     set frequency [odatix_dc_constrain $signature]
 
@@ -58,11 +46,11 @@ if {[catch {
 
     odatix_dc_compile $signature
 
+    report_progress 85 $synth_statusfile
+
+    odatix_write_ddc "${top_level_module}_gates.ddc" $signature
+
     report_progress 90 $synth_statusfile
-
-    odatix_write_ddc "${basename}_gates.ddc" $signature
-
-    report_progress 93 $synth_statusfile
 
     odatix_dc_reports $frequency $signature
 

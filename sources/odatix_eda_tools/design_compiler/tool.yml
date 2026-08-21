@@ -12,10 +12,15 @@ process_group: True
 # Default metrics file for this tool
 default_metrics_file: $eda_tools_path/design_compiler/metrics.yml
 
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: dc_shell
+
 unix:
   # Optional constants (anchors) for reuse
   constants:
     - &dc_unix dc_shell
+    - &dcnxt_unix dcnxt_shell
     - &dc_args -x
 
   # Command to check if the tool is installed
@@ -24,13 +29,71 @@ unix:
     - *dc_args
     - "exit"
 
-  # Command for fmax synthesis
-  fmax_synthesis_command:
-    - cd $work_path;
-    - *dc_unix
-    - "-output_log_file log/fmax.log"
-    - *dc_args
-    - "'source scripts/find_fmax.tcl; quit'"
+  ##############################################
+  # Steps
+  ##############################################
+  # Synthesis jobs are split into ordered steps. Each step runs as its own
+  # dc_shell process, so a run can stop at any of them ("--until") and a later
+  # run picks up where it left off instead of starting over. Nothing survives in
+  # memory from one process to the next: a step hands its design over through a
+  # .ddc database, and the next one reads it back.
+  #
+  # Being split into steps is a property of every flow of this tool, not of a
+  # flow of its own: the steps below belong to the default flow, and the flows
+  # declared at the bottom of this file inherit them, redefining only what they
+  # change.
+
+  # Steps of an fmax search. The search itself is one step: unlike an FPGA flow,
+  # there is no post-route timing to search on again, so what changes after it
+  # is only what gets written. The netlist is exported by a step of its own
+  # because the search has to synthesize once more to produce it (see
+  # step_fmax_netlist.tcl), which is worth paying only when the design is meant
+  # to be placed & routed afterwards.
+  fmax_synthesis_steps:
+    - name: search
+      default: true
+      command:
+        - cd $work_path;
+        - *dc_unix
+        - "-output_log_file log/fmax.log"
+        - *dc_args
+        - "'source scripts/find_fmax.tcl; quit'"
+    - name: netlist
+      command:
+        - cd $work_path;
+        - *dc_unix
+        - "-output_log_file log/netlist.log"
+        - *dc_args
+        - "'source scripts/analyze_script.tcl; source scripts/step_fmax_netlist.tcl; quit'"
+
+  # Steps of a custom frequency synthesis. Here each step continues from the
+  # database the previous one wrote, so nothing is elaborated or compiled twice.
+  # Only the last one exports the netlist "odatix pnr" starts from: a run after
+  # nothing but area, timing and power stops at "synthesis", which is where the
+  # metrics are read from.
+  custom_freq_synthesis_steps:
+    - name: elaborate
+      command:
+        - cd $work_path;
+        - *dc_unix
+        - "-output_log_file log/elaborate.log"
+        - *dc_args
+        - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/step_elaborate.tcl; quit'"
+    - name: synthesis
+      default: true
+      command:
+        - cd $work_path;
+        - *dc_unix
+        - "-output_log_file log/custom_freq.log"
+        - *dc_args
+        - "'source scripts/step_synthesis.tcl; quit'"
+    - name: netlist
+      command:
+        - cd $work_path;
+        - *dc_unix
+        - "-output_log_file log/netlist.log"
+        - *dc_args
+        - "'source scripts/step_netlist.tcl; quit'"
 
   # Command for RTL analysis
   analysis_command:
@@ -40,13 +103,79 @@ unix:
     - *dc_args
     - "'set odatix_mode analysis; source scripts/init_script.tcl; source scripts/analyze_script.tcl; quit'"
 
-  # Command for custom frequency synthesis
-  custom_freq_synthesis_command:
-    - cd $work_path;
-    - *dc_unix
-    - "-output_log_file log/custom_freq.log"
-    - *dc_args
-    - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
+##############################################
+# Flows
+##############################################
+# A flow is a way of running this tool: a different script, different options,
+# sometimes a different binary. Flows of the same tool are alternatives meant to
+# be compared, so each one gets its own work directory
+# ("design_compiler@dcnxt") and its results are tagged with its name.
+#
+# The commands declared in the platform sections above are those of the default
+# flow (see "default_flow").
+
+flows:
+
+  dc_shell:
+    label: "DC (legacy) - Standard"
+    description: "Synthesis with dc_shell (legacy Design Compiler)"
+
+  dcnxt_shell:
+    label: "DC NXT - Standard"
+    description: "Synthesis with the faster and more powerful dcnxt_shell (requires Design Compiler P-2019.03 or earlier)"
+    unix:
+      # This flow runs a different binary, so it checks for that one.
+      tool_test_command:
+        - *dcnxt_unix
+        - *dc_args
+        - "exit"
+      # Same steps as the default flow, run by the other binary: they are merged
+      # by name, so what each one does stays declared in one place only.
+      fmax_synthesis_steps:
+        - name: search
+          default: true
+          command:
+            - cd $work_path;
+            - *dcnxt_unix
+            - "-output_log_file log/fmax.log"
+            - *dc_args
+            - "'source scripts/find_fmax.tcl; quit'"
+        - name: netlist
+          command:
+            - cd $work_path;
+            - *dcnxt_unix
+            - "-output_log_file log/netlist.log"
+            - *dc_args
+            - "'source scripts/analyze_script.tcl; source scripts/step_fmax_netlist.tcl; quit'"
+      custom_freq_synthesis_steps:
+        - name: elaborate
+          command:
+            - cd $work_path;
+            - *dcnxt_unix
+            - "-output_log_file log/elaborate.log"
+            - *dc_args
+            - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/step_elaborate.tcl; quit'"
+        - name: synthesis
+          default: true
+          command:
+            - cd $work_path;
+            - *dcnxt_unix
+            - "-output_log_file log/custom_freq.log"
+            - *dc_args
+            - "'source scripts/step_synthesis.tcl; quit'"
+        - name: netlist
+          command:
+            - cd $work_path;
+            - *dcnxt_unix
+            - "-output_log_file log/netlist.log"
+            - *dc_args
+            - "'source scripts/step_netlist.tcl; quit'"
+      analysis_command:
+        - cd $work_path;
+        - *dcnxt_unix
+        - "-output_log_file log/analysis.log"
+        - *dc_args
+        - "'set odatix_mode analysis; source scripts/init_script.tcl; source scripts/analyze_script.tcl; quit'"
 
 # Log formatting
 format:
