@@ -76,6 +76,14 @@ set target_file        $tmp_path/target.txt
 set architecture_file  $tmp_path/architecture.txt
 set constraints_file   $tmp_path/constraints.txt
 
+# Constraint files the user provided, copied into this job directory by Odatix
+# and read on top of the generated one above (see odatix.lib.constraint_files).
+# They are kept apart from $constraints_file because that file is rewritten
+# whole at every iteration of an fmax search: anything put there would be lost.
+# Odatix fills these two lists in; they stay empty when nothing was declared.
+set user_constraints_synthesis [list]
+set user_constraints_pnr       [list]
+
 set utilization_rep    $report_path/utilization.rep
 set utilization_h_rep  $report_path/utilization_hier.rep
 set area_rep           $report_path/area.rep
@@ -109,6 +117,62 @@ set lib_name           WORK
 ######################################
 # Procedures
 ######################################
+
+proc odatix_read_user_constraints {stage read_command signature} {
+    # Read the constraint files the user provided for a stage of this job.
+    #
+    # The command reading a constraint file is the caller's to give: what Vivado
+    # calls read_xdc, Genus and Design Compiler call read_sdc, and a tool taking
+    # plain tcl takes "source". The stage is "synthesis" or "pnr" — a file whose
+    # scope is "all" is in both lists, so a caller only ever asks for its own.
+    #
+    # A file that cannot be read stops the job. Going on would synthesize or
+    # implement the design without the constraint it was given, and produce a
+    # result that looks valid and is not.
+    global user_constraints_synthesis user_constraints_pnr
+
+    switch -- $stage {
+        synthesis { set files $user_constraints_synthesis }
+        pnr       { set files $user_constraints_pnr }
+        default {
+            puts "$signature <bold><red>error: unknown constraint stage \"$stage\", exiting<end>"
+            exit -1
+        }
+    }
+
+    # A file scoped "all" is in both lists, and a tool whose synthesis and place
+    # & route steps share one process would then read it twice into the same
+    # design. What is remembered here is what this design has already been given;
+    # asking for the synthesis stage starts a new design, and forgets it. That is
+    # what makes an fmax search work: every iteration synthesizes from the RTL
+    # again, so every iteration reads the constraints again.
+    if {$stage eq "synthesis"} {
+        set ::odatix_constraints_read [list]
+    }
+    if {![info exists ::odatix_constraints_read]} {
+        set ::odatix_constraints_read [list]
+    }
+
+    foreach constraint_file $files {
+        if {[lsearch -exact $::odatix_constraints_read $constraint_file] >= 0} {
+            continue
+        }
+        lappend ::odatix_constraints_read $constraint_file
+        if {![file exists $constraint_file]} {
+            puts "$signature <bold><red>error: constraint file \"$constraint_file\" not found, exiting<end>"
+            puts "$signature <cyan>note: it should have been copied into this job directory by Odatix<end>"
+            exit -1
+        }
+        if {[catch {
+            $read_command $constraint_file
+        } errmsg]} {
+            puts "$signature <bold><red>error: failed reading constraint file \"$constraint_file\", exiting<end>"
+            puts -nonewline "$signature tool says -> $errmsg"
+            exit -1
+        }
+        puts "$signature <cyan>read $stage constraints from $constraint_file<end>"
+    }
+}
 
 proc report_progress {progress progressfile {comment ""}} {
     set progressfile_handler [open $progressfile w]
