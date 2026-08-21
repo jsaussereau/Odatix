@@ -128,6 +128,7 @@ def _rule_card(rule, metric_options, units):
             placeholder="Metric...",
             clearable=False,
             className="xp-dropdown xp-rule-metric",
+            style={"width": "100%"},
           ),
           html.Button(
             "✕",

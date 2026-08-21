@@ -30,6 +30,10 @@
     --wf-hl-domain-color: var(--theme-primary-color);
     --wf-hl-builtin-color: #9775FA;
     --wf-hl-unknown-color: var(--theme-warning-color);
+    /* Selector fields: the wildcards of a pattern, and the configuration a
+       selector points at (see the "selectors" mode of variable_highlight.js). */
+    --wf-hl-wildcard-color: #E8590C;
+    --wf-hl-target-color: var(--theme-success-color);
 }
 
 .wf-hl-wrap {
@@ -38,9 +42,13 @@
     margin-bottom: 8px;
 }
 
-/* The field styling brings its own margin-bottom; the wrapper owns it now. */
+/* The field styling brings its own margin-bottom; the wrapper owns it now.
+   Block display too: the wrapper gives the mirror its height, and an inline
+   field would leave a descender gap under it that the mirror would take on. */
 .wf-hl-wrap .odatix-command-field {
+    display: block;
     margin-bottom: 0 !important;
+    vertical-align: top;
 }
 
 /* The mirror sits exactly under the field and shows the colored text. */
@@ -130,6 +138,22 @@
     background: color-mix(in srgb, var(--wf-hl-unknown-color) 14%, transparent);
     text-decoration: underline dashed color-mix(in srgb, var(--wf-hl-unknown-color) 60%, transparent);
     text-underline-offset: 2px;
+}
+
+.wf-hl-wildcard {
+    color: var(--wf-hl-wildcard-color);
+    background: color-mix(in srgb, var(--wf-hl-wildcard-color) 16%, transparent);
+}
+.wf-hl-target {
+    color: var(--wf-hl-target-color);
+    background: color-mix(in srgb, var(--wf-hl-target-color) 12%, transparent);
+    font-weight: 600;
+}
+/* A commented line selects nothing: shown as the text it is, dimmed. */
+.wf-hl-comment {
+    opacity: 0.5;
+    font-weight: normal;
+    background: none;
 }
 
 .odx-varlist-panel {
@@ -327,4 +351,14 @@ border: var(--card-border);
     background: var(--wf-hl-unknown-color);
     color: #fff;
     border-color: var(--wf-hl-unknown-color);
+}
+.wf-hl-tooltip.wf-hl-wildcard {
+    background: var(--wf-hl-wildcard-color);
+    color: #fff;
+    border-color: var(--wf-hl-wildcard-color);
+}
+.wf-hl-tooltip.wf-hl-target {
+    background: var(--wf-hl-target-color);
+    color: #fff;
+    border-color: var(--wf-hl-target-color);
 }

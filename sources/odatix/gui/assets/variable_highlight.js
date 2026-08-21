@@ -61,6 +61,9 @@
   var COPIED_STYLES = [
     "boxSizing", "width",
     "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
+    // Without them the colors land next to the characters they belong to, by
+    // exactly the padding of the field.
+    "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
     "fontFamily", "fontSize", "fontWeight", "fontStyle",
     "lineHeight", "letterSpacing", "wordSpacing", "textTransform", "textIndent",
   ];
@@ -146,7 +149,104 @@
       + "otherwise define it as a variable below",
   };
 
-  var TOKEN_CLASSES = ["wf-hl-var", "wf-hl-domain", "wf-hl-builtin", "wf-hl-unknown"];
+  var TOKEN_CLASSES = [
+    "wf-hl-var", "wf-hl-domain", "wf-hl-builtin", "wf-hl-unknown",
+    "wf-hl-wildcard", "wf-hl-target", "wf-hl-comment",
+  ];
+
+  /*
+   * Selector fields (.odatix-selector-field) hold something else than
+   * a command: one "selector -> configuration" per line, the selector being a
+   * name, a pattern, a regular expression or a condition on $name and $value
+   * (see odatix.workspace.selectors). They are highlighted by what a selector is
+   * made of -- the values it reads, the wildcards it matches with, and the
+   * configuration it points at -- rather than by where a ${...} resolves.
+   */
+  var SELECTOR_FIELD_CLASS = "odatix-selector-field";
+
+  // What a selector may read, and what it means. Anything else written with a
+  // dollar sign is nothing, and is shown as such.
+  var SELECTOR_VALUES = {
+    name: "name of the configuration being run, as a number when it is one",
+    value: "what that configuration substitutes, when it is a single number",
+  };
+
+  var SELECTOR_KINDS = {
+    "wf-hl-wildcard": "matches any part of a name",
+    "wf-hl-target": "the configuration substituted for the ones this selector matches",
+    "wf-hl-comment": "comment: this line selects nothing",
+  };
+
+  function isSelectorField(field) {
+    return !!(field && field.classList && field.classList.contains(SELECTOR_FIELD_CLASS));
+  }
+
+  function token(text, cls, tip) {
+    return '<span class="wf-hl-token ' + cls + '" data-wf-hl-tip="' + escapeHtml(tip) + '">'
+      + escapeHtml(text) + "</span>";
+  }
+
+  // The selector half of a line: its values, its wildcards, and the rest as it
+  // is written.
+  function buildSelectorHtml(text) {
+    var html = "";
+    // A selector reading a value is a condition, where "*" multiplies and does
+    // not stand for anything: only a pattern has wildcards.
+    var pattern = /\$/.test(text)
+      ? /\$\{([^}]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g
+      : /[*?]|\[[^\]]*\]/g;
+    var lastIndex = 0;
+    var match;
+    while ((match = pattern.exec(text)) !== null) {
+      html += escapeHtml(text.slice(lastIndex, match.index));
+      var rawName = match[1] !== undefined ? match[1] : match[2];
+      if (rawName === undefined) {
+        html += token(match[0], "wf-hl-wildcard", SELECTOR_KINDS["wf-hl-wildcard"]);
+      } else {
+        var name = rawName.trim();
+        var known = Object.prototype.hasOwnProperty.call(SELECTOR_VALUES, name);
+        html += token(
+          match[0],
+          known ? "wf-hl-builtin" : "wf-hl-unknown",
+          known
+            ? name + ": " + SELECTOR_VALUES[name]
+            : name + ": a selector only reads $name and $value"
+        );
+      }
+      lastIndex = match.index + match[0].length;
+    }
+    return html + escapeHtml(text.slice(lastIndex));
+  }
+
+  function buildSelectorsHtml(text) {
+    var lines = String(text).split("\n");
+    var html = lines.map(function (line) {
+      if (!line.trim()) {
+        return escapeHtml(line);
+      }
+      if (line.trim().charAt(0) === "#") {
+        return token(line, "wf-hl-comment", SELECTOR_KINDS["wf-hl-comment"]);
+      }
+      // Both separators the field accepts, the arrow first: a selector may hold
+      // a colon of its own, an arrow it never does.
+      var at = line.indexOf("->");
+      var width = 2;
+      if (at === -1) {
+        at = line.lastIndexOf(":");
+        width = 1;
+      }
+      if (at === -1) {
+        return buildSelectorHtml(line);
+      }
+      return buildSelectorHtml(line.slice(0, at))
+        + escapeHtml(line.slice(at, at + width))
+        + token(line.slice(at + width), "wf-hl-target", SELECTOR_KINDS["wf-hl-target"]);
+    }).join("\n");
+    if (html.endsWith("\n")) {
+      html += "\u200b";
+    }
+    return html;
+  }
 
   function classFor(name, variables, domains, builtins) {
     var key = name.trim();
@@ -229,12 +329,11 @@
       });
     });
 
-    // Keep the mirror in step with a manual (resize handle) height change, which
-    // fires no input event.
+    // The mirror takes its height from the wrapper, whose height is the one of
+    // the textarea itself: no measurement to keep in step with a resize (the
+    // handle, or the auto-resize on input), only the scroll position.
     if (typeof ResizeObserver !== "undefined") {
-      new ResizeObserver(function () {
-        mirror.style.height = textarea.offsetHeight + "px";
-      }).observe(textarea);
+      new ResizeObserver(syncScroll).observe(textarea);
     }
 
     return mirror;
@@ -248,18 +347,19 @@
     // here instead, dimmed but with its ${...} highlighted like any other --
     // a placeholder that is what Odatix would use (the templates a parameter
     // domain of a single variable leaves unwritten) is worth reading.
-    var html = buildHtml(text || textarea.getAttribute("placeholder") || "",
-                         variables, domains, builtins, unknownTip);
+    var shown = text || textarea.getAttribute("placeholder") || "";
+    var html = isSelectorField(textarea)
+      ? buildSelectorsHtml(shown)
+      : buildHtml(shown, variables, domains, builtins, unknownTip);
     mirror.innerHTML = text ? html : '<span class="wf-hl-placeholder">' + html + "</span>";
 
     var computed = window.getComputedStyle(textarea);
     COPIED_STYLES.forEach(function (prop) {
       mirror.style[prop] = computed[prop];
     });
-    // The textarea auto-resizes its height on input; match it on the next frame,
-    // once that height has been applied.
+    // The textarea auto-resizes its height on input; the mirror follows it
+    // through the wrapper, but its scroll position only settles a frame later.
     window.requestAnimationFrame(function () {
-      mirror.style.height = textarea.offsetHeight + "px";
       mirror.scrollTop = textarea.scrollTop;
       mirror.scrollLeft = textarea.scrollLeft;
     });
