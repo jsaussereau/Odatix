@@ -1,0 +1,52 @@
+##############################################
+# Metrics for Innovus
+##############################################
+#
+# Post place & route numbers. The patterns below match the default Innovus
+# report format; adapt them if your flow writes its reports differently.
+
+pnr_metrics:
+  Total_area:
+    type: regex
+    settings:
+      file: report/area.rep
+      pattern: "^\\s*Total area of Standard cells:\\s*([0-9.]+)"
+      group_id: 1
+    format: "%.2f"
+    unit: um²
+
+  Cell_count:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/area.rep
+      pattern: "^\\s*Total number of cells:\\s*([0-9]+)"
+      group_id: 1
+    format: "%.0f"
+
+  Total_power:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/power.rep
+      pattern: "Total Power:\\s*([0-9.e+-]+)"
+      group_id: 1
+    format: "%.4f"
+    unit: mW
+
+  Worst_Slack:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/timing.rep
+      pattern: "Slack Time\\s+([0-9.-]+)"
+      group_id: 1
+    format: "%.3f"
+    unit: ns
+
+metrics:
+  Param_Domains:
+    type: yaml
+    error_if_missing: No
+    settings:
+      file: param_domains.yml

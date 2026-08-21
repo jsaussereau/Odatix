@@ -1,0 +1,111 @@
+##############################################
+# Settings for Innovus
+##############################################
+#
+# Innovus places & routes a netlist another tool synthesized: it is a place &
+# route tool only, so the only job type it declares is "pnr". Run it on the
+# results of a Design Compiler or Genus synthesis with
+#
+#   odatix synth -t design_compiler
+#   odatix pnr  -t innovus --from-tool design_compiler
+#
+# The synthesis hands its netlist over through three files it writes in its
+# result directory (netlist.v, design.sdc, design.sdf); Odatix points
+# $source_netlist, $source_sdc and $source_sdf at them, and $source_work_path at
+# the synthesis job directory itself.
+#
+
+# Display metadata (used by the GUI tool selection page)
+label: "Innovus"
+description: "Cadence® Innovus™ Implementation System"
+icon: "assets/icons/cadence.png"
+
+process_group: True
+
+# Default metrics file for this tool
+default_metrics_file: $eda_tools_path/innovus/metrics.yml
+
+# Name of the flow the commands declared in the platform section below belong to.
+default_flow: implementation
+
+unix:
+  constants:
+    - &innovus_unix innovus
+    - &innovus_args -no_gui -batch -files
+
+  # Command to check if the tool is installed
+  tool_test_command:
+    - *innovus_unix
+    - -version
+
+  # Place & route, split into resumable steps. Each step runs as its own Innovus
+  # process and hands the design over through a saved design database, so a run
+  # can stop at any of them ("--until route") and a later one picks up there
+  # instead of starting over.
+  pnr_steps:
+    - name: init
+      command:
+        - cd $work_path;
+        - *innovus_unix
+        - "-log log/pnr_init.log"
+        - *innovus_args
+        - $script_path/step_init.tcl
+    - name: place
+      command:
+        - cd $work_path;
+        - *innovus_unix
+        - "-log log/pnr_place.log"
+        - *innovus_args
+        - $script_path/step_place.tcl
+    - name: cts
+      command:
+        - cd $work_path;
+        - *innovus_unix
+        - "-log log/pnr_cts.log"
+        - *innovus_args
+        - $script_path/step_cts.tcl
+    - name: route
+      command:
+        - cd $work_path;
+        - *innovus_unix
+        - "-log log/pnr_route.log"
+        - *innovus_args
+        - $script_path/step_route.tcl
+    - name: signoff
+      command:
+        - cd $work_path;
+        - *innovus_unix
+        - "-log log/pnr_signoff.log"
+        - *innovus_args
+        - $script_path/step_signoff.tcl
+
+##############################################
+# Flows
+##############################################
+
+flows:
+
+  implementation:
+    label: "Implementation"
+    description: "Timing oriented place & route"
+
+# Log formatting
+format:
+
+  logs:
+    error:         ['<error>', '**ERROR']
+    warning:       ['<warning>', '**WARN']
+    info:          ['<note>', '**INFO']
+
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+
+  replace:
+    - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
+    - "(Slack \\(MET\\))": "<green>$1<end>"
