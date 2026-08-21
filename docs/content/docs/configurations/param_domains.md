@@ -88,10 +88,9 @@ start_delimiter: "  // <dmem>"
 stop_delimiter: "  // </dmem>"
 param_target_file: "top.v"
 
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "\n  parameter p_dmem_depth_pw2 = $mem_depth,\n"
+configurations:
   name: "${mem_depth_pw2}"
+  template: "\n  parameter p_dmem_depth_pw2 = $mem_depth,\n"
 
 variables:
   mem_depth:

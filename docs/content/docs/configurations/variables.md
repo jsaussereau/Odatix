@@ -16,7 +16,7 @@ The declaration is always the same. What changes is **what the values are used f
 
 | Where variables are declared | What Odatix does with them | Guide |
 |------------------------------|----------------------------|-------|
-| An architecture or a [parameter domain](/docs/configurations/param_domains/) with `generate_configurations: Yes` | Writes one **parameter file** per combination, from `template`, named by `name`. | [Configuration generation](/docs/configurations/config_generation/) |
+| An architecture or a [parameter domain](/docs/configurations/param_domains/) with a `configurations` block | Writes one **parameter file** per combination, from `template`, named by `name`. | [Configuration generation](/docs/configurations/config_generation/) |
 | A [workflow](/docs/reference/workflow/) | Substitutes `${var}` in task **commands** — a *virtual parameter domain*, no folder required. | [Virtual parameter domains](/docs/configurations/virtual_param_domains/) |
 | An architecture with `generate_rtl: Yes` | Substitutes `${var}` in **`generate_command`**, running the RTL generation once per value. | [Virtual parameter domains](/docs/configurations/virtual_param_domains/) |
 
@@ -251,6 +251,10 @@ valid.
 > `function` is what to reach for whenever two parameters of a design are not
 > independent: write the relationship once instead of maintaining two lists that must
 > stay in step.
+>
+> When the relationship is not a value to compute but a combination to rule out,
+> use a [constraint](/docs/configurations/config_generation/#constraints-between-variables)
+> instead.
 
 ### `conversion` — change number base
 
@@ -347,14 +351,13 @@ The declaration is shared; the effect depends on the context.
 
 {{< tabs groupId="var-context" >}}
 {{% tab name="Generated configurations" %}}
-With `generate_configurations: Yes`, `odatix generate` writes one parameter file per
+With a `configurations` block, a run resolves one parameter file per
 combination. `template` and `name` are mandatory here.
 
 {{< code lang=yaml filename="architectures/ALU/_settings.yml" >}}
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "parameter BITS = $var;"
+configurations:
   name: "config_${var}"
+  template: "parameter BITS = $var;"
 
 variables:
   var:
@@ -423,7 +426,7 @@ Full guide: [Virtual parameter domains](/docs/configurations/virtual_param_domai
 > In an architecture, variables only expand into runs when `generate_command` actually
 > references them. An architecture whose variables exist to
 > [generate configurations](/docs/configurations/config_generation/)
-> (`generate_configurations: Yes`) keeps that sole meaning.
+> (a `configurations` block) keeps that sole meaning.
 
 ## See also
 

@@ -1,7 +1,7 @@
 ---
 title: "Virtual Parameter Domains"
 description: "Sweep parameters that are injected into commands or config files instead of replaced in source files — defined inline, with no folders required."
-weight: 5
+weight: 6
 ---
 
 # Virtual Parameter Domains
@@ -107,7 +107,7 @@ environment variables such as `$HOME` still reach the shell.
 > Variables only expand into runs when `generate_command` actually references them. An
 > architecture whose variables are there to
 > [generate configurations](/docs/configurations/config_generation/)
-> (`generate_configurations: Yes`) keeps that sole meaning.
+> (a `configurations` block) keeps that sole meaning.
 
 ## Expanding several data points per run
 

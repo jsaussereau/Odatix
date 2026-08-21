@@ -41,11 +41,12 @@ use_parameters: Yes
 start_delimiter: "#("
 stop_delimiter: ")("
 
-# target-specific bounds
-xc7a100t-csg324-1:
-  fmax_synthesis:
-    lower_bound: 50
-    upper_bound: 800
+# bounds for one target only
+overrides:
+  - targets: xc7a100t-csg324-1
+    fmax_synthesis:
+      lower_bound: 50
+      upper_bound: 800
 {{< /code >}}
 {{% /tab %}}
 {{% tab name="Chisel / HLS" %}}
