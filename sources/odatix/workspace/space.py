@@ -52,7 +52,14 @@ import os
 from natsort import natsorted
 
 import odatix.lib.printc as printc
-from odatix.lib.config_generator import ConfigGenerator, duplicate_point_names, get_variables, parse_constraints
+from odatix.lib.config_generator import (
+    ConfigGenerator,
+    duplicate_point_names,
+    get_variables,
+    parse_constraints,
+    parse_rule_sets,
+    rule_set_variables,
+)
 from odatix.workspace.errors import WorkspaceError
 
 __all__ = [
@@ -352,7 +359,7 @@ class ParameterSpace(object):
 
     def __init__(self, variables, name="", template=None, source="", debug=False,
                  implicit_name=False, implicit_template=False, blacklist=(),
-                 constraints=()):
+                 constraints=(), rule_sets=()):
         #: ``{variable name: declaration}``, as written in the settings file.
         self.variables = dict(variables) if variables else {}
         #: Template the name of a configuration is built from.
@@ -374,6 +381,13 @@ class ParameterSpace(object):
         #: Normalized as ``[(expression, message), ...]``, whichever of the
         #: two forms they were written in.
         self.constraints = parse_constraints({"constraints": list(constraints or ())})
+        #: The rule sets, when the domain declares several: a list of blocks,
+        #: each with its own name, template and constraints. What they describe
+        #: is the **union** of what each produces -- nothing is combined across
+        #: them, which is what a parameter deciding which other parameters mean
+        #: anything asks for. Empty when a single set of rules is declared, and
+        #: then :attr:`name` and :attr:`template` are the rules.
+        self.rule_sets = [dict(block) for block in (rule_sets or ())]
         #: Where this came from, for error messages.
         self.source = source
         self.debug = debug
@@ -386,7 +400,7 @@ class ParameterSpace(object):
     @property
     def generates(self):
         """Whether these rules produce configurations at all."""
-        return bool(self.variables) and bool(self.name)
+        return bool(self.variables) and bool(self.name or self.rule_sets)
 
     @property
     def generator(self):
@@ -397,6 +411,29 @@ class ParameterSpace(object):
         being interpreted by the one implementation there has ever been.
         """
         if self._generator is None:
+            if self.rule_sets:
+                blocks = []
+                for block in self.rule_sets:
+                    template = block.get("template", "")
+                    if isinstance(template, list):
+                        template = "\n".join(str(line) for line in template)
+                    rules = {
+                        "name": str(block.get("name", "") or ""),
+                        "template": template if template is not None else "",
+                    }
+                    constraints = parse_constraints(block)
+                    if constraints:
+                        rules["constraints"] = [
+                            {"expr": expression, "message": message}
+                            for expression, message in constraints
+                        ]
+                    declared = block.get("variables")
+                    if isinstance(declared, (list, tuple, dict)):
+                        rules["variables"] = list(declared)
+                    blocks.append(rules)
+                data = {CONFIGURATIONS_KEY: blocks, "variables": self.variables}
+                self._generator = ConfigGenerator(data=data, silent=True, debug=self.debug)
+                return self._generator
             data = {
                 CONFIGURATIONS_KEY: {
                     "template": self.template if self.template is not None else "",
@@ -475,6 +512,45 @@ class ParameterSpace(object):
             return []
         return [Axis(axis["variables"], axis["rows"]) for axis in self.generator.dimensions()]
 
+    def subspaces(self):
+        """
+        The spaces this one is the union of.
+
+        A domain declaring several rule sets is not one space but several, laid
+        side by side: a choice on the axes of one means nothing in another, so
+        there is no single set of axes to offer. Anything that explores rather
+        than enumerates works on the subspaces -- each of them has axes, points
+        and a size of its own -- and what it finds belongs to the union all the
+        same.
+
+        Returns:
+            list: the :class:`ParameterSpace` of each rule set, or ``[self]``
+            when a single set of rules is declared.
+        """
+        if not self.rule_sets:
+            return [self]
+        subspaces = []
+        for block in self.rule_sets:
+            template = block.get("template", None)
+            if isinstance(template, list):
+                template = "\n".join(str(line) for line in template)
+            # The same subset the engine hands that rule set: the variables
+            # its rules use, and nothing else -- a variable another rule set is
+            # about must not become an axis here.
+            variables = rule_set_variables(block, self.variables)
+            subspaces.append(
+                ParameterSpace(
+                    variables,
+                    name=str(block.get("name", "") or ""),
+                    template=template,
+                    source=self.source,
+                    debug=self.debug,
+                    blacklist=self.blacklist,
+                    constraints=parse_constraints(block),
+                )
+            )
+        return subspaces
+
     def size(self):
         """
         How many points the axes stand for, counted rather than enumerated.
@@ -487,6 +563,10 @@ class ParameterSpace(object):
         assembled -- so this is an upper bound as soon as there is one. What
         the space really holds is :meth:`count`, which enumerates.
         """
+        if self.rule_sets:
+            # Side by side, not combined: the union holds as many points as its
+            # subspaces hold together.
+            return sum(subspace.size() for subspace in self.subspaces())
         total = 1
         for axis in self.axes():
             total *= len(axis)
@@ -953,6 +1033,22 @@ def config_set_rules(settings, source="", implicit=False):
         )
 
     rules = settings.get(CONFIGURATIONS_KEY)
+
+    # Several rule sets: their points are the union of what each produces.
+    blocks = parse_rule_sets(rules)
+    if blocks:
+        blacklist = []
+        for block in blocks:
+            declared = block.get("blacklist", ())
+            if isinstance(declared, (list, tuple, set)):
+                blacklist.extend(declared)
+        return ParameterSpace(
+            variables,
+            source=source,
+            blacklist=blacklist,
+            rule_sets=blocks,
+        )
+
     # Settings objects always carry an empty block, so its mere presence cannot
     # decide. The editor writes ``enabled`` only when an empty block explicitly
     # means the defaults of its variables.
@@ -1038,6 +1134,64 @@ def config_set_at(path, settings=None, debug=False, implicit=None):
     if implicit is None:
         implicit = is_sub_domain(path)
     return ConfigSet(path, config_set_rules(data, source=source, implicit=implicit), debug=debug)
+
+
+def selectors_at(path, settings=None, messages=None):
+    """
+    The selectors a domain directory declares (see
+    :mod:`odatix.workspace.selectors`), in the order they are written.
+    """
+    from odatix.workspace import selectors
+
+    data = settings if settings is not None else load_domain_settings(path)
+    return selectors.parse(data, messages=messages, where='"' + os.path.join(path, SETTINGS_FILENAME) + '"')
+
+
+def matched_config_file(path, name, value=None, settings=None, debug=False, messages=None):
+    """
+    The file holding the configuration a directory substitutes for ``name``,
+    selectors included: what :func:`config_file` finds, and, when the directory
+    holds no such configuration, what its "match" block answers for it.
+
+    Args:
+        path (str): the directory of configurations.
+        name (str): the configuration of the domain being run.
+        value: what that configuration substitutes, when it is a single number,
+            which is what a selector reads as "$value".
+        messages (list): filled with what the user should be told.
+
+    Returns:
+        tuple: ``(path of the file, selector that answered)``. The selector is
+        None when the configuration was found by name, and both are None when
+        the directory has nothing for it.
+    """
+    from odatix.workspace import selectors
+    from odatix.workspace.selection import Message
+
+    data = settings if settings is not None else load_domain_settings(path)
+    found = config_file(path, name, settings=data, debug=debug)
+    if found is not None:
+        return found, None
+
+    declared = selectors_at(path, settings=data, messages=messages)
+    if not declared:
+        return None, None
+    where = '"' + os.path.join(path, SETTINGS_FILENAME) + '"'
+    selector, target = selectors.select(declared, name, value, messages=messages, where=where)
+    if selector is None:
+        return None, None
+
+    found = config_file(path, target, settings=data, debug=debug)
+    if found is None:
+        if messages is not None:
+            messages.append(Message(
+                "error",
+                'Selector "' + selector + '" in ' + where + ' substitutes "' + target
+                + '", which is not a configuration of "' + path + '"',
+                ["This directory holds: " + (", ".join(resolved_names(path, settings=data)) or "nothing")],
+            ))
+        return None, selector
+    return found, selector
 
 
 def config_file(path, name, settings=None, debug=False):

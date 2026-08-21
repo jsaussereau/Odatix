@@ -394,10 +394,7 @@ class Settings(_SettingsBase):
             spec = self._specs[name]
             if skip_disabled and not self._condition_holds(spec):
                 continue
-            value = getattr(self, name)
-            if isinstance(value, Settings):
-                value = value.to_dict(include_extra=include_extra, skip_disabled=skip_disabled)
-            data[spec.key] = value
+            data[spec.key] = _plain(getattr(self, name), include_extra, skip_disabled)
         if include_extra:
             data.update(copy.deepcopy(self.extra))
         return data
@@ -416,8 +413,11 @@ class Settings(_SettingsBase):
         object.__setattr__(self, "_file_data", self.to_dict())
         for name in self._spec_order:
             value = getattr(self, name)
-            if isinstance(value, Settings):
-                value._mark_saved()
+            # A key holding several blocks (a "configurations" declaring several
+            # rule sets) marks each of them, like the single block it may also be.
+            for nested in (value if isinstance(value, list) else [value]):
+                if isinstance(nested, Settings):
+                    nested._mark_saved()
 
     def _unchanged(self, spec, value):
         """Whether a setting still holds what the file it was read from said."""
@@ -472,6 +472,22 @@ class Settings(_SettingsBase):
             "{0}={1!r}".format(name, getattr(self, name)) for name in self._spec_order
         )
         return "{0}({1})".format(self.__class__.__name__, inner)
+
+
+def _plain(value, include_extra=True, skip_disabled=False):
+    """
+    A value as a plain mapping/list, whatever nesting it holds.
+
+    A key may hold a nested block, or several of them in a list -- which is how
+    a "configurations" key declares several rule sets -- and either has to come
+    out of :meth:`Settings.to_dict` as plain data, or everything reading the
+    settings as a dict would be handed settings objects instead.
+    """
+    if isinstance(value, Settings):
+        return value.to_dict(include_extra=include_extra, skip_disabled=skip_disabled)
+    if isinstance(value, list):
+        return [_plain(item, include_extra, skip_disabled) for item in value]
+    return value
 
 
 ######################################

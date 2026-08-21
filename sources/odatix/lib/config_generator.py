@@ -20,6 +20,7 @@
 #
 
 import os
+import re
 import sys
 import yaml
 import math
@@ -93,6 +94,152 @@ def parse_constraints(rules):
     if expression:
       constraints.append((expression, str(message).strip() if message else ""))
   return constraints
+
+
+def parse_rule_sets(configurations):
+  """
+  The rule sets a "configurations" block declares.
+
+  A single block describes one set of rules -- one name, one template, one list
+  of constraints -- and the configurations it produces are every combination of
+  the variables it uses. Written as a *list*, it declares several such sets, and
+  what they produce is their **union**: the points of one are not combined with
+  the points of another::
+
+      configurations:
+        - name: "M${m_value_dec}"
+          template: |
+            ...
+        - name: "P${p_value_dec}"
+          template: |
+            ...
+
+  This is what a parameter that decides *which other parameters mean anything*
+  asks for. Combining the two families would describe designs that do not exist,
+  and a single set of rules can only be made to leave them out by pinning the
+  unused half with constraints -- which says the same thing far less directly.
+
+  Args:
+      configurations (Any): the value of the "configurations" key.
+
+  Returns:
+      list: the blocks, in declaration order. Empty when a single block (or
+      nothing at all) is declared -- the caller keeps reading it the way it
+      always has.
+  """
+  if not isinstance(configurations, (list, tuple)):
+    return []
+  return [block for block in configurations if isinstance(block, dict)]
+
+
+#: What a "$var" or "${var}" placeholder looks like.
+_placeholder_re = re.compile(r"\$\{?([A-Za-z_][A-Za-z_0-9]*)\}?")
+
+#: What a bare name looks like in an expression.
+_identifier_re = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
+
+
+def _template_references(text):
+  """The variables a template or a name substitutes, by their placeholders."""
+  if text is None:
+    return set()
+  return set(_placeholder_re.findall(str(text)))
+
+
+def _expression_references(text):
+  """
+  The variables an expression reads.
+
+  A constraint or a "function" operand may spell a variable either way, since
+  the "$", "{" and "}" are stripped before it is evaluated -- so a bare name
+  counts too, unlike in a template, where a bare name is just text.
+  """
+  if text is None:
+    return set()
+  text = str(text)
+  return _template_references(text) | set(_identifier_re.findall(text))
+
+
+def _declaration_references(config):
+  """The variables a variable's own declaration reads."""
+  if not isinstance(config, dict):
+    return set()
+  settings = config.get("settings", {})
+  if not isinstance(settings, dict):
+    return set()
+  value_type = config.get("type")
+  if value_type == "function":
+    return _expression_references(settings.get("op", ""))
+  if value_type in ("format", "conversion"):
+    return _template_references(settings.get("source", ""))
+  if value_type in modification_types:
+    sources = settings.get("sources", [])
+    if not isinstance(sources, (list, tuple)):
+      sources = [sources]
+    references = set()
+    for source in sources:
+      references |= _template_references(source)
+    return references
+  return set()
+
+
+def rule_set_variables(rules, variables):
+  """
+  The variables one rule set uses: the ones it names, and the ones those are
+  computed from.
+
+  A rule set says which variables it is about by using them, so nothing else has
+  to be declared twice. Starting from the placeholders of its name and template
+  and the names its constraints read, this follows every variable back through
+  the declarations it is derived from, and keeps variables that move together
+  (same "group") together.
+
+  A rule set may also say it outright, with a ``variables`` list of names, for
+  the case a variable has to vary without appearing anywhere -- the closure is
+  taken from that list instead.
+
+  Args:
+      rules (dict): one rule set (name, template, constraints, ...).
+      variables (dict): every variable declared at the root of the file.
+
+  Returns:
+      dict: the subset it uses, in declaration order.
+  """
+  variables = variables or {}
+  declared = rules.get(variables_key) if isinstance(rules, dict) else None
+  if isinstance(declared, (list, tuple)):
+    reached = set(str(name) for name in declared)
+  elif isinstance(declared, dict):
+    reached = set(str(name) for name in declared)
+  else:
+    reached = _template_references(rules.get("name", "")) | _template_references(rules.get("template", ""))
+    for expression, _message in parse_constraints(rules):
+      reached |= _expression_references(expression)
+
+  reached &= set(variables)
+
+  # Follow the derivations back, and keep paired variables paired.
+  groups = {}
+  for name, config in variables.items():
+    group = config.get("group") if isinstance(config, dict) else None
+    group = str(group).strip() if group is not None else ""
+    if group:
+      groups.setdefault(group, []).append(name)
+
+  while True:
+    grown = set(reached)
+    for name in reached:
+      grown |= _declaration_references(variables.get(name, {})) & set(variables)
+      config = variables.get(name, {})
+      group = config.get("group") if isinstance(config, dict) else None
+      group = str(group).strip() if group is not None else ""
+      if group:
+        grown |= set(groups.get(group, []))
+    if grown == reached:
+      break
+    reached = grown
+
+  return {name: config for name, config in variables.items() if name in reached}
 
 
 def get_variables(settings):
@@ -183,7 +330,7 @@ class ConfigGenerator:
   ranges, and naming templates.
   """
 
-  def __init__(self, path: str = "", data: Optional[dict] = None, silent: bool = False, debug: bool = False):
+  def __init__(self, path: str = "", data: Optional[dict] = None, silent: bool = False, debug: bool = False, yaml_file: Optional[str] = None):
     """
     Initialize the configuration generator.
     
@@ -192,6 +339,8 @@ class ConfigGenerator:
         data (dict): Optional pre-loaded YAML data to use instead of reading from file.
         silent (bool): If True, suppress warnings for missing keys.
         debug (bool): If True, print debug information.
+        yaml_file (str): Where the data comes from, for error messages, when it
+            is provided rather than read from a file.
     """
     self.path = path
     self.silent = silent
@@ -201,6 +350,11 @@ class ConfigGenerator:
     self.name_template = ""
     self.variables = {}
     self.constraints = []
+    #: One generator per rule set when several are declared (see
+    #: :func:`parse_rule_sets`), empty when a single one is -- which is what
+    #: every method below reads to know whether it is looking at a space or at
+    #: the union of several.
+    self.rule_sets = []
     #: Constraints whose evaluation failed, reported once instead of per point.
     self._broken_constraints = set()
     self.valid = False
@@ -208,7 +362,7 @@ class ConfigGenerator:
     self.error_messages = []
 
     if data is not None:
-      self.yaml_file = "<provided_data>"
+      self.yaml_file = yaml_file if yaml_file else "<provided_data>"
       self.data = data
     else:
       self.yaml_file = os.path.join(self.path, hard_settings.param_settings_filename)
@@ -260,6 +414,12 @@ class ConfigGenerator:
     else:
       self.variables, variables_defined = {}, False
 
+    # Several rule sets, whose points are the union of what each produces.
+    blocks = parse_rule_sets(data.get(configurations_key))
+    if blocks:
+      self._build_rule_sets(blocks, variables_defined)
+      return
+
     # The current form: a "configurations" block holding the name and the
     # template. It needs no flag to turn it on -- describing configurations is
     # what asks for them.
@@ -293,6 +453,53 @@ class ConfigGenerator:
       printc.error('Configuration generation is enabled while "generate_configurations_settings" is not defined.', script_name)
 
     self.enabled = generate_enabled
+
+  def _build_rule_sets(self, blocks, variables_defined):
+    """
+    Build one generator per rule set.
+
+    Each one is handed the variables its rules use (see
+    :func:`rule_set_variables`) and nothing else, so that a variable another
+    rule set is about cannot become an axis here: that is precisely what makes
+    the union a union rather than a product.
+
+    Args:
+        blocks (list): the rule sets, in declaration order.
+        variables_defined (bool): whether the file declares variables at all.
+    """
+    self.rule_sets = []
+    if not variables_defined:
+      get_from_dict("variables", self.data, self.yaml_file, type=dict, behavior=Key.MANTADORY, script_name=script_name)
+      self.valid = False
+      self.enabled = False
+      return
+
+    for index, block in enumerate(blocks):
+      if not block.get("name"):
+        printc.error(
+          'Rule set #{0} of "{1}" declares no "name", in "{2}".'.format(index + 1, configurations_key, self.yaml_file),
+          script_name,
+        )
+        self.rule_sets = []
+        self.valid = False
+        self.enabled = False
+        return
+      sub_data = {
+        configurations_key: dict(block),
+        variables_key: rule_set_variables(block, self.variables),
+      }
+      self.rule_sets.append(
+        ConfigGenerator(data=sub_data, silent=self.silent, debug=self.debug, yaml_file=self.yaml_file)
+      )
+
+    self.valid = all(rule_set.valid for rule_set in self.rule_sets)
+    self.enabled = self.valid
+    # What the whole block stands for, for anything reading a single set of
+    # rules: the first name and template are as good an answer as any, and are
+    # only ever shown, never generated from.
+    if self.rule_sets:
+      self.name_template = self.rule_sets[0].name_template
+      self.template = self.rule_sets[0].template
 
   def evaluate_expression(self, expr, values_map, silent=False):
     """
@@ -398,6 +605,12 @@ class ConfigGenerator:
         list: the axes, in declaration order. Empty when the rules describe no
         space at all.
     """
+    if self.rule_sets:
+      # The union of several spaces has no axes of its own: a choice on the
+      # axes of one rule set means nothing in another. Its subspaces are the
+      # spaces, and each of them has axes (see :attr:`rule_sets`).
+      return []
+
     rows_per_group, _dimension_vars, _source_vars, valid = self._dimension_rows()
     if not valid:
       return []
@@ -527,6 +740,9 @@ class ConfigGenerator:
         list: the :class:`GeneratedPoint` of the space, in generation order.
         dict: the values of each variable, as :meth:`generate` returns them.
     """
+    if self.rule_sets:
+      return self._union_points()
+
     group_row_lists, dimension_vars, source_dim_vars, valid = self._dimension_rows()
     if not valid:
       return [], {}
@@ -562,6 +778,31 @@ class ConfigGenerator:
     all_source_dim_var_values = {k: _safe_sorted(set(v)) if isinstance(v, list) else [v] for k, v in source_dim_vars.items()}
     all_vars_values.update(all_dim_var_values)
     all_vars_values.update(all_source_dim_var_values)
+    return points, all_vars_values
+
+  def _union_points(self):
+    """
+    The points of every rule set, one set after the other.
+
+    Nothing is combined across rule sets and nothing is merged: a point belongs
+    to the rule set that produced it. Two rule sets naming the same
+    configuration are caught the same way one rule set naming two points alike
+    is -- by :func:`duplicate_point_names`, at the caller.
+
+    Returns:
+        list: the :class:`GeneratedPoint` of the union, in declaration order.
+        dict: the values each variable takes, over the union.
+    """
+    points = []
+    all_vars_values = {}
+    for rule_set in self.rule_sets:
+      rule_set_points, values = rule_set.generate_points()
+      points.extend(rule_set_points)
+      for variable, variable_values in values.items():
+        merged = set(all_vars_values.get(variable, [])) | set(variable_values)
+        all_vars_values[variable] = _safe_sorted(merged)
+    if self.debug:
+      printc.note("generated {0} configurations over {1} rule sets.".format(len(points), len(self.rule_sets)), script_name)
     return points, all_vars_values
 
   def _apply_derived_variable(self, variable, config, value_map, computed_values):
@@ -649,6 +890,17 @@ class ConfigGenerator:
         when the assignment does not satisfy the constraints -- that point is
         not part of the space.
     """
+    if self.rule_sets:
+      # The assignment belongs to one of the rule sets: the one whose variables
+      # it assigns and whose constraints it satisfies.
+      for rule_set in self.rule_sets:
+        if not set(rule_set.variables) >= set(assignment):
+          continue
+        point = rule_set.derive_point(assignment)
+        if point is not None:
+          return point
+      return None
+
     value_map = dict(assignment)
     for variable, config in self.variables.items():
       value_type = config.get("type") if isinstance(config, dict) else None

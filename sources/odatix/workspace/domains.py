@@ -44,6 +44,7 @@ from odatix.workspace.configs import (
     LEGACY_CONFIGURATION_KEYS,
     ConfigGeneration,
     Configurations,
+    ConfigurationsSetting,
     ConfigurationCollection,
     VariablesSetting,
     WithVariables,
@@ -87,9 +88,18 @@ class DomainSettings(WithVariables, Settings):
     start_delimiter = Setting("", type="str", doc="Text after which the parameters are written. Escape sequences such as \\n are supported.")
     stop_delimiter = Setting("", type="str", doc="Text before which the parameters are written. Escape sequences such as \\n are supported.")
 
-    configurations = Setting(
+    configurations = ConfigurationsSetting(
         type=Configurations, section="Configurations", skip_if_empty=True,
-        doc="Name and template the configurations of this domain are built from.",
+        doc="Name and template the configurations of this domain are built from. "
+            "A list declares several rule sets, whose union the domain is.",
+    )
+
+    match = Setting(
+        factory=dict, type="dict", section="Matching", skip_if_empty=True,
+        doc="Which configuration is substituted for the ones this directory does not "
+            "hold, by selector: a name, a pattern (\"P*\"), a regular expression "
+            "(\"/^M[0-9]+$/\") or a condition on \"$name\" and \"$value\" "
+            "(\"$value > 7\"). See odatix.workspace.selectors.",
     )
 
     variables = VariablesSetting(

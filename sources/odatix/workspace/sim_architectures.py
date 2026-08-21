@@ -29,20 +29,27 @@ them, is the "architectures" block of "<simulation>/_settings.yml"::
     architectures:
       - Example_Cordic_sv:
           param_domains:
-            width:
-              param_target_file: "tb/tb_cordic.sv"
-            width:                            # the same domain, substituted a second time
-              combine: both                   # the architecture's substitution still applies
-              param_target_file: "tb/tb_top.sv"
-              param_dir: "tb_params"          # one configuration per value of the domain
+            width:                            # every substitution of "width"
+              - param_target_file: "tb/tb_cordic.sv"
+              - param_target_file: "Makefile" # the same domain, written elsewhere too
+                start_delimiter: "# ODATIX PARAMS START"
+                stop_delimiter: "# ODATIX PARAMS STOP"
+                param_dir: "make_params"      # one configuration per value of the domain
           metrics_file: "_metrics_sv.yml"
 
       - Example_Cordic_vhdl        # runs on it, nothing to change
 
-What a "param_domains" entry substitutes is said either with "param_file" (the
-same parameters whichever configuration of the domain runs) or with "param_dir",
-a directory of the simulation holding one configuration per value of the domain
--- ".txt" files, rules in its own "_settings.yml", or both, exactly like the
+The value of a domain is the list of the substitutions this simulation does for
+it: one value of a parameter domain has consequences in as many files as it
+takes -- a testbench, a Makefile, a wrapper -- each written with its own target
+file, delimiters and parameters. A single substitution may be written as the
+mapping itself, without the list, which is the same thing (see
+:func:`substitutions`).
+
+What a substitution writes is said either with "param_file" (the same parameters
+whichever configuration of the domain runs) or with "param_dir", a directory of
+the simulation holding one configuration per value of the domain -- ".txt"
+files, rules in its own "_settings.yml", or both, exactly like the
 configurations of a parameter domain of an architecture. Both together make
 "param_file" the default of the domain: the values the directory does not
 describe fall back to it.
@@ -50,17 +57,16 @@ describe fall back to it.
 Where a "param_dir" is given, that directory also says how its parameters are
 written -- "use_parameters", "param_target_file", "start_delimiter" and
 "stop_delimiter" in its own "_settings.yml", the way a parameter domain of an
-architecture says them -- and the entry is left with what points at it. The same
-keys written in the entry are still read, and still win, so nothing written
-before this stops working (see :func:`domain_settings`).
+architecture says them -- and the substitution is left with what points at it.
+The same keys written in the substitution itself are still read, and still win
+(see :func:`domain_settings`).
 
-An entry named after a domain the architecture already has customizes what that
-domain substitutes. "combine" says how: "replace" (the default) means only the
-substitution described here is done, in place of the architecture's, while
-"both" leaves the architecture's substitution alone and does a second one -- the
-same domain written into the testbench as well as into the design, each with its
-own target file, delimiters and parameters, anything unsaid being inherited from
-the architecture's domain.
+A domain the architecture already has is customized rather than declared: every
+substitution listed inherits from the architecture's domain whatever it does not
+say. "combine" says what becomes of the architecture's own substitution:
+"replace" does this one in its place, "both" leaves it alone and does this one
+as well. Unwritten, the first substitution of the list replaces and the ones
+after it are added, which is what listing several of them means.
 
 An architecture that is listed with nothing under it is simply an architecture
 the simulation is meant to run on. Listing them is an indication, not a
@@ -81,6 +87,7 @@ import fnmatch
 import os
 
 import odatix.lib.hard_settings as hard_settings
+import odatix.workspace.selectors as selectors
 import odatix.workspace.space as space
 from odatix.workspace.selection import Message
 from odatix.workspace.yaml_io import read_yaml
@@ -101,6 +108,8 @@ __all__ = [
     "resolve_param_file",
     "DIRECTORY_SETTING_KEYS",
     "domain_settings",
+    "substitutions",
+    "domain_number",
 ]
 
 
@@ -112,7 +121,7 @@ ARCHITECTURES_KEY = "architectures"
 # a version of Odatix that does not know a key yet.
 ARCH_SETTING_KEYS = ("param_domains", "metrics_file")
 
-#: What one entry of "param_domains" may hold. Anything else is left untouched,
+#: What one substitution of "param_domains" may hold. Anything else is left untouched,
 #: for the same reason as ARCH_SETTING_KEYS.
 DOMAIN_SETTING_KEYS = (
     "use_parameters",
@@ -133,8 +142,7 @@ COMBINE_REPLACE = "replace"
 #: describes is done as well: the same domain substituted in two places.
 COMBINE_BOTH = "both"
 
-#: What "both" used to be called, when it meant appending to the same
-#: substitution. Still read, so settings files written then keep working.
+#: Other ways of saying "both", so that the obvious word works.
 COMBINE_ALIASES = {"append": COMBINE_BOTH, "add": COMBINE_BOTH}
 
 COMBINE_MODES = (COMBINE_REPLACE, COMBINE_BOTH)
@@ -190,24 +198,82 @@ def domain_settings(overrides, sim_dir):
     return settings
 
 
-def combine_mode(overrides):
+def substitutions(value):
     """
-    How one "param_domains" entry combines with what the architecture's domain
-    of the same name already substitutes: :data:`COMBINE_REPLACE` (the default,
-    the simulation's substitution instead of the architecture's) or
-    :data:`COMBINE_BOTH` (both substitutions done).
+    The substitutions one domain of a "param_domains" block describes, in the
+    order they are written.
 
-    An unknown value falls back to replacing, which is what every simulation
-    written before this did.
+    A domain's value is a list, one item per place its values are written -- a
+    testbench, a Makefile, a wrapper. A single substitution may be written as
+    the mapping itself, without the list, and means a list of one.
+
+    Anything else (a name, a number, nothing at all) describes no substitution
+    and yields an empty list, which the caller reports its own way.
+    """
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, (list, tuple)):
+        return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def default_combine_mode(index):
+    """
+    What a substitution that does not say "combine" does with the
+    architecture's own substitution of the domain, given its place in the list.
+
+    The first one replaces it -- customizing a domain is what a simulation
+    writes one substitution for -- and the ones after it are added, since
+    listing several of them is asking for several substitutions, not for the
+    last one only.
+    """
+    return COMBINE_REPLACE if index == 0 else COMBINE_BOTH
+
+
+def combine_mode(overrides, index=0):
+    """
+    How one substitution combines with what the architecture's domain of the
+    same name already substitutes: :data:`COMBINE_REPLACE` (the simulation's
+    substitution instead of the architecture's) or :data:`COMBINE_BOTH` (both
+    substitutions done).
+
+    Unwritten (or written as something else than one of :data:`COMBINE_MODES`),
+    it is :func:`default_combine_mode` of its place in the list.
     """
     if not isinstance(overrides, dict):
-        return COMBINE_REPLACE
+        return default_combine_mode(index)
     value = str(overrides.get("combine", "") or "").strip().lower()
     value = COMBINE_ALIASES.get(value, value)
-    return value if value in COMBINE_MODES else COMBINE_REPLACE
+    return value if value in COMBINE_MODES else default_combine_mode(index)
 
 
-def resolve_param_file(overrides, sim_dir, domain_value="", messages=None, where=""):
+def domain_number(source):
+    """
+    What the configuration being substituted holds, as a selector reads it
+    ("$value"): the single number of its parameter file, or None.
+
+    ``source`` is the path of that file, its content, or a callable handing
+    either back -- a run knows the path, the configuration editor knows the
+    text, and neither should have to read a file a selector may never look at.
+    """
+    if callable(source):
+        try:
+            source = source()
+        except Exception:
+            return None
+    if source is None:
+        return None
+    text = str(source)
+    if os.path.isfile(text):
+        try:
+            with open(text, "r") as f:
+                text = f.read()
+        except Exception:
+            return None
+    return selectors.number_of(text)
+
+
+def resolve_param_file(overrides, sim_dir, domain_value="", messages=None, where="", domain_content=None):
     """
     The file holding the parameters one "param_domains" entry substitutes.
 
@@ -218,7 +284,9 @@ def resolve_param_file(overrides, sim_dir, domain_value="", messages=None, where
     - ``param_dir``, a directory of the simulation holding one configuration per
       value of the domain -- written as ".txt" files, described by rules in its
       own "_settings.yml", or both, exactly like the configurations of a
-      parameter domain of an architecture.
+      parameter domain of an architecture. That file may also name several
+      configurations at once, under "match" (see
+      :mod:`odatix.workspace.selectors`).
 
     Given both, the directory is looked up first and ``param_file`` is the
     default: the configurations the directory does not describe fall back to it,
@@ -231,6 +299,9 @@ def resolve_param_file(overrides, sim_dir, domain_value="", messages=None, where
             what a "param_dir" is looked up by.
         messages (list): filled with what the user should be told about it.
         where (str): how to name the entry in those messages.
+        domain_content: what that configuration substitutes -- a path, a text,
+            or a callable handing one back (see :func:`domain_number`). Only
+            read by a "match" block comparing "$value".
 
     Returns:
         str: path of the file, or None when the entry names none (or names one
@@ -275,9 +346,16 @@ def resolve_param_file(overrides, sim_dir, domain_value="", messages=None, where
         ))
         return None
 
-    # Files and rules alike, resolved on the fly: nothing has to be generated
-    # beforehand, the same way an architecture's configurations are read.
-    path = space.config_file(directory, domain_value)
+    # Files, rules and selectors alike, resolved on the fly: nothing has to be
+    # generated beforehand, the same way an architecture's configurations are
+    # read.
+    path, _selector = space.matched_config_file(
+        directory, domain_value,
+        value=domain_number(domain_content),
+        messages=messages,
+    )
+    if any(message.level == "error" for message in messages):
+        return None
     if path is None:
         # A "param_file" given alongside is the default of the domain: the
         # configurations the directory does not describe use it.
@@ -287,7 +365,11 @@ def resolve_param_file(overrides, sim_dir, domain_value="", messages=None, where
         messages.append(Message(
             "error",
             'There is no configuration "' + domain_value + '" in "' + directory + '", referenced by ' + where,
-            ['This directory holds: ' + (", ".join(known) if known else "nothing")],
+            [
+                'This directory holds: ' + (", ".join(known) if known else "nothing"),
+                'Its "' + hard_settings.param_settings_filename + '" may also name several configurations at '
+                'once, under "' + selectors.MATCH_KEY + '" ("P*", "$value > 7", ...)',
+            ],
         ))
         return None
     return path
@@ -430,14 +512,27 @@ def names(entries):
 
 
 def _merge_param_domains(into, added):
-    """Merge one entry's parameter domain overrides into what matched before."""
-    for domain, overrides in (added or {}).items():
-        if not isinstance(overrides, dict):
-            into[str(domain)] = overrides
-            continue
-        merged = dict(into.get(str(domain)) or {})
-        merged.update(overrides)
-        into[str(domain)] = merged
+    """
+    Merge what one entry substitutes into what the entries before it did.
+
+    A domain both of them describe with a single substitution is refined key by
+    key, so that a wildcard entry can say what every architecture shares and a
+    named one change one thing of it. As soon as either of them lists several
+    substitutions there is no telling which refines which, so the later entry
+    says the whole list, replacing what the earlier one held for that domain.
+    """
+    for domain, value in (added or {}).items():
+        domain = str(domain)
+        before = substitutions(into.get(domain))
+        after = substitutions(value)
+        if not after:
+            into[domain] = value
+        elif len(before) <= 1 and len(after) == 1:
+            merged = dict(before[0]) if before else {}
+            merged.update(after[0])
+            into[domain] = merged
+        else:
+            into[domain] = [dict(item) for item in after]
 
 
 def settings_for(entries, arch):

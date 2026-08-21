@@ -180,12 +180,11 @@ class Simulation(Entry):
         """
         directories = []
         for entry in self.architecture_entries:
-            for overrides in entry.param_domains.values():
-                if not isinstance(overrides, dict):
-                    continue
-                param_dir = overrides.get("param_dir")
-                if param_dir and str(param_dir) not in directories:
-                    directories.append(str(param_dir))
+            for value in entry.param_domains.values():
+                for overrides in sim_architectures.substitutions(value):
+                    param_dir = overrides.get("param_dir")
+                    if param_dir and str(param_dir) not in directories:
+                        directories.append(str(param_dir))
         return directories
 
     @property

@@ -30,6 +30,10 @@ written at all, and which configurations they take those values from (see
 other, so they are edited where every other set of configurations is: the
 configuration editor, opened on "?sim=<simulation>&arch=<architecture>".
 
+One section is one substitution: a domain whose value has consequences in
+several files (a testbench, the Makefile building it) is substituted several
+times, and is shown once per substitution.
+
 Only what points at them stays in the simulation's own settings file -- which
 domain, which directory, which default parameter file, and whether the
 architecture's own substitution still applies. How the parameters are written
@@ -44,8 +48,8 @@ import odatix.lib.hard_settings as hard_settings
 import odatix.workspace.sim_architectures as sim_architectures
 from odatix.workspace.domains import ParameterDomain
 
-#: Keys of a "param_domains" entry that point at what is substituted, and stay
-#: written in the simulation's settings file.
+#: Keys of a substitution that point at what it substitutes, and stay written
+#: in the simulation's settings file.
 ENTRY_KEYS = ("param_dir", "param_file", "combine", "domain_value")
 
 
@@ -77,13 +81,24 @@ def find_entry(simulation, arch_name, index=None):
 
 
 def param_domains_of(entry):
-    """The "param_domains" of one entry, in the order they are written."""
+    """
+    The substitutions one entry describes, in the order they are written:
+    ``(domain name, overrides)``, one per substitution.
+
+    A domain written in several places is several substitutions of the same
+    name, and is shown as several sections, so the name is not what identifies
+    one of them here.
+    """
     domains = []
-    for domain, overrides in (entry.param_domains or {}).items():
-        domains.append((
-            str(domain),
-            dict(overrides) if isinstance(overrides, dict) else {},
-        ))
+    for domain, value in (entry.param_domains or {}).items():
+        for index, overrides in enumerate(sim_architectures.substitutions(value)):
+            overrides = dict(overrides)
+            # Unwritten, what a substitution does with the architecture's own
+            # depends on its place in the list, which the section no longer
+            # knows once it is shown on its own: settle it here, so the section
+            # shows what actually happens and writes it back explicitly.
+            overrides["combine"] = sim_architectures.combine_mode(overrides, index)
+            domains.append((str(domain), overrides))
     return domains
 
 
@@ -143,8 +158,10 @@ def entry_overrides(values, previous=None):
         overrides["param_dir"] = param_dir
     if param_file:
         overrides["param_file"] = param_file
-    if values.get("combine") == sim_architectures.COMBINE_BOTH:
-        overrides["combine"] = sim_architectures.COMBINE_BOTH
+    # Always written: which substitution of a domain replaces the architecture's
+    # own is otherwise a matter of the order they are in, which the editor is
+    # free to change.
+    overrides["combine"] = sim_architectures.combine_mode(values)
     domain_value = str(previous.get("domain_value", "") or "").strip()
     if domain_value:
         overrides["domain_value"] = domain_value
@@ -165,16 +182,34 @@ def entry_overrides(values, previous=None):
     return overrides
 
 
+def _written_combine(overrides, index):
+    """
+    One substitution as it is written, with "combine" only where it says
+    something the order does not already say: the first substitution of a domain
+    takes the architecture's place and the ones after it are added, so that is
+    what a file left without the key means.
+    """
+    overrides = dict(overrides)
+    if overrides.get("combine") == sim_architectures.default_combine_mode(index):
+        overrides.pop("combine", None)
+    return overrides
+
+
 def save_param_domains(simulation, position, domains):
     """
     Write the "param_domains" of one architecture entry back to the simulation's
     settings file.
 
+    The sections of one domain are written as the list of its substitutions, in
+    the order they are shown; a domain substituted in one place only is written
+    as that substitution itself, which is the same thing and reads better.
+
     Args:
         simulation: the simulation being edited.
         position (int): which of its architecture entries is being written.
-        domains (list): ``(domain name, overrides)`` in the order they are shown.
-            A domain with no name is one being filled in, and is not written.
+        domains (list): ``(domain name, overrides)`` in the order they are shown,
+            one per substitution. A domain with no name is one being filled in,
+            and is not written.
     """
     entries = simulation.architecture_entries
     if position is None or not (0 <= position < len(entries)):
@@ -185,7 +220,15 @@ def save_param_domains(simulation, position, domains):
         name = str(name or "").strip()
         if not name:
             continue
-        param_domains[name] = overrides
+        param_domains.setdefault(name, []).append(overrides)
+    param_domains = {
+        name: [_written_combine(overrides, index) for index, overrides in enumerate(written)]
+        for name, written in param_domains.items()
+    }
+    param_domains = {
+        name: written[0] if len(written) == 1 else written
+        for name, written in param_domains.items()
+    }
 
     settings = dict(entries[position].settings)
     if param_domains:

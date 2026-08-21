@@ -51,6 +51,7 @@ import functools
 
 import dash
 from dash import dcc, html
+from dash import ctx
 from dash.dependencies import Input, State
 
 
@@ -142,3 +143,19 @@ def page_clientside_callback(scope, func, *deps, **kwargs):
     handlers declare it as a leading ``_scope`` parameter and ignore it.
     """
     return dash.clientside_callback(func, *_with_anchor(scope, deps), **kwargs)
+
+
+def input_ids(type_name):
+    """
+    The ids Dash matched for one pattern input, in the order its values came back.
+
+    ``ctx.inputs_list`` is indexed by *declared* input, and `page_callback`
+    declares the anchor first, so positional indexing into it does not line up
+    with the arguments the callback received. Look the group up by the ``type``
+    of the pattern instead.
+    """
+    for group in (ctx.inputs_list or []):
+        if isinstance(group, list) and group and isinstance(group[0], dict):
+            if group[0].get("id", {}).get("type") == type_name:
+                return [item.get("id", {}) for item in group]
+    return []

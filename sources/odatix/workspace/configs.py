@@ -39,13 +39,14 @@ from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 import odatix.lib.hard_settings as hard_settings
 from odatix.workspace.entries import check_name
 from odatix.workspace.errors import AlreadyExistsError, NotFoundError
-from odatix.workspace.settings import Setting, Settings
+from odatix.workspace.settings import Setting, Settings, render
 from odatix.workspace.yaml_io import flow_seq
 
 __all__ = [
     "Configuration",
     "ConfigurationCollection",
     "Configurations",
+    "ConfigurationsSetting",
     "ConfigGeneration",
     "CONFIGURATIONS_KEY",
     "LEGACY_CONFIGURATION_KEYS",
@@ -344,6 +345,41 @@ class Configurations(Settings):
     )
 
 
+class ConfigurationsSetting(Setting):
+    """
+    The "configurations" key, which holds either one set of rules or several.
+
+    Written as a list, it declares one rule set per entry, and what the domain
+    describes is their **union** (see :func:`odatix.lib.config_generator.parse_rule_sets`).
+    A nested block is a mapping as far as :class:`Setting` is concerned, so the
+    list form is read, written and compared here rather than being taken for
+    something the class does not understand -- which would drop it silently, and
+    take it out of the file the next time it is saved.
+    """
+
+    def _blocks(self, value):
+        return isinstance(value, (list, tuple))
+
+    def coerce(self, value):
+        if self._blocks(value):
+            return [
+                item if isinstance(item, Configurations)
+                else Configurations.from_dict(item if isinstance(item, dict) else {})
+                for item in value
+            ]
+        return Setting.coerce(self, value)
+
+    def dump(self, value):
+        if self._blocks(value):
+            return [render(block) for block in value]
+        return Setting.dump(self, value)
+
+    def is_empty(self, value):
+        if self._blocks(value):
+            return not value
+        return Setting.is_empty(self, value)
+
+
 class ConfigGeneration(Settings):
     """
     The former way of describing the configurations of a domain
@@ -434,6 +470,11 @@ class WithVariables(object):
                 self.variables = dict(legacy)
                 self.generate_configurations_settings.variables = {}
 
+        # Several rule sets say everything themselves: there is no former form
+        # that could have written them, so there is nothing to carry over.
+        if isinstance(self.configurations, list):
+            return self
+
         # The former form only described configurations when its flag was on: a
         # block left behind with the flag off described nothing, and must keep
         # describing nothing.
@@ -450,6 +491,8 @@ class WithVariables(object):
         Whether this file says how to build its configurations, rather than
         holding only the ones written by hand.
         """
+        if isinstance(self.configurations, list):
+            return bool(self.variables) and bool(self.configurations)
         return bool(self.variables) and bool(
             self.configurations.enabled
             or self.configurations.name

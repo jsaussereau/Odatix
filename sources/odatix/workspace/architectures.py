@@ -36,6 +36,7 @@ from odatix.workspace.configs import (
     LEGACY_CONFIGURATION_KEYS,
     ConfigGeneration,
     Configurations,
+    ConfigurationsSetting,
     VariablesSetting,
     WithVariables,
     combinations,
@@ -198,9 +199,10 @@ class ArchitectureSettings(WithVariables, Settings):
     )
 
     # Configurations
-    configurations = Setting(
+    configurations = ConfigurationsSetting(
         type=Configurations, section="Configurations", skip_if_empty=True,
-        doc="Name and template the configurations of the main domain are built from.",
+        doc="Name and template the configurations of the main domain are built from. "
+            "A list declares several rule sets, whose union the domain is.",
     )
 
     variables = VariablesSetting(

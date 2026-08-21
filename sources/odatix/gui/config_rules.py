@@ -53,14 +53,15 @@ from odatix.gui.icons import icon
 from odatix.gui.utils import get_instance_collection_context
 import odatix.lib.hard_settings as hard_settings
 from odatix.workspace.domains import ParameterDomain
-from odatix.lib.config_generator import parse_constraints
+from odatix.lib.config_generator import parse_constraints, parse_rule_sets
+import odatix.workspace.selectors as selectors
 from odatix.workspace.configs import CONFIGURATIONS_KEY
 from odatix.workspace.configs import CONFIG_EXTENSION
 from odatix.workspace.space import (
     ORIGIN_BLACKLISTED, ORIGIN_EDITED, ORIGIN_GENERATED, config_set_rules, implicit_config_name,
     implicit_template,
 )
-from odatix.gui.page_scope import page_callback
+from odatix.gui.page_scope import input_ids, page_callback
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -106,21 +107,63 @@ def default_variables():
 # Settings <-> form
 ######################################
 
-def configuration_blacklist(settings):
-    """The generated configuration names explicitly excluded by saved rules."""
-    configurations = (settings or {}).get(CONFIGURATIONS_KEY, {})
-    blacklist = configurations.get("blacklist", ()) if isinstance(configurations, dict) else ()
+def _blacklist_of(block):
+    """The names one rules block excludes."""
+    blacklist = block.get("blacklist", ()) if isinstance(block, dict) else ()
     if not isinstance(blacklist, (list, tuple, set)):
         return []
     return [str(name) for name in blacklist if str(name)]
 
 
-def configuration_constraints(settings):
-    """The constraints saved rules put on the values of their variables."""
+def configuration_blacklist(settings):
+    """
+    The generated configuration names explicitly excluded by saved rules.
+
+    Read over every rule set when several are declared: what they describe is
+    the union of what each produces, so what is hidden from it is the union of
+    what each hides.
+    """
     configurations = (settings or {}).get(CONFIGURATIONS_KEY, {})
-    if not isinstance(configurations, dict):
+    if isinstance(configurations, (list, tuple)):
+        names = []
+        for block in configurations:
+            for name in _blacklist_of(block):
+                if name not in names:
+                    names.append(name)
+        return names
+    return _blacklist_of(configurations)
+
+
+def rules_with_blacklisted_rule_set_configuration(rules, config_name, blacklisted):
+    """
+    Saved rules declaring several rule sets, with one configuration added to or
+    removed from what they hide.
+
+    The names of the union are unique -- two rule sets naming the same
+    configuration is an error reported on its own -- so an entry hides the same
+    point whichever block carries it, and a new one goes to the first.
+    """
+    updated = dict(rules or {})
+    blocks = [dict(block) if isinstance(block, dict) else block for block in updated.get(CONFIGURATIONS_KEY, ())]
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        kept = [name for name in _blacklist_of(block) if name != config_name]
+        if kept:
+            block["blacklist"] = kept
+        else:
+            block.pop("blacklist", None)
+    if blacklisted and blocks and isinstance(blocks[0], dict):
+        blocks[0]["blacklist"] = _blacklist_of(blocks[0]) + [config_name]
+    updated[CONFIGURATIONS_KEY] = blocks
+    return updated
+
+
+def rule_set_constraints(block):
+    """The constraints one rules block puts on the values of its variables."""
+    if not isinstance(block, dict):
         return []
-    return [expression for expression, _message in parse_constraints(configurations)]
+    return [expression for expression, _message in parse_constraints(block)]
 
 
 def constraints_text(constraints):
@@ -134,22 +177,189 @@ def constraints_of_text(text):
     return [line.strip() for line in lines if line.strip() and not line.strip().startswith("#")]
 
 
-def rules_settings(name, template, variables, enabled=False, blacklist=(), constraints=()):
-    """The settings block a domain writes to say how it describes its configurations."""
-    configurations = {
+######################################
+# Selectors ("match")
+######################################
+
+#: What separates a selector from the configuration it substitutes, as the field
+#: is written back. A colon is read as well, since that is how the settings file
+#: writes it, but the arrow is what a selector holding a colon of its own needs.
+MATCH_SEPARATOR = "->"
+
+DEFAULT_MATCH = 'P*            -> the_configuration\n$value > 7    -> another_one\n*             -> the_default_one'
+
+
+def configuration_match(settings):
+    """The selectors saved in a directory's settings, in the order written."""
+    declared = (settings or {}).get(selectors.MATCH_KEY, {})
+    if not isinstance(declared, dict):
+        return {}
+    return dict(
+        (str(selector).strip(), str(target if target is not None else "").strip())
+        for selector, target in declared.items()
+        if str(selector).strip()
+    )
+
+
+def match_text(match):
+    """
+    The selectors as the field shows them: one "selector -> configuration" per
+    line, the arrows lined up so the configurations read as a column.
+    """
+    match = match or {}
+    if not match:
+        return ""
+    width = max(len(selector) for selector in match)
+    return "\n".join(
+        selector.ljust(width) + " " + MATCH_SEPARATOR + " " + target
+        for selector, target in match.items()
+    )
+
+
+def match_of_text(text):
+    """
+    The selectors a field holds, blank lines and comments left out.
+
+    Both separators are read: the arrow the field writes, and the colon the
+    settings file uses -- a line written by hand as YAML says the same thing.
+    The arrow is looked for first, since a selector may hold a colon of its own
+    (a regular expression) but never an arrow.
+    """
+    match = {}
+    for line in str(text or "").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        selector, separator, target = line.partition(MATCH_SEPARATOR)
+        if not separator:
+            selector, separator, target = line.rpartition(":")
+        if not separator:
+            # A selector on its own says nothing about what to substitute for
+            # it: kept as it is written, so a line being typed is not thrown
+            # away between two keystrokes.
+            selector, target = line, ""
+        selector = selector.strip()
+        if selector:
+            match[selector] = target.strip()
+    return match
+
+
+def match_form(domain_uuid, match, visible=True):
+    """
+    The selectors of a directory of configurations: which configuration is
+    substituted for the ones it does not hold, one per line.
+
+    Only a simulation looks a configuration up by selector (see
+    :mod:`odatix.workspace.selectors`), so this is shown on the "?sim=&arch="
+    page only -- and built, hidden, everywhere else, so that every callback
+    keeps seeing one field per domain.
+    """
+    return html.Div(
+        children=[
+            html.Div([
+                html.H3("Matching", style={"margin": "0px"}),
+                ui.tooltip_icon(
+                    "Which configuration of this directory is substituted for the configurations of the "
+                    "parameter domain it does not hold, one \"selector -> configuration\" per line. "
+                    "A selector is a name, a pattern (\"P*\", \"M?0[01]\"), a regular expression "
+                    "(\"/^M[0-9]+$/\") or a condition on $name (the configuration being run) and $value "
+                    "(what it substitutes, when it is a single number), as in \"$value > 7\". "
+                    "A configuration this directory holds under its own name is always used as it is: "
+                    "selectors only answer for the rest. When several of them match, the most specific "
+                    "wins, and the first one written breaks a tie. Lines starting with '#' are ignored."
+                ),
+                html.Div(
+                    ui.icon_button(
+                        icon=icon("save", className="icon"),
+                        color="disabled",
+                        text="Save selectors",
+                        width="150px",
+                        id={"type": "cfg-save-match", "domain_uuid": domain_uuid},
+                        tooltip="Nothing to save",
+                        tooltip_options="bottom auto caution",
+                    ),
+                    className="inline-flex-buttons",
+                    style={"marginLeft": "auto"},
+                ),
+            ], style={"display": "flex", "alignItems": "center", "gap": "10px"}),
+            html.Span(
+                "one configuration for a whole family, instead of one file each",
+                style={"opacity": "0.65", "fontSize": "13px"},
+            ),
+            dcc.Textarea(
+                id={"type": "cfg-match", "domain_uuid": domain_uuid},
+                value=match_text(match),
+                # Highlighted as selectors -- values, wildcards and the
+                # configuration each one points at -- rather than as a command
+                # (see the "odatix-selector-field" mode of
+                # assets/variable_highlight.js).
+                className="auto-resize-textarea odatix-command-field odatix-selector-field",
+                placeholder=DEFAULT_MATCH,
+                style={"width": "calc(100% - 12px)", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
+            ),
+            html.Div(
+                id={"type": "cfg-match-summary", "domain_uuid": domain_uuid},
+                style={"opacity": "0.75", "fontSize": "13px", "marginTop": "-4px"},
+            ),
+        ],
+        id={"type": "cfg-match-panel", "domain_uuid": domain_uuid},
+        style={"display": "flex", "flexDirection": "column", "gap": "8px", "marginTop": "10px"}
+        if visible else Style.hidden,
+    )
+
+
+#: What the form owns in a rules block. Everything else a block says -- the
+#: names it hides, the variables it restricts itself to -- is not edited here,
+#: and is written back exactly as it was found.
+BLOCK_FORM_KEYS = ("name", "template", "constraints", "enabled")
+
+
+def _block_settings(name, template, enabled=False, blacklist=(), constraints=(), extra=None):
+    """One rules block, as the settings file writes it."""
+    block = {
         "name": name or "",
         "template": template or "",
     }
     if enabled:
-        configurations["enabled"] = True
-    if blacklist:
-        configurations["blacklist"] = list(blacklist)
+        block["enabled"] = True
     if constraints:
-        configurations["constraints"] = list(constraints)
-    return {
-        CONFIGURATIONS_KEY: configurations,
+        block["constraints"] = list(constraints)
+    if blacklist:
+        block["blacklist"] = list(blacklist)
+    for key, value in (extra or {}).items():
+        block.setdefault(key, value)
+    return block
+
+
+def rule_sets_settings(blocks, variables, match=None):
+    """
+    The settings a domain writes to say how it describes its configurations.
+
+    One block is written the way it always was, as a mapping. Several are
+    written as a list, which is what declares them as rule sets: what the domain
+    holds is their union, nothing combined across them (see
+    :func:`odatix.lib.config_generator.parse_rule_sets`).
+    """
+    blocks = [block for block in blocks] or [_block_settings("", "")]
+    settings = {
+        CONFIGURATIONS_KEY: blocks[0] if len(blocks) == 1 else blocks,
         "variables": variables,
     }
+    # Written as soon as the caller says anything about it, the empty block
+    # included: settings are updated key by key, so a "match" block emptied in
+    # the editor has to be written empty to disappear from the file (where it
+    # is then left out, being empty).
+    if match is not None:
+        settings[selectors.MATCH_KEY] = dict(match)
+    return settings
+
+
+def rules_settings(name, template, variables, enabled=False, blacklist=(), constraints=(), match=None):
+    """The settings of a domain described by a single set of rules."""
+    return rule_sets_settings(
+        [_block_settings(name, template, enabled=enabled, blacklist=blacklist, constraints=constraints)],
+        variables, match=match,
+    )
 
 
 def configuration_defaults_enabled(settings):
@@ -158,52 +368,121 @@ def configuration_defaults_enabled(settings):
     return isinstance(configurations, dict) and bool(configurations.get("enabled"))
 
 
-def form_rules_settings(name, template, variables, domain_name, saved=None, constraints=()):
-    """The rules the form currently means, including the main-domain defaults."""
-    enabled = configuration_defaults_enabled(saved) or (
-        domain_name == hard_settings.main_parameter_domain
-        and bool(variables)
-        and not name
-        and not template
-    )
-    return rules_settings(
-        name, template, variables, enabled=enabled,
-        blacklist=configuration_blacklist(saved),
-        constraints=constraints,
-    )
+def declares_rule_sets(settings):
+    """Whether saved rules declare several rule sets rather than one."""
+    return bool(parse_rule_sets((settings or {}).get(CONFIGURATIONS_KEY)))
 
 
-def effective_rules(name, template, variables, implicit=True, blacklist=(), constraints=()):
+def saved_rule_sets(settings):
     """
-    The rules as Odatix reads them, from what the form holds: a domain of a
-    single variable says everything by declaring it, and both templates are
-    then filled in for it (see :func:`implicit_template`).
+    The rules blocks of a domain, each with the key its fields are named after.
+
+    A domain always has at least one block -- an empty one when it says nothing
+    yet -- so the form is the same list of cards whether one set of rules is
+    declared or several. The key is the position the block was read at, and is
+    what a card is matched back to its own saved block by: it survives another
+    card being added before it or deleted after it.
     """
-    return config_set_rules(
-        rules_settings(name, template, variables, blacklist=blacklist, constraints=constraints),
-        implicit=implicit,
+    configurations = (settings or {}).get(CONFIGURATIONS_KEY, {})
+    blocks = parse_rule_sets(configurations)
+    if blocks:
+        return [(index, dict(block)) for index, block in enumerate(blocks)]
+    return [(0, dict(configurations) if isinstance(configurations, dict) else {})]
+
+
+def rule_set_extras(settings):
+    """What each saved block says that the form does not edit, by key."""
+    return dict(
+        (key, dict((name, value) for name, value in block.items() if name not in BLOCK_FORM_KEYS))
+        for key, block in saved_rule_sets(settings)
     )
 
 
-def rules_of_settings(settings, implicit=True):
+def rule_set_fields(settings, implicit=True):
     """
-    The name template, the content template and the variables a domain's
-    settings describe.
+    What the cards of a domain hold, as ``(key, name, template, constraints)``,
+    and the variables they share.
 
-    Every way Odatix has had of saying this is read here -- by the same
-    function the runtime reads them with -- so a workspace written before the
-    "configurations" block opens with its rules already filled in, and saving
-    writes them the way they are written now.
+    A single set of rules leaves unsaid what Odatix would fill in anyway: an
+    implicit name or template is the placeholder of a field, not text to put in
+    it. Several rule sets say both in each of them, and are shown as written.
     """
     space = config_set_rules(settings or {}, implicit=implicit)
-    # As the form will hand them back, so that a panel whose rules are exactly
-    # what its file says does not open showing unsaved changes. What the file
-    # leaves unsaid stays unsaid: an implicit template is a placeholder of the
-    # field, not text to put in it.
     variables = ve.normalized_variables(dict(space.variables))
-    name = "" if space.implicit_name else space.name
-    template = "" if space.implicit_template or space.template is None else space.template
-    return name, template, variables
+    blocks = saved_rule_sets(settings)
+    if len(blocks) == 1:
+        key, block = blocks[0]
+        return [(
+            key,
+            "" if space.implicit_name else space.name,
+            "" if space.implicit_template or space.template is None else space.template,
+            rule_set_constraints(block),
+        )], variables
+    return [
+        (key,
+         str(block.get("name", "") or ""),
+         str(block.get("template", "") or ""),
+         rule_set_constraints(block))
+        for key, block in blocks
+    ], variables
+
+
+def form_rules_settings(blocks, variables, domain_name, saved=None, match=None):
+    """
+    The rules the form currently means, including the main-domain defaults.
+
+    ``blocks`` is what the cards hold, in the order they are written back. What
+    the saved blocks said beyond the fields -- the names they hide, a "variables"
+    restriction -- is carried over by key, so editing one card never drops what
+    another one was written with.
+    """
+    extras = rule_set_extras(saved)
+    blocks = [block for block in blocks] or [(0, "", "", [])]
+    if len(blocks) == 1:
+        key, name, template, constraints = blocks[0]
+        # The main domain of a workspace describes its configurations by
+        # declaring variables alone; saying so explicitly is what keeps it
+        # describing them once anything else about it is written.
+        enabled = configuration_defaults_enabled(saved) or (
+            domain_name == hard_settings.main_parameter_domain
+            and bool(variables)
+            and not name
+            and not template
+        )
+        written = [_block_settings(
+            name, template, enabled=enabled, constraints=constraints, extra=extras.get(key),
+        )]
+    else:
+        written = [
+            _block_settings(name, template, constraints=constraints, extra=extras.get(key))
+            for key, name, template, constraints in blocks
+        ]
+    return rule_sets_settings(written, variables, match=match)
+
+
+def stored_rules_settings(settings, blocks, variables, domain_name=None):
+    """
+    What a panel was opened on, in the very form its fields hand back.
+
+    This is what the dirty state is measured against, so it has to be written
+    the way :func:`form_rules_settings` writes it -- storing anything else would
+    make a panel nobody touched open as unsaved, and "Save all changes" then
+    write whatever the fields happen to say over the file.
+    """
+    return form_rules_settings(
+        blocks, variables, domain_name, settings, match=configuration_match(settings),
+    )
+
+
+def rules_space(settings, implicit=True):
+    """
+    The design space some rules describe, as Odatix reads them.
+
+    Taken from the settings the form means rather than from two fields, so a
+    domain of several rule sets is previewed as the union it is instead of as
+    the cross product of everything it declares.
+    """
+    return config_set_rules(settings or {}, implicit=implicit)
 
 
 def describes_configurations(settings, implicit=True):
@@ -240,16 +519,61 @@ def add_variable_card(domain_uuid):
     )
 
 
-def rules_form(domain_uuid, name, template, variables=None, implicit=True, constraints=()):
-    """The two templates: what a configuration is called, and what it writes."""
-    # A domain does not have to write either of them down: the placeholder is
+def rule_sets_notice(count):
+    """
+    What a domain of several rule sets says above them: they are not combined.
+
+    Shown only when there is something to say -- a single set of rules is just
+    the rules of the domain, and needs no explaining.
+    """
+    return html.Div(
+        children=[
+            ui.badge("{0} rule sets".format(count), color="primary"),
+            html.Span(
+                "the configurations of this domain are the union of these sets of rules: "
+                "nothing is combined across them, and each of them uses the variables it names",
+                style={"opacity": "0.65", "fontSize": "13px"},
+            ),
+        ],
+        className="odx-rule-sets-notice",
+        style={"display": "flex", "alignItems": "center", "gap": "10px", "flexWrap": "wrap",
+               "marginBottom": "12px"},
+    )
+
+
+def rule_set_card(domain_uuid, key, name, template, constraints, variables=None, index=0, total=1):
+    """
+    One set of rules: what its configurations are called, what they write, and
+    what combinations of values are configurations at all.
+
+    Its fields carry the key of the block they came from, so what the panel
+    hands back can be matched to what the file already said about it -- the
+    names it hides above all.
+    """
+    # A domain does not have to write either template down: the placeholder is
     # then what Odatix would actually use, not an example.
     # Either field left empty means the same thing in every domain, the main one
     # included: the values themselves. The placeholders say so.
     implicit_name = implicit_config_name(variables or {})
     implicit_content = implicit_template(variables or {})
+    header = []
+    if total > 1:
+        header = [html.Div(
+            children=[
+                html.H4("Rule set {0}".format(index + 1), style={"margin": "0px"}),
+                ui.icon_button(
+                    icon=icon("delete", className="icon"),
+                    color="default",
+                    id={"type": "cfg-delete-rule-set", "domain_uuid": domain_uuid, "rule_set": key},
+                    tooltip="Delete this set of rules",
+                    tooltip_options="bottom auto caution",
+                ),
+            ],
+            style={"display": "flex", "alignItems": "center", "justifyContent": "space-between",
+                   "gap": "10px", "marginBottom": "8px"},
+        )]
     return html.Div(
-        children=[
+        children=header + [
             html.Div([
                 html.Label("Configuration name"),
                 ui.tooltip_icon(
@@ -258,7 +582,7 @@ def rules_form(domain_uuid, name, template, variables=None, implicit=True, const
                     "Leaving this empty names the configurations after the values themselves, joined by an underscore when there are several variables."
                 ),
                 dcc.Input(
-                    id={"type": "cfg-gen-name", "domain_uuid": domain_uuid},
+                    id={"type": "cfg-gen-name", "domain_uuid": domain_uuid, "rule_set": key},
                     value=name,
                     type="text",
                     placeholder=implicit_name or DEFAULT_NAME,
@@ -277,7 +601,7 @@ def rules_form(domain_uuid, name, template, variables=None, implicit=True, const
                     "Leaving this empty writes the values themselves, one per line."
                 ),
                 dcc.Textarea(
-                    id={"type": "cfg-gen-template", "domain_uuid": domain_uuid},
+                    id={"type": "cfg-gen-template", "domain_uuid": domain_uuid, "rule_set": key},
                     value=template,
                     className="auto-resize-textarea odatix-command-field",
                     placeholder=implicit_content or DEFAULT_TEMPLATE,
@@ -292,7 +616,7 @@ def rules_form(domain_uuid, name, template, variables=None, implicit=True, const
                     "unlike a blacklisted configuration, it is never named and never shown. Lines starting with '#' are ignored."
                 ),
                 dcc.Textarea(
-                    id={"type": "cfg-gen-constraints", "domain_uuid": domain_uuid},
+                    id={"type": "cfg-gen-constraints", "domain_uuid": domain_uuid, "rule_set": key},
                     value=constraints_text(constraints),
                     className="auto-resize-textarea odatix-command-field",
                     placeholder=DEFAULT_CONSTRAINTS,
@@ -300,14 +624,62 @@ def rules_form(domain_uuid, name, template, variables=None, implicit=True, const
                 ),
             ], style={"marginBottom": "12px"}),
         ],
+        className="odx-rule-set" + (" card configs" if total > 1 else ""),
+        style={"padding": "12px", "marginBottom": "12px"} if total > 1 else None,
     )
 
 
-def advanced_section(domain_uuid, name, template, variables, implicit, open=False, constraints=()):
+def add_rule_set_card(domain_uuid):
     """
-    The two templates, behind a fold: a domain says everything by declaring its
-    variables, and only a domain that names or writes its configurations some
-    other way has to open this.
+    The last card of the list: one more set of rules, whose points are added to
+    what the domain already describes rather than combined with them.
+    """
+    return html.Div(
+        html.Div(
+            children=[
+                html.Div("+", style={"fontSize": "1.6em", "lineHeight": "1"}),
+                html.Div("Add another set of rules", style={"fontWeight": "bold"}),
+            ],
+            id={"type": "cfg-new-rule-set", "domain_uuid": domain_uuid},
+            n_clicks=0,
+            style={"display": "flex", "alignItems": "center", "gap": "10px",
+                   "textDecoration": "none", "width": "100%"},
+        ),
+        className="card configs add hover odx-rule-set-add",
+        style={"padding": "10px 12px", "margin": "0px 0px 8px 0px", "display": "block",
+               "width": "auto", "boxSizing": "border-box"},
+    )
+
+
+def rule_set_cards(domain_uuid, blocks, variables=None):
+    """The cards a domain's rules are edited in, and the one that adds another."""
+    total = len(blocks)
+    cards = [
+        rule_set_card(domain_uuid, key, name, template, constraints, variables, index, total)
+        for index, (key, name, template, constraints) in enumerate(blocks)
+    ]
+    if total > 1:
+        cards.insert(0, rule_sets_notice(total))
+    cards.append(add_rule_set_card(domain_uuid))
+    return cards
+
+
+def rules_form(domain_uuid, blocks, variables=None):
+    """
+    How the configurations of a domain are named and what they contain: one
+    card per set of rules, and one more to add another set.
+    """
+    return html.Div(
+        children=rule_set_cards(domain_uuid, blocks, variables),
+        id={"type": "cfg-rule-sets-row", "domain_uuid": domain_uuid},
+    )
+
+
+def advanced_section(domain_uuid, blocks, variables, open=False):
+    """
+    The rules of a domain, behind a fold: a domain says everything by declaring
+    its variables, and only a domain that names or writes its configurations
+    some other way has to open this.
 
     Folded by the same Show/Hide button the rest of the editor uses -- a "more"
     icon that rotates -- rather than by a header of its own that happens to be
@@ -338,7 +710,7 @@ def advanced_section(domain_uuid, name, template, variables, implicit, open=Fals
                         "how a configuration is named and what it contains",
                         style={"opacity": "0.65", "fontSize": "13px"},
                     ),
-                    rules_form(domain_uuid, name, template, variables, implicit, constraints),
+                    rules_form(domain_uuid, blocks, variables),
                 ],
                 id={"type": "cfg-advanced-panel", "domain_uuid": domain_uuid},
                 style={"marginTop": "12px"} if open else Style.hidden,
@@ -350,23 +722,21 @@ def advanced_section(domain_uuid, name, template, variables, implicit, open=Fals
 
 def domain_advanced_section(domain_uuid, settings, domain_name=None):
     """
-    The two templates of a domain, folded, as the configuration-parameters tile
-    shows them: they say what is written into the target file set right above,
-    which is the one place they belong.
+    The rules of a domain, folded, as the configuration-parameters tile shows
+    them: they say what is written into the target file set right above, which
+    is the one place they belong.
     """
-    name, template, variables = rules_of_settings(settings)
-    constraints = configuration_constraints(settings)
+    blocks, variables = rule_set_fields(settings)
     return advanced_section(
-        domain_uuid, name, template, variables, True,
+        domain_uuid, blocks, variables,
         # Opened by itself only when it holds something: templates or
-        # constraints already written. Empty, it stays folded, main domain
-        # included.
-        open=bool(name or template or constraints),
-        constraints=constraints,
+        # constraints already written, or the several sets of rules a domain of
+        # a union is made of. Empty, it stays folded, main domain included.
+        open=len(blocks) > 1 or any(part for block in blocks for part in block[1:]),
     )
 
 
-def rules_section(domain_uuid, settings, open=False, domain_name=None):
+def rules_section(domain_uuid, settings, open=False, domain_name=None, entry=None):
     """
     The variables of one parameter domain, and what they add up to.
 
@@ -378,9 +748,14 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None):
 
     ``open`` is kept for callers that used to open this panel; nothing is folded
     here now.
+
+    ``entry`` is what a section of the "?sim=&arch=" page substitutes, and is
+    None everywhere else: only a simulation names the configurations it
+    substitutes for by selector, so only such a section shows the "Matching"
+    field (see :func:`match_form`).
     """
     space = config_set_rules(settings or {}, implicit=True)
-    name, template, variables = rules_of_settings(settings)
+    blocks, variables = rule_set_fields(settings)
     has_rules = space.generates
     # Counted here as well as by the preview callback, so the header says what
     # the domain holds from the first paint rather than a moment later.
@@ -430,6 +805,14 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None):
             # In a grid, like every other title of the page: a "tile title"
             # centers itself with justify-self, which does nothing outside one.
             html.Div(
+                html.Div(
+                    [match_form(domain_uuid, configuration_match(settings), visible=entry is not None)],
+                    className="tile title",
+                    style={"marginTop": "10px"} if entry is not None else Style.hidden,
+                ),
+                className="card-matrix config",
+            ),
+            html.Div(
                 html.Div([header], className="tile title", style={"marginTop": "10px"}),
                 className="card-matrix config",
             ),
@@ -441,12 +824,7 @@ def rules_section(domain_uuid, settings, open=False, domain_name=None):
             # What is saved on disk, and what the dirty state is measured against.
             dcc.Store(
                 id={"type": "cfg-rules-store", "domain_uuid": domain_uuid},
-                data=rules_settings(
-                    name, template, variables,
-                    enabled=configuration_defaults_enabled(settings),
-                    blacklist=configuration_blacklist(settings),
-                    constraints=configuration_constraints(settings),
-                ),
+                data=stored_rules_settings(settings, blocks, variables, domain_name),
             ),
             # Bumped on every save, so the configurations of the domain are read again.
             dcc.Store(id={"type": "cfg-rules-saved", "domain_uuid": domain_uuid}, data=0),
@@ -501,18 +879,72 @@ def variable_states():
             for pattern in FIELD_PATTERNS]
 
 
+def matched_ids(type_name):
+    """
+    The ids Dash matched for one pattern, in the order its values came back,
+    whether it was declared as an Input or as a State.
+    """
+    for group in list(ctx.inputs_list or []) + list(ctx.states_list or []):
+        if isinstance(group, list) and group and isinstance(group[0], dict):
+            if group[0].get("id", {}).get("type") == type_name:
+                return [item.get("id", {}) for item in group]
+    return []
+
+
 def field_ids(pattern):
     """
     The ids Dash matched for one variable-field pattern, in the order the
     values came back. Every pattern of a variable card matches the same ids, so
     this is also the order of every other field list.
     """
-    wanted = VE_PREFIX + pattern
-    for group in list(ctx.inputs_list or []) + list(ctx.states_list or []):
-        if isinstance(group, list) and group and isinstance(group[0], dict):
-            if group[0].get("id", {}).get("type") == wanted:
-                return [item.get("id", {}) for item in group]
-    return []
+    return matched_ids(VE_PREFIX + pattern)
+
+
+def rule_set_positions(domain_uuids):
+    """
+    Where the fields of each domain's rule sets are in the flat field lists,
+    in the order the blocks are written back.
+
+    Sorted by the key of the block rather than left to the order Dash matched
+    the ids in: what the file lists is what the panel shows, whichever way the
+    keys of a domain happen to compare.
+    """
+    ids = matched_ids("cfg-gen-name")
+    positions = dict((domain_uuid, []) for domain_uuid in domain_uuids)
+    for index, identifier in enumerate(ids):
+        domain_uuid = identifier.get("domain_uuid")
+        if domain_uuid in positions:
+            positions[domain_uuid].append((identifier.get("rule_set", 0), index))
+    return dict(
+        (domain_uuid, [index for _key, index in sorted(entries, key=lambda item: _sort_key(item[0]))])
+        for domain_uuid, entries in positions.items()
+    )
+
+
+def _sort_key(key):
+    """A rule-set key, ordered as a number when it is one."""
+    try:
+        return (0, int(key), "")
+    except (TypeError, ValueError):
+        return (1, 0, str(key))
+
+
+def form_blocks(names, templates, constraint_texts, positions):
+    """
+    What the cards of one domain hold, as :func:`form_rules_settings` takes
+    them: ``(key, name, template, constraints)``, in the order they are written.
+    """
+    ids = matched_ids("cfg-gen-name")
+    blocks = []
+    for index in positions:
+        identifier = ids[index] if index < len(ids) else {}
+        blocks.append((
+            identifier.get("rule_set", 0),
+            names[index] if index < len(names) else "",
+            templates[index] if index < len(templates) else "",
+            constraints_of_text(constraint_texts[index] if index < len(constraint_texts or ()) else ""),
+        ))
+    return blocks
 
 
 def domain_indices(ids, domain_uuids):
@@ -563,7 +995,7 @@ def toggle_advanced_panel(n_clicks, styles):
     trigger = ctx.triggered_id
     if not isinstance(trigger, dict):
         return [dash.no_update] * len(styles), [dash.no_update] * len(styles)
-    uuids = [item.get("id", {}).get("domain_uuid") for item in (ctx.inputs_list[0] if ctx.inputs_list else [])]
+    uuids = [item.get("domain_uuid") for item in input_ids("cfg-advanced-toggle")]
     try:
         index = uuids.index(trigger.get("domain_uuid"))
     except ValueError:
@@ -620,8 +1052,8 @@ def toggle_variable_card(n_clicks, styles, icon_classes):
     trigger = ctx.triggered_id
     if not isinstance(trigger, dict):
         return [dash.no_update] * len(styles), [dash.no_update] * len(icon_classes)
-    keys = [(item.get("id", {}).get("name"), item.get("id", {}).get("domain_uuid"))
-            for item in (ctx.inputs_list[0] if ctx.inputs_list else [])]
+    keys = [(item.get("name"), item.get("domain_uuid"))
+            for item in input_ids("cfg-variable-collapse")]
     try:
         index = keys.index((trigger.get("name"), trigger.get("domain_uuid")))
     except ValueError:
@@ -723,6 +1155,61 @@ def update_variable_cards(new_clicks, duplicate_clicks, delete_clicks, rows, dom
     return [cards if i == row_index else dash.no_update for i in range(len(rows))]
 
 
+@page_callback(PAGE_SCOPE,
+    Output({"type": "cfg-rule-sets-row", "domain_uuid": dash.ALL}, "children"),
+    Input({"type": "cfg-new-rule-set", "domain_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-delete-rule-set", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "n_clicks"),
+    State({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    *variable_states(),
+    prevent_initial_call=True,
+)
+def update_rule_set_cards(new_clicks, delete_clicks, names, templates, constraint_texts,
+                          domain_metadata, *field_values):
+    """
+    Add a set of rules to a domain, or delete one, leaving every other domain
+    alone -- and leaving what the other cards of this one hold as it is: they
+    are rebuilt from the form, not from the file, so an unsaved edit survives.
+
+    The last set of rules of a domain is not deletable: a domain describes its
+    configurations with one set of rules or several, never with none. Emptying
+    the fields of the last one is how a domain stops describing any.
+    """
+    trigger = ctx.triggered_id
+    if not isinstance(trigger, dict):
+        return [dash.no_update] * len(domain_metadata)
+
+    uuids = domain_uuids_of(domain_metadata)
+    domain_uuid = trigger.get("domain_uuid", "")
+    if domain_uuid not in uuids:
+        return [dash.no_update] * len(uuids)
+    row_index = uuids.index(domain_uuid)
+
+    clicked = (
+        new_clicks if trigger.get("type") == "cfg-new-rule-set" else delete_clicks
+    )
+    if not any(clicked or ()):
+        return [dash.no_update] * len(uuids)
+
+    positions = rule_set_positions(uuids)
+    blocks = form_blocks(names, templates, constraint_texts, positions.get(domain_uuid, []))
+
+    if trigger.get("type") == "cfg-new-rule-set":
+        used = [_sort_key(key)[1] for key, _n, _t, _c in blocks]
+        blocks.append(((max(used) + 1) if used else 1, "", "", []))
+    else:
+        target = trigger.get("rule_set")
+        if len(blocks) > 1:
+            blocks = [block for block in blocks if block[0] != target]
+
+    indices = domain_indices(field_ids("variable-title"), uuids)
+    variables = variables_of(field_values, indices.get(domain_uuid, []))
+    cards = rule_set_cards(domain_uuid, blocks, variables)
+    return [cards if i == row_index else dash.no_update for i in range(len(uuids))]
+
+
 def _card_id(card):
     """
     The id of a card, whichever side of the wire it comes from: a component
@@ -750,11 +1237,11 @@ def _card_name(card):
     Output({"type": "cfg-config-preview", "domain_uuid": dash.ALL}, "children"),
     # Both fields say what leaving them empty would mean, and follow the
     # variables: a domain of a single variable needs neither template.
-    Output({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "placeholder"),
-    Output({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "placeholder"),
-    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL}, "value"),
+    Output({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "placeholder"),
+    Output({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "placeholder"),
+    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
     Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     # The preview cards follow the configuration cards below them, layout
     # included: they are the same list, one part of it not written yet.
@@ -786,6 +1273,7 @@ def update_rules_preview(names, templates, constraint_texts, stores, layout, *re
     domain_names = domain_names_of(domain_metadata)
     title_ids = field_ids("variable-title")
     indices = domain_indices(title_ids, uuids)
+    rule_sets = rule_set_positions(uuids)
     titles = field_values[0] if field_values else []
 
     # One entry per variable row of the page, in the order Dash matched them --
@@ -803,24 +1291,31 @@ def update_rules_preview(names, templates, constraint_texts, stores, layout, *re
 
     summaries = []
     config_previews = []
-    placeholders = []
+    # One per rule-set field of the page, in the order Dash matched them: every
+    # set of rules of a domain says the same thing when it is left empty.
+    name_placeholders = [dash.no_update] * len(names)
+    template_placeholders = [dash.no_update] * len(templates)
     for i, domain_uuid in enumerate(uuids):
-        name = names[i] if i < len(names) else ""
-        template = templates[i] if i < len(templates) else ""
-        constraints = constraints_of_text(constraint_texts[i] if i < len(constraint_texts) else "")
+        positions = rule_sets.get(domain_uuid, [])
+        blocks = form_blocks(names, templates, constraint_texts, positions)
         variables = variables_of(field_values, indices.get(domain_uuid, []))
-        saved = stores[i] if i < len(stores) and stores[i] else rules_settings("", "", {})
-        blacklist = configuration_blacklist(saved)
-        space = effective_rules(name, template, variables, blacklist=blacklist, constraints=constraints)
-        placeholders.append((
-            implicit_config_name(variables),
-            implicit_template(variables),
-        ))
+        saved = stores[i] if i < len(stores) and stores[i] else rules_settings("", "", {}, match={})
         # Once the form says what the file says, the configuration cards below
         # are the real thing: previewing them again would only be noise.
         current = form_rules_settings(
-            name, template, variables, domain_names.get(domain_uuid), saved, constraints=constraints,
+            blocks, variables, domain_names.get(domain_uuid), saved,
         )
+        # Read from the settings the form means, so a domain of several rule
+        # sets is previewed as the union it is rather than as everything its
+        # variables could be combined into.
+        space = rules_space(current)
+        implicit_name = implicit_config_name(variables) or DEFAULT_NAME
+        implicit_content = implicit_template(variables) or DEFAULT_TEMPLATE
+        for position in positions:
+            if position < len(name_placeholders):
+                name_placeholders[position] = implicit_name
+            if position < len(template_placeholders):
+                template_placeholders[position] = implicit_content
         unsaved = current != saved
         held = held_configurations(config_metadata, domain_uuid)
         if not space.generates:
@@ -841,11 +1336,7 @@ def update_rules_preview(names, templates, constraint_texts, stores, layout, *re
         say(domain_uuid, values=values)
         summaries.append(rules_summary(True, len(variables), len(configurations)))
         config_previews.append(configurations_preview(configurations, held, layout) if unsaved else [])
-    return (
-        row_values, summaries, config_previews,
-        [name or DEFAULT_NAME for name, _ in placeholders],
-        [template or DEFAULT_TEMPLATE for _, template in placeholders],
-    )
+    return row_values, summaries, config_previews, name_placeholders, template_placeholders
 
 
 #: How many configurations the preview shows before saying how many are left.
@@ -868,6 +1359,46 @@ def held_configurations(config_metadata, domain_uuid):
             name = name[:-len(CONFIG_EXTENSION)]
         held.append((name, data.get("origin", ""), data.get("config_content", "")))
     return held
+
+
+@page_callback(PAGE_SCOPE,
+    Output({"type": "cfg-match-summary", "domain_uuid": dash.ALL}, "children"),
+    Input({"type": "cfg-match", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+)
+def update_match_summary(match_texts, config_metadata, domain_metadata):
+    """
+    What the selectors of a directory add up to, said under the field: how many
+    there are, and which of them point at a configuration this directory does
+    not hold -- the mistake that would otherwise only show up on the one run
+    that needed it.
+
+    The configurations are read from the cards of the page rather than from
+    disk, so a selector written for a configuration added a moment ago is not
+    reported as pointing at nothing.
+    """
+    summaries = []
+    for index, domain_uuid in enumerate(domain_uuids_of(domain_metadata)):
+        match = match_of_text(match_texts[index] if index < len(match_texts) else "")
+        if not match:
+            summaries.append("")
+            continue
+        held = set(name for name, _origin, _content in held_configurations(config_metadata, domain_uuid))
+        unknown = [target for target in match.values() if target and target not in held]
+        missing = [selector for selector, target in match.items() if not target]
+
+        parts = [html.Span("{0} selector{1}".format(len(match), "" if len(match) == 1 else "s"))]
+        for text in (
+            ('{0} naming no configuration: "{1}"'.format(len(missing), '", "'.join(missing)) if missing else ""),
+            ('{0} pointing at nothing here: "{1}"'.format(len(unknown), '", "'.join(sorted(set(unknown))))
+             if unknown else ""),
+        ):
+            if text:
+                parts.append(html.Span(" · "))
+                parts.append(html.Span(text, style={"color": "var(--theme-warning-color)"}))
+        summaries.append(parts)
+    return summaries
 
 
 #: What each origin says on a configuration card, and how it is presented. Kept
@@ -1017,14 +1548,19 @@ def variable_values_inline(values):
 @page_callback(PAGE_SCOPE,
     Output({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "className"),
     Output({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "data-tooltip"),
-    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL}, "value"),
+    # The selectors are saved with the rest of what the directory says about its
+    # configurations, so its button lights up with the same unsaved state.
+    Output({"type": "cfg-save-match", "domain_uuid": dash.ALL}, "className"),
+    Output({"type": "cfg-save-match", "domain_uuid": dash.ALL}, "data-tooltip"),
+    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-match", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     *variable_inputs(),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
 )
-def update_save_rules_button(names, templates, constraint_texts, stores, *rest):
+def update_save_rules_button(names, templates, constraint_texts, match_texts, stores, *rest):
     """
     Light up the save button of a domain whose rules differ from what its
     settings file says. The page-wide save button of the configuration editor
@@ -1040,36 +1576,41 @@ def update_save_rules_button(names, templates, constraint_texts, stores, *rest):
     uuids = domain_uuids_of(domain_metadata)
     names_by_uuid = domain_names_of(domain_metadata)
     indices = domain_indices(field_ids("variable-title"), uuids)
+    rule_sets = rule_set_positions(uuids)
 
     classes = []
     tooltips = []
+    match_tooltips = []
     for i, domain_uuid in enumerate(uuids):
-        saved = stores[i] if i < len(stores) and stores[i] else rules_settings("", "", {})
+        saved = stores[i] if i < len(stores) and stores[i] else rules_settings("", "", {}, match={})
         current = form_rules_settings(
-            names[i] if i < len(names) else "",
-            templates[i] if i < len(templates) else "",
+            form_blocks(names, templates, constraint_texts, rule_sets.get(domain_uuid, [])),
             variables_of(field_values, indices.get(domain_uuid, [])),
             names_by_uuid.get(domain_uuid),
             saved,
-            constraints=constraints_of_text(constraint_texts[i] if i < len(constraint_texts) else ""),
+            match=match_of_text(match_texts[i] if i < len(match_texts) else ""),
         )
         if current != saved:
             classes.append(enabled)
             tooltips.append("Save the rules of this parameter domain")
+            match_tooltips.append("Save the selectors of this directory")
         else:
             classes.append(disabled)
             tooltips.append("Nothing to save")
-    return classes, tooltips
+            match_tooltips.append("Nothing to save")
+    return classes, tooltips, classes, match_tooltips
 
 
 @page_callback(PAGE_SCOPE,
     Output({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     Output({"type": "cfg-rules-saved", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "cfg-save-rules", "domain_uuid": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-save-match", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"page": PAGE_PATH, "action": "save-all"}, "n_clicks"),
-    State({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
-    State({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
-    State({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-match", "domain_uuid": dash.ALL}, "value"),
     *variable_states(),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
@@ -1078,14 +1619,15 @@ def update_save_rules_button(names, templates, constraint_texts, stores, *rest):
     State("odatix-settings", "data"),
     prevent_initial_call=True,
 )
-def save_rules(n_clicks, save_all_clicks, names, templates, constraint_texts, *rest):
+def save_rules(n_clicks, match_clicks, save_all_clicks, names, templates, constraint_texts, match_texts, *rest):
     """
     Write the rules of a domain, in the form Odatix reads now -- a
     "configurations" block and the variables at the root of the settings file.
 
-    Saves the domain whose own button was pressed, or every domain whose rules
-    differ from their file when the page-wide save button was, so that "Save
-    all changes" means what it says.
+    Saves the domain whose own button was pressed -- the one of its rules or the
+    one of its selectors, which are the same settings file -- or every domain
+    whose rules differ from their file when the page-wide save button was, so
+    that "Save all changes" means what it says.
     """
     field_values = rest[:len(FIELD_PATTERNS)]
     domain_metadata, stores, saved_counters, search, odatix_settings = rest[len(FIELD_PATTERNS):]
@@ -1105,7 +1647,8 @@ def save_rules(n_clicks, save_all_clicks, names, templates, constraint_texts, *r
         if trigger.get("domain_uuid") not in uuids:
             return nothing, nothing
         index = uuids.index(trigger.get("domain_uuid"))
-        if not (n_clicks[index] if index < len(n_clicks) else 0):
+        clicks = match_clicks if trigger.get("type") == "cfg-save-match" else n_clicks
+        if not (clicks[index] if index < len(clicks) else 0):
             return nothing, nothing
         targets = [index]
 
@@ -1114,6 +1657,7 @@ def save_rules(n_clicks, save_all_clicks, names, templates, constraint_texts, *r
         return nothing, nothing
 
     indices = domain_indices(field_ids("variable-title"), uuids)
+    rule_sets = rule_set_positions(uuids)
     names_by_uuid = domain_names_of(domain_metadata)
 
     new_stores = list(nothing)
@@ -1122,12 +1666,11 @@ def save_rules(n_clicks, save_all_clicks, names, templates, constraint_texts, *r
         domain_uuid = uuids[index]
         saved = stores[index] if index < len(stores) and stores[index] else None
         settings = form_rules_settings(
-            names[index] if index < len(names) else "",
-            templates[index] if index < len(templates) else "",
+            form_blocks(names, templates, constraint_texts, rule_sets.get(domain_uuid, [])),
             variables_of(field_values, indices.get(domain_uuid, [])),
             names_by_uuid.get(domain_uuid),
             saved,
-            constraints=constraints_of_text(constraint_texts[index] if index < len(constraint_texts) else ""),
+            match=match_of_text(match_texts[index] if index < len(match_texts) else ""),
         )
         if settings == saved:
             continue

@@ -41,7 +41,7 @@ from odatix.workspace.domains import ParameterDomain
 from odatix.workspace.space import ORIGIN_BLACKLISTED, ORIGIN_GENERATED, ORIGIN_EDITED, ORIGIN_MANUAL
 from odatix.gui.icons import icon
 from odatix.gui.css_helper import Style
-from odatix.gui.page_scope import page_callback, page_clientside_callback, scoped
+from odatix.gui.page_scope import input_ids, page_callback, page_clientside_callback, scoped
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -964,7 +964,7 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                 style={"display": "none"} if (mode == "simulation" and entry is None) else {},
             ),
             html.Div(
-                config_rules.rules_section(domain_uuid, settings, open=open_rules, domain_name=domain),
+                config_rules.rules_section(domain_uuid, settings, open=open_rules, domain_name=domain, entry=entry),
                 style={"display": "none"} if (entry is not None and not domain) else {},
             ),
             # Which origins the stat strip of this domain currently filters out.
@@ -1005,6 +1005,10 @@ def domain_section(domain: str, mode: str = "arch", instance_name: str = "", set
                     "domain_name": domain,
                     "domain_uuid": domain_uuid,
                     "entry_domain": (entry or {}).get("name", ""),
+                    # Which substitution of the entry this section is: a domain
+                    # written in several places has one section per place, all
+                    # of them named after the same domain.
+                    "entry_position": (entry or {}).get("position", None),
                 },
             ),
         ],
@@ -1286,6 +1290,7 @@ def unsaved_rule_configurations(names, templates, stores, field_values, domain_m
     domain_metadata = domain_metadata or []
     uuids = config_rules.domain_uuids_of(domain_metadata)
     indices = config_rules.domain_indices(config_rules.field_ids("variable-title"), uuids)
+    rule_sets = config_rules.rule_set_positions(uuids)
     names_by_uuid = config_rules.domain_names_of(domain_metadata)
     stores = stores or []
     configurations_by_domain = {}
@@ -1294,23 +1299,19 @@ def unsaved_rule_configurations(names, templates, stores, field_values, domain_m
         if only is not None and domain_uuid not in only:
             continue
         variables = config_rules.variables_of(field_values, indices.get(domain_uuid, []))
-        name = names[i] if i < len(names) else ""
-        template = templates[i] if i < len(templates) else ""
-        constraints = config_rules.constraints_of_text(
-            constraint_texts[i] if i < len(constraint_texts or ()) else ""
-        )
+        blocks = config_rules.form_blocks(names, templates, constraint_texts, rule_sets.get(domain_uuid, []))
         saved = stores[i] if i < len(stores) and stores[i] else config_rules.rules_settings("", "", {})
         current = config_rules.form_rules_settings(
-            name, template, variables, names_by_uuid.get(domain_uuid), saved, constraints=constraints,
+            blocks, variables, names_by_uuid.get(domain_uuid), saved,
+            # Which configurations are substituted for which is not what a
+            # preview of the rules is about: taken from the saved settings, so
+            # editing the selectors alone does not read as unsaved rules here.
+            match=config_rules.configuration_match(saved),
         )
         if current == saved:
             continue
 
-        space = config_rules.effective_rules(
-            name, template, variables,
-            blacklist=config_rules.configuration_blacklist(saved),
-            constraints=constraints,
-        )
+        space = config_rules.rules_space(current)
         if not space.generates:
             continue
         try:
@@ -1458,14 +1459,17 @@ def sim_arch_sections(search, odatix_settings, triggered_id, metadata, requested
         sim_domains.save_param_domains(simulation, position, domains)
     elif action == "delete-domain":
         deleted_uuid = triggered_id.get("domain_uuid", "")
+        # A domain substituted in several places has one section per
+        # substitution: what is deleted is the one section, named by its place
+        # among them, not every substitution of that domain.
         deleted = next(
-            (data.get("entry_domain", "") for data in metadata or []
+            (data.get("entry_position", None) for data in metadata or []
              if data.get("domain_uuid", "") == deleted_uuid),
             None,
         )
-        if deleted is None:
+        if deleted is None or not (0 <= deleted < len(domains)):
             return dash.no_update, dash.no_update, dash.no_update
-        domains = [(name, overrides) for name, overrides in domains if name != deleted]
+        domains = [domain for index, domain in enumerate(domains) if index != deleted]
         sim_domains.save_param_domains(simulation, position, domains)
 
     sections = [main_domain_placeholder()]
@@ -1988,10 +1992,14 @@ def show_more_configs(
     is read from the cards themselves rather than from a count, so adding or
     deleting a configuration in the meantime cannot make this skip one.
     """
-    nothing = [dash.no_update] * len(domain_metadata)
+    output_groups = [group if isinstance(group, list) else [group] for group in (ctx.outputs_list or [])]
+
+    def unchanged():
+        return tuple([dash.no_update] * len(group) for group in output_groups)
+
     trigger = ctx.triggered_id
     if not isinstance(trigger, dict) or not any(clicks or []):
-        return nothing, nothing, nothing, nothing, nothing
+        return unchanged()
 
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     trig_domain_uuid = trigger.get("domain_uuid", "")
@@ -2000,11 +2008,11 @@ def show_more_configs(
         -1,
     )
     if not instance_name or index < 0:
-        return nothing, nothing, nothing, nothing, nothing
+        return unchanged()
 
     domain = instance_domain(instances, instance_name, domain_metadata[index].get("domain_name", ""))
     if domain is None:
-        return nothing, nothing, nothing, nothing, nothing
+        return unchanged()
 
     shown = [
         (data or {}).get("config_name", "")
@@ -2042,22 +2050,28 @@ def show_more_configs(
             ),
         )
 
-    def only_here(value):
-        return [value if i == index else dash.no_update for i in range(len(domain_metadata))]
+    def only_here(group_index, value):
+        return [
+            value if ((item or {}).get("id", {}) or {}).get("domain_uuid", "") == trig_domain_uuid else dash.no_update
+            for item in output_groups[group_index]
+        ]
 
     return (
-        only_here(row),
-        only_here(show_more_label(hidden)),
-        only_here(show_more_count(hidden)),
-        only_here(show_more_class(config_layout, hidden)),
-        only_here(hidden),
+        only_here(0, row),
+        only_here(1, show_more_label(hidden)),
+        only_here(2, show_more_count(hidden)),
+        only_here(3, show_more_class(config_layout, hidden)),
+        only_here(4, hidden),
     )
 
 
 def rules_with_configuration_blacklist(saved_rules, config_name, blacklisted):
     """Return saved rules with one generated configuration added or removed."""
     rules = dict(saved_rules or {})
-    configurations = dict(rules.get(config_rules.CONFIGURATIONS_KEY, {}) or {})
+    declared = rules.get(config_rules.CONFIGURATIONS_KEY, {}) or {}
+    if isinstance(declared, (list, tuple)):
+        return config_rules.rules_with_blacklisted_rule_set_configuration(rules, config_name, blacklisted)
+    configurations = dict(declared)
     blacklist = config_rules.configuration_blacklist(rules)
     if blacklisted:
         if config_name not in blacklist:
@@ -2105,8 +2119,8 @@ def toggle_generated_configuration_blacklist(
     # otherwise a page reload would toggle the blacklist a second time on its own.
     clicked = next(
         (
-            clicks for entry, clicks in zip(ctx.inputs_list[0], delete_clicks or [])
-            if entry.get("id") == trigger
+            clicks for entry, clicks in zip(input_ids("delete-config"), delete_clicks or [])
+            if entry == trigger
         ),
         None,
     )
@@ -2197,9 +2211,9 @@ dash.clientside_callback(
     Input("config-content-debounce", "data"),
     State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
     Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
     *config_rules.variable_inputs(),
     # Card rows are rebuilt after a blacklist toggle. Metadata must be an input
