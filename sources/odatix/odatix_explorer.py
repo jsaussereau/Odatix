@@ -21,7 +21,6 @@
 
 import os
 import sys
-import webbrowser
 from threading import Thread
 import logging
 import argparse
@@ -41,7 +40,7 @@ if sources_dir not in sys.path:
 import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
 from odatix.explorer.standalone import ExplorerStandaloneApp
-from odatix.lib.utils import get_local_ip, find_free_port
+from odatix.lib.utils import get_local_ip, find_free_port, open_browser_when_ready
 
 sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
 
@@ -81,8 +80,9 @@ def parse_arguments():
 # Misc functions
 ######################################
 
-def open_browser():
-    webbrowser.open("http://" + ip_address + ':' + str(port) + "/explorer", new=0, autoraise=True)
+def open_browser(host_address):
+    """Open the explorer page, once the server is up and accepting connections."""
+    open_browser_when_ready("http://" + ip_address + ':' + str(port) + "/explorer", host_address, port, script_name=script_name)
 
 def close_server(old_settings):
     if old_settings is not None:
@@ -123,10 +123,6 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
     else:
         printc.say("press 'q' to quit", script_name=script_name)
 
-    # Open the web page
-    if not do_not_open_browser:
-        process = Thread(target=open_browser).start()
-
     if normal_term_mode:
         old_settings = None
     else:
@@ -142,6 +138,10 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
     # Start the server
     serve_thread = Thread(target=serve, args=(result_explorer.app.server,), kwargs={'host': host_address, 'port': port})
     serve_thread.start()
+
+    # Open the web page, only once the server is actually listening
+    if not do_not_open_browser:
+        Thread(target=open_browser, args=(host_address,), daemon=True).start()
 
     try:
         while True:

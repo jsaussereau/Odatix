@@ -23,22 +23,22 @@
 Color palettes, marker symbols and bar patterns used by the chart engine.
 """
 
-import plotly.express as px
+import plotly.colors as plotly_colors
 
 # Selectable trace color palettes
 PALETTES = {
-  "Plotly": px.colors.qualitative.Plotly,
-  "D3": px.colors.qualitative.D3,
-  "G10": px.colors.qualitative.G10,
-  "T10": px.colors.qualitative.T10,
-  "Bold": px.colors.qualitative.Bold,
-  "Vivid": px.colors.qualitative.Vivid,
-  "Safe": px.colors.qualitative.Safe,
-  "Pastel": px.colors.qualitative.Pastel,
-  "Prism": px.colors.qualitative.Prism,
-  "Dark24": px.colors.qualitative.Dark24,
-  "Light24": px.colors.qualitative.Light24,
-  "Alphabet": px.colors.qualitative.Alphabet,
+  "Plotly": plotly_colors.qualitative.Plotly,
+  "D3": plotly_colors.qualitative.D3,
+  "G10": plotly_colors.qualitative.G10,
+  "T10": plotly_colors.qualitative.T10,
+  "Bold": plotly_colors.qualitative.Bold,
+  "Vivid": plotly_colors.qualitative.Vivid,
+  "Safe": plotly_colors.qualitative.Safe,
+  "Pastel": plotly_colors.qualitative.Pastel,
+  "Prism": plotly_colors.qualitative.Prism,
+  "Dark24": plotly_colors.qualitative.Dark24,
+  "Light24": plotly_colors.qualitative.Light24,
+  "Alphabet": plotly_colors.qualitative.Alphabet,
 }
 
 DEFAULT_PALETTE = "Plotly"

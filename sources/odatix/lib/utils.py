@@ -396,3 +396,28 @@ def find_free_port(host, start_port, max_find_port_attempts=100):
         except OSError:
             port += 1
             attempts += 1
+
+
+def open_browser_when_ready(url, host, port, timeout=30.0, poll_interval=0.05, script_name=""):
+    """Open `url` in a browser, but only once the server actually accepts connections.
+
+    Opening the browser right away (before the app is built and waitress is
+    listening) makes the browser display a connection error and forces the user
+    to refresh the page manually.
+    """
+    import webbrowser
+
+    connect_host = "127.0.0.1" if host in ("0.0.0.0", "") else host
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        try:
+            sock.connect((connect_host, port))
+            break
+        except OSError:
+            time.sleep(poll_interval)
+        finally:
+            sock.close()
+    webbrowser.open(url, new=0, autoraise=True)
+    printc.note(f"Browser opened (use -B to disable this behavior)", script_name)

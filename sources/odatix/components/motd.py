@@ -37,7 +37,6 @@ Functions:
 import os
 import sys
 import argparse
-import requests
 
 import odatix.lib.printc as printc
 
@@ -130,6 +129,8 @@ def print_version():
 
 def check_for_update():
   """Checks for a newer version of Odatix on PyPI."""
+  import requests  # imported lazily: it is slow to import and only needed here
+
   installed_version = read_version()
   try:
     # Get last version code from PyPI

@@ -21,7 +21,6 @@
 
 import os
 import sys
-import webbrowser
 from threading import Thread
 import socket
 import logging 
@@ -48,7 +47,7 @@ import odatix.lib.printc as printc
 import odatix.lib.term_mode as term_mode
 from odatix.lib.settings import OdatixSettings
 from odatix.gui.app import OdatixApp
-from odatix.lib.utils import get_local_ip, find_free_port
+from odatix.lib.utils import get_local_ip, find_free_port, open_browser_when_ready
 
 sys.stdout = term_mode.RawModeOutputWrapper(sys.stdout)
 
@@ -197,8 +196,9 @@ def get_landing_page(args):
 # Misc functions
 ######################################
 
-def open_browser():
-    webbrowser.open("http://" + ip_address + ':' + str(port) + landing_page, new=0, autoraise=True)
+def open_browser(host_address):
+    """Open the landing page, once the server is up and accepting connections."""
+    open_browser_when_ready("http://" + ip_address + ':' + str(port) + landing_page, host_address, port, script_name=script_name)
 
 def close_server(old_settings):
     if old_settings is not None:
@@ -239,10 +239,6 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
     else:
         printc.say("press 'q' to quit", script_name=script_name)
 
-    # Open the web page
-    if not do_not_open_browser:
-        process = Thread(target=open_browser).start()
-
     if normal_term_mode:
         old_settings = None
     else:
@@ -265,6 +261,10 @@ def start_odatix_app(network=False, preferred_port=None, normal_term_mode=False,
         kwargs={'host': host_address, 'port': port, 'threads': 16},
     )
     serve_thread.start()
+
+    # Open the web page, only once the server is actually listening
+    if not do_not_open_browser:
+        Thread(target=open_browser, args=(host_address,), daemon=True).start()
     
     try:
         while True:

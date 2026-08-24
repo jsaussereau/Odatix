@@ -32,9 +32,6 @@ export figures with a fixed look regardless of the app theme.
 
 import copy
 
-import plotly.graph_objects as go
-import plotly.io as pio
-
 AUTO = "auto"
 DEFAULT_PLOT_THEME = AUTO
 
@@ -56,7 +53,14 @@ _PLOT_THEMES = {
 }
 
 
+# The custom templates are only needed once a figure is actually built.
+_templates_registered = False
+
+
 def _register_template(name, base, paper_bgcolor, plot_bgcolor, **extra):
+  import plotly.graph_objects as go
+  import plotly.io as pio
+
   layout = copy.deepcopy(pio.templates[base].layout).update(
     paper_bgcolor=paper_bgcolor,
     plot_bgcolor=plot_bgcolor,
@@ -75,12 +79,19 @@ def _register_template(name, base, paper_bgcolor, plot_bgcolor, **extra):
   pio.templates[name] = go.layout.Template(layout=layout)
 
 
-_register_template("odatix_light", "plotly_white", "#ffffff", "#ffffff")
-_register_template("odatix_dark", "plotly_dark", "#24292e", "#24292e")
-_register_template("odatix_darker", "plotly_dark", "#24292e", "#181b20")
-_register_template("code_dark", "plotly_dark", "#252526", "#252526")
-_register_template("candy", "plotly", "#954DC5", "#6D13A8", barcornerradius=10000)
-_register_template("gradient", "plotly_white", "#ffffff", "#ffffff")
+def _ensure_templates():
+  """Register the custom Plotly templates, once."""
+  global _templates_registered
+  if _templates_registered:
+    return
+  _templates_registered = True
+
+  _register_template("odatix_light", "plotly_white", "#ffffff", "#ffffff")
+  _register_template("odatix_dark", "plotly_dark", "#24292e", "#24292e")
+  _register_template("odatix_darker", "plotly_dark", "#24292e", "#181b20")
+  _register_template("code_dark", "plotly_dark", "#252526", "#252526")
+  _register_template("candy", "plotly", "#954DC5", "#6D13A8", barcornerradius=10000)
+  _register_template("gradient", "plotly_white", "#ffffff", "#ffffff")
 
 
 def plot_theme_names():
@@ -91,4 +102,5 @@ def get_template(plot_theme):
   """Plotly template name for a plot theme, or None for "auto"."""
   if plot_theme not in _PLOT_THEMES:
     return None
+  _ensure_templates()
   return _PLOT_THEMES[plot_theme]
