@@ -5,6 +5,7 @@
 #-----------------------------------------------------------------------------
 # TECHNOLOGY PATHS
 #-----------------------------------------------------------------------------
+set ::LIB_TYPE GF_22nm
 
 set PDK_PATH \
     /asic/pdk/globalfoundries/22FDX-PLUS/V1.0_3.4
@@ -52,13 +53,15 @@ lappend LIBS \
 #foreach lib $LIBS {
 #    read_libs $lib
 #}
-if {$synth_mode eq "physical"} {
-    read_mmmc scripts/genus_mmmc.tcl
-} else {
-    foreach lib $LIBS {
-        read_libs $lib
-    }
-}
+#if {$synth_mode eq "physical"} {
+#    read_mmmc scripts/genus_mmmc.tcl
+#} else {
+#    foreach lib $LIBS {
+#        read_libs $lib
+#    }
+#}
+
+read_mmmc scripts/genus_mmmc.tcl
 
 #-----------------------------------------------------------------------------
 # PHYSICAL LIBRARIES

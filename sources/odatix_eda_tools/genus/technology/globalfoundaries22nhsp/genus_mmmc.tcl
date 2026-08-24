@@ -1,13 +1,21 @@
 #################################################################################
 # MMMC SETUP - SINGLE MODE / SINGLE CORNER
 #################################################################################
-
 # Timing library
 set TIMING_LIB \
     /asic/ip/DesignWare_logic_libs/globalfoundaries22nhsp/32hd116/hdl/lvt/2.00a/liberty/logic_synth_lvf/gf22nspllogl32hdl116f_SSG_0P72V_0P00V_0P60V_M1P00V_125C.lib.gz
 
 # Constraints
-set SDC_FILE timing_constraints.txt
+set SDC_FILE $constraints_file
+
+puts "PWD = [pwd]"
+
+if {[info exists constraints_file]} {
+    puts "constraints_file = $constraints_file"
+} else {
+    puts "ERROR: constraints_file is NOT defined"
+}
+
 
 # QRC technology files
 set QRC_MAX \
