@@ -29,9 +29,28 @@ lappend LIBS h18_CORELIB_WC.lib
 #-----------------------------------------------------------------------------
 # READ LIBRARIES
 #-----------------------------------------------------------------------------
-foreach lib $LIBS {
-    read_libs $lib
-}
+#foreach lib $LIBS {
+#    read_libs $lib
+#}
+
+set ::LIB_TYPE "AMS_H18"
+read_mmmc scripts/genus_mmmc.tcl
+
+#-----------------------------------------------------------------------------
+# PHYSICAL LIBRARIES
+#-----------------------------------------------------------------------------
+set H18_LEF_ROOT /asic/pdk/ams/AMS_411_CDS/cds/HK_H18/LEF/h18a4
+
+set LEFS [list]
+# Technology LEF
+lappend LEFS $H18_LEF_ROOT/h18a4.lef
+# Standard cells
+lappend LEFS $H18_LEF_ROOT/CORELIB.lef
+
+#-----------------------------------------------------------------------------
+# READ PHYSICAL LIBRARIES
+#-----------------------------------------------------------------------------
+read_physical -lefs $LEFS
 
 #################################################################################
 # HDL / NETLIST OPTIONS
