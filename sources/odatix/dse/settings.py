@@ -198,6 +198,12 @@ class SearchSettings(Settings):
         comment="bayesian only, empty: 12 - how many Monte Carlo draws value a candidate",
         doc="How many samples the acquisition function averages a candidate's value over.",
     )
+    constraint_models = Setting(
+        False, type="bool",
+        comment="bayesian only, model each constraint on its own instead of their total"
+                "\n (finer, but one more model to fit per constraint on every refit)",
+        doc="Whether each constraint gets a model of its own.",
+    )
 
 
 class CampaignSettings(Settings):

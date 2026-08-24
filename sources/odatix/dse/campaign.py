@@ -153,6 +153,10 @@ class Campaign(object):
             tournament=self.search.tournament,
             population=self.search.population,
             batch=self.search.batch,
+            candidates=self.search.candidates,
+            samples=self.search.samples,
+            constraints=self.objectives.constraints,
+            constraint_models=self.search.constraint_models,
         )
         self.archive = Archive(
             self.archive_path, self.name, self.objectives,

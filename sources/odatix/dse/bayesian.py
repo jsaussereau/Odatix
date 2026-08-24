@@ -61,18 +61,47 @@ heuristic), which is enough to keep two proposals made moments apart from
 landing on top of each other without pretending to know how the pending one
 will actually turn out.
 
+Constraints are modeled too, and separately (see
+:mod:`odatix.dse.constraints`). A constraint is not an objective and cannot be
+folded into one -- a design either meets it or it does not -- but how far a
+design is from meeting it varies over the space just as smoothly as any metric
+does, which is exactly the kind of surface a Gaussian process is for. So one
+more model is fit, on how much the constraints are missed by, and what it is
+asked for is not a value but a probability: how likely a candidate is to be
+feasible at all. That probability multiplies the expected gain, which is the
+constrained form of the acquisition -- a design the model expects to be
+excellent and infeasible is worth as little as its chance of being feasible,
+and stops being proposed over and over.
+
+Before anything feasible has been measured there is no front worth growing and
+nothing for the expected gain to mean, so the search ranks candidates by that
+probability alone: until it has one design that works, finding one *is* the
+search.
+
 Cold and blind at the start -- there is nothing yet to fit a surface to -- so
 the first handful of designs are drawn at random, exactly the way a genetic
 search opens.
 """
 
+import math
+
 import numpy as np
 
 from odatix.dse.gp import GaussianProcess
-from odatix.dse.objectives import hypervolume_improvement, pareto_front
+from odatix.dse.objectives import hypervolume_improvement, pareto_front, violation_of
 from odatix.dse.strategy import Strategy
 
 __all__ = ["BayesianSearch"]
+
+
+def _below_zero(mean, deviation):
+    """
+    How much of a normal sits at or below zero -- a model's answer to "is this
+    design feasible", given what it believes ``log1p(violation)`` to be there.
+    """
+    if deviation <= 1e-9:
+        return 1.0 if mean <= 0.0 else 0.0
+    return 0.5 * (1.0 + math.erf(-mean / (deviation * math.sqrt(2.0))))
 
 
 class BayesianSearch(Strategy):
@@ -148,6 +177,32 @@ class BayesianSearch(Strategy):
         self.pending = {}
         #: One model per objective. Empty until there is enough to fit at all.
         self.models = []
+        #: The campaign's constraints, so that a search can model them one by
+        #: one rather than only their total (see ``constraint_models``).
+        #: Empty for a campaign that declares none, and for anything that
+        #: builds this strategy without saying -- in which case only the
+        #: total, which rides along on every cost vector, is available.
+        self.constraints = list(options.get("constraints") or ())
+        #: Whether each constraint gets a model of its own. Off by default:
+        #: one model per constraint is one more Gaussian process to refit on
+        #: every refit, and a campaign with a handful of constraints pays
+        #: that on every proposal, so it is worth asking for and not worth
+        #: assuming (see :meth:`_fit_feasibility`).
+        self.constraint_models = bool(options.get("constraint_models"))
+        #: The models of how far a design is from feasible, fit on the
+        #: violation the campaign's constraints put on every measured design
+        #: -- one for their total, or one per constraint when
+        #: ``constraint_models`` is on (see :meth:`_fit_feasibility`). Empty
+        #: when there is nothing to learn -- no constraints declared, or
+        #: nothing measured yet that tells one design from another -- in
+        #: which case every candidate is taken to be feasible, which is what
+        #: an unconstrained campaign is.
+        self.feasibility = []
+        #: What each constraint made of every measured design, in observation
+        #: order, or ``None`` for a design whose metrics do not say. Only a
+        #: campaign modelling its constraints one by one has any use for it:
+        #: the total is on the cost vector already.
+        self.violations = []
         #: How many designs the models were last fit on -- what tells
         #: :meth:`_maybe_fit` how much has changed since, and what a refit
         #: would cost: a Gaussian process is refit in time cubic in how many
@@ -175,7 +230,28 @@ class BayesianSearch(Strategy):
                 continue
             self.genomes.append(genome)
             self.costs.append(evaluation.costs)
+            self.violations.append(self._violations_of(getattr(evaluation, "metrics", None)))
         self._maybe_fit()
+
+    def _violations_of(self, metrics):
+        """
+        What each constraint makes of one design's measurements, or ``None``
+        when they do not say -- a constrained metric a run did not produce
+        leaves the design impossible to place against that constraint, and
+        one channel short of a full record.
+        """
+        if not self.constraints:
+            return None
+        amounts = []
+        for constraint in self.constraints:
+            value = (metrics or {}).get(constraint.metric)
+            if value is None or isinstance(value, bool):
+                return None
+            amount = constraint.violation_of(value)
+            if amount is None:
+                return None
+            amounts.append(float(amount))
+        return amounts
 
     def _maybe_fit(self):
         """
@@ -221,6 +297,62 @@ class BayesianSearch(Strategy):
             seed = self.rng.randrange(1 << 30)
             models.append(GaussianProcess(seed=seed).fit(X, y))
         self.models = models
+        self._fit_feasibility(X)
+
+    def _fit_feasibility(self, X):
+        """
+        The models of what the constraints make of a design, fit on the same
+        points the objectives are.
+
+        There is one of them by default, fit on the total violation every cost
+        vector carries: what the search needs of it is the boundary between
+        the designs that count and the designs that do not, and that boundary
+        is the same one whichever constraint puts a design on the wrong side
+        of it. With ``constraint_models`` on there is one per constraint
+        instead, fit on what that constraint alone makes of a design, and a
+        candidate has to satisfy all of them at once (see
+        :meth:`_feasibility_of`). That is the finer model -- two constraints
+        pulling in different directions across the space sum to a surface
+        shaped like neither -- and it costs one more Gaussian process per
+        constraint on every refit, which is why it is asked for rather than
+        assumed. It falls back to the total when any measured design is
+        missing one of the constrained metrics, since a channel with a hole in
+        it is not one to fit.
+
+        What each is fit on is ``log1p`` of the violation rather than the
+        violation itself. A violation is zero over the whole feasible region
+        and grows without a bound outside it, so a design missing a timing
+        constraint by a factor of ten would otherwise drag the surface across
+        the whole space with it; on a log scale one bad design is one bad
+        design, and the boundary the search actually cares about -- where the
+        violation reaches zero -- stays where it is, since ``log1p(0)`` is
+        zero too.
+
+        Nothing is fit on a channel where every measured design agrees: no
+        constraints declared at all, or none of them missed yet, or all of
+        them missed by exactly as much. A flat surface is a division by zero
+        to a Gaussian process and, more to the point, has nothing in it to
+        have learned.
+        """
+        self.feasibility = []
+        for channel in self._violation_channels():
+            if np.allclose(channel, channel[0]):
+                continue
+            seed = self.rng.randrange(1 << 30)
+            self.feasibility.append(GaussianProcess(seed=seed).fit(X, np.log1p(channel)))
+
+    def _violation_channels(self):
+        """
+        The violation series to fit: one per constraint when the campaign asks
+        for that and every measured design has a full record, the total
+        otherwise.
+        """
+        if self.constraint_models and self.constraints and all(self.violations):
+            return [
+                np.array([record[index] for record in self.violations], dtype=float)
+                for index in range(len(self.constraints))
+            ]
+        return [np.array([violation_of(cost) for cost in self.costs], dtype=float)]
 
     def _normalize(self, genome):
         """A genome as the model reads it: one axis, scaled to ``[0, 1]``."""
@@ -229,6 +361,76 @@ class BayesianSearch(Strategy):
     @property
     def _ready(self):
         return bool(self.models) and not any(model is None for model in self.models)
+
+    @property
+    def _has_feasible(self):
+        """Whether anything measured so far meets the constraints."""
+        return any(not violation_of(cost) for cost in self.costs)
+
+    def _violation_belief(self, genomes):
+        """
+        What the feasibility models believe of a pool: for each of them, a mean
+        and a spread for ``log1p(violation)`` at every candidate. Empty when
+        there is no model to ask.
+        """
+        if not self.feasibility:
+            return []
+        points = np.array([self._normalize(genome) for genome in genomes])
+        beliefs = []
+        for model in self.feasibility:
+            mean, variance = model.predict(points)
+            mean = np.asarray(mean, dtype=float).reshape(-1)
+            deviation = np.sqrt(np.maximum(np.asarray(variance, dtype=float).reshape(-1), 0.0))
+            beliefs.append((mean, deviation))
+        return beliefs
+
+    def _closest_to_feasible(self, genomes):
+        """
+        The candidate the model puts nearest to meeting the constraints --
+        what the search asks for while nothing measured meets them yet.
+
+        Not the likeliest to be feasible: when every design so far misses the
+        constraints by a wide margin, every candidate's *probability* of being
+        feasible is zero to the last decimal the arithmetic keeps, and ranking
+        by it would be ranking by nothing. What is ranked instead is how far
+        from feasible the model expects a candidate to be, read optimistically
+        -- a spread below the mean, so a place the model is unsure about is
+        worth looking at against one it is sure is merely bad. That number
+        keeps saying something long after the probability has flattened, and
+        it points the same way once it stops.
+        """
+        beliefs = self._violation_belief(genomes)
+        if not beliefs:
+            return genomes[0]
+
+        def distance(index):
+            return sum(mean[index] - deviation[index] for mean, deviation in beliefs)
+
+        return genomes[min(range(len(genomes)), key=distance)]
+
+    def _feasibility_of(self, genomes):
+        """
+        How likely each of a pool of candidates is to meet the constraints.
+
+        A model predicts a mean and a spread for ``log1p(violation)``, of
+        which what is wanted is only the mass at or below zero -- the feasible
+        side of the boundary -- read off the normal the model believes the
+        point to be drawn from. With one model per constraint the answer is
+        the product of theirs: a design counts only if it meets every one of
+        them, and what the models know of two different constraints is not
+        enough to say how they lean together. No model fit at all answers one for
+        everything, which is what a campaign with no constraints deserves and
+        what a campaign whose constraints are all met so far cannot yet be
+        told apart from.
+        """
+        beliefs = self._violation_belief(genomes)
+        if not beliefs:
+            return [1.0] * len(genomes)
+        probabilities = [1.0] * len(genomes)
+        for mean, deviation in beliefs:
+            for index in range(len(genomes)):
+                probabilities[index] *= _below_zero(mean[index], deviation[index])
+        return probabilities
 
     ######################################
     # What it proposes
@@ -263,6 +465,13 @@ class BayesianSearch(Strategy):
         is a candidate whose mean is unremarkable and whose spread is what
         makes it worth trying -- which the screen already leans towards by
         being optimistic rather than average.
+
+        Both passes are weighted by how likely a candidate is to meet the
+        constraints, so that a design the models expect to be excellent and
+        infeasible is ranked for what it is worth rather than for what it
+        would be worth if it worked. While nothing feasible has been measured
+        at all, that weight is the whole of the ranking (see
+        :meth:`_feasibility_of`).
         """
         front = self._current_front()
         reference = self._reference()
@@ -274,13 +483,23 @@ class BayesianSearch(Strategy):
             # have proposed anyway, and the campaign is what decides whether
             # it has already been seen.
             return tuple(self.rng.randrange(length) for length in self.space.lengths)
+
+        feasible = self._feasibility_of(pool)
+        if not self._has_feasible and self.feasibility:
+            # Nothing measured yet meets the constraints, so there is no front
+            # of designs that count and no volume worth growing: what the
+            # front covers is a ranking among designs that are all, so far,
+            # not answers. Until one of them is, the search is for a feasible
+            # design and for nothing else.
+            return self._closest_to_feasible(pool)
+
         if reference is None or not front:
             return pool[0]
 
         means, deviations = self._predict_many(pool)
         screened = sorted(
             range(len(pool)),
-            key=lambda index: -hypervolume_improvement(
+            key=lambda index: -feasible[index] * hypervolume_improvement(
                 [mean - deviation for mean, deviation in zip(means[index], deviations[index])],
                 front, reference,
             ),
@@ -288,7 +507,9 @@ class BayesianSearch(Strategy):
 
         best_index, best_score = screened[0], -1.0
         for index in screened[:self.shortlist]:
-            score = self._expected_gain(means[index], deviations[index], front, reference)
+            score = feasible[index] * self._expected_gain(
+                means[index], deviations[index], front, reference
+            )
             if score > best_score:
                 best_index, best_score = index, score
         return pool[best_index]
@@ -345,8 +566,21 @@ class BayesianSearch(Strategy):
         return [self.genomes[index] for index in pareto_front(self.costs)]
 
     def _current_front(self):
-        """The front as it is known now, pending designs' liars included."""
-        costs = list(self.costs) + [cost for cost in self.pending.values() if cost is not None]
+        """
+        The front as it is known now, pending designs' liars included.
+
+        Once anything measured meets the constraints, the ones that do not are
+        left out of it: what a candidate is scored on growing is the front of
+        designs that count, and an infeasible design sitting out past it would
+        otherwise cover volume no candidate can be credited for reaching. A
+        pending design's liar is kept either way -- what it is there for is to
+        keep the next proposal from landing on top of it, and it is not yet
+        known which side of the constraints it will come back on.
+        """
+        measured = list(self.costs)
+        if self._has_feasible:
+            measured = [cost for cost in measured if not violation_of(cost)]
+        costs = measured + [cost for cost in self.pending.values() if cost is not None]
         if not costs:
             return []
         front = [costs[index] for index in pareto_front(costs)]
