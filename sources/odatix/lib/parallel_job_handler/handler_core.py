@@ -938,6 +938,31 @@ class ParallelJobHandler:
         self._read_available_pipe_data(job, job.process.stdout, stream_key="stdout")
         self._read_available_pipe_data(job, job.process.stderr, stream_key="stderr")
 
+    @staticmethod
+    def _close_process_pipes(process):
+        """
+        Release a finished process's pipe file descriptors.
+
+        Popen keeps stdout/stderr open until the object is collected, and a job
+        holds on to its process for as long as it is listed -- retired jobs
+        included. Two descriptors per task, never given back, is what makes a
+        long exploration die on "Too many open files" partway through.
+        """
+        if process is None:
+            return
+        for name in ("stdout", "stderr", "stdin"):
+            pipe = getattr(process, name, None)
+            if pipe is None:
+                continue
+            try:
+                pipe.close()
+            except Exception:
+                pass
+            try:
+                setattr(process, name, None)
+            except Exception:
+                pass
+
     def _read_available_pipe_data(self, job, pipe, stream_key="default"):
         if pipe is None:
             return
@@ -1154,6 +1179,7 @@ class ParallelJobHandler:
                     # Drain remaining buffered output before state transition/retire.
                     self._drain_process_pipes(job)
                     self._flush_job_log_buffer(job)
+                    self._close_process_pipes(job.process)
 
                     if job.process.returncode == 0:
                         if job.status == "starting":
@@ -1704,6 +1730,13 @@ class ParallelJobHandler:
 
     def retire_job(self, job, progress=100):
         job.stop_time = time.time()
+        # Nothing reads a retired job's pipes any more, and a job holds on to
+        # its process for the whole session -- a killed job would otherwise keep
+        # its descriptors to the end. Already-drained pipes are None here, so
+        # this only catches what the normal path did not.
+        self._drain_process_pipes(job)
+        self._flush_job_log_buffer(job)
+        self._close_process_pipes(job.process)
         # A job can be retired before it ever started running -- rtl generation
         # that failed outright never made it into the running list -- and
         # list.remove() would raise there, killing the scheduler thread.
@@ -1731,6 +1764,7 @@ class ParallelJobHandler:
         for job in self.running_job_list:
             if job.process:
                 job.process.wait()
+                self._close_process_pipes(job.process)
 
     def read_process_output(self):
         if sys.platform == "win32":

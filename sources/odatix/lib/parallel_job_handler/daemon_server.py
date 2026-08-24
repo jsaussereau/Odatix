@@ -42,6 +42,29 @@ from odatix.lib.utils import find_free_port
 import odatix.lib.hard_settings as hard_settings
 
 
+def _raise_file_descriptor_limit():
+    """
+    Lift the soft descriptor limit to the hard one, when the platform allows it.
+
+    A session runs every job of an exploration through pipes, and the default
+    soft limit is low on some hosts. Descriptors are given back now (see
+    ParallelJobHandler._close_process_pipes), so this is only headroom.
+    """
+    try:
+        import resource
+    except ImportError:  # Windows
+        return
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if hard != resource.RLIM_INFINITY and soft >= hard:
+            return
+        target = hard if hard != resource.RLIM_INFINITY else 65536
+        resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+        diagnostics.log("raised file descriptor limit", was=soft, now=target)
+    except Exception as error:
+        diagnostics.log("could not raise file descriptor limit", error=str(error))
+
+
 def _write_state_file(state_file, endpoint_fields, auth, session_name, host):
     """Record where this session listens and how to authenticate to it.
 
@@ -153,6 +176,7 @@ def run_daemon(
     # stdout goes to /dev/null unless the daemon log was asked for.
     diagnostics.configure(diagnostics.diagnostics_path(state_file))
     diagnostics.log("daemon starting", session=str(session_name or ""), jobs=int(jobs))
+    _raise_file_descriptor_limit()
 
     host = str(host)
     jobs = max(1, int(jobs))

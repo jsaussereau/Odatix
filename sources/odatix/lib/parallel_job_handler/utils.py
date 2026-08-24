@@ -34,7 +34,7 @@ def read_pipe_windows(pipe, job, append_callback=None):
                 if job.log_size_limit != -1 and len(job.log_history) > job.log_size_limit:
                     job.log_history = job.log_history[-job.log_size_limit:]
                 job.log_changed = True
-        except OSError:
+        except (OSError, ValueError):
             break
 
 def get_elapsed_time_str(job_start_time, job_stop_time):
