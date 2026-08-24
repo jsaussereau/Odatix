@@ -30,6 +30,7 @@ import odatix.lib.hard_settings as hard_settings
 import odatix.lib.job_steps as job_steps
 import odatix.lib.metrics as metrics_lib
 import odatix.lib.results_schema as results_schema
+import odatix.lib.results_cache as results_cache
 from odatix.lib.utils import read_from_list, create_dir, KeyNotInListError, BadValueInListError
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.settings as settings
@@ -784,7 +785,7 @@ def export_results(input, output, tools, format, use_benchmark, benchmark_file, 
     # Export to the desired format
     output_file = os.path.join(output, "results_" + tool + ".yml")
     try:
-      results_schema.dump_results_file(output_file, units, records)
+      results_cache.store(output_file, units, records)
       printc.say('Results written to "' + output_file + '"', script_name=script_name)
       printc.note("Run 'odatix-explorer' to explore the results", script_name=script_name)
     except Exception as e:
@@ -1036,7 +1037,7 @@ def export_single_job_result(job, export_config=None):
   records = results_schema.upsert_records(records, job_records)
 
   try:
-    results_schema.dump_results_file(output_file, units, records)
+    results_cache.store(output_file, units, records)
   except Exception as e:
     printc.error('Could not write "' + output_file + '"', script_name=script_name)
     printc.cyan("error details: ", script_name=script_name, end="")

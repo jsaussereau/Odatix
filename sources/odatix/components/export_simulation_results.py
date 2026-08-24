@@ -37,6 +37,7 @@ import argparse
 
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
+import odatix.lib.results_cache as results_cache
 import odatix.lib.param_domain as param_domain
 import odatix.workspace.sim_architectures as sim_architectures
 import odatix.lib.hard_settings as hard_settings
@@ -324,7 +325,7 @@ def export_single_simulation_job(job, export_config=None):
     units.update(run_units)
     records = results_schema.upsert_records(records, new_records)
 
-    results_schema.dump_results_file(output_file, units, records)
+    results_cache.store(output_file, units, records)
 
     printc.say('Simulation results updated in "' + output_file + '"', script_name=script_name)
     return True
@@ -346,7 +347,7 @@ def export_simulation_results(work_root, sim_path, output_dir, output_filename=D
         records.extend(run_records)
 
     output_file = os.path.join(output_dir, output_filename)
-    results_schema.dump_results_file(output_file, all_units, records)
+    results_cache.store(output_file, all_units, records)
 
     printc.say('Simulation results written to "' + output_file + '"', script_name=script_name)
 

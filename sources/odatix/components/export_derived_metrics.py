@@ -42,6 +42,7 @@ import argparse
 
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
+import odatix.lib.results_cache as results_cache
 import odatix.lib.derived_metrics as derived_metrics_lib
 from odatix.lib.settings import OdatixSettings
 
@@ -170,7 +171,7 @@ def apply_derived_metrics(result_path, derived_metrics_file):
       units.pop(name, None)
 
     try:
-      results_schema.dump_results_file(path, units, results_file.records)
+      results_cache.store(path, units, results_file.records)
     except OSError as e:
       printc.error('Could not write results file "' + path + '": ' + str(e), script_name)
       return False

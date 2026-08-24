@@ -64,6 +64,17 @@ import os
 import re
 import yaml
 
+# The pure-Python YAML loader/emitter is several times slower than the libyaml
+# bindings *and* keeps the GIL for the whole parse: a results file rewritten
+# after every finished job would then stall every other thread of the process,
+# the job monitor included. libyaml is not always installed, hence the fallback.
+try:
+  _YamlLoader = yaml.CSafeLoader
+  _YamlDumper = yaml.CSafeDumper
+except AttributeError:  # pragma: no cover - depends on the PyYAML build
+  _YamlLoader = yaml.SafeLoader
+  _YamlDumper = yaml.SafeDumper
+
 import odatix.lib.hard_settings as hard_settings
 
 SCHEMA_VERSION = 2
@@ -552,7 +563,7 @@ def load_results_file(path):
       yaml.YAMLError: If the file is not valid YAML.
   """
   with open(path, "r") as file:
-    payload = yaml.safe_load(file)
+    payload = yaml.load(file, Loader=_YamlLoader)
   return load_results_payload(payload, path=path)
 
 
@@ -577,12 +588,13 @@ def dump_results_file(path, units, records):
       yaml.dump(
         {"schema": SCHEMA_VERSION, "units": units if units else {}, "results": records if records else []},
         file,
+        Dumper=_YamlDumper,
         default_style=None,
         default_flow_style=False,
         sort_keys=False,
       )
       file.flush()
-      os.fsync(file.fileno())
+      # os.fsync(file.fileno()) # os.fsync() not called: os.replace() is enough
     os.replace(temporary_path, path)
   except BaseException:
     try:

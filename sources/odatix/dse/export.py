@@ -46,6 +46,7 @@ deleting these files loses the marking, not the results.
 import os
 
 import odatix.lib.results_schema as results_schema
+import odatix.lib.results_cache as results_cache
 from odatix.dse.space import MAIN_DOMAIN
 
 __all__ = ["results_file_name", "results_path_for", "export_results", "META_DSE",
@@ -149,5 +150,5 @@ def export_results(archive, path, units=None):
   records = records_of(archive)
   if not records:
     return None
-  results_schema.dump_results_file(path, units or {}, records)
+  results_cache.store(path, units or {}, records)
   return path

@@ -43,6 +43,7 @@ import odatix.lib.printc as printc
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.results_schema as results_schema
+import odatix.lib.results_cache as results_cache
 from odatix.components.export_common import load_existing_results_file
 
 script_name = os.path.basename(__file__)
@@ -133,7 +134,7 @@ def export_analysis_results(summary, output_dir, tool, flow=None):
   records = results_schema.upsert_records(records, new_records)
 
   try:
-    results_schema.dump_results_file(output_file, units, records)
+    results_cache.store(output_file, units, records)
   except Exception as e:
     printc.error('Could not write analysis results "' + output_file + '"', script_name=script_name)
     printc.cyan("error details: ", script_name=script_name, end="")
@@ -244,7 +245,7 @@ def export_single_analysis_job(job, export_config=None):
   records = results_schema.upsert_records(records, [_record_from_result(result, tool, flow=flow)])
 
   try:
-    results_schema.dump_results_file(output_file, units, records)
+    results_cache.store(output_file, units, records)
   except Exception as e:
     printc.error('Could not write analysis results "' + output_file + '"', script_name=script_name)
     printc.cyan("error details: ", script_name=script_name, end="")

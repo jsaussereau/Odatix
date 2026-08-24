@@ -47,6 +47,8 @@ else:
 
 from odatix.components.motd import read_version
 
+import odatix.lib.results_cache as results_cache
+
 from odatix.lib.parallel_job_handler.ansi_to_curses import AnsiToCursesConverter
 from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
 from odatix.lib.utils import open_path_in_explorer, find_free_port
@@ -989,6 +991,11 @@ class ParallelJobHandler:
     #: anyone while it runs.
     SLOW_EXPORT_S = 0.5
 
+    # How long a burst of exports may keep the results file behind what has
+    # actually been exported. Long enough for the writes of a burst to be
+    # coalesced, short enough for a reader polling the file to feel live.
+    EXPORT_FLUSH_INTERVAL_S = 2.0
+
     def _submit_post_success_export(self, job):
         """
         Hand a finished job's export to the export thread, and come straight back.
@@ -1023,11 +1030,29 @@ class ParallelJobHandler:
         self._export_thread.start()
 
     def _export_loop(self):
-        """Run queued exports one at a time, without the handler lock."""
+        """
+        Run queued exports one at a time, without the handler lock.
+
+        Writes are coalesced (see results_cache): the results file is a single
+        document rewritten whole, so exporting a burst of finished jobs one
+        write at a time costs more the more results it already holds -- and
+        every one of those seconds is spent parsing and emitting YAML in this
+        process, where it also slows the monitor down. A burst therefore writes
+        at most every EXPORT_FLUSH_INTERVAL_S, and the file is always written
+        before the queue runs dry, so nothing waiting on a finished batch --
+        the explorer polling the file, a search reading its own results back --
+        ever sees it lag behind.
+        """
+        with results_cache.deferred_writes(self.EXPORT_FLUSH_INTERVAL_S):
+            self._drain_export_queue()
+
+    def _drain_export_queue(self):
+        """The loop itself, inside the deferred-write block opened by _export_loop()."""
         while True:
             try:
                 job = self._export_queue.get(timeout=0.5)
             except queue.Empty:
+                self._flush_exports()
                 if self._stop_event.is_set():
                     return
                 continue
@@ -1038,10 +1063,30 @@ class ParallelJobHandler:
                 success = False
                 diagnostics.log("export thread error", job=job.display_name, error=str(e))
 
+            # The last export of a burst is written before its job is marked
+            # done, so that a drained batch never reports success on results
+            # that are still only in memory. The others may wait.
+            if self._export_queue.empty():
+                self._flush_exports()
+            else:
+                self._flush_exports(due_only=True)
+
             with self._lock:
                 job.status = "success" if success else "failed"
                 self._exports_pending = max(0, self._exports_pending - 1)
                 self._run_post_batch_action_if_drained()
+
+    def _flush_exports(self, due_only=False):
+        """Write the results files the exports have only updated in memory so far."""
+        try:
+            if due_only:
+                results_cache.flush_due()
+            else:
+                results_cache.flush()
+        except Exception as e:
+            # Never take the export thread down: the content is still in the
+            # cache and the next flush writes it.
+            diagnostics.log("results flush error", error=str(e))
 
     def _run_post_success_export(self, job):
         """Run one job's export. Called on the export thread, lock-free."""

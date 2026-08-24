@@ -38,6 +38,7 @@ import xml.etree.ElementTree as ET
 
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
+import odatix.lib.results_cache as results_cache
 
 script_name = os.path.basename(__file__)
 
@@ -298,14 +299,11 @@ def load_existing_results_file(output_file):
     Load an existing results file (any supported format version) as
     (units, records). Older formats are auto-converted to v2 records, so the
     next write upgrades the file in place. Missing/unparsable files start empty.
+
+    Goes through the results cache: an incremental export re-reads the file it
+    is about to rewrite, and re-parsing it after every finished job is what made
+    exports slower and slower as results piled up. The returned objects belong
+    to the cache -- pass them back to results_cache.store().
     """
-    if not os.path.isfile(output_file):
-        return {}, []
+    return results_cache.load(output_file)
 
-    try:
-        results_file = results_schema.load_results_file(output_file)
-    except Exception:
-        printc.warning('Could not parse existing results file "' + output_file + '", starting over', script_name=script_name)
-        return {}, []
-
-    return results_file.units, results_file.records

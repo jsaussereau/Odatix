@@ -26,6 +26,7 @@ import argparse
 
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
+import odatix.lib.results_cache as results_cache
 from odatix.lib.settings import OdatixSettings
 from odatix.components.export_common import (
     parse_regex,
@@ -441,7 +442,7 @@ def export_single_workflow_job(job, export_config=None):
     units.update(run_units)
     records = results_schema.upsert_records(records, new_records)
 
-    results_schema.dump_results_file(output_file, units, records)
+    results_cache.store(output_file, units, records)
 
     printc.say('Workflow results updated in "' + output_file + '"', script_name=script_name)
     return True
@@ -489,7 +490,7 @@ def export_workflow_results(work_root, workflow_path, output_dir, output_filenam
         )
 
     output_file = os.path.join(output_dir, output_filename)
-    results_schema.dump_results_file(output_file, all_units, records)
+    results_cache.store(output_file, all_units, records)
 
     printc.say('Workflow results written to "' + output_file + '"', script_name=script_name)
 
