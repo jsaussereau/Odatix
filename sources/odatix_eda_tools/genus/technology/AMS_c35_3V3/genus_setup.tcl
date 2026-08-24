@@ -29,9 +29,28 @@ lappend LIBS c35_CORELIB_3B_WC.lib
 #-----------------------------------------------------------------------------
 # READ LIBRARIES
 #-----------------------------------------------------------------------------
-foreach lib $LIBS {
-    read_libs $lib
-}
+#foreach lib $LIBS {
+#    read_libs $lib
+#}
+
+set ::LIB_TYPE "AMS_C35"
+read_mmmc scripts/genus_mmmc.tcl
+
+#-----------------------------------------------------------------------------
+# PHYSICAL LIBRARIES
+#-----------------------------------------------------------------------------
+set C35_LEF_ROOT /asic/pdk/ams/AMS_410_CDS/cds/HK_C35/LEF/c35b4
+
+set LEFS [list]
+# Technology LEF
+lappend LEFS $C35_LEF_ROOT/c35b4.lef
+# Standard cells
+lappend LEFS $C35_LEF_ROOT/CORELIB.lef
+
+#-----------------------------------------------------------------------------
+# READ PHYSICAL LIBRARIES
+#-----------------------------------------------------------------------------
+read_physical -lefs $LEFS
 
 #################################################################################
 # HDL / NETLIST OPTIONS
