@@ -1731,6 +1731,10 @@ button.xpa-stat-card:hover {
     margin-bottom: 6px;
 }
 
+.xp-dse-axes .dash-dropdown {
+	width: 100%;
+}
+
 .xp-dse-card-title {
     font-size: 15px;
     font-weight: 600;
