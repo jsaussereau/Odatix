@@ -4,8 +4,10 @@
 
 set PDK_PATH /asic/pdk/ams/AMS_411_CDS
 
-set TIMING_LIB \
-    $PDK_PATH/liberty/h18_1.8V/h18_CORELIB_WC.lib
+set LIB_WC  $PDK_PATH/liberty/h18_1.8V/h18_CORELIB_WC.lib
+set LIB_TYP $PDK_PATH/liberty/h18_1.8V/h18_CORELIB_TYP.lib
+set LIB_BC  $PDK_PATH/liberty/h18_1.8V/h18_CORELIB_BC.lib
+
 
 set SDC_FILE $constraints_file
 
@@ -28,7 +30,15 @@ set QRC_FILE \
 
 create_library_set \
     -name LIBSET_WC \
-    -timing [list $TIMING_LIB]
+    -timing [list $LIB_WC]
+
+create_library_set \
+    -name LIBSET_TYP \
+    -timing [list $LIB_TYP]
+
+create_library_set \
+    -name LIBSET_BC \
+    -timing [list $LIB_BC]
 
 
 #################################################################################
@@ -38,6 +48,14 @@ create_library_set \
 create_timing_condition \
     -name TC_WC \
     -library_sets [list LIBSET_WC]
+
+create_timing_condition \
+    -name TC_TYP \
+    -library_sets [list LIBSET_TYP]
+
+create_timing_condition \
+    -name TC_BC \
+    -library_sets [list LIBSET_BC]
 
 
 #################################################################################
@@ -54,8 +72,13 @@ create_rc_corner \
 #################################################################################
 
 create_delay_corner \
-    -name DELAY_WC \
+    -name DELAY_WORST \
     -timing_condition TC_WC \
+    -rc_corner RC_DEFAULT
+
+create_delay_corner \
+    -name DELAY_BEST \
+    -timing_condition TC_BC \
     -rc_corner RC_DEFAULT
 
 
@@ -73,9 +96,14 @@ create_constraint_mode \
 #################################################################################
 
 create_analysis_view \
-    -name VIEW_WC \
+    -name VIEW_SETUP \
     -constraint_mode FUNC \
-    -delay_corner DELAY_WC
+    -delay_corner DELAY_WORST
+
+create_analysis_view \
+    -name VIEW_HOLD \
+    -constraint_mode FUNC \
+    -delay_corner DELAY_BEST
 
 
 #################################################################################
@@ -83,5 +111,5 @@ create_analysis_view \
 #################################################################################
 
 set_analysis_view \
-    -setup [list VIEW_WC] \
-    -hold  [list VIEW_WC]
+    -setup [list VIEW_SETUP] \
+    -hold  [list VIEW_HOLD]

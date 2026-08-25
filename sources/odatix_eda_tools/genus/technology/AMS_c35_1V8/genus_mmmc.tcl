@@ -7,8 +7,9 @@
 #-----------------------------------------------------------------------------
 set PDK_PATH /asic/pdk/ams/AMS_410_CDS
 
-set TIMING_LIB \
-    /asic/pdk/ams/AMS_410_CDS/liberty/c35_1.8V/c35_CORELIB_WC.lib
+set LIB_WC  $PDK_PATH/liberty/c35_1.8V/c35_CORELIB_WC.lib
+set LIB_TYP $PDK_PATH/liberty/c35_1.8V/c35_CORELIB_TYP.lib
+set LIB_BC  $PDK_PATH/liberty/c35_1.8V/c35_CORELIB_BC.lib
 
 #-----------------------------------------------------------------------------
 # CONSTRAINT FILE
@@ -21,7 +22,6 @@ if {![file exists $SDC_FILE]} {
 }
 
 set QRC_WORST $PDK_PATH/assura/c35b4/c35b4/RCX-worst/qrcTechFile
-
 set QRC_BEST $PDK_PATH/assura/c35b4/c35b4/RCX-best/qrcTechFile
 
 #-----------------------------------------------------------------------------
@@ -30,7 +30,15 @@ set QRC_BEST $PDK_PATH/assura/c35b4/c35b4/RCX-best/qrcTechFile
 
 create_library_set \
     -name LIBSET_WC \
-    -timing [list $TIMING_LIB]
+    -timing [list $LIB_WC]
+
+create_library_set \
+    -name LIBSET_TYP \
+    -timing [list $LIB_TYP]
+
+create_library_set \
+    -name LIBSET_BC \
+    -timing [list $LIB_BC]
 
 #-----------------------------------------------------------------------------
 # TIMING CONDITION
@@ -39,6 +47,14 @@ create_library_set \
 create_timing_condition \
     -name TC_WC \
     -library_sets [list LIBSET_WC]
+
+create_timing_condition \
+    -name TC_TYP \
+    -library_sets [list LIBSET_TYP]
+
+create_timing_condition \
+    -name TC_BC \
+    -library_sets [list LIBSET_BC]
 
 #-----------------------------------------------------------------------------
 # RC CORNER
@@ -57,13 +73,13 @@ create_rc_corner \
 #-----------------------------------------------------------------------------
 
 create_delay_corner \
-    -name DELAY_WC \
+    -name DELAY_WORST \
     -timing_condition TC_WC \
     -rc_corner RC_WORST
 
 create_delay_corner \
     -name DELAY_BEST \
-    -timing_condition TC_WC \
+    -timing_condition TC_BC \
     -rc_corner RC_BEST
 
 #-----------------------------------------------------------------------------
@@ -81,7 +97,7 @@ create_constraint_mode \
 create_analysis_view \
     -name VIEW_SETUP \
     -constraint_mode FUNC \
-    -delay_corner DELAY_WC
+    -delay_corner DELAY_WORST
 
 create_analysis_view \
     -name VIEW_HOLD \
