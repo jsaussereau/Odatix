@@ -1,5 +1,5 @@
 ##############################################
-# Settings for Genus
+# Settings for Vivado
 ##############################################
 
 # Display metadata (used by the GUI tool selection page)
@@ -7,16 +7,28 @@ label: "Genus"
 description: "Cadence® Genus™ Synthesis Solution"
 icon: "assets/icons/cadence.png"
 
+# Group processes
 process_group: True
 
 # Default metrics file for this tool
-default_metrics_file: $eda_tools_path/genus/metrics.yml
+default_metrics_file: "$eda_tools_path/genus/metrics.yml"
+
+#default_flow: standard
 
 unix:
-  # Optional constants (anchors) for reuse
+  # Optional constants (anchors) that can be used in the file
   constants:
     - &genus_unix genus
-    - &genus_args -batch -execute
+    - &genus_args_fmax -batch -execute
+    - &genus_args -batch 
+    - &source_init_script_unix -files $script_path/init_script.tcl
+    - &source_find_fmax_unix -files $script_path/find_fmax.tcl
+    - &source_step_fmax_logical_unix -files $script_path/step_fmax_logical.tcl
+    - &source_step_fmax_physical_unix -files $script_path/step_fmax_physical.tcl
+    - &source_step_analyze_unix -files $script_path/step_analyze_script.tcl
+    - &source_step_elaboration_unix -files $script_path/step_elaboration.tcl
+    - &source_step_logical_synthesis_unix -files $script_path/step_logical_synthesis.tcl
+    - &source_step_physical_synthesis_unix -files $script_path/step_physical_synthesis.tcl
 
   # Command to check if the tool is installed
   tool_test_command:
@@ -24,40 +36,123 @@ unix:
     - "-version"
     - "exit"
 
-  # Command for fmax synthesis
-  fmax_synthesis_command:
-    - cd $work_path;
-    - *genus_unix
-    - "-log log/fmax.log"
-    - *genus_args
-    - "'synth_mode physical; source scripts/find_fmax.tcl; quit'"
+  ##############################################
+  # Steps
+  ##############################################
+  # Synthesis jobs are split into ordered steps, so a run can stop at any of
+  # them ("--until") and a later run picks up where it left off instead of
+  # starting over. Being split into steps is a property of every flow of this
+  # tool, not of a flow of its own: the steps below belong to the default flow,
+  # and the flows declared at the bottom of this file inherit them, redefining
+  # only the ones they change.
+  #
+  # A step declares either the whole command it runs — it is then a Vivado
+  # process of its own — or only the "args" it adds to the job type's session
+  # (the "*_session" keys below). The steps of one run that share a session are
+  # run by a single Vivado process: it opens once, sources what each step adds,
+  # and exits.
+
+  # Steps of an fmax search. Each one is a search of its own, going as far as
+  # its name says: "synthesis" converges on post-synthesis timing (fast and
+  # optimistic), "pnr" on post-route timing (what the design really reaches).
+  # Screen a design space with the first, implement only what deserves it.
+  
+  fmax_synthesis_steps: 
+    - name: logical_synthesis
+      command:
+        - cd $work_path;
+        - *genus_unix
+        - "-log log/fmax_logical.log"
+        - *genus_args
+        - *source_step_fmax_logical_unix
+    - name: physical_synthesis
+      default: true
+      command:
+        - cd $work_path;
+        - *genus_unix
+        - "-log log/fmax_physical.log"
+        - *genus_args
+        - *source_step_fmax_physical_unix
+
+  # How a custom frequency synthesis opens Vivado: once per run, whatever the
+  # steps that run covers. Everything the steps add is sourced in between, so
+  # the design stays in memory from one step to the next.
+  custom_freq_synthesis_session:
+    command:
+      - cd $work_path;
+      - *genus_unix
+      - "-log log/custom_freq.log"
+      - *genus_args
+      - *source_init_script_unix
+ 
+
+  # Steps of a custom frequency synthesis. From "synthesis" on, each one
+  # continues from the design the previous one left: in memory when they run in
+  # the same session, from the design checkpoint it wrote when the run stopped
+  # in between. Nothing is synthesized twice either way.
+  #
+  # "elaboration" stands apart: it only elaborates the RTL, for a count of the
+  # operators and registers it infers, obtained in seconds ("--until
+  # elaboration"), and hands nothing over — synthesis starts from the sources
+  # whatever it leaves behind.
+
+  custom_freq_synthesis_steps:
+    - name: analyze
+      args:
+        - *source_step_analyze_unix
+    - name: elaboration
+      args:
+        - *source_step_elaboration_unix
+    - name: logical_synthesis
+      args:
+        - *source_step_logical_synthesis_unix
+    - name: physical_synthesis
+      default: true
+      args:
+        - *source_step_physical_synthesis_unix
+
 
   # Command for RTL analysis
   analysis_command:
     - cd $work_path;
     - *genus_unix
     - "-log log/analysis.log"
-    - *genus_args
+    - *genus_args_fmax
     - "'set odatix_mode analysis; source scripts/init_script.tcl; source scripts/analyze_script.tcl; quit'"
 
-  # Command for custom frequency synthesis
-  custom_freq_synthesis_command:
-    - cd $work_path;
-    - *genus_unix
-    - "-log log/custom_freq.log"
-    - *genus_args
-    - "'set synth_mode logical; source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/synth_script.tcl; quit'"
+
+
+
+##############################################
+# Flows
+##############################################
+# A flow is a way of running this tool: a different script, different options,
+# sometimes a different binary. Flows of the same tool are alternatives meant to
+# be compared, so each one gets its own work directory ("vivado@power_opt") and
+# its results are tagged with its name.
+#
+# Pick one with "--flow" on the command line, or from the tool's card in the
+# GUI. The "standard" flow is the default one: what it runs is declared in the
+# "unix"/"windows" sections above (see "default_flow").
+#
+# A flow starts from the default flow's declaration and changes only what it
+# says. Steps are merged by name, so a flow that only changes how the design is
+# synthesized redefines that one step and inherits place & route and bitstream
+# generation as they are. Sessions are merged key by key, so a flow changing
+# where the log goes says that much and keeps the rest. Every flow is therefore
+# stepped, and "--until" works the same whichever one is picked.
 
 # Log formatting
 format:
 
   # Format the whole log line
   logs:
-    error:         ['<error>', 'Error:']
-    warning:       ['<warning>', 'Warning:']
-    info:          ['<note>', 'Information:']
+    error:         ['<error>', 'ERROR:']
+    crit_warning:  ['<crit_warning>', 'CRITICAL WARNING:']
+    warning:       ['<warning>', 'WARNING:']
+    info:          ['<note>', 'INFO:']
     trace:         ['<trace>', 'Command:']
-
+  
   # Format tags (replaced by the corresponding format escape code)
   tags:
     bold:          ['<bold>']
