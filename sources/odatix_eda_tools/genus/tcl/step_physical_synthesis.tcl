@@ -45,6 +45,7 @@ puts "=========================================="
 # Automatic floorplan generation
 set_db predict_floorplan_enable_during_generic true
 set_db physical_force_predict_floorplan true
+set_db predict_floorplan_core_density_size true
 
 #################################################################################
 # SYNTHESIS
@@ -75,6 +76,13 @@ report_power -unit mw > $report_path/power_physical.rep
 report_area -detail > $report_path/utilization_physical.rep
 report_qor > $report_path/qor_physical.rep
 
+# report timing from differents views
+#report_timing -view VIEW_SETUP \
+    > $report_path/timing_setup_physical.rep
+#report_timing -view VIEW_HOLD -check_type hold \
+    > $report_path/timing_hold_physical.rep
+
+
 report_timing
 report_area
 report_power -unit mw
@@ -96,15 +104,20 @@ file mkdir $physical_result_path
 write_hdl > $physical_result_path/${top_level_module}_netlist.v
 write_sdf > $physical_result_path/${top_level_module}.sdf
 
-
-#write_sdc -view VIEW_SETUP > $result_path/${top_level_module}_setup.sdc
-#write_sdc -view VIEW_HOLD  > $result_path/${top_level_module}_hold.sdc
+#write_sdc -view VIEW_SETUP \
+    > $physical_result_path/${top_level_module}_setup.sdc
+#write_sdc -view VIEW_HOLD \
+    > $physical_result_path/${top_level_module}_hold.sdc
 
 #################################################################################
 # FINISH
 #################################################################################
 
+# Save design for innovus
 write_design -base_name $physical_result_path/genus2invs
+
+# Save design for genus
+write_db $physical_result_path/genus_physical.db
 
 report_progress 100 $synth_statusfile
 
