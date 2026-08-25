@@ -86,6 +86,8 @@ target_settings:
   XFAB180CMOS:
     script_copy_enable: Yes
     script_copy_source: $eda_tools_path/genus/technology/XFAB_180nm_CMOS/genus_setup.tcl
+    script_copy_mmmc_enable: Yes
+    script_copy_mmmc_source: $eda_tools_path/genus/technology/XFAB_180nm_CMOS/genus_mmmc.tcl
 
   globalfoundaries22nhsp:
     script_copy_enable: Yes
