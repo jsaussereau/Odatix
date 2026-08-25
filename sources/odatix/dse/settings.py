@@ -251,6 +251,17 @@ class CampaignSettings(Settings):
         type=FrequencySettings, section=" at what frequencies (custom_freq_synthesis only, in MHz)",
         doc="What a custom frequency synthesis is run at, and whether the search chooses it.",
     )
+    reuse_results = Setting(
+        True, type="bool", style="yesno",
+        section=" what the search starts from",
+        comment=(
+            "reuse the results already measured for designs of this space, whatever run\n"
+            " produced them - only the ones whose run recorded where they sit in the space\n"
+            " (ignored when overwrite is on)"
+        ),
+        doc="Whether designs already measured elsewhere in the workspace are given to the "
+            "search for free, instead of being evaluated again.",
+    )
     objectives = Setting(
         factory=list, type="any", section=" what makes a design better than another",
         comment=(

@@ -380,6 +380,8 @@ def replace_and_write_param_domains(
     target_resolver=None,
     timestamp=None,
     virtual_domains=None,
+    arch_path=None,
+    main_param_file=None,
 ):
     domain_dict = {}
     arch_config = re.sub('.*/', '', arch_name)
@@ -413,6 +415,23 @@ def replace_and_write_param_domains(
     for domain, domain_value in (virtual_domains or {}).items():
         if domain_value != "":
             domain_dict[domain] = domain_value
+
+    # Where the job sits in the design space of its architecture, so that a
+    # search run later can start from what this run measured instead of
+    # measuring it again (see :mod:`odatix.workspace.design_point`). Imported
+    # here: preparing a job is the only thing that needs the workspace api, and
+    # the daemon imports this module for everything else it does.
+    from odatix.workspace import design_point
+
+    point = design_point.coordinates(
+        arch_path=arch_path,
+        arch_name=arch_name,
+        param_domains=param_domains,
+        virtual_domains=virtual_domains,
+        main_param_file=main_param_file,
+    )
+    if point:
+        domain_dict[design_point.POINT_KEY] = point
 
     with open(os.path.join(tmp_dir, hard_settings.param_domains_filename), "w") as param_domains_file:
         yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False)

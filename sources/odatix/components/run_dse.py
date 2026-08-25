@@ -66,6 +66,10 @@ def add_arguments(parser):
     parser.add_argument("-B", "--batch", type=int, help="how many designs to evaluate together")
     parser.add_argument("--seed", type=int, help="make the search reproducible")
     parser.add_argument("-j", "--jobs", dest="nb_jobs", help="maximum number of parallel jobs")
+    parser.add_argument("--no-reuse", dest="no_reuse", action="store_true",
+                        help="search from nothing but what this exploration runs itself, "
+                             "instead of starting from the designs of the space that are "
+                             "already measured")
     parser.add_argument("-o", "--overwrite", action="store_true", help="evaluate again what is already done")
     parser.add_argument("-y", "--noask", action="store_true", help="do not ask to continue")
     parser.add_argument("-d", "--detach", action="store_true",
@@ -120,6 +124,8 @@ def apply_campaign_arguments(campaign, args):
             campaign[setting] = value[0] if len(value) == 1 else list(value)
     if getattr(args, "architectures", None):
         campaign.architectures = list(args.architectures)
+    if getattr(args, "no_reuse", False):
+        campaign.reuse_results = False
 
     for name in ("strategy", "mode", "budget", "batch", "seed"):
         value = getattr(args, name, None)

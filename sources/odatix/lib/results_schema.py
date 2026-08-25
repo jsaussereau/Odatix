@@ -133,6 +133,11 @@ FORMAT_V1_WORKFLOW = "v1_workflow"
 FORMAT_UNKNOWN = "unknown"
 
 PARAM_DOMAINS_KEY = "Param_Domains"
+# Where a job sat in the design space of its architecture, and what it is called
+# in a record (see odatix.workspace.design_point).
+POINT_KEY = "__point__"
+POINT_META_PREFIX = "_point."
+
 MAIN_DOMAIN_KEY = hard_settings.main_parameter_domain  # "__main__"
 TIMESTAMP_DOMAIN_KEY = "__timestamp__"
 MAIN_DOMAIN_META_KEY = "main"
@@ -281,6 +286,15 @@ def flatten_param_domains(param_domains, meta):
       meta.setdefault(MAIN_DOMAIN_META_KEY, value)
     elif key == TIMESTAMP_DOMAIN_KEY:
       meta.setdefault(META_TIMESTAMP, value)
+    elif key == POINT_KEY:
+      # Where the job sat in the design space of its architecture: one meta key
+      # per axis, "_"-prefixed so that it stays out of the record identity, of
+      # the dimensions a chart offers and of the joins derived metrics run on.
+      # It says where a record is, not what it is.
+      if isinstance(value, dict):
+        for axis, coordinate in value.items():
+          if str(axis):
+            meta.setdefault(POINT_META_PREFIX + str(axis), str(coordinate))
     else:
       meta.setdefault(key, value)
 

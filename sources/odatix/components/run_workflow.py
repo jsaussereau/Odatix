@@ -652,6 +652,7 @@ def check_settings(
             debug=debug,
             timestamp=None,
             virtual_domains=workflow_instance.virtual_param_domains,
+            main_param_file=workflow_instance.param_file,
         )
 
         selected_tasks = task_common.select_platform_task_implementations(workflow_instance.tasks, sys.platform)

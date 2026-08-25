@@ -230,6 +230,7 @@ class Archive(object):
             restored.append(Evaluation(
                 design, metrics=metrics, costs=costs, note=record.get("reason", ""),
                 batch=record.get("batch") or 0, source=record.get("source"),
+                reused=bool(record.get("reused")),
             ))
             genomes.append(design.genome)
 

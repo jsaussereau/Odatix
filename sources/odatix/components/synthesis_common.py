@@ -580,6 +580,7 @@ def build_prepare_synthesis_job(
             generate_rtl=arch_instance.generate_rtl,
             timestamp=timestamp,
             virtual_domains=getattr(arch_instance, "virtual_param_domains", None),
+            arch_path=arch_path,
         )
 
         write_job_identity_files(arch_instance, flow)

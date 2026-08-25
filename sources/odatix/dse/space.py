@@ -928,6 +928,127 @@ class ArchitectureSpace(object):
             contents=contents,
         )
 
+    def genome_of(self, point, configurations=None, frequency=None, toolchain=None):
+        """
+        Where in this space a design that already ran sits.
+
+        A result measured outside of any exploration -- a sweep, a single
+        synthesis, an earlier campaign that searched something else -- is a
+        design of this space evaluated for free, provided its place in it can
+        be said. It can, when the job recorded its coordinates (see
+        :mod:`odatix.workspace.design_point`): each of them names an axis and
+        the value it took, so the genome is one lookup per axis rather than a
+        guess about what a configuration name might have meant.
+
+        Nothing is inferred. A coordinate that names no axis of this space, an
+        axis no coordinate speaks about, a configuration a selection does not
+        allow or a design the exclusions take out: the answer is None, and the
+        record stays what it was before -- a result, read for the front and not
+        for the search.
+
+        Args:
+            point (dict): ``{axis: value}``, as a job recorded them.
+            configurations (dict): ``{domain: configuration}``, what the record
+                says it ran -- the only thing a hand-written domain says.
+            frequency: the frequency the record was run at, when this space
+                searches it.
+            toolchain (Toolchain): what ran it, when this space searches that.
+
+        Returns:
+            tuple: the genome, or None when the record is not a design of this
+            space.
+        """
+        point = {str(key): str(value) for key, value in (point or {}).items()}
+        configurations = {str(key): str(value) for key, value in (configurations or {}).items()}
+
+        # What the selection fixed is not searched, but it is still part of
+        # every design here: a record of another configuration of a pinned
+        # domain is a record of another space.
+        for domain, pinned in self.pinned.items():
+            named = configurations.get(domain)
+            if named is not None and named != str(pinned):
+                return None
+
+        genome = []
+        for part in self.parts:
+            if isinstance(part, FrequencySpace):
+                choice = self._frequency_choice(part, frequency)
+            elif isinstance(part, ToolchainSpace):
+                choice = self._toolchain_choice(part, toolchain)
+            elif isinstance(part, VirtualDomainSpace):
+                choice = self._axes_choice(part.axes, point, "")
+            elif part.kind == SearchAxis.CONFIGURATION:
+                choice = part.choice_for(configurations.get(part.name, ""))
+            else:
+                prefix = "" if part.name == MAIN_DOMAIN else part.name + "."
+                choice = self._axes_choice(part.axes, point, prefix)
+            if choice is None:
+                return None
+            genome.extend(choice)
+
+        genome = tuple(genome)
+        # Built axis by axis, so it is a place in the space by construction --
+        # but not necessarily a design of it: a combination the rules of a
+        # domain rule out, or one an exclusion takes out, is not one to search
+        # from. Asked without projecting: a record is where it is, and moving
+        # it to where an exclusion would have put it would be answering for
+        # another design.
+        rebuilt = self.design(genome, project=False)
+        if rebuilt is None or rebuilt.genome != genome:
+            return None
+        return genome
+
+    @staticmethod
+    def _axes_choice(axes, point, prefix):
+        """
+        One index per axis, from the coordinates that name their variables.
+
+        Every variable of an axis has to be spoken about and has to agree:
+        variables sharing an axis are chosen together, so a coordinate matching
+        one of them and not the other names no row.
+        """
+        choice = []
+        for axis in axes:
+            variables = axis.axis.variables
+            wanted = {}
+            for variable in variables:
+                key = prefix + str(variable)
+                if key not in point:
+                    return None
+                wanted[str(variable)] = point[key]
+            found = None
+            for index, row in enumerate(axis.axis.rows):
+                if all(str(row.get(name, "")) == value for name, value in wanted.items()):
+                    found = index
+                    break
+            if found is None:
+                return None
+            choice.append(found)
+        return choice
+
+    @staticmethod
+    def _frequency_choice(part, frequency):
+        """Which of the frequencies this space searches a record ran at."""
+        if frequency is None:
+            return None
+        try:
+            frequency = int(float(frequency))
+        except (TypeError, ValueError):
+            return None
+        if frequency not in part.frequencies:
+            return None
+        return [part.frequencies.index(frequency)]
+
+    @staticmethod
+    def _toolchain_choice(part, toolchain):
+        """Which of the toolchains this space searches ran a record."""
+        if toolchain is None:
+            return None
+        for index, chain in enumerate(part.toolchains):
+            if chain.key == toolchain.key:
+                return [index]
+        return None
+
     ######################################
     # What the space does not hold
     ######################################

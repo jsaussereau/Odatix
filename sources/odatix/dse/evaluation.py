@@ -161,11 +161,16 @@ class Evaluation(object):
             reached in three batches and one reached in thirty are not the same
             answer -- and 0 for a design read back from an archive written
             before batches were recorded.
+        reused (bool): whether the design was not run by this campaign at all,
+            but read from results some earlier run had already measured (see
+            :meth:`Evaluator.known`). It counts for the front and not for the
+            budget: nothing was spent on it.
     """
 
-    __slots__ = ("design", "metrics", "costs", "note", "batch", "source")
+    __slots__ = ("design", "metrics", "costs", "note", "batch", "source", "reused")
 
-    def __init__(self, design, metrics=None, costs=None, note="", batch=0, source=None):
+    def __init__(self, design, metrics=None, costs=None, note="", batch=0, source=None,
+                 reused=False):
         self.design = design
         self.metrics = dict(metrics) if metrics else {}
         self.costs = costs
@@ -175,6 +180,7 @@ class Evaluation(object):
         #: design was run as (type, tool, flow, target, ...). Kept so that the
         #: exported results say it, and empty for a design that produced none.
         self.source = dict(source) if source else {}
+        self.reused = bool(reused)
 
     @property
     def genome(self):
@@ -220,6 +226,10 @@ class Evaluation(object):
             # What the design ran as, so that an exploration picked up again
             # can still export the results of the designs it did not re-run.
             record["source"] = dict(self.source)
+        if self.reused:
+            # So that an exploration started again spends its budget on designs
+            # it has to run, and not on the ones it was given for free.
+            record["reused"] = True
         if not self.measured:
             record["failed"] = True
             if self.note:
@@ -985,6 +995,97 @@ class Evaluator(object):
                 meta = record.get("meta", {}) if isinstance(record, dict) else {}
                 records.setdefault(self.identity(meta), []).append(record)
         return records
+
+    def known(self, space):
+        """
+        The designs of ``space`` that something already measured.
+
+        A workspace is full of results nobody explored towards: a sweep of one
+        parameter, a single synthesis, an earlier campaign that was looking for
+        something else. Each of those is a design of the space evaluated at no
+        cost -- provided the run that produced it recorded where it sits (see
+        :mod:`odatix.workspace.design_point`), which is the only thing that
+        says what a record *is* in the space rather than what it is called.
+        Nothing is reconstructed: a record without coordinates is read for the
+        front, as it always was, and not for the search.
+
+        The records are read the way a batch of the campaign is read -- one
+        design keeps the best of its records, measured against this campaign's
+        own objectives -- so a design given for free is worth exactly what it
+        would have been worth had the campaign run it itself.
+
+        Args:
+            space (ArchitectureSpace): the space being searched.
+
+        Returns:
+            list: one :class:`Evaluation` per design found, marked as reused.
+        """
+        from odatix.workspace import design_point
+
+        architecture = str(getattr(space, "name", "") or "")
+        by_genome = {}
+        for records in self._records().values():
+            for record in records:
+                meta = record.get("meta", {}) if isinstance(record, dict) else {}
+                if str(meta.get("architecture", "")) != architecture:
+                    continue
+                genome = space.genome_of(
+                    design_point.point_of_meta(meta),
+                    configurations=self._record_configurations(meta),
+                    frequency=meta.get("frequency") if self.explores_frequency else None,
+                    toolchain=self._record_toolchain(meta),
+                )
+                if genome is None:
+                    continue
+                by_genome.setdefault(genome, []).append(record)
+
+        known = []
+        for genome, records in by_genome.items():
+            design = space.design(genome, project=False)
+            if design is None:
+                continue
+            metrics, source = self.best_of(records)
+            costs = self.objectives.costs(metrics)
+            if costs is None:
+                # Measured, but not for what this campaign is looking for: a
+                # design the search would learn nothing from is left to be run.
+                continue
+            known.append(Evaluation(
+                design, metrics=metrics, costs=costs, source=source, reused=True,
+            ))
+        return known
+
+    @staticmethod
+    def _record_configurations(meta):
+        """What a record says each parameter domain of its design was set to."""
+        reserved = ("type", "tool", "flow", "step", "target", "configuration", "frequency",
+                    "timestamp", "architecture")
+        configurations = {}
+        for key, value in meta.items():
+            if key in reserved or str(key).startswith("_"):
+                continue
+            # The results schema names the main domain "main" (see
+            # odatix.lib.results_schema).
+            configurations[MAIN_DOMAIN if key == "main" else str(key)] = str(value)
+        return configurations
+
+    def _record_toolchain(self, meta):
+        """
+        What ran a record, kept down to what the search chose.
+
+        A record always names a tool, a flow and a target; the space only holds
+        the ones the campaign is choosing between, and leaves the others empty
+        -- what a toolchain nobody is searching looks like.
+        """
+        from odatix.dse.space import Toolchain
+
+        if not (self.explores_tool or self.explores_flow or self.explores_target):
+            return None
+        return Toolchain(
+            str(meta.get("tool", "") or "") if self.explores_tool else "",
+            str(meta.get("flow", "") or "") if self.explores_flow else "",
+            str(meta.get("target", "") or "") if self.explores_target else "",
+        )
 
     def units(self):
         """

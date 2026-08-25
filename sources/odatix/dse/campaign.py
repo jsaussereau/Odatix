@@ -502,6 +502,10 @@ class Campaign(object):
         Nothing is thrown away when the archive holds designs the space no
         longer has: those are simply not restored, and the campaign starts over.
 
+        Whatever else the workspace already measured of this space is taken in
+        at the same time (see :meth:`adopt`), and does not count against the
+        budget.
+
         Returns:
             int: how many designs are already evaluated.
         """
@@ -510,18 +514,71 @@ class Campaign(object):
             # for: there is nothing to pick up.
             return 0
         genomes = self.archive.restore(self.space, self.objectives)
-        if not genomes:
-            return 0
+        evaluated = len([
+            evaluation for evaluation in self.archive.evaluations if not evaluation.reused
+        ])
+        if genomes:
+            self.seen.update(genomes)
+            self.strategy.observe(self.archive.evaluations)
+            printc.note(
+                "Picking up where \"{0}\" left off: {1} design(s) already evaluated.".format(
+                    self.archive.path, evaluated
+                ),
+                script_name,
+            )
+        self.adopt()
+        return evaluated
 
-        self.seen.update(genomes)
-        self.strategy.observe(self.archive.evaluations)
+    def adopt(self):
+        """
+        Start from what the workspace already measured.
+
+        Designs of this space that some earlier run measured -- a sweep, a
+        single synthesis, another campaign -- are worth exactly as much to the
+        search as designs it would have run itself, and cost nothing. They are
+        taken in whenever the run that produced them recorded where they sit in
+        the space (see :mod:`odatix.workspace.design_point`); nothing is
+        reconstructed for the ones that did not.
+
+        They do not count against the budget: it says how many designs this
+        exploration evaluates, and it evaluated none of these. They are part of
+        the answer all the same, so they go into the archive and are marked as
+        reused there -- which is what keeps an exploration started a second
+        time from counting them as its own.
+
+        Returns:
+            list: the evaluations that were taken in.
+        """
+        if not getattr(self.settings, "reuse_results", True):
+            return []
+        known = getattr(self.evaluator, "known", None)
+        if known is None:
+            return []
+        try:
+            adopted = [
+                evaluation for evaluation in known(self.space)
+                if evaluation.genome not in self.seen
+            ]
+        except Exception as error:
+            # Reading results that are already there must never be what stops
+            # an exploration from starting.
+            printc.warning(
+                "Could not read the results already measured: {0}".format(error), script_name
+            )
+            return []
+        if not adopted:
+            return []
+
+        self.seen.update(evaluation.genome for evaluation in adopted)
+        self.strategy.observe(adopted)
+        self.archive.improved_by(adopted)
+        self.save()
         printc.note(
-            "Picking up where \"{0}\" left off: {1} design(s) already evaluated.".format(
-                self.archive.path, len(genomes)
-            ),
+            "{0} design(s) of this space had already been measured: the search starts from "
+            "them, and will not run them again.".format(len(adopted)),
             script_name,
         )
-        return len(genomes)
+        return adopted
 
     def progress(self, evaluated):
         """Say how far along the campaign is, to whoever asked to be told."""
