@@ -20,15 +20,20 @@ synth_mode: physical
 # for genus we don't have h18_2V2 and h18_2V7
 # h18_3.3V and h18_5.0V: just the I/O lib is avaible
 
+##########################################################################################################
+#################   For h18 techno, please choose between h18_1V2 and h18_1V8   ##########################
+##########################################################################################################
+
 targets:
   #  - AMS_c35_1V8
   # - AMS_c35_2V2
   # - AMS_c35_2V7
   # - AMS_c35_3V3
+   - AMS_h18_1V2
   # - AMS_h18_1V8
   # - AMS_h18_2V2
   # - AMS_h18_3V3
-   - AMS_h18_5V0
+  # - AMS_h18_5V0
   # - XFAB180CMOS
   #  - globalfoundaries22nhsp
     
@@ -58,6 +63,12 @@ target_settings:
     script_copy_source: $eda_tools_path/genus/technology/AMS_c35_3V3/genus_setup.tcl
     script_copy_mmmc_enable: Yes
     script_copy_mmmc_source: $eda_tools_path/genus/technology/AMS_c35_3V3/genus_mmmc.tcl
+
+  AMS_h18_1V2:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/genus/technology/AMS_h18_1V2/genus_setup.tcl
+    script_copy_mmmc_enable: Yes
+    script_copy_mmmc_source: $eda_tools_path/genus/technology/AMS_h18_1V2/genus_mmmc.tcl
 
   AMS_h18_1V8:
     script_copy_enable: Yes
