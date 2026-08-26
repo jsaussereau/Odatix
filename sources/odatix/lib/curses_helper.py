@@ -28,7 +28,17 @@ CTRL_D = 4
 # mouse events to the application instead of handling text selection itself, so
 # a click-drag gets interrupted. ncurses does not reliably emit the "reset"
 # sequences when the mouse mask is cleared, so we write them out explicitly.
-_MOUSE_TRACKING_MODES = ("1000", "1002", "1003", "1006", "1015")
+#
+# We only ever *enable* 1002 (report motion while a button is held) plus the SGR
+# encoding 1006. 1003 (report every motion, button or not) floods ncurses' click
+# resolution and makes it synthesize phantom clicks, and 1015 (urxvt encoding)
+# conflicts with 1006: the terminal picks one encoding while ncurses decodes the
+# other, which surfaces as random button states.
+_MOUSE_ENABLE_MODES = ("1002", "1006")
+
+# On reset we clear every mode we might have left behind, including ones set by
+# a previous version or by the shell.
+_MOUSE_DISABLE_MODES = ("1000", "1002", "1003", "1006", "1015")
 
 def _write_terminal_sequence(sequence):
     try:
@@ -38,8 +48,9 @@ def _write_terminal_sequence(sequence):
         pass
 
 def _set_mouse_tracking(enabled):
+    modes = _MOUSE_ENABLE_MODES if enabled else _MOUSE_DISABLE_MODES
     action = "h" if enabled else "l"
-    _write_terminal_sequence("".join("\033[?" + mode + action for mode in _MOUSE_TRACKING_MODES))
+    _write_terminal_sequence("".join("\033[?" + mode + action for mode in modes))
 
 def enable_selection():
     """Gives the mouse back to the terminal so the user can select text."""
@@ -51,5 +62,14 @@ def enable_selection():
 
 def disable_selection():
     """Grabs mouse events for the application (clicks, drags, wheel)."""
+    # REPORT_MOUSE_POSITION is still needed in the mask so ncurses hands us the
+    # drag events of mode 1002; the terminal only reports motion while a button
+    # is held, so this does not flood us.
     curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
+    try:
+        # Keep click resolution short: the longer the interval, the more press
+        # events ncurses holds back to guess at clicks and double-clicks.
+        curses.mouseinterval(120)
+    except curses.error:
+        pass
     _set_mouse_tracking(True)

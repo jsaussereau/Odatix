@@ -24,12 +24,15 @@ import os
 import re
 import signal
 import sys
+import time
 
 from odatix.lib.parallel_job_handler.ansi_to_curses import AnsiToCursesConverter
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
 from odatix.lib.utils import can_open_path_in_explorer, open_path_in_explorer
 import odatix.lib.printc as printc
 
+
+DOUBLE_CLICK_DELAY = 0.4
 
 NORMAL = 1
 RED = 2
@@ -787,6 +790,8 @@ def curses_main(handler, stdscr):
 
     resize = False
     resize_hold = False
+    last_click_job = -1
+    last_click_time = 0.0
     help_static_drawn = False
     bottom_bar_drawn = False
     finished_popup_shown = False
@@ -1018,7 +1023,13 @@ def curses_main(handler, stdscr):
                 except curses.error:
                     x = y = button = None
 
-                if button is not None and resize_hold:
+                button1_down = button is not None and bool(
+                    button & (curses.BUTTON1_PRESSED | curses.REPORT_MOUSE_POSITION)
+                ) and not (button & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED))
+
+                if resize_hold and not button1_down:
+                    resize_hold = False
+                elif button is not None and resize_hold:
                     y = min(y, height - 2)
                     relative_y = y - (header_height + separator_height)
                     new_progress_height = _clamp_progress_height(relative_y, height)
@@ -1027,7 +1038,9 @@ def curses_main(handler, stdscr):
                         sync_progress_indices()
                         resize = True
 
-                if button is None:
+                motion_only = button is not None and not (button & curses.ALL_MOUSE_EVENTS)
+
+                if button is None or motion_only:
                     pass
                 elif button & curses.BUTTON1_CLICKED or button & curses.BUTTON1_DOUBLE_CLICKED:
                     job_index = click_on_job(handler, progress_win, y, x)
@@ -1036,7 +1049,15 @@ def curses_main(handler, stdscr):
                         selected_job = update_selected_job()
                         update_logs(handler, logs_win, selected_job, logs_height, width)
 
-                        if button & curses.BUTTON1_DOUBLE_CLICKED and can_open_path_in_explorer():
+                        now = time.time()
+                        double_click = (
+                            last_click_job == job_index and now - last_click_time <= DOUBLE_CLICK_DELAY
+                        )
+                        last_click_job = job_index
+                        last_click_time = now
+
+                        if double_click and can_open_path_in_explorer():
+                            last_click_job = -1
                             try:
                                 open_path_in_explorer(handler.job_list[job_index].tmp_dir)
                             except NotImplementedError:
