@@ -685,6 +685,7 @@ textarea {
 .card-title  {
     text-align: center;
     font-size: 1.05em;
+	line-height: 1.05em;
     font-weight: 700;
 }
 

@@ -77,6 +77,12 @@ run_jobs_cards = [
         "description": "Run synthesis at custom frequencies",
     },
     {
+        "name": "Design Space Exploration",
+        "link": "/dse",
+        "icon": "dse",
+        "description": "Search a design space for optimal trade-offs",
+    },
+    {
         "name": "Run Place & Route",
         "link": "/choose_eda_tool?type=pnr",
         "icon": "pnr",

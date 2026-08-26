@@ -55,6 +55,7 @@ nav_groups = [
         ("Fmax Synthesis", "/choose_eda_tool?type=fmax_synthesis"),
         ("Custom Synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
         ("Place & Route", "/choose_eda_tool?type=pnr"),
+        ("Design Space Exploration", "/dse"),
     ]),
     ("Monitor", "/monitor"),
     ("Explorer", "/explorer", [

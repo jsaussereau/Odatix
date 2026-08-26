@@ -324,6 +324,19 @@ _pictograms = {
         Circle(cx="32", cy="32", r="6", stroke=_PRIMARY, strokeWidth="2.5"),
         Line(x1="36.5", y1="36.5", x2="41", y2="41", stroke=_PRIMARY, strokeWidth="2.5", strokeLinecap="round"),
     ], size),
+    # Design space exploration: a pareto front rising out of a cloud of designs
+    "dse": lambda size: _picto([
+        Line(x1="9", y1="8", x2="9", y2="39", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
+        Line(x1="9", y1="39", x2="40", y2="39", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
+        Circle(cx="19", cy="30", r="2", fill=_TEXT, fillOpacity="0.35"),
+        Circle(cx="26", cy="33", r="2", fill=_TEXT, fillOpacity="0.35"),
+        Circle(cx="32", cy="27", r="2", fill=_TEXT, fillOpacity="0.35"),
+        Polyline(points="15,32 21,22 29,17 38,14", stroke=_PRIMARY, strokeWidth="2.5", fill="none", strokeLinecap="round", strokeLinejoin="round"),
+        Circle(cx="15", cy="32", r="2.6", fill=_PRIMARY),
+        Circle(cx="21", cy="22", r="2.6", fill=_PRIMARY),
+        Circle(cx="29", cy="17", r="2.6", fill=_PRIMARY),
+        Circle(cx="38", cy="14", r="2.6", fill=_PRIMARY),
+    ], size),
     # Workspace / settings: gear
     "workspace": lambda size: _picto([
         # Same cog outline as the small "gear" icon, scaled onto the 48x48 grid

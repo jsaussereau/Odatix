@@ -1,0 +1,350 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+
+/* --- Feedback line ------------------------------------------------------ */
+.dse-feedback:empty {
+    display: none;
+}
+.dse-message {
+    border-radius: var(--theme-normal-border-radius);
+    padding: var(--space-2) var(--space-4);
+    margin-bottom: var(--space-3);
+    font-size: 14px;
+    border: 1px solid transparent;
+}
+.dse-message.success {
+    color: var(--theme-success-color);
+    border-color: color-mix(in srgb, var(--theme-success-color) 35%, transparent);
+    background: color-mix(in srgb, var(--theme-success-color) 10%, transparent);
+}
+.dse-message.error {
+    color: var(--theme-caution-color);
+    border-color: color-mix(in srgb, var(--theme-caution-color) 35%, transparent);
+    background: color-mix(in srgb, var(--theme-caution-color) 10%, transparent);
+}
+.dse-danger {
+    margin-top: var(--space-3);
+    color: var(--theme-caution-color);
+    font-weight: bold;
+}
+.dse-popup-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+}
+
+/* --- The campaigns of the workspace ------------------------------------- */
+.dse-campaign-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-4);
+    align-items: stretch;
+}
+.card.dse-campaign-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
+    margin: 0;
+    padding: var(--space-4);
+    box-sizing: border-box;
+    text-align: left;
+    /* The selected ones are what the exploration runs: they are the page's
+       subject, so the others step back rather than disappear. */
+    border: 1px solid color-mix(in srgb, var(--theme-primary-color) 45%, transparent);
+    transition: opacity 0.18s ease, border-color 0.18s ease;
+}
+.card.dse-campaign-card.disabled {
+    border-color: rgba(128, 128, 128, 0.16);
+    opacity: 0.62;
+}
+.card.dse-campaign-card.disabled:hover {
+    opacity: 0.85;
+}
+.dse-campaign-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+/* The switch of a card carries no label text: size it explicitly, or its empty
+   label collapses onto the name next to it. */
+.dse-campaign-head .checklist-switch {
+    flex: none;
+}
+.dse-campaign-head .checklist-switch label {
+    display: block;
+    width: 40px;
+    height: 22px;
+    padding-left: 0;
+    margin: 0;
+}
+.dse-campaign-head .checklist-switch label::before {
+    top: 0;
+}
+.dse-campaign-head .checklist-switch label::after {
+    top: 4px;
+}
+.dse-campaign-name {
+    font-weight: 700;
+    font-size: 1.05em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.dse-campaign-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.dse-campaign-architectures {
+    font-size: 13px;
+    opacity: 0.65;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dse-campaign-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-top: auto;
+    padding-top: var(--space-2);
+}
+
+/* What the campaign is looking for, one metric per chip: the arrow says which
+   way is better, so "max" and "min" are told apart without reading. */
+.dse-goals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.dse-goal {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+}
+.dse-goal.max {
+    color: var(--theme-success-color);
+    border-color: color-mix(in srgb, var(--theme-success-color) 40%, transparent);
+}
+.dse-goal.min {
+    color: var(--theme-primary-color);
+    border-color: color-mix(in srgb, var(--theme-primary-color) 40%, transparent);
+}
+.dse-goal.empty {
+    opacity: 0.6;
+    font-weight: normal;
+}
+.dse-goal-arrow {
+    font-size: 9px;
+    line-height: 1;
+    opacity: 0.9;
+}
+
+/* The "new campaign" tile sits in the same grid as the cards. */
+.odx-add-card.dse-campaign-card {
+    min-height: 150px;
+}
+
+/* --- The lists of the campaign editor ----------------------------------- */
+.dse-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.dse-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--theme-element-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.16);
+    border-radius: var(--theme-normal-border-radius);
+    box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+}
+.dse-row input {
+    border: var(--input-border);
+    background: var(--input-background);
+    color: var(--input-text-color);
+    border-radius: var(--theme-small-border-radius);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 5px 10px;
+    box-sizing: border-box;
+    min-width: 0;
+}
+.dse-row input:focus {
+    outline: none;
+    border-color: var(--theme-primary-color);
+}
+.dse-metric-input {
+    flex: 2 1 180px;
+}
+.dse-selection-input {
+    flex: 2 1 200px;
+    font-family: var(--code-font-family, monospace);
+    font-size: 13px;
+}
+.dse-bound-input {
+    flex: 1 1 90px;
+    max-width: 160px;
+}
+.dse-bound-sign {
+    flex: none;
+    font-size: 15px;
+    opacity: 0.55;
+}
+.dse-row-dropdown {
+    flex: 1 1 150px;
+    min-width: 130px;
+}
+.dse-row-dropdown.wide {
+    flex: 2 1 260px;
+    min-width: 200px;
+}
+/* The delete button never shrinks: it is the one control that has to stay
+   where the eye expects it, whatever the row holds. */
+.dse-row .color-button {
+    flex: none;
+}
+.dse-rows .odx-empty {
+    margin: 0;
+}
+
+.dse-editor-titles {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+.dse-editor-titles .odx-title-input {
+    min-width: 220px;
+}
+.dse-editor-back {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    flex: none;
+}
+
+/* --- The plan the popup shows before anything is started ---------------- */
+.dse-plan-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+    text-align: left;
+    margin-top: var(--space-4);
+    padding: 2px 6px 2px 2px;
+}
+.dse-plan-waiting {
+    padding: var(--space-6) 0;
+    text-align: center;
+    opacity: 0.6;
+}
+.dse-plan-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: center;
+    margin-bottom: var(--space-4);
+}
+.dse-plan-messages {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+.dse-plan-message {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    font-size: 13.5px;
+    line-height: 1.5;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--theme-small-border-radius);
+    background: color-mix(in srgb, var(--theme-text-color) 4%, transparent);
+}
+.dse-plan-message.error {
+    background: color-mix(in srgb, var(--theme-caution-color) 10%, transparent);
+}
+.dse-plan-message.warning {
+    background: color-mix(in srgb, var(--theme-warning-color) 10%, transparent);
+}
+.dse-plan-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-3);
+    align-items: start;
+}
+.dse-plan-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: var(--theme-normal-border-radius);
+    background: var(--theme-element-background-color);
+}
+.dse-plan-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+.dse-plan-name {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dse-plan-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.dse-plan-objectives {
+    font-size: 13px;
+    color: var(--theme-primary-color);
+}
+.dse-plan-description {
+    font-size: 12.5px;
+    line-height: 1.5;
+    opacity: 0.7;
+}
+
+@media (max-width: 700px) {
+    .dse-row {
+        flex-wrap: wrap;
+    }
+    .dse-campaign-grid {
+        grid-template-columns: 1fr;
+    }
+}

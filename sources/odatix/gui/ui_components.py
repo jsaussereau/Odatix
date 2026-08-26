@@ -469,8 +469,8 @@ def form_area(
     )
 
 
-def form_dropdown(label: str, id: Union[str, dict], options, value=None, tooltip: str="", placeholder: str="", clearable: bool=True, className: str="", style: Optional[dict]=None) -> Component:
-    """Labelled dropdown."""
+def form_dropdown(label: str, id: Union[str, dict], options, value=None, tooltip: str="", placeholder: str="", clearable: bool=True, className: str="", style: Optional[dict]=None, multi: bool=False) -> Component:
+    """Labelled dropdown. With "multi", it holds several values instead of one."""
     return html.Div(
         children=[
             html.Div(
@@ -480,7 +480,7 @@ def form_dropdown(label: str, id: Union[str, dict], options, value=None, tooltip
                 ],
                 className="odx-field-label",
             ),
-            dcc.Dropdown(id=id, options=options, value=value, placeholder=placeholder, clearable=clearable),
+            dcc.Dropdown(id=id, options=options, value=value, placeholder=placeholder, clearable=clearable, multi=multi),
         ],
         className=f"odx-field {className}".strip(),
         style=style or {},
