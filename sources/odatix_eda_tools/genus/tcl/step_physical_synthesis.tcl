@@ -45,7 +45,7 @@ puts "=========================================="
 # Automatic floorplan generation
 set_db predict_floorplan_enable_during_generic true
 set_db physical_force_predict_floorplan true
-set_db predict_floorplan_core_density_size true
+#set_db predict_floorplan_core_density_size true
 
 #################################################################################
 # SYNTHESIS
