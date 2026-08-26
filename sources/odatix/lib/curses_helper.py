@@ -29,12 +29,15 @@ CTRL_D = 4
 # a click-drag gets interrupted. ncurses does not reliably emit the "reset"
 # sequences when the mouse mask is cleared, so we write them out explicitly.
 #
-# We only ever *enable* 1002 (report motion while a button is held) plus the SGR
-# encoding 1006. 1003 (report every motion, button or not) floods ncurses' click
-# resolution and makes it synthesize phantom clicks, and 1015 (urxvt encoding)
-# conflicts with 1006: the terminal picks one encoding while ncurses decodes the
+# We only ever *enable* one motion mode at a time plus the SGR encoding 1006:
+#   - 1002 reports motion only while a button is held (drags),
+#   - 1003 reports every motion, which is what hover effects need.
+# 1003 makes ncurses see far more events, so it is only turned on when the UI
+# actually wants hover feedback. 1015 (urxvt encoding) is never enabled: it
+# conflicts with 1006, the terminal picks one encoding while ncurses decodes the
 # other, which surfaces as random button states.
-_MOUSE_ENABLE_MODES = ("1002", "1006")
+_MOUSE_DRAG_MODE = "1002"
+_MOUSE_HOVER_MODE = "1003"
 
 # On reset we clear every mode we might have left behind, including ones set by
 # a previous version or by the shell.
@@ -47,10 +50,18 @@ def _write_terminal_sequence(sequence):
     except (IOError, ValueError):
         pass
 
-def _set_mouse_tracking(enabled):
-    modes = _MOUSE_ENABLE_MODES if enabled else _MOUSE_DISABLE_MODES
-    action = "h" if enabled else "l"
-    _write_terminal_sequence("".join("\033[?" + mode + action for mode in modes))
+def _set_mouse_tracking(enabled, track_motion=False):
+    if not enabled:
+        _write_terminal_sequence("".join("\033[?" + mode + "l" for mode in _MOUSE_DISABLE_MODES))
+        return
+    # Switching between the two motion modes means turning the other one off
+    # explicitly: leaving both set makes the terminal keep the more verbose one.
+    if track_motion:
+        on, off = _MOUSE_HOVER_MODE, _MOUSE_DRAG_MODE
+    else:
+        on, off = _MOUSE_DRAG_MODE, _MOUSE_HOVER_MODE
+    _write_terminal_sequence("\033[?" + off + "l\033[?" + on + "h\033[?1006h")
+
 
 def enable_selection():
     """Gives the mouse back to the terminal so the user can select text."""
@@ -60,16 +71,22 @@ def enable_selection():
         pass
     _set_mouse_tracking(False)
 
-def disable_selection():
-    """Grabs mouse events for the application (clicks, drags, wheel)."""
-    # REPORT_MOUSE_POSITION is still needed in the mask so ncurses hands us the
-    # drag events of mode 1002; the terminal only reports motion while a button
-    # is held, so this does not flood us.
+def disable_selection(track_motion=False):
+    """Grabs mouse events for the application (clicks, drags, wheel).
+
+    With `track_motion`, the terminal also reports pointer motion when no button
+    is held, which is what hover feedback needs.
+    """
+    # REPORT_MOUSE_POSITION is needed in the mask so ncurses hands us the motion
+    # reports of modes 1002 and 1003 at all.
     curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
     try:
-        # Keep click resolution short: the longer the interval, the more press
-        # events ncurses holds back to guess at clicks and double-clicks.
-        curses.mouseinterval(120)
+        # No click resolution at all: with a non-zero interval ncurses holds
+        # press events back to guess at clicks and double-clicks, and drops
+        # some of them when motion reports arrive meanwhile, which shows up as
+        # clicks that do nothing. We get raw press/release events instead and
+        # do our own click and double-click detection.
+        curses.mouseinterval(0)
     except curses.error:
         pass
-    _set_mouse_tracking(True)
+    _set_mouse_tracking(True, track_motion=track_motion)

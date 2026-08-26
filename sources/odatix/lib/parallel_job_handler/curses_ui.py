@@ -28,11 +28,18 @@ import time
 
 from odatix.lib.parallel_job_handler.ansi_to_curses import AnsiToCursesConverter
 from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
+from odatix.lib.clipboard import copy_to_clipboard
 from odatix.lib.utils import can_open_path_in_explorer, open_path_in_explorer
 import odatix.lib.printc as printc
 
 
 DOUBLE_CLICK_DELAY = 0.4
+
+# Cursor modes, cycled with the "c" key.
+CURSOR_MODES = ("mouse+", "mouse", "raw")
+
+# How long the status message replacing the help bar stays up after a copy.
+STATUS_MESSAGE_DELAY = 2.0
 
 NORMAL = 1
 RED = 2
@@ -61,8 +68,66 @@ def _visible_text_len(text):
     return len(ANSI_ESCAPE_RE.sub("", str(text)))
 
 
+def _plain_log_line(handler, raw_line):
+    """A log line as the user sees it: formatter applied, ANSI codes removed."""
+    line = raw_line
+    if handler.formatter is not None:
+        line = handler.formatter.replace_in_line(line)
+    return ANSI_ESCAPE_RE.sub("", str(line))
+
+
+class LogSelection:
+    """A text selection made inside the log window, in log coordinates.
+
+    Positions are (line, column) with `line` an index in the job log history and
+    `column` a column of that line once the ANSI codes are stripped. Keeping the
+    selection in log coordinates rather than screen coordinates is what lets it
+    cover lines scrolled out of sight and the part of a line that runs past the
+    right edge of the window.
+    """
+
+    def __init__(self, job_index, position):
+        self.job_index = job_index
+        self.anchor = position
+        self.cursor = position
+        self.dragging = True
+        # Direction the pointer is pushing outside the window, so the view keeps
+        # scrolling as long as the button is held there.
+        self.edge = (0, 0)
+
+    def bounds(self):
+        if self.anchor <= self.cursor:
+            return self.anchor, self.cursor
+        return self.cursor, self.anchor
+
+    def is_empty(self):
+        return self.anchor == self.cursor
+
+    def line_span(self, line, line_length):
+        """Selected columns of `line`, as a (start, end) pair, or None."""
+        (start_line, start_col), (end_line, end_col) = self.bounds()
+        if not start_line <= line <= end_line:
+            return None
+        start = start_col if line == start_line else 0
+        # A line selected through to the next one is highlighted to its end, and
+        # empty lines still get one cell so the selection stays readable.
+        end = end_col if line == end_line else max(line_length, start + 1)
+        if end <= start:
+            return None
+        return start, end
+
+    def text(self, handler, history):
+        (start_line, _), (end_line, _) = self.bounds()
+        lines = []
+        for line in range(max(0, start_line), min(len(history), end_line + 1)):
+            plain = _plain_log_line(handler, history[line])
+            span = self.line_span(line, len(plain))
+            lines.append("" if span is None else plain[span[0] : span[1]])
+        return "\n".join(lines)
+
+
 def progress_bar(handler, window, id, progress, elapsed_time, title, title_size, width, status="",
-                 selected=False, real_id=None):
+                 selected=False, real_id=None, hovered=False):
     reserved_space = handler.theme.get('reserved_space')
     spacer = handler.theme.get('spacer')
     ellipsis = handler.theme.get('ellipsis')
@@ -92,13 +157,20 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
     if real_id is None:
         real_id = handler.job_index_start + id
 
+    # The hovered row is bold as a whole. attron covers the addstr calls that
+    # take no attribute of their own; the ones that pass a color pair get the
+    # bold added explicitly through `hover_attr`.
+    hover_attr = curses.A_BOLD if (hovered and not handler.showing_help) else 0
+    if hover_attr:
+        window.attron(hover_attr)
+
     try:
         if real_id == handler.selected_job_index and handler.theme.get('selected_reverse') and handler.job_count > 1:
             window.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
             attr = curses.A_REVERSE | curses.A_BOLD
             offset = REVERSE
         else:
-            attr = 0
+            attr = hover_attr
             offset = 0
 
         attr = attr | curses.A_DIM if handler.showing_help else attr
@@ -111,7 +183,8 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
             window.attron(curses.color_pair(NORMAL) | curses.A_BOLD)
             attr = attr | curses.A_BOLD
         window.addstr(id, pos, f"{title}")
-        window.attroff(curses.A_BOLD)
+        if not hover_attr:
+            window.attroff(curses.A_BOLD)
         pos = pos + len(title)
 
         border_left = handler.theme.get('border_left')
@@ -135,13 +208,13 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
                 color = curses.color_pair(NORMAL + offset)
         else:
             color = 0
-        window.addstr(id, pos, handler.theme.get('progress_full') * bar_length, attr | color)
+        window.addstr(id, pos, handler.theme.get('progress_full') * bar_length, attr | color | hover_attr)
 
         if handler.theme.get('dim_empty_bar'):
             dim = curses.color_pair(GREY + offset)
         else:
             dim = 0
-        window.addstr(id, pos + bar_length, handler.theme.get('progress_empty') * (bar_width - bar_length), attr | dim)
+        window.addstr(id, pos + bar_length, handler.theme.get('progress_empty') * (bar_width - bar_length), attr | dim | hover_attr)
         pos = pos + bar_width
 
         border_right = handler.theme.get('border_right')
@@ -153,23 +226,23 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
         pos = pos + len(percentage) + len(spacer)
 
         if display_time:
-            window.addstr(id, pos, elapsed_time + spacer, attr | curses.color_pair(GREY + offset))
+            window.addstr(id, pos, elapsed_time + spacer, attr | curses.color_pair(GREY + offset) | hover_attr)
             pos = pos + len(elapsed_time) + len(spacer)
 
         if status == "failed" or status == "killed" or status == "canceled":
-            window.addstr(id, pos, status, curses.color_pair(RED + offset) | attr)
+            window.addstr(id, pos, status, curses.color_pair(RED + offset) | attr | hover_attr)
         elif status == "running":
-            window.addstr(id, pos, status, curses.color_pair(YELLOW + offset) | attr)
+            window.addstr(id, pos, status, curses.color_pair(YELLOW + offset) | attr | hover_attr)
         elif status == "exporting":
-            window.addstr(id, pos, status, curses.color_pair(CYAN + offset) | attr)
+            window.addstr(id, pos, status, curses.color_pair(CYAN + offset) | attr | hover_attr)
         elif status == "success":
-            window.addstr(id, pos, status, curses.color_pair(GREEN + offset) | attr)
+            window.addstr(id, pos, status, curses.color_pair(GREEN + offset) | attr | hover_attr)
         elif status == "queued" or status == "paused":
-            window.addstr(id, pos, status, curses.color_pair(BLUE + offset) | attr)
+            window.addstr(id, pos, status, curses.color_pair(BLUE + offset) | attr | hover_attr)
         elif status == "starting":
-            window.addstr(id, pos, status, curses.color_pair(CYAN + offset) | attr)
+            window.addstr(id, pos, status, curses.color_pair(CYAN + offset) | attr | hover_attr)
         else:
-            window.addstr(id, pos, status, curses.color_pair(NORMAL + offset) | attr)
+            window.addstr(id, pos, status, curses.color_pair(NORMAL + offset) | attr | hover_attr)
         pos = pos + len(status)
 
         remainder = width - pos
@@ -215,7 +288,7 @@ def update_header(handler, header_win, active_jobs_count, retired_jobs_count, to
     header_win.refresh()
 
 
-def update_progress_window(handler, progress_win):
+def update_progress_window(handler, progress_win, hover_job=-1):
     rows, width = progress_win.getmaxyx()
     if handler.showing_help:
         progress_win.attron(curses.A_DIM)
@@ -256,6 +329,7 @@ def update_progress_window(handler, progress_win):
                 width=width,
                 status=job.status,
                 selected=selected,
+                hovered=(real_id == hover_job),
             )
         except curses.error:
             pass
@@ -273,25 +347,43 @@ def build_separator_text(handler, val, ref, width):
     return handler.theme.get("bar") * padding + message + handler.theme.get("bar") * (width - len(message) - padding - 1)
 
 
-def update_separator(handler, separator_win, val, ref, width):
+def separator_resize_handle(handler):
+    """Marker shown on the separator under the pointer: it can be dragged."""
+    if handler.theme.get("bar") == "-":
+        return "[ drag to resize ]"
+    return " ⇕ "
+
+
+def update_separator(handler, separator_win, val, ref, width, hover=False):
     dim = handler.showing_help and curses.A_DIM
     separator_win.erase()
     separator_text = build_separator_text(handler, val, ref, width)
     try:
-        separator_win.addstr(0, 0, separator_text, dim)
+        if hover and not handler.showing_help:
+            handle = separator_resize_handle(handler)
+            if len(handle) < width - 1:
+                start = (width - len(handle)) // 2
+                separator_win.addstr(0, 0, separator_text[:start], curses.A_BOLD)
+                separator_win.addstr(0, start, handle, curses.A_REVERSE)
+                separator_win.addstr(0, start + len(handle), separator_text[start + len(handle):],
+                                     curses.A_BOLD)
+            else:
+                separator_win.addstr(0, 0, separator_text, curses.A_BOLD)
+        else:
+            separator_win.addstr(0, 0, separator_text, dim)
     except curses.error:
         pass
     separator_win.refresh()
 
 
-def update_help(bottom_bar):
+def update_help(bottom_bar, cursor_mode=None):
     bottom_bar.erase()
 
     help_text = [
         ("d", "Detach"),
         ("q", "Quit"),
         ("h", "Help Menu"),
-        ("c", "Cursor Mode"),
+        ("c", "Cursor Mode" if cursor_mode is None else "Cursor Mode ({})".format(cursor_mode)),
     ]
 
     bottom_bar.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
@@ -317,6 +409,41 @@ def update_help(bottom_bar):
     except curses.error:
         pass
     bottom_bar.attroff(curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+    bottom_bar.refresh()
+
+
+def update_copy_help(bottom_bar):
+    """Replaces the help bar while a log selection is being made."""
+    bottom_bar.erase()
+    bottom_bar.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
+    parts = [("y", " or "), ("right click", ": copy selection")]
+    try:
+        bottom_bar.addstr(" Press ")
+        for key, tail in parts:
+            bottom_bar.attron(curses.A_BOLD)
+            bottom_bar.addstr(key)
+            bottom_bar.attroff(curses.A_BOLD)
+            bottom_bar.addstr(tail)
+        bottom_bar.addstr(" | ")
+        bottom_bar.attron(curses.A_BOLD)
+        bottom_bar.addstr("Esc")
+        bottom_bar.attroff(curses.A_BOLD)
+        bottom_bar.addstr(": clear ")
+    except curses.error:
+        pass
+    bottom_bar.attroff(curses.color_pair(NORMAL) | curses.A_REVERSE | curses.A_BOLD)
+    bottom_bar.refresh()
+
+
+def update_status_message(bottom_bar, message):
+    """Temporarily replaces the help bar, e.g. to confirm a copy."""
+    bottom_bar.erase()
+    bottom_bar.attron(curses.color_pair(NORMAL) | curses.A_REVERSE)
+    try:
+        bottom_bar.addstr(" " + message + " ")
+    except curses.error:
+        pass
+    bottom_bar.attroff(curses.color_pair(NORMAL) | curses.A_REVERSE)
     bottom_bar.refresh()
 
 
@@ -561,6 +688,24 @@ def update_logs(handler, logs_win, selected_job, logs_height, width):
         except curses.error:
             pass
 
+    selection = getattr(handler, "log_selection", None)
+    if selection is not None and selection.job_index == handler.selected_job_index and not selection.is_empty():
+        for i in range(logs_height):
+            line = selected_job.log_position + i
+            if line >= log_length:
+                break
+            span = selection.line_span(line, len(_plain_log_line(handler, history[line])))
+            if span is None:
+                continue
+            start = max(0, span[0] - x_offset)
+            end = min(span[1] - x_offset, width)
+            if end <= start:
+                continue
+            try:
+                logs_win.chgat(i, start, end - start, curses.A_REVERSE)
+            except curses.error:
+                pass
+
     logs_win.refresh()
     handler.previous_log_size = log_length
 
@@ -580,6 +725,8 @@ def update_help_popup(popup_win, popup_width, popup_height):
         ("k"          , "Kill selected job"),
         ("s"          , "Start/resume selected job"),
         ("t"          , "Switch theme"),
+        ("c"          , "Change cursor mode"),
+        ("y  R-click", "Copy log selection"),
         ("h         ?", "Show help"),
     ]
 
@@ -620,6 +767,27 @@ def update_help_popup(popup_win, popup_width, popup_height):
     popup_win.refresh()
 
 
+def read_escape_sequence(stdscr, timeout=50, max_length=12):
+    """Reads whatever follows an ESC byte, without blocking."""
+    sequence = ""
+    stdscr.nodelay(True)
+    try:
+        for _ in range(max_length):
+            code = stdscr.getch()
+            if code == -1:
+                break
+            if 0 <= code < 128:
+                sequence += chr(code)
+                if len(sequence) > 1 and sequence[-1].isalpha():
+                    break
+    except curses.error:
+        pass
+    finally:
+        stdscr.nodelay(False)
+        stdscr.timeout(timeout)
+    return sequence
+
+
 def click_on_job(handler, progress_win, y, x):
     if progress_win.enclose(y, x):
         relative_y = y - progress_win.getbegyx()[0]
@@ -640,7 +808,10 @@ def curses_main(handler, stdscr):
     curses.curs_set(0)  # Hide cursor
 
     # Enable mouse actions (disable selection)
-    from odatix.lib.curses_helper import disable_selection, enable_selection
+    from odatix.lib.curses_helper import (
+        disable_selection,
+        enable_selection,
+    )
     disable_selection()
 
     curses.start_color()
@@ -792,8 +963,173 @@ def curses_main(handler, stdscr):
     resize_hold = False
     last_click_job = -1
     last_click_time = 0.0
+    last_log_click_line = -1
+    last_log_click_time = 0.0
+    # ncurses collapses every motion report into a bare REPORT_MOUSE_POSITION,
+    # whether a button is held or not, so the held state cannot be read off the
+    # event: we follow press/release ourselves.
+    button1_down = False
+    # Set while a press has already been acted on, so the click ncurses may
+    # synthesize on release is not acted on a second time.
+    press_consumed = False
+    # Set when input is still queued: the next cycle then skips the redraw pass
+    # and consumes the backlog instead. `pending_key` holds the event that was
+    # peeked to find out, since peeking necessarily reads it.
+    pending_key = None
+    fast_input = False
+
+    cursor_mode = getattr(handler, "cursor_mode", CURSOR_MODES[0])
+    if cursor_mode not in CURSOR_MODES:
+        cursor_mode = CURSOR_MODES[0]
+    hover_job = -1
+    hover_separator = False
+
+    # Text selection inside the log window is done by the application itself, so
+    # the mouse never has to be handed back to the terminal (which would blind us
+    # to hover and clicks) and a selection can reach what the window does not show.
+    log_selection = None
+    handler.log_selection = None
+    status_message = None
+    status_message_time = 0.0
+
+    def apply_cursor_mode():
+        """Reconfigures the terminal for the current cursor mode."""
+        nonlocal hover_job, hover_separator, button1_down, press_consumed, resize_hold
+        hover_job = -1
+        hover_separator = False
+        button1_down = False
+        press_consumed = False
+        resize_hold = False
+        handler.cursor_mode = cursor_mode
+        if cursor_mode == "raw":
+            enable_selection()
+            handler.selection_enabled = True
+        else:
+            # Motion reports are only worth their cost in "mouse+" mode, which is
+            # the only one drawing hover feedback.
+            disable_selection(track_motion=(cursor_mode == "mouse+"))
+            handler.selection_enabled = False
+
+    apply_cursor_mode()
+
+    def redraw_logs():
+        update_logs(handler, logs_win, selected_job, logs_height, width)
+
+    def log_point_at(y, x):
+        """(line, column, edge) of a pointer position, clamped into the window.
+
+        `edge` says in which direction the pointer sits outside the window, which
+        is what drives auto-scrolling while a selection is being dragged.
+        """
+        top, left = logs_win.getbegyx()
+        rows, cols = logs_win.getmaxyx()
+        edge_y = -1 if y < top else (1 if y >= top + rows else 0)
+        edge_x = -1 if x < left else (1 if x >= left + cols else 0)
+        row = min(max(y - top, 0), max(rows - 1, 0))
+        col = min(max(x - left, 0), max(cols - 1, 0))
+        line = int(selected_job.log_position) + row
+        line = max(0, min(line, max(0, len(selected_job.log_history) - 1)))
+        column = int(getattr(selected_job, "log_x_offset", 0)) + col
+        return line, column, (edge_y, edge_x)
+
+    def start_log_selection(y, x):
+        nonlocal log_selection
+        if logs_win is None:
+            return
+        line, column, _ = log_point_at(y, x)
+        log_selection = LogSelection(handler.selected_job_index, (line, column))
+        handler.log_selection = log_selection
+        selected_job.autoscroll = False
+        redraw_logs()
+
+    def select_log_line(line):
+        """Selects a whole log line, as a double click in the logs does."""
+        nonlocal log_selection
+        if logs_win is None:
+            return
+        history = selected_job.log_history
+        if not 0 <= line < len(history):
+            return
+        length = len(_plain_log_line(handler, history[line]))
+        log_selection = LogSelection(handler.selected_job_index, (line, 0))
+        log_selection.cursor = (line, max(length, 1))
+        # The selection is complete: no drag follows a double click.
+        log_selection.dragging = False
+        handler.log_selection = log_selection
+        selected_job.autoscroll = False
+        redraw_logs()
+
+    def extend_log_selection(y, x):
+        if log_selection is None or logs_win is None:
+            return
+        line, column, edge = log_point_at(y, x)
+        log_selection.edge = edge
+        log_selection.cursor = (line, column)
+        redraw_logs()
+
+    def scroll_log_selection():
+        """Keeps scrolling while the pointer is held outside the window."""
+        if log_selection is None or not log_selection.dragging:
+            return
+        edge_y, edge_x = log_selection.edge
+        if not edge_y and not edge_x:
+            return
+        moved = False
+        if edge_y < 0 and selected_job.log_position > 0:
+            selected_job.log_position = max(0, selected_job.log_position - 1)
+            moved = True
+        elif edge_y > 0 and selected_job.log_position + logs_height < len(selected_job.log_history):
+            selected_job.log_position += 1
+            moved = True
+        offset = int(getattr(selected_job, "log_x_offset", 0))
+        if edge_x < 0 and offset > 0:
+            selected_job.log_x_offset = max(0, offset - 2)
+            moved = True
+        elif edge_x > 0:
+            selected_job.log_x_offset = offset + 2
+            moved = True
+        if not moved:
+            return
+        # Drag the free end of the selection along with the view.
+        line, column = log_selection.cursor
+        if edge_y:
+            line = int(selected_job.log_position) + (0 if edge_y < 0 else max(0, logs_height - 1))
+            line = max(0, min(line, max(0, len(selected_job.log_history) - 1)))
+        if edge_x:
+            offset = int(getattr(selected_job, "log_x_offset", 0))
+            column = offset if edge_x < 0 else offset + max(0, width - 1)
+        log_selection.cursor = (line, column)
+        selected_job.autoscroll = False
+        redraw_logs()
+
+    def clear_log_selection():
+        nonlocal log_selection
+        if log_selection is None:
+            return
+        log_selection = None
+        handler.log_selection = None
+        redraw_logs()
+
+    def copy_log_selection():
+        nonlocal status_message, status_message_time, bottom_bar_drawn
+        if log_selection is None or log_selection.is_empty():
+            return
+        job_index = log_selection.job_index
+        if not 0 <= job_index < len(handler.job_list):
+            return
+        text = log_selection.text(handler, handler.job_list[job_index].log_history)
+        lines = text.count("\n") + 1
+        target = copy_to_clipboard(text)
+        if target is None:
+            status_message = "Could not reach any clipboard (install xclip, wl-copy or xsel)"
+        else:
+            status_message = "Copied {} line{} to the clipboard".format(lines, "" if lines == 1 else "s")
+        status_message_time = time.time()
+        bottom_bar_drawn = False
+
     help_static_drawn = False
     bottom_bar_drawn = False
+    bottom_bar_selection = False
     finished_popup_shown = False
     finished_popup_pending = False
     finished_draw_cycles = 0
@@ -818,154 +1154,173 @@ def curses_main(handler, stdscr):
             handler.terminate_all_jobs()
             return False
 
-        try:
-            with handler._lock:
-                handler.process_pending_commands(max_commands=200)
-        except Exception as e:
-            try:
-                if 0 <= handler.selected_job_index < len(handler.job_list):
-                    handler.job_list[handler.selected_job_index].log_history.append(
-                        printc.colors.RED + f"API command error: {e}" + printc.colors.ENDC
-                    )
-            except Exception:
-                pass
-
         height, width = stdscr.getmaxyx()
 
-        # Jobs added while the monitor is attached: grow the progress window so the
-        # new ones are visible, unless it already takes more than half the screen.
-        current_job_count = handler.job_count
-        if current_job_count > last_job_count:
-            grown = progress_height
-            for _ in range(current_job_count - last_job_count):
-                if grown > height // 2:
-                    break
-                grown = _clamp_progress_height(grown + 1, height)
-            if grown != progress_height:
-                progress_height = grown
-                sync_progress_indices()
-                resize = True
-        last_job_count = current_job_count
-
-        if height != old_height or width != old_width or resize:
+        # While events are still queued, skip the whole redraw/bookkeeping
+        # pass and consume them first. Under load a full cycle costs far more
+        # than 50 ms, and handling a single event per cycle makes the pointer
+        # lag behind by the whole backlog: hover trails, and a release read
+        # seconds late leaves a drag or a selection stuck.
+        if not fast_input:
             try:
-                recreate_windows()
-                update_logs(handler, logs_win, selected_job, logs_height, width)
-            except curses.error:
+                with handler._lock:
+                    handler.process_pending_commands(max_commands=200)
+            except Exception as e:
                 try:
-                    stdscr.clear()
-                    stdscr.addstr(0, 0, "Window is too small!", curses.color_pair(RED))
-                    stdscr.refresh()
-                except curses.error:
+                    if 0 <= handler.selected_job_index < len(handler.job_list):
+                        handler.job_list[handler.selected_job_index].log_history.append(
+                            printc.colors.RED + f"API command error: {e}" + printc.colors.ENDC
+                        )
+                except Exception:
                     pass
 
-            old_width = width
-            old_height = height
-            resize = False
-            help_static_drawn = False
-            bottom_bar_drawn = False
 
-        with handler._lock:
-            handler._update_jobs_state(
-                selected_job=selected_job,
-                on_selected_retired=lambda: update_logs(handler, logs_win, selected_job, logs_height, width),
-            )
-            handler._check_resource_guard_unlocked()
+            # Jobs added while the monitor is attached: grow the progress window so the
+            # new ones are visible, unless it already takes more than half the screen.
+            current_job_count = handler.job_count
+            if current_job_count > last_job_count:
+                grown = progress_height
+                for _ in range(current_job_count - last_job_count):
+                    if grown > height // 2:
+                        break
+                    grown = _clamp_progress_height(grown + 1, height)
+                if grown != progress_height:
+                    progress_height = grown
+                    sync_progress_indices()
+                    resize = True
+            last_job_count = current_job_count
 
-        sync_progress_indices()
-
-        active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now = get_runtime_counters()
-        finished = finished or finished_now
-
-        # Completion is announced below, once the final progress/logs have been drawn.
-        if finished and total_jobs_count > 0 and not finished_popup_shown and not handler.auto_exit:
-            finished_popup_pending = True
-
-        if not handler.showing_help:
-            help_static_drawn = False
-
-            update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
-            update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
-
-            # Keep the local selected_job reference synchronized with handler state.
-            # This is required when job objects are replaced (e.g. daemon attach mode).
-            if handler.job_count > 0:
-                handler.selected_job_index = max(0, min(handler.selected_job_index, handler.job_count - 1))
-                refreshed_selected_job = handler.job_list[handler.selected_job_index]
-                if refreshed_selected_job is not selected_job:
-                    selected_job = refreshed_selected_job
-                    selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-                    selected_job.autoscroll = True
-                    selected_job.log_x_offset = 0
+            if height != old_height or width != old_width or resize:
+                try:
+                    recreate_windows()
                     update_logs(handler, logs_win, selected_job, logs_height, width)
+                except curses.error:
+                    try:
+                        stdscr.clear()
+                        stdscr.addstr(0, 0, "Window is too small!", curses.color_pair(RED))
+                        stdscr.refresh()
+                    except curses.error:
+                        pass
 
-            update_progress_window(handler, progress_win)
-            update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
-        elif not help_static_drawn:
-            # Draw a single dimmed snapshot behind the popup, then keep it stable
-            # while help is open to avoid flicker from continuous progress redraws.
-            update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
-            update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
-            update_progress_window(handler, progress_win)
-            update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
-            update_logs(handler, logs_win, selected_job, logs_height, width)
-            help_static_drawn = True
+                old_width = width
+                old_height = height
+                resize = False
+                help_static_drawn = False
+                bottom_bar_drawn = False
 
-        with handler._lock:
-            handler.read_process_output()
+            with handler._lock:
+                handler._update_jobs_state(
+                    selected_job=selected_job,
+                    on_selected_retired=lambda: update_logs(handler, logs_win, selected_job, logs_height, width),
+                )
+                handler._check_resource_guard_unlocked()
 
-        if not handler.showing_help and selected_job.autoscroll and selected_job.log_changed:
-            selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
-            update_logs(handler, logs_win, selected_job, logs_height, width)
+            sync_progress_indices()
 
-        if not handler.showing_help and width != old_width:
-            update_logs(handler, logs_win, selected_job, logs_height, width)
-        old_width = width
+            active_jobs_count, queued_jobs_count, retired_jobs_count, total_jobs_count, finished_now = get_runtime_counters()
+            finished = finished or finished_now
 
-        # Announce completion once, and let the user pick what to do next.
-        # Wait for a couple of full redraw cycles so the final progress bars and
-        # log lines are visible behind the popup.
-        if finished_popup_pending and not handler.showing_help:
-            finished_draw_cycles += 1
-            if finished_draw_cycles >= 2:
-                finished_popup_pending = False
-                finished_popup_shown = True
+            # Completion is announced below, once the final progress/logs have been drawn.
+            if finished and total_jobs_count > 0 and not finished_popup_shown and not handler.auto_exit:
+                finished_popup_pending = True
 
-                # Dim the whole background behind the popup, like the help menu does.
-                handler.showing_help = True
+            if not handler.showing_help:
+                help_static_drawn = False
+
+                update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
+                update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
+
+                # Keep the local selected_job reference synchronized with handler state.
+                # This is required when job objects are replaced (e.g. daemon attach mode).
+                if handler.job_count > 0:
+                    handler.selected_job_index = max(0, min(handler.selected_job_index, handler.job_count - 1))
+                    refreshed_selected_job = handler.job_list[handler.selected_job_index]
+                    if refreshed_selected_job is not selected_job:
+                        selected_job = refreshed_selected_job
+                        selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
+                        selected_job.autoscroll = True
+                        selected_job.log_x_offset = 0
+                        update_logs(handler, logs_win, selected_job, logs_height, width)
+
+                update_progress_window(handler, progress_win, hover_job=hover_job)
+                update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width,
+                                 hover=hover_separator)
+            elif not help_static_drawn:
+                # Draw a single dimmed snapshot behind the popup, then keep it stable
+                # while help is open to avoid flicker from continuous progress redraws.
                 update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
                 update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
                 update_progress_window(handler, progress_win)
                 update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
                 update_logs(handler, logs_win, selected_job, logs_height, width)
+                help_static_drawn = True
 
-                try:
-                    choice = show_finished_popup(
-                        stdscr, finished_popup_options(handler), retired_jobs_count, total_jobs_count
-                    )
-                finally:
-                    handler.showing_help = False
+            with handler._lock:
+                handler.read_process_output()
 
-                if choice == "detach":
-                    return True
-                if choice == "close":
-                    on_quit_after_finished(handler)
-                    return True
-                # "stay": redraw the whole screen behind the popup.
-                try:
-                    stdscr.clear()
-                    stdscr.refresh()
-                except curses.error:
-                    pass
-                resize = True
-                help_static_drawn = False
-                stdscr.timeout(50)
-                curses.flushinp()
-                continue
+            if not handler.showing_help and selected_job.autoscroll and selected_job.log_changed:
+                selected_job.log_position = max(0, len(selected_job.log_history) - logs_height)
+                update_logs(handler, logs_win, selected_job, logs_height, width)
 
-        key = stdscr.getch()
+            if not handler.showing_help and width != old_width:
+                update_logs(handler, logs_win, selected_job, logs_height, width)
+            old_width = width
+
+            # Announce completion once, and let the user pick what to do next.
+            # Wait for a couple of full redraw cycles so the final progress bars and
+            # log lines are visible behind the popup.
+            if finished_popup_pending and not handler.showing_help:
+                finished_draw_cycles += 1
+                if finished_draw_cycles >= 2:
+                    finished_popup_pending = False
+                    finished_popup_shown = True
+
+                    # Dim the whole background behind the popup, like the help menu does.
+                    handler.showing_help = True
+                    update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width)
+                    update_separator(handler, separator_top_win, 0 if handler.pinned_job_list else handler.job_index_start, 0, width)
+                    update_progress_window(handler, progress_win)
+                    update_separator(handler, separator_middle_win, handler.scrollable_count, handler.job_index_end, width)
+                    update_logs(handler, logs_win, selected_job, logs_height, width)
+
+                    try:
+                        choice = show_finished_popup(
+                            stdscr, finished_popup_options(handler), retired_jobs_count, total_jobs_count
+                        )
+                    finally:
+                        handler.showing_help = False
+
+                    if choice == "detach":
+                        return True
+                    if choice == "close":
+                        on_quit_after_finished(handler)
+                        return True
+                    # "stay": redraw the whole screen behind the popup.
+                    try:
+                        stdscr.clear()
+                        stdscr.refresh()
+                    except curses.error:
+                        pass
+                    resize = True
+                    help_static_drawn = False
+                    stdscr.timeout(50)
+                    curses.flushinp()
+                    fast_input = False
+                    pending_key = None
+                    continue
+
+        if pending_key is not None:
+            key = pending_key
+            pending_key = None
+        else:
+            key = stdscr.getch()
+
+        # A selection dragged past the edge of the window keeps scrolling while
+        # the button is held there, even if the pointer no longer moves.
+        scroll_log_selection()
 
         def update_selected_job():
+            clear_log_selection()
             job = handler.job_list[handler.selected_job_index]
             job.log_position = max(0, len(job.log_history) - logs_height)
             job.autoscroll = True
@@ -1023,50 +1378,101 @@ def curses_main(handler, stdscr):
                 except curses.error:
                     x = y = button = None
 
-                button1_down = button is not None and bool(
-                    button & (curses.BUTTON1_PRESSED | curses.REPORT_MOUSE_POSITION)
-                ) and not (button & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED))
-
-                if resize_hold and not button1_down:
-                    resize_hold = False
-                elif button is not None and resize_hold:
-                    y = min(y, height - 2)
-                    relative_y = y - (header_height + separator_height)
-                    new_progress_height = _clamp_progress_height(relative_y, height)
-                    if new_progress_height != progress_height:
-                        progress_height = new_progress_height
-                        sync_progress_indices()
-                        resize = True
-
+                # A pure motion report carries no bit inside ALL_MOUSE_EVENTS.
                 motion_only = button is not None and not (button & curses.ALL_MOUSE_EVENTS)
+
+                # Follow the button state on the events that actually carry it.
+                # "press acted on" is tracked alongside so the click ncurses may
+                # synthesize when the button comes back up is not acted on twice.
+                press_down = False
+                if button is not None and not motion_only:
+                    if button & curses.BUTTON1_PRESSED:
+                        button1_down = True
+                        press_down = True
+                        press_consumed = True
+                    elif button & (curses.BUTTON1_CLICKED | curses.BUTTON1_DOUBLE_CLICKED):
+                        button1_down = False
+                        press_down = not press_consumed
+                        press_consumed = False
+                    elif button & curses.BUTTON1_RELEASED:
+                        button1_down = False
+                        press_consumed = False
+
+                # A right click anywhere copies the current selection: it is
+                # the gesture most terminals use for the clipboard, and it never
+                # collides with the left button state tracked above.
+                if button is not None and button & (curses.BUTTON3_PRESSED | curses.BUTTON3_CLICKED):
+                    copy_log_selection()
+
+                if resize_hold:
+                    if not button1_down:
+                        resize_hold = False
+                    elif button is not None:
+                        y = min(y, height - 2)
+                        relative_y = y - (header_height + separator_height)
+                        new_progress_height = _clamp_progress_height(relative_y, height)
+                        if new_progress_height != progress_height:
+                            progress_height = new_progress_height
+                            sync_progress_indices()
+                            resize = True
+
+                if log_selection is not None and log_selection.dragging:
+                    if not button1_down:
+                        log_selection.dragging = False
+                        log_selection.edge = (0, 0)
+                        if log_selection.is_empty():
+                            clear_log_selection()
+                    elif button is not None:
+                        extend_log_selection(y, x)
+
+                if cursor_mode == "mouse+" and button is not None:
+                    dragging = resize_hold or (log_selection is not None and log_selection.dragging)
+                    hover_separator = resize_hold or (not dragging and separator_middle_win.enclose(y, x))
+                    hover_job = -1 if dragging else click_on_job(handler, progress_win, y, x)
 
                 if button is None or motion_only:
                     pass
-                elif button & curses.BUTTON1_CLICKED or button & curses.BUTTON1_DOUBLE_CLICKED:
-                    job_index = click_on_job(handler, progress_win, y, x)
-                    if job_index >= 0:
-                        handler.selected_job_index = job_index
-                        selected_job = update_selected_job()
-                        update_logs(handler, logs_win, selected_job, logs_height, width)
-
-                        now = time.time()
-                        double_click = (
-                            last_click_job == job_index and now - last_click_time <= DOUBLE_CLICK_DELAY
-                        )
-                        last_click_job = job_index
-                        last_click_time = now
-
-                        if double_click and can_open_path_in_explorer():
-                            last_click_job = -1
-                            try:
-                                open_path_in_explorer(handler.job_list[job_index].tmp_dir)
-                            except NotImplementedError:
-                                pass
-                elif button & curses.BUTTON1_PRESSED:
+                elif press_down:
+                    now = time.time()
+                    # Act on the press: whether ncurses reports a press or a
+                    # click depends on timing, and waiting for the release
+                    # loses the event whenever it reports a plain release.
                     if separator_middle_win.enclose(y, x):
                         resize_hold = True
-                elif button & curses.BUTTON1_RELEASED:
-                    resize_hold = False
+                    elif logs_win is not None and logs_win.enclose(y, x):
+                        # Pressing in the logs starts a selection of our own: the
+                        # terminal never gets the mouse back, so hover and clicks
+                        # keep working while text can still be selected and copied.
+                        line = log_point_at(y, x)[0]
+                        double_click = (
+                            last_log_click_line == line and now - last_log_click_time <= DOUBLE_CLICK_DELAY
+                        )
+                        last_log_click_line = -1 if double_click else line
+                        last_log_click_time = now
+                        if double_click:
+                            select_log_line(line)
+                        else:
+                            start_log_selection(y, x)
+                    else:
+                        clear_log_selection()
+                        job_index = click_on_job(handler, progress_win, y, x)
+                        if job_index >= 0:
+                            handler.selected_job_index = job_index
+                            selected_job = update_selected_job()
+                            update_logs(handler, logs_win, selected_job, logs_height, width)
+
+                            double_click = (
+                                last_click_job == job_index and now - last_click_time <= DOUBLE_CLICK_DELAY
+                            )
+                            last_click_job = job_index
+                            last_click_time = now
+
+                            if double_click and can_open_path_in_explorer():
+                                last_click_job = -1
+                                try:
+                                    open_path_in_explorer(handler.job_list[job_index].tmp_dir)
+                                except NotImplementedError:
+                                    pass
                 elif button & curses.BUTTON4_PRESSED:
                     if progress_win.enclose(y, x):
                         if handler.job_index_start > 0:
@@ -1141,12 +1547,9 @@ def curses_main(handler, stdscr):
                 handler.set_nb_jobs(int(getattr(handler, "nb_jobs", 1)) - 1)
 
             elif key == ord("c") or key == ord("C"):
-                if handler.selection_enabled:
-                    disable_selection()
-                    handler.selection_enabled = False
-                else:
-                    enable_selection()
-                    handler.selection_enabled = True
+                cursor_mode = CURSOR_MODES[(CURSOR_MODES.index(cursor_mode) + 1) % len(CURSOR_MODES)]
+                apply_cursor_mode()
+                bottom_bar_drawn = False
 
             elif key == ord('k') or key == ord('K'):
                 handler.kill_or_cancel_job(handler.selected_job_index)
@@ -1160,6 +1563,20 @@ def curses_main(handler, stdscr):
             elif key == ord('o') or key == ord('O'):
                 if can_open_path_in_explorer():
                     handler.open_job_path(handler.selected_job_index)
+
+            elif key == ord("y") or key == ord("Y"):
+                copy_log_selection()
+
+            elif key == 27:
+                # Only a bare Escape counts: anything else is an escape sequence
+                # we have no binding for and must be swallowed whole.
+                sequence = read_escape_sequence(stdscr)
+                if sequence:
+                    pass
+                elif log_selection is not None:
+                    clear_log_selection()
+                elif handler.auto_exit and finished:
+                    return True
 
             elif key == ord("t") or key == ord("T"):
                 handler.next_theme()
@@ -1193,7 +1610,8 @@ def curses_main(handler, stdscr):
                 close_x = start_x + popup_width - 5
                 close_y = start_y + 1
 
-                if button & curses.BUTTON1_CLICKED and mouse_y == close_y and close_x <= mouse_x <= close_x + 2:
+                clicked = button is not None and button & (curses.BUTTON1_CLICKED | curses.BUTTON1_PRESSED)
+                if clicked and mouse_y == close_y and close_x <= mouse_x <= close_x + 2:
                     handler.showing_help = False
                     if logs_win is not None:
                         logs_win.erase()
@@ -1213,15 +1631,43 @@ def curses_main(handler, stdscr):
                     handler.terminate_all_jobs()
                     return False
                 ask_exit = False
-        elif not bottom_bar_drawn:
-            # The bottom bar is static: redrawing it on every cycle would cancel
-            # any text selection the user is making in cursor mode.
-            update_help(bottom_bar)
-            bottom_bar_drawn = True
+        else:
+            if status_message is not None and time.time() - status_message_time >= STATUS_MESSAGE_DELAY:
+                status_message = None
+                bottom_bar_drawn = False
+            has_selection = log_selection is not None and not log_selection.is_empty()
+            if has_selection != bottom_bar_selection:
+                bottom_bar_selection = has_selection
+                bottom_bar_drawn = False
+            if not bottom_bar_drawn:
+                # The bottom bar is static: redrawing it on every cycle would
+                # cancel any text selection the user is making in "raw" mode.
+                if status_message is not None:
+                    update_status_message(bottom_bar, status_message)
+                elif bottom_bar_selection:
+                    update_copy_help(bottom_bar)
+                else:
+                    update_help(bottom_bar, cursor_mode)
+                bottom_bar_drawn = True
 
         # Draw help popup last so it always stays above logs/progress redraws.
-        if handler.showing_help:
+        if handler.showing_help and not fast_input:
             update_help_popup(popup_win, popup_width, popup_height)
+
+        # Look ahead: if another event is already waiting, run the next cycle in
+        # fast mode so the queue is drained at input speed rather than at redraw
+        # speed. Mouse motion reports arrive in bursts and are cheap to discard.
+        stdscr.nodelay(True)
+        try:
+            pending_key = stdscr.getch()
+        except curses.error:
+            pending_key = -1
+        finally:
+            stdscr.nodelay(False)
+            stdscr.timeout(50)
+        if pending_key == -1:
+            pending_key = None
+        fast_input = pending_key is not None
 
 
 def run(handler):

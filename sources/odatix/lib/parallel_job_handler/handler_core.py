@@ -178,6 +178,13 @@ class ParallelJobHandler:
             self.max_title_length = 0
 
         self.selection_enabled = False
+        # "mouse+" : the application grabs the mouse and does everything itself,
+        #            including text selection in the log window (hover feedback
+        #            needs motion reports, which the terminal only sends us while
+        #            it does not own the mouse).
+        # "mouse"  : the application always grabs the mouse.
+        # "raw"    : the terminal always keeps the mouse.
+        self.cursor_mode = "mouse+"
 
         self.converter = AnsiToCursesConverter()
         self.format_yaml = None
