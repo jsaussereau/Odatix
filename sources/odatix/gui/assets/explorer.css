@@ -1696,6 +1696,29 @@ button.xpa-stat-card:hover {
     background: color-mix(in srgb, var(--theme-text-color) 8%, transparent);
 }
 
+/* A chip that is also a switch: the color it carries is the one its bars are
+   drawn in, so the ranking needs no legend of its own. Off, it keeps its shape
+   and loses its color, which is what says it can be turned back on. */
+.xp-dse-chip-toggle {
+    border: 1px solid transparent;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--xp-dse-chip-color, var(--theme-primary-color));
+    background: color-mix(in srgb, var(--xp-dse-chip-color, var(--theme-primary-color)) 16%, transparent);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.xp-dse-chip-toggle:hover {
+    border-color: color-mix(in srgb, var(--xp-dse-chip-color, var(--theme-primary-color)) 55%, transparent);
+}
+
+.xp-dse-chip-toggle.xp-dse-chip-off {
+    color: var(--theme-text-color);
+    background: transparent;
+    border-color: var(--theme-border-color);
+    opacity: 0.6;
+}
+
 .xp-dse-warning {
     margin-top: 12px;
     padding: 10px 14px;
@@ -1805,6 +1828,127 @@ button.xpa-stat-card:hover {
     align-items: center;
     gap: 6px;
     cursor: pointer;
+}
+
+/* The row of switches under the axes of the trade-off curve */
+
+/* Display options that sit under a card title rather than next to filters. */
+.xp-dse-card-options {
+    margin-bottom: 4px;
+}
+
+.xp-dse-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 24px;
+}
+
+/* Not a cell of the axis row but a line of its own under it, so the names of
+   the parameters it can be colored by have somewhere to be read. */
+.xp-dse-color {
+    flex: 0 0 auto;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.xp-dse-color .xp-dse-axis-label {
+    white-space: nowrap;
+}
+
+/* A dropdown has no width of its own: without this it collapses to its arrow. */
+.xp-dse-color .dash-dropdown,
+.xp-dse-impact-controls .dash-dropdown {
+    width: 100%;
+}
+
+/* What drove the results */
+
+.xp-dse-section-note {
+    max-width: 62em;
+    margin: -6px 0 16px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    opacity: 0.65;
+}
+
+.xp-dse-impact-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+    margin-bottom: 18px;
+}
+
+.xp-dse-impact-controls .xp-dse-axis {
+    flex: 0 1 300px;
+}
+
+.xp-dse-impact-controls .xp-dse-filters {
+    margin-bottom: 0;
+}
+
+.xp-dse-kind-chips {
+    margin-top: 0;
+}
+
+/* The table under the two cards, which is filled by the same callback */
+#xp-dse-levels:not(:empty) {
+    margin-top: 30px;
+}
+
+.xp-dse-factor-picker {
+    margin-bottom: 10px;
+    font-size: var(--theme-small-font-size);
+}
+
+/* One value of one choice per row */
+
+.xp-dse-levels-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--theme-small-font-size);
+}
+
+.xp-dse-levels-table th,
+.xp-dse-levels-table td {
+    padding: 5px 12px;
+    text-align: right;
+    border: 1px solid var(--theme-border-color);
+    white-space: nowrap;
+}
+
+.xp-dse-levels-table th {
+    background-color: var(--theme-contrast-background-color);
+    color: var(--theme-contrast-text-color);
+    font-weight: 600;
+    text-align: right;
+}
+
+.xp-dse-levels-table th:first-child,
+.xp-dse-levels-table td:first-child {
+    text-align: left;
+}
+
+.xp-dse-levels-table tbody tr:nth-child(odd) {
+    background-color: var(--theme-element-background-color);
+}
+
+.xp-dse-level-name {
+    font-weight: 600;
+}
+
+/* The value that came out best on average, and the ones the front preferred */
+
+.xp-dse-level-best,
+.xp-dse-level-share {
+    color: var(--theme-primary-color);
+    font-weight: 600;
+}
+
+.xp-dse-level-failed {
+    color: var(--theme-caution-color, #d9534f);
 }
 
 /* What a chart says when it has nothing to draw */
