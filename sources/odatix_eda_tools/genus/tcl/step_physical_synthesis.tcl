@@ -11,8 +11,15 @@ report_progress 28 $synth_statusfile
 
 
 if {![info exists ::init_design_done]} {
+    puts "Initializing design..."
     init_design
     set ::init_design_done 1
+} else {
+    puts "Design already initialized."
+    puts "Updating MMMC constraints..."
+    update_constraint_mode \
+        -name FUNC \
+        -sdc_files [list $constraints_file]
 }
 
 report_clocks
