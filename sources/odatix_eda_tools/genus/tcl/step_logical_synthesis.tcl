@@ -9,15 +9,16 @@ source scripts/settings.tcl
 # CONSTRAINTS
 #################################################################################
 
-if {[info exists command] && $command eq "fmax"} {
-    # init_design only once during the Fmax search
-    if {[get_db init_design_state] ne "initialization_complete"} {
-        init_design
-        set ::init_design_done 1
-    }
-} else {
+if {![info exists ::init_design_done]} {
+    puts "Initializing design..."
     init_design
     set ::init_design_done 1
+} else {
+    puts "Design already initialized."
+    puts "Updating MMMC constraints..."
+    update_constraint_mode \
+        -name FUNC \
+        -sdc_files [list $constraints_file]
 }
 
 report_clocks
