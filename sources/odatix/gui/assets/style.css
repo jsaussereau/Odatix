@@ -876,6 +876,7 @@ textarea {
     box-shadow: var(--card-box-shadow);
     border: var(--card-border);
     border-radius: var(--card-border-radius);
+    backdrop-filter: var(--card-backdrop-filter);
     break-inside: avoid;
     transition:
         height 0.3s cubic-bezier(0.4, 0.2, 0.2, 1),

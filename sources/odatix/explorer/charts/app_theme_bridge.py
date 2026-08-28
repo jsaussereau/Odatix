@@ -58,6 +58,12 @@ APP_THEME_CHROME = {
   "code_dark": DARK_CHROME,
   "rainbow": LIGHT_CHROME,
   "galaxy": {**DARK_CHROME, "text_color": "#f8f3ff"},
+  "synthwave": {
+    **DARK_CHROME,
+    "text_color": "#eef0ff",
+    "grid_color": "rgba(143, 123, 255, 0.25)",
+    "zeroline_color": "rgba(78, 226, 255, 0.5)",
+  },
   "midnight": {**DARK_CHROME, "text_color": "#e0e0ff"},
   "win95": {**LIGHT_CHROME, "text_color": "#000000"},
   "hangover": LIGHT_CHROME,

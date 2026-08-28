@@ -787,8 +787,10 @@
     text-align: left;
     font: inherit;
     color: var(--card-text-color, var(--theme-text-color));
-    background-color: var(--card-background, var(--theme-element-background-color));
-    border: var(--card-border, none);
+    background: var(--card-background);
+    border: var(--card-border);
+    box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
+    backdrop-filter: var(--card-backdrop-filter);
     border-radius: var(--theme-small-border-radius, 12px);
     box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
     transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -909,8 +911,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    background-color: var(--theme-element-background-color);
-    border: 1px solid var(--theme-border-color);
+    background: var(--card-background);
+    border: var(--card-border);
+    box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
+    backdrop-filter: var(--card-backdrop-filter);
     border-radius: var(--theme-small-border-radius, 12px);
     box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
     padding: 12px 14px;
@@ -1649,10 +1653,11 @@ button.xpa-stat-card:hover {
 }
 
 .xp-dse-stat {
-    background-color: var(--theme-element-background-color);
-    border: 1px solid var(--theme-border-color);
+    background: var(--card-background);
+    border: var(--card-border);
+    box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
+    backdrop-filter: var(--card-backdrop-filter);
     border-radius: var(--theme-small-border-radius, 12px);
-    box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
     padding: 14px 16px;
 }
 
@@ -1742,10 +1747,11 @@ button.xpa-stat-card:hover {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    background-color: var(--theme-element-background-color);
-    border: 1px solid var(--theme-border-color);
+    background: var(--card-background);
+    border: var(--card-border);
+    box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
+    backdrop-filter: var(--card-backdrop-filter);
     border-radius: var(--theme-small-border-radius, 12px);
-    box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
     padding: 16px 16px 10px 16px;
     box-sizing: border-box;
 }
@@ -2063,9 +2069,11 @@ button.xpa-stat-card:hover {
     max-width: 1100px;
     margin: 0 auto 22px auto;
     padding: 12px 16px;
-    border-radius: var(--theme-small-border-radius, 12px);
-    background-color: var(--theme-element-background-color);
-    border: 1px solid var(--theme-border-color);
+    border-radius: var(--theme-small-border-radius, 12px);    
+    background: var(--card-background);
+    border: var(--card-border);
+    box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
+    backdrop-filter: var(--card-backdrop-filter);
     box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
 }
 /* A single-source workspace has nothing to filter: no empty bar. */
@@ -2109,9 +2117,10 @@ button.xpa-stat-card:hover {
     gap: 12px;
     border-radius: var(--theme-small-border-radius, 12px);
     color: var(--card-text-color, var(--theme-text-color));
-    background-color: var(--card-background, var(--theme-element-background-color));
-    border: 1px solid var(--theme-border-color);
-    box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+    background: var(--card-background);
+    border: var(--card-border);
+    box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
+    backdrop-filter: var(--card-backdrop-filter);
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
