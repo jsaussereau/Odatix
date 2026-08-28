@@ -187,11 +187,7 @@ _icons = {
         Line(x1="6", y1="6", x2="18", y2="18"),
     ], width, height, className, id),
 
-    # --- Solid variants (used only by the monitor task controls) ---
-    # These are filled glyphs (painted with `currentColor`, so the ".icon <color>"
-    # classes still drive their color) with per-icon viewBox and nudge styling
-    # carried over from the previous design. The line-art "play"/"pause"/"cross"
-    # above are kept unchanged for every other use.
+    # Solid variants (used by the monitor task controls)
     "play_solid": lambda color, width, height, className, offset, id: Svg(
         children=[
             Path(d='M464.7,221.5L86.1,7.3C52.5-11.7,25,7.5,25,50v412c0,42.5,27.5,61.7,61.1,42.7l378.6-214.1  C498.2,271.5,498.2,240.5,464.7,221.5z'),
@@ -309,10 +305,12 @@ _pictograms = {
         Circle(cx="24", cy="24", r="16", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.4"),
         Polygon(points="19,16 33,24 19,32", fill=_PRIMARY),
     ], size),
-    # Monitor: activity pulse
+    # Monitor: progress bars
     "monitor": lambda size: _picto([
         Rect(x="7", y="10", width="34", height="24", rx="3", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5"),
-        Polyline(points="12,24 18,24 21,18 26,30 29,24 36,24", stroke=_PRIMARY, strokeWidth="2.5", fill="none", strokeLinecap="round", strokeLinejoin="round"),
+        Rect(x="10", y="15.4", width="27.8", height="2.75", ry="1.2", fill=_PRIMARY, fillOpacity="1"),
+        Rect(x="9.95", y="20.8", width="19.7", height="2.75", ry="1.2", fill=_PRIMARY, fillOpacity="0.5"),
+        Rect(x="9.98", y="26.2", width="21.9", height="2.75", ry="1.2", fill=_PRIMARY, fillOpacity="0.7"),
         Line(x1="18", y1="40", x2="30", y2="40", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", strokeLinecap="round"),
     ], size),
     # Explore results: chart + magnifier
@@ -342,7 +340,7 @@ _pictograms = {
         # Same cog outline as the small "gear" icon, scaled onto the 48x48 grid
         Path(d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
              transform="translate(4.8 4.8) scale(1.6)",
-             stroke=_PRIMARY, strokeWidth="1.6", strokeLinecap="round", strokeLinejoin="round"),
+             stroke=_PRIMARY, strokeWidth="1.5", strokeLinecap="round", strokeLinejoin="round"),
         Circle(cx="24", cy="24", r="7", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.55"),
     ], size),
     # Documentation: book
@@ -352,8 +350,16 @@ _pictograms = {
         Line(x1="29", y1="16", x2="34", y2="16", stroke=_PRIMARY, strokeWidth="2", strokeLinecap="round"),
         Line(x1="29", y1="22", x2="34", y2="22", stroke=_PRIMARY, strokeWidth="2", strokeLinecap="round"),
     ], size),
-    # Generic EDA tool: chip + gear
-    "eda_tool": lambda size: _picto([
+    # Tool: wrench over a hex nut
+    "tool": lambda size: _picto([
+        Path(d="M33.5 25.5 l6.1 3.5 v7 l-6.1 3.5 -6.1-3.5 v-7 z",
+             stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5", fill="none", strokeLinejoin="round"),
+        Path(d="M39 9 a9.5 9.5 0 0 1-12.4 12.4 L15.6 32.4 a4.2 4.2 0 1 1-5.9-5.9 L20.6 15.4 A9.5 9.5 0 0 1 33 3 l-6.2 6.2 1.5 5.5 5.5 1.5 z",
+             transform="translate(-2.5 4)",
+             stroke=_PRIMARY, strokeWidth="2.25", fill="none", strokeLinejoin="round", strokeLinecap="round"),
+    ], size),
+    # Target: chip + viewfinder
+    "target": lambda size: _picto([
         Rect(x="10", y="10", width="20", height="20", rx="3", stroke=_TEXT, strokeWidth="2", strokeOpacity="0.5"),
         Rect(x="16", y="16", width="8", height="8", rx="1", fill=_TEXT, fillOpacity="0.3"),
         Circle(cx="33", cy="33", r="5", stroke=_PRIMARY, strokeWidth="2.5"),

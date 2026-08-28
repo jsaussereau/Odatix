@@ -61,7 +61,7 @@ home_cards = [
     {
         "name": "EDA Tools",
         "link": "/tools",
-        "icon": "eda_tool",
+        "icon": "tool",
         "description": "Add and configure your EDA tools",
     },
     {
