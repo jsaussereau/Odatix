@@ -157,7 +157,7 @@ def build_campaign_cards(workspace):
     cards = []
     for name in campaign_names(workspace):
         cards.append(campaign_card(name, name in selected, campaign_badges(read_campaign(workspace, name))))
-    cards.append(ui.add_card(id={"type": "dse-campaign-add"}, text="New campaign", className="dse-campaign-card"))
+    cards.append(ui.add_card(id={"type": "dse-campaign-add"}, text="New campaign", className="card add hover"))
     return cards
 
 

@@ -170,7 +170,12 @@
     opacity: 0.9;
 }
 
-/* The "new campaign" tile sits in the same grid as the cards. */
+.odx-add-card,
+.odx-add-card.card {
+    text-align: center;
+    justify-content: center;
+}
+
 .odx-add-card.dse-campaign-card {
     min-height: 150px;
 }
