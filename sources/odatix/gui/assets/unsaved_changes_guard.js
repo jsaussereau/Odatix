@@ -22,6 +22,19 @@
 
   var overlay = null;
   var bypass = false; // set while we replay a click the user confirmed
+  var saveGraceUntil = 0; // timestamp until which a save-triggered reload is ok
+
+  // A save can change the URL on purpose 
+  var SAVE_GRACE_MS = 3000;
+
+  function inSaveGrace() {
+    return Date.now() < saveGraceUntil;
+  }
+
+  function isSaveAllButton(el) {
+    if (!el || !el.closest) return false;
+    return !!el.closest('[id*="save-all"]');
+  }
 
   // ------------------------------------------------------------------ dirty
   function isDirty() {
@@ -135,6 +148,11 @@
 
   function onClickCapture(e) {
     if (bypass) return;
+    if (isSaveAllButton(e.target)) {
+      // The save button may trigger a navigation: open the grace window.
+      saveGraceUntil = Date.now() + SAVE_GRACE_MS;
+      return;
+    }
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
       return; // let modified clicks (open in new tab, ...) through
     }
@@ -152,6 +170,8 @@
     // A run launched from the "Run jobs" popup navigates to the monitor on
     // purpose (with the current, possibly unsaved, config): do not warn.
     if (window.__odatixSkipUnsavedGuard) return;
+    // A save that renames the edited item changes the URL on purpose.
+    if (inSaveGrace()) return;
     if (isDirty()) {
       e.preventDefault();
       e.returnValue = ""; // triggers the browser's native confirm dialog
