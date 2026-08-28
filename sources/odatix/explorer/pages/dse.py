@@ -247,7 +247,7 @@ def layout(**kwargs):
           ),
           # The answer of the campaign, before the analysis of the space it came
           # out of; what never built at all closes the page.
-          html.Div(id="xp-dse-front-table"),
+          html.Div(id="xp-dse-front-table-slot"),
           _impact_section(),
           html.Div(id="xp-dse-body"),
         ],
@@ -1848,7 +1848,7 @@ def update_axes(name, settings, x_metric, y_metric, z_metric):
   Output("xp-dse-progress-slot", "children"),
   Output("xp-dse-parcoords-slot", "children"),
   Output("xp-dse-parcoords-subtitle", "children"),
-  Output("xp-dse-front-table", "children"),
+  Output("xp-dse-front-table-slot", "children"),
   Output("xp-dse-body", "children"),
   Input("xp-dse-campaign", "value"),
   Input("xp-dse-axis-x", "value"),
