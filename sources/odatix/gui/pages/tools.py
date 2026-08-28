@@ -120,7 +120,7 @@ def flows_line(name):
 
 def build_tool_cards(tools):
     cards = [workspace_tool_card(tools.entry(name)) for name in tools.names()]
-    cards.append(add_card("Create New Tool"))
+    cards.append(add_card("Add New Tool"))
     return cards
 
 def build_builtin_cards(tools):

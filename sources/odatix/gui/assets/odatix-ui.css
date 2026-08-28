@@ -718,11 +718,12 @@
 }
 
 .odx-add-card-plus{
-	font-size: 1.75em;
+	font-size: 2.5em;
 	transform: translateY(-1px);
 }
 
 .odx-add-card-text {
+	font-size: 1.2em;
     font-weight: 600;
 } 
 
