@@ -1836,3 +1836,20 @@ div:has(> .odx-configs-diff) + div .odx-configs-note {
     opacity: 0.7;
     padding-bottom: 20px;
 }
+
+/* --- Rule sets --------------------------------------------------------- */
+
+/* A set of rules is not a tile among others: it is a block of the domain
+   panel, and its fields read across its whole width. */
+.card.configs.odx-rule-set,
+.card.configs.add.odx-rule-set-add {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+/* The highlight mirror covers the field exactly: no width of its own. */
+.odx-rule-set .wf-hl-wrap {
+    width: 100%;
+    box-sizing: border-box;
+}

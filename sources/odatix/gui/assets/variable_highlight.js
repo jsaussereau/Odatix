@@ -315,10 +315,24 @@
     textarea.classList.add("wf-hl-input");
     textarea.__wfHlMirror = mirror;
 
+    // The mirror covers the field itself, not the wrapper around it: a field
+    // narrower than its wrapper (or offset inside it) would otherwise leave the
+    // mirror sticking out of it on every side it does not fill.
+    function syncBox() {
+      mirror.style.boxSizing = "border-box";
+      mirror.style.left = textarea.offsetLeft + "px";
+      mirror.style.top = textarea.offsetTop + "px";
+      mirror.style.width = textarea.offsetWidth + "px";
+      mirror.style.height = textarea.offsetHeight + "px";
+    }
+
     function syncScroll() {
+      syncBox();
       mirror.scrollTop = textarea.scrollTop;
       mirror.scrollLeft = textarea.scrollLeft;
     }
+
+    textarea.__wfHlSyncBox = syncBox;
 
     textarea.addEventListener("scroll", syncScroll);
     // A single-line input scrolls itself as the caret moves, without firing a
@@ -329,12 +343,13 @@
       });
     });
 
-    // The mirror takes its height from the wrapper, whose height is the one of
-    // the textarea itself: no measurement to keep in step with a resize (the
-    // handle, or the auto-resize on input), only the scroll position.
+    // The mirror follows every resize of the field: the handle, the auto-resize
+    // on input, and the panel around it growing or shrinking.
     if (typeof ResizeObserver !== "undefined") {
       new ResizeObserver(syncScroll).observe(textarea);
     }
+    window.addEventListener("resize", syncScroll);
+    syncBox();
 
     return mirror;
   }
@@ -357,6 +372,10 @@
     COPIED_STYLES.forEach(function (prop) {
       mirror.style[prop] = computed[prop];
     });
+    // ...and then over the copied box: the field's own size has the last word.
+    if (textarea.__wfHlSyncBox) {
+      textarea.__wfHlSyncBox();
+    }
     // The textarea auto-resizes its height on input; the mirror follows it
     // through the wrapper, but its scroll position only settles a frame later.
     window.requestAnimationFrame(function () {

@@ -295,7 +295,7 @@ def match_form(domain_uuid, match, visible=True):
                 # assets/variable_highlight.js).
                 className="auto-resize-textarea odatix-command-field odatix-selector-field",
                 placeholder=DEFAULT_MATCH,
-                style={"width": "calc(100% - 12px)", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
+                style={"width": "100%", "boxSizing": "border-box", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
             ),
             html.Div(
                 id={"type": "cfg-match-summary", "domain_uuid": domain_uuid},
@@ -556,22 +556,36 @@ def rule_set_card(domain_uuid, key, name, template, constraints, variables=None,
     # included: the values themselves. The placeholders say so.
     implicit_name = implicit_config_name(variables or {})
     implicit_content = implicit_template(variables or {})
-    header = []
+    # Every set of rules is shown as one, the only set of a domain included:
+    # what a domain says about its configurations reads the same whether it
+    # says it once or several times.
+    actions = [
+        ui.icon_button(
+            icon=icon("duplicate", className="icon"),
+            color="default",
+            id={"type": "cfg-duplicate-rule-set", "domain_uuid": domain_uuid, "rule_set": key},
+            tooltip="Duplicate this set of rules",
+            tooltip_options="bottom auto",
+        ),
+    ]
+    # The last set of rules of a domain is not deletable: a domain describes
+    # its configurations with one set of rules or several, never with none.
     if total > 1:
-        header = [html.Div(
-            children=[
-                html.H4("Rule set {0}".format(index + 1), style={"margin": "0px"}),
-                ui.icon_button(
-                    icon=icon("delete", className="icon"),
-                    color="default",
-                    id={"type": "cfg-delete-rule-set", "domain_uuid": domain_uuid, "rule_set": key},
-                    tooltip="Delete this set of rules",
-                    tooltip_options="bottom auto caution",
-                ),
-            ],
-            style={"display": "flex", "alignItems": "center", "justifyContent": "space-between",
-                   "gap": "10px", "marginBottom": "8px"},
-        )]
+        actions.append(ui.icon_button(
+            icon=icon("delete", className="icon"),
+            color="default",
+            id={"type": "cfg-delete-rule-set", "domain_uuid": domain_uuid, "rule_set": key},
+            tooltip="Delete this set of rules",
+            tooltip_options="bottom auto caution",
+        ))
+    header = [html.Div(
+        children=[
+            html.H4("Rule set {0}".format(index + 1), style={"margin": "0px"}),
+            html.Div(actions, style={"display": "flex", "alignItems": "center", "gap": "6px"}),
+        ],
+        style={"display": "flex", "alignItems": "center", "justifyContent": "space-between",
+               "gap": "10px", "marginBottom": "8px"},
+    )]
     return html.Div(
         children=header + [
             html.Div([
@@ -591,7 +605,7 @@ def rule_set_card(domain_uuid, key, name, template, constraints, variables=None,
                     # domain (see assets/variable_highlight.js and the scope the
                     # panel declares).
                     className="odatix-command-field",
-                    style={"width": "100%", "fontFamily": "monospace", "fontWeight": "500"},
+                    style={"width": "100%", "boxSizing": "border-box", "fontFamily": "monospace", "fontWeight": "500"},
                 ),
             ], style={"marginBottom": "12px"}),
             html.Div([
@@ -605,7 +619,7 @@ def rule_set_card(domain_uuid, key, name, template, constraints, variables=None,
                     value=template,
                     className="auto-resize-textarea odatix-command-field",
                     placeholder=implicit_content or DEFAULT_TEMPLATE,
-                    style={"width": "calc(100% - 12px)", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
+                    style={"width": "100%", "boxSizing": "border-box", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
                 ),
             ], style={"marginBottom": "12px"}),
             html.Div([
@@ -620,12 +634,12 @@ def rule_set_card(domain_uuid, key, name, template, constraints, variables=None,
                     value=constraints_text(constraints),
                     className="auto-resize-textarea odatix-command-field",
                     placeholder=DEFAULT_CONSTRAINTS,
-                    style={"width": "calc(100% - 12px)", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
+                    style={"width": "100%", "boxSizing": "border-box", "resize": "none", "fontFamily": "monospace", "fontWeight": "500"},
                 ),
             ], style={"marginBottom": "12px"}),
         ],
-        className="odx-rule-set" + (" card configs" if total > 1 else ""),
-        style={"padding": "12px", "marginBottom": "12px"} if total > 1 else None,
+        className="odx-rule-set card configs",
+        style={"padding": "12px", "marginBottom": "12px"},
     )
 
 
@@ -1159,6 +1173,7 @@ def update_variable_cards(new_clicks, duplicate_clicks, delete_clicks, rows, dom
     Output({"type": "cfg-rule-sets-row", "domain_uuid": dash.ALL}, "children"),
     Input({"type": "cfg-new-rule-set", "domain_uuid": dash.ALL}, "n_clicks"),
     Input({"type": "cfg-delete-rule-set", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "n_clicks"),
+    Input({"type": "cfg-duplicate-rule-set", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "n_clicks"),
     State({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
     State({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
     State({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
@@ -1166,10 +1181,10 @@ def update_variable_cards(new_clicks, duplicate_clicks, delete_clicks, rows, dom
     *variable_states(),
     prevent_initial_call=True,
 )
-def update_rule_set_cards(new_clicks, delete_clicks, names, templates, constraint_texts,
+def update_rule_set_cards(new_clicks, delete_clicks, duplicate_clicks, names, templates, constraint_texts,
                           domain_metadata, *field_values):
     """
-    Add a set of rules to a domain, or delete one, leaving every other domain
+    Add a set of rules to a domain, duplicate one, or delete one, leaving every other domain
     alone -- and leaving what the other cards of this one hold as it is: they
     are rebuilt from the form, not from the file, so an unsaved edit survives.
 
@@ -1187,22 +1202,30 @@ def update_rule_set_cards(new_clicks, delete_clicks, names, templates, constrain
         return [dash.no_update] * len(uuids)
     row_index = uuids.index(domain_uuid)
 
-    clicked = (
-        new_clicks if trigger.get("type") == "cfg-new-rule-set" else delete_clicks
-    )
+    clicked = {
+        "cfg-new-rule-set": new_clicks,
+        "cfg-duplicate-rule-set": duplicate_clicks,
+    }.get(trigger.get("type"), delete_clicks)
     if not any(clicked or ()):
         return [dash.no_update] * len(uuids)
 
     positions = rule_set_positions(uuids)
     blocks = form_blocks(names, templates, constraint_texts, positions.get(domain_uuid, []))
 
+    target = trigger.get("rule_set")
+    used = [_sort_key(key)[1] for key, _n, _t, _c in blocks]
+    next_key = (max(used) + 1) if used else 1
     if trigger.get("type") == "cfg-new-rule-set":
-        used = [_sort_key(key)[1] for key, _n, _t, _c in blocks]
-        blocks.append(((max(used) + 1) if used else 1, "", "", []))
-    else:
-        target = trigger.get("rule_set")
-        if len(blocks) > 1:
-            blocks = [block for block in blocks if block[0] != target]
+        blocks.append((next_key, "", "", []))
+    elif trigger.get("type") == "cfg-duplicate-rule-set":
+        # The copy is what the duplicated set says now, right after it: read as
+        # a variant of its neighbour rather than as a set of its own at the end.
+        position = next((i for i, block in enumerate(blocks) if block[0] == target), None)
+        if position is not None:
+            _key, name, template, constraints = blocks[position]
+            blocks.insert(position + 1, (next_key, name, template, list(constraints)))
+    elif len(blocks) > 1:
+        blocks = [block for block in blocks if block[0] != target]
 
     indices = domain_indices(field_ids("variable-title"), uuids)
     variables = variables_of(field_values, indices.get(domain_uuid, []))
