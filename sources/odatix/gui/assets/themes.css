@@ -100,6 +100,7 @@
     --navbar-border-bottom: none;
     --navbar-box-shadow: none;
     --nav-dropdown-background: var(--navbar-background);
+    --nav-dropdown-background-hover: rgba(255, 255, 255, 0.12);
     --nav-dropdown-text-color: var(--theme-contrast-text-color);
 
     /* panels (nested surfaces: .odx-panel, .odx-card, .odx-header) */
@@ -681,13 +682,13 @@
     --theme-background: #eceff8;
     --theme-background-image:
         radial-gradient(ellipse 880px 640px at 8% 8%,
-            rgba(96, 148, 255, 0.45) 0%, rgba(96, 148, 255, 0) 68%),
+            rgba(96, 148, 255, 0.36) 0%, rgba(96, 148, 255, 0) 68%),
         radial-gradient(ellipse 800px 600px at 92% 4%,
-            rgba(255, 94, 155, 0.32) 0%, rgba(255, 94, 155, 0) 68%),
+            rgba(255, 94, 155, 0.26) 0%, rgba(255, 94, 155, 0) 68%),
         radial-gradient(ellipse 860px 640px at 88% 82%,
-            rgba(0, 200, 176, 0.3) 0%, rgba(0, 200, 176, 0) 70%),
+            rgba(0, 200, 176, 0.24) 0%, rgba(0, 200, 176, 0) 70%),
         radial-gradient(ellipse 780px 600px at 14% 92%,
-            rgba(150, 110, 255, 0.35) 0%, rgba(150, 110, 255, 0) 70%),
+            rgba(150, 110, 255, 0.28) 0%, rgba(150, 110, 255, 0) 70%),
         linear-gradient(160deg, #f1f3fa 0%, #e9edf7 50%, #eef0f8 100%);
     background-repeat: no-repeat;
     background-attachment: fixed;
@@ -700,7 +701,8 @@
     --navbar-dropdown-text-color: #ffffff;
     --navbar-dropdown-background-hover: rgba(79, 107, 255, 0.55);
     --navbar-dropdown-border: 1px solid rgba(255, 255, 255, 0.18);
-    --nav-dropdown-background: rgba(247, 251, 255, 0.91);
+    --nav-dropdown-background: rgba(247, 251, 255, 0.4);
+    --nav-dropdown-background-hover: rgba(172, 172, 188, 0.15);
     --nav-dropdown-text-color: var(--theme-text-color);
 
     /* cards and tiles */
@@ -775,7 +777,7 @@
 
     /* every surface is a pane of frosted glass */
     --panel-backdrop-filter: blur(22px) saturate(1.6);
-    --navbar-backdrop-filter: blur(20px) saturate(1.6);
+    --navbar-backdrop-filter: none;
     --navbar-border-bottom: 1px solid rgba(255, 255, 255, 0.22);
     --navbar-box-shadow: 0 6px 28px rgba(20, 25, 48, 0.22);
 
@@ -865,6 +867,7 @@
     --navbar-dropdown-text-color: #ffffff;
     --navbar-dropdown-background-hover: rgba(160, 126, 214, 0.35);
     --navbar-dropdown-border: 1px solid rgba(255, 255, 255, 0.14);
+    --nav-dropdown-text-color: var(--theme-text-color);
 
     /* cards and tiles */
     --card-background: rgba(255, 255, 255, 0.07);
@@ -945,7 +948,7 @@
 
     /* every surface is a pane of frosted glass */
     --panel-backdrop-filter: blur(22px) saturate(1.5);
-    --navbar-backdrop-filter: blur(20px) saturate(1.5);
+    --navbar-backdrop-filter: none;
     --navbar-border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     --navbar-box-shadow: 0 6px 28px rgba(8, 7, 12, 0.5);
 

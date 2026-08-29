@@ -254,10 +254,7 @@ def workflow_title(workflow_name):
         className="inline-flex-buttons",
     )
 
-    return html.Div([
-        html.Div(),
-        html.Div(),
-        html.Div(),
+    return html.Div(
         html.Div(
             children=[
                 html.Div(
@@ -289,7 +286,7 @@ def workflow_title(workflow_name):
             ],
             className="tile title",
             style={"position": "relative"},
-        )],
+        ),
         className="card-matrix config",
         style={"marginTop": "0px", "marginBottom": "10px"},
     )

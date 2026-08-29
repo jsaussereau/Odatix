@@ -171,7 +171,7 @@ a.nav-group-label {
 }
 
 .navbar .nav-dropdown a:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--nav-dropdown-background-hover);
     text-decoration: none;
 }
 
@@ -553,6 +553,35 @@ textarea {
 
 .navbar .Select-menu-outer {
     position: absolute;
+}
+
+/* Options: react-select ships an opaque white default, which is unreadable on
+   dark (and translucent) themes -- let the menu surface show through instead. */
+.Select-menu-outer .Select-option,
+.Select-menu-outer .Select-noresults {
+    background-color: transparent;
+    color: var(--dropdown-text-color, var(--theme-text-color));
+}
+.Select-menu-outer .Select-option.is-focused {
+    background-color: var(--dropdown-menu-hover, var(--dropdown-background-hover));
+    color: var(--dropdown-text-color, var(--theme-text-color));
+}
+.Select-menu-outer .Select-option.is-selected {
+    background-color: var(--dropdown-background-hover, var(--dropdown-menu-hover));
+    color: var(--dropdown-text-color, var(--theme-text-color));
+}
+.Select-menu-outer .Select-option.is-disabled {
+    color: var(--theme-text-color);
+    opacity: 0.45;
+}
+.navbar .Select-menu-outer .Select-option,
+.navbar .Select-menu-outer .Select-noresults {
+    color: var(--navbar-dropdown-text-color);
+}
+.navbar .Select-menu-outer .Select-option.is-focused,
+.navbar .Select-menu-outer .Select-option.is-selected {
+    background-color: var(--navbar-dropdown-background-hover);
+    color: var(--navbar-dropdown-text-color);
 }
 
 .Select-value:hover {
