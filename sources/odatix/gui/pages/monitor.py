@@ -1493,6 +1493,9 @@ layout = html.Div(
             id="monitor-main-container",
             className="monitor-dashboard hidden",
             children=[
+                html.Div(),
+                html.Div(),
+                html.Div(),
                 monitor_header,
                 split_view,
             ],

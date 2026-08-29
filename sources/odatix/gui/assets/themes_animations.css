@@ -19,7 +19,6 @@
 * along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 *
 */
-
 @keyframes pulse {
     0% {
         box-shadow: none;
@@ -33,10 +32,20 @@
         transform: translateY(0);
     }
 }
-
 .theme.hangover .card,
-.theme.hangover .tile {
-    position: relative; /* permet les translations sans casser le flux */
+.theme.hangover .tile,
+.theme.hangover .xp-card-link,
+.theme.hangover .odx-header,
+.theme.hangover .odx-panel,
+.theme.hangover .xp-source-card,
+.theme.hangover .xp-view-card,
+.theme.hangover .xp-insights-bar,
+.theme.hangover .xp-reco-card,
+.theme.hangover .jobs-arch-card,
+.theme.hangover .odx-section-head,
+.theme.hangover .monitor-header,
+.theme.hangover .monitor-panel {
+    position: relative;
     will-change: transform, opacity;
     animation-iteration-count: infinite;
     animation-direction: alternate;
@@ -71,7 +80,6 @@
     75%  { transform: translate(-4vw, 3vh) rotate(-1.4deg); }
     100% { transform: translate(0, 0) rotate(0deg); }
 }
-
 @keyframes float5 {
     0%   { transform: translate(0, 0) rotate(0deg); }
     20%  { transform: translate(3vw, 5vh) rotate(2deg); }
@@ -128,101 +136,252 @@
     68%  { transform: translate(-6vw, 1vh) rotate(-1.1deg); }
     100% { transform: translate(0, 0) rotate(0deg); }
 }
-
 .theme.hangover .card:nth-child(12n+1),
-.theme.hangover .tile:nth-child(12n+1) {
+.theme.hangover .tile:nth-child(12n+1),
+.theme.hangover .xp-card-link:nth-child(12n+1),
+.theme.hangover .odx-header:nth-child(12n+1),
+.theme.hangover .odx-panel:nth-child(12n+1),
+.theme.hangover .xp-source-card:nth-child(12n+1),
+.theme.hangover .xp-view-card:nth-child(12n+1),
+.theme.hangover .xp-insights-bar:nth-child(12n+1),
+.theme.hangover .xp-reco-card:nth-child(12n+1),
+.theme.hangover .jobs-arch-card:nth-child(12n+1),
+.theme.hangover .odx-section-head:nth-child(12n+1),
+.theme.hangover .monitor-header:nth-child(12n+1),
+.theme.hangover .monitor-panel:nth-child(12n+1) {
     animation-name: float1;
     animation-duration: 18s;
     animation-delay: -2s;
     animation-direction: alternate;
 }
 .theme.hangover .card:nth-child(12n+2),
-.theme.hangover .tile:nth-child(12n+2) {
+.theme.hangover .tile:nth-child(12n+2),
+.theme.hangover .xp-card-link:nth-child(12n+2),
+.theme.hangover .odx-header:nth-child(12n+2),
+.theme.hangover .odx-panel:nth-child(12n+2),
+.theme.hangover .xp-source-card:nth-child(12n+2),
+.theme.hangover .xp-view-card:nth-child(12n+2),
+.theme.hangover .xp-insights-bar:nth-child(12n+2),
+.theme.hangover .xp-reco-card:nth-child(12n+2),
+.theme.hangover .jobs-arch-card:nth-child(12n+2),
+.theme.hangover .odx-section-head:nth-child(12n+2),
+.theme.hangover .monitor-header:nth-child(12n+2),
+.theme.hangover .monitor-panel:nth-child(12n+2) {
     animation-name: float2;
-    animation-duration: 20s;
+    animation-duration: 22s;
     animation-delay: -4s;
     animation-direction: alternate-reverse;
 }
 .theme.hangover .card:nth-child(12n+3),
-.theme.hangover .tile:nth-child(12n+3) {
+.theme.hangover .tile:nth-child(12n+3),
+.theme.hangover .xp-card-link:nth-child(12n+3),
+.theme.hangover .odx-header:nth-child(12n+3),
+.theme.hangover .odx-panel:nth-child(12n+3),
+.theme.hangover .xp-source-card:nth-child(12n+3),
+.theme.hangover .xp-view-card:nth-child(12n+3),
+.theme.hangover .xp-insights-bar:nth-child(12n+3),
+.theme.hangover .xp-reco-card:nth-child(12n+3),
+.theme.hangover .jobs-arch-card:nth-child(12n+3),
+.theme.hangover .odx-section-head:nth-child(12n+3),
+.theme.hangover .monitor-header:nth-child(12n+3),
+.theme.hangover .monitor-panel:nth-child(12n+3) {
     animation-name: float3;
     animation-duration: 16s;
     animation-delay: -3s;
     animation-direction: alternate;
 }
 .theme.hangover .card:nth-child(12n+4),
-.theme.hangover .tile:nth-child(12n+4) {
+.theme.hangover .tile:nth-child(12n+4),
+.theme.hangover .xp-card-link:nth-child(12n+4),
+.theme.hangover .odx-header:nth-child(12n+4),
+.theme.hangover .odx-panel:nth-child(12n+4),
+.theme.hangover .xp-source-card:nth-child(12n+4),
+.theme.hangover .xp-view-card:nth-child(12n+4),
+.theme.hangover .xp-insights-bar:nth-child(12n+4),
+.theme.hangover .xp-reco-card:nth-child(12n+4),
+.theme.hangover .jobs-arch-card:nth-child(12n+4),
+.theme.hangover .odx-section-head:nth-child(12n+4),
+.theme.hangover .monitor-header:nth-child(12n+4),
+.theme.hangover .monitor-panel:nth-child(12n+4) {
     animation-name: float4;
-    animation-duration: 22s;
+    animation-duration: 21s;
     animation-delay: -7s;
     animation-direction: alternate-reverse;
 }
 .theme.hangover .card:nth-child(12n+5),
-.theme.hangover .tile:nth-child(12n+5) {
+.theme.hangover .tile:nth-child(12n+5),
+.theme.hangover .xp-card-link:nth-child(12n+5),
+.theme.hangover .odx-header:nth-child(12n+5),
+.theme.hangover .odx-panel:nth-child(12n+5),
+.theme.hangover .xp-source-card:nth-child(12n+5),
+.theme.hangover .xp-view-card:nth-child(12n+5),
+.theme.hangover .xp-insights-bar:nth-child(12n+5),
+.theme.hangover .xp-reco-card:nth-child(12n+5),
+.theme.hangover .jobs-arch-card:nth-child(12n+5),
+.theme.hangover .odx-section-head:nth-child(12n+5),
+.theme.hangover .monitor-header:nth-child(12n+5),
+.theme.hangover .monitor-panel:nth-child(12n+5) {
     animation-name: float5;
     animation-duration: 19s;
     animation-delay: -1s;
     animation-direction: alternate;
 }
 .theme.hangover .card:nth-child(12n+6),
-.theme.hangover .tile:nth-child(12n+6) {
+.theme.hangover .tile:nth-child(12n+6),
+.theme.hangover .xp-card-link:nth-child(12n+6),
+.theme.hangover .odx-header:nth-child(12n+6),
+.theme.hangover .odx-panel:nth-child(12n+6),
+.theme.hangover .xp-source-card:nth-child(12n+6),
+.theme.hangover .xp-view-card:nth-child(12n+6),
+.theme.hangover .xp-insights-bar:nth-child(12n+6),
+.theme.hangover .xp-reco-card:nth-child(12n+6),
+.theme.hangover .jobs-arch-card:nth-child(12n+6),
+.theme.hangover .odx-section-head:nth-child(12n+6),
+.theme.hangover .monitor-header:nth-child(12n+6),
+.theme.hangover .monitor-panel:nth-child(12n+6) {
     animation-name: float6;
     animation-duration: 23s;
     animation-delay: -5.5s;
     animation-direction: alternate-reverse;
 }
 .theme.hangover .card:nth-child(12n+7),
-.theme.hangover .tile:nth-child(12n+7) {
+.theme.hangover .tile:nth-child(12n+7),
+.theme.hangover .xp-card-link:nth-child(12n+7),
+.theme.hangover .odx-header:nth-child(12n+7),
+.theme.hangover .odx-panel:nth-child(12n+7),
+.theme.hangover .xp-source-card:nth-child(12n+7),
+.theme.hangover .xp-view-card:nth-child(12n+7),
+.theme.hangover .xp-insights-bar:nth-child(12n+7),
+.theme.hangover .xp-reco-card:nth-child(12n+7),
+.theme.hangover .jobs-arch-card:nth-child(12n+7),
+.theme.hangover .odx-section-head:nth-child(12n+7),
+.theme.hangover .monitor-header:nth-child(12n+7),
+.theme.hangover .monitor-panel:nth-child(12n+7) {
     animation-name: float7;
     animation-duration: 17s;
     animation-delay: -3.3s;
     animation-direction: alternate;
 }
 .theme.hangover .card:nth-child(12n+8),
-.theme.hangover .tile:nth-child(12n+8) {
+.theme.hangover .tile:nth-child(12n+8),
+.theme.hangover .xp-card-link:nth-child(12n+8),
+.theme.hangover .odx-header:nth-child(12n+8),
+.theme.hangover .odx-panel:nth-child(12n+8),
+.theme.hangover .xp-source-card:nth-child(12n+8),
+.theme.hangover .xp-view-card:nth-child(12n+8),
+.theme.hangover .xp-insights-bar:nth-child(12n+8),
+.theme.hangover .xp-reco-card:nth-child(12n+8),
+.theme.hangover .jobs-arch-card:nth-child(12n+8),
+.theme.hangover .odx-section-head:nth-child(12n+8),
+.theme.hangover .monitor-header:nth-child(12n+8),
+.theme.hangover .monitor-panel:nth-child(12n+8) {
     animation-name: float8;
     animation-duration: 21s;
     animation-delay: -6.2s;
     animation-direction: alternate-reverse;
 }
 .theme.hangover .card:nth-child(12n+9),
-.theme.hangover .tile:nth-child(12n+9) {
+.theme.hangover .tile:nth-child(12n+9),
+.theme.hangover .xp-card-link:nth-child(12n+9),
+.theme.hangover .odx-header:nth-child(12n+9),
+.theme.hangover .odx-panel:nth-child(12n+9),
+.theme.hangover .xp-source-card:nth-child(12n+9),
+.theme.hangover .xp-view-card:nth-child(12n+9),
+.theme.hangover .xp-insights-bar:nth-child(12n+9),
+.theme.hangover .xp-reco-card:nth-child(12n+9),
+.theme.hangover .jobs-arch-card:nth-child(12n+9),
+.theme.hangover .odx-section-head:nth-child(12n+9),
+.theme.hangover .monitor-header:nth-child(12n+9),
+.theme.hangover .monitor-panel:nth-child(12n+9) {
     animation-name: float9;
     animation-duration: 20s;
     animation-delay: -2.7s;
     animation-direction: alternate;
 }
 .theme.hangover .card:nth-child(12n+10),
-.theme.hangover .tile:nth-child(12n+10) {
+.theme.hangover .tile:nth-child(12n+10),
+.theme.hangover .xp-card-link:nth-child(12n+10),
+.theme.hangover .odx-header:nth-child(12n+10),
+.theme.hangover .odx-panel:nth-child(12n+10),
+.theme.hangover .xp-source-card:nth-child(12n+10),
+.theme.hangover .xp-view-card:nth-child(12n+10),
+.theme.hangover .xp-insights-bar:nth-child(12n+10),
+.theme.hangover .xp-reco-card:nth-child(12n+10),
+.theme.hangover .jobs-arch-card:nth-child(12n+10),
+.theme.hangover .odx-section-head:nth-child(12n+10),
+.theme.hangover .monitor-header:nth-child(12n+10),
+.theme.hangover .monitor-panel:nth-child(12n+10) {
     animation-name: float10;
     animation-duration: 24s;
     animation-delay: -8s;
     animation-direction: alternate-reverse;
 }
 .theme.hangover .card:nth-child(12n+11),
-.theme.hangover .tile:nth-child(12n+11) {
+.theme.hangover .tile:nth-child(12n+11),
+.theme.hangover .xp-card-link:nth-child(12n+11),
+.theme.hangover .odx-header:nth-child(12n+11),
+.theme.hangover .odx-panel:nth-child(12n+11),
+.theme.hangover .xp-source-card:nth-child(12n+11),
+.theme.hangover .xp-view-card:nth-child(12n+11),
+.theme.hangover .xp-insights-bar:nth-child(12n+11),
+.theme.hangover .xp-reco-card:nth-child(12n+11),
+.theme.hangover .jobs-arch-card:nth-child(12n+11),
+.theme.hangover .odx-section-head:nth-child(12n+11),
+.theme.hangover .monitor-header:nth-child(12n+11),
+.theme.hangover .monitor-panel:nth-child(12n+11) {
     animation-name: float11;
     animation-duration: 18.5s;
     animation-delay: -3.8s;
     animation-direction: alternate;
 }
 .theme.hangover .card:nth-child(12n+12),
-.theme.hangover .tile:nth-child(12n+12) {
+.theme.hangover .tile:nth-child(12n+12),
+.theme.hangover .xp-card-link:nth-child(12n+12),
+.theme.hangover .odx-header:nth-child(12n+12),
+.theme.hangover .odx-panel:nth-child(12n+12),
+.theme.hangover .xp-source-card:nth-child(12n+12),
+.theme.hangover .xp-view-card:nth-child(12n+12),
+.theme.hangover .xp-insights-bar:nth-child(12n+12),
+.theme.hangover .xp-reco-card:nth-child(12n+12),
+.theme.hangover .jobs-arch-card:nth-child(12n+12),
+.theme.hangover .odx-section-head:nth-child(12n+12),
+.theme.hangover .monitor-header:nth-child(12n+12),
+.theme.hangover .monitor-panel:nth-child(12n+12) {
     animation-name: float12;
     animation-duration: 25s;
     animation-delay: -5.9s;
     animation-direction: alternate-reverse;
 }
-
 .theme.hangover .card:hover,
-.theme.hangover .tile:hover {
+.theme.hangover .tile:hover,
+.theme.hangover .xp-card-link:hover,
+.theme.hangover .odx-header:hover,
+.theme.hangover .odx-panel:hover,
+.theme.hangover .xp-source-card:hover,
+.theme.hangover .xp-view-card:hover,
+.theme.hangover .xp-insights-bar:hover,
+.theme.hangover .xp-reco-card:hover,
+.theme.hangover .jobs-arch-card:hover,
+.theme.hangover .odx-section-head:hover,
+.theme.hangover .monitor-header:hover,
+.theme.hangover .monitor-panel:hover {
     transform: translateZ(0) scale(1.02);
     /* animation-play-state: paused; */
 }
-
 @media (prefers-reduced-motion: reduce) {
     .theme.hangover .card,
-    .theme.hangover .tile {
+    .theme.hangover .tile,
+    .theme.hangover .xp-card-link,
+    .theme.hangover .odx-header,
+    .theme.hangover .odx-panel,
+    .theme.hangover .xp-source-card,
+    .theme.hangover .xp-view-card,
+    .theme.hangover .xp-insights-bar,
+    .theme.hangover .xp-reco-card,
+    .theme.hangover .jobs-arch-card,
+    .theme.hangover .odx-section-head,
+    .theme.hangover .monitor-header,
+    .theme.hangover .monitor-panel {
         animation: none !important;
         transition: none !important;
     }
