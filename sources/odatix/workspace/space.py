@@ -392,6 +392,7 @@ class ParameterSpace(object):
         self.source = source
         self.debug = debug
         self._generator = None
+        self._generated = None
 
     @property
     def is_empty(self):
@@ -453,12 +454,27 @@ class ParameterSpace(object):
     def valid(self):
         return self.generates and self.generator.valid
 
+    def _generate(self):
+        """
+        The points and values the rules produce, generated once.
+
+        Expanding a space is the expensive part of reading one, and the two
+        halves of the answer are asked for separately (`points` and `values`,
+        often both, sometimes several times over). The rules a space was built
+        from never change after it is built -- same reason `generator` is kept
+        -- so the expansion is kept too.
+        """
+        if self._generated is None:
+            if not self.valid:
+                self._generated = ([], {})
+            else:
+                points, values = self.generator.generate_points()
+                self._generated = (points, values)
+        return self._generated
+
     def _generated_points(self):
         """Every point the rules produce before their configuration blacklist."""
-        if not self.valid:
-            return []
-        points, _values = self.generator.generate_points()
-        return points
+        return self._generate()[0]
 
     def points(self):
         """
@@ -593,10 +609,7 @@ class ParameterSpace(object):
         ``{variable: [value, ...]}``, the values each variable takes -- what a
         preview shows, and what a search samples from.
         """
-        if not self.valid:
-            return {}
-        _points, values = self.generator.generate_points()
-        return values
+        return self._generate()[1]
 
     def count(self):
         """How many points the space holds."""

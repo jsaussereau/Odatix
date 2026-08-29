@@ -1304,6 +1304,7 @@ def update_rules_preview(names, templates, constraint_texts, stores, layout, *re
         # are the real thing: previewing them again would only be noise.
         current = form_rules_settings(
             blocks, variables, domain_names.get(domain_uuid), saved,
+            match=configuration_match(saved) if selectors.MATCH_KEY in (saved or {}) else None,
         )
         # Read from the settings the form means, so a domain of several rule
         # sets is previewed as the union it is rather than as everything its
