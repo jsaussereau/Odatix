@@ -96,6 +96,26 @@
     /* navbar */
     --navbar-background: var(--theme-contrast-background-color);
     --navbar-text-color: var(--theme-background-color);
+    --navbar-backdrop-filter: blur(10px);
+    --navbar-border-bottom: none;
+    --navbar-box-shadow: none;
+    --nav-dropdown-background: var(--navbar-background);
+    --nav-dropdown-text-color: var(--theme-contrast-text-color);
+
+    /* panels (nested surfaces: .odx-panel, .odx-card, .odx-header) */
+    --panel-background: var(--theme-element-background-color);
+    --panel-border-color: rgba(128, 128, 128, 0.16);
+    --panel-box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    --panel-header-box-shadow: var(--theme-shadow-color) 0px 4px 14px -6px;
+    --panel-backdrop-filter: var(--card-backdrop-filter);
+
+    /* typography accents */
+    --page-title-color: inherit;
+    --page-title-text-shadow: var(--theme-text-shadow);
+    --page-title-letter-spacing: normal;
+    --section-caption-color: inherit;
+    --section-caption-opacity: 0.6;
+    --label-text-color: inherit;
 
     /* cards and tiles */
     --card-background: var(--theme-element-background-color);
@@ -105,9 +125,11 @@
     --card-border-hover: none;
     --card-border-radius: var(--theme-normal-border-radius);
     --card-backdrop-filter: initial;
+    --card-hover-animation: none;
     --card-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
     --card-hover-transition: height 0.3s cubic-bezier(0.4, 0.2, 0.2, 1), transform 0.18s ease, box-shadow 0.18s ease;
     --card-hover-transform: translateY(-3px);
+    --card-img-filter: drop-shadow(0px 0px 25px #ffffff4f);
     --tile-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
     --tile-hover-transition: var(--card-hover-transition);
     --tile-hover-transform: translateY(-3px);
@@ -224,6 +246,9 @@
     --input-text-color: var(--theme-text-color);
     --input-border: var(--theme-border);
     --input-border-radius: var(--theme-small-border-radius);
+    --input-focus-border-color: var(--theme-border-color);
+    --input-focus-box-shadow: none;
+    --input-focus-outline: revert;
     --title-input-background: transparent;
     --title-input-text-color: var(--theme-text-color);
     --title-input-border: var(--theme-border-style) #ffffff00;
@@ -605,6 +630,435 @@
     --progress-bar-background-color-selected: var(--theme-background-color);
 }
 
+
+.theme.frosted_light {
+    --fg-ink: #1b2033;
+    --fg-accent: #4f6bff;
+    --fg-accent-soft: #7aa8ff;
+    --fg-mint: #17c3a2;
+    --fg-rose: #ff6b9a;
+    --fg-glass: rgba(255, 255, 255, 0.55);
+    --fg-glass-strong: rgba(255, 255, 255, 0.72);
+    --fg-edge: rgba(255, 255, 255, 0.75);
+
+    /* theme */
+    --theme-background-color: #d0defb;
+    --theme-element-background-color: var(--fg-glass);
+    --theme-dimmed-element-background-color: rgba(255, 255, 255, 0.28);
+    --theme-action-color: rgba(255, 255, 255, 0.6);
+    --theme-primary-color: var(--fg-accent);
+    --theme-secondary-color: var(--fg-accent);
+    --theme-tertiary-color: rgba(255, 255, 255, 0.5);
+    --theme-tertiary-color-light: rgba(255, 255, 255, 0.68);
+    --theme-disabled-color: #8d95ad7a;
+    --theme-running-color: var(--fg-accent);
+    --theme-success-color: #12b48f;
+    --theme-warning-color: #ff9f43;
+    --theme-caution-color: #ff5a72;
+    --theme-pending-color: #22c3e6;
+    --theme-pause-color: #8d95ad8f;
+    --theme-text-color: var(--fg-ink);
+    --theme-subtle-text-color: #6a7392;
+    --theme-text-shadow: none;
+    --theme-contrast-background-color: rgba(23, 27, 48, 0.82);
+    --theme-contrast-text-color: #ffffff;
+    --theme-shadow-color: rgba(30, 43, 96, 0.16);
+    --theme-overlay-background-color: rgba(23, 27, 48, 0.28);
+    --theme-badge-background-color: rgba(79, 107, 255, 0.14);
+    --theme-badge-text-color: var(--fg-accent);
+
+    /* borders & radii */
+    --theme-border-color: rgba(255, 255, 255, 0.85);
+    --theme-border-style: 1px solid;
+    --theme-border: 1px solid rgba(255, 255, 255, 0.85);
+    --theme-large-border-color: var(--fg-edge);
+    --theme-border-color-hover: var(--fg-accent);
+    --theme-large-border-radius: 26px;
+    --theme-normal-border-radius: 20px;
+    --theme-small-border-radius: 14px;
+
+    /* background: soft aurora blobs for the glass to blur */
+    --theme-background: #eceff8;
+    --theme-background-image:
+        radial-gradient(ellipse 880px 640px at 8% 8%,
+            rgba(96, 148, 255, 0.45) 0%, rgba(96, 148, 255, 0) 68%),
+        radial-gradient(ellipse 800px 600px at 92% 4%,
+            rgba(255, 94, 155, 0.32) 0%, rgba(255, 94, 155, 0) 68%),
+        radial-gradient(ellipse 860px 640px at 88% 82%,
+            rgba(0, 200, 176, 0.3) 0%, rgba(0, 200, 176, 0) 70%),
+        radial-gradient(ellipse 780px 600px at 14% 92%,
+            rgba(150, 110, 255, 0.35) 0%, rgba(150, 110, 255, 0) 70%),
+        linear-gradient(160deg, #f1f3fa 0%, #e9edf7 50%, #eef0f8 100%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: 100% 100%;
+
+    /* navbar: dark glass, the app draws its navbar text in white */
+    --navbar-background: rgba(20, 25, 48, 0.35);
+    --navbar-text-color: #ffffff;
+    --navbar-dropdown-background: rgba(30, 36, 64, 0.92);
+    --navbar-dropdown-text-color: #ffffff;
+    --navbar-dropdown-background-hover: rgba(79, 107, 255, 0.55);
+    --navbar-dropdown-border: 1px solid rgba(255, 255, 255, 0.18);
+    --nav-dropdown-background: rgba(247, 251, 255, 0.91);
+    --nav-dropdown-text-color: var(--theme-text-color);
+
+    /* cards and tiles */
+    --card-background: rgba(255, 255, 255, 0.48);
+    --card-text-color: var(--fg-ink);
+    --card-border: 1px solid rgba(255, 255, 255, 0.85);
+    --card-backdrop-filter: blur(26px) saturate(1.8);
+    --card-box-shadow: 0 10px 34px rgba(30, 43, 96, 0.18), 0 2px 6px rgba(30, 43, 96, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    --card-hover-box-shadow: 0 20px 50px rgba(30, 43, 96, 0.26), 0 2px 6px rgba(30, 43, 96, 0.1), inset 0 1px 0 rgba(255, 255, 255, 1);
+    --card-hover-transform: translateY(-3px);
+    --tile-hover-box-shadow: var(--card-hover-box-shadow);
+    --tile-hover-transform: translateY(-3px);
+    --add-card-background: var(--theme-dimmed-element-background-color);
+    --add-card-background-hover: rgba(156, 162, 197, 0.07);
+    --add-card-border: 1px dashed rgba(79, 107, 255, 0.4);
+
+    /* buttons */
+    --button-shadow-color: rgba(38, 51, 105, 0.14);
+    --button-background: rgba(255, 255, 255, 0.55);
+    --default-button-background: rgba(255, 255, 255, 0.85);
+    --default-button-border: 1px solid rgba(43, 55, 100, 0.12);
+    --default-button-icon-color: #2b3764;
+    --default-button-text-color: #2b3764;
+    --default-button-box-shadow: 0 2px 6px rgba(30, 43, 96, 0.12);
+    --default-button-background-hover: #ffffff;
+    --default-button-border-hover: 1px solid var(--fg-accent);
+    --default-button-icon-color-hover: var(--fg-accent);
+    --default-button-text-color-hover: var(--fg-accent);
+    --default-button-box-shadow-hover: 0 4px 12px rgba(79, 107, 255, 0.25);
+    --primary-button-background: linear-gradient(120deg, var(--fg-accent), var(--fg-accent-soft));
+    --primary-button-border: 1px solid rgba(255, 255, 255, 0.5);
+    --primary-button-box-shadow: 0 6px 18px rgba(79, 107, 255, 0.35);
+    --primary-button-background-hover: rgba(255, 255, 255, 0.6);
+    --primary-button-box-shadow-hover: 0 8px 24px rgba(79, 107, 255, 0.45);
+    --back-button-color: #ffffffc9;
+
+    /* inputs and textareas */
+    --input-background: rgba(255, 255, 255, 0.72);
+    --input-border: 1px solid rgba(43, 55, 100, 0.1);
+    --textarea-background: rgba(255, 255, 255, 0.72);
+    --textarea-border: 1px solid rgba(43, 55, 100, 0.1);
+
+    /* dropdowns */
+    --dropdown-background: rgba(255, 255, 255, 0.9);
+    --dropdown-menu-background: rgba(255, 255, 255, 0.96);
+    --navbar-dropdown-background: rgba(255, 255, 255, 0.35);
+    --navbar-dropdown-text-color: var(--theme-text-color);
+
+    /* popups */
+    --popup-background: rgba(255, 255, 255, 0.72);
+    --popup-backdrop-filter: blur(28px) saturate(1.6);
+    --overlay-background: rgba(23, 27, 48, 0.28);
+    --overlay-backdrop-filter: blur(3px);
+
+    /* tooltips */
+    --default-tooltip-background: rgba(23, 27, 48, 0.88);
+    --default-tooltip-text-color: #ffffff;
+
+    /* highlights */
+    --primary-highlight-color: var(--fg-accent);
+    --primary-highlight-text-color: #ffffff;
+    --secondary-highlight-color: var(--fg-mint);
+
+    /* progress bars */
+    --progress-bar-background-color: rgba(255, 255, 255, 0.5);
+    --progress-bar-background-color-hover: rgba(255, 255, 255, 0.68);
+    --progress-bar-background-color-selected: rgba(255, 255, 255, 0.68);
+
+    /* monitor */
+    --terminal-background-color: rgba(255, 255, 255, 0.42);
+    --task-background-color: transparent;
+
+    /* every surface is a pane of frosted glass */
+    --panel-backdrop-filter: blur(22px) saturate(1.6);
+    --navbar-backdrop-filter: blur(20px) saturate(1.6);
+    --navbar-border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+    --navbar-box-shadow: 0 6px 28px rgba(20, 25, 48, 0.22);
+
+    /* nested panels read as recessed glass, not another floating card */
+    --panel-background: rgba(244, 247, 255, 0.42);
+    --panel-border-color: rgba(255, 255, 255, 0.7);
+    --panel-box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -1px 0 rgba(30, 43, 96, 0.04);
+    --panel-header-box-shadow: var(--panel-box-shadow);
+
+    /* uppercase section captions, tinted instead of grey */
+    --section-caption-color: #5a6488;
+    --page-title-letter-spacing: -0.01em;
+
+    --input-focus-border-color: rgba(79, 107, 255, 0.6);
+    --input-focus-box-shadow: 0 0 0 3px rgba(79, 107, 255, 0.16);
+    --input-focus-outline: none;
+
+    /* glass trim shared with frosted_dark (see the rules below) */
+    --glass-sheen: rgba(255, 255, 255, 0.95);
+    --glass-hover-border-color: rgba(255, 255, 255, 0.95);
+}
+
+.theme.frosted_dark {
+    --fg-ink: #eceaf0;
+    --fg-accent: #5b80f2;
+    --fg-accent-soft: #c76fa8;
+    --fg-mint: #4fcfb4;
+    --fg-rose: #e07ba8;
+    --fg-glass: rgba(255, 255, 255, 0.07);
+    --fg-glass-strong: rgba(255, 255, 255, 0.12);
+    --fg-edge: rgba(255, 255, 255, 0.16);
+
+    /* theme */
+    --theme-background-color: #14131a;
+    --theme-element-background-color: var(--fg-glass);
+    --theme-dimmed-element-background-color: rgba(255, 255, 255, 0.04);
+    --theme-action-color: rgba(255, 255, 255, 0.12);
+    --theme-primary-color: var(--fg-accent);
+    --theme-secondary-color: var(--fg-accent);
+    --theme-tertiary-color: rgba(255, 255, 255, 0.08);
+    --theme-tertiary-color-light: rgba(255, 255, 255, 0.05);
+    --theme-disabled-color: #8d95ad7a;
+    --theme-running-color: var(--fg-accent);
+    --theme-success-color: #2ee0b8;
+    --theme-warning-color: #ffb454;
+    --theme-caution-color: #ff6b81;
+    --theme-pending-color: #4fd6ef;
+    --theme-pause-color: #8d95ad8f;
+    --theme-text-color: var(--fg-ink);
+    --theme-subtle-text-color: #a2a0ab;
+    --theme-text-shadow: none;
+    --theme-contrast-background-color: rgba(240, 239, 244, 0.9);
+    --theme-contrast-text-color: #17161e;
+    --theme-shadow-color: rgba(8, 7, 12, 0.6);
+    --theme-overlay-background-color: rgba(10, 9, 14, 0.6);
+    --theme-badge-background-color: rgba(160, 126, 214, 0.2);
+    --theme-badge-text-color: var(--fg-accent);
+
+    /* borders & radii */
+    --theme-border-color: rgba(255, 255, 255, 0.14);
+    --theme-border-style: 1px solid;
+    --theme-border: 1px solid rgba(255, 255, 255, 0.14);
+    --theme-large-border-color: var(--fg-edge);
+    --theme-border-color-hover: var(--fg-accent);
+    --theme-large-border-radius: 26px;
+    --theme-normal-border-radius: 20px;
+    --theme-small-border-radius: 14px;
+
+    /* background: the same aurora blobs, burning through a deep night sky */
+    --theme-background: #0e0d13;
+    --theme-background-image:
+        radial-gradient(ellipse 760px 560px at 82% 6%,
+            rgba(170, 110, 235, 0.13) 0%, rgba(170, 110, 235, 0) 66%),
+        radial-gradient(ellipse 700px 520px at 12% 88%,
+            rgba(215, 95, 160, 0.10) 0%, rgba(215, 95, 160, 0) 68%),
+        radial-gradient(ellipse 900px 700px at 50% 45%,
+            rgba(130, 90, 190, 0.07) 0%, rgba(130, 90, 190, 0) 72%),
+        linear-gradient(165deg, #16151d 0%, #0e0d13 55%, #111017 100%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: 100% 100%;
+
+    /* navbar: a darker pane of the same glass */
+    --navbar-background: rgba(20, 19, 26, 0.6);
+    --navbar-text-color: #ffffff;
+    --navbar-dropdown-background: rgba(31, 30, 39, 0.92);
+    --navbar-dropdown-text-color: #ffffff;
+    --navbar-dropdown-background-hover: rgba(160, 126, 214, 0.35);
+    --navbar-dropdown-border: 1px solid rgba(255, 255, 255, 0.14);
+
+    /* cards and tiles */
+    --card-background: rgba(255, 255, 255, 0.07);
+    --card-text-color: var(--fg-ink);
+    --card-border: 1px solid rgba(255, 255, 255, 0.14);
+    --card-backdrop-filter: blur(26px) saturate(1.6);
+    --card-box-shadow: 0 10px 34px rgba(8, 7, 12, 0.5), 0 2px 6px rgba(8, 7, 12, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    --card-hover-box-shadow: 0 20px 50px rgba(8, 7, 12, 0.6), 0 2px 6px rgba(8, 7, 12, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    --card-hover-transform: translateY(-3px);
+    --tile-hover-box-shadow: var(--card-hover-box-shadow);
+    --tile-hover-transform: translateY(-3px);
+    --add-card-background: var(--theme-dimmed-element-background-color);
+    --add-card-background-hover: rgba(160, 126, 214, 0.1);
+    --add-card-border: 1px dashed rgba(160, 126, 214, 0.45);
+
+    /* buttons */
+    --button-shadow-color: rgba(8, 7, 12, 0.5);
+    --button-background: rgba(255, 255, 255, 0.08);
+    --default-button-background: rgba(255, 255, 255, 0.08);
+    --default-button-border: 1px solid rgba(255, 255, 255, 0.16);
+    --default-button-icon-color: var(--fg-ink);
+    --default-button-text-color: var(--fg-ink);
+    --default-button-box-shadow: 0 2px 6px rgba(8, 7, 12, 0.4);
+    --default-button-background-hover: rgba(255, 255, 255, 0.14);
+    --default-button-border-hover: 1px solid var(--fg-accent);
+    --default-button-icon-color-hover: var(--fg-accent);
+    --default-button-text-color-hover: var(--fg-accent);
+    --default-button-box-shadow-hover: 0 4px 12px rgba(160, 126, 214, 0.3);
+    --primary-button-background: linear-gradient(100deg, #c76fa8 0%, #a07ed6 55%, #7f6ec9 100%);
+    --primary-button-border: 1px solid rgba(255, 255, 255, 0.18);
+    --primary-button-icon-color: #ffffff;
+    --primary-button-text-color: #ffffff;
+    --primary-button-box-shadow: 0 8px 24px rgba(199, 111, 168, 0.28), 0 2px 8px rgba(127, 110, 201, 0.25);
+    --primary-button-background-hover: linear-gradient(100deg, #d581b7 0%, #b092e2 55%, #9080d6 100%);
+    --primary-button-icon-color-hover: #ffffff;
+    --primary-button-text-color-hover: #ffffff;
+    --primary-button-box-shadow-hover: 0 10px 30px rgba(199, 111, 168, 0.36), 0 2px 10px rgba(127, 110, 201, 0.32);
+    --back-button-color: #ffffffc9;
+
+    /* inputs and textareas */
+    --input-background: rgba(255, 255, 255, 0.07);
+    --input-border: 1px solid rgba(255, 255, 255, 0.14);
+    --textarea-background: rgba(255, 255, 255, 0.07);
+    --textarea-border: 1px solid rgba(255, 255, 255, 0.14);
+
+    /* dropdowns */
+    --dropdown-background: rgba(33, 32, 42, 0.85);
+    --dropdown-menu-background: rgba(33, 32, 42, 0.96);
+    --dropdown-background-hover: rgba(160, 126, 214, 0.25);
+    --dropdown-menu-hover: rgba(160, 126, 214, 0.25);
+    --navbar-dropdown-background: rgba(255, 255, 255, 0.08);
+    --navbar-dropdown-text-color: var(--theme-text-color);
+
+    /* popups */
+    --popup-background: rgba(29, 28, 37, 0.8);
+    --popup-backdrop-filter: blur(28px) saturate(1.6);
+    --overlay-background: rgba(10, 9, 14, 0.6);
+    --overlay-backdrop-filter: blur(3px);
+
+    /* tooltips */
+    --default-tooltip-background: rgba(240, 239, 244, 0.92);
+    --default-tooltip-text-color: #17161e;
+    --tooltip-text-shadow: none;
+
+    /* highlights */
+    --primary-highlight-color: var(--fg-accent);
+    --primary-highlight-text-color: #ffffff;
+    --secondary-highlight-color: var(--fg-mint);
+
+    /* progress bars */
+    --progress-bar-background-color: rgba(255, 255, 255, 0.08);
+    --progress-bar-background-color-hover: rgba(255, 255, 255, 0.14);
+    --progress-bar-background-color-selected: rgba(255, 255, 255, 0.14);
+
+    /* monitor */
+    --terminal-background-color: rgba(10, 9, 14, 0.4);
+    --task-background-color: transparent;
+
+    /* every surface is a pane of frosted glass */
+    --panel-backdrop-filter: blur(22px) saturate(1.5);
+    --navbar-backdrop-filter: blur(20px) saturate(1.5);
+    --navbar-border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    --navbar-box-shadow: 0 6px 28px rgba(8, 7, 12, 0.5);
+
+    /* nested panels read as recessed glass, not another floating card */
+    --panel-background: rgba(255, 255, 255, 0.045);
+    --panel-border-color: rgba(255, 255, 255, 0.1);
+    --panel-box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(8, 7, 12, 0.25);
+    --panel-header-box-shadow: var(--panel-box-shadow);
+
+    /* uppercase section captions, tinted instead of grey */
+    --section-caption-color: #a5a1b0;
+    --page-title-letter-spacing: -0.01em;
+
+    --input-focus-border-color: rgba(160, 126, 214, 0.7);
+    --input-focus-box-shadow: 0 0 0 3px rgba(160, 126, 214, 0.2);
+    --input-focus-outline: none;
+
+    /* glass trim shared with frosted_light (see the rules below) */
+    --glass-sheen: rgba(255, 255, 255, 0.35);
+    --glass-hover-border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme.frosted_light .xp-section,
+.theme.frosted_dark .xp-section {
+    backdrop-filter: var(--panel-backdrop-filter);
+    -webkit-backdrop-filter: var(--panel-backdrop-filter);
+}
+
+.theme.frosted_light .odx-varlist-panel .odx-varlist,
+.theme.frosted_light .odx-varlist-title {
+    background: rgba(255, 255, 255, 0.94);
+}
+.theme.frosted_dark .odx-varlist-panel .odx-varlist,
+.theme.frosted_dark .odx-varlist-title {
+    background: rgba(29, 28, 37, 0.95);
+}
+
+/* a thin light catch along the top edge */
+.theme.frosted_light .card::before,
+.theme.frosted_light .tile::before,
+.theme.frosted_light .xp-card::before,
+.theme.frosted_dark .card::before,
+.theme.frosted_dark .tile::before,
+.theme.frosted_dark .xp-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 8% auto 8%;
+    height: 1px;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0) 0%,
+        var(--glass-sheen) 35%,
+        var(--glass-sheen) 65%,
+        rgba(255, 255, 255, 0) 100%);
+}
+
+.theme.code_dark {
+    /* theme */
+    --theme-background-color: #181818;
+    --theme-element-background-color: #252526;
+    --theme-action-color: #0078d4;
+    --theme-primary-color: #0078d4;
+    --theme-secondary-color: #0078d4;
+    --theme-tertiary-color: #313131;
+    --theme-tertiary-color-light: #31313190;
+    --theme-disabled-color: #515760;
+    --theme-success-color: #73c991;
+    --theme-warning-color: #cca700;
+    --theme-caution-color: #f88070;
+    --theme-text-color: #ffffff;
+    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
+    --theme-border: none;
+    --theme-border-style: 0.5px solid;
+    --theme-large-border-style: 0.5px solid;
+    --theme-border-color: #d1d5da;
+    --theme-small-border-radius: 5px;
+    --theme-normal-border-radius: 5px;
+    --theme-large-border-radius: 5px;
+    --theme-overlay-background-color: #3131313d;
+
+    /* navbar */
+    --navbar-background: #1f1f1f;
+
+    /* cards and tiles */
+    --card-box-shadow: initial;
+
+    /* buttons */
+    --button-border: 0.5px solid var(--theme-disabled-color);
+    --default-button-icon-color: var(--theme-text-color);
+    --default-button-text-color: var(--theme-text-color);
+    --default-button-background: var(--theme-tertiary-color);
+    --default-button-border: var(--button-border);
+    --default-button-border-hover: 0.5px solid var(--theme-text-color);
+    --back-button-color: var(--theme-disabled-color);
+
+    /* inputs */
+    --title-input-border: var(--theme-border-style) #ffffff00;
+    --title-input-border-hover: var(--theme-border-style) var(--theme-disabled-color);
+    --title-input-border-focus: var(--theme-border-style) #ffffff00;
+
+    /* tooltips */
+    --default-tooltip-background: var(--theme-tertiary-color);
+
+    /* highlights */
+    --primary-highlight-text-color: var(--theme-background-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+
+    /* progress bars */
+    --progress-bar-background-color-hover: var(--theme-background-color);
+    --progress-bar-background-color-selected: var(--theme-background-color);
+}
+
 .theme.catpuccin {
 	--rosewater: #f5e0dc;
 	--flamingo: #f2cdcd;
@@ -652,7 +1106,7 @@
     --theme-border-color: var(--surface2);
     --theme-overlay-background-color: #3132443d;
     --theme-contrast-background-color: var(--crust);
-    --theme-contrast-text-color: var(--inverted-text);
+    /* --theme-contrast-text-color: var(--inverted-text); */
     --theme-large-border-radius: 12px;
     --theme-normal-border-radius: 24px;
     --theme-small-border-radius: 15px;
@@ -753,62 +1207,6 @@
     /* highlights */
     --primary-highlight-color: var(--theme-primary-color);
     --primary-highlight-text-color: var(--theme-contrast-text-color);
-    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
-
-    /* progress bars */
-    --progress-bar-background-color-hover: var(--theme-background-color);
-    --progress-bar-background-color-selected: var(--theme-background-color);
-}
-
-.theme.code_dark {
-    /* theme */
-    --theme-background-color: #181818;
-    --theme-element-background-color: #252526;
-    --theme-action-color: #0078d4;
-    --theme-primary-color: #0078d4;
-    --theme-secondary-color: #0078d4;
-    --theme-tertiary-color: #313131;
-    --theme-tertiary-color-light: #31313190;
-    --theme-disabled-color: #515760;
-    --theme-success-color: #73c991;
-    --theme-warning-color: #cca700;
-    --theme-caution-color: #f88070;
-    --theme-text-color: #ffffff;
-    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
-    --theme-border: none;
-    --theme-border-style: 0.5px solid;
-    --theme-large-border-style: 0.5px solid;
-    --theme-border-color: #d1d5da;
-    --theme-small-border-radius: 5px;
-    --theme-normal-border-radius: 5px;
-    --theme-large-border-radius: 5px;
-    --theme-overlay-background-color: #3131313d;
-
-    /* navbar */
-    --navbar-background: #1f1f1f;
-
-    /* cards and tiles */
-    --card-box-shadow: initial;
-
-    /* buttons */
-    --button-border: 0.5px solid var(--theme-disabled-color);
-    --default-button-icon-color: var(--theme-text-color);
-    --default-button-text-color: var(--theme-text-color);
-    --default-button-background: var(--theme-tertiary-color);
-    --default-button-border: var(--button-border);
-    --default-button-border-hover: 0.5px solid var(--theme-text-color);
-    --back-button-color: var(--theme-disabled-color);
-
-    /* inputs */
-    --title-input-border: var(--theme-border-style) #ffffff00;
-    --title-input-border-hover: var(--theme-border-style) var(--theme-disabled-color);
-    --title-input-border-focus: var(--theme-border-style) #ffffff00;
-
-    /* tooltips */
-    --default-tooltip-background: var(--theme-tertiary-color);
-
-    /* highlights */
-    --primary-highlight-text-color: var(--theme-background-color);
     --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
 
     /* progress bars */
@@ -1014,6 +1412,34 @@
     /* monitor */
     --terminal-background-color: rgba(10, 10, 26, 0.2);
     --task-background-color: transparent;
+
+    /* neon glow reserved for page titles, not every heading */
+    --page-title-color: #ffffff;
+    --page-title-text-shadow:
+        0 0 10px rgba(255, 61, 154, 0.55),
+        0 0 26px rgba(255, 61, 154, 0.3);
+
+    /* section captions read as neon labels instead of dimmed grey */
+    --section-caption-color: var(--sw-cyan);
+    --section-caption-opacity: 0.95;
+    --label-text-color: #d6d8f5;
+
+    /* breathing neon edge on hovered cards */
+    --card-hover-animation: synthwave-pulse 2.6s ease-in-out infinite;
+
+    /* inputs glow when focused */
+    --input-focus-border-color: var(--sw-cyan);
+    --input-focus-box-shadow: 0 0 0 1px rgba(78, 226, 255, 0.35);
+    --input-focus-outline: none;
+
+    /* thin neon edge under the navbar */
+    --navbar-border-bottom: 1px solid rgba(255, 61, 154, 0.35);
+    --navbar-box-shadow: 0 2px 18px rgba(5, 5, 18, 0.5);
+    --navbar-backdrop-filter: var(--card-backdrop-filter);
+
+    /* nested panels */
+    --panel-background: rgba(29, 30, 61, 0.5);
+    --panel-border-color: rgba(143, 123, 255, 0.22);
 }
 
 .theme.synthwave .content {
@@ -1101,94 +1527,10 @@
     }
 }
 
-/* neon glow reserved for page titles, not every heading */
-.theme.synthwave .page-content h2.page-title,
-.theme.synthwave .title {
-    color: #ffffff;
-    text-shadow:
-        0 0 10px rgba(255, 61, 154, 0.55),
-        0 0 26px rgba(255, 61, 154, 0.3);
-}
-
-/* section captions read as neon labels instead of dimmed grey */
-.theme.synthwave .odx-section-head h2,
-.theme.synthwave .odx-section-head h3,
-.theme.synthwave .odx-panel-caption {
-    color: var(--sw-cyan);
-    opacity: 0.95;
-}
-
-.theme.synthwave label {
-    color: #d6d8f5;
-}
-
-/* breathing neon edge on hovered cards */
-.theme.synthwave .card:hover,
-.theme.synthwave .tile:hover,
-.theme.synthwave .xp-card:hover {
-    animation: synthwave-pulse 2.6s ease-in-out infinite;
-}
-
-/* inputs glow when focused */
-.theme.synthwave input:focus,
-.theme.synthwave textarea:focus {
-    border-color: var(--sw-cyan) !important;
-    box-shadow: 0 0 0 1px rgba(78, 226, 255, 0.35);
-    outline: none;
-}
-
-/* thin neon edge under the navbar */
-.theme.synthwave .navbar {
-    border-bottom: 1px solid rgba(255, 61, 154, 0.35);
-    box-shadow: 0 2px 18px rgba(5, 5, 18, 0.5);
-}
-
-.theme.synthwave .card,
-.theme.synthwave .tile,
-.theme.synthwave .xp-card,
-.theme.synthwave .odx-tool-card,
-.theme.synthwave .odx-add-card,
-.theme.synthwave .odx-panel,
-.theme.synthwave .odx-card,
-.theme.synthwave .odx-header,
-.theme.synthwave .odx-steps,
-.theme.synthwave .home-container {
-    backdrop-filter: blur(16px) saturate(1.3);
-    -webkit-backdrop-filter: blur(16px) saturate(1.3);
-}
-
-.theme.synthwave .card,
-.theme.synthwave .tile,
-.theme.synthwave .xp-card,
-.theme.synthwave .odx-tool-card,
-.theme.synthwave .odx-add-card {
-    position: relative;
-    z-index: 1;
-}
-
-.theme.synthwave .card:hover,
-.theme.synthwave .tile:hover,
-.theme.synthwave .xp-card:hover,
-.theme.synthwave .odx-tool-card:hover,
-.theme.synthwave .odx-add-card:hover,
-.theme.synthwave .card:focus-within,
-.theme.synthwave .tile:focus-within,
-.theme.synthwave .xp-card:focus-within,
-.theme.synthwave .odx-tool-card:focus-within,
-.theme.synthwave .odx-add-card:focus-within {
-    z-index: 20;
-}
-
-.theme.synthwave .odx-panel,
-.theme.synthwave .odx-card,
-.theme.synthwave .odx-header {
-    background-color: rgba(29, 30, 61, 0.5);
-    border-color: rgba(143, 123, 255, 0.22);
-}
-
 .theme.midnight {
     /* theme */
     --theme-background-color: #121226;
+    --theme-background-image: linear-gradient(135deg, #0f0f1a 0%, #1b1b2f 100%);
     --theme-element-background-color: #1b1b2f;
     --theme-dimmed-element-background-color: #1b1b2fbb;
     --theme-action-color: #0077f6;
@@ -1199,7 +1541,6 @@
     --theme-disabled-color: #555577;
     --theme-text-color: #e0e0ff;
     --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
-    --theme-background: linear-gradient(135deg, #0f0f1a 0%, #1b1b2f 100%);
     --theme-border: none;
     --theme-border-color: #555577;
     --theme-overlay-background-color: #121226aa;
@@ -1368,7 +1709,7 @@
     --theme-disabled-color: #65718259;
     --theme-border-color: #bac2ce59;
     --background-rainbow-intensity: 0.5;
-    --theme-background: linear-gradient(
+    --theme-background-image: linear-gradient(
         90deg,
         rgba(255, 0, 0, var(--background-rainbow-intensity)) 0%,
         rgba(255, 154, 0, var(--background-rainbow-intensity)) 10%,
@@ -1404,16 +1745,20 @@
 
 }
 
-.theme.legacy {
-    /* theme */
+/* .theme.legacy {
     --theme-font-family: Arial;
     --theme-large-border-radius: 10px;
     --theme-normal-border-radius: 10px;
     --theme-small-border-radius: 10px;
     --theme-disabled-color: #ddd;
 
-    /* cards and tiles */
     --card-border: 1px solid #ddd;
     --card-box-shadow: 0px 13px 10px -7px rgba(0, 0, 0, 0.1);
     --card-border-hover: 1px solid #ddd;
+} */
+
+@media (prefers-reduced-motion: reduce) {
+    .theme .content::before {
+        animation: none;
+    }
 }

@@ -46,10 +46,12 @@
 
 /* --- Shared surface ---------------------------------------------------- */
 .odx-panel {
-    background: var(--theme-element-background-color);
-    border: 1px solid rgba(128, 128, 128, 0.16);
+    background: var(--card-background);
+    border: var(--card-border);
     border-radius: var(--theme-normal-border-radius);
-    box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    box-shadow: var(--card-box-shadow);
+    backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     box-sizing: border-box;
     min-width: 0;
 }
@@ -68,10 +70,12 @@
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     margin-bottom: var(--space-5);
-    background: var(--theme-element-background-color);
-    border: 1px solid rgba(128, 128, 128, 0.16);
+    background: var(--card-background);
+    border: var(--card-border);
     border-radius: var(--theme-normal-border-radius);
-    box-shadow: var(--theme-shadow-color) 0px 4px 14px -6px;
+    box-shadow: var(--card-box-shadow);
+    backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
 }
 .odx-header-row {
     display: flex;
@@ -242,7 +246,8 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    opacity: 0.6;
+    color: var(--section-caption-color);
+    opacity: var(--section-caption-opacity);
     margin: 0;
     display: flex;
     align-items: center;
@@ -333,6 +338,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    color: var(--section-caption-color);
     display: flex;
     align-items: center;
     gap: 2px;
@@ -648,10 +654,12 @@
     flex-direction: column;
     gap: var(--space-2);
     padding: var(--space-3);
-    background: var(--theme-element-background-color);
-    border: 1px solid rgba(128, 128, 128, 0.16);
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border-color);
     border-radius: var(--theme-normal-border-radius);
-    box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    box-shadow: var(--panel-box-shadow);
+    backdrop-filter: var(--panel-backdrop-filter);
+    -webkit-backdrop-filter: var(--panel-backdrop-filter);
     box-sizing: border-box;
     min-width: 0;
     /* transition: border-color 0.18s ease, box-shadow 0.18s ease; */
@@ -772,6 +780,7 @@
     border-radius: var(--card-border-radius);
     box-shadow: var(--card-box-shadow);
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
 }
 /* A tool with nothing to choose is one big link, and lifts like a menu card. */
 .odx-tool-card.single {
@@ -923,6 +932,7 @@
     border: var(--card-border);
     box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
 }
 .odx-steps-title {
     margin-bottom: 4px;

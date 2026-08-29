@@ -64,10 +64,22 @@ APP_THEME_CHROME = {
     "grid_color": "rgba(143, 123, 255, 0.25)",
     "zeroline_color": "rgba(78, 226, 255, 0.5)",
   },
+  "frosted_light": {
+    **LIGHT_CHROME,
+    "text_color": "#1b2033",
+    "grid_color": "rgba(27, 32, 51, 0.14)",
+    "zeroline_color": "rgba(79, 107, 255, 0.45)",
+  },
+  "frosted_dark": {
+    **DARK_CHROME,
+    "text_color": "#eceaf0",
+    "grid_color": "rgba(236, 234, 240, 0.16)",
+    "zeroline_color": "rgba(160, 126, 214, 0.55)",
+  },
   "midnight": {**DARK_CHROME, "text_color": "#e0e0ff"},
   "win95": {**LIGHT_CHROME, "text_color": "#000000"},
   "hangover": LIGHT_CHROME,
-  "legacy": LIGHT_CHROME,
+  # "legacy": LIGHT_CHROME,
 }
 
 DARK_THEMES = {name for name, chrome in APP_THEME_CHROME.items() if chrome["dark"]}

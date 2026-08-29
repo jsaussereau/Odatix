@@ -46,7 +46,10 @@ html, body {
 
 .navbar {
     background: var(--navbar-background);
-    backdrop-filter: blur(10px);
+    backdrop-filter: var(--navbar-backdrop-filter);
+    -webkit-backdrop-filter: var(--navbar-backdrop-filter);
+    border-bottom: var(--navbar-border-bottom);
+    box-shadow: var(--navbar-box-shadow);
     color: white;
     padding-right: 10px;
     display: flex;
@@ -147,7 +150,7 @@ a.nav-group-label {
     left: 50%;
     transform: translateX(-50%);
     flex-direction: column;
-    background: var(--navbar-background);
+    background: var(--nav-dropdown-background);
     backdrop-filter: blur(10px);
     border-radius: 0 0 8px 8px;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
@@ -160,7 +163,7 @@ a.nav-group-label {
 }
 
 .navbar .nav-dropdown a {
-    color: white;
+    color: var(--nav-dropdown-text-color);
     text-decoration: none;
     font-size: 14px;
     padding: 8px 18px;
@@ -321,6 +324,9 @@ a.nav-group-label {
 .title {
     display: block;
     font-size: 20px;
+    color: var(--page-title-color);
+    text-shadow: var(--page-title-text-shadow);
+    letter-spacing: var(--page-title-letter-spacing);
     line-height: 20px;
     transition: transform 0.4s ease;
 }
@@ -624,6 +630,8 @@ textarea {
 }
 
 .home-container {
+    backdrop-filter: var(--panel-backdrop-filter);
+    -webkit-backdrop-filter: var(--panel-backdrop-filter);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -640,6 +648,7 @@ textarea {
     border: var(--card-border);
     border-radius: var(--card-border-radius);
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     overflow: visible;
     display: flex;
     flex-direction: column;
@@ -680,6 +689,7 @@ textarea {
 .card-img {
     margin: auto;
     object-fit: cover;
+    filter: var(--card-img-filter);
 }
 
 .card-title  {
@@ -765,6 +775,8 @@ textarea {
 .odx-add-card,
 .tile.add,
 .card.add {
+    backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     background: var(--add-card-background);
     border: var(--add-card-border);
     color: var(--card-text-color);
@@ -877,6 +889,7 @@ textarea {
     border: var(--card-border);
     border-radius: var(--card-border-radius);
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     break-inside: avoid;
     transition:
         height 0.3s cubic-bezier(0.4, 0.2, 0.2, 1),
@@ -1137,6 +1150,9 @@ h3 {
 .page-content h2.page-title {
     font-size: 22px;
     font-weight: 700;
+    color: var(--page-title-color);
+    text-shadow: var(--page-title-text-shadow);
+    letter-spacing: var(--page-title-letter-spacing);
 }
 .tile.title h3 {
     font-size: 20px;
@@ -2648,4 +2664,84 @@ input[type="checkbox"] {
     bottom: 0;
     height: auto;
     overflow: auto;
+}
+
+/* --- Shared surface behaviour (themable) -------------------------------- */
+/* Cards keep their own stacking context so hovered ones rise above their
+   neighbours, and themes can hook a hover animation without re-listing every
+   selector (see --card-hover-animation in themes.css). */
+.card,
+.tile,
+.xp-card,
+.odx-tool-card,
+.odx-add-card {
+    position: relative;
+    z-index: 1;
+}
+
+.card:hover,
+.tile:hover,
+.xp-card:hover,
+.odx-tool-card:hover,
+.odx-add-card:hover,
+.card:focus-within,
+.tile:focus-within,
+.xp-card:focus-within,
+.odx-tool-card:focus-within,
+.odx-add-card:focus-within {
+    z-index: 20;
+}
+
+.card:hover,
+.tile:hover,
+.xp-card:hover {
+    animation: var(--card-hover-animation);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card:hover,
+    .tile:hover,
+    .xp-card:hover {
+        animation: none;
+    }
+}
+
+/* Focus ring, themable through variables. Title inputs are excluded: they
+   carry their own --title-input-*-focus set; the input a Dash dropdown hides
+   inside its control is excluded too, or its ring draws a stray line across
+   the field. */
+.theme input:not(.title-input):not(.odx-title-input):focus,
+.theme textarea:focus {
+    border-color: var(--input-focus-border-color);
+    box-shadow: var(--input-focus-box-shadow);
+    outline: var(--input-focus-outline);
+}
+
+/* The input a dropdown hides inside its control is not a field of its own:
+   it must never take the focus ring. Specificity is raised past the rule
+   above rather than relying on source order alone. */
+.theme .Select .Select-input input:focus,
+.theme .Select input:focus {
+    border-color: transparent;
+    box-shadow: none;
+    outline: none;
+}
+
+label {
+    color: var(--label-text-color);
+}
+
+/* --- Open dropdowns must win over the surfaces after them --------------- */
+/* A pane with a backdrop-filter is its own stacking context, so the menu's
+   own z-index cannot lift it over the *next* pane. Raise the whole ancestor
+   while its dropdown is open instead. */
+.odx-panel:has(.Select.is-open),
+.odx-card:has(.Select.is-open),
+.xp-section:has(.Select.is-open),
+.card:has(.Select.is-open),
+.tile:has(.Select.is-open),
+.dse-row:has(.Select.is-open),
+.odx-field:has(.Select.is-open) {
+    position: relative;
+    z-index: 4000;
 }

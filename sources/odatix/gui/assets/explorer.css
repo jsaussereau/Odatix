@@ -724,6 +724,8 @@
 
 .xp-card {
     background-color: var(--card-background, var(--theme-element-background-color));
+    backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     color: var(--card-text-color, var(--theme-text-color));
     border: var(--card-border, none);
     border-radius: var(--card-border-radius, 20px);
@@ -791,6 +793,7 @@
     border: var(--card-border);
     box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     border-radius: var(--theme-small-border-radius, 12px);
     box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
     transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -915,6 +918,7 @@
     border: var(--card-border);
     box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     border-radius: var(--theme-small-border-radius, 12px);
     box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
     padding: 12px 14px;
@@ -1657,6 +1661,7 @@ button.xpa-stat-card:hover {
     border: var(--card-border);
     box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     border-radius: var(--theme-small-border-radius, 12px);
     padding: 14px 16px;
 }
@@ -1751,6 +1756,7 @@ button.xpa-stat-card:hover {
     border: var(--card-border);
     box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     border-radius: var(--theme-small-border-radius, 12px);
     padding: 16px 16px 10px 16px;
     box-sizing: border-box;
@@ -2074,6 +2080,7 @@ button.xpa-stat-card:hover {
     border: var(--card-border);
     box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     box-shadow: var(--card-box-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
 }
 /* A single-source workspace has nothing to filter: no empty bar. */
@@ -2121,6 +2128,7 @@ button.xpa-stat-card:hover {
     border: var(--card-border);
     box-shadow: var(--card-hover-box-shadow, var(--card-box-shadow));
     backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
