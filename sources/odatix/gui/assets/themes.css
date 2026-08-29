@@ -405,7 +405,6 @@
     --theme-background-image:
         radial-gradient(1100px 620px at 5% -12%, #dfe6fb 0%, #dfe6fb00 62%),
         radial-gradient(1000px 560px at 100% -8%, #efe2fd 0%, #efe2fd00 58%);
-    background-attachment: fixed;
     --theme-element-background-color: #ffffff;
     --theme-action-color: var(--docs-gray-100);
     --theme-primary-color: var(--docs-primary-500);
@@ -690,9 +689,8 @@
         radial-gradient(ellipse 780px 600px at 14% 92%,
             rgba(150, 110, 255, 0.28) 0%, rgba(150, 110, 255, 0) 70%),
         linear-gradient(160deg, #f1f3fa 0%, #e9edf7 50%, #eef0f8 100%);
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-    background-size: 100% 100%;
+    --theme-background-repeat: no-repeat;
+    --theme-background-size: 100% 100%;
 
     /* navbar: dark glass, the app draws its navbar text in white */
     --navbar-background: rgba(20, 25, 48, 0.35);
@@ -856,9 +854,8 @@
         radial-gradient(ellipse 900px 700px at 50% 45%,
             rgba(130, 90, 190, 0.07) 0%, rgba(130, 90, 190, 0) 72%),
         linear-gradient(165deg, #16151d 0%, #0e0d13 55%, #111017 100%);
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-    background-size: 100% 100%;
+    --theme-background-repeat: no-repeat;
+    --theme-background-size: 100% 100%;
 
     /* navbar: a darker pane of the same glass */
     --navbar-background: rgba(20, 19, 26, 0.6);
@@ -1346,10 +1343,9 @@
             rgba(143, 123, 255, 0.14) 0%, rgba(143, 123, 255, 0) 70%),
         linear-gradient(180deg,
             #12132b 0%, #1a1a3a 38%, #241d48 70%, #2a1c4a 100%);
-    background-repeat: repeat, repeat, repeat, repeat, repeat, repeat, repeat, repeat,
+    --theme-background-repeat: repeat, repeat, repeat, repeat, repeat, repeat, repeat, repeat,
         no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-    background-attachment: fixed;
-    background-size:
+    --theme-background-size:
         420px 380px, 320px 290px, 500px 460px, 380px 340px,
         460px 410px, 350px 330px, 540px 480px, 400px 360px,
         100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;

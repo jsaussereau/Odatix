@@ -31,12 +31,30 @@ html, body {
 }
 
 .theme {
-    background: var(--theme-background);
-    background-image: var(--theme-background-image);
+    /* The theme wrapper must be able to grow past the viewport (pages with a
+       lot of content), so it uses min-height rather than a fixed height.
+       The background itself is painted by the viewport-fixed layer below,
+       which covers the whole window whatever the page height or format. */
+    min-height: 100%;
     color: var(--theme-text-color);
     font-family: var(--theme-font-family), Arial, sans-serif;
     text-shadow: var(--theme-text-shadow);
     font-size: var(--theme-font-size);
+}
+
+/* Viewport-fixed background layer: always covers the whole window and never
+   scrolls away, so every page keeps its background down to the bottom. */
+.theme::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--theme-background);
+    background-image: var(--theme-background-image);
+    background-repeat: var(--theme-background-repeat, repeat);
+    background-size: var(--theme-background-size, auto);
+    background-position: var(--theme-background-position, 0 0);
 }
 
 .subtle-text {

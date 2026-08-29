@@ -112,14 +112,14 @@ class OdatixApp:
                     style={
                         "marginLeft": navigation.side_bar_width,
                         "width": "calc(100%-" + navigation.side_bar_width + ")",
-                        "height": "100%",
+                        "minHeight": "100%",
                     },
                 ),
             ],
             id="theme",
             style={
                 "width": "100%",
-                "height": "100%",
+                "minHeight": "100%",
                 "display": "flex",
                 "flexDirection": "column"
             },
