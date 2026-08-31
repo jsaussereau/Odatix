@@ -866,8 +866,15 @@ class Exploration(object):
 
     def campaigns(self):
         """
-        One campaign per architecture named, campaign file by campaign file, in
-        the order they were named.
+        One campaign per design named, campaign file by campaign file, in the
+        order they were named.
+
+        What a name is looked up in is what the campaign runs: an "odatix
+        workflow" exploration searches the workflows of the workspace, every
+        other one its architectures. They are swept the same way -- a workflow
+        *is* an architecture, with commands instead of sources (see
+        :class:`odatix.workspace.workflows.Workflow`) -- so nothing but where
+        the name is read from changes.
         """
         from odatix.dse.campaigns import RunSettings
         from odatix.workspace.errors import NotFoundError
@@ -877,7 +884,7 @@ class Exploration(object):
             settings = RunSettings(campaign_settings, self.settings)
             for selection in settings.architecture_selections():
                 try:
-                    architecture = self.workspace.architectures[selection.entry]
+                    architecture = settings.designs(self.workspace)[selection.entry]
                 except NotFoundError as error:
                     raise CampaignError(str(error))
                 campaigns.append(

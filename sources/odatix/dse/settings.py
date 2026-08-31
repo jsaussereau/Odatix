@@ -420,6 +420,33 @@ class CampaignSettings(Settings):
         """Whether what runs a design is an axis of the search."""
         return len(self.toolchains(workspace)) > 1
 
+    def runs_workflow(self):
+        """Whether what evaluates one design is an "odatix workflow" run."""
+        return str(self.run).strip() == "workflow"
+
+    def designs(self, workspace):
+        """
+        What the entries of "architectures" name: the workflows of the
+        workspace for a workflow exploration, its architectures otherwise.
+
+        A workflow is swept exactly like an architecture -- same parameter
+        domains, same configurations, same rules -- so the two are told apart
+        here and nowhere else.
+        """
+        return workspace.workflows if self.runs_workflow() else workspace.architectures
+
+    def result_tools(self):
+        """
+        The results files an exploration reads, by the name they are called
+        after ("results/results_<name>.yml").
+
+        A workflow run is not run by an eda tool and writes to a file of its
+        own, which is what makes it the answer here rather than the tools.
+        """
+        if self.runs_workflow():
+            return ["workflow"]
+        return self.tool_names()
+
     def architecture_entries(self):
         """The architectures to search, as written."""
         names = self.architectures

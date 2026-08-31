@@ -362,13 +362,14 @@ class Evaluator(object):
 
         One results file per tool, so a search moving between tools reads
         several of them. Falls back on what the settings name, for an
-        exploration whose evaluations are not run by a tool at all.
+        exploration whose evaluations are not run by a tool at all -- a
+        workflow, whose results are all in "results_workflow.yml".
         """
         tools = []
         for chain in self.toolchains:
             if chain.tool and chain.tool not in tools:
                 tools.append(chain.tool)
-        return tools or [name for name in self.settings.tool_names()]
+        return tools or [name for name in self.settings.result_tools()]
 
     ######################################
     # Running a batch
@@ -1027,7 +1028,10 @@ class Evaluator(object):
         for records in self._records().values():
             for record in records:
                 meta = record.get("meta", {}) if isinstance(record, dict) else {}
-                if str(meta.get("architecture", "")) != architecture:
+                # What is searched is named "architecture" by a synthesis
+                # record and "workflow" by a workflow one.
+                name = meta.get("architecture") or meta.get("workflow", "")
+                if str(name) != architecture:
                     continue
                 genome = space.genome_of(
                     design_point.point_of_meta(meta),
@@ -1059,7 +1063,7 @@ class Evaluator(object):
     def _record_configurations(meta):
         """What a record says each parameter domain of its design was set to."""
         reserved = ("type", "tool", "flow", "step", "target", "configuration", "frequency",
-                    "timestamp", "architecture")
+                    "timestamp", "architecture", "workflow")
         configurations = {}
         for key, value in meta.items():
             if key in reserved or str(key).startswith("_"):
@@ -1122,10 +1126,15 @@ class Evaluator(object):
         domains = tuple(sorted(
             (str(key), str(value))
             for key, value in meta.items()
-            if key not in reserved and not str(key).startswith("_") and key != "architecture"
+            if key not in reserved and not str(key).startswith("_")
+            and key not in ("architecture", "workflow")
         ))
         frequency = _freq_key(meta.get("frequency")) if self.explores_frequency else None
-        return (str(meta.get("architecture", "")), domains, frequency, self.toolchain_key(meta))
+        # What is searched is named "architecture" by a synthesis record and
+        # "workflow" by a workflow one; it is the same thing to a campaign,
+        # which searches one of them at a time either way.
+        name = meta.get("architecture") or meta.get("workflow", "")
+        return (str(name), domains, frequency, self.toolchain_key(meta))
 
     def toolchain_key(self, meta):
         """What a record says ran it, kept down to what the search chose."""

@@ -384,7 +384,7 @@ def replace_and_write_param_domains(
     main_param_file=None,
 ):
     domain_dict = {}
-    arch_config = re.sub('.*/', '', arch_name)
+    arch_config = re.sub('.*/', '', str(arch_name).split("+")[0])
     domain_dict["__main__"] = arch_config
     if timestamp is not None:
         domain_dict["__timestamp__"] = timestamp
@@ -409,6 +409,8 @@ def replace_and_write_param_domains(
             # of the sweep, so it names nothing in the result record.
             if success and param_domain.domain_value != "":
                 domain_dict[param_domain.domain] = param_domain.domain_value
+        elif param_domain.domain_value != "":
+            domain_dict[param_domain.domain] = param_domain.domain_value
 
     # Virtual domains (variables) have no parameter file to substitute, but they are
     # still a dimension of the sweep: without them here, they never reach the results.

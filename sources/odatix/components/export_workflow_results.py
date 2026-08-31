@@ -27,6 +27,7 @@ import argparse
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
 import odatix.lib.results_cache as results_cache
+import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 from odatix.components.export_common import (
     parse_regex,
@@ -293,8 +294,30 @@ def _extract_run_records(run_dir, metrics_def, metadata_def=None, error_prefix="
     return records, units
 
 
+def _read_param_domains(run_dir):
+    """
+    What the job wrote down about the design it ran: the configuration of each
+    of its parameter domains, and where it sits in the design space of its
+    workflow (see :mod:`odatix.workspace.design_point`).
+
+    The job is the only thing that knows the second one, so a record that does
+    not carry it is a result no exploration can start from. Nothing here can
+    fail an export: a run without the file is a run that says nothing extra.
+    """
+    path = os.path.join(str(run_dir or ""), hard_settings.param_domains_filename)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "r") as param_domains_file:
+            loaded = yaml.safe_load(param_domains_file)
+    except Exception:
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
 def _build_workflow_records(run_records, *, workflow_param_dir, workflow_full, fallback_configuration, run_dir, workflow_definition_dir):
     """Turn (meta_extra, metrics) tuples into v2 workflow records."""
+    param_domains = _read_param_domains(run_dir)
     built = []
     for meta_extra, metrics in run_records:
         record = results_schema.make_workflow_record(
@@ -305,6 +328,7 @@ def _build_workflow_records(run_records, *, workflow_param_dir, workflow_full, f
             workflow_definition_dir=workflow_definition_dir,
             metrics=metrics,
         )
+        results_schema.flatten_param_domains(param_domains, record["meta"])
         for key, value in meta_extra.items():
             # setdefault protects the reserved workflow meta keys (type, workflow, ...)
             record["meta"].setdefault(str(key), value)

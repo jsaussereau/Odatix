@@ -715,10 +715,14 @@ class ArchitectureSpace(object):
         selection = selection if selection is not None else DomainSelection()
         self.selection = selection
 
+        commands = bool(getattr(architecture, "substitutes_in_commands", False))
         for domain in architecture.domains:
             # The same domains a sweep takes its axes from: one that substitutes
-            # nothing, or that holds no configuration, adds no choice either.
-            if not domain.use_parameters:
+            # nothing, or that holds no configuration, adds no choice either --
+            # unless what it feeds is a command rather than a file, which is
+            # where a workflow's domains go (see
+            # :attr:`odatix.workspace.architectures.Architecture.substitutes_in_commands`).
+            if not domain.use_parameters and not commands:
                 continue
             if not selection.searches(domain.name):
                 if selection.holds(domain.name):
