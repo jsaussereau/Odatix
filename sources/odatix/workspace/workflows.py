@@ -126,6 +126,11 @@ class Workflow(Architecture):
 
     settings_class = WorkflowSettings
 
+    # A workflow has no sources to write parameters into: its domains reach it
+    # as "${domain}" in the commands of its tasks, so each of them is a
+    # dimension of the sweep whatever its "use_parameters" says.
+    substitutes_in_commands = True
+
     ######################################
     # Metrics
     ######################################

@@ -133,8 +133,11 @@ def coordinates(arch_path, arch_name, param_domains=None, virtual_domains=None,
         dict: ``{axis: value}``, empty when nothing could be read.
     """
     found = {}
-    architecture = re.sub("/.*", "", str(arch_name or ""))
-    configuration = re.sub(".*/", "", str(arch_name or ""))
+    # Only the first segment names the architecture and its configuration: what
+    # follows is "+domain/value", which the param domains say themselves.
+    base = str(arch_name or "").split("+")[0]
+    architecture = re.sub("/.*", "", base)
+    configuration = re.sub(".*/", "", base)
     if not architecture:
         return found
 

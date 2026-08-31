@@ -94,10 +94,13 @@ def run_link(job_type, tool, flow=None, until=None):
 def tool_head(tool, meta):
     """Logo, name and description, the part every tool card starts with."""
     icon_path = meta.get("icon") if isinstance(meta.get("icon"), str) else None
+    # See tool_icon_image in pages/tools.py: "icon_filter" recolors the logo so
+    # a monochrome one stays visible in both themes.
+    icon_class = "odx-tool-img filter" if icon_path and meta.get("icon_filter") else "odx-tool-img"
     description = meta.get("description", "") if isinstance(meta.get("description"), str) else ""
 
     children = [
-        html.Img(src=icon_path or DEFAULT_TOOL_ICON, className="odx-tool-img"),
+        html.Img(src=icon_path or DEFAULT_TOOL_ICON, className=icon_class),
         html.Div(eda_tools.get_tool_label(tool), className="odx-tool-name"),
     ]
     if description:

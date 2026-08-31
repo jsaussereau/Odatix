@@ -290,6 +290,7 @@ def layout(campaign=None, **_kwargs):
     if not name:
         name = unique_campaign_name(workspace, "New_Campaign")
     settings = read_campaign(workspace, name)
+    run_mode = settings.run or "fmax_synthesis"
 
     body = html.Div(
         children=[
@@ -326,11 +327,14 @@ def layout(campaign=None, **_kwargs):
             ui.section("Search", _search_panel(settings)),
             _list_section(
                 "Architectures",
-                "The architectures whose parameters are searched, one search each. The "
+                "The architectures whose parameters are searched, one search each -- the "
+                "workflows, when what evaluates a design is a workflow. The "
                 "second field says what to do with the other domains: \"+ MEM/1024I\" "
                 "fixes one, \"+ Mul/*\" searches it.",
                 "dse-architectures-list", "dse-add-architecture", "Add architecture",
-                form.architecture_rows(architecture_entries(settings), architecture_options(workspace)),
+                form.architecture_rows(
+                    architecture_entries(settings), architecture_options(workspace, run_mode)
+                ),
             ),
             _delete_popup(),
         ],
@@ -413,14 +417,21 @@ def edit_constraints(add_clicks, delete_clicks, metrics, minimums, maximums):
     Output("dse-architectures-list", "children"),
     Input("dse-add-architecture", "n_clicks"),
     Input({"type": "dse-arch-delete", "index": ALL}, "n_clicks"),
+    Input("dse-editor-run", "value"),
     State({"type": "dse-arch-name", "index": ALL}, "value"),
     State({"type": "dse-arch-selection", "index": ALL}, "value"),
     prevent_initial_call=True,
 )
-def edit_architectures(add_clicks, delete_clicks, names, selections):
+def edit_architectures(add_clicks, delete_clicks, run_mode, names, selections):
     entries = list(zip(names or [], selections or []))
+    options = architecture_options(get_workspace(), run_mode)
+    # Switching what evaluates a design changes what the names mean -- a
+    # workflow campaign names workflows -- so the rows are offered the other
+    # collection, keeping whatever was already written in them.
+    if ctx.triggered_id == "dse-editor-run":
+        return form.architecture_rows(entries, options)
     entries = _apply_row_edit(entries, ("", ""), "dse-arch-delete", add_clicks, delete_clicks)
-    return form.architecture_rows(entries, architecture_options(get_workspace()))
+    return form.architecture_rows(entries, options)
 
 
 def _apply_row_edit(entries, empty, delete_type, add_clicks, delete_clicks):

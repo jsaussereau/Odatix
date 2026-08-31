@@ -86,7 +86,7 @@ STEPPED_JOB_TYPES = ("fmax_synthesis", "custom_freq_synthesis", "pnr", "analysis
 #: Settings of a built-in tool a workspace may override, i.e. everything but its
 #: flows: the built-in flows and their commands belong to Odatix.
 OVERRIDABLE_KEYS = (
-    "label", "description", "icon", "process_group",
+    "label", "description", "icon", "icon_filter", "process_group",
     "report_path", "target_file", "default_metrics_file",
 )
 
@@ -233,12 +233,13 @@ class Flow(object):
     One way of running a tool: a set of commands, per platform and job type.
     """
 
-    def __init__(self, name, label="", description="", icon="", metrics_file="",
-                 is_default=False, platforms=None):
+    def __init__(self, name, label="", description="", icon="", icon_filter=False,
+                 metrics_file="", is_default=False, platforms=None):
         self.name = str(name).strip()
         self.label = str(label or "")
         self.description = str(description or "")
         self.icon = str(icon or "")
+        self.icon_filter = bool(icon_filter)
         self.metrics_file = str(metrics_file or "")
         self.is_default = bool(is_default)
         self.platforms = {}
@@ -311,6 +312,7 @@ class Flow(object):
             label=data.get("label", ""),
             description=data.get("description", ""),
             icon=data.get("icon", ""),
+            icon_filter=data.get("icon_filter", False),
             metrics_file=data.get("metrics_file", ""),
             is_default=data.get("is_default", False),
             platforms=data.get("platforms"),
@@ -322,6 +324,7 @@ class Flow(object):
             "label": self.label,
             "description": self.description,
             "icon": self.icon,
+            "icon_filter": self.icon_filter,
             "metrics_file": self.metrics_file,
             "is_default": self.is_default,
             "platforms": dict(
@@ -336,7 +339,7 @@ class Flow(object):
         single command or step, on any platform. Such a flow is what reading an
         empty file yields, and writing it back would only add noise.
         """
-        if any(getattr(self, key) for key in ("label", "description", "icon", "metrics_file")):
+        if any(getattr(self, key) for key in ("label", "description", "icon", "icon_filter", "metrics_file")):
             return False
         for jobs in self.platforms.values():
             for execution in jobs.values():
@@ -520,12 +523,13 @@ class ToolSettings(object):
     #: Keys this class owns; anything else in the file is kept in ``extra``.
     OWNED_KEYS = set(OVERRIDABLE_KEYS) | set(PLATFORMS) | set(["format", "flows", "default_flow"])
 
-    def __init__(self, label="", description="", icon="", process_group=True,
+    def __init__(self, label="", description="", icon="", icon_filter=False, process_group=True,
                  report_path="", target_file="", default_metrics_file="",
                  flows=None, format=None, extra=None):
         self.label = str(label or "")
         self.description = str(description or "")
         self.icon = str(icon or "")
+        self.icon_filter = bool(icon_filter)
         self.process_group = bool(process_group)
         self.report_path = str(report_path or "")
         self.target_file = str(target_file or "")
@@ -605,6 +609,7 @@ class ToolSettings(object):
             label=data.get("label", ""),
             description=data.get("description", ""),
             icon=data.get("icon", ""),
+            icon_filter=data.get("icon_filter", False),
             process_group=data.get("process_group", True),
             report_path=data.get("report_path", ""),
             target_file=data.get("target_file", ""),
@@ -679,6 +684,7 @@ class ToolSettings(object):
                 label=spec.get("label", ""),
                 description=spec.get("description", ""),
                 icon=spec.get("icon", ""),
+                icon_filter=spec.get("icon_filter", False),
                 metrics_file=spec.get("metrics_file", ""),
                 is_default=is_default,
                 platforms=dict(
@@ -694,6 +700,7 @@ class ToolSettings(object):
             "label": self.label,
             "description": self.description,
             "icon": self.icon,
+            "icon_filter": self.icon_filter,
             "process_group": self.process_group,
             "report_path": self.report_path,
             "target_file": self.target_file,
@@ -723,6 +730,9 @@ class ToolSettings(object):
             value = getattr(self, key)
             if str(value).strip() != "":
                 document[key] = str(value)
+        # Only written when set: an icon is drawn as-is unless asked otherwise.
+        if self.icon_filter:
+            document["icon_filter"] = True
 
         document["process_group"] = bool(self.process_group)
         for key in ("report_path", "target_file", "default_metrics_file"):
@@ -747,6 +757,8 @@ class ToolSettings(object):
                     value = getattr(flow, key)
                     if str(value).strip() != "":
                         entry[key] = str(value)
+                if flow.icon_filter:
+                    entry["icon_filter"] = True
                 if flow is not default_flow:
                     for platform in PLATFORMS:
                         section = _write_platform_section(flow.platforms.get(platform, {}))
@@ -829,7 +841,10 @@ def overlay_document(name, overrides, flows, header=None):
         if key not in overrides:
             continue
         value = overrides.get(key)
-        document[key] = bool(value) if key == "process_group" else ("" if value is None else str(value))
+        document[key] = (
+            bool(value) if key in ("process_group", "icon_filter")
+            else ("" if value is None else str(value))
+        )
 
     fmt = overrides.get("format") if isinstance(overrides.get("format"), dict) else {}
     format_document = CommentedMap()
@@ -863,6 +878,8 @@ def overlay_document(name, overrides, flows, header=None):
                 value = getattr(flow, key)
                 if str(value).strip() != "":
                     entry[key] = str(value)
+            if flow.icon_filter:
+                entry["icon_filter"] = True
             for platform in PLATFORMS:
                 section = _write_platform_section(flow.platforms.get(platform, {}))
                 if len(section) > 0:

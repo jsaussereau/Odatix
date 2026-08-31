@@ -525,6 +525,13 @@ class Architecture(Entry):
     #: Settings class of the main domain of this kind of instance.
     settings_class = ArchitectureSettings
 
+    #: Whether the value of a parameter domain is substituted into the commands
+    #: this kind of instance runs, rather than into a file of its sources. A
+    #: domain that substitutes nothing into a file ("use_parameters: no") is
+    #: still a dimension of the sweep when it does -- which is what a workflow
+    #: replacing "${domain}" in its tasks is made of.
+    substitutes_in_commands = False
+
     def __init__(self, workspace, root, name):
         super(Architecture, self).__init__(workspace, root, name)
         self._main = ParameterDomain(self, hard_settings.main_parameter_domain)

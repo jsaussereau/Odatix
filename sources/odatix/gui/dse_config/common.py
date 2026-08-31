@@ -139,10 +139,16 @@ def unique_campaign_name(workspace, base):
 # What the workspace offers
 ######################################
 
-def architecture_options(workspace):
-    """The architectures an exploration may search."""
+def architecture_options(workspace, run_mode=""):
+    """
+    The designs an exploration may search: the workflows of the workspace when
+    what evaluates one is an "odatix workflow" run, its architectures
+    otherwise. The two are named in the same field because they are the same
+    thing to a search (see :meth:`odatix.dse.settings.CampaignSettings.designs`).
+    """
     try:
-        return [{"label": name, "value": name} for name in workspace.architectures.names()]
+        collection = workspace.workflows if run_mode == "workflow" else workspace.architectures
+        return [{"label": name, "value": name} for name in collection.names()]
     except Exception:
         return []
 

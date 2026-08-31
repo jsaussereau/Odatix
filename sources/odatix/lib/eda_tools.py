@@ -640,12 +640,13 @@ def _inherit_execution(base_commands, base_steps, base_sessions, commands, steps
   return merged_commands, merged_steps, merged_sessions
 
 
-def _make_flow(name, label=None, description=None, icon=None, commands=None, steps=None, sessions=None, metrics_file=None, tool_test_command=None, is_default=False):
+def _make_flow(name, label=None, description=None, icon=None, icon_filter=False, commands=None, steps=None, sessions=None, metrics_file=None, tool_test_command=None, is_default=False):
   return {
     "name": name,
     "label": label if isinstance(label, str) and label.strip() else name,
     "description": description if isinstance(description, str) else "",
     "icon": icon if isinstance(icon, str) and icon.strip() else None,
+    "icon_filter": bool(icon_filter),
     "commands": commands if commands else {},
     "steps": steps if steps else {},
     "sessions": sessions if sessions else {},
@@ -661,7 +662,7 @@ def list_flows(tool, job_type=None, settings=None):
   """
   Discover the flows of a tool as an ordered dict {flow_name: flow}, the default
   flow first. A flow is a dict with the keys "name", "label", "description",
-  "icon", "commands" (command key -> command), "metrics_file" and "is_default".
+  "icon", "icon_filter", "commands" (command key -> command), "metrics_file" and "is_default".
 
   Args:
       tool (str): tool name.
@@ -719,6 +720,8 @@ def list_flows(tool, job_type=None, settings=None):
         existing["label"] = spec.get("label") if isinstance(spec.get("label"), str) and spec.get("label").strip() else existing["label"]
         existing["description"] = spec.get("description") if isinstance(spec.get("description"), str) else existing["description"]
         existing["icon"] = spec.get("icon") if isinstance(spec.get("icon"), str) and spec.get("icon").strip() else existing["icon"]
+        if "icon_filter" in spec:
+          existing["icon_filter"] = bool(spec.get("icon_filter"))
         existing["commands"], existing["steps"], existing["sessions"] = _inherit_execution(
           existing["commands"], existing["steps"], existing["sessions"], commands, steps, sessions
         )
@@ -737,6 +740,7 @@ def list_flows(tool, job_type=None, settings=None):
           label=spec.get("label"),
           description=spec.get("description"),
           icon=spec.get("icon"),
+          icon_filter=spec.get("icon_filter", False),
           commands=flow_commands,
           steps=flow_steps,
           sessions=flow_sessions,
