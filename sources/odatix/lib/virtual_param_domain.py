@@ -45,6 +45,7 @@ import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.config_generator import ConfigGenerator, get_variables
 from odatix.workspace.space import config_set_rules
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -163,7 +164,7 @@ def load_instance_settings(base_path, param_dir, param_settings_filename=hard_se
         return None
     try:
         with open(settings_file, "r") as f:
-            settings = yaml.load(f, Loader=yaml.loader.SafeLoader)
+            settings = yaml.load(f, Loader=yaml_loader.SafeLoader)
     except Exception:
         return None
     return settings if isinstance(settings, dict) else None

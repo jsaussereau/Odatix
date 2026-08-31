@@ -48,6 +48,7 @@ import odatix.workspace.selection as selection
 import odatix.workspace.space as space
 from odatix.workspace.errors import InvalidSettingsError
 from odatix.workspace.yaml_io import read_mapping
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -211,7 +212,7 @@ class Architecture:
             return None
 
         with open(config_file, 'r') as f:
-            yaml_data = yaml.safe_load(f)
+            yaml_data = yaml_loader.safe_load(f)
 
         try:
             arch = Architecture(
@@ -458,7 +459,7 @@ class ArchitectureHandler:
         else:
             with open(self.eda_target_filename, 'r') as f:
                 try:
-                    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+                    settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
                 except Exception as e:
                     printc.error("Settings file \"" + self.eda_target_filename + "\" is not a valid YAML file", script_name)
                     printc.cyan("error details: ", end="", script_name=script_name)

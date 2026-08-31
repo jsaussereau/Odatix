@@ -51,6 +51,7 @@ from odatix.components.synthesis_common import (
 )
 from odatix.lib.prepare_work import edit_config_file, edit_pnr_config_file
 from odatix.lib.run_settings import get_pnr_settings
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -133,7 +134,7 @@ def read_pnr_source_file(job_dir):
         return {}
     try:
         with open(path, "r") as f:
-            data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+            data = yaml.load(f, Loader=yaml_loader.SafeLoader)
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}

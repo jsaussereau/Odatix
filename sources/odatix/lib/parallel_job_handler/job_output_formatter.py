@@ -27,6 +27,7 @@ from enum import Enum
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 from odatix.lib.settings import OdatixSettings
 import odatix.lib.printc as printc
+import odatix.lib.yaml_loader as yaml_loader
 
 class JobOutputFormatter:
     """
@@ -91,7 +92,7 @@ class JobOutputFormatter:
         """
         try:
             with open(self.filename, 'r', encoding='utf-8') as file:
-                return yaml.safe_load(file)
+                return yaml_loader.safe_load(file)
         except Exception as e:
             printc.error("Failed loading YAML file '{}': {}".format(self.filename, e))
             return {}

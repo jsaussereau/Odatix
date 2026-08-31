@@ -47,6 +47,7 @@ import odatix.lib.printc as printc
 import odatix.components.motd as motd
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 from odatix.lib.utils import ask_yes_no, YAML_BOOL, copytree
+import odatix.lib.yaml_loader as yaml_loader
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 script_name = os.path.basename(__file__)
@@ -162,7 +163,7 @@ class OdatixSettings:
         else:
             with open(settings_filename, "r") as f:
                 try:
-                    settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+                    settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
                 except Exception as e:
                     printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
                     printc.cyan("error details: ", end="", script_name=script_name)

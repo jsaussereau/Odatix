@@ -28,6 +28,7 @@ import odatix.lib.printc as printc
 from odatix.lib.utils import read_from_list, KeyNotInListError, BadValueInListError
 from odatix.lib.settings import OdatixSettings
 from odatix.workspace.clean import DANGEROUS_PATHS, remove_path as remove_matching_paths
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -97,7 +98,7 @@ def clean(settings_filename, force=False, verbose=False, quiet=False):
       sys.exit(-1)
   with open(settings_filename, "r") as f:
     try:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
     except Exception as e:
       printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
       printc.cyan("error details: ", end="", script_name=script_name)

@@ -41,6 +41,8 @@ import yaml
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
+import odatix.lib.yaml_loader as yaml_loader
+
 __all__ = [
     "read_yaml",
     "read_mapping",
@@ -75,7 +77,7 @@ def read_yaml(path, default=None):
         return copy.deepcopy(default)
     try:
         with open(path, "r") as f:
-            data = yaml.safe_load(f)
+            data = yaml_loader.safe_load(f)
     except Exception:
         return copy.deepcopy(default)
     if data is None:
@@ -105,7 +107,7 @@ def read_mapping(path):
         raise InvalidSettingsError('Settings file "{0}" does not exist.'.format(path), path=path)
     try:
         with open(path, "r") as f:
-            data = yaml.safe_load(f)
+            data = yaml_loader.safe_load(f)
     except Exception as error:
         raise InvalidSettingsError(
             'Settings file "{0}" is not a valid YAML file.'.format(path),

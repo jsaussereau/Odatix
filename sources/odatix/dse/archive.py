@@ -33,6 +33,7 @@ import os
 import odatix.lib.printc as printc
 from odatix.dse.objectives import Progress, pareto_front
 from odatix.workspace.yaml_io import file_header
+import odatix.lib.yaml_loader as yaml_loader
 
 __all__ = ["Archive"]
 
@@ -197,15 +198,13 @@ class Archive(object):
         Returns:
             list: the genomes that are already evaluated.
         """
-        import yaml
-
         from odatix.dse.evaluation import Evaluation
 
         if not os.path.isfile(self.path):
             return []
         try:
             with open(self.path, "r") as f:
-                content = yaml.safe_load(f) or {}
+                content = yaml_loader.safe_load(f) or {}
         except Exception:
             return []
         if not isinstance(content, dict) or content.get("architecture") != self.architecture:
@@ -302,7 +301,7 @@ class Archive(object):
             os.makedirs(directory, exist_ok=True)
         with open(self.path, "w") as f:
             f.write(file_header(TITLE) + NOTICE)
-            yaml.safe_dump(self.to_dict(), f, default_flow_style=False, sort_keys=False)
+            yaml.dump(self.to_dict(), f, Dumper=yaml_loader.SafeDumper, default_flow_style=False, sort_keys=False)
 
         if self.results_path:
             from odatix.dse.export import export_results

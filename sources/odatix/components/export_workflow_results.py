@@ -42,6 +42,7 @@ from odatix.components.export_common import (
     calculate_operation,
     load_existing_results_file,
 )
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -87,7 +88,7 @@ def _load_metrics(metrics_file):
         return None, None
     with open(metrics_file, "r") as f:
         try:
-            data = yaml.safe_load(f)
+            data = yaml_loader.safe_load(f)
         except yaml.YAMLError as e:
             printc.error('Could not parse metrics file "' + metrics_file + '": ' + str(e), script_name)
             return None, None
@@ -309,7 +310,7 @@ def _read_param_domains(run_dir):
         return None
     try:
         with open(path, "r") as param_domains_file:
-            loaded = yaml.safe_load(param_domains_file)
+            loaded = yaml_loader.safe_load(param_domains_file)
     except Exception:
         return None
     return loaded if isinstance(loaded, dict) else None

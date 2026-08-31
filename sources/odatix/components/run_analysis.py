@@ -49,6 +49,7 @@ from odatix.components.export_analysis import configure_analysis_job_exports
 import odatix.components.export_derived_metrics as exp_derived
 import odatix.lib.constraint_files as constraint_files
 from odatix.workspace.space import selected_config_file
+import odatix.lib.yaml_loader as yaml_loader
 
 
 class AnalysisCancelled(Exception):
@@ -161,7 +162,7 @@ def get_analysis_tools_from_settings(settings_filename):
 
   with open(settings_filename, "r") as f:
     try:
-      settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
     except Exception:
       return list(DEFAULT_ANALYSIS_TOOLS)
 

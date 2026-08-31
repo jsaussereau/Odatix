@@ -22,6 +22,7 @@ from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
 import odatix.lib.job_steps as job_steps
 import odatix.lib.constraint_files as constraint_files
+import odatix.lib.yaml_loader as yaml_loader
 
 
 def restrict_targets(targets, selected, tool, eda_target_filename, script_name=""):
@@ -152,7 +153,7 @@ def load_synthesis_context(
 
     with open(eda_target_filename, "r") as f:
         try:
-            settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+            settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
         except Exception as e:
             printc.error('Settings file "' + eda_target_filename + '" is not a valid YAML file', script_name)
             printc.cyan("error details: ", end="", script_name=script_name)

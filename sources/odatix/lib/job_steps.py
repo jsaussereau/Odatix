@@ -55,6 +55,7 @@ import os
 import yaml
 
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.yaml_loader as yaml_loader
 
 
 def state_file(tmp_dir):
@@ -74,7 +75,7 @@ def read_state(tmp_dir):
     return empty
   try:
     with open(path, "r") as f:
-      data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      data = yaml.load(f, Loader=yaml_loader.SafeLoader)
   except Exception:
     return empty
   if not isinstance(data, dict):

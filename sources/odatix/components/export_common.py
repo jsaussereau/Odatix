@@ -39,6 +39,7 @@ import xml.etree.ElementTree as ET
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
 import odatix.lib.results_cache as results_cache
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -143,7 +144,7 @@ def parse_yaml(file, key=None, error_if_missing=True, error_prefix=""):
 
     with open(file, "r") as yaml_file:
         try:
-            data = yaml.safe_load(yaml_file)
+            data = yaml_loader.safe_load(yaml_file)
         except yaml.YAMLError as e:
             printc.error(f'{error_prefix}Could not parse yaml file "{file}": {str(e)}', script_name=script_name)
             return None

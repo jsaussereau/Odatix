@@ -31,6 +31,7 @@ import odatix.lib.printc as printc
 import odatix.lib.expressions as expressions
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.get_from_dict import get_from_dict, Key
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -385,7 +386,7 @@ class ConfigGenerator:
 
     try:
       with open(self.yaml_file, "r") as f:
-        data = yaml.safe_load(f)
+        data = yaml_loader.safe_load(f)
         if data is None:
           printc.error(f"YAML file \"{self.yaml_file}\" is empty!")
           sys.exit(-1)

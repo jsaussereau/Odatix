@@ -40,13 +40,7 @@ import threading
 
 import yaml
 
-# The pure-Python parser takes seconds on an archive of a few hundred designs;
-# the libyaml bindings take a fraction of that. Not always installed, hence the
-# fallback.
-try:
-  _YamlLoader = yaml.CSafeLoader
-except AttributeError:  # pragma: no cover - depends on the PyYAML build
-  _YamlLoader = yaml.SafeLoader
+from odatix.lib.yaml_loader import SafeLoader as _YamlLoader
 
 DSE_SUBDIR = "dse"
 

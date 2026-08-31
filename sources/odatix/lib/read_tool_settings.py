@@ -25,6 +25,7 @@ import yaml
 
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 import odatix.lib.printc as printc
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -80,7 +81,7 @@ def read_tool_settings(tool, tool_settings_file, synth_type='fmax_synthesis', fl
     # file): fall back to reading the given file alone.
     with open(tool_settings_file, "r") as f:
       try:
-        settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
       except Exception as e:
         printc.error(f'Settings file "{tool_settings_file}", for the selected EDA tool "{tool}" is not a valid YAML file', script_name)
         printc.cyan("Error details: ", end="", script_name=script_name)

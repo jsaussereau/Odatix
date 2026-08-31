@@ -52,6 +52,7 @@ import os
 from natsort import natsorted
 
 import odatix.lib.printc as printc
+import odatix.lib.yaml_loader as yaml_loader
 from odatix.lib.config_generator import (
     ConfigGenerator,
     duplicate_point_names,
@@ -248,10 +249,8 @@ class Manifest(object):
         if not self.exists:
             return self
         try:
-            import yaml
-
             with open(self.file, "r") as f:
-                data = yaml.safe_load(f)
+                data = yaml_loader.safe_load(f)
         except Exception as e:
             printc.warning(
                 "Ignoring unreadable generation manifest \"{0}\": {1}".format(self.file, e),
@@ -1103,10 +1102,8 @@ def load_domain_settings(path):
     if not os.path.isfile(settings_file):
         return {}
     try:
-        import yaml
-
         with open(settings_file, "r") as f:
-            data = yaml.safe_load(f)
+            data = yaml_loader.safe_load(f)
     except Exception as e:
         printc.warning(
             "Ignoring unreadable settings file \"{0}\": {1}".format(settings_file, e),

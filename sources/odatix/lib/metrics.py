@@ -54,6 +54,7 @@ import odatix.lib.eda_tools as eda_tools
 import odatix.lib.printc as printc
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.variables import replace_variables, Variables
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -122,7 +123,7 @@ def _read_yaml(path):
 
   with open(path, "r") as file:
     try:
-      data = yaml.safe_load(file)
+      data = yaml_loader.safe_load(file)
     except yaml.YAMLError as e:
       printc.error('Error in metrics definition file "' + path + '": ' + str(e), script_name)
       return None

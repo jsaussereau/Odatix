@@ -128,6 +128,7 @@ import yaml
 
 import odatix.lib.printc as printc
 import odatix.lib.results_schema as results_schema
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -626,7 +627,7 @@ def load_derived_metrics(path):
 
   try:
     with open(path, "r") as f:
-      data = yaml.safe_load(f)
+      data = yaml_loader.safe_load(f)
   except Exception as e:
     printc.error('Derived metrics file "' + path + '" is not a valid YAML file', script_name)
     printc.cyan("error details: ", end="", script_name=script_name)

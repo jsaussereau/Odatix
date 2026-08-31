@@ -28,6 +28,7 @@ import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
 from odatix.lib.settings import OdatixSettings
 from odatix.workspace.space import config_file
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -186,7 +187,7 @@ class ParamDomain:
     # Load settings file
     with open(settings_file, 'r') as f: 
       try:
-        settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+        settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
       except Exception as e:
         printc.error("Settings file \"" + settings_file + "\" is not a valid YAML file", script_name)
         printc.cyan("error details: ", end="", script_name=script_name)

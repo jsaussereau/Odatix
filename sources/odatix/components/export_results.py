@@ -46,6 +46,7 @@ from odatix.components.export_common import (
     calculate_operation,
     load_existing_results_file,
 )
+import odatix.lib.yaml_loader as yaml_loader
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -136,7 +137,7 @@ def validate_tool_settings(file_path):
     return None
   with open(file_path, "r") as file:
     try:
-      tool_settings = yaml.safe_load(file)
+      tool_settings = yaml_loader.safe_load(file)
       return tool_settings
     except yaml.YAMLError as e:
       printc.error("Error in tool configuration file: " + str(e), script_name)
@@ -162,7 +163,7 @@ def load_metrics_file(metrics_file):
   """Load a metrics definition file, or None when it is not valid YAML."""
   with open(metrics_file, "r") as file:
     try:
-      metrics_data = yaml.safe_load(file)
+      metrics_data = yaml_loader.safe_load(file)
     except yaml.YAMLError as e:
       printc.error("Error in metrics definition file: " + str(e), script_name)
       return None

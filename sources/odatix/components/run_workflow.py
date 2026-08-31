@@ -52,6 +52,7 @@ from odatix.lib.utils import read_from_list, copytree, create_dir, ask_to_contin
 from odatix.lib.run_settings import get_workflow_settings
 from odatix.lib.wosit import createTaskGraph
 import odatix.workspace.space as space
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 WORKFLOW_META_FILENAME = "workflow_meta.yml"
@@ -384,7 +385,7 @@ def check_settings(
 
         with open(workflow_settings_file, "r") as f:
             try:
-                workflow_settings = yaml.load(f, Loader=yaml.loader.SafeLoader)
+                workflow_settings = yaml.load(f, Loader=yaml_loader.SafeLoader)
             except Exception as e:
                 printc.error("Workflow settings file \"" + workflow_settings_file + "\" is not a valid YAML file", script_name)
                 printc.cyan("error details: ", end="", script_name=script_name)

@@ -33,6 +33,7 @@ import odatix.lib.param_domain as param_domain
 import odatix.lib.hard_settings as hard_settings
 import odatix.workspace.selection as selection
 import odatix.workspace.sim_architectures as sim_architectures
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -114,7 +115,7 @@ class SimulationHandler:
     if isfile(settings_filename):
       try:
         with open(settings_filename, "r") as f:
-          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+          settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
         if isinstance(settings_data, dict):
           domains = param_domain.parse_invariant_domains(
             settings_data.get(param_domain.INVARIANT_DOMAINS_KEY), settings_filename
@@ -144,7 +145,7 @@ class SimulationHandler:
     if isfile(settings_filename):
       try:
         with open(settings_filename, "r") as f:
-          settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+          settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
         if isinstance(settings_data, dict):
           messages = []
           entries = sim_architectures.parse(
@@ -337,7 +338,7 @@ class SimulationHandler:
       else:
         with open(settings_filename, 'r') as f:
           try:
-            settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+            settings_data = yaml.load(f, Loader=yaml_loader.SafeLoader)
           except Exception as e:
             printc.error("Settings file \"" + settings_filename + "\" is not a valid YAML file", script_name)
             printc.cyan("error details: ", end="", script_name=script_name)

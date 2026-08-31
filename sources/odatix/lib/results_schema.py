@@ -64,18 +64,9 @@ import os
 import re
 import yaml
 
-# The pure-Python YAML loader/emitter is several times slower than the libyaml
-# bindings *and* keeps the GIL for the whole parse: a results file rewritten
-# after every finished job would then stall every other thread of the process,
-# the job monitor included. libyaml is not always installed, hence the fallback.
-try:
-  _YamlLoader = yaml.CSafeLoader
-  _YamlDumper = yaml.CSafeDumper
-except AttributeError:  # pragma: no cover - depends on the PyYAML build
-  _YamlLoader = yaml.SafeLoader
-  _YamlDumper = yaml.SafeDumper
-
 import odatix.lib.hard_settings as hard_settings
+from odatix.lib.yaml_loader import SafeDumper as _YamlDumper
+from odatix.lib.yaml_loader import SafeLoader as _YamlLoader
 
 SCHEMA_VERSION = 2
 

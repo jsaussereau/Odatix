@@ -125,6 +125,7 @@ import os
 import sys
 
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.yaml_loader as yaml_loader
 
 script_name = os.path.basename(__file__)
 
@@ -266,7 +267,7 @@ def _read_yaml(path):
 
   try:
     with open(path, "r") as f:
-      data = yaml.load(f, Loader=yaml.loader.SafeLoader)
+      data = yaml.load(f, Loader=yaml_loader.SafeLoader)
   except Exception:
     return {}
   return data if isinstance(data, dict) else {}
