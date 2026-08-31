@@ -19,6 +19,7 @@
 label: "Innovus"
 description: "Cadence® Innovus™ Implementation System"
 icon: "assets/icons/cadence.png"
+icon_filter: true
 
 process_group: True
 

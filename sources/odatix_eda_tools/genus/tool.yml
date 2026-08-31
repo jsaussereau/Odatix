@@ -6,6 +6,7 @@
 label: "Genus"
 description: "Cadence® Genus™ Synthesis Solution"
 icon: "assets/icons/cadence.png"
+icon_filter: true
 
 process_group: True
 
