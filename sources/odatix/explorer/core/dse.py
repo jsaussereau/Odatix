@@ -40,17 +40,63 @@ import threading
 
 import yaml
 
+# The pure-Python parser takes seconds on an archive of a few hundred designs;
+# the libyaml bindings take a fraction of that. Not always installed, hence the
+# fallback.
+try:
+  _YamlLoader = yaml.CSafeLoader
+except AttributeError:  # pragma: no cover - depends on the PyYAML build
+  _YamlLoader = yaml.SafeLoader
+
 DSE_SUBDIR = "dse"
 
 
 class Campaign(object):
   """One exploration archive, as it was written."""
 
-  def __init__(self, name, path, data):
+  def __init__(self, name, path, data=None):
     self.name = name
     self.path = path
-    self.data = data if isinstance(data, dict) else {}
-    self.error = None
+    self._lock = threading.RLock()
+    self._data = data if isinstance(data, dict) else None
+    self._error = None
+    self._read = data is not None
+
+  ######################################
+  # Read when asked, not when listed
+  ######################################
+
+  def _load(self):
+    """
+    Parse the archive, once.
+
+    The page lists every campaign of the workspace to fill its picker but draws
+    one: parsing them all up front is most of a second per megabyte thrown away,
+    and there are workspaces with a dozen archives.
+    """
+    with self._lock:
+      if self._read:
+        return
+      self._read = True
+      try:
+        with open(self.path, "r") as file:
+          data = yaml.load(file, Loader=_YamlLoader) or {}
+        if isinstance(data, dict):
+          self._data = data
+        else:
+          self._data, self._error = {}, "not an exploration archive"
+      except Exception as error:
+        self._data, self._error = {}, str(error)
+
+  @property
+  def data(self):
+    self._load()
+    return self._data or {}
+
+  @property
+  def error(self):
+    self._load()
+    return self._error
 
   ######################################
   # What it was looking for
@@ -157,6 +203,9 @@ class CampaignStore(object):
     """
     Every campaign of a workspace, by name.
 
+    The archives are not parsed here -- a campaign reads its own file the
+    first time something asks it for its contents.
+
     A file that cannot be read is not dropped: it comes back as a campaign
     carrying its error, because "the archive is being written right now" and
     "the archive is broken" look the same for a moment, and a page that made
@@ -183,14 +232,7 @@ class CampaignStore(object):
           campaigns.append(cached[2])
           continue
 
-        campaign = Campaign(name, path, None)
-        try:
-          with open(path, "r") as file:
-            campaign.data = yaml.safe_load(file) or {}
-          if not isinstance(campaign.data, dict):
-            campaign.data, campaign.error = {}, "not an exploration archive"
-        except Exception as error:
-          campaign.error = str(error)
+        campaign = Campaign(name, path)
         self._cache[path] = (stat.st_mtime, stat.st_size, campaign)
         self._version += 1
         campaigns.append(campaign)

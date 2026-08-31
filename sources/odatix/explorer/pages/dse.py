@@ -393,6 +393,28 @@ def _impact_section():
               ),
               dcc.Dropdown(id="xp-dse-factor", options=[], value=None, clearable=False,
                            className="xp-dse-axis-dropdown xp-dse-factor-picker"),
+              # Where the whiskers of a box stop. The default is the usual
+              # statistical one, which calls anything past 1.5 times the
+              # interquartile range an outlier and draws it apart; the designs
+              # on the front are often exactly those, so "why is that point
+              # outside the box" has an answer here rather than only in a
+              # textbook.
+              dcc.Checklist(
+                id="xp-dse-factor-whiskers",
+                options=[{
+                  "label": html.Span(
+                    "whiskers to min/max",
+                    title=("Off: whiskers stop at 1.5x the interquartile range and "
+                           "anything past them is drawn as an outlier -- the usual box "
+                           "plot, which shows how tight the bulk of a value is.\n"
+                           "On: whiskers reach the lowest and highest design of the "
+                           "value, so nothing falls outside the box."),
+                  ),
+                  "value": "minmax",
+                }],
+                value=[],
+                className="xp-dse-filters xp-dse-card-options",
+              ),
               html.Div(id="xp-dse-factor-slot", className="xp-dse-slot"),
             ],
             className="xp-dse-card",
@@ -1216,7 +1238,24 @@ def _impact_figure(campaign, chrome, palette, metric, kinds, records):
   return figure
 
 
-def _factor_figure(campaign, chrome, palette, factor, metric, records, front_keys):
+def _percentile(values, fraction):
+  """
+  The value at a fraction of a sorted sample, interpolating between neighbours.
+
+  This is the "linear" method, which is what a box plot uses for its quartiles
+  by default; it is spelled out here because the box is handed its five numbers
+  rather than its sample when the whiskers are asked to reach the extremes.
+  """
+  if len(values) == 1:
+    return values[0]
+  position = fraction * (len(values) - 1)
+  low = int(position)
+  high = min(low + 1, len(values) - 1)
+  return values[low] + (values[high] - values[low]) * (position - low)
+
+
+def _factor_figure(campaign, chrome, palette, factor, metric, records, front_keys,
+                   whiskers_minmax=False):
   """
   What one choice did to a metric, value by value.
 
@@ -1267,26 +1306,56 @@ def _factor_figure(campaign, chrome, palette, factor, metric, records, front_key
     ))
   else:
     box_color = palettes.get_color(OTHER_COLOR_INDEX, palette)
-    box_x = []
-    box_y = []
-    for level in factor.levels:
-      label = str(_number(level))
-      for point in points:
-        if point[0] == level:
-          box_x.append(label)
-          box_y.append(point[1])
-    if box_y:
-      figure.add_trace(go.Box(
-        x=box_x, y=box_y, name="evaluated",
-        boxpoints="outliers", whiskerwidth=0.4,
-        marker={"color": _translucent(box_color, 0.45), "size": 4,
-                "outliercolor": _translucent(box_color, 0.45),
-                "line": {"width": 0}},
-        line={"color": _translucent(box_color, 0.75), "width": 1.2},
-        fillcolor=_translucent(box_color, 0.12),
-        showlegend=False,
-        hovertemplate=metric + ": %{y}<extra>%{x}</extra>",
-      ))
+    style = {
+      "name": "evaluated",
+      "whiskerwidth": 0.4,
+      "marker": {"color": _translucent(box_color, 0.45), "size": 4,
+                 "outliercolor": _translucent(box_color, 0.45),
+                 "line": {"width": 0}},
+      "line": {"color": _translucent(box_color, 0.75), "width": 1.2},
+      "fillcolor": _translucent(box_color, 0.12),
+      "showlegend": False,
+    }
+    if whiskers_minmax:
+      # Plotly only draws whiskers somewhere other than 1.5 times the
+      # interquartile range when the box is given its five numbers rather than
+      # its sample, so the quartiles are computed here and the fences are set
+      # to the extremes. Nothing is left outside to call an outlier.
+      labels = []
+      quartiles = []
+      for level in factor.levels:
+        values = sorted(point[1] for point in points if point[0] == level)
+        if not values:
+          continue
+        labels.append(str(_number(level)))
+        quartiles.append(values)
+      if labels:
+        figure.add_trace(go.Box(
+          x=labels,
+          q1=[_percentile(values, 0.25) for values in quartiles],
+          median=[_percentile(values, 0.5) for values in quartiles],
+          q3=[_percentile(values, 0.75) for values in quartiles],
+          lowerfence=[values[0] for values in quartiles],
+          upperfence=[values[-1] for values in quartiles],
+          boxpoints=False,
+          hovertemplate=metric + ": %{y}<extra>%{x}</extra>",
+          **style
+        ))
+    else:
+      box_x = []
+      box_y = []
+      for level in factor.levels:
+        label = str(_number(level))
+        for point in points:
+          if point[0] == level:
+            box_x.append(label)
+            box_y.append(point[1])
+      if box_y:
+        figure.add_trace(go.Box(
+          x=box_x, y=box_y, boxpoints="outliers",
+          hovertemplate=metric + ": %{y}<extra>%{x}</extra>",
+          **style
+        ))
 
   front = [point for point in points if point[2]]
   if front:
@@ -1676,11 +1745,32 @@ def update_impact_controls(name, _intervals, settings, metric, factor_id):
   return [{"label": name, "value": name} for name in metrics], metric, options, factor_id, None
 
 
+def _default_kinds(campaign):
+  """
+  Which chips a campaign opens on.
+
+  The preferred selection is the one that asks the question the reader has:
+  what the domains and the run did, rather than every variable inside them.
+  But a campaign whose choices are all of one kind -- a workflow, where each
+  knob is a variable of its own -- would open on an empty ranking, so the
+  preference only applies to the kinds that campaign actually has.
+  """
+  if campaign is None:
+    return list(DEFAULT_KINDS)
+  present = set(factor.kind for factor in dse_factors.factors(campaign))
+  preferred = [kind for kind in KIND_ORDER if kind in DEFAULT_KINDS and kind in present]
+  if preferred:
+    return preferred
+  return [kind for kind in KIND_ORDER if kind in present] or list(DEFAULT_KINDS)
+
+
 @dash.callback(
   Output("xp-dse-impact-kinds", "data"),
   *[Output("xp-dse-kind-" + kind, "className") for kind in KIND_ORDER],
   *[Input("xp-dse-kind-" + kind, "n_clicks") for kind in KIND_ORDER],
+  Input("xp-dse-campaign", "value"),
   State("xp-dse-impact-kinds", "data"),
+  State("odatix-settings", "data"),
 )
 def toggle_kind(*args):
   """
@@ -1688,10 +1778,22 @@ def toggle_kind(*args):
 
   The last one cannot be turned off: an empty selection ranks nothing, and a
   reader who clicked their way there would be looking at an empty card with no
-  hint of why.
+  hint of why. Selecting a campaign resets the chips to what that campaign has
+  to show, for the same reason.
   """
-  selected = list(args[-1] or KIND_ORDER)
+  selected = list(args[-2] or KIND_ORDER)
   clicked = getattr(dash.callback_context, "triggered_id", None)
+  if clicked != "xp-dse-campaign" and not any(
+    clicked == "xp-dse-kind-" + kind for kind in KIND_ORDER
+  ):
+    clicked = "xp-dse-campaign"
+  if clicked == "xp-dse-campaign":
+    name = args[len(KIND_ORDER)]
+    campaign = CAMPAIGNS.get(_result_path(args[-1]), name) if name else None
+    selected = _default_kinds(campaign)
+    return [selected] + [
+      _kind_chip(kind, kind in selected).className for kind in KIND_ORDER
+    ]
   for kind in KIND_ORDER:
     if clicked == "xp-dse-kind-" + kind:
       if kind in selected:
@@ -1730,11 +1832,13 @@ def select_factor_from_bar(click):
   Input("xp-dse-impact-kinds", "data"),
   Input("xp-dse-impact-scope", "value"),
   Input("xp-dse-factor", "value"),
+  Input("xp-dse-factor-whiskers", "value"),
   Input("xp-dse-poll", "n_intervals"),
   Input("theme-dropdown", "value"),
   Input("odatix-settings", "data"),
 )
-def update_impact(name, metric, kinds, scope, factor_id, _intervals, app_theme, settings):
+def update_impact(name, metric, kinds, scope, factor_id, whiskers, _intervals, app_theme,
+                  settings):
   campaign = CAMPAIGNS.get(_result_path(settings), name) if name else None
   if campaign is None or not metric:
     return None, None, None, None
@@ -1759,7 +1863,8 @@ def update_impact(name, metric, kinds, scope, factor_id, _intervals, app_theme, 
   if factor is None:
     return impact, _placeholder("Pick a choice to look into."), None, None
 
-  detail = _graph(_factor_figure(campaign, chrome, palette, factor, metric, records, front_keys),
+  detail = _graph(_factor_figure(campaign, chrome, palette, factor, metric, records, front_keys,
+                                 "minmax" in (whiskers or [])),
                   config, id="xp-dse-factor-graph")
   result = dse_factors.impact_of(campaign, factor, metric, records)
   if result is None:
@@ -1788,9 +1893,13 @@ def update_campaigns(_intervals, settings, selected):
   names = [campaign.name for campaign in campaigns]
   # A campaign that is still there stays selected: the page polls, and a
   # selection that reset every three seconds would be unusable while a search
-  # is running -- which is exactly when this page is open.
+  # is running -- which is exactly when this page is open. Re-emitting the same
+  # value is not the same as leaving it alone: Dash fires the callbacks that
+  # depend on it either way, and the ones that reset a control when the campaign
+  # changes would undo the reader's clicks on every tick. So say nothing when
+  # nothing changed.
   value = selected if selected in names else (names[0] if names else None)
-  return options, value
+  return options, (dash.no_update if value == selected else value)
 
 
 @dash.callback(
