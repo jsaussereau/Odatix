@@ -305,6 +305,7 @@ def normalize_tool_settings(raw):
         "label": str(raw.get("label", "") or ""),
         "description": str(raw.get("description", "") or ""),
         "icon": str(raw.get("icon", "") or ""),
+        "icon_filter": bool(raw.get("icon_filter", False)),
         "process_group": bool(raw.get("process_group", True)),
         "report_path": str(raw.get("report_path", "") or ""),
         "target_file": str(raw.get("target_file", "") or ""),
@@ -314,7 +315,7 @@ def normalize_tool_settings(raw):
     }
 
 def build_tool_settings(
-    label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
+    label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
     flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls,
 ):
     """
@@ -347,6 +348,7 @@ def build_tool_settings(
         "label": label or "",
         "description": description or "",
         "icon": icon_value or "",
+        "icon_filter": True if icon_filter else False,
         "process_group": True if process_group else False,
         "report_path": report_path or "",
         "target_file": target_file or "",
@@ -414,6 +416,7 @@ def normalize_for_compare(settings):
         "label": str(n.get("label", "") or ""),
         "description": str(n.get("description", "") or ""),
         "icon": str(n.get("icon", "") or ""),
+        "icon_filter": bool(n.get("icon_filter", False)),
         "process_group": bool(n.get("process_group", True)),
         "report_path": str(n.get("report_path", "") or ""),
         "target_file": str(n.get("target_file", "") or ""),
@@ -628,6 +631,19 @@ def tool_form(settings, tool_name="", overlay=False):
             tool_form_field("Icon", "tool-icon", value=settings.get("icon", ""),
                             placeholder="assets/icons/my_tool.png",
                             tooltip="Optional icon path (relative to the GUI assets) shown on the tool selection page."),
+            html.Div(
+                children=[
+                    dcc.Checklist(
+                        value=[True] if settings.get("icon_filter", False) else [],
+                        id="tool-icon-filter",
+                        className="checklist-switch",
+                        options=[{"label": "Adapt icon to theme", "value": True}],
+                        style={"marginBottom": "12px", "marginTop": "5px", "display": "inline-block"},
+                    ),
+                    ui.tooltip_icon("Recolor the icon to follow the theme. Useful for monochrome logos, "
+                                    "which would otherwise be invisible in one of the themes."),
+                ],
+            ),
         ],
         className="tile config",
     )
@@ -1658,7 +1674,7 @@ def init_form(search, page, odatix_settings):
 # The section a reset button puts back to the built-in state, and the settings
 # keys it covers. "logs", "tags" and "replace" are the "format" subsections.
 RESET_SECTIONS = {
-    "metadata": ("label", "description", "icon"),
+    "metadata": ("label", "description", "icon", "icon_filter"),
     "behaviour": ("process_group", "report_path", "target_file", "default_metrics_file"),
 }
 
@@ -1670,6 +1686,7 @@ RESET_SECTIONS = {
     State("tool-label", "value"),
     State("tool-description", "value"),
     State("tool-icon", "value"),
+    State("tool-icon-filter", "value"),
     State("tool-process-group", "value"),
     State("tool-report-path", "value"),
     State("tool-target-file", "value"),
@@ -1688,7 +1705,7 @@ RESET_SECTIONS = {
     prevent_initial_call=True,
 )
 def reset_section_to_builtin(
-    reset_clicks, label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
+    reset_clicks, label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
     log_error, log_crit, log_warning, log_info, log_trace,
     tag_markers, tag_ids, replace_patterns, replace_repls, builtin, search,
 ):
@@ -1711,7 +1728,7 @@ def reset_section_to_builtin(
         "info": log_info, "trace": log_trace,
     }
     settings = build_tool_settings(
-        label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
+        label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
         [], log_values, tag_names, tag_markers, replace_patterns, replace_repls,
     )
 
@@ -1741,6 +1758,7 @@ def reset_section_to_builtin(
     Input("tool-label", "value"),
     Input("tool-description", "value"),
     Input("tool-icon", "value"),
+    Input("tool-icon-filter", "value"),
     Input("tool-process-group", "value"),
     Input("tool-report-path", "value"),
     Input("tool-target-file", "value"),
@@ -1765,7 +1783,7 @@ def reset_section_to_builtin(
     prevent_initial_call=True,
 )
 def save_and_status(
-    n_clicks, tool_title_value, label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
+    n_clicks, tool_title_value, label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
     flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
     mode_ids, mode_values, cmd_ids, cmd_values,
     session_ids, session_cmds, session_begins, session_ends,
@@ -1793,7 +1811,7 @@ def save_and_status(
     }
 
     current_settings = build_tool_settings(
-        label, description, icon_value, process_group, report_path, target_file, default_metrics_file,
+        label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
         flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls,
     )
 

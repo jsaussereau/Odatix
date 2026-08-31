@@ -79,6 +79,36 @@ APP_THEME_CHROME = {
   "midnight": {**DARK_CHROME, "text_color": "#e0e0ff"},
   "win95": {**LIGHT_CHROME, "text_color": "#000000"},
   "hangover": LIGHT_CHROME,
+  "nord": {
+    **DARK_CHROME,
+    "text_color": "#eceff4",
+    "grid_color": "rgba(216, 222, 233, 0.16)",
+    "zeroline_color": "rgba(136, 192, 208, 0.5)",
+  },
+  "solarized_light": {
+    **LIGHT_CHROME,
+    "text_color": "#586e75",
+    "grid_color": "rgba(88, 110, 117, 0.16)",
+    "zeroline_color": "rgba(38, 139, 210, 0.45)",
+  },
+  "solarized_dark": {
+    **DARK_CHROME,
+    "text_color": "#93a1a1",
+    "grid_color": "rgba(147, 161, 161, 0.18)",
+    "zeroline_color": "rgba(38, 139, 210, 0.55)",
+  },
+  "blueprint": {
+    **DARK_CHROME,
+    "text_color": "#e8f2ff",
+    "grid_color": "rgba(198, 224, 255, 0.22)",
+    "zeroline_color": "rgba(79, 195, 247, 0.6)",
+  },
+  "high_contrast": {
+    **DARK_CHROME,
+    "text_color": "#ffffff",
+    "grid_color": "rgba(255, 255, 255, 0.45)",
+    "zeroline_color": "#ffffff",
+  },
   # "legacy": LIGHT_CHROME,
 }
 

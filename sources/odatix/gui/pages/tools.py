@@ -83,10 +83,13 @@ def tool_icon_image(meta):
     Wrapped in a fixed-height box so tool names line up regardless of each
     logo's own aspect ratio."""
     tool_icon = meta.get("icon") if isinstance(meta.get("icon"), str) else None
+    # "icon_filter" recolors the logo to the theme, for the monochrome ones that
+    # would otherwise vanish on a background of the same shade.
+    filtered = bool(meta.get("icon_filter")) if tool_icon else False
     return html.Div(
         html.Img(
             src=tool_icon or DEFAULT_TOOL_ICON,
-            className="card-img",
+            className="card-img filter" if filtered else "card-img",
             style={"maxHeight": "100%", "maxWidth": "60%"},
         ),
         className="card-pictogram-wrap",

@@ -556,37 +556,35 @@ textarea {
 }
 
 .Select-menu-outer {
-    background-color: var(--dropdown-menu-background);
+    background-color: var(--dropdown-menu-background) !important;
     backdrop-filter: var(--dropdown-menu-backdrop-filter);
-    border: var(--dropdown-border);
+    border: var(--dropdown-border) !important;
     border-radius: var(--dropdown-menu-border-radius);
-    color: var(--theme-text-color);
+    color: var(--theme-text-color) !important;
     z-index: 5000 !important;
 }
 .navbar .Select-menu-outer {
-    background-color: var(--navbar-dropdown-background);
-    border: var(--navbar-dropdown-border);
-    color: var(--navbar-dropdown-text-color);
+    background-color: var(--navbar-dropdown-background) !important;
+    border: var(--navbar-dropdown-border) !important;
+    color: var(--navbar-dropdown-text-color) !important;
 }
 
 .navbar .Select-menu-outer {
     position: absolute;
 }
 
-/* Options: react-select ships an opaque white default, which is unreadable on
-   dark (and translucent) themes -- let the menu surface show through instead. */
 .Select-menu-outer .Select-option,
 .Select-menu-outer .Select-noresults {
-    background-color: transparent;
-    color: var(--dropdown-text-color, var(--theme-text-color));
+    background-color: transparent !important;
+    color: var(--dropdown-text-color, var(--theme-text-color)) !important;
 }
 .Select-menu-outer .Select-option.is-focused {
-    background-color: var(--dropdown-menu-hover, var(--dropdown-background-hover));
-    color: var(--dropdown-text-color, var(--theme-text-color));
+    background-color: var(--dropdown-menu-hover, var(--dropdown-background-hover)) !important;
+    color: var(--dropdown-text-color, var(--theme-text-color)) !important;
 }
 .Select-menu-outer .Select-option.is-selected {
-    background-color: var(--dropdown-background-hover, var(--dropdown-menu-hover));
-    color: var(--dropdown-text-color, var(--theme-text-color));
+    background-color: var(--dropdown-background-hover, var(--dropdown-menu-hover)) !important;
+    color: var(--dropdown-text-color, var(--theme-text-color)) !important;
 }
 .Select-menu-outer .Select-option.is-disabled {
     color: var(--theme-text-color);
@@ -594,12 +592,12 @@ textarea {
 }
 .navbar .Select-menu-outer .Select-option,
 .navbar .Select-menu-outer .Select-noresults {
-    color: var(--navbar-dropdown-text-color);
+    color: var(--navbar-dropdown-text-color) !important;
 }
 .navbar .Select-menu-outer .Select-option.is-focused,
 .navbar .Select-menu-outer .Select-option.is-selected {
-    background-color: var(--navbar-dropdown-background-hover);
-    color: var(--navbar-dropdown-text-color);
+    background-color: var(--navbar-dropdown-background-hover) !important;
+    color: var(--navbar-dropdown-text-color) !important;
 }
 
 .Select-value:hover {
@@ -733,7 +731,14 @@ textarea {
     }
 } */
 
+.odx-tool-img,
 .card-img {
+    margin: auto;
+    object-fit: cover;
+}
+
+.odx-tool-img.filter,
+.card-img.filter {
     margin: auto;
     object-fit: cover;
     filter: var(--card-img-filter);

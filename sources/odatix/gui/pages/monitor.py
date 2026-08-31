@@ -1493,9 +1493,9 @@ layout = html.Div(
             id="monitor-main-container",
             className="monitor-dashboard hidden",
             children=[
-                html.Div(),
-                html.Div(),
-                html.Div(),
+                html.Div(style={"display": "none"}),
+                html.Div(style={"display": "none"}),
+                html.Div(style={"display": "none"}),
                 monitor_header,
                 split_view,
             ],
