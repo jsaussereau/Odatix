@@ -12,8 +12,8 @@ script_copy_enable: No
 script_copy_source: "/dev/null"
 
 targets:
-  - GlobalFoundries22NHSP
-  #- GlobalFoundries12LP
+   - GlobalFoundries22NHSP
+  # - GlobalFoundries12LP
   # - Intel18AGLP
 
 target_settings:
