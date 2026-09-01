@@ -32,6 +32,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 
 import odatix.gui
+import odatix.gui.icons as gui_icons
 import odatix.gui.themes as gui_themes
 import odatix.components.motd as motd
 import odatix.lib.printc as printc
@@ -69,7 +70,11 @@ class ExplorerStandaloneApp:
       title="Odatix Explorer",
       update_title=None,
       suppress_callback_exceptions=True,
+      # The drawing of every icon, sent once as CSS instead of at each of the
+      # hundreds of places a page wears one (see odatix.gui.icons).
+      external_stylesheets=[gui_icons.ICON_STYLESHEET_URL],
     )
+    gui_icons.serve_icon_stylesheet(self.app)
 
     self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 

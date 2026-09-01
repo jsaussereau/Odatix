@@ -20,7 +20,6 @@
 #
 
 from typing import Optional, Union
-from dash_svg import Svg
 from dash import html, dcc
 from dash.development.base_component import Component
 
@@ -30,7 +29,7 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, bold=
     """
     Create a button with an icon and optional text.
     Args:
-        icon (str or Svg): The icon to display (filename in assets/icons or Svg component).
+        icon (str or Component): The glyph to display (a name in assets/icons, or an icons.icon()).
         color (str): The color of the button (e.g., "red", "blue", "green").
         text (str, optional): The text to display next to the icon. Defaults to "" (just the icon).
         id (str, optional): The id of the button. Defaults to None.
@@ -42,7 +41,9 @@ def icon_button(icon, color, text="", id=None, link=None, multiline=False, bold=
     if text:
         style = {**style, "min-width": width}
     inner_children = [
-        icon if isinstance(icon, Svg) else html.Img(
+        # A glyph is a component (see odatix.gui.icons, which draws it through
+        # the stylesheet); a plain string names a file of assets/icons.
+        icon if isinstance(icon, Component) else html.Img(
             src=f"/assets/icons/{icon}",
             alt=text if text else icon.capitalize(),
             style={"width": "22px", "height": "22px"},

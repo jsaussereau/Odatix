@@ -24,6 +24,7 @@ import sys
 import dash
 from dash import dcc, html
 
+import odatix.gui.icons as icons
 import odatix.gui.navigation as navigation
 import odatix.gui.themes as themes
 
@@ -61,8 +62,12 @@ class OdatixApp:
             use_pages=True,
             title="Odatix",
             update_title=None,
-            suppress_callback_exceptions=True
+            suppress_callback_exceptions=True,
+            # The drawing of every icon, sent once as CSS instead of at each of
+            # the hundreds of places a page wears one (see odatix.gui.icons).
+            external_stylesheets=[icons.ICON_STYLESHEET_URL],
         )
+        icons.serve_icon_stylesheet(self.app)
 
         self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 

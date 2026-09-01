@@ -54,7 +54,10 @@ page_path = "/config_editor"
 # How many configuration cards a domain shows before it stops and offers to show
 # more. A card is a text area, two stores and four buttons: a domain holding
 # hundreds of them is what makes the page slow, and most of them are not being
-# looked at.
+# looked at. The first page is the smaller of the two: it is paid by every
+# domain of the page at once, while a batch is paid by the one domain asking
+# for it.
+initial_configs_per_page = 16
 configs_per_page = 30
 
 dash.register_page(
@@ -788,6 +791,23 @@ def default_param_text(sim_dir, param_file):
     return replace_params.read_file(path)
 
 
+def replacement_span(domain_uuid, text, hidden=False):
+    """
+    The part of the preview the configuration writes, addressable on its own.
+
+    The rest of the pane is the target file, which is tens of kilobytes and does
+    not change while a configuration is edited: only this span does. Sending it
+    alone is what makes typing in a card cost a couple of hundred bytes instead
+    of the whole file, once per domain (see `update_preview_replacement`).
+    """
+    return html.Span(
+        text,
+        id={"type": "preview-replaced", "domain_uuid": domain_uuid},
+        className="text-highlight secondary",
+        style={"display": "none"} if hidden else None,
+    )
+
+
 def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: dict, replacement_text: str, base_path=None):
     """
     What the target file looks like once the selected configuration is written
@@ -799,24 +819,33 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
     # Where a simulation writes its parameters is said per architecture: opened
     # on the whole simulation, there is no single file to preview here.
     if mode == "simulation" and base_path is None:
-        return None
+        # Still one section per domain, hidden, so the lists of
+        # `update_preview_replacement` stay aligned with the domains.
+        return replacement_span(domain_uuid, "", hidden=True)
     use_parameters = domain_settings.get("use_parameters", True)
     if not use_parameters:
-        return html.Div("Parameter replacement disabled.", style={"color": "#888"})
+        return html.Div([
+            html.Div("Parameter replacement disabled.", style={"color": "#888"}),
+            replacement_span(domain_uuid, "", hidden=True),
+        ])
     param_target_file = domain_settings.get("param_target_file", "")
 
     if base_path is not None:
         if not param_target_file:
-            return html.Div(
-                "No target file: say which file of the simulation the values of this domain are "
-                "written into.",
-                className="error warning",
-            )
+            return html.Div([
+                html.Div(
+                    "No target file: say which file of the simulation the values of this domain are "
+                    "written into.",
+                    className="error warning",
+                ),
+                replacement_span(domain_uuid, "", hidden=True),
+            ])
     elif mode == "workflow":
         sources = settings.get("sources", {})
         base_path = sources.get("path", "") if isinstance(sources, dict) else ""
         if not base_path:
-            return html.Div("No source path specified in workflow settings. Unable to preview.", className="error")
+            return html.Div([html.Div("No source path specified in workflow settings. Unable to preview.", className="error"),
+                             replacement_span(domain_uuid, "", hidden=True)])
         if param_target_file == "":
             param_target_file = settings.get("param_target_file", "")
     else:
@@ -825,13 +854,15 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         if generate_rtl:
             base_path = settings.get("design_path", "")
             if not base_path:
-                return html.Div("No design path specified in architecture settings. Unable to preview.", className="error")
+                return html.Div([html.Div("No design path specified in architecture settings. Unable to preview.", className="error"),
+                             replacement_span(domain_uuid, "", hidden=True)])
             if param_target_file == "":
                 param_target_file = settings.get("top_level_file", "")
         else:
             rtl_path = settings.get("rtl_path", "")
             if not rtl_path:
-                return html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error")
+                return html.Div([html.Div("No RTL path specified in architecture settings. Unable to preview.", className="error"),
+                             replacement_span(domain_uuid, "", hidden=True)])
             base_path = rtl_path
             if param_target_file == "":
                 param_target_file = os.path.join(settings.get("top_level_file", ""))
@@ -850,7 +881,14 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
         start_delimiter = replace_params.unescape_delimiter(start_delimiter)
         stop_delimiter = replace_params.unescape_delimiter(stop_delimiter)
         if not match_found:
-            preview_components=html.Span(base_text, style={"whiteSpace": "pre-wrap", "color": "#FA5252", "fontWeight": "800"})
+            preview_components = [
+                html.Span(base_text, style={"whiteSpace": "pre-wrap", "color": "#FA5252", "fontWeight": "800"}),
+                # Nothing was replaced, so there is no section to keep up to
+                # date -- but the pane still carries one, hidden, so that every
+                # domain has exactly one and the lists of the callback below
+                # stay aligned with the domains they belong to.
+                replacement_span(domain_uuid, "", hidden=True),
+            ]
         else:
             # Highlight the replaced section by character index, so delimiters may span several lines
             pattern = re.escape(start_delimiter) + ".*?" + re.escape(stop_delimiter)
@@ -862,7 +900,7 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             preview_components = [
                 new_content[:section_start],
                 html.Span(show_newlines(start_delimiter), className="text-highlight primary"),
-                html.Span(new_content[content_start:content_stop], className="text-highlight secondary"),
+                replacement_span(domain_uuid, new_content[content_start:content_stop]),
                 html.Span(show_newlines(stop_delimiter), className="text-highlight primary"),
                 new_content[section_stop:],
             ]
@@ -887,7 +925,7 @@ def preview_pane(domain_uuid:str, mode: str, settings: dict, domain_settings: di
             text = f"No settings found."
         else:
             text = f"Preview file '{os.path.realpath(param_target_file)}' not found. Unable to preview."
-        pane_content = html.Div(text, className="error")
+        pane_content = html.Div([html.Div(text, className="error"), replacement_span(domain_uuid, "", hidden=True)])
     return pane_content
 
 def preview_header(domain_uuid):
@@ -1221,7 +1259,7 @@ def cards_shown(config_metadata, domain_uuid):
     revealed was asked for.
     """
     return max(
-        configs_per_page,
+        initial_configs_per_page,
         sum(1 for data in (config_metadata or []) if (data or {}).get("domain_uuid", "") == domain_uuid),
     )
 
@@ -1252,7 +1290,7 @@ def build_config_cards(domain, domain_uuid, config_layout, shown=None):
         return [add_card(domain_uuid=domain_uuid)]
     configurations = domain_configurations(domain)
     if shown is None:
-        shown = configs_per_page
+        shown = initial_configs_per_page
     shown = min(max(shown, 0), len(configurations))
     cards = []
     for config in configurations[:shown]:
@@ -1939,7 +1977,12 @@ def update_config_cards(
                         ),
                     )
   
-    # Initial load
+    # Initial load. The cards are deliberately *not* sent with the sections that
+    # hold them: building the whole page in one answer was measured to be twice
+    # as slow end to end (26.6 s against 13.3 s on a nine-domain architecture),
+    # because the browser then renders every card before it can answer anything
+    # else. Splitting the page over two answers lets it show the domains while
+    # the cards are on their way.
     if triggered_id == "param-domains-section-initialized":
         config_cards_row = []
         for idx, (domain_uuid, domain_name) in enumerate(domains.items()):
@@ -2197,6 +2240,56 @@ dash.clientside_callback(
     prevent_initial_call=True
 )
 
+def preview_replacements(search, odatix_settings, domain_metadata, config_metadata, config_contents_list,
+                         selected_configs, rule_names, rule_templates, rule_constraints, rule_stores,
+                         rule_field_values, entry_param_files, content_debounce):
+    """
+    What each domain writes into its target file, in the order of
+    `domain_metadata`, together with the domains the current trigger made stale.
+
+    Both preview callbacks answer the same question -- what the selected
+    configuration of a domain says -- and differ only in what they do with it:
+    one rebuilds the pane around it, the other replaces the section inside a
+    pane that is already there.
+    """
+    mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
+    stale_domains = preview_domains_to_refresh(content_debounce)
+
+    # Group config contents by domain, keyed by config uuid
+    contents_by_domain = []
+    for domain in domain_metadata:
+        domain_uuid = domain.get("domain_uuid", "")
+        contents_by_domain.append({
+            config.get("config_uuid", ""): config_contents_list[i]
+            for i, config in enumerate(config_metadata)
+            if config.get("domain_uuid", "") == domain_uuid and i < len(config_contents_list)
+        })
+
+    rule_configurations_by_domain = unsaved_rule_configurations(
+        rule_names, rule_templates, rule_stores, rule_field_values, domain_metadata,
+        only=stale_domains, constraint_texts=rule_constraints,
+    )
+
+    texts = []
+    for i, domain in enumerate(domain_metadata):
+        domain_uuid = domain.get("domain_uuid", "")
+        domain_contents = contents_by_domain[i] if i < len(contents_by_domain) else {}
+        selected_config = selected_configs[i] if i < len(selected_configs) else None
+        domain_rules = rule_configurations_by_domain.get(domain_uuid, {})
+        replacement_text = replacement_text_for_preview(
+            selected_config, domain_uuid, domain_contents, config_metadata, domain_rules,
+        )
+        # Nothing to select: the entry substitutes its default file, the way a
+        # run does for a configuration its directory does not describe.
+        if (not domain_contents and not domain_rules and len(entry_param_files) == len(domain_metadata)
+                and instance_name in instances):
+            default_text = default_param_text(instances[instance_name].path, entry_param_files[i])
+            if default_text is not None:
+                replacement_text = default_text
+        texts.append(replacement_text)
+    return mode, instance_name, instances, stale_domains, texts
+
+
 @dash.callback(
     Output({"type": "preview-pane", "domain_uuid": dash.ALL}, "children"),
     State("url", "search"),
@@ -2206,24 +2299,28 @@ dash.clientside_callback(
     Input({"type": "start_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "stop_delimiter", "domain_uuid": dash.ALL}, "value"),
     Input({"type": "config-params-store", "domain_uuid": dash.ALL}, "data"),
-    # The contents themselves are a State: what says they changed is the
-    # debounced signal, so a keystroke costs nothing until the typing stops.
-    Input("config-content-debounce", "data"),
+    # Everything below only says what goes *into* the file this pane shows, and
+    # the section it goes into is written back on its own (see
+    # `update_preview_replacement`): a pane is tens of kilobytes, so it is built
+    # again only when the file it reads, or where it writes into it, changes.
+    State("config-content-debounce", "data"),
     State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
-    Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
-    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
-    Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
-    *config_rules.variable_inputs(),
-    # Card rows are rebuilt after a blacklist toggle. Metadata must be an input
-    # so the pane runs again once those replacement cards exist.
+    State({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    State({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
+    *config_rules.variable_states(),
+    # The cards of a domain reach the page after its section does, and a
+    # blacklist toggle builds them again: the pane has to be built once more
+    # when they land, since what it shows is what they hold. Every later change
+    # is answered by the section alone.
     Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
     State("odatix-settings", "data"),
     # The default a domain falls back to, previewed when it has no
     # configuration of its own to select.
-    Input({"type": "simarch-param-file", "domain_uuid": dash.ALL}, "value"),
+    State({"type": "simarch-param-file", "domain_uuid": dash.ALL}, "value"),
     prevent_initial_call=True
 )
 def update_preview_all(
@@ -2259,22 +2356,10 @@ def update_preview_all(
             ], className="error warning")
         ] * len(domain_metadata)
 
-    stale_domains = preview_domains_to_refresh(content_debounce)
-
-    # Group config contents by domain, keyed by config uuid
-    contents_by_domain = []
-    for domain in domain_metadata:
-        domain_uuid = domain.get("domain_uuid", "")
-        domain_contents = {
-            config.get("config_uuid", ""): config_contents_list[i]
-            for i, config in enumerate(config_metadata)
-            if config.get("domain_uuid", "") == domain_uuid and i < len(config_contents_list)
-        }
-        contents_by_domain.append(domain_contents)
-
-    rule_configurations_by_domain = unsaved_rule_configurations(
-        rule_names, rule_templates, rule_stores, rule_field_values, domain_metadata,
-        only=stale_domains, constraint_texts=rule_constraints,
+    _, _, _, stale_domains, replacement_texts = preview_replacements(
+        search, odatix_settings, domain_metadata, config_metadata, config_contents_list,
+        selected_configs, rule_names, rule_templates, rule_constraints, rule_stores,
+        rule_field_values, entry_param_files, content_debounce,
     )
 
     # Generate previews for each domain
@@ -2285,26 +2370,70 @@ def update_preview_all(
         if stale_domains is not None and domain_uuid not in stale_domains:
             results.append(dash.no_update)
             continue
-        domain_contents = contents_by_domain[i] if i < len(contents_by_domain) else {}
         settings = settings_list[0] if 0 < len(settings_list) and settings_list[0] is not None else {}
         domain_settings = settings_list[i] if i < len(settings_list) and settings_list[i] is not None else {}
         domain_settings["use_parameters"] = params_enables[i] if i < len(params_enables) else ""
         domain_settings["param_target_file"] = target_files[i] if i < len(target_files) else ""
         domain_settings["start_delimiter"] = start_delims[i] if i < len(start_delims) else ""
         domain_settings["stop_delimiter"] = stop_delims[i] if i < len(stop_delims) else ""
-        selected_config = selected_configs[i] if i < len(selected_configs) else None
-        domain_rules = rule_configurations_by_domain.get(domain_uuid, {})
-        replacement_text = replacement_text_for_preview(
-            selected_config, domain_uuid, domain_contents, config_metadata, domain_rules,
-        )
-        # Nothing to select: the entry substitutes its default file, the way a
-        # run does for a configuration its directory does not describe.
-        if not domain_contents and not domain_rules and len(entry_param_files) == len(domain_metadata):
-            default_text = default_param_text(instances[instance_name].path, entry_param_files[i])
-            if default_text is not None:
-                replacement_text = default_text
+        replacement_text = replacement_texts[i] if i < len(replacement_texts) else ""
         results.append(preview_pane(domain_uuid, mode, settings, domain_settings, replacement_text, base_path=base_path))
     return results
+
+
+@dash.callback(
+    Output({"type": "preview-replaced", "domain_uuid": dash.ALL}, "children"),
+    State("url", "search"),
+    # The contents themselves are a State: what says they changed is the
+    # debounced signal, so a keystroke costs nothing until the typing stops.
+    Input("config-content-debounce", "data"),
+    State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
+    Input({"type": "preview-config-select", "domain_uuid": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-name", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-template", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-gen-constraints", "domain_uuid": dash.ALL, "rule_set": dash.ALL}, "value"),
+    Input({"type": "cfg-rules-store", "domain_uuid": dash.ALL}, "data"),
+    *config_rules.variable_inputs(),
+    # Card rows are rebuilt after a blacklist toggle. Metadata must be an input
+    # so the section runs again once those replacement cards exist.
+    Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
+    State({"type": "domain-metadata", "domain_uuid": dash.ALL}, "data"),
+    State("odatix-settings", "data"),
+    # The default a domain falls back to, previewed when it has no
+    # configuration of its own to select.
+    Input({"type": "simarch-param-file", "domain_uuid": dash.ALL}, "value"),
+    prevent_initial_call=True
+)
+def update_preview_replacement(
+    search, content_debounce, config_contents_list,
+    selected_configs, rule_names, rule_templates, rule_constraints, rule_stores, *rest
+):
+    """
+    What the selected configuration of each domain writes into its target file.
+
+    The pane around it is left alone: the file it shows is unchanged, and it is
+    the expensive half of the preview. Editing a configuration, picking another
+    one or changing a rule sends the replaced section and nothing else.
+    """
+    rule_field_values = rest[:len(config_rules.FIELD_PATTERNS)]
+    config_metadata = rest[len(config_rules.FIELD_PATTERNS)] if len(rest) > len(config_rules.FIELD_PATTERNS) else []
+    domain_metadata = rest[len(config_rules.FIELD_PATTERNS) + 1] if len(rest) > len(config_rules.FIELD_PATTERNS) + 1 else []
+    odatix_settings = rest[len(config_rules.FIELD_PATTERNS) + 2] if len(rest) > len(config_rules.FIELD_PATTERNS) + 2 else {}
+    entry_param_files = rest[len(config_rules.FIELD_PATTERNS) + 3] if len(rest) > len(config_rules.FIELD_PATTERNS) + 3 else []
+
+    _, instance_name, instances, stale_domains, replacement_texts = preview_replacements(
+        search, odatix_settings, domain_metadata, config_metadata, config_contents_list,
+        selected_configs, rule_names, rule_templates, rule_constraints, rule_stores,
+        rule_field_values, entry_param_files, content_debounce,
+    )
+    if not instance_name or instance_name not in instances:
+        return [dash.no_update for _ in domain_metadata]
+    return [
+        dash.no_update
+        if (stale_domains is not None and domain.get("domain_uuid", "") not in stale_domains)
+        else (replacement_texts[i] if i < len(replacement_texts) else "")
+        for i, domain in enumerate(domain_metadata)
+    ]
 
 dash.clientside_callback(
     dash.ClientsideFunction(namespace="odatix_config_editor", function_name="save_status"),
@@ -2402,6 +2531,9 @@ page_clientside_callback(
     Input({"type": "config-filter-state", "domain_uuid": dash.ALL}, "data"),
     Input({"type": "config-metadata", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data"),
     State({"type": "config-filter-state", "domain_uuid": dash.ALL}, "id"),
+    # What the cards show already, so that hiding one origin of one domain
+    # rewrites those cards only instead of every card of the page.
+    State({"type": "config-card", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "style"),
 )
 
 @page_callback(PAGE_SCOPE,

@@ -992,36 +992,11 @@ def domain_names_of(domain_metadata):
 # Callbacks
 ######################################
 
-@page_callback(PAGE_SCOPE,
-    Output({"type": "cfg-advanced-panel", "domain_uuid": dash.ALL}, "style"),
-    Output({"type": "cfg-advanced-icon", "domain_uuid": dash.ALL}, "className"),
-    Input({"type": "cfg-advanced-toggle", "domain_uuid": dash.ALL}, "n_clicks"),
-    State({"type": "cfg-advanced-panel", "domain_uuid": dash.ALL}, "style"),
-    prevent_initial_call=True,
-)
-def toggle_advanced_panel(n_clicks, styles):
-    """
-    Show the two templates of a domain only when they are asked for.
-
-    Read from what the panel shows now rather than from a click count: a section
-    built open and a section built closed both start at zero clicks.
-    """
-    trigger = ctx.triggered_id
-    if not isinstance(trigger, dict):
-        return [dash.no_update] * len(styles), [dash.no_update] * len(styles)
-    uuids = [item.get("domain_uuid") for item in input_ids("cfg-advanced-toggle")]
-    try:
-        index = uuids.index(trigger.get("domain_uuid"))
-    except ValueError:
-        return [dash.no_update] * len(styles), [dash.no_update] * len(styles)
-
-    new_styles = [dash.no_update] * len(styles)
-    new_classes = [dash.no_update] * len(styles)
-    if index < len(styles):
-        hidden = (styles[index] or {}).get("display") == "none"
-        new_styles[index] = {"marginTop": "12px"} if hidden else dict(Style.hidden)
-        new_classes[index] = "icon normal rotate rotated" if hidden else "icon normal rotate"
-    return new_styles, new_classes
+# Showing the two templates of a domain only when they are asked for, and
+# folding one variable card away, are both done in the browser, outside Dash:
+# see the fold handler in assets/config_editor.js. Nothing but the page reads
+# what they write, and a fold answered by Dash costs about a second on a page
+# holding hundreds of cards, wherever the answer is computed.
 
 
 @page_callback(PAGE_SCOPE,
@@ -1051,38 +1026,6 @@ def update_variable_fields_visibility(types):
     """
     styles_by_field = ve.field_styles_for_types(types)
     return [styles_by_field[field] for field in ve.VARIABLE_FIELDS]
-
-
-@page_callback(PAGE_SCOPE,
-    Output({"type": "cfg-variable-fields-container", "name": dash.ALL, "domain_uuid": dash.ALL}, "style"),
-    Output({"type": "cfg-variable-collapse-icon", "name": dash.ALL, "domain_uuid": dash.ALL}, "className"),
-    Input({"type": "cfg-variable-collapse", "name": dash.ALL, "domain_uuid": dash.ALL}, "n_clicks"),
-    State({"type": "cfg-variable-fields-container", "name": dash.ALL, "domain_uuid": dash.ALL}, "style"),
-    State({"type": "cfg-variable-collapse-icon", "name": dash.ALL, "domain_uuid": dash.ALL}, "className"),
-    prevent_initial_call=True,
-)
-def toggle_variable_card(n_clicks, styles, icon_classes):
-    """Fold one variable card away, or open it, leaving every other one alone."""
-    trigger = ctx.triggered_id
-    if not isinstance(trigger, dict):
-        return [dash.no_update] * len(styles), [dash.no_update] * len(icon_classes)
-    keys = [(item.get("name"), item.get("domain_uuid"))
-            for item in input_ids("cfg-variable-collapse")]
-    try:
-        index = keys.index((trigger.get("name"), trigger.get("domain_uuid")))
-    except ValueError:
-        return [dash.no_update] * len(styles), [dash.no_update] * len(icon_classes)
-
-    new_styles = [dash.no_update] * len(styles)
-    new_classes = [dash.no_update] * len(icon_classes)
-    if index < len(styles):
-        # What it shows now, rather than a click count: a card built collapsed
-        # and a card built open both start at zero clicks.
-        hidden = (styles[index] or {}).get("display") == "none"
-        new_styles[index] = {} if hidden else dict(Style.hidden)
-        if index < len(icon_classes):
-            new_classes[index] = "icon normal rotate rotated" if hidden else "icon normal rotate"
-    return new_styles, new_classes
 
 
 @page_callback(PAGE_SCOPE,

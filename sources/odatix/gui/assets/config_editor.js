@@ -185,15 +185,27 @@ window.dash_clientside.odatix_config_editor.filter_toggle = function(_scope, cli
  * work as often as not, and its style is the one thing the layout switch does
  * not rewrite, so the two never fight over the same property.
  */
-window.dash_clientside.odatix_config_editor.filter_apply = function(_scope, states, metadata, stateIds) {
+window.dash_clientside.odatix_config_editor.filter_apply = function(_scope, states, metadata, stateIds, styles) {
+    const dc = window.dash_clientside;
     const filtered = {};
     (stateIds || []).forEach(function(stateId, i) {
         filtered[(stateId && stateId.domain_uuid) || ""] = (states || [])[i] || [];
     });
-    return (metadata || []).map(function(config) {
+    return (metadata || []).map(function(config, i) {
         config = config || {};
         const hidden = filtered[config.domain_uuid || ""] || [];
-        return hidden.indexOf(config.origin || "manual") >= 0 ? {"display": "none"} : {};
+        const away = hidden.indexOf(config.origin || "manual") >= 0;
+        // A card already in the state it should be in is left alone: rewriting
+        // the style of hundreds of untouched cards is what made a filter click
+        // slow, and Dash re-renders a card for every style it is handed.
+        const style = (styles || [])[i];
+        if (style && (style.display === "none") === away) {
+            return dc.no_update;
+        }
+        if (!style && !away) {
+            return dc.no_update;
+        }
+        return away ? {"display": "none"} : {};
     });
 };
 
@@ -208,3 +220,77 @@ window.dash_clientside.odatix_config_editor.save_all_status = function(_scope, c
     }
     return ["color-button disabled " + base, "Nothing to save"];
 };
+
+/*
+ * Folding a panel away is a property of the page: nothing outside the browser
+ * reads it, and no other callback reads the style or the class it writes. So
+ * it is done here, on the document, without going through Dash at all --
+ * neither the server nor the renderer. Dash answering a fold means walking
+ * every component the pattern matches, which on a page holding hundreds of
+ * configuration cards costs about a second whether the answer comes from the
+ * server or from a clientside callback; this costs nothing.
+ *
+ * A row rebuilt by Dash (a variable added, duplicated or deleted) comes back
+ * folded the way it was built, which is what the server versions did too.
+ */
+(function() {
+    // Which fold each button owns: the panel it opens shares its id, under
+    // another type, the way Dash pattern ids are paired everywhere on this page.
+    const FOLDS = {
+        "cfg-variable-collapse": {panel: "cfg-variable-fields-container", shown: "", icon: "cfg-variable-collapse-icon"},
+        "cfg-advanced-toggle": {panel: "cfg-advanced-panel", shown: "12px", icon: "cfg-advanced-icon"},
+    };
+
+    // Dash writes a pattern id as JSON with its keys sorted: to name the panel
+    // of a button, swap the type and write it back the same way.
+    function siblingId(id, type) {
+        const other = Object.assign({}, id, {type: type});
+        const keys = Object.keys(other).sort();
+        return JSON.stringify(other, keys);
+    }
+
+    // The click lands on whatever is inside the button -- the glyph carries a
+    // pattern id of its own -- so every ancestor is looked at until one of them
+    // is a fold button, not just the first one that happens to be named.
+    function foldOf(node) {
+        while (node && node !== document) {
+            const raw = node.id || "";
+            if (raw.charAt(0) === "{") {
+                let id = null;
+                try {
+                    id = JSON.parse(raw);
+                } catch (error) {
+                    id = null;
+                }
+                const fold = id && FOLDS[id.type];
+                if (fold) {
+                    return {id: id, fold: fold};
+                }
+            }
+            node = node.parentNode;
+        }
+        return null;
+    }
+
+    document.addEventListener("click", function(event) {
+        const found = foldOf(event.target);
+        if (!found) {
+            return;
+        }
+        const panel = document.getElementById(siblingId(found.id, found.fold.panel));
+        if (!panel) {
+            return;
+        }
+        const hidden = panel.style.display === "none";
+        panel.style.display = hidden ? "" : "none";
+        // The panel of the advanced section carries a margin of its own, which
+        // hiding it takes away and showing it has to give back.
+        if (found.fold.shown) {
+            panel.style.marginTop = hidden ? found.fold.shown : "";
+        }
+        const glyph = document.getElementById(siblingId(found.id, found.fold.icon));
+        if (glyph) {
+            glyph.classList.toggle("rotated", hidden);
+        }
+    }, true);
+})();

@@ -19,8 +19,10 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
+from dash import html
 from dash_svg import Svg, Path, Circle, Rect, Ellipse, Line, Polyline, Polygon
 from typing import Union
+from urllib.parse import quote
 
 ######################################
 # Icon Definitions
@@ -230,20 +232,171 @@ _icons = {
     ),
 }
 
-def icon(name: str, color: str = "#fff", width: str = "24px", height: str = "24px", className: str = "", offset: bool = False, id: Union[str, dict]="") -> Svg:
+######################################
+# Icon Sprite
+######################################
+#
+# A page shows the same handful of glyphs hundreds of times -- four per
+# configuration card alone. Sending the drawing itself every time is what makes
+# a large page heavy: the geometry of one glyph is around half a kilobyte of
+# JSON, and the editor of a big design space was spending several hundred
+# kilobytes on nothing but repeated icons.
+#
+# So the drawing is sent once, as a CSS mask in the stylesheet of the page (see
+# `icon_stylesheet()`), and each use site is a bare `<span>` naming the glyph it
+# wears. The span is painted with `background-color: currentColor` through that
+# mask, which keeps exactly the behaviour the ".icon <color>" classes rely on:
+# the color still comes from `color`, and every rule setting it still works.
+
+#: Prefix of the CSS custom property holding the mask of one glyph.
+_ICON_CLASS = "odx-icon"
+
+_SVG_TAGS = {
+    "Svg": "svg", "G": "g", "Path": "path", "Circle": "circle", "Rect": "rect",
+    "Ellipse": "ellipse", "Line": "line", "Polyline": "polyline", "Polygon": "polygon",
+}
+
+#: Props of the Dash components that say nothing to a standalone SVG file.
+_SVG_SKIPPED_PROPS = ("children", "id", "className", "loading_state", "n_clicks", "n_clicks_timestamp", "key")
+
+
+#: SVG attributes that are camelCase in markup; everything else is kebab-case
+#: ("strokeWidth" is written "stroke-width", but "viewBox" stays "viewBox").
+_SVG_CAMEL_ATTRIBUTES = ("viewBox", "preserveAspectRatio", "clipPath", "clipPathUnits",
+                         "gradientUnits", "gradientTransform", "maskUnits", "patternUnits")
+
+
+def _css_property_name(name):
+    """"strokeWidth" -> "stroke-width", the way a style dict is written in CSS."""
+    out = ""
+    for char in name:
+        out += "-" + char.lower() if char.isupper() else char
+    return out
+
+
+def _svg_markup(component):
     """
-    Return a small line-art UI glyph as a Dash SVG component. The glyph is
-    stroked with `currentColor`; its color comes from the ".icon <color>" CSS
-    classes or the button/tooltip context, not from the `color` argument.
+    One icon component tree as standalone SVG markup.
+
+    What is drawn must not depend on the page: `currentColor` has no meaning in
+    a mask (only the opacity of the drawing is read), so the markup is kept as
+    written and the color comes back from the span wearing the mask.
+    """
+    node = component.to_plotly_json()
+    tag = _SVG_TAGS.get(node.get("type"))
+    if tag is None:
+        return ""
+    props = node.get("props", {})
+    attributes = []
+    for key in sorted(props):
+        if key in _SVG_SKIPPED_PROPS:
+            continue
+        value = props[key]
+        if value is None or value == "":
+            continue
+        if key == "style":
+            value = ";".join(
+                "{0}:{1}".format(_css_property_name(k), v) for k, v in value.items()
+            )
+            key = "style"
+        elif key in _SVG_CAMEL_ATTRIBUTES:
+            pass
+        else:
+            key = _css_property_name(key)
+        attributes.append("{0}='{1}'".format(key, value))
+    children = props.get("children") or []
+    if not isinstance(children, (list, tuple)):
+        children = [children]
+    inner = "".join(_svg_markup(child) for child in children)
+    if tag == "svg":
+        attributes.insert(0, 'xmlns="http://www.w3.org/2000/svg"')
+    return "<{0} {1}>{2}</{0}>".format(tag, " ".join(attributes), inner)
+
+
+def _mask_url(name):
+    """The data URI of one glyph, ready to be used as a CSS mask."""
+    builder = _icons.get(name)
+    if builder is None:
+        return None
+    markup = _svg_markup(builder("#000", "24px", "24px", "", False, ""))
+    if not markup:
+        return None
+    # Only what would end a CSS url() or confuse a data URI is escaped: the
+    # markup stays readable in the stylesheet, and much shorter than if it were
+    # percent-encoded whole.
+    quoted = quote(markup, safe="/:;=,<>?[]{}()!*+@$&~ ")
+    return 'url("data:image/svg+xml,{0}")'.format(quoted)
+
+
+#: Where the stylesheet below is served, on every app that shows icons.
+ICON_STYLESHEET_URL = "/_odatix/icons.css"
+
+_stylesheet = None
+
+
+def icon_stylesheet():
+    """
+    The drawings of every glyph, as one stylesheet.
+
+    Served once per app (see `serve_icon_stylesheet`), it is what lets a use
+    site be a bare span. An app that forgets it shows no icons at all, so it
+    belongs to the app rather than to any page.
+    """
+    global _stylesheet
+    if _stylesheet is not None:
+        return _stylesheet
+    rules = [
+        # `display: inline-block` and the two mask defaults are what an <svg>
+        # gave for free; the size is said at the use site, as it was before.
+        ".{0}{{display:inline-block;background-color:currentColor;"
+        "-webkit-mask-image:var(--odx-icon);mask-image:var(--odx-icon);"
+        "-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;"
+        "-webkit-mask-position:center;mask-position:center;"
+        "-webkit-mask-size:contain;mask-size:contain;flex-shrink:0}}".format(_ICON_CLASS)
+    ]
+    for name in sorted(_icons):
+        url = _mask_url(name)
+        if url is None:
+            continue
+        rules.append(
+            '.{0}[data-icon="{1}"]{{--odx-icon:{2}}}'.format(_ICON_CLASS, name, url)
+        )
+    _stylesheet = "\n".join(rules)
+    return _stylesheet
+
+
+def serve_icon_stylesheet(app):
+    """
+    Serve `icon_stylesheet()` at `ICON_STYLESHEET_URL` on a Dash app.
+
+    The app must also ask for it, by listing that URL in its
+    ``external_stylesheets``: the glyphs are drawn by CSS, so a page that does
+    not load it wears empty spans.
+    """
+    from flask import Response
+
+    def stylesheet():
+        return Response(icon_stylesheet(), mimetype="text/css")
+
+    app.server.add_url_rule(ICON_STYLESHEET_URL, "odatix_icon_stylesheet", stylesheet)
+
+
+def icon(name: str, color: str = "#fff", width: str = "24px", height: str = "24px", className: str = "", offset: bool = False, id: Union[str, dict]="") -> html.Span:
+    """
+    Return a small line-art UI glyph. The glyph is drawn by the stylesheet of
+    the app (see `icon_stylesheet()`) and painted with `currentColor`; its color
+    comes from the ".icon <color>" CSS classes or the button/tooltip context,
+    not from the `color` argument.
     Args:
         name (str): Name of the icon.
     """
-    svg_icon = _icons.get(name)
-
-    if not svg_icon:
-        return Svg(width=width, height=height) # Empty SVG
-
-    return svg_icon(color, width, height, className, offset, id)
+    classes = _ICON_CLASS if not className else _ICON_CLASS + " " + className
+    return html.Span(
+        id=id,
+        className=classes if name in _icons else className,
+        style={"width": width, "height": height},
+        **{"data-icon": name}
+    )
 
 
 ######################################
