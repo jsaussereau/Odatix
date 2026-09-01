@@ -6,6 +6,9 @@
 
 constraint_file: timing_constraints.txt
 
+makefile_copy_enable: Yes
+makefile_copy_source: $eda_tools_path/genus/tcl/Makefile
+
 tool_install_path: "" # Design Compiler should be in your $PATH
 
 force_single_thread: No # Single thread is not supported yet with Design Compiler
@@ -29,11 +32,11 @@ targets:
   # - AMS_c35_2V2
   # - AMS_c35_2V7
   # - AMS_c35_3V3
-   - AMS_h18_1V2
+  # - AMS_h18_1V2
   # - AMS_h18_1V8
   # - AMS_h18_2V2
   # - AMS_h18_3V3
-  # - AMS_h18_5V0
+   - AMS_h18_5V0
   # - XFAB180CMOS
   #  - globalfoundaries22nhsp
     
