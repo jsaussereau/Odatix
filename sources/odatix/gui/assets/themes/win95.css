@@ -1,0 +1,186 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Windows 95
+ * dark: false
+ * plot-text-color: #000000
+ * plot-grid-color: rgba(36, 41, 46, 0.15)
+ * plot-zeroline-color: rgba(36, 41, 46, 0.4)
+ */
+
+@font-face {
+    font-family: 'W95';
+    src: local('W95'),
+        url('../fonts/w95/w95font.woff2') format('woff2'),
+        url('../fonts/w95/w95font.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+.theme.win95 {
+    /* win95 palette */
+    --win95-bg: #008080;
+    --win95-face: #c0c0c0;
+    --win95-blue: #0000a8;
+    --win95-highlight: #ffffff;
+    --win95-shadow: #808080;
+
+    /* theme */
+    --theme-font-family: W95;
+    --theme-background-color: var(--win95-bg);
+    --theme-element-background-color: var(--win95-face);
+    --theme-dimmed-element-background-color: var(--win95-face);
+    --theme-action-color: var(--win95-face);
+    --theme-primary-color: var(--win95-blue);
+    --theme-secondary-color: var(--win95-blue);
+    --theme-tertiary-color: #d4d0c8;
+    --theme-tertiary-color-light: #d4d0c890;
+    --theme-disabled-color: #808080;
+    --theme-text-color: #000000;
+    --theme-text-shadow: none;
+    --theme-running-color: var(--win95-blue);
+    --theme-success-color: #208c71;
+    --theme-warning-color: #FF8825;
+    --theme-caution-color: #e35f5f;
+    --theme-pause-color: var(--theme-disabled-color);
+    --theme-pending-color: var(--win95-bg);
+    --theme-border-color: #000000;
+    --theme-overlay-background-color: #0000003d;
+    --theme-contrast-background-color: #000000;
+    --theme-large-border-radius: 0px;
+    --theme-normal-border-radius: 0px;
+    --theme-small-border-radius: 0px;
+    image-rendering: pixelated;
+
+    /* cards and tiles */
+    --card-box-shadow: none;
+    --card-hover-transform: none;
+    --card-hover-box-shadow: none;
+    --add-card-background-hover: var(--win95-face);
+
+    /* buttons */
+    --back-button-color: var(--win95-face);
+    --button-border-radius: 0px;
+    --default-button-background: var(--win95-face);
+    --primary-button-background: var(--win95-face);
+    --warning-button-animation: none;
+    --secondary-button-background: var(--win95-face);
+    --secondary-button-icon-color: var(--theme-secondary-color);
+    --secondary-button-text-color: var(--theme-text-color);
+    --warning-button-background: var(--win95-face);
+    --warning-button-icon-color: var(--theme-warning-color);
+    --warning-button-text-color: var(--theme-warning-color);
+    --warning-button-box-shadow: none;
+    --warning-button-box-shadow-hover: none;
+    --caution-button-background: var(--win95-face);
+    --caution-button-icon-color: var(--theme-caution-color);
+    --caution-button-text-color: var(--theme-caution-color);
+    --disabled-button-background: #b6b6b6;
+
+    /* dropdowns */
+    --dropdown-background: var(--win95-face);
+    --dropdown-menu-background: var(--win95-face);
+
+    /* inputs and textareas */
+    --input-background: #f6f0f0;
+    --textarea-background: #f6f0f0;
+
+    /* popups */
+    --overlay-backdrop-filter: none;
+    --overlay-transition: none;
+
+    /* tooltips */
+    --default-tooltip-background: var(--win95-face);
+    --default-tooltip-text-color: var(--theme-text-color);
+    --tooltip-text-shadow: none;
+
+    /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-color: var(--theme-warning-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+
+    /* progress bars */
+    --progress-bar-background-color: var(--win95-face);
+    --progress-bar-background-color-hover: var(--win95-face);
+    --progress-bar-background-color-selected: var(--win95-face);
+
+    /* monitor */
+    --terminal-background-color: #ffffff6e;
+}
+
+.theme.win95 .card,
+.theme.win95 .tile,
+.theme.win95 .xp-card,
+.theme.win95 .xp-section,
+.theme.win95 .xp-view-switch-item,
+.theme.win95 .xp-source-card,
+.theme.win95 .xp-section-count,
+.theme.win95 .popup-odatix,
+.theme.win95 .Select-value,
+.theme.win95 .Select-arrow-zone,
+.theme.win95 .Select-menu,
+.theme.win95 .tooltip:after,
+.theme.win95 button {
+    border-top: 2px solid var(--win95-highlight) !important;
+    border-left: 2px solid var(--win95-highlight) !important;
+    border-bottom: 2px solid var(--win95-shadow) !important;
+    border-right: 2px solid var(--win95-shadow) !important;
+}
+
+.theme.win95 pre,
+.theme.win95 input,
+.theme.win95 textarea,
+.theme.win95 .monitor-task-progress,
+.theme.win95 button:active,
+.theme.win95 .error {
+    border-top: 2px solid var(--win95-shadow) !important;
+    border-left: 2px solid var(--win95-shadow) !important;
+    border-bottom: 2px solid var(--win95-highlight) !important;
+    border-right: 2px solid var(--win95-highlight) !important;
+    transform: translateY(1px);
+}
+
+.theme.win95 .Select-arrow {
+    color: #000;
+}
+
+.theme.win95 .Select-input input {
+    border: none !important;
+}
+
+.theme.win95 .xp-source-card:hover {
+    transform: none;
+    box-shadow: initial;
+}
+
+.theme.win95 .xp-section-count {
+    border-radius: 0px !important;
+    background: var(--win95-face);
+}
+
+.theme.win95 .xp-tabs,
+.theme.win95 .xp-page {
+    background: var(--win95-face);
+}

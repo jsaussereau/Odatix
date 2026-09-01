@@ -19,6 +19,19 @@
 * along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 *
 */
+
+/* odatix-theme
+ * name: Hangover
+ * dark: false
+ * plot-text-color: #24292e
+ * plot-grid-color: rgba(36, 41, 46, 0.15)
+ * plot-zeroline-color: rgba(36, 41, 46, 0.4)
+ */
+
+.theme.hangover {
+
+}
+
 @keyframes pulse {
     0% {
         box-shadow: none;

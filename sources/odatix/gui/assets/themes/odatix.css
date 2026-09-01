@@ -1,0 +1,165 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Odatix
+ * dark: false
+ * plot-text-color: #24292e
+ * plot-grid-color: rgba(36, 41, 46, 0.15)
+ * plot-zeroline-color: rgba(36, 41, 46, 0.4)
+ */
+
+.theme.odatix {
+    /* palette mirroring the Odatix documentation website (hugo-saasify theme) */
+    --docs-primary-50: #eef1fc;
+    --docs-primary-100: #dde3f9;
+    --docs-primary-500: #5573df;
+    --docs-primary-600: #425ad6;
+    --docs-primary-700: #3548ab;
+    --docs-secondary-500: #a855f7;
+    --docs-secondary-600: #9333ea;
+    --docs-gray-50: #f9fafb;
+    --docs-gray-100: #f3f4f6;
+    --docs-gray-200: #e5e7eb;
+    --docs-gray-350: #cbd5e1;
+    --docs-gray-400: #9ca3af;
+    --docs-gray-500: #6b7280;
+    --docs-slate-700: #334155;
+    --docs-slate-800: #1e293b;
+    --docs-slate-850: #0f172a;
+    --docs-slate-900: #0f172a;
+    --docs-gradient: linear-gradient(100deg, #425ad6, #7c3aed);
+
+    /* theme */
+    --theme-background-color: #f7f8fc;
+    --theme-background: var(--theme-background-color);
+    --theme-background-image:
+        radial-gradient(1100px 620px at 5% -12%, #dfe6fb 0%, #dfe6fb00 62%),
+        radial-gradient(1000px 560px at 100% -8%, #efe2fd 0%, #efe2fd00 58%);
+    --theme-element-background-color: #ffffff;
+    --theme-action-color: var(--docs-gray-100);
+    --theme-primary-color: var(--docs-primary-500);
+    --theme-secondary-color: var(--docs-primary-600);
+    --theme-tertiary-color: #f7f8fc;
+    --theme-tertiary-color-light: #f7f8fc90;
+    --theme-disabled-color: #aab4c4;
+    --theme-success-color: #26af59;
+    --theme-warning-color: #f59e0b;
+    --theme-caution-color: #ef4444;
+    --theme-pending-color: #0ea5e9;
+    --theme-text-color: var(--docs-slate-900);
+    --theme-subtle-text-color: var(--docs-gray-500);
+    --theme-subtle-text-font-size: var(--theme-small-font-size);
+    --theme-text-shadow: none;
+    --theme-shadow-color: rgba(30, 41, 99, 0.09);
+    --theme-border-color: #e6e9f2;
+    --theme-border-color-hover: var(--docs-primary-500);
+    --theme-contrast-background-color: var(--docs-slate-900);
+    --theme-contrast-text-shadow: none;
+    --theme-overlay-background-color: rgba(15, 23, 42, 0.32);
+    --theme-badge-background-color: var(--docs-primary-50);
+    --theme-badge-text-color: var(--docs-primary-700);
+
+    /* radii: rounded-2xl cards, pill buttons */
+    --theme-large-border-radius: 20px;
+    --theme-normal-border-radius: 16px;
+    --theme-small-border-radius: 10px;
+
+    /* cards and tiles */
+    --card-box-shadow: 0 1px 2px rgba(30, 41, 99, 0.04), 0 6px 20px -8px rgba(30, 41, 99, 0.12);
+    --card-hover-box-shadow: 0 12px 32px -10px rgba(30, 41, 99, 0.22);
+    --add-card-background: rgba(255, 255, 255, 0.55);
+    --add-card-border: 1px dashed #c9d0e4;
+    --add-card-background-hover: var(--docs-primary-50);
+
+    /* buttons: pill-shaped, like the documentation call-to-actions */
+    --button-border-radius: 999px;
+    --button-box-shadow: none;
+    --button-transition: 0.2s ease;
+    --default-button-background: #ffffff;
+    --default-button-box-shadow: 0 1px 2px rgba(30, 41, 99, 0.06);
+    --default-button-background-hover: #ffffff;
+    --default-button-border-hover: 1px solid var(--docs-primary-500);
+    --default-button-icon-color-hover: var(--docs-primary-600);
+    --default-button-text-color-hover: var(--docs-primary-600);
+    --default-button-box-shadow-hover: 0 6px 16px -6px rgba(66, 90, 214, 0.45);
+    --primary-button-background: var(--docs-gradient);
+    --primary-button-border: 1px solid #fff0;
+    --primary-button-box-shadow: 0 6px 16px -6px rgba(66, 90, 214, 0.55);
+    --primary-button-background-hover: linear-gradient(100deg, #3548ab, #6d28d9);
+    --primary-button-border-hover: 1px solid #fff0;
+    --primary-button-box-shadow-hover: 0 10px 24px -8px rgba(66, 90, 214, 0.65);
+    --secondary-button-background: #ffffff;
+    --secondary-button-border: 1px solid var(--docs-primary-600);
+    --secondary-button-box-shadow: 0 1px 2px rgba(30, 41, 99, 0.06);
+    --secondary-button-background-hover: var(--docs-primary-600);
+    --secondary-button-box-shadow-hover: 0 8px 20px -8px rgba(66, 90, 214, 0.6);
+    --success-button-box-shadow: 0 6px 16px -6px rgba(22, 163, 74, 0.5);
+    --warning-button-box-shadow: 0 6px 16px -6px rgba(245, 158, 11, 0.55);
+    --warning-button-box-shadow-hover: 0 8px 20px -8px rgba(245, 158, 11, 0.6);
+    --back-button-color: var(--docs-gray-400);
+    --back-button-filter: none;
+    --back-button-filter-hover: none;
+
+    /* dropdowns */
+    --dropdown-background: var(--input-background);
+    --dropdown-background-hover: var(--docs-gray-100);
+    --dropdown-border: 1px solid var(--theme-border-color);
+    --dropdown-menu-hover: var(--docs-primary-50);
+    --dropdown-border-radius: var(--theme-small-border-radius);
+    --navbar-dropdown-background: var(--docs-slate-800);
+    --navbar-dropdown-background-hover: var(--docs-slate-700);
+    --navbar-dropdown-text-color: var(--theme-contrast-text-color);
+    --navbar-dropdown-border: none;
+    
+    /* inputs */
+    --input-border-radius: var(--theme-small-border-radius);
+    --textarea-border-radius: var(--theme-small-border-radius);
+
+    /* switch */
+    --switch-off-background: var(--docs-gray-100);
+    --switch-on-background: rgba(66, 90, 214, 0.12);
+    --switch-off-handle-background: var(--docs-gray-350);
+
+    /* tooltip */
+    --tooltip-box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.45);
+    --tooltip-icon-filter: none;
+
+    /* popups */
+    --popup-box-shadow: 0 24px 60px -20px rgba(30, 41, 99, 0.35);
+    --overlay-background: var(--theme-overlay-background-color);
+    --overlay-box-shadow: none;
+
+    /* highlights */
+    --primary-highlight-background: #FFE0678C;
+    --primary-highlight-border: 2px solid #0000;
+
+    /* progress bars */
+    --progress-bar-box-shadow: none;
+    --progress-bar-background-color: var(--docs-gray-100);
+    --progress-bar-background-color-hover: var(--docs-gray-100);
+    --progress-bar-background-color-selected: var(--docs-gray-100);
+
+    /* monitor */
+    --terminal-background-color: #f7f8fc38;
+    --task-background-color: #ffffff;
+}

@@ -1,0 +1,73 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Dracula
+ * dark: true
+ * plot-text-color: #f8f8f2
+ * plot-grid-color: rgba(240, 240, 240, 0.15)
+ * plot-zeroline-color: rgba(240, 240, 240, 0.4)
+ */
+
+.theme.dracula {
+    /* theme */
+    --theme-background-color: #272935;
+    --theme-element-background-color: #34384c;
+    --theme-action-color: #ff79c6;
+    --theme-primary-color: #ff79c6;
+    --theme-secondary-color: #404f6d;
+    --theme-tertiary-color: #40455e;
+    --theme-tertiary-color-light: #40455e90;
+    --theme-warning-color: var(--theme-primary-color);
+    --theme-caution-color: #d2504d;
+    --theme-disabled-color: #34384cac;
+    --theme-disabled-background-color: #6272a44f;
+    --theme-text-color: #f8f8f2;
+    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
+    --theme-border-color: #4d516a;
+    --theme-overlay-background-color: #282a363d;
+    --theme-contrast-background-color: #23232c;
+
+    /* cards and tiles */
+    --card-box-shadow: rgba(11, 11, 15, 0.27) 0px 4px 24px 0px;
+    --add-card-background-hover: #ff79c61a;
+
+    /* highlights */
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --primary-highlight-color: #E5D776;
+    --secondary-highlight-color: #5ab8ff;
+
+    /* buttons */
+    --secondary-button-border-hover: var(--theme-large-border-style) var(--theme-contrast-text-color);
+    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
+    --back-button-color: #6272a4aa;
+
+    /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+
+    /* progress bars */
+    --progress-bar-background-color-hover: var(--theme-background-color);
+    --progress-bar-background-color-selected: var(--theme-background-color);
+}

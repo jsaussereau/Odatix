@@ -1,0 +1,378 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme-base
+ * Default values of every theme token. Each theme file in this directory
+ * overrides only what it needs; anything it leaves out falls back here.
+ */
+
+@font-face {
+    font-family: 'Nunito';
+    src: url('../fonts/Nunito-SemiBold.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+.theme {
+    /* theme */
+    --theme-font-family: Nunito;
+    --theme-large-font-size: 16px;
+    --theme-default-font-size: 14px;
+    --theme-small-font-size: 11px;
+    --theme-background-color: #f5f7fa;
+    --theme-element-background-color: #fff; /* mainly cards and tiles background */
+    --theme-dimmed-element-background-color: #fff0;
+    --theme-action-color: #d1d5da;
+    --theme-primary-color: #228BE6; /* accent color for tooltips and switches */
+    --theme-secondary-color: #228BE6; /* accent color for important buttons */
+    --theme-tertiary-color: #f5f7fa; /* background color for fields  */
+    --theme-tertiary-color-light: #f5f7fa90;
+    --theme-disabled-color: #798ba64f;
+    --theme-disabled-error-color: #fa5252ab;
+    --theme-disabled-background-color: var(--theme-tertiary-color);
+    --theme-disabled-error-background-color: #FA525229;
+    --theme-running-color: var(--theme-primary-color);
+    --theme-success-color: #40C057;
+    --theme-warning-color: #FF8825;
+    --theme-caution-color: #FA5252;
+    --theme-pause-color: #798ba68f;
+    --theme-pending-color: #22d9e6;
+    --theme-error-color: var(--theme-caution-color);
+    --theme-shadow-color: rgba(29, 37, 79, 0.075);
+    --theme-text-color: #24292e;
+    --theme-subtle-text-color: #cbcfd4;
+    --theme-subtle-text-font-size: var(--theme-small-font-size);
+    --theme-disabled-text-color: var(--theme-disabled-color);
+    --theme-contrast-background-color: #24292e;
+    --theme-contrast-text-color: #fff;
+    --theme-contrast-text-shadow: 0 1px 2px #000000a6, 0 0 1px #fff;
+    --theme-text-shadow: none;
+    --theme-background: var(--theme-background-color);
+    --theme-border-color: #dde3ec;
+    --theme-border-style: 1px solid;
+    --theme-large-border-color: var(--theme-border-color);
+    --theme-large-border-style: 1px solid;
+    --theme-border: var(--theme-border-style) var(--theme-border-color);
+    --theme-border-color-hover: #24292e;
+    --theme-large-border-radius: 24px;
+    --theme-normal-border-radius: 20px;
+    --theme-small-border-radius: 15px;
+    --theme-overlay-background-color: #1d254f3d;
+    --theme-badge-background-color: #228be61a;
+    --theme-badge-text-color: var(--theme-primary-color);
+
+    /* spacing scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    
+    /* navbar */
+    --navbar-background: var(--theme-contrast-background-color);
+    --navbar-text-color: var(--theme-background-color);
+    --navbar-backdrop-filter: blur(10px);
+    --navbar-border-bottom: none;
+    --navbar-box-shadow: none;
+    --nav-dropdown-background: var(--navbar-background);
+    --nav-dropdown-background-hover: rgba(255, 255, 255, 0.12);
+    --nav-dropdown-text-color: var(--theme-contrast-text-color);
+
+    /* panels (nested surfaces: .odx-panel, .odx-card, .odx-header) */
+    --panel-background: var(--theme-element-background-color);
+    --panel-border-color: rgba(128, 128, 128, 0.16);
+    --panel-box-shadow: var(--theme-shadow-color) 0px 2px 8px -3px;
+    --panel-header-box-shadow: var(--theme-shadow-color) 0px 4px 14px -6px;
+    --panel-backdrop-filter: var(--card-backdrop-filter);
+
+    /* typography accents */
+    --page-title-color: inherit;
+    --page-title-text-shadow: var(--theme-text-shadow);
+    --page-title-letter-spacing: normal;
+    --section-caption-color: inherit;
+    --section-caption-opacity: 0.6;
+    --label-text-color: inherit;
+
+    /* cards and tiles */
+    --card-background: var(--theme-element-background-color);
+    --card-text-color: var(--theme-text-color);
+    --card-border: 1px solid rgba(128, 128, 128, 0.16);
+    --card-box-shadow: var(--theme-shadow-color) 0px 2px 10px 0px;
+    --card-border-hover: none;
+    --card-border-radius: var(--theme-normal-border-radius);
+    --card-backdrop-filter: initial;
+    --card-hover-animation: none;
+    --card-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
+    --card-hover-transition: height 0.3s cubic-bezier(0.4, 0.2, 0.2, 1), transform 0.18s ease, box-shadow 0.18s ease;
+    --card-hover-transform: translateY(-3px);
+    --card-img-filter: drop-shadow(0px 0px 25px #ffffff4f);
+    --tile-hover-box-shadow: var(--theme-shadow-color) 0px 8px 22px 0px;
+    --tile-hover-transition: var(--card-hover-transition);
+    --tile-hover-transform: translateY(-3px);
+    --tile-gap: 15px;
+    --tile-half-width: 355px;
+    --tile-width: calc(var(--tile-half-width) * 2 + var(--tile-gap));
+    --add-card-background: var(--theme-dimmed-element-background-color);
+    --add-card-background-hover: #228be61a;
+    --add-card-border: 1px dashed #bbb;
+    --add-card-text-color: var(--card-text-color);
+    --card-img-filter: drop-shadow(1px 1px 2px #dddce142) drop-shadow(-1px -1px 2px #dddce142);
+
+    /* buttons */
+    --button-font-size: var(--theme-default-font-size);
+    --button-shadow-color: var(--theme-shadow-color);
+    --button-box-shadow: var(--button-shadow-color) 0px 0px 8px 0px;
+    --button-transition: 0.3s;
+    --button-border-radius: var(--theme-normal-border-radius);
+    --button-line-height: 1.2em;
+    --default-button-background: #fff0;
+    --default-button-border: var(--theme-large-border-style) var(--theme-border-color);
+    --default-button-icon-color: var(--theme-text-color);
+    --default-button-text-color: var(--theme-text-color);
+    --default-button-box-shadow: var(--button-box-shadow);
+    --default-button-background-hover: #fff0;
+    --default-button-border-hover: var(--theme-large-border-style) var(--theme-text-color);
+    --default-button-icon-color-hover: var(--theme-text-color);
+    --default-button-text-color-hover: var(--theme-text-color);
+    --default-button-box-shadow-hover: var(--button-box-shadow);
+    --primary-button-background: var(--theme-primary-color);
+    --primary-button-border: var(--theme-large-border-style) #fff0;
+    --primary-button-icon-color: var(--theme-contrast-text-color);
+    --primary-button-text-color: var(--theme-contrast-text-color);
+    --primary-button-box-shadow: var(--button-box-shadow);
+    --primary-button-background-hover: #fff0;
+    --primary-button-border-hover: var(--theme-large-border-style) var(--theme-primary-color);
+    --primary-button-icon-color-hover: var(--theme-primary-color);
+    --primary-button-text-color-hover: var(--theme-primary-color);
+    --primary-button-box-shadow-hover: var(--button-box-shadow);
+    --secondary-button-background: #fff0;
+    --secondary-button-border: var(--theme-large-border-style) var(--theme-secondary-color);
+    --secondary-button-icon-color: var(--theme-secondary-color);
+    --secondary-button-text-color: var(--theme-secondary-color);
+    --secondary-button-box-shadow: var(--button-box-shadow);
+    --secondary-button-background-hover: var(--theme-secondary-color);
+    --secondary-button-border-hover: var(--theme-large-border-style) #fff0;
+    --secondary-button-icon-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-text-color-hover: var(--theme-contrast-text-color);
+    --secondary-button-box-shadow-hover: var(--button-box-shadow);
+    --success-button-background: var(--theme-success-color);
+    --success-button-border: var(--theme-large-border-style) #fff0;
+    --success-button-icon-color: var(--theme-contrast-text-color);
+    --success-button-text-color: var(--theme-contrast-text-color);
+    --success-button-box-shadow: var(--button-box-shadow);
+    --success-button-background-hover: #fff0;
+    --success-button-border-hover: var(--theme-large-border-style) var(--theme-success-color);
+    --success-button-icon-color-hover: var(--theme-success-color);
+    --success-button-text-color-hover: var(--theme-success-color);
+    --success-button-box-shadow-hover: var(--button-box-shadow);
+    --warning-button-background: var(--theme-warning-color);
+    --warning-button-border: var(--theme-large-border-style) #fff0;
+    --warning-button-icon-color: var(--theme-contrast-text-color);
+    --warning-button-text-color: var(--theme-contrast-text-color);
+    --warning-button-box-shadow: var(--theme-warning-color) 0px 0px 10px;
+    --warning-button-animation: pulse 2s ease infinite both -0.5s;
+    --warning-button-background-hover: #fff0;
+    --warning-button-border-hover: var(--theme-large-border-style) var(--theme-warning-color);
+    --warning-button-icon-color-hover: var(--theme-warning-color);
+    --warning-button-text-color-hover: var(--theme-warning-color);
+    --warning-button-box-shadow-hover: var(--theme-warning-color) 0px 0px 10px;
+    --caution-button-background: #fff0;
+    --caution-button-border: var(--theme-large-border-style) var(--theme-caution-color);
+    --caution-button-icon-color: var(--theme-caution-color);
+    --caution-button-text-color: var(--theme-caution-color);
+    --caution-button-box-shadow: var(--button-box-shadow);
+    --caution-button-background-hover: var(--theme-caution-color); 
+    --caution-button-border-hover: var(--theme-large-border-style) var(--theme-caution-color);
+    --caution-button-icon-color-hover: var(--theme-contrast-text-color);
+    --caution-button-text-color-hover: var(--theme-contrast-text-color);
+    --caution-button-box-shadow-hover: var(--button-box-shadow);
+    --error-button-background: var(--theme-disabled-error-background-color);
+    --error-button-border: var(--theme-large-border-style) #fff0;
+    --error-button-icon-color: var(--theme-disabled-error-color);
+    --error-button-text-color: var(--theme-disabled-error-color);
+    --error-button-box-shadow: none;
+    --disabled-button-background: var(--theme-disabled-background-color);
+    --disabled-button-border: var(--theme-large-border-style) #fff0;
+    --disabled-button-icon-color: var(--theme-disabled-text-color);
+    --disabled-button-text-color: var(--theme-disabled-text-color);
+    --disabled-button-box-shadow: none;
+    --back-button-color: var(--theme-disabled-color);
+    --back-button-filter: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
+    --back-button-filter-hover: drop-shadow(0px 0px 2px var(--theme-shadow-color)) drop-shadow(0px 0px 5px var(--theme-shadow-color));
+
+    /* dropdowns */
+    --dropdown-font-size: var(--theme-default-font-size);
+    --dropdown-background: var(--theme-background-color);
+    --dropdown-background-hover: var(--theme-action-color);
+    --dropdown-border: var(--theme-border);
+    --dropdown-border-radius: var(--theme-normal-border-radius);
+    --dropdown-label-margin: 0px;
+    --dropdown-menu-background: var(--theme-element-background-color);
+    --dropdown-menu-backdrop-filter: blur(24px);
+    --dropdown-menu-border-radius: var(--theme-small-border-radius);
+    --dropdown-menu-hover: var(--theme-action-color);
+    --dropdown-text-color: var(--theme-text-color);
+    --navbar-dropdown-background: var(--dropdown-background);
+    --navbar-dropdown-background-hover: var(--dropdown-background-hover);
+    --navbar-dropdown-text-color: var(--theme-text-color);
+    --navbar-dropdown-border: var(--theme-border);
+
+    /* inputs */
+    --input-font-size: var(--theme-default-font-size);
+    --input-background: var(--theme-tertiary-color);
+    --input-text-color: var(--theme-text-color);
+    --input-border: var(--theme-border);
+    --input-border-radius: var(--theme-small-border-radius);
+    --input-focus-border-color: var(--theme-border-color);
+    --input-focus-box-shadow: none;
+    --input-focus-outline: revert;
+    --title-input-background: transparent;
+    --title-input-text-color: var(--theme-text-color);
+    --title-input-border: var(--theme-border-style) #ffffff00;
+    --title-input-border-radius: var(--theme-small-border-radius);
+    --title-input-background-hover: transparent;
+    --title-input-text-color-hover: var(--theme-text-color);
+    --title-input-border-hover: var(--theme-border);
+    --title-input-border-radius-hover: var(--theme-small-border-radius);
+    --title-input-background-focus: var(--theme-tertiary-color);
+    --title-input-text-color-focus: var(--theme-text-color);
+    --title-input-border-focus: var(--theme-border);
+    --title-input-border-radius-focus: var(--theme-small-border-radius);
+
+    /* switch */
+    --switch-off-background: var(--theme-tertiary-color);
+    --switch-on-background: #228BE614;
+    --switch-off-handle-background: var(--theme-disabled-color);
+    --switch-on-handle-background: var(--theme-primary-color);
+    --switch-off-border-style: var(--theme-border-style);
+    --switch-on-border-style: var(--theme-border-style);
+
+    /* textareas */
+    --textarea-font-size: var(--theme-small-font-size);  
+    --textarea-background: var(--theme-tertiary-color);
+    --textarea-text-color: var(--theme-text-color);
+    --textarea-border: var(--theme-border);
+    --textarea-border-radius: var(--theme-small-border-radius);
+
+    /* pre */
+    --pre-font-size: var(--theme-small-font-size);
+    --pre-background: var(--theme-tertiary-color);
+    --pre-text-color: var(--theme-text-color);
+    --pre-border: var(--theme-border);
+    --pre-border-radius: var(--theme-small-border-radius);
+    --pre-text-shadow: none;
+
+    /* tooltip */
+    --tooltip-font-size: var(--theme-large-font-size);
+    --tooltip-icon-color: var(--theme-primary-color);
+    --tooltip-icon-filter: drop-shadow(0 0 2px var(--theme-shadow-color));
+    --tooltip-text-shadow: var(--theme-contrast-text-shadow);
+    --tooltip-border-radius: var(--theme-small-border-radius);
+    --tooltip-box-shadow: 0 4px 12px var(--theme-shadow-color);
+    --tooltip-large-width: 450px;
+    --tooltip-normal-width: 300px;
+    --tooltip-small-width: 150px;
+    --tooltip-padding: 10px 15px;
+    --tooltip-line-height: 1.2em;
+    --default-tooltip-background: var(--theme-contrast-background-color);
+    --default-tooltip-text-color: var(--theme-contrast-text-color);
+    --default-tooltip-border: none;
+    --primary-tooltip-background: var(--theme-primary-color);
+    --primary-tooltip-text-color: var(--theme-contrast-text-color);
+    --primary-tooltip-border: none;
+    --secondary-tooltip-background: var(--theme-secondary-color);
+    --secondary-tooltip-text-color: var(--theme-contrast-text-color);
+    --secondary-tooltip-border: none;
+    --caution-tooltip-background: var(--theme-caution-color);
+    --caution-tooltip-text-color: var(--theme-contrast-text-color);
+    --caution-tooltip-border: none;
+    --warning-tooltip-background: var(--theme-warning-color);
+    --warning-tooltip-text-color: var(--theme-contrast-text-color);
+    --warning-tooltip-border: none;
+    --error-tooltip-background: var(--theme-error-color);
+    --error-tooltip-text-color: var(--theme-contrast-text-color);
+    --error-tooltip-border: none;
+
+    /* popups */
+    --popup-background: var(--theme-element-background-color);
+    --popup-border: var(--theme-border);
+    --popup-border-radius: var(--theme-large-border-radius);
+    --popup-box-shadow: 0 2px 12px #0002;
+    --popup-backdrop-filter: initial;
+    --overlay-background: var(--theme-overlay-background-color);
+    --overlay-backdrop-filter: blur(4px);
+    --overlay-box-shadow: #1d254f0f 0px 32px 48px 0px;
+    --overlay-transition: opacity 500ms;
+
+    /* highlights */
+    --highlight-font-weight: 700;
+    --highlight-border-radius: 6px;
+    --primary-highlight-color: #FFE65E;
+    --primary-highlight-background: var(--primary-highlight-color);
+    --primary-highlight-border: 2px solid var(--primary-highlight-color);
+    --primary-highlight-text-color: var(--theme-text-color);
+    --primary-highlight-text-shadow: var(--theme-text-shadow);
+    --secondary-highlight-color: var(--theme-primary-color);
+    --secondary-highlight-background: none;
+    --secondary-highlight-border: none;
+    --secondary-highlight-text-color: var(--secondary-highlight-color);
+    --secondary-highlight-text-shadow: var(--theme-text-shadow);
+
+    /* progress bars */
+    --progress-bar-box-shadow: var(--theme-shadow-color) 0px 2px 3px 1px;
+    --progress-bar-border-radius: var(--theme-small-border-radius);
+    --progress-bar-background-color: var(--theme-background-color);
+    --progress-bar-background-color-hover: var(--theme-background-color);
+    --progress-bar-background-color-selected: var(--theme-background-color);
+
+    /* monitor */
+    --terminal-background-color: var(--theme-background-color);
+    --task-background-color: var(--theme-element-background-color);
+    --task-background-color-hover: var(--theme-tertiary-color-light);
+    --task-background-color-selected: var(--theme-tertiary-color-light);
+
+    /* terminal colors */
+    --terminal-black: #000000;
+    --terminal-red: #ff6b6b;
+    --terminal-green: #61ae6e;
+    --terminal-yellow: #CCAE20;
+    --terminal-blue: #4dabf7;
+    --terminal-magenta: #ae3ec9;
+    --terminal-cyan: #449eaa;
+    --terminal-white: #f1f3f5;
+    --terminal-bright-black: #91979d;
+    --terminal-bright-red: #ff6b6b;
+    --terminal-bright-green: #61ae6e;
+    --terminal-bright-yellow: #CCAE20;
+    --terminal-bright-blue: #4dabf7;
+    --terminal-bright-magenta: #e599f7;
+    --terminal-bright-cyan: #449eaa;
+    --terminal-bright-white: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .theme .content::before,
+    .theme .content::after {
+        animation: none;
+    }
+}

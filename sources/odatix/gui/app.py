@@ -46,13 +46,9 @@ class OdatixApp:
         if not self.odatix_settings.valid:
             pass
 
-        if theme is None:
-            self.start_theme = themes.default_theme
-        elif theme not in themes.list:
+        if theme is not None and not themes.exists(theme):
             printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.')
-            self.start_theme = themes.default_theme
-        else:
-            self.start_theme = theme
+        self.start_theme = themes.resolve(theme)
 
         self.old_settings = old_settings
         self.safe_mode = safe_mode
@@ -65,9 +61,12 @@ class OdatixApp:
             suppress_callback_exceptions=True,
             # The drawing of every icon, sent once as CSS instead of at each of
             # the hundreds of places a page wears one (see odatix.gui.icons).
-            external_stylesheets=[icons.ICON_STYLESHEET_URL],
+            external_stylesheets=[icons.ICON_STYLESHEET_URL, themes.USER_STYLESHEET_URL],
         )
         icons.serve_icon_stylesheet(self.app)
+        # Themes of the workspace: they live outside the asset folder, so they
+        # are served from the settings-resolved directory (see odatix.gui.themes).
+        themes.serve_user_themes(self.app)
 
         self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 

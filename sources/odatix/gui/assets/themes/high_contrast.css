@@ -1,0 +1,228 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: High Contrast
+ * dark: true
+ * plot-text-color: #ffffff
+ * plot-grid-color: rgba(255, 255, 255, 0.45)
+ * plot-zeroline-color: #ffffff
+ */
+
+/* Maximum-contrast theme (WCAG AAA): pure black ground, white ink, no
+   translucency, no shadows, and a visible focus ring on every control. */
+.theme.high_contrast {
+    /* theme */
+    --theme-background-color: #000000;
+    --theme-element-background-color: #000000;
+    --theme-dimmed-element-background-color: #000000;
+    --theme-action-color: #333333;
+    --theme-primary-color: #ffff00;
+    --theme-secondary-color: #00ffff;
+    --theme-tertiary-color: #000000;
+    --theme-tertiary-color-light: #000000;
+    --theme-disabled-color: #9a9a9a;
+    --theme-disabled-background-color: #000000;
+    --theme-disabled-error-color: #ff8080;
+    --theme-disabled-error-background-color: #000000;
+    --theme-success-color: #00ff66;
+    --theme-warning-color: #ffa500;
+    --theme-caution-color: #ff5050;
+    --theme-pending-color: #00ffff;
+    --theme-text-color: #ffffff;
+    --theme-subtle-text-color: #d0d0d0;
+    --theme-disabled-text-color: var(--theme-disabled-color);
+    --theme-text-shadow: none;
+    --theme-shadow-color: transparent;
+    --theme-border-color: #ffffff;
+    --theme-border-style: 2px solid;
+    --theme-large-border-style: 2px solid;
+    --theme-border-color-hover: #ffff00;
+    --theme-overlay-background-color: rgba(0, 0, 0, 0.85);
+    --theme-contrast-background-color: #ffffff;
+    --theme-contrast-text-color: #000000;
+    --theme-contrast-text-shadow: none;
+    --theme-badge-background-color: #000000;
+    --theme-badge-text-color: #ffff00;
+    --theme-large-border-radius: 4px;
+    --theme-normal-border-radius: 4px;
+    --theme-small-border-radius: 4px;
+
+    /* navbar */
+    --navbar-background: #000000;
+    --navbar-text-color: #ffffff;
+    --navbar-backdrop-filter: none;
+    --navbar-border-bottom: 2px solid #ffffff;
+    --nav-dropdown-background: #000000;
+    --nav-dropdown-background-hover: #333333;
+    --nav-dropdown-text-color: #ffffff;
+
+    /* panels, cards and tiles */
+    --panel-border-color: #ffffff;
+    --panel-box-shadow: none;
+    --panel-header-box-shadow: none;
+    --panel-backdrop-filter: none;
+    --card-border: 2px solid #ffffff;
+    --card-border-hover: 2px solid #ffff00;
+    --card-box-shadow: none;
+    --card-hover-box-shadow: 0 0 0 2px #ffff00;
+    --card-hover-transform: none;
+    --card-backdrop-filter: none;
+    --card-img-filter: none;
+    --tile-hover-box-shadow: 0 0 0 2px #ffff00;
+    --tile-hover-transform: none;
+    --add-card-background: #000000;
+    --add-card-background-hover: #333333;
+    --add-card-border: 2px dashed #ffffff;
+    --add-card-text-color: #ffffff;
+    --card-img-filter: drop-shadow(1px 1px 0 white) drop-shadow(-1px -1px 0 white) drop-shadow(1px -1px 0 white) drop-shadow(-1px 1px 0 white);
+
+    /* buttons */
+    --button-box-shadow: none;
+    --default-button-background: #000000;
+    --default-button-border: 2px solid #ffffff;
+    --default-button-background-hover: #ffffff;
+    --default-button-icon-color-hover: #000000;
+    --default-button-text-color-hover: #000000;
+    --primary-button-background: #ffff00;
+    --primary-button-border: 2px solid #ffff00;
+    --primary-button-icon-color: #000000;
+    --primary-button-text-color: #000000;
+    --primary-button-background-hover: #000000;
+    --primary-button-icon-color-hover: #ffff00;
+    --primary-button-text-color-hover: #ffff00;
+    --primary-button-box-shadow: none;
+    --primary-button-box-shadow-hover: none;
+    --secondary-button-background: #000000;
+    --secondary-button-border: 2px solid #00ffff;
+    --secondary-button-icon-color: #00ffff;
+    --secondary-button-text-color: #00ffff;
+    --secondary-button-background-hover: #00ffff;
+    --secondary-button-icon-color-hover: #000000;
+    --secondary-button-text-color-hover: #000000;
+    --success-button-icon-color: #000000;
+    --success-button-text-color: #000000;
+    --warning-button-icon-color: #000000;
+    --warning-button-text-color: #000000;
+    --warning-button-box-shadow: none;
+    --warning-button-box-shadow-hover: none;
+    --warning-button-animation: none;
+    --caution-button-background-hover: #ff5050;
+    --caution-button-icon-color-hover: #000000;
+    --caution-button-text-color-hover: #000000;
+    --error-button-background: #000000;
+    --error-button-border: 2px solid #ff8080;
+    --disabled-button-background: #000000;
+    --disabled-button-border: 2px solid var(--theme-disabled-color);
+    --back-button-color: #ffffff;
+    --back-button-filter: none;
+    --back-button-filter-hover: none;
+
+    /* dropdowns */
+    --dropdown-background: #000000;
+    --dropdown-background-hover: #333333;
+    --dropdown-menu-background: #000000;
+    --dropdown-menu-backdrop-filter: none;
+    --dropdown-menu-hover: #333333;
+    --navbar-dropdown-background: #000000;
+
+    /* inputs */
+    --input-background: #000000;
+    --input-border: 2px solid #ffffff;
+    --input-focus-border-color: #ffff00;
+    --input-focus-box-shadow: 0 0 0 2px #ffff00;
+    --input-focus-outline: 2px solid #ffff00;
+    --title-input-border: 2px solid #ffffff;
+    --title-input-background-focus: #000000;
+
+    /* switch */
+    --switch-off-background: #000000;
+    --switch-on-background: #000000;
+    --switch-off-handle-background: #9a9a9a;
+    --switch-on-handle-background: #ffff00;
+
+    /* textareas and pre */
+    --textarea-background: #000000;
+    --textarea-border: 2px solid #ffffff;
+    --pre-background: #000000;
+    --pre-border: 2px solid #ffffff;
+    --pre-text-shadow: none;
+
+    /* tooltips */
+    --tooltip-text-shadow: none;
+    --tooltip-box-shadow: none;
+    --default-tooltip-background: #ffffff;
+    --default-tooltip-text-color: #000000;
+    --default-tooltip-border: 2px solid #ffffff;
+    --primary-tooltip-background: #ffff00;
+    --primary-tooltip-text-color: #000000;
+    --secondary-tooltip-background: #00ffff;
+    --secondary-tooltip-text-color: #000000;
+    --warning-tooltip-text-color: #000000;
+    --caution-tooltip-text-color: #000000;
+    --error-tooltip-text-color: #000000;
+
+    /* popups */
+    --popup-background: #000000;
+    --popup-border: 2px solid #ffffff;
+    --popup-box-shadow: none;
+    --popup-backdrop-filter: none;
+    --overlay-backdrop-filter: none;
+    --overlay-box-shadow: none;
+
+    /* highlights */
+    --primary-highlight-color: #ffff00;
+    --primary-highlight-text-color: #000000;
+    --primary-highlight-text-shadow: none;
+    --secondary-highlight-color: #00ffff;
+    --secondary-highlight-text-shadow: none;
+
+    /* progress bars */
+    --progress-bar-box-shadow: none;
+    --progress-bar-background-color: #000000;
+    --progress-bar-background-color-hover: #000000;
+    --progress-bar-background-color-selected: #000000;
+
+    /* monitor */
+    --terminal-background-color: #000000;
+    --task-background-color: #000000;
+    --task-background-color-hover: #333333;
+    --task-background-color-selected: #333333;
+
+    /* terminal colors */
+    --terminal-black: #000000;
+    --terminal-red: #ff5050;
+    --terminal-green: #00ff66;
+    --terminal-yellow: #ffff00;
+    --terminal-blue: #66b3ff;
+    --terminal-magenta: #ff66ff;
+    --terminal-cyan: #00ffff;
+    --terminal-white: #ffffff;
+    --terminal-bright-black: #9a9a9a;
+    --terminal-bright-red: #ff8080;
+    --terminal-bright-green: #80ff99;
+    --terminal-bright-yellow: #ffff80;
+    --terminal-bright-blue: #99ccff;
+    --terminal-bright-magenta: #ff99ff;
+    --terminal-bright-cyan: #80ffff;
+    --terminal-bright-white: #ffffff;
+}

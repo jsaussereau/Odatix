@@ -1,0 +1,69 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Rainbow
+ * dark: false
+ * plot-text-color: #24292e
+ * plot-grid-color: rgba(36, 41, 46, 0.15)
+ * plot-zeroline-color: rgba(36, 41, 46, 0.4)
+ */
+
+.theme.rainbow {
+    /* theme */
+    --theme-element-background-color: #FFFFFF5E;
+    --theme-dimmed-element-background-color: #ffffff0d;
+    --theme-tertiary-color: #FFFFFF61;
+    --theme-tertiary-color-light: #FFFFFF90;
+    --theme-disabled-color: #65718259;
+    --theme-border-color: #bac2ce59;
+    --background-rainbow-intensity: 0.5;
+    --theme-background-image: linear-gradient(
+        90deg,
+        rgba(255, 0, 0, var(--background-rainbow-intensity)) 0%,
+        rgba(255, 154, 0, var(--background-rainbow-intensity)) 10%,
+        rgba(208, 222, 33, var(--background-rainbow-intensity)) 20%,
+        rgba(79, 220, 74, var(--background-rainbow-intensity)) 30%,
+        rgba(63, 218, 216, var(--background-rainbow-intensity)) 40%,
+        rgba(47, 201, 226, var(--background-rainbow-intensity)) 50%,
+        rgba(28, 127, 238, var(--background-rainbow-intensity)) 60%,
+        rgba(95, 21, 242, var(--background-rainbow-intensity)) 70%,
+        rgba(186, 12, 248, var(--background-rainbow-intensity)) 80%,
+        rgba(251, 7, 217, var(--background-rainbow-intensity)) 90%,
+        rgba(255, 0, 0, var(--background-rainbow-intensity)) 100%
+    );
+    --theme-large-border-radius: 50px;
+    --theme-small-border-radius: 20px;
+
+    /* cards and tiles */
+    --add-card-background-hover: #a2cbee3d;
+
+    /* buttons */
+    --default-button-icon-color: var(--theme-text-color);
+    --default-button-text-color: var(--theme-text-color);
+    --default-button-background: var(--theme-tertiary-color);
+    --back-button-color: #fdfdfdc4;
+
+    /* monitor */
+    --progress-bar-background-color: #ffffff3d;
+    --terminal-background-color: #ffffff3d;
+}

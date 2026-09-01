@@ -1,0 +1,223 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Frosted Light
+ * dark: false
+ * plot-text-color: #1b2033
+ * plot-grid-color: rgba(27, 32, 51, 0.14)
+ * plot-zeroline-color: rgba(79, 107, 255, 0.45)
+ */
+
+.theme.frosted_light {
+    --fg-ink: #1b2033;
+    --fg-accent: #4f6bff;
+    --fg-accent-soft: #7aa8ff;
+    --fg-mint: #17c3a2;
+    --fg-rose: #ff6b9a;
+    --fg-glass: rgba(255, 255, 255, 0.55);
+    --fg-glass-strong: rgba(255, 255, 255, 0.72);
+    --fg-edge: rgba(255, 255, 255, 0.75);
+
+    /* theme */
+    --theme-background-color: #d0defb;
+    --theme-element-background-color: var(--fg-glass);
+    --theme-dimmed-element-background-color: rgba(255, 255, 255, 0.28);
+    --theme-action-color: rgba(255, 255, 255, 0.6);
+    --theme-primary-color: var(--fg-accent);
+    --theme-secondary-color: var(--fg-accent);
+    --theme-tertiary-color: rgba(255, 255, 255, 0.5);
+    --theme-tertiary-color-light: rgba(255, 255, 255, 0.68);
+    --theme-disabled-color: #8d95ad7a;
+    --theme-running-color: var(--fg-accent);
+    --theme-success-color: #12b48f;
+    --theme-warning-color: #ff9f43;
+    --theme-caution-color: #ff5a72;
+    --theme-pending-color: #22c3e6;
+    --theme-pause-color: #8d95ad8f;
+    --theme-text-color: var(--fg-ink);
+    --theme-subtle-text-color: #6a7392;
+    --theme-text-shadow: none;
+    --theme-contrast-background-color: rgba(23, 27, 48, 0.82);
+    --theme-contrast-text-color: #ffffff;
+    --theme-shadow-color: rgba(30, 43, 96, 0.16);
+    --theme-overlay-background-color: rgba(23, 27, 48, 0.28);
+    --theme-badge-background-color: rgba(79, 107, 255, 0.14);
+    --theme-badge-text-color: var(--fg-accent);
+
+    /* borders & radii */
+    --theme-border-color: rgba(255, 255, 255, 0.85);
+    --theme-border-style: 1px solid;
+    --theme-border: 1px solid rgba(255, 255, 255, 0.85);
+    --theme-large-border-color: var(--fg-edge);
+    --theme-border-color-hover: var(--fg-accent);
+    --theme-large-border-radius: 26px;
+    --theme-normal-border-radius: 20px;
+    --theme-small-border-radius: 14px;
+
+    /* background: soft aurora blobs for the glass to blur */
+    --theme-background: #eceff8;
+    --theme-background-image:
+        radial-gradient(ellipse 880px 640px at 8% 8%,
+            rgba(96, 148, 255, 0.36) 0%, rgba(96, 148, 255, 0) 68%),
+        radial-gradient(ellipse 800px 600px at 92% 4%,
+            rgba(255, 94, 155, 0.26) 0%, rgba(255, 94, 155, 0) 68%),
+        radial-gradient(ellipse 860px 640px at 88% 82%,
+            rgba(0, 200, 176, 0.24) 0%, rgba(0, 200, 176, 0) 70%),
+        radial-gradient(ellipse 780px 600px at 14% 92%,
+            rgba(150, 110, 255, 0.28) 0%, rgba(150, 110, 255, 0) 70%),
+        linear-gradient(160deg, #f1f3fa 0%, #e9edf7 50%, #eef0f8 100%);
+    --theme-background-repeat: no-repeat;
+    --theme-background-size: 100% 100%;
+
+    /* navbar: dark glass, the app draws its navbar text in white */
+    --navbar-background: rgba(20, 25, 48, 0.35);
+    --navbar-text-color: #ffffff;
+    --navbar-dropdown-background: rgba(30, 36, 64, 0.92);
+    --navbar-dropdown-text-color: #ffffff;
+    --navbar-dropdown-background-hover: rgba(79, 107, 255, 0.55);
+    --navbar-dropdown-border: 1px solid rgba(255, 255, 255, 0.18);
+    --nav-dropdown-background: rgba(247, 251, 255, 0.4);
+    --nav-dropdown-background-hover: rgba(172, 172, 188, 0.15);
+    --nav-dropdown-text-color: var(--theme-text-color);
+
+    /* cards and tiles */
+    --card-background: rgba(255, 255, 255, 0.48);
+    --card-text-color: var(--fg-ink);
+    --card-border: 1px solid rgba(255, 255, 255, 0.85);
+    --card-backdrop-filter: blur(26px) saturate(1.8);
+    --card-box-shadow: 0 10px 34px rgba(30, 43, 96, 0.18), 0 2px 6px rgba(30, 43, 96, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    --card-hover-box-shadow: 0 20px 50px rgba(30, 43, 96, 0.26), 0 2px 6px rgba(30, 43, 96, 0.1), inset 0 1px 0 rgba(255, 255, 255, 1);
+    --card-hover-transform: translateY(-3px);
+    --tile-hover-box-shadow: var(--card-hover-box-shadow);
+    --tile-hover-transform: translateY(-3px);
+    --add-card-background: var(--theme-dimmed-element-background-color);
+    --add-card-background-hover: rgba(156, 162, 197, 0.07);
+    --add-card-border: 1px dashed rgba(79, 107, 255, 0.4);
+
+    /* buttons */
+    --button-shadow-color: rgba(38, 51, 105, 0.14);
+    --button-background: rgba(255, 255, 255, 0.55);
+    --default-button-background: rgba(255, 255, 255, 0.85);
+    --default-button-border: 1px solid rgba(43, 55, 100, 0.12);
+    --default-button-icon-color: #2b3764;
+    --default-button-text-color: #2b3764;
+    --default-button-box-shadow: 0 2px 6px rgba(30, 43, 96, 0.12);
+    --default-button-background-hover: #ffffff;
+    --default-button-border-hover: 1px solid var(--fg-accent);
+    --default-button-icon-color-hover: var(--fg-accent);
+    --default-button-text-color-hover: var(--fg-accent);
+    --default-button-box-shadow-hover: 0 4px 12px rgba(79, 107, 255, 0.25);
+    --primary-button-background: linear-gradient(120deg, var(--fg-accent), var(--fg-accent-soft));
+    --primary-button-border: 1px solid rgba(255, 255, 255, 0.5);
+    --primary-button-box-shadow: 0 6px 18px rgba(79, 107, 255, 0.35);
+    --primary-button-background-hover: rgba(255, 255, 255, 0.6);
+    --primary-button-box-shadow-hover: 0 8px 24px rgba(79, 107, 255, 0.45);
+    --back-button-color: #ffffffc9;
+
+    /* inputs and textareas */
+    --input-background: rgba(255, 255, 255, 0.72);
+    --input-border: 1px solid rgba(43, 55, 100, 0.1);
+    --textarea-background: rgba(255, 255, 255, 0.72);
+    --textarea-border: 1px solid rgba(43, 55, 100, 0.1);
+
+    /* dropdowns */
+    --dropdown-background: rgba(255, 255, 255, 0.9);
+    --dropdown-menu-background: rgba(255, 255, 255, 0.96);
+    --navbar-dropdown-background: rgba(255, 255, 255, 0.35);
+    --navbar-dropdown-text-color: var(--theme-text-color);
+
+    /* popups */
+    --popup-background: rgba(255, 255, 255, 0.72);
+    --popup-backdrop-filter: blur(28px) saturate(1.6);
+    --overlay-background: rgba(23, 27, 48, 0.28);
+    --overlay-backdrop-filter: blur(3px);
+
+    /* tooltips */
+    --default-tooltip-background: rgba(23, 27, 48, 0.88);
+    --default-tooltip-text-color: #ffffff;
+
+    /* highlights */
+    --primary-highlight-color: var(--fg-accent);
+    --primary-highlight-text-color: #ffffff;
+    --secondary-highlight-color: var(--fg-mint);
+
+    /* progress bars */
+    --progress-bar-background-color: rgba(255, 255, 255, 0.5);
+    --progress-bar-background-color-hover: rgba(255, 255, 255, 0.68);
+    --progress-bar-background-color-selected: rgba(255, 255, 255, 0.68);
+
+    /* monitor */
+    --terminal-background-color: rgba(255, 255, 255, 0.42);
+    --task-background-color: transparent;
+
+    /* every surface is a pane of frosted glass */
+    --panel-backdrop-filter: blur(22px) saturate(1.6);
+    --navbar-backdrop-filter: none;
+    --navbar-border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+    --navbar-box-shadow: 0 6px 28px rgba(20, 25, 48, 0.22);
+
+    /* nested panels read as recessed glass, not another floating card */
+    --panel-background: rgba(244, 247, 255, 0.42);
+    --panel-border-color: rgba(255, 255, 255, 0.7);
+    --panel-box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -1px 0 rgba(30, 43, 96, 0.04);
+    --panel-header-box-shadow: var(--panel-box-shadow);
+
+    /* uppercase section captions, tinted instead of grey */
+    --section-caption-color: #5a6488;
+    --page-title-letter-spacing: -0.01em;
+
+    --input-focus-border-color: rgba(79, 107, 255, 0.6);
+    --input-focus-box-shadow: 0 0 0 3px rgba(79, 107, 255, 0.16);
+    --input-focus-outline: none;
+
+    /* glass trim shared with frosted_dark (see the rules below) */
+    --glass-sheen: rgba(255, 255, 255, 0.95);
+    --glass-hover-border-color: rgba(255, 255, 255, 0.95);
+}
+
+.theme.frosted_light .xp-section {
+    backdrop-filter: var(--panel-backdrop-filter);
+    -webkit-backdrop-filter: var(--panel-backdrop-filter);
+}
+
+.theme.frosted_light .odx-varlist-panel .odx-varlist,
+.theme.frosted_light .odx-varlist-title {
+    background: rgba(255, 255, 255, 0.94);
+}
+
+/* a thin light catch along the top edge */
+.theme.frosted_light .card::before,
+.theme.frosted_light .tile::before,
+.theme.frosted_light .xp-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 8% auto 8%;
+    height: 1px;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0) 0%,
+        var(--glass-sheen) 35%,
+        var(--glass-sheen) 65%,
+        rgba(255, 255, 255, 0) 100%);
+}

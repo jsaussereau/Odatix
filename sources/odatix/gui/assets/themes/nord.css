@@ -1,0 +1,121 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Nord
+ * dark: true
+ * plot-text-color: #eceff4
+ * plot-grid-color: rgba(216, 222, 233, 0.16)
+ * plot-zeroline-color: rgba(136, 192, 208, 0.5)
+ */
+
+.theme.nord {
+    --nord0: #2e3440;
+    --nord1: #3b4252;
+    --nord2: #434c5e;
+    --nord3: #4c566a;
+    --nord4: #d8dee9;
+    --nord5: #e5e9f0;
+    --nord6: #eceff4;
+    --nord7: #8fbcbb;
+    --nord8: #88c0d0;
+    --nord9: #81a1c1;
+    --nord10: #5e81ac;
+    --nord11: #bf616a;
+    --nord12: #d08770;
+    --nord13: #ebcb8b;
+    --nord14: #a3be8c;
+    --nord15: #b48ead;
+
+    /* theme */
+    --theme-background-color: var(--nord0);
+    --theme-element-background-color: var(--nord1);
+    --theme-action-color: var(--nord10);
+    --theme-primary-color: var(--nord8);
+    --theme-secondary-color: var(--nord9);
+    --theme-tertiary-color: var(--nord2);
+    --theme-tertiary-color-light: #434c5e90;
+    --theme-disabled-color: #4c566aac;
+    --theme-disabled-background-color: #4c566a4f;
+    --theme-success-color: var(--nord14);
+    --theme-warning-color: var(--nord12);
+    --theme-caution-color: var(--nord11);
+    --theme-pending-color: var(--nord7);
+    --theme-text-color: var(--nord6);
+    --theme-subtle-text-color: var(--nord3);
+    --theme-text-shadow: 0 1px 2px #00000080;
+    --theme-border-color: var(--nord3);
+    --theme-border-color-hover: var(--nord8);
+    --theme-overlay-background-color: #2e34403d;
+    --theme-contrast-background-color: #242933;
+    --theme-shadow-color: rgba(11, 14, 20, 0.35);
+    --theme-badge-background-color: #88c0d01a;
+    --theme-badge-text-color: var(--nord8);
+
+    /* cards and tiles */
+    --card-box-shadow: var(--theme-shadow-color) 0px 4px 20px -6px;
+    --add-card-border: 1px dashed var(--nord3);
+    --add-card-background-hover: #88c0d01a;
+
+    /* buttons */
+    --primary-button-icon-color: var(--nord0);
+    --primary-button-text-color: var(--nord0);
+    --primary-button-icon-color-hover: var(--nord8);
+    --primary-button-text-color-hover: var(--nord8);
+    --success-button-icon-color: var(--nord0);
+    --success-button-text-color: var(--nord0);
+    --warning-button-icon-color: var(--nord0);
+    --warning-button-text-color: var(--nord0);
+    --back-button-color: var(--nord3);
+
+    /* switch */
+    --switch-on-background: #88c0d014;
+
+    /* highlights */
+    --primary-highlight-color: var(--nord13);
+    --primary-highlight-text-color: var(--nord0);
+    --primary-highlight-text-shadow: none;
+    --secondary-highlight-color: var(--nord8);
+    --secondary-highlight-text-shadow: none;
+
+    /* progress bars */
+    --progress-bar-background-color-hover: var(--theme-background-color);
+    --progress-bar-background-color-selected: var(--theme-background-color);
+
+    /* terminal colors */
+    --terminal-black: var(--nord1);
+    --terminal-red: var(--nord11);
+    --terminal-green: var(--nord14);
+    --terminal-yellow: var(--nord13);
+    --terminal-blue: var(--nord9);
+    --terminal-magenta: var(--nord15);
+    --terminal-cyan: var(--nord8);
+    --terminal-white: var(--nord5);
+    --terminal-bright-black: var(--nord3);
+    --terminal-bright-red: var(--nord11);
+    --terminal-bright-green: var(--nord14);
+    --terminal-bright-yellow: var(--nord13);
+    --terminal-bright-blue: var(--nord10);
+    --terminal-bright-magenta: var(--nord15);
+    --terminal-bright-cyan: var(--nord7);
+    --terminal-bright-white: var(--nord6);
+}

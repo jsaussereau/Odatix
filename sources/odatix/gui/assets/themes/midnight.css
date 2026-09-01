@@ -1,0 +1,62 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Midnight
+ * dark: true
+ * plot-text-color: #e0e0ff
+ * plot-grid-color: rgba(240, 240, 240, 0.15)
+ * plot-zeroline-color: rgba(240, 240, 240, 0.4)
+ */
+
+.theme.midnight {
+    /* theme */
+    --theme-background-color: #121226;
+    --theme-background-image: linear-gradient(135deg, #0f0f1a 0%, #1b1b2f 100%);
+    --theme-element-background-color: #1b1b2f;
+    --theme-dimmed-element-background-color: #1b1b2fbb;
+    --theme-action-color: #0077f6;
+    --theme-primary-color: #0077f6;
+    --theme-secondary-color: #0077f6;
+    --theme-tertiary-color: #252544;
+    --theme-tertiary-color-light: #25254490;
+    --theme-disabled-color: #555577;
+    --theme-text-color: #e0e0ff;
+    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
+    --theme-border: none;
+    --theme-border-color: #555577;
+    --theme-overlay-background-color: #121226aa;
+
+    /* navbar */
+    --navbar-background: #0b0b15;
+
+    /* cards and tiles */
+    --card-box-shadow: rgba(11, 11, 15, 0.5) 0px 4px 24px 0px;
+
+    /* buttons */
+    --button-background: var(--theme-tertiary-color);
+    --back-button-color: var(--theme-disabled-color);
+
+    /* progress bars */
+    --progress-bar-background-color-hover: var(--theme-background-color);
+    --progress-bar-background-color-selected: var(--theme-background-color);
+}

@@ -1,0 +1,85 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Code Dark
+ * dark: true
+ * plot-text-color: #f0f0f0
+ * plot-grid-color: rgba(240, 240, 240, 0.15)
+ * plot-zeroline-color: rgba(240, 240, 240, 0.4)
+ */
+
+.theme.code_dark {
+    /* theme */
+    --theme-background-color: #181818;
+    --theme-element-background-color: #252526;
+    --theme-action-color: #0078d4;
+    --theme-primary-color: #0078d4;
+    --theme-secondary-color: #0078d4;
+    --theme-tertiary-color: #313131;
+    --theme-tertiary-color-light: #31313190;
+    --theme-disabled-color: #515760;
+    --theme-success-color: #73c991;
+    --theme-warning-color: #cca700;
+    --theme-caution-color: #f88070;
+    --theme-text-color: #ffffff;
+    --theme-text-shadow: 0 1px 2px #000, 0 0 1px #fff;
+    --theme-border: none;
+    --theme-border-style: 0.5px solid;
+    --theme-large-border-style: 0.5px solid;
+    --theme-border-color: #d1d5da;
+    --theme-small-border-radius: 5px;
+    --theme-normal-border-radius: 5px;
+    --theme-large-border-radius: 5px;
+    --theme-overlay-background-color: #3131313d;
+
+    /* navbar */
+    --navbar-background: #1f1f1f;
+
+    /* cards and tiles */
+    --card-box-shadow: initial;
+
+    /* buttons */
+    --button-border: 0.5px solid var(--theme-disabled-color);
+    --default-button-icon-color: var(--theme-text-color);
+    --default-button-text-color: var(--theme-text-color);
+    --default-button-background: var(--theme-tertiary-color);
+    --default-button-border: var(--button-border);
+    --default-button-border-hover: 0.5px solid var(--theme-text-color);
+    --back-button-color: var(--theme-disabled-color);
+
+    /* inputs */
+    --title-input-border: var(--theme-border-style) #ffffff00;
+    --title-input-border-hover: var(--theme-border-style) var(--theme-disabled-color);
+    --title-input-border-focus: var(--theme-border-style) #ffffff00;
+
+    /* tooltips */
+    --default-tooltip-background: var(--theme-tertiary-color);
+
+    /* highlights */
+    --primary-highlight-text-color: var(--theme-background-color);
+    --secondary-highlight-text-shadow: var(--theme-contrast-text-shadow);
+
+    /* progress bars */
+    --progress-bar-background-color-hover: var(--theme-background-color);
+    --progress-bar-background-color-selected: var(--theme-background-color);
+}

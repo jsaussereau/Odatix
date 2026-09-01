@@ -2711,7 +2711,7 @@ input[type="checkbox"] {
 /* --- Shared surface behaviour (themable) -------------------------------- */
 /* Cards keep their own stacking context so hovered ones rise above their
    neighbours, and themes can hook a hover animation without re-listing every
-   selector (see --card-hover-animation in themes.css). */
+   selector (see --card-hover-animation in assets/themes/00_base.css). */
 .card,
 .tile,
 .xp-card,

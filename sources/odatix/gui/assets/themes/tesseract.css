@@ -1,0 +1,238 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Tesseract
+ * dark: true
+ * plot-text-color: #dff4ff
+ * plot-grid-color: rgba(53, 230, 255, 0.18)
+ * plot-zeroline-color: rgba(53, 230, 255, 0.55)
+ */
+
+/* .theme.legacy {
+    --theme-font-family: Arial;
+    --theme-large-border-radius: 10px;
+    --theme-normal-border-radius: 10px;
+    --theme-small-border-radius: 10px;
+    --theme-disabled-color: #ddd;
+
+    --card-border: 1px solid #ddd;
+    --card-box-shadow: 0px 13px 10px -7px rgba(0, 0, 0, 0.1);
+    --card-border-hover: 1px solid #ddd;
+} */
+
+/* Futuristic theme: a hypercube (tesseract) slowly rotating behind the UI */
+.theme.tesseract {
+    --ts-cyan: #35e6ff;
+    --ts-violet: #9b6bff;
+    --ts-magenta: #ff4ecd;
+    --ts-deep: #05070f;
+    --ts-surface: #0b1022;
+
+    /* theme */
+    --theme-font-family: Nunito;
+    --theme-background-color: var(--ts-deep);
+    --theme-element-background-color: rgba(11, 16, 34, 0.82);
+    --theme-dimmed-element-background-color: rgba(53, 230, 255, 0.05);
+    --theme-action-color: var(--ts-cyan);
+    --theme-primary-color: var(--ts-cyan);
+    --theme-secondary-color: var(--ts-violet);
+    --theme-tertiary-color: rgba(53, 230, 255, 0.12);
+    --theme-tertiary-color-light: rgba(53, 230, 255, 0.2);
+    --theme-disabled-color: #6a7ba17a;
+    --theme-running-color: var(--ts-cyan);
+    --theme-success-color: #2bf0b0;
+    --theme-warning-color: #ffb547;
+    --theme-caution-color: #ff4f6d;
+    --theme-pending-color: var(--ts-violet);
+    --theme-pause-color: #6a7ba17a;
+    --theme-text-color: #dff4ff;
+    --theme-subtle-text-color: #7f95bb;
+    --theme-text-shadow: none;
+    --theme-contrast-background-color: #04060d;
+    --theme-contrast-text-color: #dff4ff;
+    --theme-shadow-color: rgba(0, 0, 0, 0.65);
+    --theme-overlay-background-color: rgba(4, 6, 13, 0.75);
+    --theme-badge-background-color: rgba(53, 230, 255, 0.14);
+    --theme-badge-text-color: #8ceeff;
+
+    /* borders & radii */
+    --theme-border-color: rgba(53, 230, 255, 0.22);
+    --theme-border-style: 1px solid;
+    --theme-border: 1px solid rgba(53, 230, 255, 0.22);
+    --theme-border-color-hover: var(--ts-cyan);
+    --theme-large-border-radius: 6px;
+    --theme-normal-border-radius: 4px;
+    --theme-small-border-radius: 3px;
+
+    --theme-background: var(--ts-deep);
+    --theme-background-image:
+        radial-gradient(ellipse 900px 600px at 50% 40%,
+            rgba(53, 230, 255, 0.09) 0%, rgba(53, 230, 255, 0) 70%),
+        radial-gradient(ellipse 700px 520px at 12% 82%,
+            rgba(155, 107, 255, 0.12) 0%, rgba(155, 107, 255, 0) 70%),
+        radial-gradient(ellipse 700px 520px at 88% 18%,
+            rgba(255, 78, 205, 0.08) 0%, rgba(255, 78, 205, 0) 70%),
+        linear-gradient(180deg, #05070f 0%, #070b1a 55%, #05070f 100%);
+    --theme-background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+    --theme-background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+
+    /* navbar */
+    --navbar-background: rgba(4, 6, 13, 0.85);
+    --navbar-border-bottom: 1px solid rgba(53, 230, 255, 0.28);
+    --navbar-box-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+    --navbar-backdrop-filter: blur(14px) saturate(1.2);
+
+    /* cards and tiles */
+    --card-background: rgba(11, 16, 34, 0.88);
+    --card-border: 1px solid rgba(53, 230, 255, 0.2);
+    /*
+     * No backdrop-filter on cards or panels: there are dozens of them on a
+     * page and each one would be re-blurred over the animated background on
+     * every frame. Opaque surfaces keep the theme smooth.
+     */
+    --card-backdrop-filter: none;
+    --card-box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    --card-hover-box-shadow: 0 0 0 1px rgba(53, 230, 255, 0.45), 0 12px 32px rgba(0, 0, 0, 0.65);
+    --card-hover-transform: translateY(-2px);
+    --tile-hover-box-shadow: var(--card-hover-box-shadow);
+    --tile-hover-transform: translateY(-2px);
+    --add-card-background: var(--theme-dimmed-element-background-color);
+    --add-card-background-hover: rgba(53, 230, 255, 0.12);
+    --add-card-border: 1px dashed rgba(53, 230, 255, 0.35);
+
+    /* buttons */
+    --button-shadow-color: rgba(53, 230, 255, 0.28);
+    --button-background: rgba(255, 255, 255, 0.04);
+    --default-button-background: rgba(255, 255, 255, 0.04);
+    --default-button-icon-color: var(--theme-text-color);
+    --default-button-text-color: var(--theme-text-color);
+    --default-button-border: 1px solid rgba(53, 230, 255, 0.28);
+    --default-button-border-hover: 1px solid var(--ts-cyan);
+    --default-button-box-shadow-hover: 0 0 12px rgba(53, 230, 255, 0.35);
+    --primary-button-background: linear-gradient(100deg, var(--ts-cyan), var(--ts-violet));
+    --primary-button-box-shadow: 0 0 10px rgba(53, 230, 255, 0.3);
+    --primary-button-box-shadow-hover: 0 0 18px rgba(53, 230, 255, 0.5);
+    --back-button-color: var(--theme-subtle-text-color);
+
+    /* inputs and textareas */
+    --input-background: rgba(4, 6, 13, 0.55);
+    --textarea-background: rgba(4, 6, 13, 0.55);
+    --input-focus-border-color: var(--ts-cyan);
+    --input-focus-box-shadow: 0 0 0 1px rgba(53, 230, 255, 0.35);
+    --input-focus-outline: none;
+
+    /* dropdowns */
+    --dropdown-background: rgba(9, 13, 28, 0.97);
+    --dropdown-menu-background: rgba(9, 13, 28, 0.98);
+    --navbar-dropdown-background: rgba(4, 6, 13, 0.98);
+
+    /* popups */
+    --popup-background: rgba(9, 13, 28, 0.97);
+    --popup-backdrop-filter: none;
+    --overlay-background: rgba(2, 4, 10, 0.65);
+
+    /* tooltips */
+    --default-tooltip-background: #121a33;
+    --default-tooltip-text-color: var(--theme-text-color);
+
+    /* highlights */
+    --primary-highlight-color: var(--ts-cyan);
+    --primary-highlight-text-color: #04060d;
+    --secondary-highlight-color: var(--ts-violet);
+
+    /* progress bars */
+    --progress-bar-background-color: rgba(255, 255, 255, 0.07);
+    --progress-bar-background-color-hover: rgba(255, 255, 255, 0.11);
+    --progress-bar-background-color-selected: rgba(255, 255, 255, 0.11);
+
+    /* monitor */
+    --terminal-background-color: rgba(2, 4, 10, 0.35);
+    --task-background-color: transparent;
+
+    /* typography accents */
+    --page-title-color: #ffffff;
+    --page-title-letter-spacing: 0.04em;
+    --page-title-text-shadow:
+        0 0 10px rgba(53, 230, 255, 0.5),
+        0 0 26px rgba(53, 230, 255, 0.25);
+    --section-caption-color: var(--ts-cyan);
+    --section-caption-opacity: 0.9;
+    --label-text-color: #b9d6ea;
+
+    /* nested panels */
+    --panel-background: rgba(11, 16, 34, 0.6);
+    --panel-border-color: rgba(53, 230, 255, 0.18);
+}
+
+.theme.tesseract .content {
+    position: relative;
+}
+
+.theme.tesseract .content > * {
+    position: relative;
+    z-index: 1;
+}
+
+/*
+ * The rotating hypercube is drawn on a canvas by assets/themes/tesseract.js, which
+ * only inserts it while this theme is on. It is centred and pinned behind the
+ * page here; everything else about it lives in the script.
+ */
+#tesseract-bg {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.75;
+}
+
+/* halo the hypercube sits in, so the wireframe does not float on flat black */
+.theme.tesseract .content::after {
+    content: "";
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: min(96vh, 96vw);
+    height: min(96vh, 96vw);
+    margin: calc(min(96vh, 96vw) / -2) 0 0 calc(min(96vh, 96vw) / -2);
+    z-index: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle at 50% 50%,
+        rgba(53, 230, 255, 0.09) 0%,
+        rgba(155, 107, 255, 0.06) 38%,
+        rgba(53, 230, 255, 0) 70%);
+    contain: strict;
+    will-change: opacity;
+    animation: tesseract-halo 9s ease-in-out infinite;
+}
+
+/* opacity only: scaling the halo would repaint a full-screen gradient */
+@keyframes tesseract-halo {
+    0%, 100% {
+        opacity: 0.7;
+    }
+    50% {
+        opacity: 1;
+    }
+}

@@ -99,6 +99,8 @@ class OdatixSettings:
     DEFAULT_SIM_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations")
     DEFAULT_TOOLS_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "tools")
     DEFAULT_WORKFLOW_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "workflows")
+    # User-defined GUI themes (one .css file per theme, see odatix.gui.themes)
+    DEFAULT_GUI_THEME_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "themes", "gui")
     DEFAULT_TARGET_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "targets")
     # Target definition files not found in the configured target_path are also
     # looked up in this directory (the userconfig root), so workspaces created
@@ -124,6 +126,11 @@ class OdatixSettings:
     # This class-level latch mirrors odatix_eda_tools_path so the many tool
     # resolution call sites can reach it without holding a settings instance.
     user_tools_path = None
+    # User GUI theme directory, resolved from the workspace settings file when it
+    # is read (defaults to DEFAULT_GUI_THEME_PATH, relative to the current
+    # directory). Latched at the class level like user_tools_path so the theme
+    # registry can find it without holding a settings instance.
+    user_theme_path = None
     odatix_init_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_init"))
     odatix_examples_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_examples"))
 
@@ -253,9 +260,11 @@ class OdatixSettings:
         self.arch_path, _ = get_from_dict("arch_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ARCH_PATH, silent=silent, script_name=script_name)
         self.sim_path, _ = get_from_dict("sim_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIM_PATH, silent=silent, script_name=script_name)
         self.tools_path, _ = get_from_dict("tools_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TOOLS_PATH, silent=silent, script_name=script_name)
-        # Latch the user tools path at the class level so tool resolution helpers
-        # (odatix.lib.eda_tools) can find user-defined tools without a settings instance.
+        # Latch the user tools path at the class level so tool resolution helpers odatix.lib.eda_tools) can find user-defined tools without a settings instance.
         OdatixSettings.user_tools_path = os.path.realpath(self.tools_path)
+        self.gui_theme_path, _ = get_from_dict("gui_theme_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_GUI_THEME_PATH, silent=silent, script_name=script_name)
+        # Latch the user theme path at the class level so odatix.gui.themes can discover user themes without a settings instance.
+        OdatixSettings.user_theme_path = os.path.realpath(self.gui_theme_path)
         self.workflow_path, _ = get_from_dict("workflow_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_PATH, silent=silent, script_name=script_name)
         self.target_path, _ = get_from_dict("target_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TARGET_PATH, silent=silent, script_name=script_name)
         self.use_benchmark, _ = get_from_dict("use_benchmark", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_USE_BENCHMARK, type=bool, silent=silent, script_name=script_name)

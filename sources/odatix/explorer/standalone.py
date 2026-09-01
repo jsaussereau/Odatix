@@ -22,7 +22,7 @@
 """
 Standalone shell of Odatix Explorer: a minimal Dash app hosting the explorer
 pages outside of Odatix GUI, with the same theming (the GUI assets folder is
-served directly, so both share themes.css / explorer.css / style.css).
+served directly, so both share assets/themes/ / explorer.css / style.css).
 """
 
 import os
@@ -51,11 +51,9 @@ top_bar_height = "50px"
 
 class ExplorerStandaloneApp:
   def __init__(self, result_path="results", old_settings=None, safe_mode=False, theme=None):
-    if theme is None or theme not in gui_themes.list:
-      if theme is not None:
-        printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.', script_name=script_name)
-      theme = gui_themes.default_theme
-    self.start_theme = theme
+    if theme is not None and not gui_themes.exists(theme):
+      printc.warning('Theme "' + str(theme) + '" does not exist. Using default theme.', script_name=script_name)
+    self.start_theme = gui_themes.resolve(theme)
     self.result_path = result_path
     self.old_settings = old_settings
     self.safe_mode = safe_mode
@@ -72,9 +70,10 @@ class ExplorerStandaloneApp:
       suppress_callback_exceptions=True,
       # The drawing of every icon, sent once as CSS instead of at each of the
       # hundreds of places a page wears one (see odatix.gui.icons).
-      external_stylesheets=[gui_icons.ICON_STYLESHEET_URL],
+      external_stylesheets=[gui_icons.ICON_STYLESHEET_URL, gui_themes.USER_STYLESHEET_URL],
     )
     gui_icons.serve_icon_stylesheet(self.app)
+    gui_themes.serve_user_themes(self.app)
 
     self.app.server.register_error_handler(Exception, self.handle_flask_exception)
 
@@ -132,7 +131,7 @@ class ExplorerStandaloneApp:
               children=[
                 dcc.Dropdown(
                   id="theme-dropdown",
-                  options=[{"label": theme, "value": theme} for theme in gui_themes.list],
+                  options=gui_themes.options(),
                   value=self.start_theme,
                   className="theme-dropdown",
                   clearable=False,

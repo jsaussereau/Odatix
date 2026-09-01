@@ -1,0 +1,119 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Solarized Dark
+ * dark: true
+ * plot-text-color: #93a1a1
+ * plot-grid-color: rgba(147, 161, 161, 0.18)
+ * plot-zeroline-color: rgba(38, 139, 210, 0.55)
+ */
+
+.theme[class~="solarized_dark"] {
+    --sol-base03: #002b36;
+    --sol-base02: #073642;
+    --sol-base01: #586e75;
+    --sol-base00: #657b83;
+    --sol-base0: #839496;
+    --sol-base1: #93a1a1;
+    --sol-base2: #eee8d5;
+    --sol-base3: #fdf6e3;
+    --sol-yellow: #b58900;
+    --sol-orange: #cb4b16;
+    --sol-red: #dc322f;
+    --sol-magenta: #d33682;
+    --sol-violet: #6c71c4;
+    --sol-blue: #268bd2;
+    --sol-cyan: #2aa198;
+    --sol-green: #859900;
+
+    /* terminal colors */
+    --terminal-black: var(--sol-base02);
+    --terminal-red: var(--sol-red);
+    --terminal-green: var(--sol-green);
+    --terminal-yellow: var(--sol-yellow);
+    --terminal-blue: var(--sol-blue);
+    --terminal-magenta: var(--sol-magenta);
+    --terminal-cyan: var(--sol-cyan);
+    --terminal-white: var(--sol-base2);
+    --terminal-bright-black: var(--sol-base01);
+    --terminal-bright-red: var(--sol-orange);
+    --terminal-bright-green: var(--sol-base01);
+    --terminal-bright-yellow: var(--sol-base00);
+    --terminal-bright-blue: var(--sol-base0);
+    --terminal-bright-magenta: var(--sol-violet);
+    --terminal-bright-cyan: var(--sol-base1);
+    --terminal-bright-white: var(--sol-base3);
+}
+
+.theme.solarized_dark {
+    /* theme */
+    --theme-background-color: var(--sol-base03);
+    --theme-element-background-color: var(--sol-base02);
+    --theme-action-color: #0a4a5a;
+    --theme-primary-color: var(--sol-blue);
+    --theme-secondary-color: var(--sol-cyan);
+    --theme-tertiary-color: #0a4553;
+    --theme-tertiary-color-light: #0a455390;
+    --theme-disabled-color: #586e75ac;
+    --theme-disabled-background-color: #586e754f;
+    --theme-success-color: var(--sol-green);
+    --theme-warning-color: var(--sol-orange);
+    --theme-caution-color: var(--sol-red);
+    --theme-pending-color: var(--sol-cyan);
+    --theme-text-color: var(--sol-base1);
+    --theme-subtle-text-color: var(--sol-base00);
+    --theme-text-shadow: 0 1px 2px #00000080;
+    --theme-border-color: #0d4b5c;
+    --theme-border-color-hover: var(--sol-base1);
+    --theme-overlay-background-color: #002b363d;
+    --theme-contrast-background-color: #001f27;
+    --theme-shadow-color: rgba(0, 15, 20, 0.4);
+    --theme-badge-background-color: #268bd21a;
+    --theme-badge-text-color: var(--sol-blue);
+
+    /* cards and tiles */
+    --card-box-shadow: var(--theme-shadow-color) 0px 4px 20px -6px;
+    --add-card-border: 1px dashed #0d4b5c;
+    --add-card-background-hover: #268bd21a;
+
+    /* buttons */
+    --primary-button-icon-color: var(--sol-base3);
+    --primary-button-text-color: var(--sol-base3);
+    --warning-button-icon-color: var(--sol-base3);
+    --warning-button-text-color: var(--sol-base3);
+    --back-button-color: var(--sol-base01);
+
+    /* switch */
+    --switch-on-background: #268bd214;
+
+    /* highlights */
+    --primary-highlight-color: var(--sol-yellow);
+    --primary-highlight-text-color: var(--sol-base03);
+    --primary-highlight-text-shadow: none;
+    --secondary-highlight-color: var(--sol-cyan);
+    --secondary-highlight-text-shadow: none;
+
+    /* progress bars */
+    --progress-bar-background-color-hover: var(--theme-background-color);
+    --progress-bar-background-color-selected: var(--theme-background-color);
+}

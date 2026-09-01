@@ -144,7 +144,7 @@ def top_bar(gui):
                         children=[
                             dcc.Dropdown(
                                 id="theme-dropdown",
-                                options=[{"label": f"{theme}", "value": f"{theme}"} for theme in themes.list],
+                                options=themes.options(),
                                 value=gui.start_theme,
                                 className="theme-dropdown",
                                 clearable=False,

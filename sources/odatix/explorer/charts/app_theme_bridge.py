@@ -22,103 +22,38 @@
 """
 Bridge between APP themes and plot rendering.
 
-App themes are CSS classes defined in odatix/gui/assets/themes.css (shared
-with Odatix GUI); Plotly figures cannot read CSS variables, so this module
-maps each app theme name to the small set of colors ("chrome") needed to
-render figures that blend into the page: text color, grid color and a
-dark/light flag. Figure backgrounds stay transparent so the page background
-shows through, whatever the theme.
+App themes are CSS files in odatix/gui/assets/themes/ and in the workspace theme
+directory (shared with Odatix GUI); Plotly figures cannot read CSS variables, so
+this module reads the small set of colors ("chrome") each theme declares in its
+`odatix-theme` header — text color, grid color and a dark/light flag — and hands
+them to the figure builders, which then blend into the page. Figure backgrounds
+stay transparent so the page background shows through, whatever the theme.
+
+A theme that declares no plot colors falls back to LIGHT_CHROME / DARK_CHROME
+according to its `dark:` field, so a user theme needs nothing more than that
+line to get readable figures.
 """
 
-# Chrome values mirror --theme-text-color / --theme-background-color of each
-# theme in gui/assets/themes.css. Themes absent from this map fall back to
-# LIGHT_CHROME / DARK_CHROME depending on DARK_THEMES.
+import odatix.gui.themes as themes
 
-LIGHT_CHROME = {
-  "dark": False,
-  "text_color": "#24292e",
-  "grid_color": "rgba(36, 41, 46, 0.15)",
-  "zeroline_color": "rgba(36, 41, 46, 0.4)",
-}
-
-DARK_CHROME = {
-  "dark": True,
-  "text_color": "#f0f0f0",
-  "grid_color": "rgba(240, 240, 240, 0.15)",
-  "zeroline_color": "rgba(240, 240, 240, 0.4)",
-}
-
-APP_THEME_CHROME = {
-  "default": LIGHT_CHROME,
-  "odatix": LIGHT_CHROME,
-  "odatix_dark": DARK_CHROME,
-  "odatix_darker": DARK_CHROME,
-  "catpuccin": {**DARK_CHROME, "text_color": "#cdd6f4"},
-  "dracula": {**DARK_CHROME, "text_color": "#f8f8f2"},
-  "code_dark": DARK_CHROME,
-  "rainbow": LIGHT_CHROME,
-  "galaxy": {**DARK_CHROME, "text_color": "#f8f3ff"},
-  "synthwave": {
-    **DARK_CHROME,
-    "text_color": "#eef0ff",
-    "grid_color": "rgba(143, 123, 255, 0.25)",
-    "zeroline_color": "rgba(78, 226, 255, 0.5)",
-  },
-  "frosted_light": {
-    **LIGHT_CHROME,
-    "text_color": "#1b2033",
-    "grid_color": "rgba(27, 32, 51, 0.14)",
-    "zeroline_color": "rgba(79, 107, 255, 0.45)",
-  },
-  "frosted_dark": {
-    **DARK_CHROME,
-    "text_color": "#eceaf0",
-    "grid_color": "rgba(236, 234, 240, 0.16)",
-    "zeroline_color": "rgba(160, 126, 214, 0.55)",
-  },
-  "midnight": {**DARK_CHROME, "text_color": "#e0e0ff"},
-  "win95": {**LIGHT_CHROME, "text_color": "#000000"},
-  "hangover": LIGHT_CHROME,
-  "nord": {
-    **DARK_CHROME,
-    "text_color": "#eceff4",
-    "grid_color": "rgba(216, 222, 233, 0.16)",
-    "zeroline_color": "rgba(136, 192, 208, 0.5)",
-  },
-  "solarized_light": {
-    **LIGHT_CHROME,
-    "text_color": "#586e75",
-    "grid_color": "rgba(88, 110, 117, 0.16)",
-    "zeroline_color": "rgba(38, 139, 210, 0.45)",
-  },
-  "solarized_dark": {
-    **DARK_CHROME,
-    "text_color": "#93a1a1",
-    "grid_color": "rgba(147, 161, 161, 0.18)",
-    "zeroline_color": "rgba(38, 139, 210, 0.55)",
-  },
-  "blueprint": {
-    **DARK_CHROME,
-    "text_color": "#e8f2ff",
-    "grid_color": "rgba(198, 224, 255, 0.22)",
-    "zeroline_color": "rgba(79, 195, 247, 0.6)",
-  },
-  "high_contrast": {
-    **DARK_CHROME,
-    "text_color": "#ffffff",
-    "grid_color": "rgba(255, 255, 255, 0.45)",
-    "zeroline_color": "#ffffff",
-  },
-  # "legacy": LIGHT_CHROME,
-}
-
-DARK_THEMES = {name for name, chrome in APP_THEME_CHROME.items() if chrome["dark"]}
+# Re-exported: the defaults a theme's header overrides, and what an unknown
+# theme name gets.
+LIGHT_CHROME = themes.LIGHT_CHROME
+DARK_CHROME = themes.DARK_CHROME
 
 
 def get_chrome(app_theme):
   """Plot chrome (text/grid colors, dark flag) for an app theme name."""
-  return APP_THEME_CHROME.get(str(app_theme), LIGHT_CHROME)
+  theme = themes.get(str(app_theme))
+  if theme is None:
+    return LIGHT_CHROME
+  return theme.chrome
 
 
 def is_dark(app_theme):
   return get_chrome(app_theme)["dark"]
+
+
+def dark_themes():
+  """The names of every dark theme, builtin or user-defined."""
+  return {name for name, theme in themes.discover().items() if theme.dark}

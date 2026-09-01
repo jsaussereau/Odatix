@@ -1,0 +1,90 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Galaxy
+ * dark: true
+ * plot-text-color: #f8f3ff
+ * plot-grid-color: rgba(240, 240, 240, 0.15)
+ * plot-zeroline-color: rgba(240, 240, 240, 0.4)
+ */
+
+.theme.galaxy {
+    /* theme */
+    --theme-background-color: #0b0716;
+    --theme-element-background-color: rgba(255, 255, 255, 0.1);
+    --theme-dimmed-element-background-color: rgba(255,255,255,0.02);
+    --theme-action-color: #7A5CFF;
+    --theme-primary-color: #7A5CFF;
+    --theme-secondary-color: #7A5CFF;
+    --theme-tertiary-color: #dbd7ea24;
+    --theme-tertiary-color-light: #dbd7ea40;
+    --theme-disabled-color: #ddccf652;
+    --theme-success-color: #32d5a1;
+    --theme-warning-color: #ffb86b;
+    --theme-caution-color: #ff5c5c;
+    --theme-text-color: #f8f3ff;
+    --theme-text-shadow: 0 1px 3px rgba(0,0,0,0.7), 0 0 8px rgba(255,110,199,0.08);
+    --theme-border-color: rgba(255,255,255,0.06);
+    --theme-overlay-background-color: rgba(10,6,24,0.75);
+    --theme-contrast-background-color: #0b0720;
+
+    /* borders & radii */
+    --theme-border: 1px solid rgba(255,255,255,0.04);
+    --theme-large-border-radius: 20px;
+    --theme-normal-border-radius: 12px;
+    --theme-small-border-radius: 8px;
+
+    /* background */
+    --theme-background: no-repeat fixed;
+    --theme-background-image: linear-gradient(135deg, #12002b 0%, #2b0057 50%, #531f62 100%);
+    /* --theme-background: url("../nightsky.svg") no-repeat fixed center / cover; */
+
+    /* cards and tiles */
+    --add-card-background-hover: #7A5CFF3d;
+
+    /* buttons */
+    --default-button-icon-color: var(--theme-contrast-text-color);
+    --default-button-text-color: var(--theme-contrast-text-color);
+    --default-button-background: var(--theme-tertiary-color);
+    --back-button-color: var(--theme-disabled-color);
+
+    /* popups */
+    --popup-backdrop-filter: blur(24px);
+    --popup-background: rgba(181, 153, 191, 0.44);
+    --overlay-backdrop-filter: none;
+    --overlay-background: rgba(10, 6, 24, 0.40);
+
+    /* highlights */
+    --primary-highlight-color: var(--theme-primary-color);
+    --primary-highlight-text-color: var(--theme-contrast-text-color);
+    --secondary-highlight-color: var(--theme-warning-color);
+
+    /* progress bars */
+    --progress-bar-background-color: #bda9f454;
+    --progress-bar-background-color-hover: #bda9f454;
+    --progress-bar-background-color-selected: #bda9f454;
+
+    /* monitor */
+    --terminal-background-color: #0b07161f;
+    --task-background-color: transparent;
+}

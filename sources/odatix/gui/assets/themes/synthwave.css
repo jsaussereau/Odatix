@@ -1,0 +1,292 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Synthwave
+ * dark: true
+ * plot-text-color: #eef0ff
+ * plot-grid-color: rgba(143, 123, 255, 0.25)
+ * plot-zeroline-color: rgba(78, 226, 255, 0.5)
+ */
+
+.theme.synthwave {
+    --sw-pink: #ff3d9a;
+    --sw-cyan: #43b9cf;
+    --sw-purple: #8f7bff;
+    --sw-amber: #ffb547;
+    --sw-deep: #14152e;
+    --sw-surface: #1d1e3d;
+
+    /* theme */
+    --theme-background-color: var(--sw-deep);
+    --theme-element-background-color: rgba(29, 30, 61, 0.88);
+    --theme-dimmed-element-background-color: rgba(255, 255, 255, 0.04);
+    --theme-action-color: var(--sw-pink);
+    --theme-primary-color: var(--sw-pink);
+    --theme-secondary-color: var(--sw-cyan);
+    --theme-tertiary-color: rgba(143, 123, 255, 0.24);
+    --theme-tertiary-color-light: rgba(143, 123, 255, 0.4);
+    --theme-disabled-color: #7d7aa87a;
+    --theme-running-color: var(--sw-cyan);
+    --theme-success-color: #2bf0b0;
+    --theme-warning-color: var(--sw-amber);
+    --theme-caution-color: #ff4f6d;
+    --theme-pending-color: var(--sw-purple);
+    --theme-pause-color: #7d7aa87a;
+    --theme-text-color: #eef0ff;
+    --theme-subtle-text-color: #9b9ccb;
+    --theme-text-shadow: none;
+    --theme-contrast-background-color: #0e0f22;
+    --theme-contrast-text-color: #eef0ff;
+    --theme-shadow-color: rgba(6, 6, 20, 0.6);
+    --theme-overlay-background-color: rgba(14, 15, 34, 0.75);
+    --theme-badge-background-color: rgba(255, 61, 154, 0.16);
+    --theme-badge-text-color: #ff9ac9;
+
+    /* borders & radii */
+    --theme-border-color: rgba(143, 123, 255, 0.28);
+    --theme-border-style: 1px solid;
+    --theme-border: 1px solid rgba(143, 123, 255, 0.28);
+    --theme-border-color-hover: var(--sw-cyan);
+    --theme-large-border-radius: 18px;
+    --theme-normal-border-radius: 12px;
+    --theme-small-border-radius: 8px;
+
+    --theme-background: var(--sw-deep);
+    --theme-background-image:
+        /* star field: three sparse layers of dots */
+        radial-gradient(1.4px 1.4px at 12% 18%, rgba(255, 255, 255, 0.85) 50%, rgba(0, 0, 0, 0) 51%),
+        radial-gradient(1.2px 1.2px at 27% 62%, rgba(255, 255, 255, 0.6) 50%, rgba(0, 0, 0, 0) 51%),
+        radial-gradient(1.6px 1.6px at 41% 9%, rgba(255, 255, 255, 0.75) 50%, rgba(0, 0, 0, 0) 51%),
+        radial-gradient(1.1px 1.1px at 58% 34%, rgba(255, 255, 255, 0.55) 50%, rgba(0, 0, 0, 0) 51%),
+        radial-gradient(1.5px 1.5px at 73% 71%, rgba(255, 255, 255, 0.7) 50%, rgba(0, 0, 0, 0) 51%),
+        radial-gradient(1.2px 1.2px at 88% 27%, rgba(255, 255, 255, 0.6) 50%, rgba(0, 0, 0, 0) 51%),
+        radial-gradient(1.3px 1.3px at 6% 82%, rgba(255, 255, 255, 0.5) 50%, rgba(0, 0, 0, 0) 51%),
+        radial-gradient(1.4px 1.4px at 94% 55%, rgba(255, 255, 255, 0.65) 50%, rgba(0, 0, 0, 0) 51%),
+        /* nebulae, so the frosted panels have something to blur */
+        radial-gradient(ellipse 900px 520px at 18% 30%,
+            rgba(255, 61, 154, 0.13) 0%, rgba(255, 61, 154, 0) 70%),
+        radial-gradient(ellipse 760px 460px at 84% 68%,
+            rgba(78, 226, 255, 0.11) 0%, rgba(78, 226, 255, 0) 70%),
+        radial-gradient(ellipse 700px 420px at 46% 88%,
+            rgba(143, 123, 255, 0.14) 0%, rgba(143, 123, 255, 0) 70%),
+        linear-gradient(180deg,
+            #12132b 0%, #1a1a3a 38%, #241d48 70%, #2a1c4a 100%);
+    --theme-background-repeat: repeat, repeat, repeat, repeat, repeat, repeat, repeat, repeat,
+        no-repeat, no-repeat, no-repeat, no-repeat;
+    --theme-background-size:
+        420px 380px, 320px 290px, 500px 460px, 380px 340px,
+        460px 410px, 350px 330px, 540px 480px, 400px 360px,
+        100% 100%, 100% 100%, 100% 100%, 100% 100%;
+
+    /* navbar */
+    --navbar-background: rgba(14, 15, 34, 0.88);
+
+    /* cards and tiles */
+    --card-background: rgba(29, 30, 61, 0.55);
+    --card-border: 1px solid rgba(143, 123, 255, 0.26);
+    --card-backdrop-filter: blur(16px) saturate(1.3);
+    --card-box-shadow: 0 10px 30px rgba(5, 5, 18, 0.55);
+    --card-hover-box-shadow: 0 0 0 1px rgba(78, 226, 255, 0.35), 0 12px 32px rgba(5, 5, 18, 0.65);
+    --card-hover-transform: translateY(-3px);
+    --tile-hover-box-shadow: var(--card-hover-box-shadow);
+    --tile-hover-transform: translateY(-3px);
+    --add-card-background: var(--theme-dimmed-element-background-color);
+    --add-card-background-hover: rgba(143, 123, 255, 0.14);
+    --add-card-border: 1px dashed rgba(78, 226, 255, 0.35);
+
+    /* buttons */
+    --button-shadow-color: rgba(255, 61, 154, 0.3);
+    --button-background: rgba(255, 255, 255, 0.05);
+    --default-button-background: rgba(255, 255, 255, 0.05);
+    --default-button-icon-color: var(--theme-text-color);
+    --default-button-text-color: var(--theme-text-color);
+    --default-button-border: 1px solid rgba(143, 123, 255, 0.32);
+    --default-button-border-hover: 1px solid var(--sw-cyan);
+    --default-button-box-shadow-hover: 0 0 12px rgba(78, 226, 255, 0.35);
+    --primary-button-background: linear-gradient(100deg, var(--sw-pink), var(--sw-purple));
+    --primary-button-box-shadow: 0 0 10px rgba(255, 61, 154, 0.35);
+    --primary-button-box-shadow-hover: 0 0 18px rgba(255, 61, 154, 0.55);
+    --back-button-color: var(--theme-subtle-text-color);
+
+    /* inputs and textareas */
+    --input-background: rgba(12, 13, 30, 0.5);
+    --textarea-background: rgba(12, 13, 30, 0.5);
+
+    /* dropdowns */
+    --dropdown-background: rgba(26, 27, 55, 0.97);
+    --dropdown-menu-background: rgba(26, 27, 55, 0.98);
+    --navbar-dropdown-background: rgba(18, 19, 42, 0.98);
+
+    /* popups */
+    --popup-background: rgba(26, 27, 55, 0.92);
+    --popup-backdrop-filter: blur(18px);
+    --overlay-background: rgba(10, 10, 26, 0.6);
+
+    /* tooltips */
+    --default-tooltip-background: #232449;
+    --default-tooltip-text-color: var(--theme-text-color);
+
+    /* highlights */
+    --primary-highlight-color: var(--sw-pink);
+    --primary-highlight-text-color: #ffffff;
+    --secondary-highlight-color: var(--sw-cyan);
+
+    /* progress bars */
+    --progress-bar-background-color: rgba(255, 255, 255, 0.08);
+    --progress-bar-background-color-hover: rgba(255, 255, 255, 0.12);
+    --progress-bar-background-color-selected: rgba(255, 255, 255, 0.12);
+
+    /* monitor */
+    --terminal-background-color: rgba(10, 10, 26, 0.2);
+    --task-background-color: transparent;
+
+    /* neon glow reserved for page titles, not every heading */
+    --page-title-color: #ffffff;
+    --page-title-text-shadow:
+        0 0 10px rgba(255, 61, 154, 0.55),
+        0 0 26px rgba(255, 61, 154, 0.3);
+
+    /* section captions read as neon labels instead of dimmed grey */
+    --section-caption-color: var(--sw-cyan);
+    --section-caption-opacity: 0.95;
+    --label-text-color: #d6d8f5;
+
+    /* breathing neon edge on hovered cards */
+    --card-hover-animation: synthwave-pulse 2.6s ease-in-out infinite;
+
+    /* inputs glow when focused */
+    --input-focus-border-color: var(--sw-cyan);
+    --input-focus-box-shadow: 0 0 0 1px rgba(78, 226, 255, 0.35);
+    --input-focus-outline: none;
+
+    /* thin neon edge under the navbar */
+    --navbar-border-bottom: 1px solid rgba(255, 61, 154, 0.35);
+    --navbar-box-shadow: 0 2px 18px rgba(5, 5, 18, 0.5);
+    --navbar-backdrop-filter: var(--card-backdrop-filter);
+
+    /* nested panels */
+    --panel-background: rgba(29, 30, 61, 0.5);
+    --panel-border-color: rgba(143, 123, 255, 0.22);
+}
+
+.theme.synthwave .content {
+    position: relative;
+}
+
+.theme.synthwave .content > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* neon grid receding to the horizon, pinned to the bottom of the viewport */
+.theme.synthwave .content::before {
+    content: "";
+    position: fixed;
+    left: -100%;
+    bottom: 0;
+    width: 300%;
+    height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+        repeating-linear-gradient(90deg,
+            rgba(78, 226, 255, 0.85) 0 5px, rgba(0, 0, 0, 0) 5px 125px),
+        repeating-linear-gradient(180deg,
+            rgba(255, 61, 154, 0.75) 0 10px, rgba(0, 0, 0, 0) 10px 100px);
+    background-size: 125px 125px, 100% 100px;
+    transform: perspective(75vh) rotateX(56deg);
+    transform-origin: 50% 100%;
+    mask-image:
+        linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 18%, #000 34%, #000 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000 20%, #000 86%, rgba(0, 0, 0, 0) 100%);
+    -webkit-mask-image:
+        linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 18%, #000 34%, #000 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000 20%, #000 86%, rgba(0, 0, 0, 0) 100%);
+    mask-composite: intersect;
+    -webkit-mask-composite: source-in;
+    opacity: 0.7;
+    will-change: background-position;
+    animation: synthwave-grid 1.5s linear infinite;
+}
+
+/* sun, skyline and horizon, stacked just above the grid */
+.theme.synthwave .content::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 24vh;
+    height: 420px;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+        /* city skyline sitting on the horizon */
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 200' preserveAspectRatio='none'%3E%3Cg fill='%23180f36'%3E%3Crect x='0' y='166' width='18' height='34'/%3E%3Crect x='21' y='170' width='9' height='30'/%3E%3Crect x='35' y='148' width='11' height='52'/%3E%3Crect x='51' y='116' width='9' height='84'/%3E%3Crect x='60' y='170' width='9' height='30'/%3E%3Crect x='72' y='170' width='20' height='30'/%3E%3Crect x='92' y='116' width='11' height='84'/%3E%3Crect x='106' y='100' width='9' height='100'/%3E%3Crect x='109' y='82' width='3' height='18'/%3E%3Crect x='122' y='100' width='9' height='100'/%3E%3Crect x='131' y='176' width='14' height='24'/%3E%3Crect x='150' y='154' width='13' height='46'/%3E%3Crect x='166' y='116' width='13' height='84'/%3E%3Crect x='179' y='116' width='16' height='84'/%3E%3Crect x='202' y='170' width='13' height='30'/%3E%3Crect x='220' y='148' width='14' height='52'/%3E%3Crect x='234' y='60' width='25' height='140'/%3E%3Crect x='245' y='42' width='3' height='18'/%3E%3Crect x='264' y='130' width='14' height='70'/%3E%3Crect x='285' y='140' width='25' height='60'/%3E%3Crect x='312' y='100' width='22' height='100'/%3E%3Crect x='336' y='160' width='16' height='40'/%3E%3Crect x='352' y='170' width='14' height='30'/%3E%3Crect x='371' y='116' width='16' height='84'/%3E%3Crect x='390' y='60' width='18' height='140'/%3E%3Crect x='398' y='26' width='3' height='34'/%3E%3Crect x='408' y='116' width='11' height='84'/%3E%3Crect x='422' y='40' width='13' height='160'/%3E%3Crect x='427' y='14' width='3' height='26'/%3E%3Crect x='438' y='82' width='9' height='118'/%3E%3Crect x='441' y='48' width='3' height='34'/%3E%3Crect x='452' y='148' width='18' height='52'/%3E%3Crect x='477' y='100' width='18' height='100'/%3E%3Crect x='485' y='74' width='3' height='26'/%3E%3Crect x='495' y='154' width='11' height='46'/%3E%3Crect x='509' y='176' width='11' height='24'/%3E%3Crect x='527' y='82' width='16' height='118'/%3E%3Crect x='550' y='154' width='22' height='46'/%3E%3Crect x='579' y='82' width='20' height='118'/%3E%3Crect x='588' y='56' width='3' height='26'/%3E%3Crect x='601' y='100' width='13' height='100'/%3E%3Crect x='606' y='82' width='3' height='18'/%3E%3Crect x='614' y='166' width='16' height='34'/%3E%3Crect x='637' y='140' width='14' height='60'/%3E%3Crect x='654' y='170' width='22' height='30'/%3E%3Crect x='676' y='140' width='22' height='60'/%3E%3Crect x='703' y='166' width='16' height='34'/%3E%3Crect x='722' y='154' width='25' height='46'/%3E%3Crect x='754' y='148' width='20' height='52'/%3E%3Crect x='781' y='160' width='20' height='40'/%3E%3Crect x='801' y='166' width='11' height='34'/%3E%3Crect x='812' y='82' width='14' height='118'/%3E%3Crect x='818' y='56' width='3' height='26'/%3E%3Crect x='831' y='154' width='13' height='46'/%3E%3Crect x='846' y='166' width='9' height='34'/%3E%3Crect x='858' y='148' width='25' height='52'/%3E%3Crect x='888' y='166' width='18' height='34'/%3E%3Crect x='913' y='100' width='25' height='100'/%3E%3Crect x='945' y='130' width='9' height='70'/%3E%3Crect x='961' y='140' width='25' height='60'/%3E%3Crect x='989' y='140' width='20' height='60'/%3E%3Crect x='1009' y='82' width='22' height='118'/%3E%3Crect x='1019' y='64' width='3' height='18'/%3E%3Crect x='1031' y='130' width='14' height='70'/%3E%3Crect x='1045' y='148' width='11' height='52'/%3E%3Crect x='1061' y='170' width='9' height='30'/%3E%3Crect x='1070' y='116' width='13' height='84'/%3E%3Crect x='1083' y='100' width='18' height='100'/%3E%3Crect x='1091' y='82' width='3' height='18'/%3E%3Crect x='1106' y='166' width='20' height='34'/%3E%3Crect x='1133' y='148' width='16' height='52'/%3E%3Crect x='1154' y='130' width='18' height='70'/%3E%3Crect x='1172' y='130' width='11' height='70'/%3E%3Crect x='1186' y='130' width='14' height='70'/%3E%3C/g%3E%3C/svg%3E"),
+        /* mountain ridge, behind the city */
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 160' preserveAspectRatio='none'%3E%3Cpath d='M0 160 L0 96 L70 44 L130 92 L190 60 L250 110 L310 74 L380 128 L430 100 L470 130 L520 108 L560 138 L1200 138 L1200 160 Z' fill='%23241a4a'/%3E%3Cpath d='M1200 160 L1200 88 L1130 40 L1070 96 L1010 66 L950 116 L890 86 L830 130 L780 106 L740 134 L700 118 L660 140 L600 140 L600 160 Z' fill='%23241a4a'/%3E%3C/svg%3E"),
+        /* the sun */
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff27a'/%3E%3Cstop offset='0.42' stop-color='%23ffab4d'/%3E%3Cstop offset='1' stop-color='%23ff2e88'/%3E%3C/linearGradient%3E%3Cmask id='m'%3E%3Crect width='200' height='200' fill='%23fff'/%3E%3Crect y='116' width='200' height='3' fill='%23000'/%3E%3Crect y='129' width='200' height='5' fill='%23000'/%3E%3Crect y='144' width='200' height='7' fill='%23000'/%3E%3Crect y='161' width='200' height='10' fill='%23000'/%3E%3Crect y='181' width='200' height='14' fill='%23000'/%3E%3C/mask%3E%3C/defs%3E%3Ccircle cx='100' cy='100' r='96' fill='url(%23g)' mask='url(%23m)'/%3E%3C/svg%3E"),
+        /* halo behind the sun */
+        radial-gradient(ellipse 420px 220px at 50% 100%,
+            rgba(255, 90, 160, 0.3) 0%,
+            rgba(255, 61, 154, 0.1) 50%,
+            rgba(255, 61, 154, 0) 75%),
+        /* the horizon line itself, fading out towards the sides */
+        linear-gradient(90deg,
+            rgba(255, 122, 186, 0) 0%,
+            rgba(255, 150, 205, 0.6) 30%,
+            rgba(255, 200, 230, 0.85) 50%,
+            rgba(255, 150, 205, 0.6) 70%,
+            rgba(255, 122, 186, 0) 100%);
+    background-repeat: repeat-x, repeat-x, no-repeat, no-repeat, no-repeat;
+    background-size:
+        1200px 100px,
+        1600px 110px,
+        280px 280px,
+        100% 100%,
+        100% 2px;
+    background-position:
+        center bottom,
+        center bottom,
+        center bottom -45px,
+        center bottom,
+        bottom left;
+}
+
+@keyframes synthwave-grid {
+    from {
+        background-position: 0 0, 0 0;
+    }
+    to {
+        background-position: 0 0, 0 100px;
+    }
+}
+
+@keyframes synthwave-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 1px rgba(255, 61, 154, 0.3), 0 10px 30px rgba(5, 5, 18, 0.55);
+    }
+    50% {
+        box-shadow: 0 0 0 1px rgba(78, 226, 255, 0.45), 0 10px 30px rgba(5, 5, 18, 0.55);
+    }
+}

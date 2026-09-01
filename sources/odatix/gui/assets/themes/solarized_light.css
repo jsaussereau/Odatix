@@ -1,0 +1,113 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Solarized Light
+ * dark: false
+ * plot-text-color: #586e75
+ * plot-grid-color: rgba(88, 110, 117, 0.16)
+ * plot-zeroline-color: rgba(38, 139, 210, 0.45)
+ */
+
+/* Ethan Schoonover's Solarized palette, shared by both variants below */
+.theme[class~="solarized_light"] {
+    --sol-base03: #002b36;
+    --sol-base02: #073642;
+    --sol-base01: #586e75;
+    --sol-base00: #657b83;
+    --sol-base0: #839496;
+    --sol-base1: #93a1a1;
+    --sol-base2: #eee8d5;
+    --sol-base3: #fdf6e3;
+    --sol-yellow: #b58900;
+    --sol-orange: #cb4b16;
+    --sol-red: #dc322f;
+    --sol-magenta: #d33682;
+    --sol-violet: #6c71c4;
+    --sol-blue: #268bd2;
+    --sol-cyan: #2aa198;
+    --sol-green: #859900;
+
+    /* terminal colors */
+    --terminal-black: var(--sol-base02);
+    --terminal-red: var(--sol-red);
+    --terminal-green: var(--sol-green);
+    --terminal-yellow: var(--sol-yellow);
+    --terminal-blue: var(--sol-blue);
+    --terminal-magenta: var(--sol-magenta);
+    --terminal-cyan: var(--sol-cyan);
+    --terminal-white: var(--sol-base2);
+    --terminal-bright-black: var(--sol-base01);
+    --terminal-bright-red: var(--sol-orange);
+    --terminal-bright-green: var(--sol-base01);
+    --terminal-bright-yellow: var(--sol-base00);
+    --terminal-bright-blue: var(--sol-base0);
+    --terminal-bright-magenta: var(--sol-violet);
+    --terminal-bright-cyan: var(--sol-base1);
+    --terminal-bright-white: var(--sol-base3);
+}
+
+.theme.solarized_light {
+    /* theme */
+    --theme-background-color: var(--sol-base3);
+    --theme-element-background-color: #fffaf0;
+    --theme-action-color: var(--sol-base2);
+    --theme-primary-color: var(--sol-blue);
+    --theme-secondary-color: var(--sol-cyan);
+    --theme-tertiary-color: var(--sol-base2);
+    --theme-tertiary-color-light: #eee8d590;
+    --theme-disabled-color: #93a1a1cc;
+    --theme-disabled-background-color: #eee8d5;
+    --theme-success-color: var(--sol-green);
+    --theme-warning-color: var(--sol-orange);
+    --theme-caution-color: var(--sol-red);
+    --theme-pending-color: var(--sol-cyan);
+    --theme-text-color: var(--sol-base01);
+    --theme-subtle-text-color: var(--sol-base1);
+    --theme-border-color: #ded7c2;
+    --theme-border-color-hover: var(--sol-base01);
+    --theme-contrast-background-color: var(--sol-base02);
+    --theme-contrast-text-color: var(--sol-base2);
+    --theme-contrast-text-shadow: none;
+    --theme-shadow-color: rgba(88, 110, 117, 0.12);
+    --theme-overlay-background-color: #0736423d;
+    --theme-badge-background-color: #268bd21a;
+    --theme-badge-text-color: var(--sol-blue);
+
+    /* cards and tiles */
+    --card-border: 1px solid #e3dcc7;
+    --add-card-border: 1px dashed #ccc4ad;
+    --add-card-background-hover: #268bd214;
+
+    /* buttons */
+    --back-button-color: var(--sol-base1);
+
+    /* switch */
+    --switch-on-background: #268bd214;
+
+    /* highlights */
+    --primary-highlight-color: #f5df9b;
+    --primary-highlight-text-color: var(--sol-base01);
+    --primary-highlight-text-shadow: none;
+    --secondary-highlight-color: var(--sol-blue);
+    --secondary-highlight-text-shadow: none;
+}

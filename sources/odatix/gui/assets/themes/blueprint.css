@@ -1,0 +1,151 @@
+/* /**********************************************************************\
+*                                Odatix                                *
+************************************************************************
+*
+* Copyright (C) 2022 Jonathan Saussereau
+*
+* This file is part of Odatix.
+* Odatix is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+* 
+* Odatix is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+*
+*/
+
+/* odatix-theme
+ * name: Blueprint
+ * dark: true
+ * plot-text-color: #e8f2ff
+ * plot-grid-color: rgba(198, 224, 255, 0.22)
+ * plot-zeroline-color: rgba(79, 195, 247, 0.6)
+ */
+
+.theme.blueprint {
+    --bp-ink: #0d2b52;
+    --bp-ink-deep: #091f3d;
+    --bp-paper: #123566;
+    --bp-line: rgba(198, 224, 255, 0.28);
+    --bp-line-strong: rgba(198, 224, 255, 0.5);
+    --bp-chalk: #e8f2ff;
+    --bp-chalk-dim: #a8c4e6;
+    --bp-cyan: #4fc3f7;
+    --bp-amber: #ffb648;
+
+    /* theme */
+    --theme-background-color: var(--bp-ink);
+    /* drafting grid: 10px minor squares over 50px major ones */
+    --theme-background-image:
+        linear-gradient(rgba(198, 224, 255, 0.14) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(198, 224, 255, 0.14) 1px, transparent 1px),
+        linear-gradient(rgba(198, 224, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(198, 224, 255, 0.06) 1px, transparent 1px);
+    --theme-background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+    --theme-element-background-color: rgba(18, 53, 102, 0.82);
+    --theme-dimmed-element-background-color: rgba(18, 53, 102, 0.35);
+    --theme-action-color: rgba(198, 224, 255, 0.16);
+    --theme-primary-color: var(--bp-cyan);
+    --theme-secondary-color: var(--bp-cyan);
+    --theme-tertiary-color: rgba(9, 31, 61, 0.6);
+    --theme-tertiary-color-light: rgba(9, 31, 61, 0.35);
+    --theme-disabled-color: #6d8db3;
+    --theme-disabled-background-color: rgba(9, 31, 61, 0.5);
+    --theme-success-color: #6ee7a8;
+    --theme-warning-color: var(--bp-amber);
+    --theme-caution-color: #ff7a7a;
+    --theme-pending-color: var(--bp-cyan);
+    --theme-text-color: var(--bp-chalk);
+    --theme-subtle-text-color: var(--bp-chalk-dim);
+    --theme-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --theme-border-color: var(--bp-line);
+    --theme-border-color-hover: var(--bp-line-strong);
+    --theme-large-border-color: var(--bp-line);
+    --theme-overlay-background-color: rgba(9, 31, 61, 0.55);
+    --theme-contrast-background-color: var(--bp-ink-deep);
+    --theme-contrast-text-color: var(--bp-chalk);
+    --theme-contrast-text-shadow: none;
+    --theme-shadow-color: rgba(3, 12, 26, 0.45);
+    --theme-badge-background-color: rgba(79, 195, 247, 0.14);
+    --theme-badge-text-color: var(--bp-cyan);
+
+    /* drafting look: sharp corners, thin ink lines */
+    --theme-large-border-radius: 2px;
+    --theme-normal-border-radius: 2px;
+    --theme-small-border-radius: 2px;
+    --page-title-letter-spacing: 0.06em;
+
+    /* panels, cards and tiles */
+    --panel-border-color: var(--bp-line);
+    --panel-backdrop-filter: blur(2px);
+    --card-border: 1px solid var(--bp-line);
+    --card-border-hover: 1px solid var(--bp-line-strong);
+    --card-box-shadow: none;
+    --card-hover-box-shadow: 0 0 0 1px var(--bp-line-strong);
+    --card-hover-transform: none;
+    --card-backdrop-filter: blur(2px);
+    --add-card-border: 1px dashed var(--bp-line-strong);
+    --add-card-background-hover: rgba(79, 195, 247, 0.12);
+
+    /* buttons */
+    --button-box-shadow: none;
+    --default-button-border: 1px solid var(--bp-line-strong);
+    --primary-button-background: rgba(79, 195, 247, 0.18);
+    --primary-button-border: 1px solid var(--bp-cyan);
+    --primary-button-icon-color: var(--bp-cyan);
+    --primary-button-text-color: var(--bp-cyan);
+    --primary-button-background-hover: var(--bp-cyan);
+    --primary-button-border-hover: 1px solid var(--bp-cyan);
+    --primary-button-icon-color-hover: var(--bp-ink-deep);
+    --primary-button-text-color-hover: var(--bp-ink-deep);
+    --warning-button-icon-color: var(--bp-ink-deep);
+    --warning-button-text-color: var(--bp-ink-deep);
+    --back-button-color: var(--bp-chalk-dim);
+
+    /* inputs */
+    --input-background: rgba(9, 31, 61, 0.55);
+    --input-border: 1px solid var(--bp-line);
+
+    /* switch */
+    --switch-on-background: rgba(79, 195, 247, 0.14);
+
+    /* highlights */
+    --primary-highlight-color: var(--bp-amber);
+    --primary-highlight-text-color: var(--bp-ink-deep);
+    --primary-highlight-text-shadow: none;
+    --secondary-highlight-color: var(--bp-cyan);
+    --secondary-highlight-text-shadow: none;
+
+    /* progress bars */
+    --progress-bar-box-shadow: none;
+    --progress-bar-background-color: var(--bp-ink-deep);
+    --progress-bar-background-color-hover: var(--bp-ink-deep);
+    --progress-bar-background-color-selected: var(--bp-ink-deep);
+
+    /* monitor */
+    --terminal-background-color: var(--bp-ink-deep);
+
+    /* terminal colors */
+    --terminal-black: var(--bp-ink-deep);
+    --terminal-red: #ff7a7a;
+    --terminal-green: #6ee7a8;
+    --terminal-yellow: var(--bp-amber);
+    --terminal-blue: var(--bp-cyan);
+    --terminal-magenta: #d7a3ff;
+    --terminal-cyan: #7fe3f0;
+    --terminal-white: var(--bp-chalk);
+    --terminal-bright-black: #6d8db3;
+    --terminal-bright-red: #ff9b9b;
+    --terminal-bright-green: #96f3c4;
+    --terminal-bright-yellow: #ffd08a;
+    --terminal-bright-blue: #8fd8ff;
+    --terminal-bright-magenta: #e9c6ff;
+    --terminal-bright-cyan: #b3f0f7;
+    --terminal-bright-white: #ffffff;
+}
