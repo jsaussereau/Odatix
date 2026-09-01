@@ -1493,15 +1493,6 @@ button.tooltip {
     display: none;
 }
 
-/* Line-art icons are stroked with currentColor, so color is driven via
-   `color` (not `fill`); a bare `.icon` shows no fill. */
-.icon {
-    fill: none;
-}
-/* Solid (filled) icons: paint with currentColor instead of stroking. */
-.icon.solid {
-    fill: currentColor;
-}
 .icon.black {
     color: #24292e;
 }
@@ -2591,7 +2582,6 @@ input[type="checkbox"] {
     background: color-mix(in srgb, var(--theme-primary-color) 14%, transparent);
     box-shadow: 0 0 0 8px color-mix(in srgb, var(--theme-primary-color) 7%, transparent);
 }
-.monitor-finished-badge .icon { stroke-width: 2.4; }
 .monitor-finished-badge.success {
     color: var(--theme-success-color);
     background: color-mix(in srgb, var(--theme-success-color) 14%, transparent);

@@ -1770,11 +1770,6 @@
         radial-gradient(1.2px 1.2px at 88% 27%, rgba(255, 255, 255, 0.6) 50%, rgba(0, 0, 0, 0) 51%),
         radial-gradient(1.3px 1.3px at 6% 82%, rgba(255, 255, 255, 0.5) 50%, rgba(0, 0, 0, 0) 51%),
         radial-gradient(1.4px 1.4px at 94% 55%, rgba(255, 255, 255, 0.65) 50%, rgba(0, 0, 0, 0) 51%),
-        /* distant planet */
-        radial-gradient(circle 260px at 72% 16%,
-            rgba(143, 123, 255, 0.22) 0%,
-            rgba(143, 123, 255, 0.10) 55%,
-            rgba(143, 123, 255, 0) 72%),
         /* nebulae, so the frosted panels have something to blur */
         radial-gradient(ellipse 900px 520px at 18% 30%,
             rgba(255, 61, 154, 0.13) 0%, rgba(255, 61, 154, 0) 70%),
@@ -1785,11 +1780,11 @@
         linear-gradient(180deg,
             #12132b 0%, #1a1a3a 38%, #241d48 70%, #2a1c4a 100%);
     --theme-background-repeat: repeat, repeat, repeat, repeat, repeat, repeat, repeat, repeat,
-        no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+        no-repeat, no-repeat, no-repeat, no-repeat;
     --theme-background-size:
         420px 380px, 320px 290px, 500px 460px, 380px 340px,
         460px 410px, 350px 330px, 540px 480px, 400px 360px,
-        100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+        100% 100%, 100% 100%, 100% 100%, 100% 100%;
 
     /* navbar */
     --navbar-background: rgba(14, 15, 34, 0.88);
@@ -1895,58 +1890,75 @@
 .theme.synthwave .content::before {
     content: "";
     position: fixed;
-    left: -25%;
+    left: -100%;
     bottom: 0;
-    width: 150%;
-    height: 30vh;
+    width: 300%;
+    height: 100vh;
     z-index: 0;
     pointer-events: none;
     background-image:
         repeating-linear-gradient(90deg,
-            rgba(78, 226, 255, 0.55) 0 1px, rgba(0, 0, 0, 0) 1px 72px),
+            rgba(78, 226, 255, 0.85) 0 5px, rgba(0, 0, 0, 0) 5px 125px),
         repeating-linear-gradient(180deg,
-            rgba(160, 130, 255, 0.45) 0 1px, rgba(0, 0, 0, 0) 1px 72px);
-    background-size: 72px 72px;
-    transform: perspective(34vh) rotateX(34deg);
+            rgba(255, 61, 154, 0.75) 0 10px, rgba(0, 0, 0, 0) 10px 100px);
+    background-size: 125px 125px, 100% 100px;
+    transform: perspective(75vh) rotateX(56deg);
     transform-origin: 50% 100%;
     mask-image:
-        linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, #000 55%, #000 100%),
-        linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000 22%, #000 78%, rgba(0, 0, 0, 0) 100%);
+        linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 18%, #000 34%, #000 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000 20%, #000 86%, rgba(0, 0, 0, 0) 100%);
     -webkit-mask-image:
-        linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, #000 55%, #000 100%),
-        linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000 22%, #000 78%, rgba(0, 0, 0, 0) 100%);
+        linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 18%, #000 34%, #000 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, #000 20%, #000 86%, rgba(0, 0, 0, 0) 100%);
     mask-composite: intersect;
     -webkit-mask-composite: source-in;
-    opacity: 0.4;
-    animation: synthwave-grid 2s linear infinite;
+    opacity: 0.7;
+    will-change: background-position;
+    animation: synthwave-grid 1.5s linear infinite;
 }
 
-/* horizon: a thin light line with a soft halo above it, no hard seam */
+/* sun, skyline and horizon, stacked just above the grid */
 .theme.synthwave .content::after {
     content: "";
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 30vh;
-    height: 160px;
+    bottom: 24vh;
+    height: 420px;
     z-index: 0;
     pointer-events: none;
     background-image:
+        /* city skyline sitting on the horizon */
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 200' preserveAspectRatio='none'%3E%3Cg fill='%23180f36'%3E%3Crect x='0' y='166' width='18' height='34'/%3E%3Crect x='21' y='170' width='9' height='30'/%3E%3Crect x='35' y='148' width='11' height='52'/%3E%3Crect x='51' y='116' width='9' height='84'/%3E%3Crect x='60' y='170' width='9' height='30'/%3E%3Crect x='72' y='170' width='20' height='30'/%3E%3Crect x='92' y='116' width='11' height='84'/%3E%3Crect x='106' y='100' width='9' height='100'/%3E%3Crect x='109' y='82' width='3' height='18'/%3E%3Crect x='122' y='100' width='9' height='100'/%3E%3Crect x='131' y='176' width='14' height='24'/%3E%3Crect x='150' y='154' width='13' height='46'/%3E%3Crect x='166' y='116' width='13' height='84'/%3E%3Crect x='179' y='116' width='16' height='84'/%3E%3Crect x='202' y='170' width='13' height='30'/%3E%3Crect x='220' y='148' width='14' height='52'/%3E%3Crect x='234' y='60' width='25' height='140'/%3E%3Crect x='245' y='42' width='3' height='18'/%3E%3Crect x='264' y='130' width='14' height='70'/%3E%3Crect x='285' y='140' width='25' height='60'/%3E%3Crect x='312' y='100' width='22' height='100'/%3E%3Crect x='336' y='160' width='16' height='40'/%3E%3Crect x='352' y='170' width='14' height='30'/%3E%3Crect x='371' y='116' width='16' height='84'/%3E%3Crect x='390' y='60' width='18' height='140'/%3E%3Crect x='398' y='26' width='3' height='34'/%3E%3Crect x='408' y='116' width='11' height='84'/%3E%3Crect x='422' y='40' width='13' height='160'/%3E%3Crect x='427' y='14' width='3' height='26'/%3E%3Crect x='438' y='82' width='9' height='118'/%3E%3Crect x='441' y='48' width='3' height='34'/%3E%3Crect x='452' y='148' width='18' height='52'/%3E%3Crect x='477' y='100' width='18' height='100'/%3E%3Crect x='485' y='74' width='3' height='26'/%3E%3Crect x='495' y='154' width='11' height='46'/%3E%3Crect x='509' y='176' width='11' height='24'/%3E%3Crect x='527' y='82' width='16' height='118'/%3E%3Crect x='550' y='154' width='22' height='46'/%3E%3Crect x='579' y='82' width='20' height='118'/%3E%3Crect x='588' y='56' width='3' height='26'/%3E%3Crect x='601' y='100' width='13' height='100'/%3E%3Crect x='606' y='82' width='3' height='18'/%3E%3Crect x='614' y='166' width='16' height='34'/%3E%3Crect x='637' y='140' width='14' height='60'/%3E%3Crect x='654' y='170' width='22' height='30'/%3E%3Crect x='676' y='140' width='22' height='60'/%3E%3Crect x='703' y='166' width='16' height='34'/%3E%3Crect x='722' y='154' width='25' height='46'/%3E%3Crect x='754' y='148' width='20' height='52'/%3E%3Crect x='781' y='160' width='20' height='40'/%3E%3Crect x='801' y='166' width='11' height='34'/%3E%3Crect x='812' y='82' width='14' height='118'/%3E%3Crect x='818' y='56' width='3' height='26'/%3E%3Crect x='831' y='154' width='13' height='46'/%3E%3Crect x='846' y='166' width='9' height='34'/%3E%3Crect x='858' y='148' width='25' height='52'/%3E%3Crect x='888' y='166' width='18' height='34'/%3E%3Crect x='913' y='100' width='25' height='100'/%3E%3Crect x='945' y='130' width='9' height='70'/%3E%3Crect x='961' y='140' width='25' height='60'/%3E%3Crect x='989' y='140' width='20' height='60'/%3E%3Crect x='1009' y='82' width='22' height='118'/%3E%3Crect x='1019' y='64' width='3' height='18'/%3E%3Crect x='1031' y='130' width='14' height='70'/%3E%3Crect x='1045' y='148' width='11' height='52'/%3E%3Crect x='1061' y='170' width='9' height='30'/%3E%3Crect x='1070' y='116' width='13' height='84'/%3E%3Crect x='1083' y='100' width='18' height='100'/%3E%3Crect x='1091' y='82' width='3' height='18'/%3E%3Crect x='1106' y='166' width='20' height='34'/%3E%3Crect x='1133' y='148' width='16' height='52'/%3E%3Crect x='1154' y='130' width='18' height='70'/%3E%3Crect x='1172' y='130' width='11' height='70'/%3E%3Crect x='1186' y='130' width='14' height='70'/%3E%3C/g%3E%3C/svg%3E"),
+        /* mountain ridge, behind the city */
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 160' preserveAspectRatio='none'%3E%3Cpath d='M0 160 L0 96 L70 44 L130 92 L190 60 L250 110 L310 74 L380 128 L430 100 L470 130 L520 108 L560 138 L1200 138 L1200 160 Z' fill='%23241a4a'/%3E%3Cpath d='M1200 160 L1200 88 L1130 40 L1070 96 L1010 66 L950 116 L890 86 L830 130 L780 106 L740 134 L700 118 L660 140 L600 140 L600 160 Z' fill='%23241a4a'/%3E%3C/svg%3E"),
+        /* the sun */
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff27a'/%3E%3Cstop offset='0.42' stop-color='%23ffab4d'/%3E%3Cstop offset='1' stop-color='%23ff2e88'/%3E%3C/linearGradient%3E%3Cmask id='m'%3E%3Crect width='200' height='200' fill='%23fff'/%3E%3Crect y='116' width='200' height='3' fill='%23000'/%3E%3Crect y='129' width='200' height='5' fill='%23000'/%3E%3Crect y='144' width='200' height='7' fill='%23000'/%3E%3Crect y='161' width='200' height='10' fill='%23000'/%3E%3Crect y='181' width='200' height='14' fill='%23000'/%3E%3C/mask%3E%3C/defs%3E%3Ccircle cx='100' cy='100' r='96' fill='url(%23g)' mask='url(%23m)'/%3E%3C/svg%3E"),
+        /* halo behind the sun */
+        radial-gradient(ellipse 420px 220px at 50% 100%,
+            rgba(255, 90, 160, 0.3) 0%,
+            rgba(255, 61, 154, 0.1) 50%,
+            rgba(255, 61, 154, 0) 75%),
         /* the horizon line itself, fading out towards the sides */
         linear-gradient(90deg,
             rgba(255, 122, 186, 0) 0%,
-            rgba(255, 150, 205, 0.55) 30%,
-            rgba(255, 180, 220, 0.7) 50%,
-            rgba(255, 150, 205, 0.55) 70%,
-            rgba(255, 122, 186, 0) 100%),
-        /* the halo it casts into the sky */
-        linear-gradient(180deg,
-            rgba(255, 61, 154, 0) 0%,
-            rgba(255, 61, 154, 0.06) 65%,
-            rgba(255, 110, 180, 0.14) 100%);
-    background-repeat: no-repeat;
-    background-size: 100% 1px, 100% 100%;
-    background-position: bottom left, top left;
+            rgba(255, 150, 205, 0.6) 30%,
+            rgba(255, 200, 230, 0.85) 50%,
+            rgba(255, 150, 205, 0.6) 70%,
+            rgba(255, 122, 186, 0) 100%);
+    background-repeat: repeat-x, repeat-x, no-repeat, no-repeat, no-repeat;
+    background-size:
+        1200px 100px,
+        1600px 110px,
+        280px 280px,
+        100% 100%,
+        100% 2px;
+    background-position:
+        center bottom,
+        center bottom,
+        center bottom -45px,
+        center bottom,
+        bottom left;
 }
 
 @keyframes synthwave-grid {
@@ -1954,7 +1966,7 @@
         background-position: 0 0, 0 0;
     }
     to {
-        background-position: 0 0, 0 64px;
+        background-position: 0 0, 0 100px;
     }
 }
 

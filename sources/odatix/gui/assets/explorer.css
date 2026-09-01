@@ -712,7 +712,7 @@
 
 .xp-card-button {
     background: none;
-    border: none;
+    border: none !important;
     margin: 0;
     padding: 0;
     width: 100%;
@@ -926,10 +926,10 @@
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-.xp-source-card:hover {
+/* .xp-source-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--card-box-shadow-hover, 0 5px 14px rgba(0, 0, 0, 0.14));
-}
+} */
 
 .xp-source-icon-box {
     flex: 0 0 auto;
