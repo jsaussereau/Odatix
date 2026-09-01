@@ -230,21 +230,10 @@ def load_page(search, odatix_settings):
     return build_cards(search, odatix_settings), title
 
 
-# Show/hide the extra fields of a target card
-@page_callback(PAGE_SCOPE,
-    Output({"type": "target-extra-div", "name": MATCH}, "style"),
-    Output({"type": "target-more-icon", "name": MATCH}, "className"),
-    Input({"type": "target-more", "name": MATCH}, "n_clicks"),
-    State({"type": "target-extra-div", "name": MATCH}, "style"),
-    prevent_initial_call=True,
-)
-def toggle_extra_fields(n_clicks, current_style):
-    # Based on the current state (not n_clicks parity): extra fields may
-    # start open by default (e.g. script copy already configured).
-    is_open = current_style == Style.visible_div
-    if is_open:
-        return Style.hidden, "icon normal rotate"
-    return Style.visible_div, "icon normal rotate rotated"
+# Folding the extra fields away is done on the client, on the document, by the
+# handler in assets/folds.js: nothing outside the browser reads whether a fold
+# is open, and a fold answered by Dash costs a walk over every pattern-matched
+# component of the page.
 
 
 # Dim the card when the target is disabled

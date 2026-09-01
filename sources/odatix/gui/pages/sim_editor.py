@@ -1053,35 +1053,10 @@ def _arch_index(cards, uid):
 # Callbacks
 ######################################
 
-@page_callback(PAGE_SCOPE,
-    Output({"type": "sim-arch-body", "arch": dash.MATCH}, "className"),
-    Output({"type": "sim-arch-toggle-icon", "arch": dash.MATCH}, "className"),
-    Output({"type": "sim-arch-card", "arch": dash.MATCH}, "className"),
-    Output({"type": "sim-arch-collapsed", "arch": dash.MATCH}, "value"),
-    Input({"type": "sim-arch-toggle", "arch": dash.MATCH}, "n_clicks"),
-    State({"type": "sim-arch-collapsed", "arch": dash.MATCH}, "value"),
-    State({"type": "sim-arch-card", "arch": dash.MATCH}, "className"),
-    prevent_initial_call=True,
-)
-def toggle_architecture(n_clicks, collapsed, card_class):
-    """
-    Fold an architecture card down to its head, or unfold it. The new state is
-    written back to the hidden value the card carries, so a re-render of the
-    section keeps every card as it was.
-    """
-    if not n_clicks:
-        return (dash.no_update,) * 4
-
-    collapsed = not collapsed
-    classes = [name for name in str(card_class or "").split() if name != "collapsed"]
-    if collapsed:
-        classes.append("collapsed")
-    return (
-        "animated-section hide" if collapsed else "animated-section",
-        "icon normal rotate" if collapsed else "icon normal rotate rotated",
-        " ".join(classes),
-        "1" if collapsed else "",
-    )
+# Folding a card down to its head is done on the client, on the document, by the
+# handler in assets/folds.js, which writes the new state back into the hidden
+# value the card carries so a re-render of the section keeps every card as it
+# was.
 
 
 @page_callback(PAGE_SCOPE,
@@ -1510,35 +1485,10 @@ def update_sim_title(search):
     return simulation_title(get_key_from_url(search, "sim") or "")
 
 
-@page_callback(PAGE_SCOPE,
-    Output({"type": "sim-more-task-field-div", "name": dash.ALL}, "style"),
-    Output({"type": "sim-more-task-fields-icon", "name": dash.ALL}, "className"),
-    Input({"type": "sim-more-fields-task", "name": dash.ALL}, "n_clicks"),
-    State({"type": "sim-more-task-field-div", "name": dash.ALL}, "style"),
-    State({"type": "sim-more-task-fields-icon", "name": dash.ALL}, "className"),
-    State({"type": "sim-task-field-name", "name": dash.ALL}, "value"),
-)
-def toggle_sim_task_more_fields(n_clicks, expandable_area_styles, icon_classes, task_names):
-    trigger_id = ctx.triggered_id
-    if not isinstance(trigger_id, dict) or "name" not in trigger_id:
-        return [dash.no_update] * len(n_clicks), [dash.no_update] * len(n_clicks)
-
-    index = None
-    for i, current_name in enumerate(task_names):
-        if trigger_id.get("name") == current_name:
-            index = i
-            break
-
-    new_expandable_area_styles = list(expandable_area_styles)
-    new_icon_classes = list(icon_classes)
-    if index is not None:
-        if n_clicks[index] % 2 == 0:
-            new_expandable_area_styles[index] = Style.hidden
-            new_icon_classes[index] = "icon normal rotate"
-        else:
-            new_expandable_area_styles[index] = Style.visible
-            new_icon_classes[index] = "icon normal rotate rotated"
-    return new_expandable_area_styles, new_icon_classes
+# Folding the extra fields away is done on the client, on the document, by the
+# handler in assets/folds.js: nothing outside the browser reads whether a fold
+# is open, and a fold answered by Dash costs a walk over every pattern-matched
+# component of the page.
 
 
 # The configuration editor opens on an architecture entry, so the link of a card

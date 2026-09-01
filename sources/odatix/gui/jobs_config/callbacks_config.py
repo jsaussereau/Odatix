@@ -520,20 +520,9 @@ def select_all_archs(select_all_clicks, select_none_clicks, switch_values):
     raise dash.exceptions.PreventUpdate
 
 
-@dash.callback(
-    Output("jobs-settings-body", "className"),
-    Output("jobs-settings-toggle", "children"),
-    Input("jobs-settings-toggle", "n_clicks"),
-    prevent_initial_call=True,
-)
-def toggle_job_settings(n_clicks):
-    """Fold the Job Settings section away once it is set up."""
-    collapsed = bool(n_clicks) and n_clicks % 2 == 1
-    return (
-        "animated-section" + (" hide" if collapsed else ""),
-        "Show" if collapsed else "Hide",
-    )
-
+# Folding the Job Settings section away is done on the client, on the document,
+# by the handler in assets/folds.js: nothing outside the browser reads whether
+# it is open.
 
 
 @page_callback(PAGE_SCOPE,

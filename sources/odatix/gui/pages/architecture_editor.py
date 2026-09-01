@@ -1069,21 +1069,10 @@ def update_architecture_title(search):
         arch_name = ""
     return architecture_title(arch_name)
 
-@dash.callback(
-    Output("more-fields-design-path-filters", "className"),
-    Output("more-fields-design-path-filters-toggle-icon", "className"),
-    Input("more-fields-design-path-filters-toggle", "n_clicks"),
-    State("more-fields-design-path-filters", "className"),
-    prevent_initial_call=True,
-)
-def toggle_more_fields(n_clicks, expandable_area_class ):
-    if "hide" in expandable_area_class:
-        new_expandable_area_class = "animated-section"
-        new_icon_class = "icon normal rotate rotated"
-    else:
-        new_expandable_area_class = "animated-section hide"
-        new_icon_class = "icon normal rotate"
-    return new_expandable_area_class, new_icon_class
+# Folding the extra fields away is done on the client, on the document, by the
+# handler in assets/folds.js: nothing outside the browser reads whether a fold
+# is open, and a fold answered by Dash costs a walk over every pattern-matched
+# component of the page.
 
 
 ######################################

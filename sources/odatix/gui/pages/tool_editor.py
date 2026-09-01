@@ -1221,35 +1221,10 @@ def _step_index(step_ids, key, step_uid):
     )
     return uids.index(step_uid) if step_uid in uids else None
 
-@page_callback(PAGE_SCOPE,
-    Output({"type": "tool-flow-body", "flow": dash.MATCH}, "className"),
-    Output({"type": "tool-flow-toggle-icon", "flow": dash.MATCH}, "className"),
-    Output({"type": "tool-flow-card", "flow": dash.MATCH}, "className"),
-    Output({"type": "tool-flow-collapsed", "flow": dash.MATCH}, "value"),
-    Input({"type": "tool-flow-toggle", "flow": dash.MATCH}, "n_clicks"),
-    State({"type": "tool-flow-collapsed", "flow": dash.MATCH}, "value"),
-    State({"type": "tool-flow-card", "flow": dash.MATCH}, "className"),
-    prevent_initial_call=True,
-)
-def toggle_flow(n_clicks, collapsed, card_class):
-    """
-    Fold a flow card down to its head, or unfold it. The new state is written
-    back to the hidden value the card carries, so a re-render of the section
-    (a flow added, a job type switched to steps) keeps every card as it was.
-    """
-    if not n_clicks:
-        return (dash.no_update,) * 4
-
-    collapsed = not collapsed
-    classes = [name for name in str(card_class or "").split() if name != "collapsed"]
-    if collapsed:
-        classes.append("collapsed")
-    return (
-        "animated-section hide" if collapsed else "animated-section",
-        "icon normal rotate" if collapsed else "icon normal rotate rotated",
-        " ".join(classes),
-        "1" if collapsed else "",
-    )
+# Folding a card down to its head is done on the client, on the document, by the
+# handler in assets/folds.js, which writes the new state back into the hidden
+# value the card carries so a re-render of the section keeps every card as it
+# was.
 
 @dash.callback(
     Output("tool-flows-container", "children", allow_duplicate=True),

@@ -32,19 +32,13 @@ It takes the settings of a domain when it has them, so the drawing can name that
 domain's own file and delimiters; the page-wide fold has none and draws the
 mechanism with placeholders instead.
 
-Purely presentational: no state, one toggle callback, nothing written anywhere.
+Purely presentational: no state, no callback, nothing written anywhere.
 """
 
-import dash
-from dash import html, Input, Output
+from dash import html
 
 from odatix.gui.icons import icon
 import odatix.lib.hard_settings as hard_settings
-from odatix.gui.page_scope import page_callback
-
-# Scope anchoring the callbacks below: they are dispatched only on the pages
-# embedding the matching anchor store (see odatix.gui.page_scope).
-PAGE_SCOPE = "config_editor"
 
 #: What the diagram shows when the domain has not been set up yet. Not defaults
 #: Odatix would use -- just something readable to point at.
@@ -180,7 +174,6 @@ def help_section(domain_uuid="page", settings=None, domain_name=None, open=False
                     html.Span("How does parameter replacement work?", className="odx-help-question"),
                 ],
                 id={"type": "cfg-help-toggle", "domain_uuid": domain_uuid},
-                n_clicks=1 if open else 0,
                 className="odx-help-header",
             ),
             html.Div(
@@ -193,17 +186,7 @@ def help_section(domain_uuid="page", settings=None, domain_name=None, open=False
     )
 
 
-@page_callback(PAGE_SCOPE,
-    Output({"type": "cfg-help-panel", "domain_uuid": dash.ALL}, "style"),
-    Output({"type": "cfg-help-icon", "domain_uuid": dash.ALL}, "className"),
-    Input({"type": "cfg-help-toggle", "domain_uuid": dash.ALL}, "n_clicks"),
-)
-def toggle_help(n_clicks):
-    """Open the explanation of one domain, leaving the others as they are."""
-    styles = []
-    classes = []
-    for clicks in n_clicks:
-        shown = bool(clicks) and clicks % 2 == 1
-        styles.append({} if shown else {"display": "none"})
-        classes.append("icon normal rotate rotated" if shown else "icon normal rotate")
-    return styles, classes
+# The fold itself is handled without Dash, on the client, by the click handler in
+# assets/config_editor.js: nothing outside the browser reads whether the
+# explanation is open, and a fold answered by Dash costs a walk over every
+# pattern-matched component of the page.

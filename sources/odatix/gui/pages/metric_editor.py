@@ -72,7 +72,7 @@ from odatix.gui.css_helper import Style
 import odatix.gui.ui_components as ui
 import odatix.gui.navigation as navigation
 import odatix.lib.hard_settings as hard_settings
-from odatix.gui.page_scope import page_callback, scoped
+from odatix.gui.page_scope import page_callback, page_clientside_callback, scoped
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -155,6 +155,15 @@ FIELD_VISIBILITY = {
     "xml":       {"file", "key"},
     "operation": {"op"},
 }
+
+def field_style(field, metric_type):
+  """Whether `field` is shown for `metric_type`, as a style.
+
+  Cards are built with the right fields already shown: leaving it to the
+  callback that follows the type dropdown meant every card rendered with its
+  default fields first, then had them rewritten a moment later.
+  """
+  return Style.visible if field in FIELD_VISIBILITY.get(metric_type, set()) else Style.hidden
 
 # What a card's metric is, in tool mode (see odatix.lib.metrics). Every card is
 # editable; this only says what saving it will write to the workspace
@@ -574,15 +583,15 @@ def metric_card(
             ),
             html.Div(
                 children=[
-                    metric_field(prefix, name, "file", "File", value=file_value, default_style=Style.visible, disabled=read_only,
+                    metric_field(prefix, name, "file", "File", value=file_value, default_style=field_style("file", type_value), disabled=read_only,
                                  tooltip="File (relative to the run directory) the value is extracted from."),
-                    metric_field(prefix, name, "pattern", "Pattern", value=pattern_value, disabled=read_only,
+                    metric_field(prefix, name, "pattern", "Pattern", value=pattern_value, default_style=field_style("pattern", type_value), disabled=read_only,
                                  tooltip="Regular expression to search for in the file."),
-                    metric_field(prefix, name, "group_id", "Group ID", value=group_id_value, type="number", disabled=read_only,
+                    metric_field(prefix, name, "group_id", "Group ID", value=group_id_value, type="number", default_style=field_style("group_id", type_value), disabled=read_only,
                                  tooltip="Index of the regex capture group to use as the value."),
-                    metric_field(prefix, name, "key", "Key", value=key_value, disabled=read_only,
+                    metric_field(prefix, name, "key", "Key", value=key_value, default_style=field_style("key", type_value), disabled=read_only,
                                  tooltip="Column (CSV), key (YAML/JSON) or element path (XML, e.g. 'timing/slack' or 'cell@area') to read the value from. Leave empty for the whole file."),
-                    metric_field(prefix, name, "op", "Operation", value=op_value, disabled=read_only,
+                    metric_field(prefix, name, "op", "Operation", value=op_value, default_style=field_style("op", type_value), disabled=read_only,
                                  tooltip="Expression evaluated from other metric values (e.g. area / frequency)."),
                     html.Div(
                         children=[
@@ -616,7 +625,7 @@ def metric_card(
                         style=Style.hidden,
                     ),
                 ],
-                id=f"{prefix}-fields-container",
+                id={"type": f"{prefix}-fields-container", "name": name},
             ),
         ]),
         html.Div([
@@ -946,59 +955,24 @@ def register_section_callbacks(prefix, name_stem, add_text):
             )
         return children, styles, reset_styles
 
-    @page_callback(PAGE_SCOPE,
+    # Which fields an extraction type uses, and folding the extra fields of a
+    # card away, are done on the client (assets/metric_editor.js): neither is a
+    # question the server has an answer to, and the fields of a card would
+    # otherwise be rewritten by the server a moment after the card is rendered.
+    # The fold has no callback at all -- it is a click handler on the document.
+    page_clientside_callback(
+        PAGE_SCOPE,
+        dash.ClientsideFunction(namespace="odatix_metric_editor", function_name="field_visibility"),
         [
-            Output({"type": f"{prefix}-field-file-div", "name": dash.ALL}, "style"),
-            Output({"type": f"{prefix}-field-pattern-div", "name": dash.ALL}, "style"),
-            Output({"type": f"{prefix}-field-group_id-div", "name": dash.ALL}, "style"),
-            Output({"type": f"{prefix}-field-key-div", "name": dash.ALL}, "style"),
-            Output({"type": f"{prefix}-field-op-div", "name": dash.ALL}, "style"),
+            Output({"type": f"{prefix}-field-{field}-div", "name": dash.ALL}, "style")
+            for field in METRIC_FIELDS
         ],
         Input({"type": f"{prefix}-type", "name": dash.ALL}, "value"),
+        *[
+            State({"type": f"{prefix}-field-{field}-div", "name": dash.ALL}, "style")
+            for field in METRIC_FIELDS
+        ],
     )
-    def update_fields_visibility(types):
-        styles_by_field = {field: [] for field in METRIC_FIELDS}
-        for metric_type in types:
-            visible = FIELD_VISIBILITY.get(metric_type, set())
-            for field in METRIC_FIELDS:
-                styles_by_field[field].append(Style.visible if field in visible else Style.hidden)
-        return (
-            styles_by_field["file"],
-            styles_by_field["pattern"],
-            styles_by_field["group_id"],
-            styles_by_field["key"],
-            styles_by_field["op"],
-        )
-
-    @page_callback(PAGE_SCOPE,
-        Output({"type": f"{prefix}-more-field-div", "name": dash.ALL}, "style"),
-        Output({"type": f"{prefix}-more-fields-icon", "name": dash.ALL}, "className"),
-        Input({"type": f"{prefix}-more-fields", "name": dash.ALL}, "n_clicks"),
-        State({"type": f"{prefix}-more-field-div", "name": dash.ALL}, "style"),
-        State({"type": f"{prefix}-more-fields-icon", "name": dash.ALL}, "className"),
-        State({"type": f"{prefix}-title", "name": dash.ALL}, "value"),
-    )
-    def toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, names):
-        trigger_id = ctx.triggered_id
-        if not isinstance(trigger_id, dict) or "name" not in trigger_id:
-            return [dash.no_update] * len(n_clicks), [dash.no_update] * len(n_clicks)
-
-        index = None
-        for i, current_name in enumerate(names):
-            if trigger_id.get("name") == current_name:
-                index = i
-                break
-
-        new_styles = list(expandable_area_styles)
-        new_classes = list(icon_classes)
-        if index is not None:
-            if n_clicks[index] % 2 == 0:
-                new_styles[index] = Style.hidden
-                new_classes[index] = "icon normal rotate"
-            else:
-                new_styles[index] = Style.visible
-                new_classes[index] = "icon normal rotate rotated"
-        return new_styles, new_classes
 
 
 register_section_callbacks(METRIC_PREFIX, "metric", "Add new metric")

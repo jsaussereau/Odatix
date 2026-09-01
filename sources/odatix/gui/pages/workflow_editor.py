@@ -1008,50 +1008,10 @@ def update_wf_variable_fields_visibility(types):
         styles_by_field["group"],
     )
 
-@page_callback(PAGE_SCOPE,
-    Output({"type": "wf-more-variable-field-div", "name": dash.ALL}, "style"),
-    Output({"type": "wf-more-fields-icon", "name": dash.ALL}, "className"),
-    Input({"type": "wf-more-fields", "name": dash.ALL}, "n_clicks"),
-    State({"type": "wf-more-variable-field-div", "name": dash.ALL}, "style"),
-    State({"type": "wf-more-fields-icon", "name": dash.ALL}, "className"),
-    State({"type": "wf-variable-metadata", "name": dash.ALL}, "data"),
-)
-def toggle_wf_more_fields(n_clicks, expandable_area_styles, icon_classes, metadata):
-    trigger_id = ctx.triggered_id
-    if not isinstance(trigger_id, dict) or "name" not in trigger_id:
-        return [dash.no_update] * len(n_clicks), [dash.no_update] * len(n_clicks)
-    names = [m.get("name") if isinstance(m, dict) else None for m in (metadata or [])]
-    return ve.toggle_more_fields(n_clicks, expandable_area_styles, icon_classes, names, trigger_id.get("name"))
-
-@page_callback(PAGE_SCOPE,
-    Output({"type": "wf-more-task-field-div", "name": dash.ALL}, "style"),
-    Output({"type": "wf-more-task-fields-icon", "name": dash.ALL}, "className"),
-    Input({"type": "wf-more-fields-task", "name": dash.ALL}, "n_clicks"),
-    State({"type": "wf-more-task-field-div", "name": dash.ALL}, "style"),
-    State({"type": "wf-more-task-fields-icon", "name": dash.ALL}, "className"),
-    State({"type": "wf-task-field-name", "name": dash.ALL}, "value"),
-)
-def toggle_wf_task_more_fields(n_clicks, expandable_area_styles, icon_classes, task_names):
-    trigger_id = ctx.triggered_id
-    if not isinstance(trigger_id, dict) or "name" not in trigger_id:
-        return [dash.no_update] * len(n_clicks), [dash.no_update] * len(n_clicks)
-
-    index = None
-    for i, current_name in enumerate(task_names):
-        if trigger_id.get("name") == current_name:
-            index = i
-            break
-
-    new_expandable_area_styles = list(expandable_area_styles)
-    new_icon_classes = list(icon_classes)
-    if index is not None:
-        if n_clicks[index] % 2 == 0:
-            new_expandable_area_styles[index] = Style.hidden
-            new_icon_classes[index] = "icon normal rotate"
-        else:
-            new_expandable_area_styles[index] = Style.visible
-            new_icon_classes[index] = "icon normal rotate rotated"
-    return new_expandable_area_styles, new_icon_classes
+# Folding the extra fields away is done on the client, on the document, by the
+# handler in assets/folds.js: nothing outside the browser reads whether a fold
+# is open, and a fold answered by Dash costs a walk over every pattern-matched
+# component of the page.
 
 @dash.callback(
     Output("wf-variable-cards-row", "children", allow_duplicate=True),

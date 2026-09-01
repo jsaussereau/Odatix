@@ -951,16 +951,10 @@ def toggle_kind_fields(kind):
     )
 
 
-@page_callback(PAGE_SCOPE,
-    Output({"type": f"{METRIC_PREFIX}-more-field-div", "name": dash.MATCH}, "style"),
-    Output({"type": f"{METRIC_PREFIX}-more-fields-icon", "name": dash.MATCH}, "className"),
-    Input({"type": f"{METRIC_PREFIX}-more-fields", "name": dash.MATCH}, "n_clicks"),
-    prevent_initial_call=True,
-)
-def toggle_more_fields(n_clicks):
-    if not n_clicks or n_clicks % 2 == 0:
-        return Style.hidden, "icon normal rotate"
-    return Style.visible, "icon normal rotate rotated"
+# Folding the extra fields away is done on the client, on the document, by the
+# handler in assets/folds.js: nothing outside the browser reads whether a fold
+# is open, and a fold answered by Dash costs a walk over every pattern-matched
+# component of the page.
 
 
 @dash.callback(
