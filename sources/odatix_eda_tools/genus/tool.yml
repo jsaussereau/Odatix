@@ -13,6 +13,8 @@ process_group: True
 # Default metrics file for this tool
 default_metrics_file: "$eda_tools_path/genus/metrics.yml"
 
+constraint_file: Makefile
+
 #default_flow: standard
 
 unix:
@@ -56,7 +58,7 @@ unix:
   # its name says: "synthesis" converges on post-synthesis timing (fast and
   # optimistic), "pnr" on post-route timing (what the design really reaches).
   # Screen a design space with the first, implement only what deserves it.
-  
+
   fmax_synthesis_steps: 
     - name: logical_synthesis
       command:
@@ -104,10 +106,10 @@ unix:
       args:
         - *source_step_elaboration_unix
     - name: logical_synthesis
+      default: true
       args:
         - *source_step_logical_synthesis_unix
     - name: physical_synthesis
-      default: true
       args:
         - *source_step_physical_synthesis_unix
 
