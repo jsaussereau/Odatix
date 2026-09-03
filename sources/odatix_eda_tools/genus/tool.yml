@@ -61,6 +61,7 @@ unix:
 
   fmax_synthesis_steps: 
     - name: logical_synthesis
+      default: true
       command:
         - cd $work_path;
         - *genus_unix
@@ -68,7 +69,6 @@ unix:
         - *genus_args
         - *source_step_fmax_logical_unix
     - name: physical_synthesis
-      default: true
       command:
         - cd $work_path;
         - *genus_unix
