@@ -69,15 +69,45 @@ report_power -unit mw > $report_path/power.rep
 report_area -detail > $report_path/utilization.rep
 
 #################################################################################
+# LOGICAL RESULT PATH
+#################################################################################
+
+set logical_result_path "$result_path/logical"
+file mkdir $logical_result_path
+
+#################################################################################
+# NETLIST / OUTPUTS
+#################################################################################
+
+write_hdl > $logical_result_path/${top_level_module}_netlist.v
+write_sdf > $logical_result_path/${top_level_module}.sdf
+
+write_sdc -view VIEW_SETUP \
+    > $logical_result_path/${top_level_module}_setup.sdc
+
+write_sdc -view VIEW_HOLD \
+    > $logical_result_path/${top_level_module}_hold.sdc
+
+#################################################################################
+# SAVE DESIGN
+#################################################################################
+
+# Save design for Innovus
+write_design -base_name $logical_result_path/genus2invs
+
+# Save design for Genus
+write_db $logical_result_path/genus_logical.db
+
+#################################################################################
 # FINISH
 #################################################################################
 
-# Setting 
 report_progress 100 $synth_statusfile
 
 puts "=========================================="
 puts "Logical synthesis completed successfully!"
 puts "=========================================="
+
 
 #if {$LIB_TYPE ne "GF_22nm" || "AMS_C35"} {
 #    puts "WARNING: Physical/iSpatial synthesis is currently supported only for GF_22nm."
