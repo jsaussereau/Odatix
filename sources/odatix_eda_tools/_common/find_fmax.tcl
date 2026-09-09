@@ -39,6 +39,18 @@ if {[catch {
   # Procedures
   ######################################
 
+  # Copy the content of a directory into another one, replacing existing entries.
+  # "file copy -force" does not overwrite existing directories: it copies inside
+  # them instead, so the destination has to be removed first.
+  proc copy_dir_content {src_dir dst_dir} {
+    file mkdir $dst_dir
+    foreach file [glob -nocomplain -directory $src_dir *] {
+      set dest [file join $dst_dir [file tail $file]]
+      file delete -force $dest
+      file copy -force $file $dest
+    }
+  }
+
   proc sleep {N} {
     after [expr {int($N * 1000)}]
   }
@@ -148,9 +160,7 @@ if {[catch {
         set logfile_handler [open $logfile a]
         puts $logfile_handler  "MET"
         close $logfile_handler
-        foreach file [glob -nocomplain -directory $report_path *] {
-          file copy -force $file "${report_path}_MET/[file tail $file]"
-        }
+        copy_dir_content $report_path "${report_path}_MET"
       } else {
         set upper_bound $cur_freq
         puts ""
@@ -170,9 +180,7 @@ if {[catch {
           puts $logfile_handler  "VIOLATED"
           close $logfile_handler
         }
-        foreach file [glob -nocomplain -directory $report_path *] {
-          file copy -force $file "${report_path}_VIOLATED/[file tail $file]"
-        }
+        copy_dir_content $report_path "${report_path}_VIOLATED"
       }
     } else {
       puts "<bold><cyan>Skipping current frequency $cur_freq due to errors in synthesis.<end>"
@@ -227,9 +235,7 @@ if {[catch {
 
   if {$got_met == 1 && $got_violated == 1} {
     #restore reports and results from the synthesis meeting timing requirements
-    foreach file [glob -nocomplain -directory ${report_path}_MET *] {
-      file copy -force $file "$report_path/[file tail $file]"
-    }
+    copy_dir_content "${report_path}_MET" $report_path
 
     update_freq $lower_bound $constraints_file
 
