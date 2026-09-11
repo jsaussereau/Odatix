@@ -33,15 +33,6 @@ metrics:
     format: "%.3f"
     unit: um^2
 
-  Total_Area:
-    type: regex
-    settings:
-      file: report/area.rep
-      pattern: "Total area:(\\s*)([0-9,.]+)(.*)"
-      group_id: 2
-    format: "%.3f"
-    unit: um^2
-
   Comb_Area:
     type: regex
     settings:
@@ -78,20 +69,20 @@ metrics:
     format: "%.3f"
     unit: um^2
 
-  Net_Area:
-    type: regex
-    settings:
-      file: report/area.rep
-      pattern: "Net Interconnect area:(\\s*)([0-9,.]+)(.*)"
-      group_id: 2
-    format: "%.3f"
-    unit: um^2
+#  Net_Area:
+#    type: regex
+#    settings:
+#      file: report/area.rep
+#      pattern: "Net Interconnect area:(\\s*)([0-9,.]+)(.*)"
+#      group_id: 2
+#    format: "%.3f"
+#    unit: um^2
 
   Cell_count:
     type: regex
     settings:
-      file: report/utilization.rep
-      pattern: "Cell count:(\\s*)([0-9,.]+)(.*)"
+      file: report/area.rep
+      pattern: "Number of cells:(\\s*)([0-9,.]+)(.*)"
       group_id: 2
     format: "%.0f"
 
