@@ -67,11 +67,9 @@ if {[catch {
     } else {
         #read from sources
         suppress_message { AUTOREAD-303 AUTOREAD-107 AUTOREAD-105 AUTOREAD-102 AUTOREAD-100 VER-26 }
-
-
         
         set rtl_path [file normalize $rtl_path]
-
+        set_app_var search_path [concat $search_path [list $rtl_path]]
 
         # read verilog source files
         set verilog_filenames [get_files_recursive $rtl_path {*.v}]

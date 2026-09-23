@@ -56,6 +56,9 @@ if {[catch {
         #-----------------------------------------------------------------------------
         # READ VERILOG
         #-----------------------------------------------------------------------------
+        set rtl_path [file normalize $rtl_path]
+        set_db init_hdl_search_path [list $rtl_path]
+        
         set verilog_filenames [get_files_recursive $rtl_path {*.v}]
 
         if {[llength $verilog_filenames] != 0} {
