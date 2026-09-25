@@ -43,7 +43,7 @@ puts "----------------------------------------"
 puts "<bold><cyan> SYNTHESIS <end>"
 puts "----------------------------------------"
 
-if {[info exists synthesis_mode] && $synthesis_mode == "physical"} {
+if {[info exists synthesis_mode] && $synthesis_mode eq "physical"} {
     puts "<bold><yellow>Mode: Physical synthesis<end>"
 
     ########################################################################
@@ -77,8 +77,6 @@ if {[info exists synthesis_mode] && $synthesis_mode == "physical"} {
 
     compile_fusion
 
-
-
     puts ""
     puts "========================================"
     puts "Initializing Floorplan"
@@ -102,8 +100,6 @@ if {[info exists synthesis_mode] && $synthesis_mode == "physical"} {
 
     compile_logical
 }
-
-
 
 report_progress 80 $synth_statusfile
 
@@ -135,10 +131,9 @@ report_progress 90 $synth_statusfile
 # Export
 ################################################################################
 
-#write_verilog $netlist_file
-
-#write_sdf $sdf_file
-
-#write_sdc -output $sdc_file
+write_verilog $result_path/${top_level_module}_netlist.v
+write_sdf $result_path/${top_level_module}_sdf.sdf
+write_sdc -output $result_path/${top_level_module}_sdc.sdc
+#save_block -as $result_path/${top_level_module}
 
 report_progress 100 $synth_statusfile
