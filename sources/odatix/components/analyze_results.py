@@ -16,8 +16,9 @@ RESET   = "\033[0m"
 TOOL_NAMES = {
     "design_compiler": "SYNOPSYS DESIGN COMPILER",
     "genus": "CADENCE GENUS",
+    "fusion_compiler": "SYNOPSYS FUSION COMPILER",
     "vivado": "XILINX VIVADO",
-    "verilator": "VERILATOR"
+    "verilator": "VERILATOR",
 }
 
 ERROR_PRIORITY = [
@@ -41,77 +42,103 @@ ERROR_PRIORITY = [
 
 
 def get_analysis_errors_and_warnings(log_file):
+    """Classify errors and only structural RTL/hierarchy warnings as critical."""
     errors = []
     critical_warnings = []
     standard_warning_count = 0
-
     if not os.path.exists(log_file):
         return errors, critical_warnings, standard_warning_count
 
     genus_lookahead_lines_left = 0
     genus_error_pending = False
 
-    # Structural / Functional danger keywords
-    BLACKBOX_KEYWORDS = ["black box", "blackbox", "unresolved", "cannot resolve", "cannot find", "modmissing", "missing"]
+    # Known non-structural warnings: useful in the log, but they must not make
+    # a completed RTL analysis WARNING.
+    NON_CRITICAL_WARNING_CODES = {
+        "PHYS-15",      # Genus physical technology information
+        "TECH-026",     # Fusion Compiler technology-file attribute
+        "AUTOREAD-105", # Fusion Compiler search-path adjustment
+        "LINK-1806",
+    }
+
+    # Only specific structural/hierarchy problems are critical. Avoid broad
+    # tokens such as "missing" or "cannot find", which cause false positives.
+    CRITICAL_PATTERNS = [
+        r"\bblack[\s-]?box(?:es)?\b",
+        r"\bunresolved reference(?:s)?\b",
+        r"\bunable to resolve reference\b",
+        r"\bcannot resolve reference\b",
+        r"\bunbound (?:instance|component)(?:s)?\b",
+        r"\bcannot find file containing module\b",
+        r"\bmodule ['\"]?[^'\"]+['\"]? (?:is )?not found\b",
+        r"\bcannot find (?:the )?design ['\"]",
+        r"\bcannot find (?:the )?module\b",
+        r"\bmissing (?:hdl )?(?:module|entity|component|design)\b",
+        r"\bundefined (?:module|entity|component)\b",
+    ]
+
+    def message_code(line):
+        m = re.search(r"[\[(]([A-Za-z][A-Za-z0-9_-]*-\d+)[\])]", line)
+        return m.group(1).upper() if m else None
+
+    def is_summary_table_line(line):
+        s = line.strip()
+        return s.startswith("|") and s.endswith("|")
+
+    def is_critical_warning(line):
+        if message_code(line) in NON_CRITICAL_WARNING_CODES:
+            return False
+        return any(re.search(p, line, re.IGNORECASE) for p in CRITICAL_PATTERNS)
+
+    def add_critical(line):
+        line = line.strip()
+        if line and line not in critical_warnings:
+            critical_warnings.append(line)
 
     with open(log_file, "r", errors="ignore") as f:
         for line in f:
             line_str = line.strip()
+            if not line_str:
+                continue
 
-            # --- VERILATOR ENGINE ---
+            # Verilator errors
             if "%Error" in line_str:
                 if "Exiting due to" in line_str:
                     continue
                 if "Cannot find file containing module" in line_str:
-                    match = re.search(r"module: '([^']+)'", line_str)
-                    if match:
-                        errors.append(f"Module not found: {match.group(1)}")
-                    else:
-                        errors.append("Module not found")
+                    m = re.search(r"module: '([^']+)'", line_str)
+                    errors.append(f"Module not found: {m.group(1)}" if m else "Module not found")
                 elif "Cannot find include file" in line_str:
-                    match = re.search(r"include file: '([^']+)'", line_str)
-                    if match:
-                        errors.append(f"Include file not found: {match.group(1)}")
-                    else:
-                        errors.append("Include file not found")
+                    m = re.search(r"include file: '([^']+)'", line_str)
+                    errors.append(f"Include file not found: {m.group(1)}" if m else "Include file not found")
                 elif "Can't find definition of variable" in line_str:
-                    match = re.search(r"variable: '([^']+)'", line_str)
-                    if match:
-                        errors.append(f"Undeclared variable: {match.group(1)}")
-                    else:
-                        errors.append("Reference to undeclared variable")
+                    m = re.search(r"variable: '([^']+)'", line_str)
+                    errors.append(f"Undeclared variable: {m.group(1)}" if m else "Reference to undeclared variable")
                 else:
-                    clean_err = re.sub(r"^%Error:[^:]+:[^:]+:\s*", "%Error: ", line_str)
-                    errors.append(clean_err)
+                    errors.append(re.sub(r"^%Error:[^:]+:[^:]+:\s*", "%Error: ", line_str))
                 continue
-                
-            elif "%Warning" in line_str:
-                if any(k in line_str.lower() for k in BLACKBOX_KEYWORDS):
-                    critical_warnings.append(line_str)
+
+            # Warnings from all supported tools.
+            is_warning = (
+                "%Warning" in line_str
+                or re.search(r"\bwarning\b", line_str, re.IGNORECASE) is not None
+                or any(x in line_str for x in ["(MW-", "(VLOGPT-", "(LINT-"])
+            )
+            if is_warning:
+                # Genus/other tools may print a summary table repeating messages.
+                if is_summary_table_line(line_str):
+                    continue
+                if is_critical_warning(line_str):
+                    add_critical(line_str)
                 else:
                     standard_warning_count += 1
                 continue
 
-            # --- BROAD ENGINE WARNING CATCHMENT ---
-            is_warning = (
-                any(line_str.lower().startswith(x) for x in ["warning:", "warn:", "(warning)", "critical warning:"]) or
-                "warn" in line_str.lower() or 
-                any(c in line_str for c in ["(MW-", "(VLOGPT-", "(LINT-"])
-            )
-
-            if is_warning:
-                if not any(x in line_str for x in ["LINK-1806", "fetching", "loading"]):
-                    if any(k in line_str.lower() for k in BLACKBOX_KEYWORDS):
-                        critical_warnings.append(line_str)
-                    else:
-                        standard_warning_count += 1
-                continue
-
-            # Process lookahead windows for Genus undeclared variables
+            # Genus undeclared-variable lookahead.
             if genus_lookahead_lines_left > 0:
-                match = re.search(r"Symbol '([^']+)'", line_str)
-                if match:
-                    errors.append(f"Undeclared variable: {match.group(1)}")
+                m = re.search(r"Symbol '([^']+)'", line_str)
+                if m:
+                    errors.append(f"Undeclared variable: {m.group(1)}")
                     genus_lookahead_lines_left = 0
                     genus_error_pending = False
                 else:
@@ -120,78 +147,53 @@ def get_analysis_errors_and_warnings(log_file):
                         errors.append("Reference to undeclared variable")
                         genus_error_pending = False
 
-            # Genus: Undeclared variable trigger
             if "Reference to undeclared variable" in line_str:
                 genus_lookahead_lines_left = 4
                 genus_error_pending = True
                 continue
-
-            # DC: VER-956
             elif "VER-956" in line_str:
-                match = re.search(r"The symbol '([^']+)' is not defined", line_str)
-                if match:
-                    errors.append(f"Undeclared variable: {match.group(1)}")
-                else:
-                    errors.append(line_str) 
-                
-            # Genus: VLOGPT-1
+                m = re.search(r"The symbol '([^']+)' is not defined", line_str)
+                errors.append(f"Undeclared variable: {m.group(1)}" if m else line_str)
             elif "VLOGPT-1" in line_str:
                 errors.append(line_str)
-
-            # DC: Compilation failed
             elif "Presto compilation terminated" in line_str:
                 errors.append("Compilation failed")
-
-            # Parsing error
             elif "Parsing error" in line_str:
                 errors.append(line_str)
-
-            # Missing instance name
             elif "Instance name required for module instance" in line_str:
                 errors.append("Missing instance name")
-
-            # Missing HDL design
             elif "Could not find an HDL design" in line_str:
                 errors.append("Could not find HDL design")
-
-            # Vivado: undeclared signal
             elif "is not declared" in line_str:
-                match = re.search(r"'([^']+)' is not declared", line_str)
-                if match:
-                    errors.append(f"Undeclared signal: {match.group(1)}")
-                else:
-                    errors.append("Undeclared signal")
-
-            # Vivado: module not found
+                m = re.search(r"'([^']+)' is not declared", line_str)
+                errors.append(f"Undeclared signal: {m.group(1)}" if m else "Undeclared signal")
             elif "module '" in line_str and "not found" in line_str:
-                match = re.search(r"module '([^']+)' not found", line_str)
-                if match:
-                    errors.append(f"Module not found: {match.group(1)}")
-                else:
-                    errors.append("Module not found")
-
-            # Vivado: RTL elaboration failed
+                m = re.search(r"module '([^']+)' not found", line_str)
+                errors.append(f"Module not found: {m.group(1)}" if m else "Module not found")
             elif "RTL Elaboration failed" in line_str:
                 errors.append("RTL Elaboration failed")
-
-            # Vivado: synth_design failed
             elif "synth_design failed" in line_str:
                 errors.append("synth_design failed")
-
-            # Intercept DC hierarchy notifications 
-            elif "unresolved references" in line_str or "Cannot find the design" in line_str or "Unable to resolve reference" in line_str:
+            elif (
+                "unresolved references" in line_str
+                or "Cannot find the design" in line_str
+                or "Unable to resolve reference" in line_str
+            ):
+                # Dedicated hierarchy scanners collect these without duplication.
                 continue
-
-            # Generic Error
             elif line_str.startswith("Error"):
                 errors.append(line_str)
 
     if genus_error_pending:
         errors.append("Reference to undeclared variable")
 
-    return list(dict.fromkeys(errors)), list(dict.fromkeys(critical_warnings)), standard_warning_count
+    return (
+        list(dict.fromkeys(errors)),
+        list(dict.fromkeys(critical_warnings)),
+        standard_warning_count,
+    )
 
-    
+
 def get_most_relevant_error(errors):
     for priority in ERROR_PRIORITY:
         match = next((err for err in errors if priority in err), None)
@@ -316,19 +318,21 @@ def analyze_log_dir(log_dir, tool, architecture):
     else:
         unresolved_count, unresolved_instances = 0, []
 
-    blackbox_warnings = unresolved_instances + [w for w in critical_log_warnings if w not in unresolved_instances]
-    total_warn_count = len(blackbox_warnings) + standard_warning_count
+    # Only structural/functional critical warnings affect the verdict.
+    # Ordinary tool warnings remain available as metadata, but a completed
+    # design with only ordinary warnings is PASSED.
+    critical_warnings = unresolved_instances + [
+        w for w in critical_log_warnings if w not in unresolved_instances
+    ]
+    critical_warning_count = len(critical_warnings)
 
     if errors:
         status = "FAILED"
         error_message = get_most_relevant_error(errors)
     elif not is_analysis_complete(log_dir):
-        # No error was logged, but the analysis never reached its completion
-        # marker (interrupted / quit before the end): do not report it as
-        # passed, its warnings/pass verdict cannot be trusted.
         status = "INCOMPLETE"
         error_message = ""
-    elif total_warn_count > 0:
+    elif critical_warning_count > 0:
         status = "WARNING"
         error_message = ""
     else:
@@ -342,10 +346,14 @@ def analyze_log_dir(log_dir, tool, architecture):
         "status": status,
         "error": error_message,
         "errors": errors,
-        "blackbox_warnings": blackbox_warnings,
+        # Keep the old key for compatibility with any exporter that already
+        # consumes it, but it now contains critical warnings only.
+        "blackbox_warnings": critical_warnings,
+        "critical_warnings": critical_warnings,
         "standard_warning_count": standard_warning_count,
         "error_count": len(errors),
-        "warning_count": total_warn_count,
+        "warning_count": critical_warning_count,
+        "critical_warning_count": critical_warning_count,
     }
 
 
@@ -381,28 +389,26 @@ def generate_analysis_summary(root_dir, output_file, tool):
     failed = sum(1 for r in results if r["status"] == "FAILED")
     warnings_cnt = sum(1 for r in results if r["status"] == "WARNING")
     incomplete = sum(1 for r in results if r["status"] == "INCOMPLETE")
-    total_warnings_sum = sum(r["warning_count"] for r in results)
+    total_critical_warnings = sum(r.get("critical_warning_count", r["warning_count"]) for r in results)
 
     # Generate Output File Report
     with open(output_file, "w") as f:
         f.write("=========================================\n")
         f.write("         ANALYSIS SUMMARY\n")
         f.write("=========================================\n\n")
-        f.write(f"Total: {total} | PASSED: {passed} | TOTAL WARNINGS: {total_warnings_sum} | INCOMPLETE: {incomplete} | FAILED: {failed}\n\n")
+        f.write(f"Total: {total} | PASSED: {passed} | CRITICAL WARNINGS: {total_critical_warnings} | INCOMPLETE: {incomplete} | FAILED: {failed}\n\n")
 
         for result in results:
             if result["status"] == "PASSED":
                 f.write(f"{result['architecture']}: ✓ PASSED\n")
             elif result["status"] == "WARNING":
-                f.write(f"{result['architecture']}: ⚠ WARNING ({result['warning_count']} warning(s) detected)\n")
-                if result["blackbox_warnings"]:
-                    for wrn in result["blackbox_warnings"][:3]:
-                        f.write(f"    -> {wrn}\n")
-                    if len(result["blackbox_warnings"]) > 3:
-                        remaining = len(result["blackbox_warnings"]) - 3
-                        f.write(f"    -> {remaining} more critical warning(s).... please check the log file\n")
-                if result["standard_warning_count"] > 0:
-                    f.write(f"    -> Info: {result['standard_warning_count']} standard warning(s) masked. Check log file for layout metrics.\n")
+                f.write(f"{result['architecture']}: ⚠ CRITICAL WARNING ({result['warning_count']} structural warning(s) detected)\n")
+                criticals = result.get("critical_warnings", result.get("blackbox_warnings", []))
+                for wrn in criticals[:3]:
+                    f.write(f"    -> {wrn}\n")
+                if len(criticals) > 3:
+                    remaining = len(criticals) - 3
+                    f.write(f"    -> {remaining} more critical warning(s); check the log file\n")
             elif result["status"] == "INCOMPLETE":
                 f.write(f"{result['architecture']}: / INCOMPLETE (analysis did not finish)\n")
             else:
@@ -418,7 +424,7 @@ def generate_analysis_summary(root_dir, output_file, tool):
     tool_name = TOOL_NAMES.get(current_tool, str(current_tool).upper())
 
     print(f"{CYAN}TOOL:{RESET} {BOLD}{BLUE}{tool_name}{RESET}\n")
-    print(f"{BOLD}Total: {GREEN}✓ PASSED: {passed}{RESET} | {YELLOW}⚠ WARNING: {warnings_cnt}{RESET} | {MAGENTA}/ INCOMPLETE: {incomplete}{RESET} | {RED}✗ FAILED: {failed}{RESET}\n")
+    print(f"{BOLD}Total: {GREEN}✓ PASSED: {passed}{RESET} | {YELLOW}⚠ CRITICAL WARNING: {warnings_cnt}{RESET} | {MAGENTA}/ INCOMPLETE: {incomplete}{RESET} | {RED}✗ FAILED: {failed}{RESET}\n")
 
     for result in results:
         arch = result['architecture']
@@ -433,13 +439,20 @@ def generate_analysis_summary(root_dir, output_file, tool):
             print(f"   └─ Log: For more info please check {MAGENTA}{log_path}{RESET}")
 
         elif result["status"] == "WARNING":
-            print(f"{YELLOW}⚠  {BOLD}{arch}{RESET} {YELLOW}({result.get('warning_count', 0)} warnings){RESET}")
-            bbs = result.get("blackbox_warnings", [])
-            if bbs:
-                clean_warn = bbs[0].replace("Warning: ", "").replace("WARNING: ", "").strip()
-                print(f"   ├─ {YELLOW}Primary issue: {clean_warn}{RESET}")
-            elif result.get("standard_warning_count", 0) > 0:
-                print(f"   └─ {YELLOW}INFO: {result['standard_warning_count']} standard warning(s) logged.{RESET}")
+            criticals = result.get("critical_warnings", result.get("blackbox_warnings", []))
+            print(
+                f"{YELLOW}⚠  {BOLD}{arch}{RESET} "
+                f"{YELLOW}({len(criticals)} structural critical warning(s)){RESET}"
+            )
+
+            for index, warning in enumerate(criticals[:3]):
+                clean_warn = warning.replace("Warning: ", "").replace("WARNING: ", "").strip()
+                branch = "└─" if index == len(criticals[:3]) - 1 and len(criticals) <= 3 else "├─"
+                print(f"   {branch} {YELLOW}{clean_warn}{RESET}")
+
+            if len(criticals) > 3:
+                print(f"   ├─ {YELLOW}{len(criticals) - 3} more critical warning(s){RESET}")
+
             print(f"   └─ Log: For more info please check {MAGENTA}{log_path}{RESET}")
                 
         else:

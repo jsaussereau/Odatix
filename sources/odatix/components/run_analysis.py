@@ -16,9 +16,8 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Odatix. If not, see <https://www.gnu.org/licenses/>.
+# along with Odatix. If not, see <https://www\.gnu.org/licenses/>.
 #
-
 import os
 import re
 import sys
@@ -26,7 +25,6 @@ import yaml
 import shutil
 import argparse
 import subprocess
-
 from odatix.components.replace_params import replace_params
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
@@ -42,21 +40,17 @@ from odatix.lib.prepare_work import edit_config_file
 from odatix.lib.check_tool import start_tool_check
 from odatix.lib.run_settings import get_synth_settings
 from odatix.lib.variables import replace_variables, Variables
-
 from odatix.components.run_common import confirm_valid_jobs, settle_tool_checks, abort_if_empty_job_list, run_prepare_loop, resolve_param_target_file
 from odatix.components.analyze_results import generate_analysis_summary
 from odatix.components.export_analysis import configure_analysis_job_exports
 import odatix.components.export_derived_metrics as exp_derived
 import odatix.lib.constraint_files as constraint_files
 
-
 class AnalysisCancelled(Exception):
   pass
-
 def _check_cancel(cancel_event):
   if cancel_event is not None and cancel_event.is_set():
     raise AnalysisCancelled()
-
 
 ## define colors
 RED     = "\033[91m"
@@ -68,14 +62,11 @@ MAGENTA = "\033[95m"
 BOLD    = "\033[1m"
 RESET   = "\033[0m"
 
-
 script_name = os.path.basename(__file__)
-
 
 ######################################
 # Parse Arguments
 ######################################
-
 
 def add_arguments(parser):
   parser.add_argument("-t", "--tool", nargs="+", default=None, help="eda tool(s) in use (overrides the 'tools' list of the analysis settings file; default: vivado)")
@@ -98,39 +89,32 @@ def add_arguments(parser):
     help="global settings file for Odatix (default: " + OdatixSettings.DEFAULT_SETTINGS_FILE + ")",
   )
 
-
 def parse_arguments():
   parser = argparse.ArgumentParser(description="Run RTL analysis for all architectures")
   add_arguments(parser)
   return parser.parse_args()
 
-
 ######################################
 # Tool context
 ######################################
 
-
 DEFAULT_ANALYSIS_TOOLS = ["vivado"]
-
 
 def parse_flow_selection(flow_args, tools):
   """
   Turn the "--flow" arguments into a {tool: flow} mapping. An entry without a
   tool prefix ("place_route") applies to every tool; an entry of the form
   "tool:flow" only applies to that tool and wins over a bare entry.
-
   Returns:
       dict: {tool: flow name or None for the tool's default flow}
   """
   flows = {current_tool: None for current_tool in tools}
   if not flow_args:
     return flows
-
   for entry in flow_args:
     if ":" not in str(entry):
       for current_tool in flows:
         flows[current_tool] = str(entry).strip()
-
   for entry in flow_args:
     entry = str(entry)
     if ":" not in entry:
@@ -142,28 +126,23 @@ def parse_flow_selection(flow_args, tools):
       printc.note("Selected tools are: " + ", ".join(flows), script_name)
       sys.exit(-1)
     flows[tool_name] = flow_name.strip()
-
   return flows
-
 
 def get_analysis_tools_from_settings(settings_filename):
   """
   Read the default list of eda tools to run the analysis with from the analysis
   settings file ("tools" key). Used when the CLI "--tool" argument is not given.
-
   Returns:
       list: the tools listed in the settings file, or DEFAULT_ANALYSIS_TOOLS if
       the key is missing/empty/invalid.
   """
   if not settings_filename or not os.path.isfile(settings_filename):
     return list(DEFAULT_ANALYSIS_TOOLS)
-
   with open(settings_filename, "r") as f:
     try:
       settings_data = yaml.load(f, Loader=yaml.loader.SafeLoader)
     except Exception:
       return list(DEFAULT_ANALYSIS_TOOLS)
-
   tools, _ = get_from_dict("tools", settings_data or {}, settings_filename, default_value=None, silent=True, script_name=script_name)
   if tools is None:
     return list(DEFAULT_ANALYSIS_TOOLS)
@@ -174,57 +153,141 @@ def get_analysis_tools_from_settings(settings_filename):
     return list(DEFAULT_ANALYSIS_TOOLS)
   return tools
 
+def _resolve_analysis_target_file(tool, target_path):
+  """Locate target_<tool>.yml in target_path or directly in odatix_userconfig."""
+  filename = f"target_{tool}.yml"
+  candidates = []
+
+  if target_path:
+    normalized_target_path = os.path.normpath(target_path)
+    candidates.append(os.path.join(normalized_target_path, filename))
+
+    parent = os.path.dirname(normalized_target_path)
+    if parent and parent != normalized_target_path:
+      candidates.append(os.path.join(parent, filename))
+
+  candidates.append(os.path.join("odatix_userconfig", filename))
+
+  unique_candidates = []
+  for candidate in candidates:
+    candidate = os.path.normpath(candidate)
+    if candidate not in unique_candidates:
+      unique_candidates.append(candidate)
+
+  for candidate in unique_candidates:
+    if os.path.isfile(candidate):
+      return os.path.realpath(candidate)
+
+  printc.error(f'Could not find target settings file "{filename}"', script_name)
+  printc.note("Checked: " + ", ".join(unique_candidates), script_name)
+  sys.exit(-1)
+
 
 def load_tool_context(tool, target_path, flow=None):
   """
-  Validate an eda tool (tool directory) and load its tool settings, for the RTL
-  RTL analysis job type.
+  Load analysis settings.
 
-  RTL analysis (odatix analyze) does NOT use target definition files
-  ("target_<tool>.yml"): it does not target a specific technology / device, so
-  there is no target list, no timing constraint and no per-target settings. A
-  single generic analysis target is used and the tool install path defaults to
-  the tool being on the $PATH.
-
-  Returns:
-      dict: eda_target_filename (always None), tool_settings_file, process_group,
-      run_command, tool_test_command, targets, constraint_file,
-      install_path, force_single_thread.
+  Vivado and Verilator retain the generic analysis target.
+  Design Compiler, Genus and Fusion Compiler read target_<tool>.yml and use
+  the enabled targets so ArchitectureHandler applies target_settings,
+  including the technology setup-script copy configuration.
   """
-  # Resolve the tool directory (user tools directory first, then built-in)
   eda_tool_dir = eda_tools.get_tool_dir(tool)
+
   if eda_tool_dir is None:
     printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
     printc.note(
-      'The selected eda tool "'
-      + tool
-      + "\" is not one of the available tools. Check out Odatix's documentation to add support for your own eda tool",
+      'The selected eda tool "' + tool
+      + '" is not one of the available tools. Check out Odatix\'s documentation '
+        'to add support for your own eda tool',
       script_name,
     )
     printc.note("Available tools are: " + ", ".join(eda_tools.get_supported_tools()), script_name)
     sys.exit(-1)
 
-  # Get tool settings
-  tool_settings_file = os.path.realpath(os.path.join(eda_tool_dir, hard_settings.tool_settings_filename))
-  process_group, report_path, run_command, tool_test_command, _, flow_name, flow_steps = read_tool_settings(
-    tool, tool_settings_file, synth_type='analysis', flow=flow
+  tool_settings_file = os.path.realpath(
+    os.path.join(eda_tool_dir, hard_settings.tool_settings_filename)
   )
 
-  # No target file for analysis: use a single generic target and a placeholder
-  # constraint file (the shared init_script.tcl always creates it, even though
-  # analysis never applies timing constraints; it must be a plain filename, not
-  # empty, see hard_settings.default_analysis_constraint_file). The install path
-  # defaults to "/" (tool expected on the $PATH).
+  (
+    process_group,
+    report_path,
+    run_command,
+    tool_test_command,
+    _,
+    flow_name,
+    flow_steps
+  ) = read_tool_settings(
+    tool,
+    tool_settings_file,
+    synth_type="analysis",
+    flow=flow
+  )
+
+  eda_target_filename = None
   targets = [hard_settings.default_analysis_target]
   constraint_file = hard_settings.default_analysis_constraint_file
   install_path = "/"
   force_single_thread = False
 
-  # Concat all strings if it is a list
+  target_based_analysis_tools = {
+    "design_compiler",
+    "genus",
+    "fusion_compiler",
+  }
+
+  if tool in target_based_analysis_tools:
+    eda_target_filename = _resolve_analysis_target_file(tool, target_path)
+
+    try:
+      with open(eda_target_filename, "r") as f:
+        target_data = yaml.load(f, Loader=yaml.loader.SafeLoader) or {}
+    except Exception as e:
+      printc.error(
+        f'Could not read target settings file "{eda_target_filename}"',
+        script_name
+      )
+      printc.cyan("error details: ", end="", script_name=script_name)
+      print(str(e))
+      sys.exit(-1)
+
+    # Take the enabled target(s) directly from target_<tool>.yml.
+    targets = target_data.get("targets", [])
+
+    if isinstance(targets, str):
+      targets = [targets]
+
+    targets = [
+      str(target).strip()
+      for target in targets
+      if target is not None and str(target).strip()
+    ]
+
+    if not targets:
+      printc.error(
+        f'No target is enabled in "{eda_target_filename}"',
+        script_name
+      )
+      sys.exit(-1)
+
+    constraint_file = target_data.get(
+      "constraint_file",
+      hard_settings.default_analysis_constraint_file
+    )
+
+    install_path = target_data.get("tool_install_path", "/")
+    if install_path is None or str(install_path).strip() == "":
+      install_path = "/"
+
+    force_single_thread = target_data.get("force_single_thread", False)
+    if isinstance(force_single_thread, str):
+      force_single_thread = force_single_thread.strip().lower() in {
+        "yes", "true", "1", "on"
+      }
+
   if isinstance(tool_test_command, list):
     tool_test_command = " ".join(map(str, tool_test_command))
 
-  # Define user accessible variables
   variables = Variables(
     tool_install_path=os.path.realpath(install_path),
     odatix_path=OdatixSettings.odatix_path,
@@ -232,13 +295,11 @@ def load_tool_context(tool, target_path, flow=None):
     tool_path=eda_tool_dir,
   )
 
-  # Replace variables in command
   tool_test_command = replace_variables(tool_test_command, variables)
 
   return {
-    "eda_target_filename": None,
+    "eda_target_filename": eda_target_filename,
     "tool_settings_file": tool_settings_file,
-    # tool.yml the log formatter reads (see eda_tools.get_format_settings_file)
     "format_settings_file": eda_tools.get_format_settings_file(tool) or tool_settings_file,
     "flow": flow_name,
     "flow_steps": flow_steps,
@@ -251,11 +312,9 @@ def load_tool_context(tool, target_path, flow=None):
     "force_single_thread": force_single_thread,
   }
 
-
 ######################################
 # Prepare Analysis (one eda tool)
 ######################################
-
 
 def prepare_analysis(
   run_config_settings_filename,
@@ -278,48 +337,38 @@ def prepare_analysis(
   Check settings and prepare the analysis jobs of a single eda tool,
   appending them to the shared job_list (so that several tools can run
   in one single monitor session, like multi-target synthesis).
-
   The checklist summary is NOT printed here: the caller merges the
   arch_handler lists of every tool into one single global checklist.
-
   Returns:
       dict: resolved runtime settings for this tool (work_path,
       tool_settings_file, process_group, arch_handler, ask_continue,
       exit_when_done, log_size_limit, nb_jobs, valid_arch_count).
   """
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
-
   # Two flows of the same tool are alternatives to compare: they each get their
-  # own work sub-directory ("vivado@lint_strict"), the default flow keeping the
+  # own work sub-directory ("vivado\@lint_strict"), the default flow keeping the
   # bare tool name.
   work_path = os.path.join(work_path, eda_tools.tool_work_dirname(tool, tool_context.get("flow"), job_type="analysis"))
-
   if architectures is None:
     printc.error('The "architectures" section of "' + run_config_settings_filename + '" is empty.', script_name)
     printc.note('You must define your architectures in "' + run_config_settings_filename + '" before using this command.', script_name)
     printc.note("Check out examples Odatix's documentation for more information.", script_name)
     sys.exit(-1)
-
   if overwrite:
     overwrite = True
   else:
     overwrite = _overwrite
-
   if exit_when_done:
     exit_when_done = True
   else:
     exit_when_done = _exit_when_done
-
   if log_size_limit is not None:
     log_size_limit = int(log_size_limit)
   else:
     log_size_limit = _log_size_limit
-
   nb_jobs = resolve_nb_jobs(nb_jobs if nb_jobs is not None else _nb_jobs)
-
   if noask:
     ask_continue = False
-
   eda_target_filename = tool_context["eda_target_filename"]
   tool_settings_file = tool_context["tool_settings_file"]
   process_group = tool_context["process_group"]
@@ -328,9 +377,7 @@ def prepare_analysis(
   constraint_file = tool_context["constraint_file"]
   install_path = tool_context["install_path"]
   force_single_thread = tool_context["force_single_thread"]
-
   ParallelJob.set_patterns(hard_settings.synth_status_pattern, hard_settings.fmax_status_pattern)
-
   arch_handler = ArchitectureHandler(
     work_path=work_path,
     arch_path=arch_path,
@@ -354,36 +401,38 @@ def prepare_analysis(
     overwrite=overwrite,
     force_single_thread=force_single_thread
   )
-
   # RTL analysis does not use target definition files (see load_tool_context):
   # allow get_architectures to run without one.
-  architecture_instances = arch_handler.get_architectures(architectures, targets, constraint_file, install_path, keep=keep, timestamp=timestamp, allow_missing_target_file=True)
+  allow_missing_target_file = eda_target_filename is None
 
+  architecture_instances = arch_handler.get_architectures(
+    architectures,
+    targets,
+    constraint_file,
+    install_path,
+    keep=keep,
+    timestamp=timestamp,
+    allow_missing_target_file=allow_missing_target_file
+  )
   valid_arch_count = arch_handler.get_valid_arch_count()
-
   def prepare_job(arch_instance):
     if True:
       # Get param dir (arch name before '/')
       arch_param_dir = re.sub("/.*", "", arch_instance.arch_name)
-
       # Create directory
       create_dir(arch_instance.tmp_dir)
-
       # Create log dir
       create_dir(arch_instance.tmp_log_path)
-      
       # Copy scripts
       try:
         copytree(os.path.join(OdatixSettings.odatix_eda_tools_path, hard_settings.common_script_path), arch_instance.tmp_script_path)
       except:
         printc.error('"' + arch_instance.tmp_script_path + '" exists while it should not', script_name)
-
       tool_dir = eda_tools.get_tool_dir(tool)
       if tool_dir is None:
         printc.error('No directory found for the selected eda tool "' + tool + '"', script_name)
         return
       copytree(os.path.join(tool_dir, hard_settings.tool_tcl_path), arch_instance.tmp_script_path, dirs_exist_ok=True)
-
       # Copy design
       if arch_instance.design_path is not None:
         if not os.path.isdir(arch_instance.design_path):
@@ -396,11 +445,9 @@ def prepare_analysis(
           blacklist=arch_instance.design_path_blacklist,
           dirs_exist_ok=True
         )
-
       # Copy rtl (if exists)
       if not arch_instance.generate_rtl:
         copytree(arch_instance.rtl_path, os.path.join(arch_instance.tmp_dir, hard_settings.work_rtl_path), dirs_exist_ok=True)
-
       # Replace parameters
       if arch_instance.use_parameters:
         if debug: 
@@ -420,7 +467,6 @@ def prepare_analysis(
         )
         if debug: 
           print()
-
       # Replace domain parameters
       domain_dict=dict()
       nb_domain = 0
@@ -449,16 +495,13 @@ def prepare_analysis(
             domain_dict[param_domain.domain] = param_domain.domain_value
           if debug:
             print()
-
       # Variables have no parameter file to apply, but they are still a dimension of
       # the sweep and have to be recorded like the physical domains above.
       for domain, domain_value in (getattr(arch_instance, "virtual_param_domains", None) or {}).items():
         if domain_value != "":
           domain_dict[domain] = domain_value
-
       with open(os.path.join(arch_instance.tmp_dir, hard_settings.param_domains_filename), 'w') as param_domains_file:
         yaml.dump(domain_dict, param_domains_file, default_flow_style=False, sort_keys=False)
-
       # Create target and architecture files
       f = open(os.path.join(arch_instance.tmp_dir, hard_settings.target_filename), "w")
       print(arch_instance.target, file=f)
@@ -466,7 +509,6 @@ def prepare_analysis(
       f = open(os.path.join(arch_instance.tmp_dir, hard_settings.arch_filename), "w")
       print(arch_instance.arch_name, file=f)
       f.close()
-
       # File copy
       if arch_instance.file_copy_enable:
         file_copy_dest = os.path.join(arch_instance.tmp_dir, arch_instance.file_copy_dest)
@@ -474,13 +516,12 @@ def prepare_analysis(
           shutil.copy2(arch_instance.file_copy_source, file_copy_dest)
         except Exception as e:
           printc.error(
-            'Could not copy "' + arch_instance.script_copy_source + '" to "' + os.path.realpath(file_copy_dest) + '"',
+            'Could not copy "' + arch_instance.file_copy_source + '" to "' + os.path.realpath(file_copy_dest) + '"',
             script_name,
           )
           printc.cyan("error details: ", end="", script_name=script_name)
           print(str(e))
           return
-
       # Script copy
       if arch_instance.script_copy_enable:
         try:
@@ -497,39 +538,47 @@ def prepare_analysis(
           printc.cyan("error details: ", end="", script_name=script_name)
           print(str(e))
           return
+      # Copy optional target-specific MMMC setup script when provided.
+      if getattr(arch_instance, "script_copy_mmmc_enable", False):
+        mmmc_source = getattr(arch_instance, "script_copy_mmmc_source", None)
+        if mmmc_source:
+          try:
+            shutil.copy2(mmmc_source, arch_instance.tmp_script_path)
+          except Exception as e:
+            printc.error(
+              'Could not copy "' + str(mmmc_source) + '" to "'
+              + os.path.realpath(arch_instance.tmp_script_path) + '"',
+              script_name,
+            )
+            printc.cyan("error details: ", end="", script_name=script_name)
+            print(str(e))
+            return
 
       if not constraint_files.copy_constraint_files(arch_instance):
         return
-
       # Edit tcl config script
       tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
       report_path = os.path.join(arch_instance.tmp_dir, hard_settings.work_report_path)
       edit_config_file(arch_instance, tcl_config_file)
-
       # Write yaml config script
       yaml_config_file = os.path.join(arch_instance.tmp_dir, hard_settings.yaml_config_filename)
       Architecture.write_yaml(arch_instance, yaml_config_file)
-
       # Link all scripts to config script
       for filename in os.listdir(arch_instance.tmp_script_path):
         if filename.endswith(".tcl"):
           with open(os.path.join(arch_instance.tmp_script_path, filename), "r") as f:
             tcl_content = f.read()
           pattern = re.escape(hard_settings.source_tcl) + r"(.+?\.tcl)"
-
           def replace_path(match):
-            return "source " + os.path.join(os.path.realpath(arch_instance.tmp_script_path), match.group(1)).replace('\\','/')
-
+            return "source " + os.path.join(os.path.realpath(arch_instance.tmp_script_path), match.group(1)).replace('\\\\','/')
           tcl_content = re.sub(pattern, replace_path, tcl_content)
           with open(os.path.join(arch_instance.tmp_script_path, filename), "w") as f:
             f.write(tcl_content)
-
       # Concat all strings if it is a list
       if isinstance(arch_handler.command, list):
         command = " ".join(map(str, arch_handler.command)) 
       else:
         command = arch_handler.command
-
       # Define user accessible variables
       variables = Variables(
         work_path=os.path.realpath(arch_instance.tmp_dir),
@@ -543,13 +592,10 @@ def prepare_analysis(
         top_level_module=arch_instance.top_level_module,
         lib_name=arch_instance.lib_name,
       )
-
       # Replace variables in command
       command = replace_variables(command, variables)
-
       fmax_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.fmax_status_filename)
       synth_status_file = os.path.join(arch_instance.tmp_dir, hard_settings.work_log_path, hard_settings.synth_status_filename)
-
       # Run custom frequency synthesis script
       running_arch = ParallelJob(
         process=None,
@@ -567,9 +613,7 @@ def prepare_analysis(
         progress_mode="analysis",
         status="idle",
       )
-
       job_list.append(running_arch)
-
   # The job-building loop is intentionally not run here: the caller runs it
   # after the (single, global) confirmation, so that no temporary work
   # directory is created before the user confirms.
@@ -592,36 +636,30 @@ def prepare_analysis(
     "valid_arch_count": valid_arch_count,
   }
 
-
 ######################################
 # Run Analysis
 ######################################
-
 
 def run_analysis(run_config_settings_filename, arch_path, tool, work_path, target_path, overwrite, noask, exit_when_done, log_size_limit, nb_jobs, check_eda_tool, debug=False, keep=False, result_path=None, flows=None):
   """
   Run RTL analysis for all selected architectures with one or several eda
   tools. The jobs of every tool run together in a single monitor session
   (like multi-target synthesis); one summary is generated per tool afterwards.
-
   Args:
       tool (str or list): eda tool(s) to run the analysis with.
       result_path (str, optional): workspace result directory. When given, the
           detailed analysis results are also compiled into a v2 results file
           ("results_analysis_<tool>.yml") for Odatix Explorer.
-
   Returns:
       dict: {tool: analysis summary}
   """
   tools = list(dict.fromkeys(tool)) if isinstance(tool, (list, tuple)) else [tool]
-
   supported_tools = eda_tools.tools_supporting("analysis")
   for current_tool in tools:
     if current_tool not in supported_tools:
       printc.error(f"RTL analysis is not supported by the tool '{current_tool}'")
       printc.note("Supported tools are: " + ", ".join(supported_tools))
       sys.exit(1)
-
   # Check every eda tool first (target file, tool directory, test launch)
   flows = parse_flow_selection(None, tools) if flows is None else dict(flows)
   tool_contexts = {}
@@ -640,14 +678,11 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
         tool_install_path=tool_context["install_path"],
         debug=debug,
       ))
-
   # Same timestamp for the whole batch
   timestamp = get_timestamp_string()
-
   # The eda tool is displayed like a target: "arch (tool)" in the checklist
   # and in the shared monitor
   multi_tool = len(tools) > 1
-
   job_list = []
   prepared_tools = []
   for current_tool in tools:
@@ -669,15 +704,12 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
       keep=keep,
     )
     prepared_tools.append((current_tool, context))
-
   # One single global checklist for all tools, with the eda tool shown like a
   # target: merge every tool plan into one, suffixing the job names.
   plan = merged_analysis_plan(prepared_tools, multi_tool)
   plan.print_summary(noun="architectures")
-
   for tool_check in tool_checks:
     tool_check.wait()
-
   # Single confirmation for all tools
   total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
   if total_valid == 0:
@@ -685,9 +717,7 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
   if any(context["ask_continue"] for _, context in prepared_tools):
     printc.bold("\nTotal: " + str(total_valid))
     ask_to_continue()
-
   print()
-
   # Build the jobs of every tool (creates the temporary work directories) only
   # now that the run is confirmed.
   build_pairs = []
@@ -699,12 +729,10 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
     build_job=lambda pair: pair[0](pair[1]),
     job_list=job_list,
   )
-
   # An architecture can pass the initial checklist but still fail while its job
   # is being built (e.g. a missing design_path): do not launch the monitor with
   # zero jobs if every one of them failed.
   abort_if_empty_job_list(job_list, script_name=script_name)
-
   # Single monitor session with the jobs of every tool
   first_context = prepared_tools[0][1]
   parallel_jobs = ParallelJobHandler(
@@ -715,7 +743,6 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
     format_yaml=first_context["format_settings_file"],
     log_size_limit=first_context["log_size_limit"],
   )
-
   # Export each job's result to the Explorer results file as soon as it finishes
   # (per-job, au fil de l'eau), instead of a single export at the end. The tool
   # of each job is derived from its work directory, so one call tags every tool.
@@ -726,14 +753,11 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
       output_dir=result_path,
       flows={current_tool: context["flow"] for current_tool, context in prepared_tools},
     )
-
   # Whole-batch derivation: a derived metric reads records other jobs produce,
   # so it can only be computed once every job of the batch is done.
   if result_path:
     exp_derived.configure_post_batch_derivation(parallel_jobs, result_path)
-
   parallel_jobs.run()
-
   # Generate one global report per tool (terminal summary + text report). The
   # per-job export above already wrote the Explorer results file during the run.
   all_summaries = {}
@@ -744,14 +768,11 @@ def run_analysis(run_config_settings_filename, arch_path, tool, work_path, targe
       output_file=analysis_file,
       tool=current_tool,
     )
-
   return all_summaries
-
 
 ######################################
 # GUI interface (single tool)
 ######################################
-
 
 def merged_analysis_plan(prepared_tools, multi_tool):
   """
@@ -763,7 +784,6 @@ def merged_analysis_plan(prepared_tools, multi_tool):
     suffix = f" ({current_tool})" if multi_tool else ""
     plan.merge(context["arch_handler"].plan, suffix=suffix)
   return plan
-
 
 def check_settings(
   run_config_settings_filename,
@@ -790,29 +810,23 @@ def check_settings(
   exactly like a synthesis, and mirrors the CLI run_analysis() multi-tool logic
   so several tools run in a single monitor session (the eda tool is shown like a
   target, "arch (tool)", in one merged global checklist).
-
   Args:
       tool (str or list): eda tool(s) to run the analysis with.
-
   Returns the same 8-tuple shape as run_custom_synthesis.check_settings:
       (architecture_instances, prepare_job, job_list, tool_settings_file,
        arch_handler, exit_when_done, log_size_limit, nb_jobs)
-
-  For several tools, ``architecture_instances`` is a flat list of
-  ``(build_job, arch_instance)`` pairs and ``prepare_job`` dispatches each pair
+  For several tools, \`\`architecture_instances\`\` is a flat list of
+  \`\`(build_job, arch_instance)\`\` pairs and \`\`prepare_job\`\` dispatches each pair
   to its tool's own builder, so prepare_synthesis() stays tool-agnostic.
   """
   _check_cancel(cancel_event)
-
   tools = list(dict.fromkeys(tool)) if isinstance(tool, (list, tuple)) else [tool]
-
   supported_tools = eda_tools.tools_supporting("analysis")
   for current_tool in tools:
     if current_tool not in supported_tools:
       printc.error(f"RTL analysis is not supported by the tool '{current_tool}'", script_name)
       printc.note("Supported tools are: " + ", ".join(supported_tools), script_name)
       sys.exit(-1)
-
   flows = parse_flow_selection(None, tools) if flows is None else dict(flows)
   tool_contexts = {}
   for current_tool in tools:
@@ -831,13 +845,10 @@ def check_settings(
         debug=debug,
       ))
       _check_cancel(cancel_event)
-
   _check_cancel(cancel_event)
-
   # Same timestamp for the whole batch; the eda tool is displayed like a target
   timestamp = get_timestamp_string()
   multi_tool = len(tools) > 1
-
   job_list = []
   prepared_tools = []
   for current_tool in tools:
@@ -860,23 +871,17 @@ def check_settings(
     )
     prepared_tools.append((current_tool, context))
     _check_cancel(cancel_event)
-
   # One single global checklist for all tools, with the eda tool shown like a
   # target: merge every tool plan into one, suffixing the job names.
   plan = merged_analysis_plan(prepared_tools, multi_tool)
   plan.print_summary(noun="architectures")
-
   settle_tool_checks(tool_checks, tool_check_sink)
-
   _check_cancel(cancel_event)
-
   # Single confirmation for all tools
   total_valid = sum(context["valid_arch_count"] for _, context in prepared_tools)
   ask_continue = any(context["ask_continue"] for _, context in prepared_tools)
   confirm_valid_jobs(total_valid, ask_continue, ask_to_continue, script_name=script_name)
-
   print()
-
   # Flatten every tool's instances into (build_job, arch_instance) pairs so the
   # tool-agnostic prepare_synthesis() can build them all after confirmation.
   architecture_instances = []
@@ -884,11 +889,9 @@ def check_settings(
     build_job = context["prepare_job"]
     for arch_instance in context["architecture_instances"]:
       architecture_instances.append((build_job, arch_instance))
-
   def prepare_job(pair):
     build_job, arch_instance = pair
     build_job(arch_instance)
-
   first_context = prepared_tools[0][1]
   return (
     architecture_instances,
@@ -901,7 +904,6 @@ def check_settings(
     first_context["nb_jobs"],
     plan,
   )
-
 
 def prepare_synthesis(
   architecture_instances,
@@ -921,8 +923,7 @@ def prepare_synthesis(
   Build the analysis jobs and return a ParallelJobHandler ready to run/enqueue,
   without running it. Mirrors run_custom_synthesis.prepare_synthesis so the GUI
   can enqueue analysis jobs into a daemon session.
-
-  When ``export_output_dir`` and ``analysis_work_root`` are given, each job is
+  When \`\`export_output_dir\`\` and \`\`analysis_work_root\`\` are given, each job is
   tagged for per-job result export (au fil de l'eau), so the daemon writes the
   Explorer results file as jobs finish (see configure_analysis_job_exports).
   """
@@ -932,12 +933,10 @@ def prepare_synthesis(
     job_list=job_list,
     check_cancel=lambda: _check_cancel(cancel_event),
   )
-
   # An architecture can pass the initial checklist but still fail while its job
   # is being built (e.g. a missing design_path): do not launch the monitor/daemon
   # session with zero jobs if every one of them failed.
   abort_if_empty_job_list(job_list, script_name=script_name)
-
   parallel_jobs = ParallelJobHandler(
     job_list,
     nb_jobs,
@@ -946,7 +945,6 @@ def prepare_synthesis(
     format_yaml=tool_settings_file,
     log_size_limit=log_size_limit,
   )
-
   if export_output_dir and analysis_work_root:
     configure_analysis_job_exports(
       parallel_jobs=parallel_jobs,
@@ -954,14 +952,11 @@ def prepare_synthesis(
       output_dir=export_output_dir,
       flows=flows,
     )
-
   # Whole-batch derivation: a derived metric reads records other jobs produce,
   # so it can only be computed once every job of the batch is done.
   if export_output_dir:
     exp_derived.configure_post_batch_derivation(parallel_jobs, export_output_dir)
-
   return parallel_jobs
-
 
 def get_colored_table_symbol(status, column_width=12):
   """
@@ -983,41 +978,32 @@ def get_colored_table_symbol(status, column_width=12):
   else:
     raw_symbol = "-"
     color = BLUE
-
   # Position the target symbol natively inside plain space cushions
   left_padding = (column_width - 1) // 2
   right_padding = column_width - 1 - left_padding
-  
   return f"{' ' * left_padding}{BOLD}{color}{raw_symbol}{RESET}{' ' * right_padding}"
 
-
 ############################################################################
-
 ######################################
 # Main
 ######################################
-
 def main(args, settings=None):
   if settings is None:
     settings = OdatixSettings(args.config)
     if not settings.valid:
       sys.exit(-1)
-
   if args.input is not None:
     run_config_settings_filename = args.input
   else:
     run_config_settings_filename = settings.analysis_settings_file
-
   if args.archpath is not None:
     arch_path = args.archpath
   else:
     arch_path = settings.arch_path
-
   if args.work is not None:
     work_path = args.work
   else:
     work_path = os.path.join(settings.work_path, settings.analysis_work_path)
-
   target_path = settings.target_path
   # The "--tool" CLI argument overrides the "tools" list of the analysis settings
   # file; if neither is given, fall back to DEFAULT_ANALYSIS_TOOLS.
@@ -1033,7 +1019,6 @@ def main(args, settings=None):
   check_eda_tool = not args.trust
   debug = args.debug
   keep = args.keep
-
   supported_tools = eda_tools.tools_supporting("analysis")
   tools = [current_tool for current_tool in tool if current_tool in supported_tools]
   for current_tool in tool:
@@ -1043,7 +1028,6 @@ def main(args, settings=None):
     printc.error("None of the selected tools is supported.", script_name)
     printc.note("Supported tools are: " + ", ".join(supported_tools), script_name)
     sys.exit(-1)
-
   # All tools run in a single monitor session
   all_summaries = run_analysis(
     run_config_settings_filename,
@@ -1062,45 +1046,83 @@ def main(args, settings=None):
     result_path=settings.result_path,
     flows=parse_flow_selection(args.flow, tools),
   )
-
   comparison = {}
-
   for tool_name, summary in all_summaries.items():
     if not summary or "results" not in summary:
       continue
-      
     for result in summary["results"]:
       arch = result["architecture"]
       arch = arch.replace("/log", "")
       parts = arch.split("/")
-
       if len(parts) >= 2:
         arch = "/".join(parts[-2:])
-
       if arch not in comparison:
         comparison[arch] = {}
       comparison[arch][tool_name] = result["status"]
-
-  # Global Cross-Validation Summary Layout (Expanded width to 96 for 4 columns)
+  # Global cross-validation summary.
+  # Build the columns from the tools selected in this run instead of hard-coding
+  # DC/Genus/Vivado/Verilator. New analysis tools therefore appear automatically.
   print()
-  printc.bold("=" * 96, printc.colors.CYAN)
-  printc.bold("SUMMARY".center(96), printc.colors.YELLOW)
-  printc.bold("=" * 96, printc.colors.CYAN)
 
-  # Column headers match standard fixed widths + added Verilator column
-  print(f"{BOLD}{CYAN}{'Architecture':<44} {'DC':^12} {'Genus':^12} {'Vivado':^12} {'Verilator':^12}{RESET}")
-  print(f"{CYAN}{'-' * 96}{RESET}")
+  tool_short_names = {
+    "design_compiler": "DC",
+    "genus": "Genus",
+    "fusion_compiler": "Fusion Compiler",
+    "vivado": "Vivado",
+    "verilator": "Verilator",
+  }
+
+  table_tools = list(tools)
+
+  architecture_width = max(
+    24,
+    len("Architecture"),
+    max((len(arch) for arch in comparison), default=0),
+  ) + 2
+
+  tool_labels = {
+    current_tool: tool_short_names.get(
+      current_tool,
+      current_tool.replace("_", " ").title()
+    )
+    for current_tool in table_tools
+  }
+
+  tool_widths = {
+    current_tool: max(12, len(tool_labels[current_tool]) + 2)
+    for current_tool in table_tools
+  }
+
+  table_width = architecture_width + sum(
+    tool_widths[current_tool] + 1
+    for current_tool in table_tools
+  )
+
+  printc.bold("=" * table_width, printc.colors.CYAN)
+  printc.bold("SUMMARY".center(table_width), printc.colors.YELLOW)
+  printc.bold("=" * table_width, printc.colors.CYAN)
+
+  header = f"{BOLD}{CYAN}{'Architecture':<{architecture_width}}"
+  for current_tool in table_tools:
+    header += f" {tool_labels[current_tool]:^{tool_widths[current_tool]}}"
+  header += RESET
+  print(header)
+
+  print(f"{CYAN}{'-' * table_width}{RESET}")
 
   for arch in sorted(comparison):
-      dc_cell = get_colored_table_symbol(comparison[arch].get("design_compiler", ""))
-      genus_cell = get_colored_table_symbol(comparison[arch].get("genus", ""))
-      vivado_cell = get_colored_table_symbol(comparison[arch].get("vivado", ""))
-      verilator_cell = get_colored_table_symbol(comparison[arch].get("verilator", ""))
+    row = f"{arch:<{architecture_width}}"
 
-      # Print line with native space alignments cleanly respected across 4 columns
-      print(f"{arch:<44} {dc_cell} {genus_cell} {vivado_cell} {verilator_cell}")
+    for current_tool in table_tools:
+      status = comparison[arch].get(current_tool, "")
+      row += " " + get_colored_table_symbol(
+        status,
+        column_width=tool_widths[current_tool]
+      )
+
+    print(row)
+
   print()
-
 
 if __name__ == "__main__":
   args = parse_arguments()
