@@ -4,6 +4,9 @@
 
 process_group: True
 
+# Synthesis mode: logical or physical
+synthesis_mode: logical
+
 # Default metrics file for this tool
 default_metrics_file: $eda_tools_path/fusion_compiler/metrics.yml
 
@@ -34,7 +37,7 @@ unix:
     - *fc_unix
     - "-output_log_file log/fmax.log"
     - *fc_args
-    - "'set synthesis_mode physical; source scripts/init_script.tcl; source scripts/find_fmax.tcl; quit'"
+    - "'set synthesis_mode logical; source scripts/init_script.tcl; source scripts/find_fmax.tcl; quit'"
 
   # Command for custom frequency synthesis
   custom_freq_synthesis_command:
