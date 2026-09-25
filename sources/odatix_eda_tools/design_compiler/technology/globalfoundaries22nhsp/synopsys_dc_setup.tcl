@@ -21,7 +21,7 @@ set SYNDIR [get_unix_variable SYNOPSYS]
 #########
 set GF22DIR "/asic/ip/DesignWare_logic_libs/globalfoundaries22nhsp/32hd116/hdl/lvt/2.00a/liberty/logic_synth_lvf"
 set search_path	". $GF22DIR $SYNDIR/libraries/syn $SYNDIR/dw/sim_ver"
-set target_library "gf22nspllogl32hdl116f_SSG_0P72V_0P00V_0P60V_M1P00V_125C.db"
+set target_library "gf22nspllogl32hdl116f_SSG_0P59V_0P00V_0P00V_0P00V_125C.db"
 
 # set synthetic_library dw_foundation.sldb 
 set link_library "* $target_library $synthetic_library"
