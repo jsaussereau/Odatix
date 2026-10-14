@@ -23,9 +23,9 @@ import os
 import sys
 import re
 import time
-import signal
 
 import odatix.lib.printc as printc
+from odatix.lib.parallel_job_handler import process_control
 
 #: What a job is, for the daemon.
 #:
@@ -91,6 +91,9 @@ class ParallelJob:
         self.log_size_limit = log_size_limit
         self.progress_mode = progress_mode
         self.status = status
+        # Whether the process heads its own process group, which is what decides
+        # what a signal sent to the job reaches (see process_control).
+        self.own_group = False
         self.kind = str(kind or JOB_KIND)
         self.progress_pattern = _compiled(progress_pattern)
         self.status_pattern = _compiled(status_pattern)
@@ -406,7 +409,8 @@ class ParallelJob:
             if sys.platform == "win32":
                 self.log_history.append(printc.colors.YELLOW + "Pause is not supported on Windows" + printc.colors.ENDC)
                 return
-            os.killpg(os.getpgid(self.process.pid), signal.SIGSTOP) # Suspend process
+            if not process_control.pause(self):
+                return
             self.status = "paused"
             self.stop_time = time.time()
             self.log_history.append(printc.colors.BLUE + "Job paused by user" + printc.colors.ENDC)
@@ -417,7 +421,7 @@ class ParallelJob:
             if sys.platform == "win32":
                 self.log_history.append(printc.colors.YELLOW + "Resume is not supported on Windows" + printc.colors.ENDC)
                 return
-            os.killpg(os.getpgid(self.process.pid), signal.SIGCONT) # Resume execution
+            process_control.resume(self)
             self.status = "running"
             self.start_time += time.time() - self.stop_time # Adjust the start time to reflect the paused duration
             self.stop_time = None

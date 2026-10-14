@@ -627,10 +627,15 @@ class DaemonMonitorHandler(ParallelJobHandler):
 
     def terminate_all_jobs(self):
         self._sync_snapshot(force=True)
-        for idx, job in enumerate(list(self.job_list)):
-            if getattr(job, "_remote_id", -1) < 0:
-                continue
-            if job.status in ("running", "starting", "paused", "queued"):
+        # Queued jobs first: a killed job frees its slot, and the daemon would
+        # otherwise start the next queued one only to be told to kill it too.
+        # The daemon's kill handles every live status (paused and starting
+        # included), and signals each job the way it was started.
+        jobs = list(enumerate(self.job_list))
+        for statuses in (("queued",), ("running", "starting", "paused")):
+            for idx, job in jobs:
+                if getattr(job, "_remote_id", -1) < 0 or job.status not in statuses:
+                    continue
                 try:
                     self.kill_or_cancel_job(idx)
                 except Exception as e:

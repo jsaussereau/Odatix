@@ -26,8 +26,6 @@ import time
 import shutil
 import queue
 import select
-import signal
-import subprocess
 import curses
 import locale
 import io
@@ -42,7 +40,6 @@ if sys.platform == "win32":
     import threading
     STD_BUF = ""
 else:
-    import fcntl
     STD_BUF = ""
 
 from odatix.components.motd import read_version
@@ -54,9 +51,10 @@ from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormat
 from odatix.lib.utils import open_path_in_explorer, find_free_port
 from odatix.lib.parallel_job_handler.theme import Theme
 from odatix.lib.parallel_job_handler.job import JOB_KIND, ParallelJob
-from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str, read_pipe_windows
+from odatix.lib.parallel_job_handler.utils import get_elapsed_time_str
 from odatix.lib.parallel_job_handler import curses_ui
 from odatix.lib.parallel_job_handler import diagnostics
+from odatix.lib.parallel_job_handler import process_control
 from odatix.lib.parallel_job_handler.job_status import (
     DONE_STATUSES,
     FAILED_STATUSES,
@@ -161,6 +159,9 @@ class ParallelJobHandler:
         # stop answering. See _update_jobs_state.
         self._running_jobs = set()
         self._retired_jobs = set()
+        # Killed jobs whose process has not been seen exiting yet: retired as
+        # far as the scheduler is concerned, but still to be collected.
+        self._stopping_jobs = []
         self.job_queue = queue.Queue()
 
         # Work to run once, when nothing is running and nothing is queued
@@ -749,17 +750,26 @@ class ParallelJobHandler:
     def kill_or_cancel_job(self, job_id: int):
         with self._lock:
             job = self.job_list[int(job_id)]
-            if job.status == "running" and job.process is not None:
-                try:
-                    if sys.platform == "win32":
-                        job.process.send_signal(signal.CTRL_BREAK_EVENT)
-                    else:
-                        os.killpg(os.getpgid(job.process.pid), signal.SIGTERM)
-                    job.status = "killed"
-                    self.retire_job(job, getattr(job, "progress", 0))
+            if job.status in ("running", "paused", "starting") and job.process is not None:
+                # Signaled, not waited for: the scheduler holds this lock, and
+                # collects the process (or kills it, if it lingers) on its
+                # next ticks -- see _reap_stopping_jobs.
+                if process_control.request_stop(job):
+                    self._stopping_jobs.append(job)
                     job.log_history.append(printc.colors.RED + "Job killed by user" + printc.colors.ENDC)
-                except ProcessLookupError:
-                    job.log_history.append(printc.colors.RED + "Failed to kill the job" + printc.colors.ENDC)
+                    if not getattr(job, "own_group", False):
+                        job.log_history.append(
+                            printc.colors.CYAN
+                            + "note: process_group is disabled for this tool: only the job's own process was "
+                            + "signaled, processes the tool started on its own are left running on purpose"
+                            + printc.colors.ENDC
+                        )
+                else:
+                    job.log_history.append(printc.colors.RED + "Job killed by user (it had already exited)" + printc.colors.ENDC)
+                job.status = "killed"
+                self._clear_task_pipeline(job)
+                self.retire_job(job, getattr(job, "progress", 0))
+                self._fill_running_slots_from_queue_unlocked()
             elif job.status == "queued":
                 try:
                     self.job_queue.queue.remove(job)
@@ -1220,6 +1230,7 @@ class ParallelJobHandler:
         self._run_post_batch_action()
 
     def _update_jobs_state(self, selected_job=None, on_selected_retired=None):
+        self._reap_stopping_jobs()
         for job in self.job_list:
             if job in self._retired_jobs:
                 job.progress = getattr(job, "progress", 0)
@@ -1407,8 +1418,7 @@ class ParallelJobHandler:
         if e is not None:
             e.join(timeout=float(timeout))
         if terminate_jobs:
-            with self._lock:
-                self.terminate_all_jobs()
+            self.terminate_all_jobs()
 
     def run_api(
         self,
@@ -1497,12 +1507,7 @@ class ParallelJobHandler:
 
     @staticmethod
     def set_nonblocking(fd):
-        if sys.platform != "win32":
-            try:
-                fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-                fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-            except TypeError:
-                pass
+        process_control.set_nonblocking(fd)
 
     def start_job(self, job):
         # Run generate command
@@ -1512,33 +1517,33 @@ class ParallelJobHandler:
             self._running_jobs.add(job)
             return
 
+        job.log_history.append(printc.colors.CYAN + "Run generate command for " + job.display_name + printc.colors.ENDC)
+        job.log_history.append(printc.colors.BOLD + " > " + job.generate_command + printc.colors.ENDC)
         try:
-            job.log_history.append(printc.colors.CYAN + "Run generate command for " + job.display_name + printc.colors.ENDC)
-            job.log_history.append(printc.colors.BOLD + " > " + job.generate_command + printc.colors.ENDC)
-
-            process = subprocess.Popen(
-                job.generate_command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE if sys.platform != "win32" else subprocess.STDOUT,
-                cwd=job.tmp_dir,
-                shell=True,
-                bufsize=0,
-            )
-
-            self.set_nonblocking(process.stdout)
-            self.set_nonblocking(process.stderr)
-
-            job.process = process
-            job.status = "starting"
-            job.start_time = time.time()
-            self.running_job_list.append(job)
-            self._running_jobs.add(job)
-        except subprocess.CalledProcessError:
+            self._start_process(job, job.generate_command, job.tmp_dir)
+        except OSError as e:
+            # The command itself failing is a non-zero exit, seen by the
+            # scheduler; this is the shell not starting at all (missing job
+            # directory, for instance).
             job.status = "failed"
+            job.log_history.append(printc.colors.RED + "error: rtl generation failed: " + str(e) + printc.colors.ENDC)
             self.retire_job(job, progress=0)
-            job.log_history.append(printc.colors.RED + "error: rtl generation failed" + printc.colors.ENDC)
-            job.log_history.append(printc.colors.CYAN + "note: look for earlier error to solve this issue" + printc.colors.ENDC)
             return
+
+        job.status = "starting"
+        job.start_time = time.time()
+        self.running_job_list.append(job)
+        self._running_jobs.add(job)
+
+    def _start_process(self, job, command, cwd):
+        """Start `command` as the current process of `job` (see process_control)."""
+        return process_control.start_job_process(
+            job,
+            command,
+            cwd,
+            own_group=self.process_group,
+            on_output=lambda j, data, stream_key: self._append_job_log(j, data, stream_key=stream_key),
+        )
 
     @staticmethod
     def _stage_sort_key(stage):
@@ -1684,40 +1689,10 @@ class ParallelJobHandler:
         job.log_history.append(printc.colors.CYAN + "Run job task '" + taskname + "'" + printc.colors.ENDC)
         job.log_history.append(printc.colors.BOLD + " > " + full_command + printc.colors.ENDC)
 
-        preexec_fn = None
-        if sys.platform != "win32" and self.process_group:
-            preexec_fn = os.setpgrp
-
-        process = subprocess.Popen(
-            STD_BUF + full_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=job.directory,
-            shell=True,
-            bufsize=0,
-            preexec_fn=preexec_fn,
-        )
-
+        self._start_process(job, STD_BUF + full_command, job.directory)
         if job.start_time is None:
             job.start_time = time.time()
-        job.process = process
         job.status = "running"
-
-        if sys.platform == "win32":
-            threading.Thread(
-                target=read_pipe_windows,
-                args=(process.stdout, job, lambda j, d: self._append_job_log(j, d, stream_key="stdout")),
-                daemon=True,
-            ).start()
-            threading.Thread(
-                target=read_pipe_windows,
-                args=(process.stderr, job, lambda j, d: self._append_job_log(j, d, stream_key="stderr")),
-                daemon=True,
-            ).start()
-        else:
-            self.set_nonblocking(process.stdout)
-            self.set_nonblocking(process.stderr)
-
         return True
 
     def run_job(self, job):
@@ -1725,39 +1700,10 @@ class ParallelJobHandler:
             job.log_history.append(printc.colors.CYAN + "Run job command" + printc.colors.ENDC)
             job.log_history.append(printc.colors.BOLD + " > " + job.command + printc.colors.ENDC)
 
-            preexec_fn = None
-            if sys.platform != "win32" and self.process_group:
-                preexec_fn = os.setpgrp
-
-            process = subprocess.Popen(
-                STD_BUF + job.command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=job.directory,
-                shell=True,
-                bufsize=0,
-                preexec_fn=preexec_fn,
-            )
-
+            self._start_process(job, STD_BUF + job.command, job.directory)
             if job.start_time is None:
                 job.start_time = time.time()
-            job.process = process
             job.status = "running"
-
-            if sys.platform == "win32":
-                threading.Thread(
-                    target=read_pipe_windows,
-                    args=(process.stdout, job, lambda j, d: self._append_job_log(j, d, stream_key="stdout")),
-                    daemon=True,
-                ).start()
-                threading.Thread(
-                    target=read_pipe_windows,
-                    args=(process.stderr, job, lambda j, d: self._append_job_log(j, d, stream_key="stderr")),
-                    daemon=True,
-                ).start()
-            else:
-                self.set_nonblocking(process.stdout)
-                self.set_nonblocking(process.stderr)
         elif isinstance(job.command, dict):
             if not hasattr(job, "_task_pipeline"):
                 # The pipeline is what is left to do: the steps already completed
@@ -1801,22 +1747,30 @@ class ParallelJobHandler:
         self.retired_job_list.append(job)
         self._retired_jobs.add(job)
 
-    def terminate_all_jobs(self):
-        for job in self.running_job_list:
-            if job.process:
-                try:  # Try to terminate the process group
-                    if sys.platform == "win32":
-                        job.process.send_signal(signal.CTRL_BREAK_EVENT)
-                    else:
-                        os.killpg(os.getpgid(job.process.pid), signal.SIGTERM)
-                except ProcessLookupError:
-                    pass  # Process already terminated
+    def terminate_all_jobs(self, timeout=process_control.TERMINATE_TIMEOUT_S):
+        """
+        Stop every job still running -- paused and starting ones included -- and
+        wait for them, killing those that do not stop within `timeout` seconds.
 
-        # Wait for all processes to finish
-        for job in self.running_job_list:
-            if job.process:
-                job.process.wait()
+        The waiting is done without the lock, so the API and the monitor keep
+        answering meanwhile; the caller must not hold it either.
+        """
+        with self._lock:
+            jobs = [job for job in self.running_job_list if job.process is not None]
+            jobs += [job for job in self._stopping_jobs if job not in jobs]
+        process_control.terminate(jobs, timeout=timeout)
+        with self._lock:
+            self._stopping_jobs = []
+            for job in jobs:
                 self._close_process_pipes(job.process)
+
+    def _reap_stopping_jobs(self):
+        """
+        Collect the killed jobs that have exited, and finish off those that
+        ignored the request to stop (see process_control.reap).
+        """
+        if self._stopping_jobs:
+            self._stopping_jobs = process_control.reap(self._stopping_jobs)
 
     def read_process_output(self):
         if sys.platform == "win32":
