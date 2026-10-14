@@ -69,6 +69,38 @@ class TestCopytree:
         copytree(str(source_tree), str(dst), blacklist=["sub"])
         assert not (dst / "sub").exists()
 
+    def test_whitelisted_directory_copies_its_subtree(self, source_tree, tmp_path):
+        (source_tree / "sub" / "deep").mkdir()
+        (source_tree / "sub" / "deep" / "d.v").write_text("d")
+        dst = tmp_path / "dst"
+        copytree(str(source_tree), str(dst), whitelist=["sub", "b.log"])
+        assert (dst / "sub" / "c.txt").exists()
+        assert (dst / "sub" / "deep" / "d.v").exists()
+        assert (dst / "b.log").exists()
+        assert not (dst / "a.txt").exists()
+
+    def test_whitelist_nested_path(self, source_tree, tmp_path):
+        (source_tree / "sub" / "other.txt").write_text("o")
+        dst = tmp_path / "dst"
+        copytree(str(source_tree), str(dst), whitelist=["./sub/c.txt"])
+        assert (dst / "sub" / "c.txt").exists()
+        assert not (dst / "sub" / "other.txt").exists()
+        assert not (dst / "a.txt").exists()
+
+    def test_whitelist_prefix_is_not_a_directory_match(self, source_tree, tmp_path):
+        (source_tree / "subx").mkdir()
+        (source_tree / "subx" / "e.txt").write_text("e")
+        dst = tmp_path / "dst"
+        copytree(str(source_tree), str(dst), whitelist=["sub"])
+        assert (dst / "sub" / "c.txt").exists()
+        assert not (dst / "subx").exists()
+
+    def test_destination_inside_source_is_not_copied(self, source_tree):
+        dst = source_tree / "work"
+        copytree(str(source_tree), str(dst))
+        assert (dst / "sub" / "c.txt").exists()
+        assert not (dst / "work").exists()
+
 
 ######################################
 # Misc helpers
