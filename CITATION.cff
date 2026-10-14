@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+message: "If you use Odatix in your work, please cite the article below."
+title: "Odatix"
+abstract: "An open-source design automation toolbox for FPGA/ASIC implementation."
+type: software
+license: GPL-3.0-only
+repository-code: "https://github.com/jsaussereau/Odatix"
+url: "https://odatix.readthedocs.io"
+keywords:
+  - design automation
+  - design space exploration
+  - hardware
+  - computer-aided design
+  - design flow
+  - FPGA
+  - ASIC
+authors:
+  - family-names: Saussereau
+    given-names: Jonathan
+    email: jonathan.saussereau@ims-bordeaux.fr
+    affiliation: "Univ. Bordeaux, Bordeaux INP, CNRS, IMS, UMR 5218, France"
+preferred-citation:
+  type: article
+  title: "Odatix: An open-source design automation toolbox for FPGA/ASIC implementation"
+  journal: "SoftwareX"
+  volume: 29
+  start: 101970
+  year: 2025
+  issn: "2352-7110"
+  doi: "10.1016/j.softx.2024.101970"
+  url: "https://www.sciencedirect.com/science/article/pii/S2352711024003406"
+  authors:
+    - family-names: Saussereau
+      given-names: Jonathan
+      affiliation: "Univ. Bordeaux, Bordeaux INP, CNRS, IMS, UMR 5218, France"
+    - family-names: Jego
+      given-names: Christophe
+      affiliation: "Univ. Bordeaux, Bordeaux INP, CNRS, IMS, UMR 5218, France"
+    - family-names: Leroux
+      given-names: Camille
+      affiliation: "Univ. Bordeaux, Bordeaux INP, CNRS, IMS, UMR 5218, France"
+    - family-names: Begueret
+      given-names: Jean-Baptiste
+      affiliation: "Univ. Bordeaux, Bordeaux INP, CNRS, IMS, UMR 5218, France"
