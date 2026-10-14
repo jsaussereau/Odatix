@@ -33,12 +33,14 @@ proc odatix_ddc_path {name} {
 }
 
 # The technology library setup every process needs, whether it reads the RTL or
-# a database written by an earlier step.
+# a database written by an earlier step. The setup file is sourced at global
+# level: it sets application variables (target_library, link_library...) and
+# reads others (synthetic_library), which a proc body would only see as locals.
 proc odatix_dc_setup {signature} {
     global lib_name work_path
     define_design_lib $lib_name -path $work_path
     if {[catch {
-        source scripts/synopsys_dc_setup.tcl
+        uplevel #0 {source scripts/synopsys_dc_setup.tcl}
     } errmsg]} {
         puts "$signature <bold><red>error: could not source 'synopsys_dc_setup.tcl'<end>"
         puts "$signature <cyan>note: design compiler needs a technology file, make sure you added one in 'target_design_compiler.yml'<end>"
