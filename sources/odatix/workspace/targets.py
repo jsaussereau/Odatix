@@ -40,7 +40,7 @@ from ruamel.yaml.comments import CommentedMap
 
 from odatix.workspace.entries import check_name
 from odatix.workspace.errors import AlreadyExistsError, NotFoundError
-from odatix.workspace.yaml_io import parse_bool, read_yaml
+from odatix.workspace.yaml_io import parse_bool, read_yaml, write_text
 
 __all__ = ["Target", "TargetFile", "TargetFileCollection"]
 
@@ -460,11 +460,7 @@ class TargetFile(object):
             # surrounding whitespace would drop the newline that ends the file.
             text = re.sub(r"(?m)^targets:[ \t]*\[\][ \t]*$", lambda _: "\n".join(block_lines), text, count=1)
 
-        directory = os.path.dirname(path)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(path, "w") as f:
-            f.write(text)
+        write_text(path, text)
 
         for target in self.targets:
             target.original_name = target.name

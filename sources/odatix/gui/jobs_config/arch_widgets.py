@@ -415,3 +415,129 @@ def _arch_config_widgets(instances, arch_name, selected_values, arch_enabled, mo
         "initial_selections": initial_selections,
     }
     return domain_tiles, preview_tile, info
+
+
+######################################
+# Wildcard compaction (writing side)
+######################################
+#
+# _expand_wildcard_selection() reads "Arch/* + domain/value" back into the
+# concrete combinations the preview checklist shows. These helpers do the
+# inverse: when every configuration of a domain is checked, the domain is
+# written as a wildcard rather than as the full list of its configurations, so
+# a selection stays valid when a configuration is added to that domain later.
+
+def _entry_tokens(entry: str, arch_name: str):
+    """Split a preview entry into its ordered (domain, value) tokens, with the
+    main domain normalized like _expand_wildcard_selection() does. Returns None
+    for an entry that is not in the expected form, and [] for the bare default
+    configuration entry."""
+    parts = [p.strip() for p in str(entry).split(" + ") if p.strip()]
+    tokens = []
+    for index, part in enumerate(parts):
+        if "/" not in part:
+            if index == 0 and part == arch_name:
+                continue
+            return None
+        domain, value = part.split("/", 1)
+        if domain == arch_name:
+            domain = hard_settings.main_parameter_domain
+        if not domain or value == "":
+            return None
+        tokens.append((domain, value))
+    return tokens
+
+
+def _format_entry(arch_name: str, tokens) -> str:
+    """Inverse of _entry_tokens(): the preview/selector string of a token list."""
+    if not tokens:
+        return arch_name
+    parts = [
+        f"{arch_name if domain == hard_settings.main_parameter_domain else domain}/{value}"
+        for domain, value in tokens
+    ]
+    if tokens[0][0] != hard_settings.main_parameter_domain:
+        parts = [arch_name] + parts
+    return " + ".join(parts)
+
+
+def _compact_cubes(cubes, order, domain_values):
+    """
+    Collapse a set of value tuples (all sharing the same domain order) by
+    replacing, domain by domain, a group that holds every configuration of that
+    domain with a "*" wildcard.
+    """
+    cubes = list(dict.fromkeys(cubes))
+    for index, domain in enumerate(order):
+        available = set(domain_values.get(domain) or [])
+        if len(available) < 2:
+            continue
+        groups = {}
+        for cube in cubes:
+            groups.setdefault(cube[:index] + (None,) + cube[index + 1:], []).append(cube)
+        compacted = []
+        for key, group in groups.items():
+            if {cube[index] for cube in group} == available:
+                compacted.append(key[:index] + ("*",) + key[index + 1:])
+            else:
+                compacted.extend(group)
+        cubes = list(dict.fromkeys(compacted))
+    return cubes
+
+
+def _selection_domain_values(instances, arch_name, mode) -> dict:
+    """Every value each parameter domain of an architecture can take, virtual
+    parameter domains included (the wildcard-expandable domains)."""
+    domain_values = dict(_arch_domains_configs(instances, arch_name))
+    try:
+        _, virtual_domain_values, error = _virtual_variant_tokens(instances, arch_name, mode)
+    except Exception:
+        return domain_values
+    if not error:
+        domain_values.update(virtual_domain_values or {})
+    return domain_values
+
+
+def _compact_arch_entries(instances, arch_name, entries, mode) -> list:
+    """The selection of one architecture, with fully selected domains written as
+    wildcards. Falls back to the entries as given whenever the compacted form
+    would not read back into the exact same selection."""
+    domain_values = _selection_domain_values(instances, arch_name, mode)
+    if not domain_values:
+        return list(entries)
+
+    shapes = {}
+    compacted = []
+    for entry in entries:
+        tokens = _entry_tokens(entry, arch_name)
+        if not tokens:
+            # The bare default configuration entry, or something this syntax
+            # does not describe: carried over untouched.
+            compacted.append(str(entry))
+            continue
+        order = tuple(domain for domain, _ in tokens)
+        shapes.setdefault(order, []).append(tuple(value for _, value in tokens))
+
+    for order, cubes in shapes.items():
+        for cube in _compact_cubes(cubes, order, domain_values):
+            compacted.append(_format_entry(arch_name, list(zip(order, cube))))
+
+    expanded = []
+    for entry in compacted:
+        expanded.extend(_expand_wildcard_selection(entry, domain_values, arch_name))
+    if len(expanded) != len(set(expanded)) or set(expanded) != {str(entry) for entry in entries}:
+        return list(entries)
+    return compacted
+
+
+def compact_selection(instances, entries, mode) -> list:
+    """
+    Rewrite a flat selection ("Arch + domain/value + ...") using domain
+    wildcards wherever every configuration of a domain is selected, e.g.
+    "Design/* + domain1/config1 + domain2/*". The result reads back (through
+    _expand_wildcard_selection) into exactly the same combinations.
+    """
+    compacted = []
+    for arch_name, arch_entries in _group_arch_selections(entries).items():
+        compacted.extend(_compact_arch_entries(instances, arch_name, arch_entries, mode))
+    return list(dict.fromkeys(compacted))

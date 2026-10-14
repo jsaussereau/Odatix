@@ -288,6 +288,13 @@ def validate(settings, path=""):
     elif not data.get("rtl_path"):
         missing("rtl_path")
 
+    if parse_bool(data.get("use_parameters"), False):
+        # An empty delimiter ("start_delimiter:" with nothing after it) says
+        # nothing either: there is nowhere to write the parameters.
+        for key in ("start_delimiter", "stop_delimiter"):
+            if not data.get(key):
+                missing(key, " while use_parameters=true")
+
     if parse_bool(data.get("file_copy_enable"), False):
         for key in ("file_copy_source", "file_copy_dest"):
             if not data.get(key):

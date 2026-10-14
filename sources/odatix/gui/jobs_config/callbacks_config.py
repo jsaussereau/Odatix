@@ -55,16 +55,36 @@ from odatix.gui.jobs_config.context import _run_context
 from odatix.gui.jobs_config.pnr import _pnr_job_sections, _pnr_sync_preview_values
 from odatix.gui.jobs_config.settings_form import job_settings_form
 from odatix.gui.jobs_config.settings_io import _collect_run_settings, _job_settings_baseline, write_run_settings
+from odatix.gui.jobs_config.arch_widgets import compact_selection
 from odatix.gui.jobs_config.simulation import (
     _collect_listed_architectures,
     _save_listed_architectures,
     _simulation_job_sections,
+    compact_simulation_selection,
 )
 from odatix.gui.page_scope import page_callback
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
 PAGE_SCOPE = "jobs_config"
+
+def _compacted_selection(context, run_mode, selection):
+    """
+    The selection as it is written to the settings file: domains where every
+    configuration is selected are written as a wildcard ("Design/* +
+    domain/config") instead of as the full list of their configurations.
+
+    Place & route selectors name synthesis results rather than an architecture
+    design space, so they are written as they are.
+    """
+    if selection is None or run_mode == "pnr":
+        return selection
+    workspace = context["workspace"]
+    if run_mode == "simulation":
+        return compact_simulation_selection(workspace.architectures, selection, context["mode"])
+    instances = workspace.workflows if context["mode"] == "workflow" else workspace.architectures
+    return compact_selection(instances, selection, context["mode"])
+
 
 @dash.callback(
     Output({"page": page_path, "action": "session-dropdown"}, "options"),
@@ -888,6 +908,10 @@ def save_architecture_selections(
             payload = {
                 **read_yaml(settings_path, default={}),
                 **current_settings,
+                # Written with domain wildcards ("Design/* + domain/config"),
+                # so a selection covering a whole domain keeps covering it when
+                # a configuration is added to that domain later.
+                selection_key: _compacted_selection(context, run_mode, current_settings.get(selection_key)),
             }
             write_run_settings(
                 settings_path,

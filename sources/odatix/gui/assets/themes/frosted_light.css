@@ -39,7 +39,7 @@
     --fg-edge: rgba(255, 255, 255, 0.75);
 
     /* theme */
-    --theme-background-color: #d0defb;
+    --theme-background-color: #e6e9f2;
     --theme-element-background-color: var(--fg-glass);
     --theme-dimmed-element-background-color: rgba(255, 255, 255, 0.28);
     --theme-action-color: rgba(255, 255, 255, 0.6);
@@ -74,18 +74,18 @@
     --theme-normal-border-radius: 20px;
     --theme-small-border-radius: 14px;
 
-    /* background: soft aurora blobs for the glass to blur */
-    --theme-background: #eceff8;
+    /* background: soft, low-saturation blobs for the glass to blur */
+    --theme-background: #eef0f5;
     --theme-background-image:
         radial-gradient(ellipse 880px 640px at 8% 8%,
-            rgba(96, 148, 255, 0.36) 0%, rgba(96, 148, 255, 0) 68%),
+            rgba(96, 148, 255, 0.16) 0%, rgba(96, 148, 255, 0) 68%),
         radial-gradient(ellipse 800px 600px at 92% 4%,
-            rgba(255, 94, 155, 0.26) 0%, rgba(255, 94, 155, 0) 68%),
+            rgba(255, 94, 155, 0.10) 0%, rgba(255, 94, 155, 0) 68%),
         radial-gradient(ellipse 860px 640px at 88% 82%,
-            rgba(0, 200, 176, 0.24) 0%, rgba(0, 200, 176, 0) 70%),
+            rgba(0, 200, 176, 0.10) 0%, rgba(0, 200, 176, 0) 70%),
         radial-gradient(ellipse 780px 600px at 14% 92%,
-            rgba(150, 110, 255, 0.28) 0%, rgba(150, 110, 255, 0) 70%),
-        linear-gradient(160deg, #f1f3fa 0%, #e9edf7 50%, #eef0f8 100%);
+            rgba(150, 110, 255, 0.12) 0%, rgba(150, 110, 255, 0) 70%),
+        linear-gradient(160deg, #f2f3f7 0%, #eceef4 50%, #eff0f5 100%);
     --theme-background-repeat: no-repeat;
     --theme-background-size: 100% 100%;
 

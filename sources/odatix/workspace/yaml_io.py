@@ -30,12 +30,16 @@ Two ways of reading are needed, and they are not interchangeable:
   comments, key order and formatting. This is what a save starts from, so that
   writing one setting back does not throw away the rest of the user's file.
 
-Everything the API writes goes through :func:`write_document`, so a workspace
-file never ends up half-written by one helper and half by another.
+Everything the API writes goes through :func:`write_document` (or
+:func:`write_text` for what is not YAML), so a workspace file never ends up
+half-written by one helper and half by another -- nor half-written at all: a
+file is replaced in one go, never truncated then filled.
 """
 
 import copy
+import io
 import os
+import tempfile
 
 import yaml
 from ruamel.yaml import YAML
@@ -48,6 +52,7 @@ __all__ = [
     "read_mapping",
     "read_document",
     "write_document",
+    "write_text",
     "new_document",
     "flow_seq",
     "block_seq",
@@ -148,16 +153,54 @@ def read_document(path):
 # Writing
 ######################################
 
+def write_text(path, text):
+    """
+    Write `text` to `path`, creating the parent directories if needed.
+
+    The file is written next to its destination and then renamed over it: a
+    run interrupted halfway, or a disk that fills up, leaves the previous
+    version of the file in place rather than an empty or truncated one. A
+    symbolic link is followed, so that a workspace keeping a file elsewhere
+    still finds it there after a save.
+    """
+    target = os.path.realpath(path)
+    directory = os.path.dirname(target)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    handle, temporary = tempfile.mkstemp(
+        dir=directory or ".", prefix="." + os.path.basename(target) + ".", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(handle, "w") as f:
+            f.write(text)
+        if os.path.exists(target):
+            # Keep the permissions of the file being replaced, not those of a
+            # fresh temporary file (which mkstemp makes private).
+            os.chmod(temporary, os.stat(target).st_mode & 0o7777)
+        else:
+            os.chmod(temporary, 0o666 & ~_umask())
+        os.replace(temporary, target)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+        raise
+
+
+def _umask():
+    """The process umask (only readable by setting it, so it is set back)."""
+    mask = os.umask(0)
+    os.umask(mask)
+    return mask
+
+
 def write_document(path, data, yaml_obj=None):
     """
     Write a mapping to `path`, creating the parent directories if needed.
     """
-    directory = os.path.dirname(path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
     writer = yaml_obj if yaml_obj is not None else YAML()
-    with open(path, "w") as f:
-        writer.dump(data, f)
+    buffer = io.StringIO()
+    writer.dump(data, buffer)
+    write_text(path, buffer.getvalue())
 
 
 def new_document(header=None):

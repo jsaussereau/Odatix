@@ -87,8 +87,8 @@ import fnmatch
 import os
 
 import odatix.lib.hard_settings as hard_settings
-import odatix.workspace.selectors as selectors
-import odatix.workspace.space as space
+from odatix.workspace import selectors
+from odatix.workspace import space
 from odatix.workspace.selection import Message
 from odatix.workspace.yaml_io import read_yaml
 

@@ -393,6 +393,9 @@ class ConfigGenerator:
     except yaml.YAMLError as e:
       printc.error(f"Invalid YAML file \"{self.yaml_file}\": {e}")
       sys.exit(-1)
+    if not isinstance(data, dict):
+      printc.error(f"YAML file \"{self.yaml_file}\" holds a \"{type(data).__name__}\" while it should hold a mapping of settings.")
+      sys.exit(-1)
     self.data = data
 
   def _validate_keys(self, data):
@@ -1006,9 +1009,12 @@ class ConfigGenerator:
       values = [0, 1]
 
     elif value_type == "range":
-      from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
-      to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
-      step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", default_value=1, silent=True, script_name=script_name)
+      # Typed: a bound left empty or holding a list is reported, not handed
+      # to range().
+      from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", type=int, behavior=Key.MANTADORY, script_name=script_name)
+      to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", type=int, behavior=Key.MANTADORY, script_name=script_name)
+      # A step that is not a number is noted, and the default one used.
+      step_value, _ = get_from_dict("step", settings, self.yaml_file, parent=name + "[settings]", type=int, default_value=1, silent=True, script_name=script_name)
       if to_defined and from_defined:
         if step_value == 0:
           printc.error('"step" must not be 0 for range "' + name + "[settings]" + '", in "' + self.yaml_file + '".', script_name)
@@ -1062,9 +1068,12 @@ class ConfigGenerator:
         printc.magenta("  list: [XXX, XXX, XXX]")
         return []
     elif value_type == "multiples":
-      from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
-      to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
-      base_value, base_defined = get_from_dict("base", settings, self.yaml_file, parent=name + "[settings]", behavior=Key.MANTADORY, script_name=script_name)
+      from_value, from_defined = get_from_dict("from", settings, self.yaml_file, parent=name + "[settings]", type=int, behavior=Key.MANTADORY, script_name=script_name)
+      to_value, to_defined = get_from_dict("to", settings, self.yaml_file, parent=name + "[settings]", type=int, behavior=Key.MANTADORY, script_name=script_name)
+      base_value, base_defined = get_from_dict("base", settings, self.yaml_file, parent=name + "[settings]", type=int, behavior=Key.MANTADORY, script_name=script_name)
+      if base_defined and base_value == 0:
+        printc.error('"base" must not be 0 for multiples "' + name + "[settings]" + '", in "' + self.yaml_file + '".', script_name)
+        return []
       if to_defined and from_defined and base_defined:
         values = [x for x in range(from_value, to_value + 1) if x % base_value == 0]
       else:

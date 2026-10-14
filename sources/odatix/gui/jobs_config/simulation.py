@@ -25,7 +25,7 @@ import odatix.gui.ui_components as ui
 import odatix.workspace.sim_architectures as sim_architectures
 from odatix.gui.icons import icon
 
-from odatix.gui.jobs_config.arch_widgets import _arch_config_widgets
+from odatix.gui.jobs_config.arch_widgets import _arch_config_widgets, compact_selection
 from odatix.gui.jobs_config.common import _arch_badge_text, _simulation_badge_text
 
 ######################################
@@ -469,3 +469,18 @@ def _collect_simulation_selection(switch_values, switch_ids, selection_values, s
         if sim_name and bool(value):
             selection[sim_name] = by_sim.get(sim_name, [])
     return selection
+
+
+def compact_simulation_selection(architectures_collection, selection: dict, mode) -> dict:
+    """
+    The simulation -> entries mapping, with each architecture's entries written
+    using domain wildcards where possible (see arch_widgets.compact_selection).
+    """
+    compacted = {}
+    for sim_name, entries in (selection or {}).items():
+        combos = [_combo_from_sim_entry(entry) for entry in entries or []]
+        compacted[sim_name] = [
+            _sim_entry_from_combo(combo)
+            for combo in compact_selection(architectures_collection, combos, mode)
+        ]
+    return compacted

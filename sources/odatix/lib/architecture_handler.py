@@ -854,6 +854,8 @@ class ArchitectureHandler:
 
         use_parameters, start_delimiter, stop_delimiter, param_target_filename = self.get_use_parameters(arch, arch_display_name, settings_data, settings_filename, work_top_level, no_configuration, arch_param_dir=arch_param_dir)
         if use_parameters is None or start_delimiter is None or stop_delimiter is None or param_target_filename is None:
+            # get_use_parameters has said why, and put it in the plan.
+            self.banned_arch_param.append(arch_param_dir)
             return None
 
         design_path = settings_data.get("design_path")
@@ -875,35 +877,20 @@ class ArchitectureHandler:
                 self.plan.add(arch_display_name, Category.ERROR)
                 return None
 
-            # check if the top level module name exists in the top level file, at least
-            f = open(top_level, "r")
-            if top_level_module not in f.read():
-                printc.error("There is no occurence of top level module name \"" + top_level_module + "\" in top level file \"" + top_level + "\"", script_name)
-                self.banned_arch_param.append(arch_param_dir)
-                self.plan.add(arch_display_name, Category.ERROR)
-                f.close()
-                return None
-            f.close()
-            
-            # check if the top clock name exists in the top level file, at least
-            f = open(top_level, "r")
-            if clock_signal not in f.read():
-                printc.error("There is no occurence of clock signal name \"" + clock_signal + "\" in top level file \"" + top_level + "\"", script_name)
-                self.banned_arch_param.append(arch_param_dir)
-                self.plan.add(arch_display_name, Category.ERROR)
-                f.close()
-                return None
-            f.close()
-            
-            # check if the top reset name exists in the top level file, at least
-            f = open(top_level, "r")
-            if clock_signal not in f.read():
-                printc.error("There is no occurence of reset signal name \"" + reset_signal + "\" in top level file \"" + top_level + "\"", script_name)
-                self.banned_arch_param.append(arch_param_dir)
-                self.plan.add(arch_display_name, Category.ERROR)
-                f.close()
-                return None
-            f.close()
+            # check that the top level module, clock and reset names occur in the
+            # top level file, at least
+            with open(top_level, "r") as f:
+                top_level_content = f.read()
+            for kind, name in (
+                ("top level module name", top_level_module),
+                ("clock signal name", clock_signal),
+                ("reset signal name", reset_signal),
+            ):
+                if name not in top_level_content:
+                    printc.error("There is no occurence of " + kind + " \"" + name + "\" in top level file \"" + top_level + "\"", script_name)
+                    self.banned_arch_param.append(arch_param_dir)
+                    self.plan.add(arch_display_name, Category.ERROR)
+                    return None
 
         # Resolve the configuration: a file when there is one, otherwise what the
         # rules of the domain describe, written on the way. Nothing has to have
@@ -1240,6 +1227,11 @@ class ArchitectureHandler:
     def get_use_parameters(self, arch, arch_display_name, settings_data, settings_filename, top_level_file, no_configuration=False, add_to_error_list=True, arch_param_dir=""):
 
         use_parameters, start_delimiter, stop_delimiter, param_target_filename = ParamDomain.get_param_delimiters(settings_data, settings_filename, top_level_file)
+        if use_parameters is None:
+            # The delimiters are missing: get_param_delimiters said so.
+            if add_to_error_list:
+                self.plan.add(arch_display_name, Category.ERROR)
+            return None, None, None, None
 
         if no_configuration:
             use_parameters = False

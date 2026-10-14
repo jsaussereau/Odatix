@@ -41,12 +41,14 @@ from odatix.workspace.clean import CleanSettingsFile
 from odatix.workspace.derived import DerivedMetricsFile
 from odatix.workspace.errors import NotAWorkspaceError
 from odatix.workspace.jobs import JobConfigCollection
+from odatix.workspace.settings import Setting, Settings, save_settings
 from odatix.workspace.simulations import SimulationCollection
 from odatix.workspace.targets import TargetFileCollection
 from odatix.workspace.tools import ToolCollection
 from odatix.workspace.workflows import WorkflowCollection
+from odatix.workspace.yaml_io import file_header, read_yaml
 
-__all__ = ["Workspace", "WorkspacePaths"]
+__all__ = ["Workspace", "WorkspacePaths", "WorkspaceSettings", "save_workspace_settings"]
 
 
 #: Every path setting of a workspace, with the OdatixSettings attribute holding
@@ -57,6 +59,7 @@ PATH_SETTINGS = (
     ("workflow_path", "DEFAULT_WORKFLOW_PATH"),
     ("tools_path", "DEFAULT_TOOLS_PATH"),
     ("target_path", "DEFAULT_TARGET_PATH"),
+    ("gui_theme_path", "DEFAULT_GUI_THEME_PATH"),
     ("work_path", "DEFAULT_WORK_PATH"),
     ("simulation_work_path", "DEFAULT_SIMULATION_WORK_PATH"),
     ("fmax_synthesis_work_path", "DEFAULT_FMAX_SYNTHESIS_WORK_PATH"),
@@ -77,6 +80,78 @@ PATH_SETTINGS = (
     ("dse_campaign_path", "DEFAULT_DSE_CAMPAIGN_PATH"),
     ("derived_metrics_file", "DEFAULT_DERIVED_METRICS_FILE"),
 )
+
+
+def _path(section=None, doc=None):
+    """A path setting: left out of the file when empty, which means "the default"."""
+    return Setting("", type="str", skip_if_empty=True, section=section, doc=doc)
+
+
+class WorkspaceSettings(Settings):
+    """
+    The settings file of a workspace ("odatix.yml").
+
+    Every setting is optional: one left empty is removed from the file, and
+    Odatix uses its default instead. Saving only touches the keys that changed,
+    so the comments, the layout and the keys this class does not know about
+    (one a newer Odatix added, a deprecated one still read) stay as they were.
+    """
+
+    workspace = Setting("odatix", type="str", doc="Marks the directory as an Odatix workspace.")
+
+    arch_path = _path("Main paths", "Where the architectures are.")
+    sim_path = _path(doc="Where the simulations are.")
+    workflow_path = _path(doc="Where the workflows are.")
+    tools_path = _path(doc="Where the workspace's own EDA tools are.")
+    target_path = _path(doc="Where the target files are.")
+    gui_theme_path = _path(doc="Where the user themes of the GUI are.")
+
+    clean_settings_file = _path("Settings files", "What \"odatix clean\" removes.")
+    simulation_settings_file = _path(doc="Settings of \"odatix sim\".")
+    fmax_synthesis_settings_file = _path(doc="Settings of \"odatix fmax\".")
+    custom_freq_synthesis_settings_file = _path(doc="Settings of \"odatix synth\".")
+    pnr_settings_file = _path(doc="Settings of \"odatix pnr\".")
+    analysis_settings_file = _path(doc="Settings of \"odatix analyze\".")
+    workflow_settings_file = _path(doc="Settings of \"odatix workflow\".")
+    dse_settings_file = _path(doc="Settings of \"odatix dse\".")
+    dse_campaign_path = _path(doc="Where the exploration campaigns are kept.")
+    derived_metrics_file = _path(doc="The metrics computed from the ones runs produce.")
+
+    work_path = _path("Work directories", "Where jobs run.")
+    simulation_work_path = _path(doc="Sub-directory of the work path for simulations.")
+    fmax_synthesis_work_path = _path(doc="Sub-directory of the work path for fmax synthesis.")
+    custom_freq_synthesis_work_path = _path(doc="Sub-directory of the work path for custom frequency synthesis.")
+    pnr_work_path = _path(doc="Sub-directory of the work path for place and route.")
+    analysis_work_path = _path(doc="Sub-directory of the work path for analyses.")
+    workflow_work_path = _path(doc="Sub-directory of the work path for workflows.")
+
+    result_path = _path("Results", "Where results are written.")
+    use_benchmark = Setting("", type="any", skip_if_empty=True, doc="Include benchmark results.")
+    benchmark_file = _path(doc="The benchmark results file.")
+
+
+#: Header of a settings file generated from scratch.
+_SETTINGS_FILE_TITLE = "Odatix Workspace Settings"
+
+
+def save_workspace_settings(path, values):
+    """
+    Write settings into a workspace settings file, changing nothing else.
+
+    Args:
+        path (str): the settings file ("odatix.yml").
+        values (dict): the settings to write. A key that is not given keeps
+            what the file says; one given empty (``""`` or ``None``) is removed,
+            so that Odatix falls back on its default.
+    """
+    settings = WorkspaceSettings.from_dict(read_yaml(path, default={}))
+    for key, value in (values or {}).items():
+        if value is None and key not in WorkspaceSettings._specs:
+            settings.extra.pop(key, None)
+            continue
+        settings[key] = "" if value is None else value
+    save_settings(settings, path, header=file_header(_SETTINGS_FILE_TITLE))
+    return path
 
 
 class WorkspacePaths(object):
@@ -248,17 +323,16 @@ class Workspace(object):
 
     def save_settings(self, values=None, **kwargs):
         """
-        Write the settings file of this workspace. Only the settings that are
-        set are written: an empty one means "use the Odatix default".
+        Write settings into the settings file of this workspace. Only the ones
+        given are changed, everything else in the file is left as it was. An
+        empty one is removed: it means "use the Odatix default".
         """
-        settings = dict(self.settings)
+        changes = {}
         for source in (values, kwargs):
             if source:
-                settings.update(source)
-        OdatixSettings.save_dict_to_file(settings, self.settings_file)
-        self._settings = settings
-        self._paths = None
-        return self
+                changes.update(source)
+        save_workspace_settings(self.settings_file, changes)
+        return self.reload()
 
     def odatix_settings(self):
         """

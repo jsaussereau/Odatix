@@ -38,6 +38,7 @@ from odatix.lib.parallel_job_handler import daemon_control
 from odatix.lib.parallel_job_handler.job_output_formatter import JobOutputFormatter
 from odatix.lib.parallel_job_handler.transport import ApiError, Endpoint
 from odatix.gui.page_scope import scoped
+from odatix.gui import dummy_session
 
 # Scope anchoring the callbacks below: they are dispatched only on the pages
 # embedding the matching anchor store (see odatix.gui.page_scope).
@@ -98,6 +99,37 @@ def _monitor_query(search: Optional[str]) -> dict:
         "port": port,
         "session": session,
     }
+
+
+# `?dummy=true` replaces the daemon with a simulated session (see
+# odatix.gui.dummy_session): the page then talks to an in-process fake that
+# answers the same `/status` and `/jobs/...` requests, so the monitor can be
+# demoed and styled without an actual run. Nothing else on the page changes.
+_DUMMY_TRUE = ("1", "true", "yes", "on", "")
+
+
+def _is_dummy(search: Optional[str]) -> bool:
+    value = get_key_from_url(search, "dummy")
+    if value is None:
+        return False
+    return str(value).strip().lower() in _DUMMY_TRUE
+
+
+def _dummy_daemon_state() -> dict:
+    return {
+        "query_key": "dummy",
+        "dummy": True,
+        "host": None,
+        "port": None,
+        "session": dummy_session.DUMMY_SESSION_ID,
+        "session_name": dummy_session.DUMMY_SESSION_ID,
+        "session_id": dummy_session.DUMMY_SESSION_ID,
+        "address": dummy_session.DUMMY_ADDRESS,
+    }
+
+
+def _is_dummy_state(daemon_state) -> bool:
+    return isinstance(daemon_state, dict) and bool(daemon_state.get("dummy"))
 
 
 def _pick_session_value(daemons, selector: Optional[str]) -> Optional[str]:
@@ -199,6 +231,9 @@ def _resolve_daemon_target(
     current_daemon_state: Optional[dict] = None,
     session_override: Optional[str] = None,
 ) -> dict:
+    if _is_dummy(search):
+        return _dummy_daemon_state()
+
     query = _monitor_query(search)
 
     session_override = _normalize_optional_str(session_override)
@@ -352,6 +387,12 @@ def _stop_resolved_session(resolved_daemon):
     host/port to identify it by, and falling back to "the workspace session"
     could stop somebody else's.
     """
+    if _is_dummy_state(resolved_daemon):
+        # There is no process to stop: forget the simulation instead, so the
+        # next visit to ?dummy=true starts a fresh run.
+        dummy_session.reset_session()
+        return {"ok": True}
+
     selector = (
         str(resolved_daemon.get("session_id") or "").strip()
         or str(resolved_daemon.get("session") or "").strip()
@@ -366,15 +407,21 @@ def _stop_resolved_session(resolved_daemon):
 
 
 def _api_get(daemon_state, path: str):
+    if _is_dummy_state(daemon_state):
+        return dummy_session.api_get(path)
     return _endpoint(daemon_state).get(path, timeout=0.4)
 
 def _api_get_slow(daemon_state, path: str, timeout: float = 2.0):
+    if _is_dummy_state(daemon_state):
+        return dummy_session.api_get(path)
     return _endpoint(daemon_state).get(path, timeout=float(timeout))
 
 def _api_post(daemon_state, path: str, params: Optional[dict] = None):
     if params:
         query = "&".join(f"{key}={value}" for key, value in params.items())
         path = path + ("&" if "?" in path else "?") + query
+    if _is_dummy_state(daemon_state):
+        return dummy_session.api_post(path) or {"ok": True}
     return _endpoint(daemon_state).post(path, payload={}, timeout=0.6) or {"ok": True}
 
 
@@ -577,6 +624,19 @@ def _mode_button(id, label, tooltip):
     State("session-dropdown", "options"),
 )
 def _update_session_dropdown(_n, _open, last_action, search, current_value, daemon_state, dropdown_open, current_options):
+    if _is_dummy(search):
+        # A simulated session is the only one a dummy monitor can attach to:
+        # listing real daemons here would let the dropdown steal the page away
+        # from the simulation on the next tick.
+        options = [{
+            "label": dummy_session.DUMMY_SESSION_LABEL,
+            "value": dummy_session.DUMMY_SESSION_ID,
+            "title": dummy_session.DUMMY_ADDRESS,
+        }]
+        if current_value == dummy_session.DUMMY_SESSION_ID and _options_signature(options) == _options_signature(current_options):
+            raise PreventUpdate
+        return options, dummy_session.DUMMY_SESSION_ID
+
     # A session that was just shut down must disappear from the list, whether or
     # not the dropdown is open. One-shot: the store keeps its value afterwards,
     # so gate on the trigger, not on the value.
@@ -1100,6 +1160,9 @@ def _toggle_open_path(selected_session, search, daemon_state):
         resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
     except Exception:
         resolved_daemon = None
+
+    if _is_dummy_state(resolved_daemon):
+        return True, "Directory not available: this is a simulated session"
 
     if _is_local_session(resolved_daemon):
         return False, "Open task directory"

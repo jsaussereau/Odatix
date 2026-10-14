@@ -40,7 +40,7 @@ import odatix.lib.hard_settings as hard_settings
 from odatix.workspace.entries import check_name
 from odatix.workspace.errors import AlreadyExistsError, NotFoundError
 from odatix.workspace.settings import Setting, Settings, render
-from odatix.workspace.yaml_io import flow_seq
+from odatix.workspace.yaml_io import flow_seq, write_text
 
 __all__ = [
     "Configuration",
@@ -132,9 +132,7 @@ class Configuration(object):
 
     def write(self, content):
         """Replace the content of this configuration, creating it if needed."""
-        os.makedirs(self.domain.path, exist_ok=True)
-        with open(self.path, "w") as f:
-            f.write("" if content is None else str(content))
+        write_text(self.path, "" if content is None else str(content))
         return self
 
     @property
@@ -406,6 +404,11 @@ class ConfigGeneration(Settings):
         factory=dict, type="dict", skip_if_empty=True,
         doc="Former location of the variables, read for backward compatibility.",
     )
+    # Read here so that the migration carries them over: the generator has
+    # always honored them in this block, and leaving them out would make a
+    # saved file describe more configurations than it did.
+    blacklist = Setting(factory=list, type="list", doc="Generated configuration names excluded from runs.")
+    constraints = Setting(factory=list, type="list", doc="Boolean expressions over the variables.")
 
 
 def variable_definition(name, type, settings, format=None, group=None):
@@ -482,6 +485,10 @@ class WithVariables(object):
             former = self.generate_configurations_settings
             self.configurations.name = former.name
             self.configurations.template = former.template
+            if not self.configurations.blacklist:
+                self.configurations.blacklist = list(former.blacklist)
+            if not self.configurations.constraints:
+                self.configurations.constraints = list(former.constraints)
 
         return self
 

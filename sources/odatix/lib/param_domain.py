@@ -240,19 +240,21 @@ class ParamDomain:
     use_parameters, _ = get_from_dict('use_parameters', settings_data, settings_file, default_value=default_value, silent=silent, type=bool, script_name=script_name)
     
     if use_parameters:
-      start_delimiter, defined = get_from_dict('start_delimiter', settings_data, settings_file, silent=True, script_name=script_name)
-      if not defined:
-        printc.error("Cannot find key \"start_delimiter\" in \"" + settings_file + "\", while \"use_parameters\" is true", script_name)
+      # A key left empty ("start_delimiter:") reads as None: it is as good as
+      # missing, there is nowhere to write the parameters.
+      start_delimiter, _ = get_from_dict('start_delimiter', settings_data, settings_file, silent=True, script_name=script_name)
+      if start_delimiter is None or start_delimiter == "":
+        printc.error("Cannot find key \"start_delimiter\" in \"" + settings_file + "\", or it is empty, while \"use_parameters\" is true", script_name)
         return None, None, None, None
-      stop_delimiter, defined = get_from_dict('stop_delimiter', settings_data, settings_file, silent=True, script_name=script_name)
-      if not defined:
-        printc.error("Cannot find key \"stop_delimiter\" in \"" + settings_file + "\", while \"use_parameters\" is true", script_name)
+      stop_delimiter, _ = get_from_dict('stop_delimiter', settings_data, settings_file, silent=True, script_name=script_name)
+      if stop_delimiter is None or stop_delimiter == "":
+        printc.error("Cannot find key \"stop_delimiter\" in \"" + settings_file + "\", or it is empty, while \"use_parameters\" is true", script_name)
         return None, None, None, None
 
       # Print an error if the default value is not defined
       silent = False if top_level_file is None else True
       param_target_filename, _ = get_from_dict('param_target_file', settings_data, settings_file, default_value=top_level_file, silent=silent, script_name=script_name)
-      if param_target_filename == "":
+      if param_target_filename is None or param_target_filename == "":
         param_target_filename = top_level_file
     else:
       start_delimiter = ""

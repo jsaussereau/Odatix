@@ -31,7 +31,7 @@ to run (a Makefile, sources, ...).
 import os
 
 import odatix.lib.hard_settings as hard_settings
-import odatix.workspace.sim_architectures as sim_architectures
+from odatix.workspace import sim_architectures
 from odatix.workspace.domains import ParameterDomain, ParameterDomainCollection
 from odatix.workspace.entries import Collection, Entry
 from odatix.workspace.metrics import METRICS_FILENAME, MetricsFile

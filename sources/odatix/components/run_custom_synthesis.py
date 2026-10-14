@@ -88,25 +88,90 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def _frequencies_error(settings_filename, text, example):
+    """Stop the run on a "frequencies" section it cannot read, saying how to write it."""
+    printc.error(text + ' in "' + settings_filename + '".', script_name)
+    printc.note("You can define it like this:", script_name)
+    printc.grey(example)
+    raise SystemExit(-1)
+
+
+_FREQUENCIES_EXAMPLE = (
+    "frequencies:\n"
+    "  override: No\n"
+    "  list: [100, 200]\n"
+    "  range:\n"
+    "    from: 50\n"
+    "    to: 100\n"
+    "    step: 10"
+)
+
+
+def _is_frequency(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _load_settings_custom_frequencies(run_config_settings_filename):
+    """
+    The frequencies the run settings file asks for, and whether they replace
+    the ones of the architectures.
+
+    A key left empty ("frequencies:", "range:") asks for nothing. A key holding
+    something that is not what it should (a list where a mapping is expected,
+    a word where a frequency is) stops the run with a message saying so,
+    rather than with a Python traceback or by running other frequencies.
+    """
     settings_payload = read_yaml(run_config_settings_filename, default={})
-    frequencies = settings_payload.get("frequencies", {})
+    if not isinstance(settings_payload, dict):
+        settings_payload = {}
+    frequencies = settings_payload.get("frequencies")
+    if frequencies is None:
+        return [], False
+    if not isinstance(frequencies, dict):
+        _frequencies_error(
+            run_config_settings_filename,
+            '"frequencies" holds a "' + type(frequencies).__name__ + '" while it should hold "list" and/or "range"',
+            _FREQUENCIES_EXAMPLE,
+        )
 
     override_arch_frequencies = bool(frequencies.get("override", False))
     custom_freq_list = []
 
-    list_data = frequencies.get("list", [])
-    if list_data:
+    list_data = frequencies.get("list")
+    if _is_frequency(list_data):
+        list_data = [list_data]
+    if list_data is not None:
+        if not isinstance(list_data, list) or not all(_is_frequency(item) for item in list_data):
+            _frequencies_error(
+                run_config_settings_filename,
+                '"frequencies: list" is "' + str(list_data) + '" while it should be a list of frequencies in MHz',
+                _FREQUENCIES_EXAMPLE,
+            )
         custom_freq_list.extend(list_data)
 
-    range_data = frequencies.get("range", {})
-    lower_bound = range_data.get("from")
-    upper_bound = range_data.get("to")
-    step = range_data.get("step")
-    if lower_bound is not None and upper_bound is not None and step is not None:
-        if ArchitectureHandler.check_bounds(lower_bound, upper_bound, step, synth_type="custom frequency synthesis"):
-            range_list = ArchitectureHandler.create_list_from_range(lower_bound, upper_bound, step)
-            custom_freq_list.extend(range_list)
+    range_data = frequencies.get("range")
+    if range_data is not None and not isinstance(range_data, dict):
+        _frequencies_error(
+            run_config_settings_filename,
+            '"frequencies: range" holds a "' + type(range_data).__name__ + '" while it should hold "from", "to" and "step"',
+            _FREQUENCIES_EXAMPLE,
+        )
+    range_data = range_data or {}
+    # A bound the GUI leaves blank is written as "": it is as unset as a missing one.
+    bounds = [range_data.get(key) for key in ("from", "to", "step")]
+    bounds = [None if bound == "" else bound for bound in bounds]
+    if any(bound is not None for bound in bounds):
+        missing = [key for key, bound in zip(("from", "to", "step"), bounds) if bound is None]
+        if missing:
+            _frequencies_error(
+                run_config_settings_filename,
+                '"frequencies: range" has no "' + '", "'.join(missing) + '"',
+                _FREQUENCIES_EXAMPLE,
+            )
+        lower_bound, upper_bound, step = bounds
+        if not ArchitectureHandler.check_bounds(lower_bound, upper_bound, step, synth_type="custom frequency synthesis"):
+            raise SystemExit(-1)
+        custom_freq_list.extend(ArchitectureHandler.create_list_from_range(lower_bound, upper_bound, step))
     # Keep order stable while removing duplicates.
     custom_freq_list = list(dict.fromkeys(custom_freq_list))
     return custom_freq_list, override_arch_frequencies

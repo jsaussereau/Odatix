@@ -62,6 +62,7 @@ from odatix.lib.config_generator import (
     rule_set_variables,
 )
 from odatix.workspace.errors import WorkspaceError
+from odatix.workspace.yaml_io import write_text
 
 __all__ = [
     "ORIGIN_GENERATED",
@@ -270,12 +271,10 @@ class Manifest(object):
         if not self.generated:
             return self.delete()
 
-        os.makedirs(self.path, exist_ok=True)
         lines = [self.HEADER, "version: {0}\n".format(self.VERSION), "generated:\n"]
         for name in natsorted(self.generated):
             lines.append("  {0}: {1}\n".format(name, self.generated[name]))
-        with open(self.file, "w") as f:
-            f.write("".join(lines))
+        write_text(self.file, "".join(lines))
         return self
 
     def delete(self):
@@ -858,9 +857,7 @@ class ConfigSet(object):
                 # rule says, dropping the edit.
                 content = config.generated_content
 
-            path = os.path.join(target, config.filename)
-            with open(path, "w") as f:
-                f.write(content)
+            write_text(os.path.join(target, config.filename), content)
             written.append(config.name)
 
             if manifest is not None and config.from_rules:
@@ -912,9 +909,7 @@ class ConfigSet(object):
                 if f.read() == point.content:
                     return path
 
-        os.makedirs(cache, exist_ok=True)
-        with open(path, "w") as f:
-            f.write(point.content)
+        write_text(path, point.content)
         return path
 
     def __repr__(self):

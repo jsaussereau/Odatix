@@ -128,10 +128,14 @@ class GaussianProcess(object):
                 self._negative_log_likelihood, start, args=(X, target),
                 method="L-BFGS-B", bounds=bounds,
             )
-            # The very first attempt is kept even when it did not converge --
-            # a fit is not worth crashing a search over -- and only replaced
-            # by one both successful and better.
-            if best is None or (result.success and result.fun < best.fun):
+            # The best score wins, converged or not: L-BFGS-B returns the best
+            # point it reached even when its line search gives up, and older
+            # scipy versions give up often on this surface. Requiring success
+            # used to throw away the best optimum and keep a degenerate one (a
+            # length scale stuck at its lower bound, predicting the mean
+            # everywhere). The very first attempt is kept whatever it scored:
+            # a fit is not worth crashing a search over.
+            if best is None or (np.isfinite(result.fun) and result.fun < best.fun):
                 best = result
 
         dims_slice, signal_index, noise_index = slice(0, dims), dims, dims + 1

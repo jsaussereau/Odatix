@@ -41,10 +41,8 @@ Usage:
 import os
 import sys
 import yaml
-from datetime import datetime
 
 import odatix.lib.printc as printc
-import odatix.components.motd as motd
 from odatix.lib.get_from_dict import get_from_dict, Key, KeyNotInDictError, BadValueInDictError
 from odatix.lib.utils import ask_yes_no, YAML_BOOL, copytree
 import odatix.lib.yaml_loader as yaml_loader
@@ -189,47 +187,6 @@ class OdatixSettings:
             )
             return None
         return settings_data
-
-    @staticmethod
-    def get_settings_template_dict(settings_filename=DEFAULT_SETTINGS_FILE, silent=False, verbose=False, settings=None):
-        """
-        Static method to get a template dictionary for Odatix settings.
-
-        Returns:
-            dict: Template dictionary with default settings.
-        """
-        if settings is None:
-            settings = OdatixSettings.get_settings_file_dict(settings_filename, silent=silent, verbose=verbose)
-            if settings is None:
-                settings = {}
-        settings_template = {
-            # Main paths
-            "arch_path": settings.get('arch_path', ""),
-            "sim_path": settings.get('sim_path', ""),
-            "target_path": settings.get('target_path', ""),
-
-            # Settings files
-            "clean_settings_file": settings.get('clean_settings_file', ""),
-            "simulation_settings_file": settings.get('simulation_settings_file', ""),
-            "fmax_synthesis_settings_file": settings.get('fmax_synthesis_settings_file', ""),
-            "custom_freq_synthesis_settings_file": settings.get('custom_freq_synthesis_settings_file', ""),
-            "pnr_settings_file": settings.get('pnr_settings_file', ""),
-            "analysis_settings_file": settings.get('analysis_settings_file', ""),
-            "derived_metrics_file": settings.get('derived_metrics_file', ""),
-
-            # Work directories
-            "work_path": settings.get('work_path', ""),
-            "simulation_work_path": settings.get('simulation_work_path', ""),
-            "fmax_synthesis_work_path": settings.get('fmax_synthesis_work_path', ""),
-            "custom_freq_synthesis_work_path": settings.get('custom_freq_synthesis_work_path', ""),
-            "pnr_work_path": settings.get('pnr_work_path', ""),
-            
-            # Results
-            "result_path": settings.get('result_path', ""),
-            "use_benchmark": settings.get('use_benchmark', ""),
-            "benchmark_file": settings.get('benchmark_file', ""),
-        }
-        return settings_template
 
     def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
         """
@@ -415,35 +372,14 @@ class OdatixSettings:
 
     def to_dict(self):
         """
-        Returns a dictionary representation of the current settings.
+        The settings as a mapping, every one of them resolved (a setting the
+        file leaves out holds its default).
         """
-        return {
-            # Main paths
-            "arch_path": self.arch_path,
-            "sim_path": self.sim_path,
-            "target_path": self.target_path,
+        from odatix.workspace.core import PATH_SETTINGS
 
-            # Settings files
-            "clean_settings_file": self.clean_settings_file,
-            "simulation_settings_file": self.simulation_settings_file,
-            "fmax_synthesis_settings_file": self.fmax_synthesis_settings_file,
-            "custom_freq_synthesis_settings_file": self.custom_freq_synthesis_settings_file,
-            "pnr_settings_file": self.pnr_settings_file,
-            "analysis_settings_file": self.analysis_settings_file,
-            "derived_metrics_file": self.derived_metrics_file,
-
-            # Work directories
-            "work_path": self.work_path,
-            "simulation_work_path": self.simulation_work_path,
-            "fmax_synthesis_work_path": self.fmax_synthesis_work_path,
-            "custom_freq_synthesis_work_path": self.custom_freq_synthesis_work_path,
-            "pnr_work_path": self.pnr_work_path,
-
-            # Results   
-            "result_path": self.result_path,
-            "use_benchmark": self.use_benchmark,
-            "benchmark_file": self.benchmark_file,
-        }
+        settings = dict((name, getattr(self, name)) for name, _default in PATH_SETTINGS)
+        settings["use_benchmark"] = self.use_benchmark
+        return settings
 
     @staticmethod
     def from_dict(settings_dict):
@@ -463,143 +399,15 @@ class OdatixSettings:
                 printc.warning(f"Key '{key}' is not a valid attribute of OdatixSettings: {str(e)}. Skipping key.", script_name=script_name)
         return settings
 
-    def save_to_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
-        """
-        Save the current settings to a YAML file.
-
-        Args:
-            settings_filename (str): Path to the settings file.
-        """
-        settings = self.to_dict()
-        OdatixSettings.save_dict_to_file(settings, settings_filename)
-    
     @staticmethod
     def save_dict_to_file(settings, settings_filename=DEFAULT_SETTINGS_FILE):
-        try:
-            from ruamel.yaml import YAML, CommentedMap, CommentedSeq
-        except ImportError:
-            printc.error("The 'ruamel.yaml' package is required to save settings files. Please install it via 'pip install ruamel.yaml'", script_name=script_name)
-            return
+        """
+        Write settings into a workspace settings file. Only the given keys are
+        changed: the comments, the layout and every other key of the file are
+        kept. A key given empty is removed, so that its default applies.
 
-        yaml_obj = YAML()
+        This is the same writer as :meth:`odatix.workspace.Workspace.save_settings`.
+        """
+        from odatix.workspace.core import save_workspace_settings
 
-        data = CommentedMap()
-
-        data.yaml_set_start_comment(
-f"""##############################################
-# Odatix Workspace Settings
-##############################################
-
-# Default workspace settings can be overridden here.
-
-# This file was generated by Odatix GUI {motd.read_version()} on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.
-# You can still modify manually this file as needed.
-"""
-        )
-
-        data['workspace'] = "odatix"
-        data.yaml_set_comment_before_after_key('workspace', before="\n", after="\n")
-
-        # Main paths
-        arch_path = settings.get('arch_path')
-        if arch_path is not None and arch_path != "":
-            data['arch_path'] = arch_path
-        sim_path = settings.get('sim_path')
-        if sim_path is not None and sim_path != "":
-            data['sim_path'] = sim_path
-        target_path = settings.get('target_path')
-        if target_path is not None and target_path != "":
-            data['target_path'] = target_path
-
-        if arch_path is not None and arch_path != "":
-            data.yaml_set_comment_before_after_key('arch_path', before="\nMain paths")
-        elif sim_path is not None and sim_path != "":
-            data.yaml_set_comment_before_after_key('sim_path', before="\nMain paths")
-        elif target_path is not None and target_path != "":
-            data.yaml_set_comment_before_after_key('target_path', before="\nMain paths")
-
-        # Settings files
-        clean_settings_file = settings.get('clean_settings_file')
-        if clean_settings_file is not None and clean_settings_file != "":
-            data['clean_settings_file'] = clean_settings_file
-        simulation_settings_file = settings.get('simulation_settings_file')
-        if simulation_settings_file is not None and simulation_settings_file != "":
-            data['simulation_settings_file'] = simulation_settings_file
-        fmax_synthesis_settings_file = settings.get('fmax_synthesis_settings_file')
-        if fmax_synthesis_settings_file is not None and fmax_synthesis_settings_file != "":
-            data['fmax_synthesis_settings_file'] = fmax_synthesis_settings_file
-        custom_freq_synthesis_settings_file = settings.get('custom_freq_synthesis_settings_file')
-        if custom_freq_synthesis_settings_file is not None and custom_freq_synthesis_settings_file != "":
-            data['custom_freq_synthesis_settings_file'] = custom_freq_synthesis_settings_file
-        pnr_settings_file = settings.get('pnr_settings_file')
-        if pnr_settings_file is not None and pnr_settings_file != "":
-            data['pnr_settings_file'] = pnr_settings_file
-        analysis_settings_file = settings.get('analysis_settings_file')
-        if analysis_settings_file is not None and analysis_settings_file != "":
-            data['analysis_settings_file'] = analysis_settings_file
-        derived_metrics_file = settings.get('derived_metrics_file')
-        if derived_metrics_file is not None and derived_metrics_file != "":
-            data['derived_metrics_file'] = derived_metrics_file
-        if clean_settings_file is not None and clean_settings_file != "":
-            data.yaml_set_comment_before_after_key('clean_settings_file', before="\nSettings files")
-        elif simulation_settings_file is not None and simulation_settings_file != "":
-            data.yaml_set_comment_before_after_key('simulation_settings_file', before="\nSettings files")
-        elif fmax_synthesis_settings_file is not None and fmax_synthesis_settings_file != "":
-            data.yaml_set_comment_before_after_key('fmax_synthesis_settings_file', before="\nSettings files")
-        elif custom_freq_synthesis_settings_file is not None and custom_freq_synthesis_settings_file != "":
-            data.yaml_set_comment_before_after_key('custom_freq_synthesis_settings_file', before="\nSettings files")
-        elif pnr_settings_file is not None and pnr_settings_file != "" :
-            data.yaml_set_comment_before_after_key('pnr_settings_file', before="\nSettings files")
-        elif analysis_settings_file is not None and analysis_settings_file != "" :
-            data.yaml_set_comment_before_after_key('analysis_settings_file', before="\nSettings files")
-        elif derived_metrics_file is not None and derived_metrics_file != "" :
-            data.yaml_set_comment_before_after_key('derived_metrics_file', before="\nSettings files")
-
-        # Work directories
-        work_path = settings.get('work_path')
-        if work_path is not None and work_path != "":
-            data['work_path'] = work_path
-        simulation_work_path = settings.get('simulation_work_path')
-        if simulation_work_path is not None and simulation_work_path != "":
-            data['simulation_work_path'] = simulation_work_path
-        fmax_synthesis_work_path = settings.get('fmax_synthesis_work_path')
-        if fmax_synthesis_work_path is not None and fmax_synthesis_work_path != "":
-            data['fmax_synthesis_work_path'] = fmax_synthesis_work_path
-        custom_freq_synthesis_work_path = settings.get('custom_freq_synthesis_work_path')
-        if custom_freq_synthesis_work_path is not None and custom_freq_synthesis_work_path != "":
-            data['custom_freq_synthesis_work_path'] = custom_freq_synthesis_work_path
-        pnr_work_path = settings.get('pnr_work_path')
-        if pnr_work_path is not None and pnr_work_path != "":
-            data['pnr_work_path'] = pnr_work_path
-
-        if work_path is not None and work_path != "":
-            data.yaml_set_comment_before_after_key('work_path', before="\nWork directories")
-        elif simulation_work_path is not None and simulation_work_path != "":
-            data.yaml_set_comment_before_after_key('simulation_work_path', before="\nWork directories")
-        elif fmax_synthesis_work_path is not None and fmax_synthesis_work_path != "":
-            data.yaml_set_comment_before_after_key('fmax_synthesis_work_path', before="\nWork directories")
-        elif custom_freq_synthesis_work_path is not None and custom_freq_synthesis_work_path != "":
-            data.yaml_set_comment_before_after_key('custom_freq_synthesis_work_path', before="\nWork directories")
-        elif pnr_work_path is not None and pnr_work_path != "":
-            data.yaml_set_comment_before_after_key('pnr_work_path', before="\nWork directories")
-
-        # Results
-        result_path = settings.get('result_path')
-        if result_path is not None and result_path != "":
-            data['result_path'] = result_path
-        use_benchmark = settings.get('use_benchmark')
-        if use_benchmark is not None and use_benchmark != "":
-            data['use_benchmark'] = use_benchmark
-        benchmark_file = settings.get('benchmark_file')
-        if benchmark_file is not None and benchmark_file != "":
-            data['benchmark_file'] = benchmark_file
-
-        if result_path is not None and result_path != "":
-            data.yaml_set_comment_before_after_key('result_path', before="\nResults")
-        elif use_benchmark is not None and use_benchmark != "":
-            data.yaml_set_comment_before_after_key('use_benchmark', before="\nResults")
-        elif benchmark_file is not None and benchmark_file != "":
-            data.yaml_set_comment_before_after_key('benchmark_file', before="\nResults")
-
-        with open(settings_filename, "w") as f:
-            yaml_obj.dump(data, f)
+        save_workspace_settings(settings_filename, settings)
