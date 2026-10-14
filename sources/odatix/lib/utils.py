@@ -39,6 +39,7 @@ Functions:
 """
 
 import os
+import re
 import sys
 import glob
 import time
@@ -80,9 +81,35 @@ def resolve_nb_jobs(nb_jobs):
         return max(1, cpu_count - 1)
     return int(nb_jobs)
 
+def _compile_copy_patterns(patterns, src):
+    """
+    Normalize the whitelist/blacklist patterns of copytree into
+    (regex, literal_prefix, is_glob) tuples, relative to `src` with "/" separators.
+    """
+    compiled = []
+    for pattern in patterns or []:
+        pattern = str(pattern)
+        if os.path.isabs(pattern):
+            pattern = os.path.relpath(os.path.realpath(pattern), src)
+        pattern = os.path.normpath(pattern).replace(os.sep, "/")
+        if pattern in (".", ""):
+            pattern = "*"
+        glob_index = min([i for i in (pattern.find(c) for c in "*?[") if i >= 0] or [len(pattern)])
+        compiled.append((
+            re.compile(fnmatch.translate(os.path.normcase(pattern))),
+            pattern[:glob_index],
+            glob_index < len(pattern),
+        ))
+    return compiled
+
 def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kwargs):
     """
     Custom copytree to copy directories with support for dirs_exist_ok, whitelist, and blacklist.
+
+    Patterns are fnmatch patterns relative to `src` (absolute paths inside `src`
+    are accepted too). A pattern matching a directory applies to its whole subtree.
+    Directories that cannot hold any whitelisted path, and blacklisted ones, are
+    not explored at all.
 
     Args:
         src (str): Source directory.
@@ -92,59 +119,27 @@ def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kw
         blacklist (list, optional): List of patterns to exclude (relative to `src`).
         **kwargs: Additional arguments passed to shutil.copy2.
     """
-    def is_pattern_matched(path, patterns):
-        """
-        Check if the path matches any pattern in the list.
-        Args:
-            path (str): The path to check (relative to `src`).
-            patterns (list): List of patterns to match against.
-        Returns:
-            bool: True if any pattern matches, False otherwise.
-        """
-        for pattern in patterns:
-            if fnmatch.fnmatch(path, pattern):
-                return True
-            if os.path.realpath(pattern) == os.path.realpath(path):
-                return True
-            if os.path.dirname(os.path.realpath(path)).startswith(os.path.realpath(pattern)):
-                return True
-        return False
-
-    def should_copy_file(rel_path):
-        """
-        Determine if a file should be copied based on whitelist and blacklist.
-        Args:
-            rel_path (str): Relative path to check.
-        Returns:
-            bool: True if the file should be copied, False otherwise.
-        """
-        # If whitelist exists, only copy paths matching the whitelist
-        if whitelist and not is_pattern_matched(rel_path, whitelist) and not os.path.isdir(rel_path):
-            return False
-        # Exclude paths matching the blacklist
-        if blacklist and is_pattern_matched(rel_path, blacklist):
-            return False
-        # Default: copy the path
-        return True
-
-    def should_explore_dir(rel_path):
-        """
-        Determine if a directory should be explored based on the blacklist.
-        The whitelist does not apply to directories for exploration.
-        Args:
-            rel_path (str): Relative path to check.
-        Returns:
-            bool: True if the directory should be explored, False otherwise.
-        """
-        # Exclude directories matching the blacklist
-        if blacklist and is_pattern_matched(rel_path, blacklist):
-            return False
-        # Default: explore the directory
-        return True
-
     # Normalize paths
     src = os.path.realpath(src)
     dst = os.path.realpath(dst)
+
+    white = _compile_copy_patterns(whitelist, src)
+    black = _compile_copy_patterns(blacklist, src)
+
+    def matches(rel_path, patterns):
+        rel_path = os.path.normcase(rel_path)
+        for regex, _, _ in patterns:
+            if regex.match(rel_path):
+                return True
+        return False
+
+    def may_hold_whitelisted(rel_dir):
+        """Whether some whitelist pattern can match a path below `rel_dir`."""
+        rel_dir = rel_dir + "/"
+        for _, prefix, is_glob in white:
+            if prefix.startswith(rel_dir) or (is_glob and rel_dir.startswith(prefix)):
+                return True
+        return False
 
     # Ensure destination exists
     if os.path.exists(dst):
@@ -153,22 +148,40 @@ def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kw
     else:
         os.makedirs(dst)
 
+    # Relative directories (from src) whose whole subtree is whitelisted
+    whitelisted_dirs = set([""]) if not white else set()
+
     for root, dirs, files in os.walk(src):
-        # Calculate the relative path from src
         rel_root = os.path.relpath(root, src)
+        rel_root = "" if rel_root == "." else rel_root.replace(os.sep, "/")
+        root_whitelisted = rel_root in whitelisted_dirs
 
-        # Remove directories that should not be explored
-        dirs[:] = [d for d in dirs if should_explore_dir(os.path.join(rel_root, d))]
+        kept_dirs = []
+        for d in dirs:
+            rel_dir = rel_root + "/" + d if rel_root else d
+            if os.path.join(root, d) == dst:
+                continue # never copy the destination into itself
+            if black and matches(rel_dir, black):
+                continue
+            if root_whitelisted or matches(rel_dir, white):
+                whitelisted_dirs.add(rel_dir)
+            elif not may_hold_whitelisted(rel_dir):
+                continue
+            kept_dirs.append(d)
+        dirs[:] = kept_dirs
 
-        # Process files
+        dst_root = os.path.join(dst, rel_root) if rel_root else dst
+        dst_root_created = False
         for file in files:
-            src_file = os.path.join(root, file)
-            rel_file = os.path.join(rel_root, file)  # Relative path for whitelist/blacklist checks
-            dst_file = os.path.join(dst, rel_file)
-            
-            if should_copy_file(rel_file):  # Pass relative path to should_copy_file
-                os.makedirs(os.path.dirname(dst_file), exist_ok=True)
-                shutil.copy2(src_file, dst_file, **kwargs)
+            rel_file = rel_root + "/" + file if rel_root else file
+            if not root_whitelisted and not matches(rel_file, white):
+                continue
+            if black and matches(rel_file, black):
+                continue
+            if not dst_root_created:
+                os.makedirs(dst_root, exist_ok=True)
+                dst_root_created = True
+            shutil.copy2(os.path.join(root, file), os.path.join(dst_root, file), **kwargs)
 
 def chunk_list(lst, n):
     """Splits a list into chunks of size n."""
