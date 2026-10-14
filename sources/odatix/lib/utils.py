@@ -43,6 +43,7 @@ import re
 import sys
 import glob
 import time
+import stat
 import shutil
 import socket
 import fnmatch
@@ -50,6 +51,7 @@ import platform
 import traceback
 import subprocess
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 import odatix.lib.printc as printc
 import odatix.components.motd
@@ -81,6 +83,42 @@ def resolve_nb_jobs(nb_jobs):
         return max(1, cpu_count - 1)
     return int(nb_jobs)
 
+# copytree copies the first files one by one while timing them; if a file takes
+# longer than COPYTREE_SLOW_FILE_SECONDS on average (network file system), the
+# rest is copied by a pool of threads, which only slows down a local copy.
+COPYTREE_PROBE_FILES = 16
+COPYTREE_SLOW_FILE_SECONDS = 0.002
+COPYTREE_MAX_WORKERS = 16
+
+def _copy_file(src, dst):
+    """
+    Copy a file with its permission bits and timestamps, like shutil.copy2 but
+    without the extended attributes, whose copy costs several extra round trips
+    per file on a network file system.
+    """
+    shutil.copyfile(src, dst)
+    src_stat = os.stat(src)
+    os.chmod(dst, stat.S_IMODE(src_stat.st_mode))
+    os.utime(dst, ns=(src_stat.st_atime_ns, src_stat.st_mtime_ns))
+
+def _copy_files(copies, copy_one):
+    """Copy the (source, destination) pairs, in parallel when files are slow to copy."""
+    probe = copies[:COPYTREE_PROBE_FILES]
+    start = time.time()
+    for src_file, dst_file in probe:
+        copy_one(src_file, dst_file)
+    remaining = copies[len(probe):]
+    if not remaining:
+        return
+    if time.time() - start <= COPYTREE_SLOW_FILE_SECONDS * len(probe):
+        for src_file, dst_file in remaining:
+            copy_one(src_file, dst_file)
+        return
+    with ThreadPoolExecutor(max_workers=COPYTREE_MAX_WORKERS) as executor:
+        futures = [executor.submit(copy_one, src_file, dst_file) for src_file, dst_file in remaining]
+        for future in futures:
+            future.result()
+
 def _compile_copy_patterns(patterns, src):
     """
     Normalize the whitelist/blacklist patterns of copytree into
@@ -109,7 +147,9 @@ def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kw
     Patterns are fnmatch patterns relative to `src` (absolute paths inside `src`
     are accepted too). A pattern matching a directory applies to its whole subtree.
     Directories that cannot hold any whitelisted path, and blacklisted ones, are
-    not explored at all.
+    not explored at all. Files keep their permission bits and timestamps but not
+    their extended attributes (unless kwargs are given, which selects shutil.copy2),
+    and are copied in parallel when the file system is slow (see _copy_files).
 
     Args:
         src (str): Source directory.
@@ -148,6 +188,8 @@ def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kw
     else:
         os.makedirs(dst)
 
+    # (source, destination) of every file to copy
+    copies = []
     # Relative directories (from src) whose whole subtree is whitelisted
     whitelisted_dirs = set([""]) if not white else set()
 
@@ -181,7 +223,12 @@ def copytree(src, dst, dirs_exist_ok=False, whitelist=None, blacklist=None, **kw
             if not dst_root_created:
                 os.makedirs(dst_root, exist_ok=True)
                 dst_root_created = True
-            shutil.copy2(os.path.join(root, file), os.path.join(dst_root, file), **kwargs)
+            copies.append((os.path.join(root, file), os.path.join(dst_root, file)))
+
+    if kwargs:
+        _copy_files(copies, lambda src_file, dst_file: shutil.copy2(src_file, dst_file, **kwargs))
+    else:
+        _copy_files(copies, _copy_file)
 
 def chunk_list(lst, n):
     """Splits a list into chunks of size n."""
