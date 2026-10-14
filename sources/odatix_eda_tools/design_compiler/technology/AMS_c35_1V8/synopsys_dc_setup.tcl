@@ -19,7 +19,7 @@ set SYNDIR [get_unix_variable SYNOPSYS]
 #########
 ### set library paths
 #########
-set search_path	". $AMSDIR/synopsys/c35_1.8V /softs/kits/ams/AMS_410_CDS/synopsys/c35_1.8V/ $SYNDIR/libraries/syn $SYNDIR/dw/sim_ver"
+set search_path	". $AMSDIR/synopsys/c35_1.8V /asic/pdk/ams/AMS_410_CDS/synopsys/c35_1.8V/ $SYNDIR/libraries/syn $SYNDIR/dw/sim_ver"
 set target_library "c35_CORELIB_WC.db c35_IOLIB_WC.db"
 
 # set synthetic_library dw_foundation.sldb 
