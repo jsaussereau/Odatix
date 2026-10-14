@@ -253,6 +253,24 @@ proc odatix_require_source {{signature ""}} {
     puts "$signature place & route of the netlist synthesized by <cyan>$source_tool<end>"
 }
 
+# Source files listed in a filelist, in order. Relative paths are relative to
+# the directory of the filelist, not to the directory the tool runs from.
+# Blank lines and comments ("#" or "//") are skipped.
+proc read_filelist {filelist} {
+    set file_list {}
+    set base_dir [file dirname [file normalize $filelist]]
+    set fp [open $filelist r]
+    while {[gets $fp line] >= 0} {
+        set line [string trim $line]
+        if {$line eq "" || [string match "#*" $line] || [string match "//*" $line]} {
+            continue
+        }
+        lappend file_list [file normalize [file join $base_dir $line]]
+    }
+    close $fp
+    return $file_list
+}
+
 proc get_files_recursive {path patterns} {
     set file_list {}
     if {![file isdirectory $path]} {return $file_list}

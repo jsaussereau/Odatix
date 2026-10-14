@@ -37,34 +37,27 @@ if {[catch {
     #-----------------------------------------------------------------------------
     # First we check if there is a filelist with the order of compilation
     # If there is no filelist, we use the get_files_recursive function
-    # NOTE: The files in the filelist.f must have the absolute path
+    # NOTE: Relative paths in filelist.f are relative to the filelist itself
     #-----------------------------------------------------------------------------
 
 
 
-    #suppress_messages LBR-9    
+    #suppress_messages LBR-9
 
 
     if {[file exists "$rtl_path/filelist.f"]} {
 
         puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
 
-        set fp [open "$rtl_path/filelist.f" r]
-
-        while {[gets $fp line] >= 0} {
-            set line [string trim $line]
-            if {$line eq ""} {
-                continue
-            }
+        foreach line [read_filelist "$rtl_path/filelist.f"] {
             if {[string match "*.v" $line]} {
                 read_hdl -language v2001 $line
             } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {
                 read_hdl -language sv $line
-            } elseif {[string match "*.vhd" $line]} {
+            } elseif {[string match "*.vhd" $line] || [string match "*.vhdl" $line]} {
                 read_hdl -language vhdl $line
             }
         }
-        close $fp
 
     } else {
 

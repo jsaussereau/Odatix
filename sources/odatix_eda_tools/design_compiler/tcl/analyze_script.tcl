@@ -48,13 +48,7 @@ if {[catch {
     if {[file exists "$rtl_path/filelist.f"]} {
 
         puts "$signature <cyan>Using filelist: $rtl_path/filelist.f<end>"
-        set fp [open "$rtl_path/filelist.f" r]
-
-        while {[gets $fp line] >= 0} {
-            set line [string trim $line]
-            if {$line eq ""} {
-                continue
-            }
+        foreach line [read_filelist "$rtl_path/filelist.f"] {
             if {[string match "*.v" $line]} {
                 analyze -library $lib_name -f verilog $line
             } elseif {[string match "*.sv" $line] || [string match "*.svh" $line]} {
@@ -63,7 +57,6 @@ if {[catch {
                 analyze -library $lib_name -f vhdl $line
             }
         }
-        close $fp
     } else {
         #read from sources
         suppress_message { AUTOREAD-303 AUTOREAD-107 AUTOREAD-105 AUTOREAD-102 AUTOREAD-100 VER-26 }
