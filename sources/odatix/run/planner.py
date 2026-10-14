@@ -271,7 +271,9 @@ class JobPlanner(object):
                 script_name,
             )
             return "daemon", daemon_entry
-        if decision == "replace":
+        # A finished job re-enqueued for the steps it has left is a resume, which
+        # the plan already reports ("Partially done"): only a failure is news.
+        if decision == "replace" and daemon_entry.get("status") in JobPlanner.DAEMON_RESTARTABLE_STATUSES:
             daemon_status = str(daemon_entry.get("status", "unknown"))
             printc.warning(
                 "Found previously failed/canceled daemon job for " + subject

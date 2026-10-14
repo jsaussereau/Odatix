@@ -822,7 +822,7 @@ def main(args, settings=None):
         debug,
         keep,
         resume,
-        settings.result_path,
+        "" if getattr(args, "noexport", False) else settings.result_path,
         exp_workflow_res.DEFAULT_OUTPUT_FILENAME,
         detach,
         daemon_session,

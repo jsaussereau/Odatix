@@ -1061,7 +1061,7 @@ def main(args, settings=None):
     check_eda_tool,
     debug,
     keep,
-    result_path=settings.result_path,
+    result_path="" if getattr(args, "noexport", False) else settings.result_path,
     flows=parse_flow_selection(args.flow, tools),
   )
 
