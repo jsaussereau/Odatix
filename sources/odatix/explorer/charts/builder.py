@@ -256,6 +256,7 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
 
   x_is_metric = not x_is_symbolic(spec.kind, spec.x, dimensions, metrics)
   categories = [] if x_is_metric else _x_categories(df, spec)
+  axis_categories = _scatter_axis_categories(df, spec) if spec.kind in ("scatter", "scatter3d") else {}
 
   auto_color_by = _auto_line_color_dimension(spec, dimensions)
 
@@ -278,7 +279,7 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
     hover_header = _hover_header(info)
 
     if spec.kind in ("scatter", "scatter3d"):
-      fig.add_trace(_scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, common))
+      fig.add_trace(_scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, common, axis_categories))
     elif spec.kind == "columns":
       fig.add_trace(_bar_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common))
     elif spec.kind == "radar":
@@ -286,7 +287,7 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
     else:
       fig.add_trace(_line_trace(sub_df, spec, categories, units, color, symbol_index, hover_header, common, x_is_metric))
 
-  _apply_layout(fig, spec, categories, units, chrome, height, plot_theme)
+  _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis_categories)
   return fig
 
 
@@ -479,32 +480,58 @@ def _parcoords_categorical_line(series, color_column, palette):
   )
 
 
-def _scatter_axis_series(sub_df, column):
-  """Values for a scatter axis: numeric when the column holds any numeric value,
-  otherwise the categorical (string) values, so a meta dimension can be plotted
-  on an axis instead of only metrics."""
-  numeric = pd.to_numeric(sub_df[column], errors="coerce")
-  if numeric.notna().any():
-    return numeric
-  return _dimension_series(sub_df, column)
+def _scatter_axes(spec):
+  return [spec.x, spec.y] + ([spec.z] if spec.kind == "scatter3d" else [])
 
 
-def _scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, common):
-  axes = [spec.x, spec.y] + ([spec.z] if spec.kind == "scatter3d" else [])
-  points = pd.DataFrame({axis: _scatter_axis_series(sub_df, axis) for axis in axes})
+def _scatter_axis_categories(df, spec):
+  """Sorted categories of each categorical scatter axis, {axis: [values]}.
+
+  An axis is numeric when its column holds any numeric value over the whole
+  data, otherwise categorical, so a meta dimension can be plotted on an axis
+  instead of only metrics. Deciding on the whole data (not per trace) keeps a
+  trace whose values are all missing from turning a numeric axis categorical.
+  Missing values are left out: they have no place on an axis.
+  """
+  categories = {}
+  for axis in _scatter_axes(spec):
+    if axis not in df.columns or pd.to_numeric(df[axis], errors="coerce").notna().any():
+      continue
+    categories[axis] = schema.sort_values(str(value) for value in df[axis].dropna().unique())
+  return categories
+
+
+def _scatter_axis_series(sub_df, column, categorical):
+  """Values for a scatter axis, NaN where missing (see _scatter_axis_categories)."""
+  if categorical:
+    return sub_df[column].where(sub_df[column].isna(), sub_df[column].astype(str))
+  return pd.to_numeric(sub_df[column], errors="coerce")
+
+
+def _scatter_trace(sub_df, spec, units, color, symbol_index, hover_header, common, axis_categories):
+  axes = _scatter_axes(spec)
+  points = pd.DataFrame({axis: _scatter_axis_series(sub_df, axis, axis in axis_categories) for axis in axes})
   keep = points.notna().all(axis=1)
   points = points[keep]
-
-  labels = None
-  if spec.label_by and spec.label_by in sub_df.columns:
-    labels = _dimension_series(sub_df[keep], spec.label_by).tolist()
-    if spec.dissociate and spec.label_by == schema.COL_CONFIGURATION:
-      labels = [schema.clean_configuration_name(label, spec.dissociate) for label in labels]
+  kept_df = sub_df[keep]
 
   mode = "markers"
   if spec.has("scatter_lines"):
     mode += "+lines"
-    points = points.sort_values(spec.x)
+    if spec.x in axis_categories:
+      rank = {category: index for index, category in enumerate(axis_categories[spec.x])}
+      order = points[spec.x].map(rank).to_numpy().argsort(kind="stable")
+    else:
+      order = points[spec.x].to_numpy().argsort(kind="stable")
+    points = points.iloc[order]
+    kept_df = kept_df.iloc[order]
+
+  labels = None
+  if spec.label_by and spec.label_by in sub_df.columns:
+    labels = _dimension_series(kept_df, spec.label_by).tolist()
+    if spec.dissociate and spec.label_by == schema.COL_CONFIGURATION:
+      labels = [schema.clean_configuration_name(label, spec.dissociate) for label in labels]
+
   if spec.has("labels") and labels is not None:
     mode += "+text"
 
@@ -574,7 +601,15 @@ def _apply_axis_scale(axis, log_on, zero_on):
   return axis
 
 
-def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
+def _apply_category_order(axis_layout, axis, axis_categories):
+  """Natural order for a categorical scatter axis (plotly keeps first-seen order)."""
+  if axis_categories and axis in axis_categories:
+    axis_layout["type"] = "category"
+    axis_layout["categoryorder"] = "array"
+    axis_layout["categoryarray"] = axis_categories[axis]
+
+
+def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme, axis_categories=None):
   template = plot_themes.get_template(plot_theme)
   auto = template is None
 
@@ -623,6 +658,8 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
       camera=dict(eye=dict(x=1.6, y=1.6, z=0.6)),
     )
     layout["legend"] = dict(itemsizing="constant")
+    for name, axis in (("xaxis", spec.x), ("yaxis", spec.y), ("zaxis", spec.z)):
+      _apply_category_order(layout["scene"][name], axis, axis_categories)
   elif spec.kind == "parcoords":
     pass  # no cartesian/polar/scene axes: the dimensions carry their own labels/ranges
   else:
@@ -636,6 +673,9 @@ def _apply_layout(fig, spec, categories, units, chrome, height, plot_theme):
       zero_x = spec.has("zero_x") or (spec.kind != "scatter" and spec.has("zero_y"))
       _apply_axis_scale(xaxis, spec.has("log_x"), zero_x)
     yaxis = _apply_axis_scale(dict(title=schema.axis_title(spec.y, units), **grid), spec.has("log_y"), spec.has("zero_y"))
+    if spec.kind == "scatter":
+      _apply_category_order(xaxis, spec.x, axis_categories)
+      _apply_category_order(yaxis, spec.y, axis_categories)
     layout["xaxis"] = xaxis
     layout["yaxis"] = yaxis
 
