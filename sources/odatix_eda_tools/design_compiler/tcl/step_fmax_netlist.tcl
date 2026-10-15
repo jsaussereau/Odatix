@@ -27,7 +27,8 @@
 # frequency the search converged to, and publishes that netlist for
 # "odatix pnr". Its reports replace the search's, for the same frequency.
 #
-# The RTL has been analyzed by analyze_script.tcl in the same process.
+# It starts from the elaborated database the search saved: the RTL is neither
+# analyzed nor elaborated again.
 
 if {[catch {
 
@@ -40,11 +41,10 @@ if {[catch {
 
     report_progress 0 $synth_statusfile
 
-    odatix_dc_elaborate $signature
+    odatix_dc_setup $signature
+    odatix_read_ddc "${basename}.ddc" $signature "search"
 
     report_progress 10 $synth_statusfile
-
-    odatix_write_ddc "${basename}.ddc" $signature
 
     set frequency [odatix_dc_constrain $signature]
 

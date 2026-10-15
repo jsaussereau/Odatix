@@ -22,9 +22,23 @@
 # One synthesis at the frequency currently written in the constraints file.
 #
 # This is what an fmax search runs at every iteration of its binary search, in
-# the process that runs the search itself: the RTL has been analyzed once by
-# find_fmax.tcl, so only elaboration, compilation and reporting are replayed.
-# No netlist is exported here — the frequency this iteration ran at is not
+# the process that runs the search itself. find_fmax.tcl has set up the
+# technology libraries and analyzed the RTL once, and what does not depend on
+# the frequency is done once as well: the first iteration elaborates the design
+# and saves it, the next ones clear the memory and read that database back. Only
+# the constraints, the compilation and the reports are replayed.
+#
+# Each iteration starts again from the elaborated design rather than from what
+# the previous one left in memory: a compiled design (and the subdesigns its
+# compilation created) must not leak into the next compilation.
+#
+# What does persist from one iteration to the next is the application variables
+# a strategy may change (the high effort scripts of compile_ultra do): the first
+# iteration runs before them, the next ones after. Running each iteration in a
+# process of its own would avoid it, at the cost of a license checkout and a
+# library load per iteration.
+#
+# No netlist is exported here: the frequency this iteration ran at is not
 # necessarily the one the search converges to (see step_fmax_netlist.tcl).
 
 if {[catch {
@@ -38,17 +52,23 @@ if {[catch {
 
     report_progress 2 $synth_statusfile
 
-    odatix_dc_elaborate $signature
+    if {![info exists ::odatix_dc_elaborated]} {
+        odatix_dc_elaborate $signature
 
-    report_progress 10 $synth_statusfile
+        report_progress 10 $synth_statusfile
 
-    puts "<bold>"
-    puts "**************************************"
-    puts "  Save Database for further loading"
-    puts "**************************************"
-    puts "<end>"
+        puts "<bold>"
+        puts "**************************************"
+        puts "  Save Database for further loading"
+        puts "**************************************"
+        puts "<end>"
 
-    odatix_write_ddc "${basename}.ddc" $signature
+        odatix_write_ddc "${basename}.ddc" $signature
+        set ::odatix_dc_elaborated 1
+    } else {
+        remove_design -all
+        odatix_read_ddc "${basename}.ddc" $signature "search"
+    }
 
     report_progress 13 $synth_statusfile
 
@@ -59,10 +79,6 @@ if {[catch {
     odatix_dc_compile $signature
 
     report_progress 90 $synth_statusfile
-
-    odatix_write_ddc "${basename}_gates.ddc" $signature
-
-    report_progress 93 $synth_statusfile
 
     odatix_dc_reports $frequency $signature
 
