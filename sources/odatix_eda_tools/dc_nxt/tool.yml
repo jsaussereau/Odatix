@@ -1,0 +1,23 @@
+##############################################
+# Settings for Design Compiler NXT
+##############################################
+
+# Design Compiler NXT is Design Compiler run by another binary: same commands,
+# same scripts, same flows. So this tool extends "design_compiler" and inherits
+# everything it declares -- steps, flows, scripts, metrics, log formatting --
+# changing only the binary its commands run.
+#
+# Being a tool of its own rather than a flow of Design Compiler is what lets
+# each strategy (the flows of design_compiler) be run by either binary: a
+# design space exploration can compare dc_shell and dcnxt_shell on every one of
+# them (see "tool" and "flow" in the DSE settings).
+extends: design_compiler
+
+label: "DC NXT"
+description: "Synopsys® Design Compiler® NXT"
+
+# Same technologies as Design Compiler: its targets are shared.
+target_file: target_design_compiler.yml
+
+parameters:
+  shell: dcnxt_shell

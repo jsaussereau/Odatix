@@ -49,68 +49,12 @@ if {[catch {
     ######################################
     # Place and route
     ######################################
-    if {[catch {
-        place_design -directive Explore
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design place<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+
+    # The strategy is the flow's (see odatix_vivado_implement).
+    if {![odatix_vivado_implement $signature $synth_statusfile 10 90]} {
         exit -1
     }
-    report_progress 30 $synth_statusfile
 
-    if {[catch {
-        phys_opt_design -retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed physical opt, skipping...<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    report_progress 40 $synth_statusfile
-
-    if {[catch {
-        route_design -directive AggressiveExplore
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design route, exiting<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        exit -1
-    }
-    if {[catch {
-        puts "$signature <cyan>report_route_status:<end>"
-        report_route_status
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed report_route_status, skipping...<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-    }
-    report_progress 60 $synth_statusfile
-
-    if {[catch {
-        place_design -post_place_opt
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed post-place opt, skipping...<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    report_progress 70 $synth_statusfile
-
-    if {[catch {
-        phys_opt_design -retime -routing_opt
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed physical opt, skipping...<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    report_progress 80 $synth_statusfile
-
-    if {[catch {
-        route_design -directive NoTimingRelaxation
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design route, exiting<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        exit -1
-    }
     report_progress 90 $synth_statusfile
 
     ######################################

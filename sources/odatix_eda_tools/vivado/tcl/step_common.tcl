@@ -217,3 +217,115 @@ proc odatix_single_thread {signature} {
         puts -nonewline "$signature tool says -> $errmsg"
     }
 }
+
+######################################
+# Strategy
+######################################
+# How the design is synthesized and implemented is the flow's to say, through
+# its "parameters" in tool.yml. Every script running synthesis or place & route
+# goes through the two procs below -- the steps of a custom frequency synthesis
+# as well as each iteration of an fmax search -- so a flow is the same strategy
+# whatever the job:
+#
+#   synth_options      options of synth_design (directive, retiming, hierarchy)
+#   opt_passes         one opt_design per entry, with these options
+#   power_opt          a power_opt_design pass after logic optimization
+#   place_options      options of place_design
+#   phys_opt_passes    one phys_opt_design per entry, after placement
+#   route_options      options of route_design
+#   post_route_passes  commands run after routing, in order
+#
+# A pass list may be empty: the stage is then skipped. Without parameters, the
+# defaults are what Odatix has always run.
+
+# Run one command of the strategy. A failing optimization pass is skipped -- the
+# design is still valid without it -- but a failing synthesis, placement or
+# routing is fatal: returns 0 then, 1 otherwise.
+proc odatix_vivado_run {command fatal signature} {
+    puts "$signature <cyan>$command<end>"
+    if {[catch {uplevel #0 $command} errmsg]} {
+        if {$fatal} {
+            puts "$signature <bold><red>error: failed '[lindex $command 0]'<end>"
+            puts -nonewline "$signature tool says -> $errmsg"
+            puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+            return 0
+        }
+        puts "$signature <bold><red>error: failed '[lindex $command 0]', skipping...<end>"
+        puts -nonewline "$signature tool says -> $errmsg"
+    }
+    return 1
+}
+
+# Synthesis and logic optimization. Returns 0 when synthesis failed.
+proc odatix_vivado_synthesize {target signature {progressfile ""} {from 0} {to 100}} {
+    global top_level_module
+
+    set synth_options [odatix_flow_param synth_options [list -flatten_hierarchy full]]
+    set opt_passes [odatix_flow_param opt_passes [list "-sweep -remap -propconst" "-directive Explore"]]
+
+    # Flows declared before parameters existed set these from an entry script.
+    if {[info exists ::odatix_synth_options]} {
+        lappend synth_options {*}$::odatix_synth_options
+    }
+    set power_opt [odatix_flow_param power_opt 0]
+    if {[info exists ::odatix_power_opt] && $::odatix_power_opt} {
+        set power_opt 1
+    }
+
+    set command [list synth_design -part $target -top $top_level_module -verilog_define VIVADO {*}$synth_options]
+    if {![odatix_vivado_run $command 1 $signature]} {
+        return 0
+    }
+    if {$progressfile ne ""} {
+        report_progress [expr {$from + ($to - $from) * 2 / 3}] $progressfile
+    }
+
+    foreach pass $opt_passes {
+        odatix_vivado_run [list opt_design {*}$pass] 0 $signature
+    }
+    if {$power_opt} {
+        odatix_vivado_run [list power_opt_design] 0 $signature
+    }
+    return 1
+}
+
+# Placement, physical optimization and routing. Returns 0 when placement or
+# routing failed.
+proc odatix_vivado_implement {signature {progressfile ""} {from 0} {to 100}} {
+    set place_options [odatix_flow_param place_options [list -directive Explore]]
+    set phys_opt_passes [odatix_flow_param phys_opt_passes [list "-retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt"]]
+    set route_options [odatix_flow_param route_options [list -directive AggressiveExplore]]
+    set post_route_passes [odatix_flow_param post_route_passes [list \
+        "place_design -post_place_opt" \
+        "phys_opt_design -retime -routing_opt" \
+        "route_design -directive NoTimingRelaxation" \
+    ]]
+
+    if {![odatix_vivado_run [list place_design {*}$place_options] 1 $signature]} {
+        return 0
+    }
+    if {$progressfile ne ""} {
+        report_progress [expr {$from + ($to - $from) / 4}] $progressfile
+    }
+    foreach pass $phys_opt_passes {
+        odatix_vivado_run [list phys_opt_design {*}$pass] 0 $signature
+    }
+    if {![odatix_vivado_run [list route_design {*}$route_options] 1 $signature]} {
+        return 0
+    }
+    catch {
+        puts "$signature <cyan>report_route_status:<end>"
+        report_route_status
+    }
+    if {$progressfile ne ""} {
+        report_progress [expr {$from + ($to - $from) * 3 / 4}] $progressfile
+    }
+    # Routing again is fatal when it fails: the design would be left unrouted.
+    foreach pass $post_route_passes {
+        set fatal [expr {[lindex $pass 0] eq "route_design"}]
+        if {![odatix_vivado_run $pass $fatal $signature]} {
+            return 0
+        }
+    }
+    return 1
+}

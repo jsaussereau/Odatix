@@ -60,32 +60,12 @@ if {[catch {
     ######################################
     # Synthetize
     ######################################
-    if {[catch {
-        synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design synth<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+
+    # The strategy is the flow's (see odatix_vivado_synthesize).
+    if {![odatix_vivado_synthesize $target $signature $synth_statusfile 10 80]} {
         exit -1
     }
-    report_progress 55 $synth_statusfile
 
-    if {[catch {
-        opt_design -sweep -remap -propconst
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design opt, skipping<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    report_progress 70 $synth_statusfile
-
-    if {[catch {
-        opt_design -directive Explore
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design opt, skipping<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
     report_progress 80 $synth_statusfile
 
     ######################################

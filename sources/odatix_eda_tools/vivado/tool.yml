@@ -15,6 +15,26 @@ default_metrics_file: "$eda_tools_path/vivado/metrics.yml"
 
 default_flow: standard
 
+# Parameters of the default flow: the strategy the scripts follow to synthesize
+# and implement the design (see odatix_vivado_synthesize and
+# odatix_vivado_implement in tcl/step_common.tcl). Every flow starts from these
+# and changes only what it says, so the flows at the bottom of this file are
+# strategies, not scripts. A pass list may be empty: the stage is skipped.
+parameters:
+  synth_options: [-flatten_hierarchy, full]
+  # One opt_design per entry, with these options
+  opt_passes: ["-sweep -remap -propconst", "-directive Explore"]
+  power_opt: false
+  place_options: [-directive, Explore]
+  # One phys_opt_design per entry, after placement
+  phys_opt_passes: ["-retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt"]
+  route_options: [-directive, AggressiveExplore]
+  # Commands run after routing, in order
+  post_route_passes:
+    - "place_design -post_place_opt"
+    - "phys_opt_design -retime -routing_opt"
+    - "route_design -directive NoTimingRelaxation"
+
 unix:
   # Optional constants (anchors) that can be used in the file
   constants:
@@ -28,7 +48,6 @@ unix:
     - &source_analyze_script_unix -source $script_path/analyze_script.tcl
     - &source_elaborate_script_unix -source $script_path/elaborate_script.tcl
     - &source_exit_script_unix -source $script_path/exit.tcl
-    - &source_flow_power_opt_unix -source $script_path/flow_power_opt.tcl
     - &vivado_pnr_opt_unix -log $log_path/pnr.log
     - &vivado_bitstream_opt_unix -log $log_path/bitstream.log
     - &source_step_elaboration_unix -source $script_path/step_elaboration.tcl
@@ -188,65 +207,62 @@ windows:
 # "unix"/"windows" sections above (see "default_flow").
 #
 # A flow starts from the default flow's declaration and changes only what it
-# says. Steps are merged by name, so a flow that only changes how the design is
-# synthesized redefines that one step and inherits place & route and bitstream
-# generation as they are. Sessions are merged key by key, so a flow changing
-# where the log goes says that much and keeps the rest. Every flow is therefore
-# stepped, and "--until" works the same whichever one is picked.
+# says. The flows below only change parameters: they run the same steps and the
+# same scripts, with another strategy, and "--until" works the same whichever
+# one is picked. A design space exploration can choose between them (see "flow"
+# in the DSE settings). Add a strategy of your own the same way, in the tool.yml
+# of your workspace.
 
 flows:
 
   standard:
     label: "Standard"
-    description: "Timing oriented synthesis and implementation"
+    description: "Timing oriented synthesis and implementation, the historical Odatix flow"
+
+  runtime:
+    label: "Runtime optimized"
+    description: "RuntimeOptimized directives everywhere and no physical optimization: fast screening"
+    parameters:
+      synth_options: [-flatten_hierarchy, full, -directive, RuntimeOptimized]
+      opt_passes: ["-directive RuntimeOptimized"]
+      place_options: [-directive, RuntimeOptimized]
+      phys_opt_passes: []
+      route_options: [-directive, RuntimeOptimized]
+      post_route_passes: []
+
+  performance:
+    label: "Performance"
+    description: "PerformanceOptimized synthesis with retiming, aggressive placement, physical optimization and routing"
+    parameters:
+      synth_options: [-flatten_hierarchy, full, -directive, PerformanceOptimized, -retiming]
+      opt_passes: ["-directive ExploreWithRemap"]
+      place_options: [-directive, ExtraTimingOpt]
+      phys_opt_passes: ["-directive AggressiveExplore"]
+      route_options: [-directive, AggressiveExplore]
+      post_route_passes: ["phys_opt_design -directive AggressiveExplore"]
+
+  area:
+    label: "Area optimized"
+    description: "AreaOptimized_high synthesis and area oriented logic optimization, default implementation"
+    parameters:
+      synth_options: [-flatten_hierarchy, full, -directive, AreaOptimized_high]
+      opt_passes: ["-directive ExploreArea"]
+      place_options: [-directive, Default]
+      phys_opt_passes: []
+      route_options: [-directive, Default]
+      post_route_passes: []
 
   power_opt:
     label: "Power optimized"
-    description: "Automatic clock gating and power optimization pass"
-    unix:
-      # Every step of an fmax search starts again from the RTL — a binary search
-      # has nothing to hand over — so all three have to set the power knobs.
-      fmax_synthesis_steps:
-        - name: synthesis
-          command:
-            - *vivado_init_unix
-            - *vivado_unix
-            - *vivado_opt_unix
-            - *vivado_fmax_opt_unix
-            - *source_flow_power_opt_unix
-            - *source_step_fmax_synthesis_unix
-            - *source_exit_script_unix
-        - name: pnr
-          default: true
-          command:
-            - *vivado_init_unix
-            - *vivado_unix
-            - *vivado_opt_unix
-            - *vivado_pnr_opt_unix
-            - *source_flow_power_opt_unix
-            - *source_step_fmax_pnr_unix
-            - *source_exit_script_unix
-        - name: bitstream
-          command:
-            - *vivado_init_unix
-            - *vivado_unix
-            - *vivado_opt_unix
-            - *vivado_bitstream_opt_unix
-            - *source_flow_power_opt_unix
-            - *source_step_fmax_bitstream_unix
-            - *source_exit_script_unix
-      # A custom frequency synthesis, on the other hand, hands its design over
-      # from one step to the next: the clock gating and the power optimization
-      # pass are already baked into it, so only the synthesis step differs and
-      # "pnr" and "bitstream" are inherited unchanged — as is the session they
-      # all run in.
-      custom_freq_synthesis_steps:
-        - name: synthesis
-          args:
-            - *source_init_script_unix
-            - *source_flow_power_opt_unix
-            - *source_analyze_script_unix
-            - *source_step_synthesis_unix
+    description: "Clock gating conversion, PowerOptimized_high synthesis and a power optimization pass, default implementation"
+    parameters:
+      synth_options: [-flatten_hierarchy, full, -gated_clock_conversion, auto, -directive, PowerOptimized_high]
+      opt_passes: ["-sweep -remap -propconst"]
+      power_opt: true
+      place_options: [-directive, Default]
+      phys_opt_passes: []
+      route_options: [-directive, Default]
+      post_route_passes: []
 
 # Log formatting
 format:

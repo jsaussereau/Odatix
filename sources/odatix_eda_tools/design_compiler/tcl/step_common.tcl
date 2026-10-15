@@ -166,12 +166,40 @@ proc odatix_dc_constrain {signature} {
     set_clock_uncertainty -setup $clock_skew $clock_signal
     set_max_transition 0.5 $reset_signal
 
+    # Input and output delays, so that the paths between the ports and the
+    # registers are timed too. Without them those paths are unconstrained: a
+    # strategy that moves registers (retiming) can then push logic onto them and
+    # report a frequency the design does not reach.
+    set data_inputs [remove_from_collection [all_inputs] [get_ports [list $clock_signal $reset_signal]]]
+    if {[sizeof_collection $data_inputs] > 0} {
+        set_input_delay $input_delay -clock $clock_signal $data_inputs
+    }
+    if {[sizeof_collection [all_outputs]] > 0} {
+        set_output_delay $output_delay -clock $clock_signal [all_outputs]
+    }
+
     check_timing
 
     return $frequency
 }
 
+# The compilation, run the way the flow says (its "parameters" in tool.yml):
+#
+#   compile               "compile" or "compile_ultra"
+#   compile_options       what is passed to it
+#   max_area              an area constraint, usually 0 to recover all the area
+#                         the timing allows ("" for none)
+#   leakage_optimization  leakage / dynamic power optimization (Power Compiler)
+#   dynamic_optimization
+#   gate_clock            clock gating insertion
+#   incremental           a second, incremental pass on the mapped design
+#   incremental_options   what is passed to that pass
+#   post_compile_passes   commands run on the mapped design afterwards
+#
+# Without parameters, this is a plain "compile", as it always was.
 proc odatix_dc_compile {signature} {
+    global continue_on_error
+
     puts "<bold>"
     puts "**************************************"
     puts "     Synthesis and Optimization"
@@ -180,10 +208,65 @@ proc odatix_dc_compile {signature} {
 
     set_fix_multiple_port_nets -all [all_designs]
     set_fix_multiple_port_nets -outputs -feedthroughs -constants
-    #compile -map_effort medium -boundary_optimization
-    #compile_ultra -area_high_effort_script -retime
-    compile
-    #compile_ultra -timing_high_effort_script -retime
+
+    set compile_command [odatix_flow_param compile compile]
+    set options [odatix_flow_param compile_options [list]]
+
+    set max_area [odatix_flow_param max_area ""]
+    if {$max_area ne ""} {
+        set_max_area $max_area
+    }
+    # Power optimization is licensed apart: a flow asking for it on a
+    # installation without it still synthesizes, and says what it skipped.
+    foreach {parameter command} {
+        leakage_optimization set_leakage_optimization
+        dynamic_optimization set_dynamic_optimization
+    } {
+        if {[odatix_flow_param $parameter 0]} {
+            if {[catch {$command true} errmsg]} {
+                puts "$signature <bold><yellow>warning: $command failed, going on without it<end>"
+                puts "$signature tool says -> $errmsg"
+            }
+        }
+    }
+    if {[odatix_flow_param gate_clock 0]} {
+        lappend options -gate_clock
+    }
+
+    puts "$signature <cyan>strategy: $compile_command $options<end>"
+    if {[catch {$compile_command {*}$options} errmsg]} {
+        puts "$signature <bold><red>error: $compile_command failed<end>"
+        puts "$signature tool says -> $errmsg"
+        if {$continue_on_error == 1} {
+            return -code continue "continue"
+        } else {
+            exit -1
+        }
+    }
+
+    if {[odatix_flow_param incremental 0]} {
+        set incremental_options [odatix_flow_param incremental_options [list]]
+        if {$compile_command eq "compile_ultra"} {
+            set incremental [list compile_ultra -incremental {*}$incremental_options]
+        } else {
+            set incremental [list compile -incremental_mapping {*}$incremental_options]
+        }
+        puts "$signature <cyan>incremental pass: $incremental<end>"
+        if {[catch {{*}$incremental} errmsg]} {
+            puts "$signature <bold><yellow>warning: incremental pass failed, keeping the first one<end>"
+            puts "$signature tool says -> $errmsg"
+        }
+    }
+
+    # Commands run on the mapped design, in order. One the installed version
+    # does not know is skipped: the design is valid without it.
+    foreach pass [odatix_flow_param post_compile_passes [list]] {
+        puts "$signature <cyan>post-compile pass: $pass<end>"
+        if {[catch {uplevel #0 $pass} errmsg]} {
+            puts "$signature <bold><yellow>warning: '$pass' failed, skipping it<end>"
+            puts "$signature tool says -> $errmsg"
+        }
+    }
 }
 
 # Metrics are exported when the run ends, whichever step it ended on, so the

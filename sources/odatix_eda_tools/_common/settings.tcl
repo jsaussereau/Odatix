@@ -111,6 +111,12 @@ set single_thread      1
 
 set lib_name           WORK
 
+# Parameters of the flow this job runs with ("parameters" in tool.yml): the
+# strategy the scripts follow, such as which compile command or which
+# directives. Written by Odatix; read them with odatix_flow_param. Global
+# whatever the scope this file is sourced from.
+set ::odatix_flow_parameters [dict create]
+
 
 
 
@@ -172,6 +178,16 @@ proc odatix_read_user_constraints {stage read_command signature} {
         }
         puts "$signature <cyan>read $stage constraints from $constraint_file<end>"
     }
+}
+
+proc odatix_flow_param {name {default ""}} {
+    # A parameter of the flow this job runs with, or `default` when the flow
+    # does not set it. A list parameter comes back as a tcl list, a boolean as
+    # 1 or 0.
+    if {[info exists ::odatix_flow_parameters] && [dict exists $::odatix_flow_parameters $name]} {
+        return [dict get $::odatix_flow_parameters $name]
+    }
+    return $default
 }
 
 proc report_progress {progress progressfile {comment ""}} {

@@ -19,10 +19,9 @@
 # along with Odatix. If not, see <https://www.gnu.org/licenses/>.
 #
 
-# Entry script of the "power_opt" flow: automatic clock gating at synthesis,
-# then a power optimization pass. Sourced before synth_script.tcl /
-# find_fmax.tcl, which read these variables (see the "flows" section of
-# tool.yml).
-
+# Former entry script of the "power_opt" flow, kept for the flows of a
+# workspace that still source it: automatic clock gating at synthesis, then a
+# power optimization pass. The built-in flows now set these through their
+# "parameters" in tool.yml, which odatix_vivado_synthesize reads.
 set ::odatix_synth_options "-gated_clock_conversion auto"
 set ::odatix_power_opt 1

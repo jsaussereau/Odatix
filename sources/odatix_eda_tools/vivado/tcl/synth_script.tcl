@@ -25,23 +25,16 @@ if {[catch {
 
     set signature "<grey>\[synth_script.tcl\]<end>"
 
-    ######################################
-    # Flow options
-    ######################################
-    # Knobs a flow can override from its entry script (see the "flows" section
-    # of tool.yml). The defaults reproduce the historical behaviour, so a
-    # tool.yml without flows runs exactly as before. The "::" prefix is
-    # required: find_fmax.tcl sources this script from inside a proc.
-    if {![info exists ::odatix_synth_options]} {
-        set ::odatix_synth_options ""
-    }
-    if {![info exists ::odatix_power_opt]} {
-        set ::odatix_power_opt 0
-    }
+    # The strategy procs (odatix_vivado_synthesize / odatix_vivado_implement)
+    # follow the parameters of the flow, the same way the steps of a custom
+    # frequency synthesis do.
+    source scripts/step_common.tcl
+
     # How far this run goes. "pnr" (the default) synthesizes and implements, as
     # it always did; "synthesis" stops after logic optimization and reports on
     # the synthesized netlist. An fmax search set to "synthesis" therefore
-    # searches on post-synthesis timing: much faster, and optimistic.
+    # searches on post-synthesis timing: much faster, and optimistic. The "::"
+    # prefix is required: find_fmax.tcl sources this script from inside a proc.
     if {![info exists ::odatix_synth_depth]} {
         set ::odatix_synth_depth "pnr"
     }
@@ -86,125 +79,34 @@ if {[catch {
     ######################################
     # Synthetize
     ######################################
-    if {[catch {
-        synth_design -flatten_hierarchy full -part ${target} -top ${top_level_module} -verilog_define VIVADO {*}$::odatix_synth_options
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design synth<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
+
+    if {![odatix_vivado_synthesize $target $signature $synth_statusfile 10 65]} {
         if {$continue_on_error == 1} {
             return -code continue "continue"
         } else {
             exit -1
         }
     }
-    report_progress 45 $synth_statusfile
-    if {[catch {
-        opt_design -sweep -remap -propconst
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design opt, skipping<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    report_progress 55 $synth_statusfile
-    if {[catch {
-        opt_design -directive Explore
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design opt, skipping<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    if {$::odatix_power_opt} {
-        if {[catch {
-            power_opt_design
-        } errmsg]} {
-            puts "$signature <bold><red>error: failed power optimization, skipping<end>"
-            puts -nonewline "$signature tool says -> $errmsg"
-            puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        }
-    }
+
     report_progress 65 $synth_statusfile
 
     ######################################
     # Place and route
     ######################################
+
     if {$::odatix_synth_depth eq "synthesis"} {
         puts "$signature <cyan>stopping after synthesis: reports are post-synthesis estimates<end>"
     } else {
-    odatix_read_user_constraints pnr read_xdc $signature
-    if {[catch {
-        place_design -directive Explore
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design place<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        if {$continue_on_error == 1} {
-            return -code continue "continue"
-        } else {
-            exit -1
+        odatix_read_user_constraints pnr read_xdc $signature
+        if {![odatix_vivado_implement $signature $synth_statusfile 65 98]} {
+            if {$continue_on_error == 1} {
+                return -code continue "continue"
+            } else {
+                exit -1
+            }
         }
-    }
-    report_progress 70 $synth_statusfile
-    if {[catch {
-        phys_opt_design -retime -rewire -critical_pin_opt -placement_opt -critical_cell_opt
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed physical opt, skipping...<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    report_progress 75 $synth_statusfile
-    if {[catch {
-        route_design -directive AggressiveExplore
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design route, exiting<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        if {$continue_on_error == 1} {
-            return -code continue "continue"
-        } else {
-            exit -1
-        }
-    }
-    if {[catch {
-        puts "$signature <cyan>report_route_status:<end>"
-        report_route_status
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed report_route_status, exiting<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
     }
 
-    report_progress 85 $synth_statusfile
-    if {[catch {
-        place_design -post_place_opt
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed post-place opt, skipping...<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    report_progress 90 $synth_statusfile
-    if {[catch {
-        phys_opt_design -retime -routing_opt
-        # -lut_opt -casc_opt
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed physical opt, skipping...<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-    }
-    report_progress 95 $synth_statusfile
-    if {[catch {
-        route_design -directive NoTimingRelaxation
-    } errmsg]} {
-        puts "$signature <bold><red>error: failed design route, exiting<end>"
-        puts -nonewline "$signature tool says -> $errmsg"
-        puts "$signature <cyan>note: look for earlier error to solve this issue<end>"
-        if {$continue_on_error == 1} {
-            return -code continue "continue"
-        } else {
-            exit -1
-        }
-    }
-    }
     report_progress 98 $synth_statusfile
 
     ######################################

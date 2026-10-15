@@ -14,13 +14,29 @@ default_metrics_file: $eda_tools_path/design_compiler/metrics.yml
 
 # Name of the flow the commands declared in the platform sections below belong
 # to. It is the flow used when "--flow" is not given.
-default_flow: dc_shell
+default_flow: standard
+
+# Parameters of the default flow: the binary it runs and the strategy the
+# scripts follow when they compile the design (see odatix_dc_compile in
+# tcl/step_common.tcl). Every flow starts from these and changes only what it
+# says, so the flows at the bottom of this file are strategies, not scripts.
+# A tool extending this one changes the binary the same way (see dc_nxt).
+parameters:
+  shell: dc_shell
+  compile: compile
+  compile_options: []
+  max_area: ""
+  leakage_optimization: false
+  dynamic_optimization: false
+  gate_clock: false
+  incremental: false
+  incremental_options: []
+  post_compile_passes: []
 
 unix:
   # Optional constants (anchors) for reuse
   constants:
-    - &dc_unix dc_shell
-    - &dcnxt_unix dcnxt_shell
+    - &dc_unix $shell
     - &dc_args -x
 
   # Command to check if the tool is installed
@@ -38,10 +54,8 @@ unix:
   # memory from one process to the next: a step hands its design over through a
   # .ddc database, and the next one reads it back.
   #
-  # Being split into steps is a property of every flow of this tool, not of a
-  # flow of its own: the steps below belong to the default flow, and the flows
-  # declared at the bottom of this file inherit them, redefining only what they
-  # change.
+  # Every flow of this tool runs these steps: the flows declared at the bottom
+  # of this file only change the parameters the compilation follows.
 
   # Steps of an fmax search. The search itself is one step: unlike an FPGA flow,
   # there is no post-route timing to search on again, so what changes after it
@@ -106,76 +120,62 @@ unix:
 ##############################################
 # Flows
 ##############################################
-# A flow is a way of running this tool: a different script, different options,
-# sometimes a different binary. Flows of the same tool are alternatives meant to
-# be compared, so each one gets its own work directory
-# ("design_compiler@dcnxt") and its results are tagged with its name.
+# A flow is a synthesis strategy. Flows of the same tool are alternatives meant
+# to be compared, so each one gets its own work directory
+# ("design_compiler@ultra_timing") and its results are tagged with its name. A
+# design space exploration can choose between them (see "flow" in the DSE
+# settings).
 #
-# The commands declared in the platform sections above are those of the default
-# flow (see "default_flow").
+# Each flow only sets the parameters it changes: the steps, the scripts and the
+# binary are the default flow's. Add a strategy of your own the same way, in the
+# tool.yml of your workspace.
 
 flows:
 
-  dc_shell:
-    label: "DC (legacy) - Standard"
-    description: "Synthesis with dc_shell (legacy Design Compiler)"
+  standard:
+    label: "Standard"
+    description: "compile: medium effort mapping, the historical Odatix flow"
 
-  dcnxt_shell:
-    label: "DC NXT - Standard"
-    description: "Synthesis with the faster and more powerful dcnxt_shell (requires Design Compiler P-2019.03 or earlier)"
-    unix:
-      # This flow runs a different binary, so it checks for that one.
-      tool_test_command:
-        - *dcnxt_unix
-        - *dc_args
-        - "exit"
-      # Same steps as the default flow, run by the other binary: they are merged
-      # by name, so what each one does stays declared in one place only.
-      fmax_synthesis_steps:
-        - name: search
-          default: true
-          command:
-            - cd $work_path;
-            - *dcnxt_unix
-            - "-output_log_file log/fmax.log"
-            - *dc_args
-            - "'source scripts/find_fmax.tcl; quit'"
-        - name: netlist
-          command:
-            - cd $work_path;
-            - *dcnxt_unix
-            - "-output_log_file log/netlist.log"
-            - *dc_args
-            - "'source scripts/analyze_script.tcl; source scripts/step_fmax_netlist.tcl; quit'"
-      custom_freq_synthesis_steps:
-        - name: elaborate
-          command:
-            - cd $work_path;
-            - *dcnxt_unix
-            - "-output_log_file log/elaborate.log"
-            - *dc_args
-            - "'source scripts/init_script.tcl; source scripts/analyze_script.tcl; source scripts/step_elaborate.tcl; quit'"
-        - name: synthesis
-          default: true
-          command:
-            - cd $work_path;
-            - *dcnxt_unix
-            - "-output_log_file log/custom_freq.log"
-            - *dc_args
-            - "'source scripts/step_synthesis.tcl; quit'"
-        - name: netlist
-          command:
-            - cd $work_path;
-            - *dcnxt_unix
-            - "-output_log_file log/netlist.log"
-            - *dc_args
-            - "'source scripts/step_netlist.tcl; quit'"
-      analysis_command:
-        - cd $work_path;
-        - *dcnxt_unix
-        - "-output_log_file log/analysis.log"
-        - *dc_args
-        - "'set odatix_mode analysis; source scripts/init_script.tcl; source scripts/analyze_script.tcl; quit'"
+  high_effort:
+    label: "High effort"
+    description: "compile with high mapping and area effort and boundary optimization"
+    parameters:
+      compile_options: [-map_effort, high, -area_effort, high, -boundary_optimization]
+
+  ultra:
+    label: "Ultra"
+    description: "compile_ultra with its default settings (DesignWare, auto-ungrouping)"
+    parameters:
+      compile: compile_ultra
+
+  ultra_timing:
+    label: "Ultra - timing"
+    description: "compile_ultra high timing effort with register retiming, then an incremental pass"
+    parameters:
+      compile: compile_ultra
+      compile_options: [-timing_high_effort_script, -retime]
+      incremental: true
+      incremental_options: [-retime]
+
+  ultra_area:
+    label: "Ultra - area"
+    description: "compile_ultra with area recovery, then a netlist area optimization pass"
+    parameters:
+      compile: compile_ultra
+      # Ignored by recent versions (OPT-1341), which do the same through
+      # optimize_netlist; kept for the versions that still honor it.
+      compile_options: [-area_high_effort_script]
+      max_area: 0
+      post_compile_passes: ["optimize_netlist -area"]
+
+  ultra_power:
+    label: "Ultra - power"
+    description: "compile_ultra with clock gating and leakage and dynamic power optimization"
+    parameters:
+      compile: compile_ultra
+      gate_clock: true
+      leakage_optimization: true
+      dynamic_optimization: true
 
 # Log formatting
 format:
