@@ -38,8 +38,12 @@
 # process of its own would avoid it, at the cost of a license checkout and a
 # library load per iteration.
 #
-# No netlist is exported here: the frequency this iteration ran at is not
-# necessarily the one the search converges to (see step_fmax_netlist.tcl).
+# An iteration that meets timing also exports its netlist for "odatix pnr". The
+# search only ever raises its lower bound on such an iteration, so the netlist
+# left behind when it ends is the one synthesized at the frequency it reports,
+# along with the reports find_fmax.tcl restores. Exporting costs well under a
+# second next to a compilation; synthesizing again afterwards to get the same
+# netlist would cost a whole compilation, and would not even give the same one.
 
 if {[catch {
 
@@ -81,6 +85,12 @@ if {[catch {
     report_progress 90 $synth_statusfile
 
     odatix_dc_reports $frequency $signature
+
+    report_progress 95 $synth_statusfile
+
+    if {[is_slack_met $report_path $timing_rep]} {
+        odatix_dc_netlist $signature
+    }
 
     report_progress 100 $synth_statusfile
 

@@ -58,13 +58,10 @@ unix:
   # of this file only change the parameters the compilation follows.
 
   # Steps of an fmax search. The search itself is one step: unlike an FPGA flow,
-  # there is no post-route timing to search on again, so what changes after it
-  # is only what gets written. The search analyzes and elaborates the design
-  # once, then only replays the compilation at each frequency it tries (see
-  # synth_script.tcl). The netlist is exported by a step of its own because the
-  # search has to synthesize once more to produce it (see step_fmax_netlist.tcl),
-  # from the elaborated database it saved, which is worth paying only when the
-  # design is meant to be placed & routed afterwards.
+  # there is no post-route timing to search on again. It analyzes and elaborates
+  # the design once, then only replays the compilation at each frequency it
+  # tries (see synth_script.tcl), and the netlist "odatix pnr" starts from is
+  # exported by the iteration that met timing at the frequency it reports.
   fmax_synthesis_steps:
     - name: search
       default: true
@@ -74,13 +71,6 @@ unix:
         - "-output_log_file log/fmax.log"
         - *dc_args
         - "'source scripts/find_fmax.tcl; quit'"
-    - name: netlist
-      command:
-        - cd $work_path;
-        - *dc_unix
-        - "-output_log_file log/netlist.log"
-        - *dc_args
-        - "'source scripts/step_fmax_netlist.tcl; quit'"
 
   # Steps of a custom frequency synthesis. Here each step continues from the
   # database the previous one wrote, so nothing is elaborated or compiled twice.
