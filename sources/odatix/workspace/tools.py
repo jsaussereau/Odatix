@@ -535,11 +535,14 @@ class ToolSettings(object):
     """
 
     #: Keys this class owns; anything else in the file is kept in ``extra``.
-    OWNED_KEYS = set(OVERRIDABLE_KEYS) | set(PLATFORMS) | set(["format", "flows", "default_flow", "parameters"])
+    OWNED_KEYS = set(OVERRIDABLE_KEYS) | set(PLATFORMS) | set(["format", "flows", "default_flow", "parameters", "extends"])
 
     def __init__(self, label="", description="", icon="", icon_filter=False, process_group=True,
                  report_path="", target_file="", default_metrics_file="",
-                 flows=None, format=None, extra=None):
+                 flows=None, format=None, extra=None, extends=""):
+        # The tool this one is a variant of (see odatix.lib.eda_tools.get_base_tool):
+        # it then only declares what differs from it.
+        self.extends = str(extends or "").strip()
         self.label = str(label or "")
         self.description = str(description or "")
         self.icon = str(icon or "")
@@ -631,6 +634,7 @@ class ToolSettings(object):
             format=data.get("format"),
             extra=dict((key, value) for key, value in data.items()
                        if key not in cls.OWNED_KEYS and key != "platforms"),
+            extends=data.get("extends", ""),
         )
 
         if isinstance(data.get("flows"), list):
@@ -717,6 +721,7 @@ class ToolSettings(object):
     def to_dict(self):
         """The settings as plain values, in the canonical shape used by the editors."""
         return {
+            "extends": self.extends,
             "label": self.label,
             "description": self.description,
             "icon": self.icon,
@@ -746,6 +751,9 @@ class ToolSettings(object):
         if header:
             document.yaml_set_start_comment(header)
 
+        # First: everything below only says how this tool differs from that one.
+        if self.extends:
+            document["extends"] = self.extends
         for key in ("label", "description", "icon"):
             value = getattr(self, key)
             if str(value).strip() != "":
@@ -788,6 +796,10 @@ class ToolSettings(object):
                         section = _write_platform_section(flow.platforms.get(platform, {}))
                         if len(section) > 0:
                             entry[platform] = section
+                elif len(entry) == 0:
+                    # "default_flow" already names it and its commands sit at the
+                    # top level: an empty entry would say nothing.
+                    continue
                 flows_map[flow.name] = entry
             if len(flows_map) > 0:
                 document["flows"] = flows_map

@@ -121,7 +121,9 @@
     border-radius: 3px;
     font-weight: 700;
 }
-.wf-hl-var {
+/* A parameter of a tool's flows reads like a variable: a name the user gave. */
+.wf-hl-var,
+.wf-hl-param {
     color: var(--wf-hl-var-color);
     background: color-mix(in srgb, var(--wf-hl-var-color) 14%, transparent);
 }
@@ -336,7 +338,8 @@
 }
 
 /* Colored to match the hovered token kind. */
-.wf-hl-tooltip.wf-hl-var {
+.wf-hl-tooltip.wf-hl-var,
+.wf-hl-tooltip.wf-hl-param {
     background: var(--wf-hl-var-color);
     color: #fff;
     border-color: var(--wf-hl-var-color);

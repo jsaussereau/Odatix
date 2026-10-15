@@ -37,6 +37,17 @@ Command / Steps" choices of each job type mean. The commands of the default
 flow are the ones written directly in the "unix"/"windows" sections of tool.yml,
 the other flows live under "flows:" — the editor hides that asymmetry.
 
+A flow also holds *parameters*: the values the tool's scripts read for it (see
+"parameters" in odatix.lib.eda_tools.list_flows). That is how flows sharing
+the same scripts differ — a synthesis strategy is a flow declaring a few
+parameters and no command. The default flow's parameters are the ones every
+other flow starts from, so a flow lists the ones it inherits next to the ones
+it sets, and any of them can be overridden or put back.
+
+A tool can extend another one ("extends", the "Base Tool" field): it then runs
+that tool's flows, shown locked, and only says what differs — usually a
+parameter of the default flow (another executable), or flows of its own.
+
 A built-in tool is edited as an overlay: the flows Odatix ships are shown
 read-only (their commands belong to Odatix, duplicate one to start from what it
 does), while everything else — the metadata, the behaviour, the log formatting —
@@ -53,11 +64,12 @@ save. The tool's metrics.yml is edited from the "Edit Metrics" button
 
 import copy as copy_module
 import os
+import re
 
 import dash
 from dash import html, dcc, Input, Output, State, ctx
 
-from odatix.workspace.tools import OVERRIDABLE_KEYS
+from odatix.workspace.tools import OVERRIDABLE_KEYS, ToolSettings
 import odatix.lib.eda_tools as eda_tools
 from odatix.gui.icons import icon
 from odatix.gui.utils import get_key_from_url, get_workspace
@@ -123,6 +135,27 @@ STEP_KIND_OPTIONS = [
     {"label": "Own command", "value": "command"},
 ]
 
+# The kinds of value a flow parameter holds. A number is a text: the scripts
+# read every value as a string anyway, and a number typed in a text field is
+# written back as a number (see _scalar).
+PARAM_TYPES = [
+    {"label": "Text", "value": "text"},
+    {"label": "On / Off", "value": "bool"},
+    {"label": "List", "value": "list"},
+]
+PARAM_TYPE_LABELS = {option["value"]: option["label"] for option in PARAM_TYPES}
+
+# A parameter is referred to as "$name" in a command and by its name in a Tcl
+# script: it has to be a plain identifier.
+PARAM_NAME_PATTERN = r"[A-Za-z_][A-Za-z0-9_]*"
+_PARAM_NAME = re.compile("^" + PARAM_NAME_PATTERN + "$")
+
+# Where a flow comes from: the tool itself, Odatix (a flow of a built-in tool),
+# or the tool it extends. Only the first kind is the tool's to change.
+ORIGIN_OWN = "own"
+ORIGIN_BUILTIN = "builtin"
+ORIGIN_BASE = "base"
+
 # Log levels shown in the formatting section, with their display label.
 LOG_LEVELS = [
     ("error", "Error"),
@@ -171,6 +204,112 @@ def _markers_to_list(text):
     if not text:
         return []
     return [m.strip() for m in str(text).split(",") if m.strip() != ""]
+
+
+######################################
+# Flow parameters
+######################################
+# In the page, a parameter is a row holding its name, its type, and one value
+# per type ("text", "bool", "list"): every type is always rendered, the other
+# ones hidden, so switching back and forth does not lose what was typed (the
+# job types do the same with their command and their steps).
+
+_INTEGER = re.compile(r"^[+-]?(0|[1-9][0-9]*)$")
+_DECIMAL = re.compile(r"^[+-]?[0-9]+\.[0-9]+$")
+
+def _scalar(text):
+    """
+    A value typed in a text field, as the value it stands for: a number stays a
+    number, so that what a tool.yml holds goes through the editor unchanged.
+    """
+    text = "" if text is None else str(text)
+    stripped = text.strip()
+    if _INTEGER.match(stripped):
+        return int(stripped)
+    if _DECIMAL.match(stripped) and repr(float(stripped)) == stripped.lstrip("+"):
+        return float(stripped)
+    return text
+
+def param_type(value):
+    """The type of a parameter value, as the editor offers it."""
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, (list, tuple)):
+        return "list"
+    return "text"
+
+def param_row(name, value):
+    """A parameter as the page holds it."""
+    kind = param_type(value)
+    return {
+        "name": str(name),
+        "type": kind,
+        "text": ("" if value is None else str(value)) if kind == "text" else "",
+        "bool": bool(value) if kind == "bool" else False,
+        "list": [str(item) for item in value] if kind == "list" else [],
+    }
+
+def param_value(row):
+    """The value a parameter row stands for, as written in tool.yml."""
+    kind = row.get("type")
+    if kind == "bool":
+        return bool(row.get("bool"))
+    if kind == "list":
+        return [_scalar(item) for item in (row.get("list") or []) if str(item).strip() != ""]
+    return _scalar(row.get("text"))
+
+def param_rows(parameters):
+    """Parameter rows from a {name: value} mapping, in its order."""
+    if not isinstance(parameters, dict):
+        return []
+    return [param_row(name, value) for name, value in parameters.items() if str(name).strip() != ""]
+
+def params_from_rows(rows):
+    """The {name: value} mapping parameter rows stand for (unnamed rows are dropped)."""
+    parameters = {}
+    for row in rows or []:
+        name = str(row.get("name", "")).strip()
+        if name:
+            parameters[name] = param_value(row)
+    return parameters
+
+def param_display(value):
+    """
+    A parameter value as it reads where it cannot be edited, and whether it is
+    empty. Kept in step with paramDisplay() in assets/tool_params.js.
+    """
+    if isinstance(value, bool):
+        return ("on" if value else "off"), False
+    if isinstance(value, (list, tuple)):
+        words = " ".join(str(item) for item in value)
+        return (words, False) if words else ("empty list", True)
+    text = "" if value is None else str(value)
+    return (text, False) if text != "" else ("empty", True)
+
+def invalid_param_names(flows):
+    """The parameter names of the flows that a tool.yml could not hold."""
+    invalid = []
+    for flow in flows or []:
+        for row in flow.get("parameters") or []:
+            name = str(row.get("name", "")).strip()
+            if name and not _PARAM_NAME.match(name) and name not in invalid:
+                invalid.append(name)
+    return invalid
+
+def _declared_parameters(document, flow_name=None):
+    """
+    The parameters a tool.yml says the default flow starts from: the top-level
+    ones, with what the default flow's own entry says on top (see
+    odatix.lib.eda_tools.list_flows).
+    """
+    document = document if isinstance(document, dict) else {}
+    parameters = dict(document.get("parameters") or {}) if isinstance(document.get("parameters"), dict) else {}
+    name = flow_name or str(document.get("default_flow", "") or "").strip() or eda_tools.DEFAULT_FLOW_NAME
+    flows = document.get("flows") if isinstance(document.get("flows"), dict) else {}
+    spec = flows.get(name) if isinstance(flows.get(name), dict) else {}
+    if isinstance(spec.get("parameters"), dict):
+        parameters.update(spec.get("parameters"))
+    return parameters
 
 def _parse_platform_section(section):
     """
@@ -250,6 +389,11 @@ def normalize_flows(raw):
                 merged.update(section)
                 section = merged
             platforms[platform] = _parse_platform_section(section)
+        # The default flow's parameters are declared at the top level, and what
+        # its own entry says goes on top of them.
+        parameters = _declared_parameters(raw, name) if is_default else (
+            spec.get("parameters") if isinstance(spec.get("parameters"), dict) else {}
+        )
         flows.append({
             "name": str(name),
             "label": str(spec.get("label", "") or ""),
@@ -261,6 +405,14 @@ def normalize_flows(raw):
             # unfolded: the page opens ready to be filled in.
             "collapsed": bool(raw),
             "platforms": platforms,
+            "parameters": param_rows(parameters),
+            "origin": ORIGIN_OWN,
+            # What the page does not show but saving must not lose.
+            "keep": {
+                "icon": str(spec.get("icon", "") or ""),
+                "icon_filter": bool(spec.get("icon_filter", False)),
+                "metrics_file": str(spec.get("metrics_file", "") or ""),
+            },
         })
     return flows
 
@@ -302,6 +454,7 @@ def normalize_tool_settings(raw):
                     replace.append({"pattern": str(pattern), "replacement": "" if repl is None else str(repl)})
 
     return {
+        "extends": str(raw.get("extends", "") or "").strip(),
         "label": str(raw.get("label", "") or ""),
         "description": str(raw.get("description", "") or ""),
         "icon": str(raw.get("icon", "") or ""),
@@ -312,11 +465,17 @@ def normalize_tool_settings(raw):
         "default_metrics_file": str(raw.get("default_metrics_file", "") or ""),
         "flows": flows,
         "format": {"logs": logs, "tags": tags, "replace": replace},
+        # The keys of tool.yml the editor has no field for, written back as they
+        # were read.
+        "extra": {
+            key: value for key, value in raw.items()
+            if key not in ToolSettings.OWNED_KEYS
+        },
     }
 
 def build_tool_settings(
     label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
-    flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls,
+    flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls, extends="", extra=None,
 ):
     """
     Build the canonical settings dict from the raw field values gathered by the
@@ -345,6 +504,7 @@ def build_tool_settings(
         replace.append({pattern: "" if replacement is None else str(replacement)})
 
     return {
+        "extends": str(extends or "").strip(),
         "label": label or "",
         "description": description or "",
         "icon": icon_value or "",
@@ -355,6 +515,7 @@ def build_tool_settings(
         "default_metrics_file": default_metrics_file or "",
         "flows": flows,
         "format": {"logs": logs, "tags": tags, "replace": replace},
+        "extra": dict(extra or {}),
     }
 
 def _flows_for_compare(flows):
@@ -401,6 +562,7 @@ def _flows_for_compare(flows):
             "description": str(flow.get("description", "") or ""),
             "is_default": bool(flow.get("is_default")),
             "platforms": platforms,
+            "parameters": [[name, value] for name, value in params_from_rows(flow.get("parameters")).items()],
         })
     return compared
 
@@ -413,6 +575,7 @@ def normalize_for_compare(settings):
     # settings coming from build_tool_settings already match the canonical shape;
     # re-emit tags/replace/logs in a comparable form.
     return {
+        "extends": str(n.get("extends", "") or "").strip(),
         "label": str(n.get("label", "") or ""),
         "description": str(n.get("description", "") or ""),
         "icon": str(n.get("icon", "") or ""),
@@ -617,7 +780,30 @@ def tile_head(title, reset_section=None, reset_tooltip=""):
                "gap": "10px", "marginBottom": "14px", "minHeight": "26px"},
     )
 
-def tool_form(settings, tool_name="", overlay=False):
+def base_tool_field(settings, options, overlay=False):
+    """
+    The tool this one extends. A built-in tool's is Odatix's, shown when it has
+    one; the field is there either way, the flows section listening to it.
+    """
+    extends = settings.get("extends", "") or None
+    if overlay:
+        options = [{"label": extends, "value": extends}] if extends else []
+    elif extends and extends not in [option["value"] for option in options]:
+        # A base tool that does not exist (any more): still shown, so the
+        # reader sees what the file says.
+        options = [{"label": f"{extends} (not found)", "value": extends}] + list(options)
+    return ui.form_dropdown(
+        "Base Tool", "tool-extends", options, value=extends,
+        placeholder="None, a standalone tool",
+        tooltip="Another tool this one is a variant of: it runs that tool's flows and scripts, "
+                "and only says what differs, usually a parameter of the default flow (another "
+                "executable, say) or flows of its own. Leave empty for a standalone tool.",
+        disabled=overlay,
+        className="odx-base-tool",
+        style={"marginBottom": "12px"} if (not overlay or extends) else {"display": "none"},
+    )
+
+def tool_form(settings, tool_name="", overlay=False, base_options=None):
     target_placeholder = f"target_{tool_name}.yml" if tool_name else "target_<tool>.yml"
 
     metadata_tile = html.Div(
@@ -652,6 +838,7 @@ def tool_form(settings, tool_name="", overlay=False):
         [
             tile_head("Behaviour", "behaviour" if overlay else None,
                       "Reset the behaviour to what Odatix defines for this built-in tool"),
+            base_tool_field(settings, base_options or [], overlay=overlay),
             html.Div(
                 children=[
                     dcc.Checklist(
@@ -894,7 +1081,280 @@ def job_editor(flow_uid, platform, job, label, tooltip, supports_steps, spec, is
         className="odx-job",
     )
 
-def flow_card(flow_uid, flow, lock_default=False):
+def param_editor_row(flow_uid, param_uid, row, inherited=None, overrides=False):
+    """
+    A parameter this flow declares: its name, its type, its value.
+
+    A parameter overriding one the flow would otherwise inherit keeps its name,
+    shows the value it replaces, and is put back rather than deleted: deleting
+    it only makes the flow inherit again.
+    """
+    def pid(kind):
+        return {"type": kind, "flow": flow_uid, "param": param_uid}
+
+    kind = row.get("type") or "text"
+    name = str(row.get("name", ""))
+
+    if overrides:
+        text, empty = param_display(inherited)
+        hint = html.Div(
+            children=[
+                html.Span("Replaces ", className="odx-param-hint-label"),
+                html.Span(text, className="odx-param-parent" + (" empty" if empty else ""),
+                          title=text, **{"data-inherits": name}),
+            ],
+            className="odx-param-hint",
+        )
+        action = ui.icon_button(
+            id=pid("tool-param-delete"),
+            icon=icon("reset", className="icon default"),
+            color="default",
+            tooltip="Inherit the value again",
+            tooltip_options="bottom auto delay",
+        )
+    else:
+        hint = None
+        action = ui.delete_button(id=pid("tool-param-delete"), tooltip="Remove this parameter")
+
+    return html.Div(
+        children=[
+            html.Div(
+                dcc.Input(
+                    id=pid("tool-param-name"),
+                    value=name,
+                    type="text",
+                    placeholder="name",
+                    pattern=PARAM_NAME_PATTERN,
+                    # An override is one particular parameter: renaming it would
+                    # make it another one.
+                    disabled=overrides,
+                    className="odx-param-name",
+                ),
+                # The command highlighter reads the parameter names from here.
+                **{"data-odatix-hl-declares": ""},
+                title=(
+                    "Overrides the inherited parameter of that name"
+                    if overrides else
+                    "Letters, digits and underscores. Used as $name in a command "
+                    "and [odatix_flow_param name] in a Tcl script."
+                ),
+            ),
+            dcc.RadioItems(
+                id=pid("tool-param-type"),
+                options=PARAM_TYPES,
+                value=kind,
+                className="odx-chips small odx-param-type",
+            ),
+            html.Div(
+                children=[
+                    html.Div(
+                        dcc.Input(
+                            id=pid("tool-param-text"),
+                            value=row.get("text", ""),
+                            type="text",
+                            placeholder="empty",
+                            className="odx-param-text",
+                        ),
+                        style=_hidden(kind == "text"),
+                    ),
+                    html.Div(
+                        dcc.Checklist(
+                            id=pid("tool-param-bool"),
+                            options=[{"label": "Enabled", "value": True}],
+                            value=[True] if row.get("bool") else [],
+                            className="checklist-switch",
+                        ),
+                        className="odx-param-bool",
+                        style=_hidden(kind == "bool"),
+                    ),
+                    html.Div(
+                        dcc.Textarea(
+                            id=pid("tool-param-list"),
+                            value="\n".join(str(item) for item in row.get("list") or []),
+                            placeholder="One item per line",
+                            rows=max(1, len(row.get("list") or [])),
+                            className="auto-resize-textarea odatix-command-field odx-param-list",
+                        ),
+                        style=_hidden(kind == "list"),
+                    ),
+                    hint,
+                ],
+                className="odx-param-value",
+            ),
+            html.Div(action, className="odx-param-action"),
+        ],
+        className="odx-param-row declared" + (" override" if overrides else ""),
+        **{"data-row": param_uid},
+    )
+
+def param_inherited_row(flow_uid, name, value, overridable=True):
+    """
+    A parameter this flow inherits: its value as it comes, and a button making
+    it the flow's own to change.
+    """
+    text, empty = param_display(value)
+    return html.Div(
+        children=[
+            html.Span(name, className="odx-param-name static", title=name, **{"data-odatix-hl-declares": ""}),
+            html.Span(PARAM_TYPE_LABELS.get(param_type(value), ""), className="odx-param-type-label"),
+            html.Div(
+                html.Span(text, className="odx-param-inherited-value" + (" empty" if empty else ""),
+                          title=text, **{"data-inherits": name}),
+                className="odx-param-value",
+            ),
+            html.Div(
+                html.Button(
+                    "Override",
+                    id={"type": "tool-param-override", "flow": flow_uid, "param": name},
+                    n_clicks=0,
+                    className="odx-param-override",
+                    title="Give this flow a value of its own",
+                ) if overridable else None,
+                className="odx-param-action",
+            ),
+        ],
+        className="odx-param-row inherited",
+        **{"data-param": name},
+    )
+
+def param_static_row(name, value, inherited):
+    """A parameter of a flow that is not the tool's to change."""
+    text, empty = param_display(value)
+    return html.Div(
+        children=[
+            html.Span(name, className="odx-param-name static", title=name, **{"data-odatix-hl-declares": ""}),
+            html.Span(PARAM_TYPE_LABELS.get(param_type(value), ""), className="odx-param-type-label"),
+            html.Div(
+                html.Span(text, className="odx-param-static-value" + (" empty" if empty else ""), title=text,
+                          **({"data-inherits": name} if inherited else {})),
+                className="odx-param-value",
+            ),
+            html.Div(
+                ui.badge("inherited", className="odx-param-origin") if inherited else None,
+                className="odx-param-action",
+            ),
+        ],
+        className="odx-param-row static" + (" inherited" if inherited else ""),
+    )
+
+def parameters_panel(flow_uid, flow, parent, editable):
+    """
+    The parameters of a flow: the values the tool's scripts read for it.
+
+    `parent` holds the parameters the flow starts from: those of the default
+    flow for any other flow, those of the tool it extends for the default flow
+    of a tool extending another. They are listed in that order, the flow's own
+    value in place of the inherited one when it sets it, then the parameters
+    only this flow declares. Every flow lists them in the same order, so two
+    flows read side by side.
+    """
+    rows = flow.get("parameters") or []
+    declared = {}
+    for index, row in enumerate(rows):
+        declared.setdefault(str(row.get("name", "")).strip(), (index, row))
+
+    children = []
+    if editable:
+        for name, value in parent.items():
+            if name in declared:
+                index, row = declared[name]
+                children.append(param_editor_row(flow_uid, _uid("p", index), row, inherited=value, overrides=True))
+            else:
+                children.append(param_inherited_row(flow_uid, name, value))
+        for index, row in enumerate(rows):
+            name = str(row.get("name", "")).strip()
+            if name not in parent or declared.get(name, (None,))[0] != index:
+                children.append(param_editor_row(flow_uid, _uid("p", index), row))
+    else:
+        effective = dict(parent)
+        effective.update(params_from_rows(rows))
+        own = set(declared)
+        children = [param_static_row(name, value, name not in own) for name, value in effective.items()]
+
+    if not children and not editable:
+        return None
+
+    nb_set = len([row for row in rows if str(row.get("name", "")).strip()])
+    nb_inherited = len([name for name in parent if name not in declared])
+    counts = []
+    if editable and parent:
+        counts = [
+            html.Span(f"{nb_set} set here", className="odx-param-count" + (" active" if nb_set else "")),
+            html.Span(f"{nb_inherited} inherited", className="odx-param-count"),
+        ]
+
+    body = [
+        html.Div(
+            children if children else [
+                html.Div(
+                    children=[
+                        html.Span("No parameter yet. ", className="odx-param-empty-title"),
+                        "Parameters are values the tool's scripts read for this flow: use ",
+                        html.Code("$name"), " in a command, or ", html.Code("[odatix_flow_param name]"),
+                        " in a Tcl script. Flows sharing the same scripts then differ by their parameters only.",
+                    ],
+                    className="odx-param-empty",
+                ),
+            ],
+            className="odx-param-rows",
+        ),
+    ]
+    if editable:
+        body.append(html.Button(
+            "+ Add parameter",
+            id={"type": "tool-param-new", "flow": flow_uid},
+            n_clicks=0,
+            className="odx-jobstep-add odx-param-add",
+        ))
+
+    return ui.panel(
+        title=[
+            html.Span("Parameters"),
+            ui.tooltip_icon(
+                "Values the tool's scripts read for this flow: $name in a command, "
+                "[odatix_flow_param name] in a Tcl script. "
+                + (
+                    "The other flows start from the default flow's parameters."
+                    if flow.get("is_default") and not parent else
+                    "This flow inherits every parameter it does not set; override one to give it a value of its own."
+                )
+            ),
+        ],
+        tools=counts,
+        body=body,
+        className="odx-params" + (" readonly" if not editable else ""),
+    )
+
+def flow_param_chips(flow_uid, flow, editable):
+    """
+    What a folded flow is about, in its head: the parameters it sets. Strategies
+    differ by those, so they are what tells two folded flows apart.
+    """
+    rows = [row for row in (flow.get("parameters") or []) if str(row.get("name", "")).strip()]
+    if not rows:
+        return None
+    if flow.get("is_default"):
+        return html.Div(
+            ui.badge(f"{len(rows)} parameter{'s' if len(rows) > 1 else ''}", className="odx-flow-param-chip"),
+            className="odx-flow-param-chips",
+        )
+    shown = rows[:3]
+    chips = []
+    for index, row in enumerate(flow.get("parameters") or []):
+        if row not in shown:
+            continue
+        text, _empty = param_display(param_value(row))
+        chips.append(html.Span(
+            [html.Span(row["name"], className="odx-flow-param-chip-name"), " = ", html.Span(text, className="odx-flow-param-chip-value")],
+            className="odx-badge odx-flow-param-chip",
+            title=f"{row['name']} = {text}",
+            **({"data-row": _uid("p", index)} if editable else {}),
+        ))
+    if len(rows) > len(shown):
+        chips.append(ui.badge(f"+{len(rows) - len(shown)}", className="odx-flow-param-chip more"))
+    return html.Div(chips, className="odx-flow-param-chips")
+
+def flow_card(flow_uid, flow, lock_default=False, parent=None):
     """
     One flow. A built-in flow of a built-in tool is shown locked: it belongs to
     Odatix, and what the workspace adds on top of it is a flow of its own
@@ -908,6 +1368,23 @@ def flow_card(flow_uid, flow, lock_default=False):
     locked = bool(flow.get("builtin"))
     collapsed = bool(flow.get("collapsed"))
     platforms = flow.get("platforms", {})
+    origin = flow.get("origin") or ORIGIN_OWN
+    # A tool extending another one runs that one's flows as they are, except for
+    # the parameters of its default flow: changing those (another executable,
+    # say) is what the tool is for.
+    params_editable = not locked or (origin == ORIGIN_BASE and is_default)
+    keep = dict(flow.get("keep") or {})
+    keep["origin"] = origin
+    if not params_editable:
+        # Shown as text, not as fields the page could read them back from.
+        keep["parameters"] = flow.get("parameters") or []
+
+    if origin == ORIGIN_BASE:
+        origin_badge = ui.badge(f"from {keep.get('base') or 'base tool'}", className="odx-flow-builtin-badge", color="primary")
+    elif locked:
+        origin_badge = ui.badge("read-only", className="odx-flow-builtin-badge", color="warning")
+    else:
+        origin_badge = None
 
     head = html.Div(
         children=[
@@ -960,8 +1437,12 @@ def flow_card(flow_uid, flow, lock_default=False):
                     else "The flow used when none is asked for. Its commands are the ones the other flows start from."
                 ),
             ),
+            # Where the flow comes from and what it holds: the page owns them,
+            # they only change with a re-render.
+            dcc.Store(id={"type": "tool-flow-keep", "flow": flow_uid}, data=keep),
+            flow_param_chips(flow_uid, flow, params_editable),
             html.Div(style={"flex": "1"}),
-            *([ui.badge("read-only", className="odx-flow-builtin-badge", color="warning")] if locked else []),
+            origin_badge,
             ui.duplicate_button(id={"type": "tool-flow-duplicate", "flow": flow_uid}, tooltip="Duplicate this flow"),
             *([] if locked else [
                 ui.delete_button(id={"type": "tool-flow-delete", "flow": flow_uid}, tooltip="Delete this flow"),
@@ -1001,7 +1482,11 @@ def flow_card(flow_uid, flow, lock_default=False):
     ]
 
     body = html.Div(
-        children=[metadata, ui.grid(platform_panels, className="wide top")],
+        children=[
+            metadata,
+            parameters_panel(flow_uid, flow, dict(parent or {}), params_editable),
+            ui.grid(platform_panels, className="wide top"),
+        ],
         id={"type": "tool-flow-body", "flow": flow_uid},
         className="animated-section" + (" hide" if collapsed else ""),
     )
@@ -1012,19 +1497,38 @@ def flow_card(flow_uid, flow, lock_default=False):
         className="odx-panel padded odx-flow-card"
                   + (" default" if is_default else "")
                   + (" locked" if locked else "")
+                  + (" base" if origin == ORIGIN_BASE else "")
                   + (" collapsed" if collapsed else ""),
     )
 
-def flow_cards(flows, lock_default=False):
-    """The whole flows section: one card per flow, plus the "add a flow" card."""
-    cards = [flow_card(_uid("f", index), flow, lock_default=lock_default) for index, flow in enumerate(flows)]
+def flow_cards(flows, lock_default=False, base_parameters=None):
+    """
+    The whole flows section: one card per flow, plus the "add a flow" card.
+
+    `base_parameters` are those the default flow starts from: the parameters of
+    the tool this one extends, if any. Every other flow starts from the default
+    flow's.
+    """
+    base_parameters = dict(base_parameters or {})
+    default_parameters = dict(base_parameters)
+    for flow in flows:
+        if flow.get("is_default"):
+            default_parameters.update(params_from_rows(flow.get("parameters")))
+    cards = [
+        flow_card(
+            _uid("f", index), flow, lock_default=lock_default,
+            parent=base_parameters if flow.get("is_default") else default_parameters,
+        )
+        for index, flow in enumerate(flows)
+    ]
     cards.append(ui.add_card(id="tool-flow-new", text="Add a flow", className="odx-panel horizontal odx-flow-add"))
     return cards
 
 def new_flow(name):
     """A flow that declares nothing yet: it inherits the default flow as is."""
     return {"name": name, "label": "", "description": "", "is_default": False,
-            "builtin": False, "collapsed": False, "platforms": _empty_platforms()}
+            "builtin": False, "collapsed": False, "platforms": _empty_platforms(),
+            "parameters": [], "origin": ORIGIN_OWN, "keep": {}}
 
 def _new_step(spec):
     """
@@ -1075,41 +1579,124 @@ def _single_default(steps):
         steps[index]["default"] = False
     return steps
 
-def gather_flows(
-    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-    mode_ids, mode_values, cmd_ids, cmd_values,
-    session_ids, session_cmds, session_begins, session_ends,
-    step_ids, step_names, step_cmds, step_defaults, step_kinds,
-):
+_FLOW = {"flow": dash.ALL}
+_JOB = {"flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL}
+_STEP = dict(_JOB, step=dash.ALL)
+_PARAM = {"flow": dash.ALL, "param": dash.ALL}
+
+# The pattern matching dependencies holding the flows, as (name, id type,
+# pattern, property, kind), in the order the callbacks using them take their
+# arguments (dash hands them over in declaration order). Ids and server owned
+# values ("state") are always read as State; "text" and "choice" say which of
+# the rest wake a callback up (see flow_dependencies).
+FLOW_FIELDS = [
+    ("flow_ids", "tool-flow-name", _FLOW, "id", "state"),
+    ("flow_names", "tool-flow-name", _FLOW, "value", "text"),
+    ("flow_labels", "tool-flow-label", _FLOW, "value", "text"),
+    ("flow_descriptions", "tool-flow-description", _FLOW, "value", "text"),
+    # Hidden, server owned values: they only ever change with a re-render.
+    ("flow_defaults", "tool-flow-default", _FLOW, "value", "state"),
+    ("flow_builtins", "tool-flow-builtin", _FLOW, "value", "state"),
+    ("flow_collapsed", "tool-flow-collapsed", _FLOW, "value", "state"),
+    ("flow_keeps", "tool-flow-keep", _FLOW, "data", "state"),
+    ("mode_ids", "tool-job-mode", _JOB, "id", "state"),
+    ("mode_values", "tool-job-mode", _JOB, "value", "choice"),
+    ("cmd_ids", "tool-cmd", _JOB, "id", "state"),
+    ("cmd_values", "tool-cmd", _JOB, "value", "text"),
+    ("session_ids", "tool-session-cmd", _JOB, "id", "state"),
+    ("session_cmds", "tool-session-cmd", _JOB, "value", "text"),
+    ("session_begins", "tool-session-begin", _JOB, "value", "text"),
+    ("session_ends", "tool-session-end", _JOB, "value", "text"),
+    ("step_ids", "tool-step-name", _STEP, "id", "state"),
+    ("step_names", "tool-step-name", _STEP, "value", "text"),
+    ("step_cmds", "tool-step-cmd", _STEP, "value", "text"),
+    ("step_defaults", "tool-step-default", _STEP, "value", "state"),
+    ("step_kinds", "tool-step-kind", _STEP, "value", "choice"),
+    ("param_ids", "tool-param-name", _PARAM, "id", "state"),
+    ("param_names", "tool-param-name", _PARAM, "value", "text"),
+    ("param_types", "tool-param-type", _PARAM, "value", "choice"),
+    ("param_texts", "tool-param-text", _PARAM, "value", "text"),
+    ("param_bools", "tool-param-bool", _PARAM, "value", "text"),
+    ("param_lists", "tool-param-list", _PARAM, "value", "text"),
+]
+NB_FLOW_FIELDS = len(FLOW_FIELDS)
+
+def flow_dependencies(text_dep, choice_dep):
     """
-    Rebuild the flows list from what is currently in the page. Used both to save
-    and to re-render the section after a structural change, so an edit in one
-    flow survives adding, duplicating or deleting another.
+    The dependencies of FLOW_FIELDS. The structural callback only re-renders on
+    the choices that change what is shown (a job type switched between a command
+    and steps, a step switched between the session and a command of its own, a
+    parameter given another type), while the save callback watches everything
+    to keep its dirty state fresh.
+    """
+    by_kind = {"state": State, "text": text_dep, "choice": choice_dep}
+    return [
+        by_kind[kind](dict(pattern, type=id_type), prop)
+        for _name, id_type, pattern, prop, kind in FLOW_FIELDS
+    ]
+
+def flow_field_values(values):
+    """The values of FLOW_FIELDS as a callback received them, by name."""
+    return {field[0]: value for field, value in zip(FLOW_FIELDS, values)}
+
+def _by_param(ids, values):
+    """{(flow uid, param uid): value} for a one-per-parameter pattern matching input."""
+    return {
+        (i.get("flow"), i.get("param")): v
+        for i, v in zip(ids or [], values or []) if isinstance(i, dict)
+    }
+
+def gather_flows(fields):
+    """
+    Rebuild the flows list from what is currently in the page (`fields`, the
+    values of FLOW_FIELDS by name). Used both to save and to re-render the
+    section after a structural change, so an edit in one flow survives adding,
+    duplicating or deleting another.
 
     The command and the steps of a job type are both read whatever its mode is:
     only the mode decides what gets written out, so switching a job type back
-    and forth does not lose what the other choice held.
+    and forth does not lose what the other choice held. A parameter is read
+    likewise: its value for every type, whatever type it has.
     """
-    names = _by_uid(flow_ids, flow_names)
-    labels = _by_uid(flow_ids, flow_labels)
-    descriptions = _by_uid(flow_ids, flow_descriptions)
-    defaults = _by_uid(flow_ids, flow_defaults)
-    builtins = _by_uid(flow_ids, flow_builtins)
-    collapsed = _by_uid(flow_ids, flow_collapsed)
-    modes = _by_job(mode_ids, mode_values)
-    commands = _by_job(cmd_ids, cmd_values)
-    session_commands = _by_job(session_ids, session_cmds)
-    session_begins_by_job = _by_job(session_ids, session_begins)
-    session_ends_by_job = _by_job(session_ids, session_ends)
+    get = lambda name: fields.get(name) or []
+    flow_ids = get("flow_ids")
+    names = _by_uid(flow_ids, get("flow_names"))
+    labels = _by_uid(flow_ids, get("flow_labels"))
+    descriptions = _by_uid(flow_ids, get("flow_descriptions"))
+    defaults = _by_uid(flow_ids, get("flow_defaults"))
+    builtins = _by_uid(flow_ids, get("flow_builtins"))
+    collapsed = _by_uid(flow_ids, get("flow_collapsed"))
+    keeps = _by_uid(flow_ids, get("flow_keeps"))
+    modes = _by_job(get("mode_ids"), get("mode_values"))
+    commands = _by_job(get("cmd_ids"), get("cmd_values"))
+    session_ids = get("session_ids")
+    session_commands = _by_job(session_ids, get("session_cmds"))
+    session_begins_by_job = _by_job(session_ids, get("session_begins"))
+    session_ends_by_job = _by_job(session_ids, get("session_ends"))
 
     steps = {}
     for step_id, step_name, step_cmd, step_default, step_kind in zip(
-        step_ids or [], step_names or [], step_cmds or [], step_defaults or [], step_kinds or [],
+        get("step_ids"), get("step_names"), get("step_cmds"), get("step_defaults"), get("step_kinds"),
     ):
         if not isinstance(step_id, dict):
             continue
         key = (step_id.get("flow"), step_id.get("platform"), step_id.get("job"))
         steps.setdefault(key, []).append((step_id.get("step"), step_name, step_cmd, step_default, step_kind))
+
+    params = {}
+    param_ids = get("param_ids")
+    for param_id, name, kind, text, flag, items in zip(
+        param_ids, get("param_names"), get("param_types"), get("param_texts"), get("param_bools"), get("param_lists"),
+    ):
+        if not isinstance(param_id, dict):
+            continue
+        params.setdefault(param_id.get("flow"), []).append((param_id.get("param"), {
+            "name": str(name or "").strip(),
+            "type": kind if kind in PARAM_TYPE_LABELS else "text",
+            "text": "" if text is None else str(text),
+            "bool": bool(flag),
+            "list": _lines_to_list(items),
+        }))
 
     flows = []
     for uid in sorted(names):
@@ -1143,6 +1730,9 @@ def gather_flows(
                     ]),
                 }
             platforms[platform] = jobs
+        keep = dict(keeps.get(uid) or {})
+        origin = keep.pop("origin", ORIGIN_OWN)
+        shown = keep.pop("parameters", None)
         flows.append({
             "uid": uid,
             "name": str(names.get(uid) or "").strip(),
@@ -1152,6 +1742,11 @@ def gather_flows(
             "builtin": bool(builtins.get(uid)),
             "collapsed": bool(collapsed.get(uid)),
             "platforms": platforms,
+            "parameters": shown if shown is not None else [
+                row for _param_uid, row in sorted(params.get(uid, []), key=lambda item: item[0])
+            ],
+            "origin": origin,
+            "keep": keep,
         })
 
     # A tool has exactly one default flow: the commands the others start from.
@@ -1166,41 +1761,6 @@ def gather_flows(
     if flows and not seen_default:
         flows[0]["is_default"] = True
     return flows
-
-# The pattern matching dependencies holding the flows, in the order the
-# callbacks using them take their arguments (dash hands them over in
-# declaration order). Ids and server owned values are always read as State;
-# `text_dep` and `choice_dep` say which of the rest wake the callback up: the
-# structural callback only re-renders on the choices that change what is shown
-# (a job type switched between a command and steps, a step switched between the
-# session and a command of its own), while the save callback watches everything
-# to keep its dirty state fresh.
-def flow_dependencies(text_dep, choice_dep):
-    job_pattern = {"flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL}
-    step_pattern = dict(job_pattern, step=dash.ALL)
-    return [
-        State({"type": "tool-flow-name", "flow": dash.ALL}, "id"),
-        text_dep({"type": "tool-flow-name", "flow": dash.ALL}, "value"),
-        text_dep({"type": "tool-flow-label", "flow": dash.ALL}, "value"),
-        text_dep({"type": "tool-flow-description", "flow": dash.ALL}, "value"),
-        # Hidden, server owned values: they only ever change with a re-render.
-        State({"type": "tool-flow-default", "flow": dash.ALL}, "value"),
-        State({"type": "tool-flow-builtin", "flow": dash.ALL}, "value"),
-        State({"type": "tool-flow-collapsed", "flow": dash.ALL}, "value"),
-        State(dict(job_pattern, type="tool-job-mode"), "id"),
-        choice_dep(dict(job_pattern, type="tool-job-mode"), "value"),
-        State(dict(job_pattern, type="tool-cmd"), "id"),
-        text_dep(dict(job_pattern, type="tool-cmd"), "value"),
-        State(dict(job_pattern, type="tool-session-cmd"), "id"),
-        text_dep(dict(job_pattern, type="tool-session-cmd"), "value"),
-        text_dep(dict(job_pattern, type="tool-session-begin"), "value"),
-        text_dep(dict(job_pattern, type="tool-session-end"), "value"),
-        State(dict(step_pattern, type="tool-step-name"), "id"),
-        text_dep(dict(step_pattern, type="tool-step-name"), "value"),
-        text_dep(dict(step_pattern, type="tool-step-cmd"), "value"),
-        State(dict(step_pattern, type="tool-step-default"), "value"),
-        choice_dep(dict(step_pattern, type="tool-step-kind"), "value"),
-    ]
 
 
 ######################################
@@ -1221,10 +1781,224 @@ def _step_index(step_ids, key, step_uid):
     )
     return uids.index(step_uid) if step_uid in uids else None
 
+def _param_index(param_ids, flow_uid, param_uid):
+    """Position of a parameter in its flow, from the ids currently in the page."""
+    uids = sorted(
+        i.get("param") for i in param_ids or []
+        if isinstance(i, dict) and i.get("flow") == flow_uid
+    )
+    return uids.index(param_uid) if param_uid in uids else None
+
+def _retype_param(row, kind):
+    """
+    Give a parameter another type. The value already typed for the new type is
+    kept; when there is none, it starts from the value typed for another type,
+    so turning "-a -b" into a list gives the list of its words.
+    """
+    row["type"] = kind
+    text = str(row.get("text") or "")
+    if kind == "list" and not row.get("list") and text.strip():
+        row["list"] = text.split()
+    elif kind == "text" and not text and row.get("list"):
+        row["text"] = " ".join(row.get("list") or [])
+    elif kind == "bool" and not row.get("bool") and text.strip():
+        row["bool"] = text.strip().lower() in ("1", "true", "on", "yes")
+    return row
+
+def _flow_copy(flow, taken):
+    """A flow of the tool's own starting from what `flow` does."""
+    copy = copy_module.deepcopy(flow)
+    copy["name"] = _unique_flow_name(f"{flow['name'] or 'flow'}_copy", taken)
+    # Two flows of the same name side by side (in a search, on the run page)
+    # could not be told apart.
+    copy["label"] = f"{flow['label']} (copy)" if flow.get("label") else ""
+    copy["is_default"] = False
+    # A copy belongs to the workspace, even when what it copies does not, and is
+    # unfolded whatever the flow it copies is: it is there to be worked on.
+    copy["builtin"] = False
+    copy["collapsed"] = False
+    copy["origin"] = ORIGIN_OWN
+    copy["keep"] = {key: value for key, value in (flow.get("keep") or {}).items() if key not in ("base", "own")}
+    return copy
+
+######################################
+# Tools extending another one
+######################################
+
+def _declares_something(flow):
+    """True when an editor flow says anything a tool.yml would hold."""
+    if not flow:
+        return False
+    if flow.get("label") or flow.get("description") or params_from_rows(flow.get("parameters")):
+        return True
+    if any((flow.get("keep") or {}).get(key) for key in ("icon", "icon_filter", "metrics_file")):
+        return True
+    for jobs in (flow.get("platforms") or {}).values():
+        for spec in (jobs or {}).values():
+            mode = (spec or {}).get("mode", "inherit")
+            if mode == "command" and spec.get("command"):
+                return True
+            if mode == "steps" and (spec.get("steps") or any((spec.get("session") or {}).values())):
+                return True
+    return False
+
+def _overlay_flow(flow, own):
+    """
+    A flow of the base tool as a tool extending it runs it: what the tool says
+    about it on top (a hand-written tool.yml may, the editor never writes it).
+    """
+    if not own:
+        return flow
+    flow = copy_module.deepcopy(flow)
+    for key in ("label", "description"):
+        if own.get(key):
+            flow[key] = own[key]
+    if not flow.get("is_default"):
+        parameters = params_from_rows(flow.get("parameters"))
+        parameters.update(params_from_rows(own.get("parameters")))
+        flow["parameters"] = param_rows(parameters)
+    for platform, jobs in (own.get("platforms") or {}).items():
+        for job, spec in (jobs or {}).items():
+            if (spec or {}).get("mode", "inherit") != "inherit":
+                flow["platforms"].setdefault(platform, {})[job] = copy_module.deepcopy(spec)
+    return flow
+
+def base_tool_context(tools, base, tool_name=""):
+    """
+    What a tool extending `base` inherits: that tool's flows as they run (from
+    its own resolved tool.yml, the tools it extends included), and the
+    parameters its default flow starts from. ([], {}) when there is no such tool.
+    """
+    base = str(base or "").strip()
+    if not base or base == tool_name:
+        return [], {}
+    try:
+        tool = tools[base]
+    except Exception:
+        return [], {}
+    if not (tool.exists or tool.is_builtin):
+        return [], {}
+    document = tool.resolved_document
+    flows = normalize_flows(document)
+    for flow in flows:
+        flow["origin"] = ORIGIN_BASE
+        flow["builtin"] = True
+        flow["collapsed"] = True
+        flow["keep"] = dict(flow.get("keep") or {}, base=base, own=None)
+        if flow["is_default"]:
+            # Listed as inherited: the default flow of the tool extending it
+            # holds only the parameters it changes.
+            flow["parameters"] = []
+    return flows, _declared_parameters(document)
+
+def derived_flows(own_flows, base_flows):
+    """
+    The flows of a tool extending another one: those of the tool it extends,
+    locked, with what the tool's own tool.yml says about them kept aside to be
+    written back, then the flows of its own.
+
+    The default flow is the base tool's one: the parameters a tool extending
+    another changes (another executable, say) are those of its default flow,
+    which the other flows start from.
+    """
+    base_names = {flow["name"] for flow in base_flows}
+    own_default = next((flow for flow in own_flows if flow.get("is_default")), None)
+    own_by_name = {flow["name"]: flow for flow in own_flows if not flow.get("is_default")}
+
+    flows = []
+    for flow in base_flows:
+        own = own_default if flow.get("is_default") else own_by_name.get(flow["name"])
+        flow = _overlay_flow(flow, own)
+        if flow.get("is_default") and own:
+            flow["parameters"] = copy_module.deepcopy(own.get("parameters") or [])
+        flow["keep"] = dict(flow.get("keep") or {}, own=copy_module.deepcopy(own) if _declares_something(own) else None)
+        flows.append(flow)
+
+    taken = set(base_names)
+    for flow in own_flows:
+        if flow.get("is_default") or flow["name"] in base_names:
+            continue
+        flow = copy_module.deepcopy(flow)
+        flow["is_default"] = False
+        taken.add(flow["name"])
+        flows.append(flow)
+    return flows
+
+def rebase_flows(flows, base_flows):
+    """
+    The flows of a tool once it extends another tool (`base_flows`), or none
+    any more (no `base_flows`): its own flows stay, those of the tool it used to
+    extend go, and so do their commands. What the default flow changed follows
+    the tool to its new default flow.
+    """
+    default = next((flow for flow in flows if flow.get("is_default")), None)
+    default_rows = copy_module.deepcopy((default or {}).get("parameters") or [])
+    default_name = (default or {}).get("name") or eda_tools.DEFAULT_FLOW_NAME
+
+    own = []
+    for flow in flows:
+        if flow.get("origin") == ORIGIN_BASE:
+            continue
+        if flow is default:
+            # A flow of the tool's own: kept for what it runs, unless there is
+            # nothing in it (a tool just created, about to extend another).
+            if not _declares_something(dict(flow, parameters=[])):
+                continue
+            flow = dict(flow, parameters=[])
+        own.append(dict(flow, is_default=False))
+
+    if base_flows:
+        rebased = derived_flows([], copy_module.deepcopy(base_flows))
+        for flow in rebased:
+            if flow.get("is_default"):
+                flow["parameters"] = default_rows
+        taken = {flow["name"] for flow in rebased}
+        for flow in own:
+            flow = dict(flow, name=_unique_flow_name(flow["name"], taken))
+            taken.add(flow["name"])
+            rebased.append(flow)
+        return rebased
+
+    # Standalone again: the tool needs a default flow of its own, which starts
+    # with the parameters the old one changed (the commands are to be written).
+    taken = {flow["name"] for flow in own}
+    standalone = new_flow(_unique_flow_name(default_name, taken))
+    standalone["is_default"] = True
+    standalone["parameters"] = default_rows
+    return [standalone] + own
+
+def extends_options(tools, tool_name):
+    """
+    The tools a tool can extend: every other one but those extending it, which
+    would make a cycle.
+    """
+    options = []
+    for name in sorted(set(tools.all_names())):
+        if name == tool_name:
+            continue
+        lineage, base = set(), name
+        while base and base not in lineage:
+            lineage.add(base)
+            try:
+                base = str(tools[base].effective_document.get("extends") or "").strip()
+            except Exception:
+                base = ""
+        if tool_name and tool_name in lineage:
+            continue
+        options.append({"label": name, "value": name})
+    return options
+
 # Folding a card down to its head is done on the client, on the document, by the
 # handler in assets/folds.js, which writes the new state back into the hidden
 # value the card carries so a re-render of the section keeps every card as it
-# was.
+# was. The inherited values a flow shows are kept in step with the default
+# flow's while it is edited by assets/tool_params.js.
+
+STRUCTURAL_ACTIONS = (
+    "tool-flow-new", "tool-flow-duplicate", "tool-flow-delete", "tool-flow-set-default",
+    "tool-step-new", "tool-step-duplicate", "tool-step-delete", "tool-step-set-default",
+    "tool-param-new", "tool-param-delete", "tool-param-override",
+)
 
 @dash.callback(
     Output("tool-flows-container", "children", allow_duplicate=True),
@@ -1241,59 +2015,64 @@ def _step_index(step_ids, key, step_uid):
     Input({"type": "tool-step-duplicate", "flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL, "step": dash.ALL}, "n_clicks"),
     Input({"type": "tool-step-delete", "flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL, "step": dash.ALL}, "n_clicks"),
     Input({"type": "tool-step-set-default", "flow": dash.ALL, "platform": dash.ALL, "job": dash.ALL, "step": dash.ALL}, "n_clicks"),
+    Input({"type": "tool-param-new", "flow": dash.ALL}, "n_clicks"),
+    Input({"type": "tool-param-delete", "flow": dash.ALL, "param": dash.ALL}, "n_clicks"),
+    Input({"type": "tool-param-override", "flow": dash.ALL, "param": dash.ALL}, "n_clicks"),
+    Input("tool-extends", "value"),
     *flow_dependencies(State, Input),
     State("tool-edit-overlay", "data"),
+    State("odatix-settings", "data"),
+    State(f"url_{page_path}", "search"),
     prevent_initial_call=True,
 )
-def update_flows(
-    new_click, duplicate_clicks, delete_clicks, set_default_clicks,
-    step_new_clicks, step_duplicate_clicks, step_delete_clicks, step_set_default_clicks,
-    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-    mode_ids, mode_values, cmd_ids, cmd_values,
-    session_ids, session_cmds, session_begins, session_ends,
-    step_ids, step_names, step_cmds, step_defaults, step_kinds, overlay,
-):
+def update_flows(*args):
     """
-    Apply a structural change (a flow or a step added, duplicated or deleted, a
-    new default flow, a job type switched between a command and steps) and
-    re-render the whole section from what the page currently holds, so every
-    unsaved edit is carried over.
+    Apply a structural change (a flow, a step or a parameter added, duplicated
+    or deleted, a new default flow, a job type switched between a command and
+    steps, a parameter given another type, another base tool) and re-render the
+    whole section from what the page currently holds, so every unsaved edit is
+    carried over.
     """
+    nb_triggers = 12
+    extends = args[nb_triggers - 1]
+    fields = flow_field_values(args[nb_triggers:nb_triggers + NB_FLOW_FIELDS])
+    overlay, odatix_settings, search = args[nb_triggers + NB_FLOW_FIELDS:]
+
     trigger = ctx.triggered_id
     trigger_value = ctx.triggered[0]["value"] if ctx.triggered else None
     action = trigger if isinstance(trigger, str) else (trigger or {}).get("type")
 
     # A click is only an action once the button has actually been clicked;
     # a value of 0 is a button that was just rendered.
-    if action in (
-        "tool-flow-new", "tool-flow-duplicate", "tool-flow-delete", "tool-flow-set-default",
-        "tool-step-new", "tool-step-duplicate", "tool-step-delete", "tool-step-set-default",
-    ) and not trigger_value:
+    if action in STRUCTURAL_ACTIONS and not trigger_value:
         return dash.no_update, dash.no_update, dash.no_update
 
-    flows = gather_flows(
-        flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-        mode_ids, mode_values, cmd_ids, cmd_values,
-        session_ids, session_cmds, session_begins, session_ends,
-        step_ids, step_names, step_cmds, step_defaults, step_kinds,
-    )
+    flows = gather_flows(fields)
     taken = {flow["name"] for flow in flows}
 
-    if action == "tool-flow-new":
+    tools = get_workspace(odatix_settings).tools
+    tool_name = get_key_from_url(search, "tool") or ""
+    extends = "" if overlay else str(extends or "").strip()
+    base_flows, base_parameters = base_tool_context(tools, extends, tool_name)
+
+    if action == "tool-extends":
+        # The field is rendered again with the rest of the form: only a base
+        # tool actually changed changes the flows.
+        current = next((
+            (flow.get("keep") or {}).get("base", "") for flow in flows
+            if flow.get("origin") == ORIGIN_BASE
+        ), "")
+        if current == (extends if base_flows else ""):
+            return dash.no_update, dash.no_update, dash.no_update
+        flows = rebase_flows(flows, base_flows)
+
+    elif action == "tool-flow-new":
         flows.append(new_flow(_unique_flow_name("new_flow", taken)))
 
     elif action == "tool-flow-duplicate":
         index = _flow_index(flows, trigger.get("flow"))
         if index is not None:
-            copy = copy_module.deepcopy(flows[index])
-            copy["name"] = _unique_flow_name(f"{flows[index]['name'] or 'flow'}_copy", taken)
-            copy["is_default"] = False
-            # A copy belongs to the workspace, even when what it copies does not,
-            # and is unfolded whatever the flow it copies is: it is there to be
-            # worked on.
-            copy["builtin"] = False
-            copy["collapsed"] = False
-            flows.insert(index + 1, copy)
+            flows.insert(index + 1, _flow_copy(flows[index], taken))
 
     elif action == "tool-flow-delete":
         # A tool always runs something: its last flow cannot be deleted.
@@ -1318,6 +2097,32 @@ def update_flows(
             if not spec["steps"]:
                 spec["steps"] = [_new_step(spec)]
 
+    elif action in ("tool-param-new", "tool-param-delete", "tool-param-override", "tool-param-type"):
+        index = _flow_index(flows, trigger.get("flow"))
+        if index is not None:
+            flow = flows[index]
+            rows = flow["parameters"]
+            if action == "tool-param-new":
+                rows.append(param_row("", ""))
+                flow["collapsed"] = False
+            elif action == "tool-param-override":
+                # The flow's own value starts from the one it inherited.
+                parent = dict(base_parameters)
+                if not flow.get("is_default"):
+                    for other in flows:
+                        if other.get("is_default"):
+                            parent.update(params_from_rows(other.get("parameters")))
+                name = trigger.get("param")
+                if name in parent and name not in params_from_rows(rows):
+                    rows.append(param_row(name, parent[name]))
+            else:
+                position = _param_index(fields.get("param_ids"), trigger.get("flow"), trigger.get("param"))
+                if position is not None and position < len(rows):
+                    if action == "tool-param-delete":
+                        rows.pop(position)
+                    else:
+                        _retype_param(rows[position], trigger_value)
+
     elif action in ("tool-step-new", "tool-step-duplicate", "tool-step-delete", "tool-step-set-default"):
         index = _flow_index(flows, trigger.get("flow"))
         if index is not None:
@@ -1326,7 +2131,7 @@ def update_flows(
             if action == "tool-step-new":
                 spec["steps"].append(_new_step(spec))
             else:
-                step_index = _step_index(step_ids, key, trigger.get("step"))
+                step_index = _step_index(fields.get("step_ids"), key, trigger.get("step"))
                 if step_index is not None and step_index < len(spec["steps"]):
                     if action == "tool-step-delete":
                         spec["steps"].pop(step_index)
@@ -1345,7 +2150,7 @@ def update_flows(
                         spec["steps"].insert(step_index + 1, copy)
 
     return (
-        flow_cards(flows, lock_default=bool(overlay)),
+        flow_cards(flows, lock_default=bool(overlay) or bool(extends), base_parameters=base_parameters),
         "color-button warning icon-button tooltip bottom small",
         "Unsaved changes!",
     )
@@ -1589,28 +2394,43 @@ def _is_overlay(tools, tool_name):
 def load_editor_settings(tools, tool_name):
     """
     Load what the editor shows for a tool: its settings, the built-in definition
-    they may override (empty for a workspace tool), and whether it is a built-in
-    tool.
+    they may override (empty for a workspace tool), whether it is a built-in
+    tool, and the parameters its default flow starts from.
 
     For a built-in tool, the built-in definition and the workspace overlay are
     merged the way odatix resolves them at run time, and every flow the built-in
     already declares is marked as such so the page can lock it.
+
+    A tool extending another one shows that one's flows, locked, then its own:
+    what it runs, not only what it declares.
     """
     empty = normalize_tool_settings({})
     if not tool_name:
-        return empty, empty, False
+        return empty, empty, False, {}
 
     tool = tools.entry(tool_name)
     overlay = _is_overlay(tools, tool_name)
     if not overlay:
-        return normalize_tool_settings(tool.document), empty, False
+        settings = normalize_tool_settings(tool.document)
+        base_flows, base_parameters = base_tool_context(tools, settings.get("extends"), tool_name)
+        if base_flows:
+            settings["flows"] = derived_flows(settings["flows"], base_flows)
+        return settings, empty, False, base_parameters
 
     builtin = normalize_tool_settings(tool.builtin_document)
     settings = normalize_tool_settings(tool.effective_document)
-    builtin_names = {flow["name"] for flow in builtin.get("flows", [])}
+    builtin_document = tool.builtin_document
+    if builtin.get("extends"):
+        # A built-in tool extending another one (Design Compiler NXT): its
+        # flows are those of the tool it extends, all of them Odatix's.
+        settings["flows"] = normalize_flows(tool.resolved_document)
+        base_document = tools[builtin["extends"]].resolved_document if builtin["extends"] in tools.all_names() else {}
+        builtin_document = eda_tools._deep_merge(base_document, builtin_document)
+    builtin_names = {flow["name"] for flow in normalize_flows(builtin_document)}
     for flow in settings.get("flows", []):
         flow["builtin"] = flow["name"] in builtin_names
-    return settings, builtin, True
+        flow["origin"] = ORIGIN_BUILTIN if flow["builtin"] else ORIGIN_OWN
+    return settings, builtin, True, {}
 
 @dash.callback(
     Output("tool-form-container", "children"),
@@ -1631,16 +2451,19 @@ def init_form(search, page, odatix_settings):
         return (dash.no_update,) * 9
 
     tool_name = get_key_from_url(search, "tool")
-    settings, builtin, overlay = load_editor_settings(get_workspace(odatix_settings).tools, tool_name)
+    tools = get_workspace(odatix_settings).tools
+    settings, builtin, overlay, base_parameters = load_editor_settings(tools, tool_name)
+    derived = any(flow.get("origin") == ORIGIN_BASE for flow in settings.get("flows", []))
 
     fmt = settings.get("format", {})
     return (
-        tool_form(settings, tool_name or "", overlay=overlay),
+        tool_form(settings, tool_name or "", overlay=overlay,
+                  base_options=[] if overlay else extends_options(tools, tool_name or "")),
         settings,
         replace_cards_from_list(fmt.get("replace", [])),
         replace_section_title(overlay=overlay),
         log_formatting_tiles(settings, overlay=overlay),
-        flow_cards(settings.get("flows", []), lock_default=overlay),
+        flow_cards(settings.get("flows", []), lock_default=overlay or derived, base_parameters=base_parameters),
         builtin_notice(tool_name) if overlay else None,
         overlay,
         builtin,
@@ -1708,6 +2531,8 @@ def reset_section_to_builtin(
     )
 
     builtin = builtin if isinstance(builtin, dict) else normalize_tool_settings({})
+    # A built-in tool extends what Odatix says it does: not the workspace's to change.
+    settings["extends"] = builtin.get("extends", "")
     if section in RESET_SECTIONS:
         for key in RESET_SECTIONS[section]:
             settings[key] = builtin.get(key)
@@ -1723,6 +2548,68 @@ def reset_section_to_builtin(
         replace_cards_from_list(settings.get("format", {}).get("replace", [])),
     )
 
+def _flow_document(flow):
+    """An editor flow as odatix.workspace.tools.Flow reads it."""
+    keep = flow.get("keep") or {}
+    return {
+        "name": str(flow.get("name", "")).strip(),
+        "label": flow.get("label", ""),
+        "description": flow.get("description", ""),
+        "is_default": bool(flow.get("is_default")),
+        "icon": keep.get("icon", ""),
+        "icon_filter": bool(keep.get("icon_filter", False)),
+        "metrics_file": keep.get("metrics_file", ""),
+        "platforms": flow.get("platforms") or {},
+        "parameters": params_from_rows(flow.get("parameters")),
+    }
+
+def flows_to_save(flows):
+    """
+    What the tool's own file says about its flows. The flows of a built-in tool
+    belong to Odatix and those of the tool it extends to that tool: of those,
+    only what the tool's own file already said is written back -- and, for the
+    default flow, the parameters it changes.
+    """
+    saved = []
+    for flow in flows or []:
+        origin = flow.get("origin") or ORIGIN_OWN
+        if origin == ORIGIN_BUILTIN:
+            continue
+        if origin == ORIGIN_BASE:
+            own = (flow.get("keep") or {}).get("own")
+            if flow.get("is_default"):
+                own = dict(own or new_flow(flow["name"]), name=flow["name"], is_default=True,
+                           parameters=flow.get("parameters") or [])
+            elif not own:
+                continue
+            else:
+                own = dict(own, name=flow["name"], is_default=False)
+            saved.append(_flow_document(own))
+        else:
+            saved.append(_flow_document(flow))
+    return saved
+
+def tool_document(settings):
+    """The settings the editor holds, as odatix.workspace.tools.ToolSettings reads them."""
+    document = {key: value for key, value in settings.items() if key not in ("flows", "extra")}
+    for key, value in (settings.get("extra") or {}).items():
+        document.setdefault(key, value)
+    document["flows"] = flows_to_save(settings.get("flows"))
+    return document
+
+def flow_errors(flows):
+    """What would keep the flows from being saved, as a message, or None."""
+    invalid = invalid_param_names(flows)
+    if invalid:
+        return f"Invalid parameter name: '{invalid[0]}' (letters, digits and underscores only)"
+    for flow in flows or []:
+        names = [str(row.get("name", "")).strip() for row in flow.get("parameters") or []]
+        names = [name for name in names if name]
+        for name in names:
+            if names.count(name) > 1:
+                return f"Parameter '{name}' is set twice in flow '{flow.get('name')}'"
+    return None
+
 @dash.callback(
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
@@ -1730,6 +2617,7 @@ def reset_section_to_builtin(
     Output("tool-saved-settings", "data"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("tool-title", "value"),
+    Input("tool-extends", "value"),
     Input("tool-label", "value"),
     Input("tool-description", "value"),
     Input("tool-icon", "value"),
@@ -1757,16 +2645,15 @@ def reset_section_to_builtin(
     State("tool-builtin-settings", "data"),
     prevent_initial_call=True,
 )
-def save_and_status(
-    n_clicks, tool_title_value, label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
-    flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-    mode_ids, mode_values, cmd_ids, cmd_values,
-    session_ids, session_cmds, session_begins, session_ends,
-    step_ids, step_names, step_cmds, step_defaults, step_kinds,
-    log_error, log_crit, log_warning, log_info, log_trace,
-    tag_markers, replace_patterns, replace_repls,
-    tag_ids, search, page, initial_settings, saved_settings, odatix_settings, overlay, builtin_settings,
-):
+def save_and_status(*args):
+    (n_clicks, tool_title_value, extends, label, description, icon_value, icon_filter, process_group,
+     report_path, target_file, default_metrics_file) = args[:11]
+    fields = flow_field_values(args[11:11 + NB_FLOW_FIELDS])
+    (log_error, log_crit, log_warning, log_info, log_trace,
+     tag_markers, replace_patterns, replace_repls,
+     tag_ids, search, page, initial_settings, saved_settings, odatix_settings, overlay, builtin_settings,
+     ) = args[11 + NB_FLOW_FIELDS:]
+
     # The tag set is fixed (the ANSI style/color names): the tag names come from
     # the markers inputs' ids, not from an editable field.
     tag_names = [tid.get("name") if isinstance(tid, dict) else None for tid in (tag_ids or [])]
@@ -1774,23 +2661,21 @@ def save_and_status(
     if triggered_id == f"url_{page_path}" and page != page_path:
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
-    flows = gather_flows(
-        flow_ids, flow_names, flow_labels, flow_descriptions, flow_defaults, flow_builtins, flow_collapsed,
-        mode_ids, mode_values, cmd_ids, cmd_values,
-        session_ids, session_cmds, session_begins, session_ends,
-        step_ids, step_names, step_cmds, step_defaults, step_kinds,
-    )
+    flows = gather_flows(fields)
     log_values = {
         "error": log_error, "crit_warning": log_crit, "warning": log_warning,
         "info": log_info, "trace": log_trace,
     }
 
+    reference = saved_settings if saved_settings is not None else initial_settings
     current_settings = build_tool_settings(
         label, description, icon_value, icon_filter, process_group, report_path, target_file, default_metrics_file,
         flows, log_values, tag_names, tag_markers, replace_patterns, replace_repls,
+        extends=(reference or {}).get("extends", "") if overlay else extends,
+        extra=(reference or {}).get("extra"),
     )
 
-    reference_settings = normalize_for_compare(saved_settings if saved_settings is not None else initial_settings)
+    reference_settings = normalize_for_compare(reference)
     current_compare = normalize_for_compare(current_settings)
 
     tool_name = get_key_from_url(search, "tool")
@@ -1805,6 +2690,10 @@ def save_and_status(
             label_char = "' ' (space)" if character == " " else f"'{character}'"
             return error_class, f"Unauthorized character in tool name: {label_char}", dash.no_update, saved_settings
 
+    errors = flow_errors(flows)
+    if errors:
+        return error_class, errors, dash.no_update, saved_settings
+
     if triggered_id == {"page": page_path, "action": "save-all"}:
         new_search = dash.no_update
 
@@ -1812,7 +2701,7 @@ def save_and_status(
         # the flows added to it and the settings that differ from the built-in
         # ones, nothing else.
         if overlay:
-            added = [flow for flow in flows if not flow.get("builtin")]
+            added = flows_to_save([flow for flow in flows if not flow.get("builtin")])
             overrides = overlay_overrides(
                 current_settings,
                 builtin_settings if isinstance(builtin_settings, dict) else {},
@@ -1850,7 +2739,7 @@ def save_and_status(
             tool = tools.create(tool_name)
 
         try:
-            tool.settings = current_settings
+            tool.settings = tool_document(current_settings)
             tool.save(as_overlay=False)
             return (
                 "color-button disabled icon-button tooltip delay bottom small",

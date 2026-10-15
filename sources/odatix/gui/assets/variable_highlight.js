@@ -121,6 +121,23 @@
     return names;
   }
 
+  // Names a page declares in fields of its own, read live: the parameters of
+  // the flows of a tool (/tool_editor), each marked data-odatix-hl-declares --
+  // an input, or an element holding one, or the name as text.
+  var declaredNames = new Set();
+
+  function readDeclaredNames() {
+    var names = new Set();
+    document.querySelectorAll("[data-odatix-hl-declares]").forEach(function (element) {
+      var input = element.tagName === "INPUT" ? element : element.querySelector("input");
+      var value = ((input ? input.value : element.textContent) || "").trim();
+      if (value) {
+        names.add(value);
+      }
+    });
+    return names;
+  }
+
   function paramDomainNames(root) {
     return nameSet(!root && usesGlobals() ? window.__odatixHlParamDomains : []);
   }
@@ -143,6 +160,7 @@
   // describes itself, so it has no entry here.
   var KINDS = {
     "wf-hl-var": "user defined variable",
+    "wf-hl-param": "parameter of the flow",
     "wf-hl-domain": "parameter domain",
     "wf-hl-unknown":
       "not detected. This is fine if it is an environment variable, "
@@ -150,7 +168,7 @@
   };
 
   var TOKEN_CLASSES = [
-    "wf-hl-var", "wf-hl-domain", "wf-hl-builtin", "wf-hl-unknown",
+    "wf-hl-var", "wf-hl-param", "wf-hl-domain", "wf-hl-builtin", "wf-hl-unknown",
     "wf-hl-wildcard", "wf-hl-target", "wf-hl-comment",
   ];
 
@@ -255,6 +273,9 @@
     }
     if (domains.has(key)) {
       return "wf-hl-domain";
+    }
+    if (declaredNames.has(key)) {
+      return "wf-hl-param";
     }
     if (Object.prototype.hasOwnProperty.call(builtins, key)) {
       return "wf-hl-builtin";
@@ -390,6 +411,7 @@
       return;
     }
     var builtins = builtinVariables();
+    declaredNames = readDeclaredNames();
     // The unscoped names are shared by every field of the page; a scope is
     // read once and reused by the fields belonging to it.
     var byRoot = new Map();
@@ -416,6 +438,8 @@
     if (isField(target)) {
       refreshAll();
     } else if (target.id && String(target.id).indexOf("variable-title") !== -1) {
+      refreshAll();
+    } else if (target.closest && target.closest("[data-odatix-hl-declares]")) {
       refreshAll();
     }
   });

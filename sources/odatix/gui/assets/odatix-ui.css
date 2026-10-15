@@ -1024,6 +1024,11 @@
     flex: 0 1 auto;
     min-width: 120px;
 }
+/* What the head says about the flow gives way before what it is. */
+.odx-flow-head .odx-flow-default-chip,
+.odx-flow-head .odx-flow-builtin-badge {
+    flex-shrink: 0;
+}
 .tile.config .odx-field-row > .odx-field,
 .odx-flow-card .odx-field-row > .odx-field {
     flex: 1;
@@ -1176,6 +1181,287 @@
 .odx-flow-card.locked textarea:disabled {
     opacity: 0.75;
     cursor: default;
+}
+
+/* A flow of the tool another tool extends: running here, changed there. */
+.odx-flow-card.locked.base {
+    border-style: dashed;
+}
+
+/* What a folded flow sets, in its head: strategies differ by those. */
+.odx-flow-param-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    flex: 0 1 auto;
+}
+.odx-flow-param-chip {
+    font-family: monospace;
+    font-size: 12px;
+    font-weight: 500;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
+}
+.odx-flow-param-chip.more {
+    flex-shrink: 0;
+}
+.odx-flow-param-chip-name {
+    opacity: 0.65;
+}
+@media (max-width: 760px) {
+    .odx-flow-param-chips {
+        display: none;
+    }
+}
+
+/* --- Flow parameters (/tool_editor) ----------------------------------- */
+/* The values the tool's scripts read for a flow. One row per parameter, laid
+   out on the same columns in every row and every flow, so that two flows read
+   side by side: name, type, value, action. */
+.odx-params {
+    margin: var(--space-3) 0 var(--space-4);
+}
+.odx-params .odx-panel-body {
+    padding: var(--space-1) var(--space-3) var(--space-3);
+}
+.odx-param-count {
+    font-size: 12px;
+    opacity: 0.55;
+    white-space: nowrap;
+}
+.odx-param-count.active {
+    color: var(--theme-primary-color);
+    font-weight: 600;
+    opacity: 1;
+}
+.odx-param-rows {
+    display: flex;
+    flex-direction: column;
+}
+.odx-param-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 200px) 196px minmax(0, 1fr) 84px;
+    grid-template-areas: "name type value action";
+    align-items: start;
+    column-gap: var(--space-3);
+    row-gap: 6px;
+    padding: 7px 0;
+    border-top: 1px solid rgba(128, 128, 128, 0.12);
+}
+.odx-param-row:first-child {
+    border-top: none;
+}
+.odx-param-row > :nth-child(1) { grid-area: name; }
+.odx-param-row > :nth-child(2) { grid-area: type; }
+.odx-param-row > :nth-child(3) { grid-area: value; }
+.odx-param-row > :nth-child(4) { grid-area: action; }
+
+/* Every cell is as tall as an input, so a row reads on one line whatever it
+   holds, and a list growing downwards leaves the rest at the top. */
+.odx-param-row .odx-param-name,
+.odx-param-row .odx-param-type,
+.odx-param-row .odx-param-type-label,
+.odx-param-row .odx-param-action,
+.odx-param-row .odx-param-bool,
+.odx-param-inherited-value,
+.odx-param-static-value {
+    min-height: 32px;
+}
+.odx-param-name,
+.odx-param-text,
+.odx-param-list {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: monospace;
+    font-size: 13px;
+}
+.odx-param-name {
+    font-weight: 600;
+}
+.odx-param-name:invalid {
+    border-color: var(--theme-caution-color);
+    box-shadow: inset 0 -2px 0 var(--theme-caution-color);
+}
+/* An override names the parameter it replaces: not an input any more. */
+.odx-param-row.override .odx-param-name:disabled {
+    color: var(--theme-primary-color);
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    opacity: 1;
+    cursor: default;
+}
+.odx-param-name.static {
+    display: flex;
+    align-items: center;
+    padding: 0 9px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.odx-param-type {
+    display: flex;
+    align-items: center;
+}
+.odx-param-type-label {
+    display: flex;
+    align-items: center;
+    padding-left: 4px;
+    font-size: 12px;
+    opacity: 0.5;
+}
+.odx-param-value {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+/* One line per item, sized by what it holds: it is often rendered folded away,
+   where assets/auto_resize.js cannot measure it. */
+.odx-param-list {
+    resize: vertical;
+    min-height: 32px;
+    height: auto !important;
+    field-sizing: content;
+}
+/* The highlighter wraps the list in a block of its own, spaced for a command. */
+.odx-param-value .wf-hl-wrap {
+    margin-bottom: 0;
+}
+.odx-param-bool {
+    display: flex;
+    align-items: center;
+}
+.odx-param-bool .checklist-switch label {
+    margin: 0;
+}
+.odx-param-action {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* A value the flow does not set: as it comes, readable and plainly not typed
+   here. */
+.odx-param-inherited-value,
+.odx-param-static-value {
+    display: flex;
+    align-items: center;
+    padding: 0 9px;
+    font-family: monospace;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.odx-param-row.inherited .odx-param-name,
+.odx-param-row.inherited .odx-param-inherited-value,
+.odx-param-row.static.inherited .odx-param-static-value {
+    opacity: 0.55;
+}
+.odx-param-inherited-value.empty,
+.odx-param-static-value.empty,
+.odx-param-parent.empty {
+    font-family: inherit;
+    font-style: italic;
+}
+.odx-param-origin {
+    font-size: 11px;
+}
+
+/* The value an override replaces, under the one replacing it. */
+.odx-param-hint {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
+    padding: 0 2px;
+    font-size: 12px;
+    opacity: 0.6;
+}
+.odx-param-hint-label {
+    flex-shrink: 0;
+}
+.odx-param-parent {
+    font-family: monospace;
+    text-decoration: line-through;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Taking over an inherited value: quiet until the row is looked at. */
+.odx-param-override {
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    background: transparent;
+    color: var(--theme-text-color);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.odx-param-row:hover .odx-param-override,
+.odx-param-override:focus-visible {
+    opacity: 1;
+}
+.odx-param-override:hover {
+    border-color: var(--theme-primary-color);
+    color: var(--theme-primary-color);
+}
+
+.odx-param-empty {
+    padding: var(--space-2) 0 var(--space-1);
+    font-size: 13px;
+    line-height: 1.6;
+    opacity: 0.75;
+}
+.odx-param-empty-title {
+    font-weight: 600;
+}
+.odx-param-empty code,
+.odx-params .odx-panel-title code {
+    font-family: monospace;
+    font-size: 12px;
+    padding: 1px 5px;
+    border-radius: var(--theme-small-border-radius);
+    background: var(--theme-tertiary-color);
+}
+.odx-jobstep-add.odx-param-add {
+    height: 34px;
+    margin: var(--space-2) 0 0;
+}
+
+/* Narrow: the name and its action on a line, the type and the value below. */
+@media (max-width: 760px) {
+    .odx-param-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "name action"
+            "type type"
+            "value value";
+    }
+    /* Nothing to choose on a value that is not edited here. */
+    .odx-param-row.inherited,
+    .odx-param-row.static {
+        grid-template-areas:
+            "name action"
+            "value value";
+    }
+    .odx-param-row.inherited .odx-param-type-label,
+    .odx-param-row.static .odx-param-type-label {
+        display: none;
+    }
 }
 
 /* --- Architectures of a simulation (/sim_editor) ------------------------ */
