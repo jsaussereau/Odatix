@@ -569,6 +569,31 @@
       return String(Math.max(1, parseInt(handler.nb_jobs, 10) || 1));
     },
 
+    resourceGuard: function (snapshot) {
+      var handler = snapshot && snapshot.handler;
+      var guard = handler && handler.resource_guard;
+      if (!guard) return [noUpdate(), noUpdate(), noUpdate()];
+
+      var base = "monitor-parallel monitor-guard tooltip bottom small";
+      if (guard.unavailable) {
+        return ["N/A", base + " unavailable", "Jobs are never paused because of the load: " + guard.unavailable];
+      }
+      var limits = "CPU \u2265 " + Math.round(guard.cpu_limit) + "% or memory \u2265 " + Math.round(guard.mem_limit) + "%";
+      var load = "";
+      if (typeof guard.cpu === "number" && typeof guard.mem === "number") {
+        load = " (now: CPU " + Math.round(guard.cpu) + "%, memory " + Math.round(guard.mem) + "%)";
+      }
+      if (!guard.enabled) {
+        return ["Off", base, "Jobs are never paused because of the load. Click to pause them while " + limits];
+      }
+      var paused = parseInt(guard.auto_paused, 10) || 0;
+      return [
+        paused > 0 ? "On \u00b7 " + paused + " paused" : "On",
+        base + " active",
+        "Jobs are paused while " + limits + load + ". Click to disable",
+      ];
+    },
+
     logTitle: function (selectedJob, snapshot) {
       if (selectedJob === null || selectedJob === undefined) {
         return ["No task selected", "", "monitor-log-title-status"];

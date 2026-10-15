@@ -128,6 +128,11 @@ class DaemonMonitorHandler(ParallelJobHandler):
         self._remote_running = 0
         self._remote_queued = 0
         self._remote_retired = 0
+        # Mirror of the daemon's resource guard (see _sync_snapshot). The guard
+        # never runs here: pausing jobs is the daemon's business.
+        self.resource_guard_enabled = False
+        self._remote_auto_paused = 0
+        self._remote_guard_unavailable = None
         self._remote_total_jobs = 0
         self._remote_format_yaml = None
 
@@ -278,6 +283,16 @@ class DaemonMonitorHandler(ParallelJobHandler):
             self.nb_jobs = max(1, int(handler_data.get("nb_jobs", self.nb_jobs)))
         except Exception:
             pass
+
+        # Same for the resource guard: the daemon runs it, the monitor shows it.
+        guard = handler_data.get("resource_guard")
+        if isinstance(guard, dict):
+            self.resource_guard_enabled = bool(guard.get("enabled", self.resource_guard_enabled))
+            self._remote_guard_unavailable = guard.get("unavailable")
+            try:
+                self._remote_auto_paused = int(guard.get("auto_paused") or 0)
+            except Exception:
+                pass
 
         remote_format_yaml = handler_data.get("format_yaml")
         if remote_format_yaml != self._remote_format_yaml:
@@ -612,6 +627,32 @@ class DaemonMonitorHandler(ParallelJobHandler):
             open_path_in_explorer(job.tmp_dir)
         except NotImplementedError:
             pass
+        except Exception as e:
+            self._append_error(e)
+
+    def _check_resource_guard_unlocked(self):
+        # The jobs listed here are mirrors of the daemon's: the daemon runs the
+        # guard on the real ones.
+        return
+
+    def resource_guard_paused_count(self):
+        return self._remote_auto_paused
+
+    def resource_guard_unavailable(self):
+        return self._remote_guard_unavailable
+
+    def set_resource_guard(self, enabled):
+        # Forwarded like set_nb_jobs; reflected back on the next snapshot poll.
+        enabled = bool(enabled)
+        try:
+            _api_post(
+                self._endpoint,
+                "/config?resource_guard={}".format("true" if enabled else "false"),
+                timeout=1.0,
+            )
+            self.resource_guard_enabled = enabled  # optimistic; reconciled by _sync_snapshot
+            if not enabled:
+                self._remote_auto_paused = 0
         except Exception as e:
             self._append_error(e)
 

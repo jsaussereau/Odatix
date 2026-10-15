@@ -865,6 +865,35 @@ def _change_nb_jobs(_inc, _dec, current_value, daemon_state, search, selected_se
 
 
 @dash.callback(
+    Output("monitor-guard-value", "children", allow_duplicate=True),
+    Output("monitor-guard-toggle", "className", allow_duplicate=True),
+    Input("monitor-guard-toggle", "n_clicks"),
+    State("monitor-guard-value", "children"),
+    State("monitor-daemon", "data"),
+    State(f"url_{page_path}", "search"),
+    State("session-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def _toggle_resource_guard(n_clicks, current_value, daemon_state, search, selected_session):
+    # Flip the displayed state, like _change_nb_jobs does for the job count:
+    # the next snapshot poll reconciles it with what the session reports.
+    if not n_clicks:
+        raise PreventUpdate
+    current = str(current_value or "").strip()
+    if not (current.startswith("On") or current.startswith("Off")):
+        raise PreventUpdate  # not synced yet; ignore until we know the real value
+
+    enabled = not current.startswith("On")
+    try:
+        resolved_daemon = _resolve_daemon_target(search, daemon_state, session_override=selected_session)
+        _api_post(resolved_daemon, "/config", params={"resource_guard": "true" if enabled else "false"})
+    except Exception:
+        pass
+    base = "monitor-parallel monitor-guard tooltip bottom small"
+    return ("On" if enabled else "Off"), (base + " active" if enabled else base)
+
+
+@dash.callback(
     Output("monitor-selected-job", "data", allow_duplicate=True),
     Output("monitor-log-chunk", "data", allow_duplicate=True),
     Output("monitor-log-cursor", "data", allow_duplicate=True),
@@ -1353,6 +1382,16 @@ monitor_toolbar = html.Div(
                         ),
                     ],
                 ),
+                html.Button(
+                    id="monitor-guard-toggle",
+                    n_clicks=0,
+                    className="monitor-parallel monitor-guard tooltip bottom small",
+                    **{"data-tooltip": "Pause jobs while the machine is overloaded"},
+                    children=[
+                        html.Span("Auto-pause", className="monitor-parallel-label"),
+                        html.Span("–", id="monitor-guard-value", className="monitor-guard-value"),
+                    ],
+                ),
                 html.Div(
                     className="monitor-mode-group",
                     children=[
@@ -1731,6 +1770,16 @@ dash.clientside_callback(
 dash.clientside_callback(
     ClientsideFunction(namespace="odatixMonitor", function_name="nbJobs"),
     Output("monitor-nbjobs-value", "children"),
+    Input("monitor-snapshot", "data"),
+)
+
+# Resource guard switch: state, auto-paused count and current load, from the
+# daemon. `_toggle_resource_guard` flips it optimistically on click.
+dash.clientside_callback(
+    ClientsideFunction(namespace="odatixMonitor", function_name="resourceGuard"),
+    Output("monitor-guard-value", "children"),
+    Output("monitor-guard-toggle", "className"),
+    Output("monitor-guard-toggle", "data-tooltip"),
     Input("monitor-snapshot", "data"),
 )
 

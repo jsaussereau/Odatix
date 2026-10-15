@@ -811,6 +811,10 @@ def enqueue_parallel_jobs(parallel_jobs, workspace_root=None, session=None, conf
             "log_size_limit": int(getattr(parallel_jobs, "log_size_limit", 200)),
             # Empty string means "disable formatter" (None means "leave unchanged").
             "format_yaml": str(format_yaml) if format_yaml not in (None, "") else "",
+            # The resource guard the run read from its workspace settings.
+            "resource_guard": bool(getattr(parallel_jobs, "resource_guard_enabled", True)),
+            "cpu_limit": float(getattr(parallel_jobs, "cpu_limit", 98.0)),
+            "mem_limit": float(getattr(parallel_jobs, "mem_limit", 98.0)),
         }
 
     response = _api_request(

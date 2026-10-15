@@ -177,6 +177,38 @@ def workspace_form(settings):
                     style={"overflow": "visible"},
                 ),
             ]),
+            ui.panel(body=[
+                ui.caption("Resource guard"),
+                ui.form_dropdown(
+                    label="Pause jobs on overload",
+                    id="resource_guard",
+                    placeholder=f"{'Yes' if OdatixSettings.DEFAULT_RESOURCE_GUARD else 'No'}",
+                    options=[
+                        {"label": "Yes", "value": True},
+                        {"label": "No", "value": False},
+                    ],
+                    value=defval("resource_guard", ""),
+                    tooltip="Pause running jobs while the CPU or memory usage of the machine is above the limits below, "
+                            "and resume them once it settles back down. Applies to the sessions started afterwards; "
+                            "a running session is switched from the monitor.",
+                ),
+                ui.form_field(
+                    label="CPU limit (%)",
+                    id="cpu_limit",
+                    type="number",
+                    value=defval("cpu_limit", ""),
+                    placeholder=f"{OdatixSettings.DEFAULT_CPU_LIMIT:g}",
+                    tooltip="CPU usage of the machine above which a running job is paused.",
+                ),
+                ui.form_field(
+                    label="Memory limit (%)",
+                    id="mem_limit",
+                    type="number",
+                    value=defval("mem_limit", ""),
+                    placeholder=f"{OdatixSettings.DEFAULT_MEM_LIMIT:g}",
+                    tooltip="Memory usage of the machine above which a running job is paused.",
+                ),
+            ]),
         ],
     )
 
@@ -220,6 +252,9 @@ def init_form(search, page):
     Input("result_path", "value"),
     Input("use_benchmark", "value"),
     Input("benchmark_file", "value"),
+    Input("resource_guard", "value"),
+    Input("cpu_limit", "value"),
+    Input("mem_limit", "value"),
     State(f"url_{page_path}", "pathname"),
     State("workspace-initial-settings", "data"),
     State("workspace-saved-settings", "data"),
@@ -231,6 +266,7 @@ def save_and_status(
     custom_freq_synthesis_settings_file, work_path, simulation_work_path,
     fmax_synthesis_work_path, custom_freq_synthesis_work_path, result_path,
     use_benchmark, benchmark_file,
+    resource_guard, cpu_limit, mem_limit,
     page, initial_settings, saved_settings
 ):
     triggered_id = ctx.triggered_id
@@ -252,6 +288,10 @@ def save_and_status(
         "result_path": result_path,
         "use_benchmark": "" if use_benchmark is None else use_benchmark,
         "benchmark_file": benchmark_file,
+        # A cleared field (None) means "use the default", like an empty one.
+        "resource_guard": "" if resource_guard is None else resource_guard,
+        "cpu_limit": "" if cpu_limit is None else cpu_limit,
+        "mem_limit": "" if mem_limit is None else mem_limit,
     }
     
     current_settings = current_settings_subset
@@ -293,6 +333,9 @@ def save_and_status(
     Output("result_path", "value"),
     Output("use_benchmark", "value"),
     Output("benchmark_file", "value"),
+    Output("resource_guard", "value"),
+    Output("cpu_limit", "value"),
+    Output("mem_limit", "value"),
     Input({"page": page_path, "action": "reset-defaults"}, "n_clicks"),
     State(f"url_{page_path}", "search"),
     State(f"url_{page_path}", "pathname"),
@@ -308,12 +351,12 @@ def reset_to_defaults(
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return [dash.no_update] * 14
+        return [dash.no_update] * 17
     
     if triggered_id == {"page": page_path, "action": "reset-defaults"}:
         # Reset to defaults
-        return [""] * 14
-    return [dash.no_update] * 14
+        return [""] * 17
+    return [dash.no_update] * 17
 
 @dash.callback(
     Output("benchmark-file-container", "className"),

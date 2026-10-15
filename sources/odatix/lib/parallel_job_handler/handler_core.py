@@ -66,6 +66,7 @@ from odatix.lib.parallel_job_handler.job_status import (
 )
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.printc as printc
+from odatix.lib.settings import OdatixSettings
 
 ENCODING = locale.getpreferredencoding()
 
@@ -86,6 +87,31 @@ if sys.platform == "win32":
 
 script_name = os.path.basename(__file__)
 error = None
+
+# How far (in percentage points) the CPU/memory usage has to drop below its
+# limit before the resource guard resumes a job it paused.
+RESOURCE_GUARD_HYSTERESIS = 5.0
+
+_resource_guard_unavailable = []  # [reason], computed once per process
+
+
+def resource_guard_unavailable_reason():
+    """Why the resource guard cannot run here, or None when it can.
+
+    It stops jobs with SIGSTOP/SIGCONT, which Windows does not have, and reads
+    the load of the machine through psutil, an optional dependency.
+    """
+    if not _resource_guard_unavailable:
+        reason = None
+        if sys.platform == "win32":
+            reason = "not supported on Windows"
+        else:
+            try:
+                import psutil  # noqa: F401
+            except ImportError:
+                reason = "psutil is not installed"
+        _resource_guard_unavailable.append(reason)
+    return _resource_guard_unavailable[0]
 
 
 class _JobLogWriter(io.TextIOBase):
@@ -118,9 +144,9 @@ class ParallelJobHandler:
         auto_exit=False,
         format_yaml=None,
         log_size_limit=200,
-        resource_guard=True,
-        cpu_limit=98.0,
-        mem_limit=98.0,
+        resource_guard=None,
+        cpu_limit=None,
+        mem_limit=None,
         resource_check_interval=2.0,
     ):
         self.job_list = list(job_list) if job_list is not None else []
@@ -130,23 +156,26 @@ class ParallelJobHandler:
         self.log_size_limit = int(log_size_limit)
 
         # Resource guard: pause running jobs when the system is too loaded
-        # (CPU or memory), resume them once it settles back down. Disabled
-        # automatically on platforms/setups where it cannot work (Windows has
-        # no SIGSTOP/SIGCONT, psutil may be missing).
-        self.resource_guard_enabled = bool(resource_guard) and sys.platform != "win32"
-        self.cpu_limit = float(cpu_limit)
-        self.mem_limit = float(mem_limit)
-        # Hysteresis: only resume once usage has dropped well below the
-        # pause threshold, so we don't pause/resume the same job repeatedly
-        # when load hovers right around the limit.
-        self.cpu_resume_limit = max(0.0, self.cpu_limit - 5.0)
-        self.mem_resume_limit = max(0.0, self.mem_limit - 5.0)
+        # (CPU or memory), resume them once it settles back down. Off where it
+        # cannot work (see resource_guard_unavailable_reason). A value left to None comes
+        # from the workspace settings ("resource_guard", "cpu_limit" and
+        # "mem_limit" in odatix.yml), read by the run that builds this handler.
+        workspace_guard = OdatixSettings.resource_guard_settings or (
+            OdatixSettings.DEFAULT_RESOURCE_GUARD,
+            OdatixSettings.DEFAULT_CPU_LIMIT,
+            OdatixSettings.DEFAULT_MEM_LIMIT,
+        )
+        self.resource_guard_enabled = False
+        self._set_resource_guard_unlocked(
+            workspace_guard[0] if resource_guard is None else resource_guard,
+            workspace_guard[1] if cpu_limit is None else cpu_limit,
+            workspace_guard[2] if mem_limit is None else mem_limit,
+        )
         self.resource_check_interval = float(resource_check_interval)
         self._resource_guard_last_check = 0.0
         self._resource_guard_last_cpu = None
         self._resource_guard_last_mem = None
         self._auto_paused_jobs = []
-        self._resource_guard_warned = False
 
         self.version = read_version()
 
@@ -454,6 +483,8 @@ class ParallelJobHandler:
                     "theme": getattr(self.theme, "theme", None),
                     "resource_guard": {
                         "enabled": bool(self.resource_guard_enabled),
+                        # None when it can run; otherwise why switching it on does nothing.
+                        "unavailable": resource_guard_unavailable_reason(),
                         "cpu_limit": float(self.cpu_limit),
                         "mem_limit": float(self.mem_limit),
                         "cpu": self._resource_guard_last_cpu,
@@ -539,16 +570,56 @@ class ParallelJobHandler:
                 self.log_size_limit = int(log_size_limit)
             if format_yaml is not None:
                 self._set_formatter(format_yaml)
-            if resource_guard is not None:
-                self.resource_guard_enabled = bool(resource_guard) and sys.platform != "win32"
-            if cpu_limit is not None:
-                self.cpu_limit = float(cpu_limit)
-                self.cpu_resume_limit = max(0.0, self.cpu_limit - 15.0)
-            if mem_limit is not None:
-                self.mem_limit = float(mem_limit)
-                self.mem_resume_limit = max(0.0, self.mem_limit - 15.0)
+            self._set_resource_guard_unlocked(resource_guard, cpu_limit, mem_limit)
 
             self._fill_running_slots_from_queue_unlocked()
+
+    def _set_resource_guard_unlocked(self, enabled=None, cpu_limit=None, mem_limit=None):
+        """Update the resource guard. Any argument set to None keeps the current value."""
+        if cpu_limit is not None:
+            self.cpu_limit = min(100.0, max(1.0, float(cpu_limit)))
+            # Hysteresis: only resume once usage has dropped well below the
+            # pause threshold, so we don't pause/resume the same job repeatedly
+            # when load hovers right around the limit.
+            self.cpu_resume_limit = max(0.0, self.cpu_limit - RESOURCE_GUARD_HYSTERESIS)
+        if mem_limit is not None:
+            self.mem_limit = min(100.0, max(1.0, float(mem_limit)))
+            self.mem_resume_limit = max(0.0, self.mem_limit - RESOURCE_GUARD_HYSTERESIS)
+        if enabled is not None:
+            # Where it cannot run, it stays off: the monitors say why (see
+            # resource_guard_unavailable_reason) rather than show a switch
+            # that silently flips back.
+            enabled = bool(enabled) and resource_guard_unavailable_reason() is None
+            if not enabled:
+                # Turning the guard off must not leave the jobs it paused
+                # stuck: nothing would ever resume them.
+                self._resume_auto_paused_jobs_unlocked()
+            self.resource_guard_enabled = enabled
+
+    def _resume_auto_paused_jobs_unlocked(self):
+        for job in getattr(self, "_auto_paused_jobs", []):
+            if job.status == "paused":
+                job.resume()
+                job.log_history.append(
+                    printc.colors.GREEN + "Job auto-resumed: resource guard disabled" + printc.colors.ENDC
+                )
+        self._auto_paused_jobs = []
+
+    def set_resource_guard(self, enabled):
+        """Turn the resource guard on or off, at runtime.
+
+        Overridden by the daemon monitor handler to forward the change to the
+        remote daemon instead of applying it locally.
+        """
+        self.configure_runtime(resource_guard=bool(enabled))
+
+    def resource_guard_paused_count(self):
+        """How many jobs the resource guard is holding paused."""
+        return len(self._auto_paused_jobs)
+
+    def resource_guard_unavailable(self):
+        """Why the resource guard cannot run, or None when it can."""
+        return resource_guard_unavailable_reason()
 
     def set_nb_jobs(self, nb_jobs):
         """Change the max number of jobs allowed to run in parallel, at runtime.
@@ -633,18 +704,9 @@ class ParallelJobHandler:
         if not self.resource_guard_enabled:
             return
 
-        try:
-            import psutil
-        except ImportError:
-            # Not installed: disable rather than fail repeatedly.
-            self.resource_guard_enabled = False
-            if not self._resource_guard_warned:
-                self._resource_guard_warned = True
-                printc.warning(
-                    "psutil is not installed: resource guard (auto-pause on high CPU/memory) is disabled",
-                    script_name,
-                )
-            return
+        # Importable: the guard is never on where it is not (see
+        # _set_resource_guard_unlocked).
+        import psutil
 
         now = time.time()
         if now - self._resource_guard_last_check < self.resource_check_interval:

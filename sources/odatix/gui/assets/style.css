@@ -2532,6 +2532,35 @@ input[type="checkbox"] {
     font-variant-numeric: tabular-nums;
 }
 
+/* Resource guard switch: same pill as "Parallel", clickable as a whole. */
+.monitor-guard {
+    background: transparent;
+    color: var(--theme-text-color);
+    font: inherit;
+    cursor: pointer;
+    height: 32px;
+    transition: border-color 0.15s ease;
+}
+.monitor-guard:hover {
+    border-color: var(--theme-primary-color);
+}
+.monitor-guard-value {
+    font-weight: 700;
+    font-size: 14px;
+    white-space: nowrap;
+    opacity: 0.55;
+}
+.monitor-guard.unavailable {
+    cursor: default;
+}
+.monitor-guard.unavailable:hover {
+    border-color: rgba(128, 128, 128, 0.28);
+}
+.monitor-guard.active .monitor-guard-value {
+    color: var(--theme-primary-color);
+    opacity: 1;
+}
+
 .dropdown-up .Select-menu-outer {
     bottom: 100%;
     top: auto;

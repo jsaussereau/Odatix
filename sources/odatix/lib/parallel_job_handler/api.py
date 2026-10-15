@@ -285,6 +285,9 @@ def create_parallel_job_app(
                 auto_exit=options.get("auto_exit"),
                 log_size_limit=options.get("log_size_limit"),
                 format_yaml=options.get("format_yaml"),
+                resource_guard=options.get("resource_guard"),
+                cpu_limit=options.get("cpu_limit"),
+                mem_limit=options.get("mem_limit"),
             )
 
         jobs_data = payload.get("jobs")
@@ -307,19 +310,32 @@ def create_parallel_job_app(
         process_group: Optional[bool] = None,
         auto_exit: Optional[bool] = None,
         log_size_limit: Optional[int] = None,
+        resource_guard: Optional[bool] = None,
+        cpu_limit: Optional[float] = None,
+        mem_limit: Optional[float] = None,
     ):
         """Update runtime scheduling options on the fly (e.g. max parallel jobs).
 
         Parameters are passed as query args; any omitted value is left unchanged.
-        Changing nb_jobs immediately fills or frees running slots.
+        Changing nb_jobs immediately fills or frees running slots; turning the
+        resource guard off resumes the jobs it had paused.
         """
         handler.configure_runtime(
             nb_jobs=nb_jobs,
             process_group=process_group,
             auto_exit=auto_exit,
             log_size_limit=log_size_limit,
+            resource_guard=resource_guard,
+            cpu_limit=cpu_limit,
+            mem_limit=mem_limit,
         )
-        return _ok("config updated", nb_jobs=int(handler.nb_jobs))
+        return _ok(
+            "config updated",
+            nb_jobs=int(handler.nb_jobs),
+            resource_guard=bool(handler.resource_guard_enabled),
+            cpu_limit=float(handler.cpu_limit),
+            mem_limit=float(handler.mem_limit),
+        )
 
     @app.post("/shutdown")
     async def shutdown():

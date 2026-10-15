@@ -129,6 +129,13 @@ class WorkspaceSettings(Settings):
     use_benchmark = Setting("", type="any", skip_if_empty=True, doc="Include benchmark results.")
     benchmark_file = _path(doc="The benchmark results file.")
 
+    resource_guard = Setting(
+        "", type="any", skip_if_empty=True, section="Resource guard",
+        doc="Whether running jobs are paused while the machine is overloaded.",
+    )
+    cpu_limit = Setting("", type="any", skip_if_empty=True, doc="CPU usage (%) above which jobs are paused.")
+    mem_limit = Setting("", type="any", skip_if_empty=True, doc="Memory usage (%) above which jobs are paused.")
+
 
 #: Header of a settings file generated from scratch.
 _SETTINGS_FILE_TITLE = "Odatix Workspace Settings"

@@ -38,6 +38,10 @@ DOUBLE_CLICK_DELAY = 0.4
 # Cursor modes, cycled with the "c" key.
 CURSOR_MODES = ("mouse+", "mouse", "raw")
 
+# Height of the help popup: title, column headers, one row per key of
+# update_help_popup and the closing hint. Smaller terminals cut the list.
+HELP_POPUP_HEIGHT = 24
+
 # How long the status message replacing the help bar stays up after a copy.
 STATUS_MESSAGE_DELAY = 2.0
 
@@ -255,9 +259,27 @@ def progress_bar(handler, window, id, progress, elapsed_time, title, title_size,
     window.attroff(curses.A_BOLD)
 
 
+def _resource_guard_label(handler):
+    try:
+        unavailable = handler.resource_guard_unavailable()
+    except Exception:
+        unavailable = None
+    if unavailable:
+        return "unavailable"
+    if not getattr(handler, "resource_guard_enabled", False):
+        return "off"
+    try:
+        paused = int(handler.resource_guard_paused_count())
+    except Exception:
+        paused = 0
+    return "on ({} paused)".format(paused) if paused > 0 else "on"
+
+
 def update_header(handler, header_win, active_jobs_count, retired_jobs_count, total_jobs_count, width):
     nb_jobs = int(getattr(handler, "nb_jobs", 1))
-    left_text = "v{}   parallel jobs: {}".format(handler.version, nb_jobs)
+    left_text = "v{}   parallel jobs: {}   auto-pause: {}".format(
+        handler.version, nb_jobs, _resource_guard_label(handler)
+    )
     try:
         header_win.hline(0, 0, " ", width, curses.color_pair(NORMAL) | curses.A_REVERSE)
         header_win.addstr(0, 1, left_text, curses.color_pair(NORMAL) | curses.A_REVERSE)
@@ -721,6 +743,7 @@ def update_help_popup(popup_win, popup_width, popup_height):
         ("Home/End"   , "Scroll to top/bottom"),
         ("+/-"        , "Change progress window size"),
         (">/<      ./,", "More / fewer parallel jobs"),
+        ("a"          , "Toggle auto-pause on overload"),
         ("Space"      , "Pause selected job"),
         ("k"          , "Kill selected job"),
         ("s"          , "Start/resume selected job"),
@@ -901,7 +924,7 @@ def curses_main(handler, stdscr):
     progress_height = _clamp_progress_height(min(height // 2, handler.job_count), height)
     logs_height = max(0, height - progress_height - 2 * separator_height - help_height - header_height)
     popup_width = min(50, width - 4)
-    popup_height = max(3, min(19, height - 4))
+    popup_height = max(3, min(HELP_POPUP_HEIGHT, height - 4))
     start_x = (width - popup_width) // 2
     start_y = (height - popup_height) // 2
     sync_progress_indices()
@@ -915,7 +938,7 @@ def curses_main(handler, stdscr):
         progress_height = _clamp_progress_height(progress_height, height)
         logs_height = max(0, height - progress_height - 2 * separator_height - help_height - header_height)
         popup_width = min(50, width - 4)
-        popup_height = max(3, min(20, height - 4))
+        popup_height = max(3, min(HELP_POPUP_HEIGHT, height - 4))
         start_x = (width - popup_width) // 2
         start_y = (height - popup_height) // 2
         sync_progress_indices()
@@ -1545,6 +1568,9 @@ def curses_main(handler, stdscr):
 
             elif key == ord("<") or key == ord(","):
                 handler.set_nb_jobs(int(getattr(handler, "nb_jobs", 1)) - 1)
+
+            elif key == ord("a") or key == ord("A"):
+                handler.set_resource_guard(not getattr(handler, "resource_guard_enabled", False))
 
             elif key == ord("c") or key == ord("C"):
                 cursor_mode = CURSOR_MODES[(CURSOR_MODES.index(cursor_mode) + 1) % len(CURSOR_MODES)]

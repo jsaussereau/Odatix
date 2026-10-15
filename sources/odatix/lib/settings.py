@@ -106,6 +106,11 @@ class OdatixSettings:
     DEFAULT_TARGET_FALLBACK_PATH = DEFAULT_USERCONFIG_PATH
     DEFAULT_USE_BENCHMARK = False
     DEFAULT_BENCHMARK_FILE = "results/benchmark.yml"
+    # Resource guard of the job scheduler: pause running jobs while the CPU or
+    # memory usage of the machine is above these percentages.
+    DEFAULT_RESOURCE_GUARD = True
+    DEFAULT_CPU_LIMIT = 98.0
+    DEFAULT_MEM_LIMIT = 98.0
     DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml")
     DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
     DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
@@ -129,6 +134,12 @@ class OdatixSettings:
     # directory). Latched at the class level like user_tools_path so the theme
     # registry can find it without holding a settings instance.
     user_theme_path = None
+    # Resource guard settings (enabled, cpu_limit, mem_limit) of the workspace,
+    # latched when the settings file is read, like user_tools_path: the job
+    # handler takes them as its defaults without holding a settings instance.
+    # None until a settings file has been read (the handler then uses the
+    # DEFAULT_* values above).
+    resource_guard_settings = None
     odatix_init_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_init"))
     odatix_examples_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_examples"))
 
@@ -226,6 +237,8 @@ class OdatixSettings:
         self.target_path, _ = get_from_dict("target_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TARGET_PATH, silent=silent, script_name=script_name)
         self.use_benchmark, _ = get_from_dict("use_benchmark", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_USE_BENCHMARK, type=bool, silent=silent, script_name=script_name)
         self.benchmark_file, _ = get_from_dict("benchmark_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_BENCHMARK_FILE, silent=silent, script_name=script_name)
+        self.resource_guard, self.cpu_limit, self.mem_limit = OdatixSettings.read_resource_guard(settings_data, settings_filename)
+        OdatixSettings.resource_guard_settings = (self.resource_guard, self.cpu_limit, self.mem_limit)
         self.clean_settings_file, _ = get_from_dict("clean_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE, silent=silent, script_name=script_name)
         self.simulation_settings_file, _ = get_from_dict("simulation_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE, silent=silent, script_name=script_name)
         self.fmax_synthesis_settings_file, _ = get_from_dict("fmax_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
@@ -269,6 +282,52 @@ class OdatixSettings:
         self.valid = True
         return True
         
+    @staticmethod
+    def read_resource_guard(settings_data, settings_filename=DEFAULT_SETTINGS_FILE):
+        """
+        The resource guard settings of a settings file, checked.
+
+        Args:
+            settings_data (dict): the content of the settings file.
+            settings_filename (str): its name, for the warnings.
+
+        Returns:
+            tuple: (enabled, cpu_limit, mem_limit). A missing or invalid value
+                holds its default.
+        """
+        settings_data = settings_data if isinstance(settings_data, dict) else {}
+        enabled = settings_data.get("resource_guard", "")
+        if enabled in ("", None):
+            enabled = OdatixSettings.DEFAULT_RESOURCE_GUARD
+        elif not isinstance(enabled, bool):
+            printc.warning(
+                "\"resource_guard\" in \"" + settings_filename + "\" should be a boolean, not \"" + str(enabled)
+                + "\". Using default value (" + str(OdatixSettings.DEFAULT_RESOURCE_GUARD) + ") instead",
+                script_name=script_name,
+            )
+            enabled = OdatixSettings.DEFAULT_RESOURCE_GUARD
+
+        def limit(key, default):
+            value = settings_data.get(key, "")
+            if value in ("", None):
+                return default
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                value = None
+            if isinstance(settings_data.get(key), bool) or value is None or not 1.0 <= value <= 100.0:
+                printc.warning(
+                    "\"" + key + "\" in \"" + settings_filename + "\" should be a percentage between 1 and 100, not \""
+                    + str(settings_data.get(key)) + "\". Using default value (" + str(default) + ") instead",
+                    script_name=script_name,
+                )
+                return default
+            return value
+
+        cpu_limit = limit("cpu_limit", OdatixSettings.DEFAULT_CPU_LIMIT)
+        mem_limit = limit("mem_limit", OdatixSettings.DEFAULT_MEM_LIMIT)
+        return bool(enabled), cpu_limit, mem_limit
+
     @staticmethod
     def init_examples():
         """

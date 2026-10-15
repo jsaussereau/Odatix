@@ -137,6 +137,9 @@ class DummySession(object):
     def __init__(self, nb_jobs=8, speed=1.0):
         self._lock = threading.RLock()
         self.nb_jobs = int(nb_jobs)
+        # Nothing is ever paused here: the switch only round-trips, so the
+        # monitor's toggle can be demoed.
+        self.resource_guard = True
         self.speed = float(speed)
         self.selected_job_index = 0
 
@@ -346,7 +349,8 @@ class DummySession(object):
                     "retired": counts["done"] + counts["failed"],
                     "theme": None,
                     "resource_guard": {
-                        "enabled": False,
+                        "enabled": bool(self.resource_guard),
+                        "unavailable": None,
                         "cpu_limit": 100.0,
                         "mem_limit": 100.0,
                         "cpu": None,
@@ -401,6 +405,12 @@ class DummySession(object):
         with self._lock:
             self._advance()
             self.nb_jobs = max(1, int(nb_jobs))
+            return {"ok": True}
+
+    def set_resource_guard(self, enabled):
+        with self._lock:
+            self._advance()
+            self.resource_guard = bool(enabled)
             return {"ok": True}
 
 
@@ -483,6 +493,9 @@ def api_post(path, key=DUMMY_SESSION_ID):
         nb_jobs = _int_param(params, "nb_jobs")
         if nb_jobs is not None:
             return session.set_nb_jobs(nb_jobs)
+        resource_guard = params.get("resource_guard")
+        if resource_guard is not None:
+            return session.set_resource_guard(str(resource_guard).lower() in ("1", "true", "yes"))
         return {"ok": True}
 
     parts = [part for part in route.split("/") if part]
