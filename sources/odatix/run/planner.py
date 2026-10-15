@@ -184,8 +184,9 @@ class JobPlanner(object):
             return "none", None
 
         # A job still queued or running belongs to its session whatever the
-        # steps say; a finished one does not when steps are left to run.
-        finished_is_restartable = steps_decision in ("resume", "new")
+        # steps say; a finished one does not when steps are left to run, nor
+        # when the run was asked to overwrite what is done.
+        finished_is_restartable = self.overwrite or steps_decision in ("resume", "new")
 
         for entry in daemon_entries:
             status = entry["status"]

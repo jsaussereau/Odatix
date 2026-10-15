@@ -164,12 +164,10 @@ def get_search_paths():
   return paths
 
 
-def get_tool_dirs(tool):
+def _own_tool_dirs(tool):
   """
-  Return every directory defining the tool, lowest precedence first (built-in
-  directory, then user directory). A tool defined in both places yields two
-  directories: their tool.yml files are merged (see load_tool_settings) and
-  their tcl scripts are both copied to the work directory, the user ones last.
+  The directories defining the tool itself, lowest precedence first, leaving
+  out the tool it extends.
   """
   dirs = []
   for search_path in reversed(get_search_paths()):
@@ -179,18 +177,67 @@ def get_tool_dirs(tool):
   return dirs
 
 
+def get_base_tool(tool):
+  """
+  The tool this one extends ("extends" in its tool.yml), or None.
+
+  A tool extending another is that tool run differently: Design Compiler NXT is
+  Design Compiler with another binary. It inherits everything the other one
+  declares -- its scripts, its metrics, its flows, its log formatting -- and its
+  own tool.yml only says what changes, usually a parameter or two (see
+  "parameters" in list_flows). The two remain separate tools: each one has its
+  own work directory and its own results file, and a search can compare them.
+  """
+  base = None
+  for tool_dir in _own_tool_dirs(tool):
+    declared = _read_yaml(os.path.join(tool_dir, hard_settings.tool_settings_filename)).get("extends")
+    if isinstance(declared, str) and declared.strip():
+      base = declared.strip()
+  return base
+
+
+def tool_lineage(tool):
+  """
+  The tool and those it extends, the most basic one first: ["design_compiler",
+  "dc_nxt"] for a tool "dc_nxt" extending "design_compiler". A tool extending
+  nothing is its own lineage. A cycle, or a tool extending one that does not
+  exist, stops the lineage where it breaks.
+  """
+  lineage = [tool]
+  base = get_base_tool(tool)
+  while base is not None and base not in lineage and _own_tool_dirs(base):
+    lineage.insert(0, base)
+    base = get_base_tool(base)
+  return lineage
+
+
+def get_tool_dirs(tool):
+  """
+  Return every directory defining the tool, lowest precedence first (built-in
+  directory, then user directory). A tool defined in both places yields two
+  directories: their tool.yml files are merged (see load_tool_settings) and
+  their tcl scripts are both copied to the work directory, the user ones last.
+
+  The directories of the tool it extends, if any, come before its own: a tool
+  extending another one gets that one's scripts, and overrides those it ships
+  under the same name.
+  """
+  dirs = []
+  for name in tool_lineage(tool):
+    dirs.extend(_own_tool_dirs(name))
+  return dirs
+
+
 def get_tool_dir(tool):
   """
   Return the resolved directory of a tool (the first search path containing
   "<tool>/tool.yml"), or None if the tool is not found in any location. When the
   tool is defined in several locations, the highest precedence one (the user
-  directory) is returned; use get_tool_dirs to get them all.
+  directory) is returned; use get_tool_dirs to get them all, those of the tool it
+  extends included.
   """
-  for search_path in get_search_paths():
-    candidate = os.path.join(search_path, tool)
-    if os.path.isfile(os.path.join(candidate, hard_settings.tool_settings_filename)):
-      return candidate
-  return None
+  dirs = _own_tool_dirs(tool)
+  return dirs[-1] if dirs else None
 
 
 def get_tool_settings_file(tool):
@@ -381,11 +428,22 @@ def load_tool_settings(tool):
   adds its flows to the built-in tool without having to repeat the rest of its
   definition. What a user tool.yml says about the built-in flows is dropped
   first (see strip_builtin_overrides): those belong to Odatix.
+
+  A tool extending another one (see get_base_tool) starts from that one's
+  settings, merged the same way, and its own are merged on top.
   """
+  settings = {}
+  for name in tool_lineage(tool):
+    settings = _deep_merge(settings, _load_own_tool_settings(name))
+  return settings
+
+
+def _load_own_tool_settings(tool):
+  """The settings a tool declares itself, without those of the tool it extends."""
   settings = {}
   builtin_dir = get_builtin_tool_dir(tool)
   builtin = {}
-  for tool_dir in get_tool_dirs(tool):
+  for tool_dir in _own_tool_dirs(tool):
     path = os.path.join(tool_dir, hard_settings.tool_settings_filename)
     data = _read_yaml(path)
     if builtin_dir is not None and os.path.realpath(tool_dir) == os.path.realpath(builtin_dir):
@@ -641,7 +699,60 @@ def _inherit_execution(base_commands, base_steps, base_sessions, commands, steps
   return merged_commands, merged_steps, merged_sessions
 
 
-def _make_flow(name, label=None, description=None, icon=None, icon_filter=False, commands=None, steps=None, sessions=None, metrics_file=None, tool_test_command=None, is_default=False):
+def _flow_parameters(spec):
+  """The "parameters" a tool.yml section declares, as a dict ({} when none)."""
+  declared = spec.get("parameters") if isinstance(spec, dict) else None
+  if not isinstance(declared, dict):
+    return {}
+  return dict((str(name), value) for name, value in declared.items() if str(name).strip() != "")
+
+
+def parameter_as_text(value):
+  """A parameter the way it reads in a command: a list is its words."""
+  if value is None:
+    return ""
+  if isinstance(value, bool):
+    return "true" if value else "false"
+  if isinstance(value, (list, tuple)):
+    return " ".join(parameter_as_text(item) for item in value)
+  return str(value)
+
+
+def substitute_parameters(value, parameters):
+  """
+  Replace "$<name>" by the value of a parameter in a command, a step or a
+  session (recursively). A name only matches as a whole word, so a parameter
+  "work" leaves "$work_path" alone.
+  """
+  import re
+
+  if not parameters:
+    return value
+  if isinstance(value, str):
+    if "$" not in value:
+      return value
+    # Longest names first: "$shell_args" is not "$shell" followed by "_args".
+    for name in sorted(parameters, key=len, reverse=True):
+      value = re.sub(r"\$" + re.escape(name) + r"(?![A-Za-z0-9_])", lambda m, n=name: parameter_as_text(parameters[n]), value)
+    return value
+  if isinstance(value, list):
+    return [substitute_parameters(item, parameters) for item in value]
+  if isinstance(value, dict):
+    return dict((key, substitute_parameters(item, parameters)) for key, item in value.items())
+  return value
+
+
+def _apply_parameters(flow):
+  """Substitute a flow's parameters into everything it runs."""
+  parameters = flow.get("parameters") or {}
+  if not parameters:
+    return flow
+  for key in ("commands", "steps", "sessions", "tool_test_command"):
+    flow[key] = substitute_parameters(flow[key], parameters)
+  return flow
+
+
+def _make_flow(name, label=None, description=None, icon=None, icon_filter=False, commands=None, steps=None, sessions=None, metrics_file=None, tool_test_command=None, is_default=False, parameters=None):
   return {
     "name": name,
     "label": label if isinstance(label, str) and label.strip() else name,
@@ -656,6 +767,11 @@ def _make_flow(name, label=None, description=None, icon=None, icon_filter=False,
     # running a different binary needs to override it.
     "tool_test_command": tool_test_command,
     "is_default": is_default,
+    # What the flow tunes rather than runs: the strategy its scripts follow
+    # (which compile command, which directives...). Written into the job's
+    # settings.tcl, readable with odatix_flow_param, and substituted into the
+    # commands as "$<name>".
+    "parameters": dict(parameters) if parameters else {},
   }
 
 
@@ -687,6 +803,9 @@ def list_flows(tool, job_type=None, settings=None):
   base_commands = _flow_commands(base_section)
   base_steps = _flow_steps(base_section)
   base_sessions = _flow_sessions(base_section)
+  # Parameters declared at the top level are those of the default flow, and
+  # every other flow starts from them (merged key by key).
+  base_parameters = _flow_parameters(data)
   if base_commands or base_steps:
     flows[default_name] = _make_flow(
       default_name,
@@ -696,6 +815,7 @@ def list_flows(tool, job_type=None, settings=None):
       metrics_file=data.get("default_metrics_file"),
       tool_test_command=base_test_command,
       is_default=True,
+      parameters=base_parameters,
     )
 
   declared_flows = data.get("flows")
@@ -730,6 +850,7 @@ def list_flows(tool, job_type=None, settings=None):
           existing["tool_test_command"] = flow_section.get("tool_test_command")
         if isinstance(spec.get("metrics_file"), str) and spec.get("metrics_file").strip():
           existing["metrics_file"] = spec.get("metrics_file").strip()
+        existing["parameters"].update(_flow_parameters(spec))
       else:
         # A flow changes what the tool's default flow does: it starts from that
         # declaration and overrides only what it says.
@@ -748,7 +869,11 @@ def list_flows(tool, job_type=None, settings=None):
           metrics_file=spec.get("metrics_file") or data.get("default_metrics_file"),
           tool_test_command=test_command,
           is_default=(name == default_name),
+          parameters=_deep_merge(base_parameters, _flow_parameters(spec)),
         )
+
+  for flow in flows.values():
+    _apply_parameters(flow)
 
   if job_type is not None:
     command_key = JOB_TYPE_COMMAND_KEYS.get(job_type)
@@ -793,6 +918,15 @@ def get_flow(tool, flow=None, job_type=None):
     name = get_default_flow(tool, job_type=job_type)
     return flows.get(name) if name is not None else None
   return flows.get(str(flow).strip())
+
+
+def get_flow_parameters(tool, flow=None):
+  """
+  The parameters of a flow (see "parameters" in list_flows), {} when it sets
+  none or does not exist.
+  """
+  resolved = get_flow(tool, flow=flow)
+  return dict(resolved["parameters"]) if resolved is not None else {}
 
 
 def get_flow_label(tool, flow=None, job_type=None):

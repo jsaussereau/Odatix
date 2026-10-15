@@ -506,7 +506,7 @@ def prepare_analysis(
       # Edit tcl config script
       tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
       report_path = os.path.join(arch_instance.tmp_dir, hard_settings.work_report_path)
-      edit_config_file(arch_instance, tcl_config_file)
+      edit_config_file(arch_instance, tcl_config_file, eda_tools.get_flow_parameters(tool, tool_context.get("flow")))
 
       # Write yaml config script
       yaml_config_file = os.path.join(arch_instance.tmp_dir, hard_settings.yaml_config_filename)

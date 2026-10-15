@@ -36,6 +36,7 @@ import os
 
 import yaml
 
+import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.job_steps as job_steps
 import odatix.lib.printc as printc
@@ -198,7 +199,7 @@ def build_prepare_pnr_job(
         write_pnr_source_file(arch_instance, source, tool, flow)
 
         tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
-        edit_config_file(arch_instance, tcl_config_file)
+        edit_config_file(arch_instance, tcl_config_file, eda_tools.get_flow_parameters(tool, flow))
         edit_pnr_config_file(arch_instance, source, tcl_config_file)
 
         from odatix.lib.architecture_handler import Architecture

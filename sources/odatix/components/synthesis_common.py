@@ -11,6 +11,7 @@ from odatix.components.replace_params import replace_params
 from odatix.components.run_common import normalize_run_settings, abort_if_empty_job_list, run_prepare_loop, resolve_param_target_file
 import odatix.lib.printc as printc
 import odatix.lib.hard_settings as hard_settings
+import odatix.lib.eda_tools as eda_tools
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.read_tool_settings import read_tool_settings
 from odatix.lib.utils import read_from_list, copytree, create_dir, create_dir_if_missing, KeyNotInListError, BadValueInListError
@@ -619,7 +620,7 @@ def build_prepare_synthesis_job(
             return
 
         tcl_config_file = os.path.join(arch_instance.tmp_script_path, hard_settings.tcl_config_filename)
-        edit_config_file(arch_instance, tcl_config_file)
+        edit_config_file(arch_instance, tcl_config_file, eda_tools.get_flow_parameters(tool, flow))
 
         yaml_config_file = os.path.join(arch_instance.tmp_dir, hard_settings.yaml_config_filename)
         Architecture.write_yaml(arch_instance, yaml_config_file)

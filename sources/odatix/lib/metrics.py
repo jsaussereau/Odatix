@@ -172,10 +172,14 @@ def metrics_files(tool, flow=None, missing_ok=False, tools_path=None):
 
   # The workspace directory of the tool takes part in the resolution even
   # without a tool.yml in it: a lone metrics.yml is enough to override metrics.
+  # A tool extending another one gets that one's workspace overrides too,
+  # before its own.
   search_dirs = list(tool_dirs)
-  overlay_dir = os.path.join(user_tools_path(tools_path), tool)
-  if os.path.isdir(overlay_dir) and overlay_dir not in search_dirs:
-    search_dirs.append(overlay_dir)
+  lineage = eda_tools.tool_lineage(tool)
+  for name in lineage:
+    overlay_dir = os.path.join(user_tools_path(tools_path), name)
+    if os.path.isdir(overlay_dir) and overlay_dir not in search_dirs:
+      search_dirs.append(overlay_dir)
 
   files = []
   declared = []
@@ -196,9 +200,10 @@ def metrics_files(tool, flow=None, missing_ok=False, tools_path=None):
 
   # The workspace overlay file, when the tool (or its flow) declares a metrics
   # file under another name.
-  overlay_file = workspace_metrics_file(tool, tools_path)
-  if os.path.isfile(overlay_file) and overlay_file not in files:
-    files.append(overlay_file)
+  for name in lineage:
+    overlay_file = workspace_metrics_file(name, tools_path)
+    if os.path.isfile(overlay_file) and overlay_file not in files:
+      files.append(overlay_file)
 
   if not files and not missing_ok:
     printc.error('Metrics definition file "' + os.path.realpath(declared[0]) + '" does not exist', script_name)

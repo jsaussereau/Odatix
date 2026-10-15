@@ -46,8 +46,45 @@ def _apply_replacements(config_file, replacements):
     f.write(cf_content)
 
 
-def edit_config_file(arch, config_file):
-  """Replace settings in tcl config file"""
+def tcl_word(value):
+  """
+  A value as one tcl word: a boolean is 1 or 0, a list a tcl list of its items,
+  anything else its text, braced so that nothing in it is substituted.
+  """
+  if isinstance(value, bool):
+    return "1" if value else "0"
+  if value is None:
+    return "{}"
+  if isinstance(value, (list, tuple)):
+    return "[list " + " ".join(tcl_word(item) for item in value) + "]" if value else "[list]"
+  text = str(value)
+  depth = 0
+  for char in text:
+    depth += 1 if char == "{" else -1 if char == "}" else 0
+    if depth < 0:
+      break
+  if depth == 0 and not text.endswith("\\"):
+    return "{" + text + "}"
+  # Braces that do not pair up cannot be braced: escape every special char.
+  return "".join("\\" + char if char in '{}[]$"\\; ' else char for char in text)
+
+
+def tcl_flow_parameters(parameters):
+  """The parameters of a flow as a tcl dict literal (see odatix_flow_param)."""
+  if not parameters:
+    return "[dict create]"
+  return "[dict create " + " ".join(
+    tcl_word(str(name)) + " " + tcl_word(value) for name, value in parameters.items()
+  ) + "]"
+
+
+def edit_config_file(arch, config_file, flow_parameters=None):
+  """
+  Replace settings in tcl config file.
+
+  `flow_parameters` are the parameters of the flow the job runs with (see
+  "parameters" in tool.yml), written as the dict odatix_flow_param reads.
+  """
 
   tmp_path = _normalize_path(arch.tmp_dir)
   constraints_file = "$tmp_path" + "/" + arch.constraint_filename
@@ -90,6 +127,7 @@ def edit_config_file(arch, config_file):
     r"(set lib_name\s+).*":           lambda m: f"{m.group(1)}{safe_replace(arch.lib_name)}",
     r"(set continue_on_error\s+).*":  lambda m: f"{m.group(1)}" + ("1" if arch.continue_on_error else "0"),
     r"(set single_thread\s+).*":      lambda m: f"{m.group(1)}" + ("1" if arch.force_single_thread else "0"),
+    r"(set ::odatix_flow_parameters\s+).*": lambda m: f"{m.group(1)}{tcl_flow_parameters(flow_parameters)}",
   }
 
   _apply_replacements(config_file, replacements)

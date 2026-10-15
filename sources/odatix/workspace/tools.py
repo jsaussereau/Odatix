@@ -234,7 +234,7 @@ class Flow(object):
     """
 
     def __init__(self, name, label="", description="", icon="", icon_filter=False,
-                 metrics_file="", is_default=False, platforms=None):
+                 metrics_file="", is_default=False, platforms=None, parameters=None):
         self.name = str(name).strip()
         self.label = str(label or "")
         self.description = str(description or "")
@@ -242,6 +242,10 @@ class Flow(object):
         self.icon_filter = bool(icon_filter)
         self.metrics_file = str(metrics_file or "")
         self.is_default = bool(is_default)
+        # The strategy the tool's scripts follow with this flow (see
+        # "parameters" in odatix.lib.eda_tools.list_flows), as declared: a flow
+        # only holds the ones it sets, the others are inherited.
+        self.parameters = dict(parameters) if isinstance(parameters, dict) else {}
         self.platforms = {}
         for platform in PLATFORMS:
             section = (platforms or {}).get(platform, {})
@@ -316,6 +320,7 @@ class Flow(object):
             metrics_file=data.get("metrics_file", ""),
             is_default=data.get("is_default", False),
             platforms=data.get("platforms"),
+            parameters=data.get("parameters"),
         )
 
     def to_dict(self):
@@ -327,6 +332,7 @@ class Flow(object):
             "icon_filter": self.icon_filter,
             "metrics_file": self.metrics_file,
             "is_default": self.is_default,
+            "parameters": dict(self.parameters),
             "platforms": dict(
                 (platform, dict((job, execution.to_dict()) for job, execution in jobs.items()))
                 for platform, jobs in self.platforms.items()
@@ -339,7 +345,7 @@ class Flow(object):
         single command or step, on any platform. Such a flow is what reading an
         empty file yields, and writing it back would only add noise.
         """
-        if any(getattr(self, key) for key in ("label", "description", "icon", "icon_filter", "metrics_file")):
+        if any(getattr(self, key) for key in ("label", "description", "icon", "icon_filter", "metrics_file", "parameters")):
             return False
         for jobs in self.platforms.values():
             for execution in jobs.values():
@@ -351,6 +357,14 @@ class Flow(object):
 
     def __repr__(self):
         return "<Flow {0!r}{1}>".format(self.name, " (default)" if self.is_default else "")
+
+
+def _parameters_map(parameters):
+    """The parameters of a flow as they are written in tool.yml."""
+    document = CommentedMap()
+    for name, value in parameters.items():
+        document[str(name)] = CommentedSeq(value) if isinstance(value, list) else value
+    return document
 
 
 def _read_platform_section(section):
@@ -521,7 +535,7 @@ class ToolSettings(object):
     """
 
     #: Keys this class owns; anything else in the file is kept in ``extra``.
-    OWNED_KEYS = set(OVERRIDABLE_KEYS) | set(PLATFORMS) | set(["format", "flows", "default_flow"])
+    OWNED_KEYS = set(OVERRIDABLE_KEYS) | set(PLATFORMS) | set(["format", "flows", "default_flow", "parameters"])
 
     def __init__(self, label="", description="", icon="", icon_filter=False, process_group=True,
                  report_path="", target_file="", default_metrics_file="",
@@ -679,6 +693,11 @@ class ToolSettings(object):
                     merged.update(section)
                     section = merged
                 platforms[platform] = _read_platform_section(section)
+            # The default flow's parameters are declared at the top level, and
+            # what it also declares under "flows" overrides them.
+            parameters = dict(data.get("parameters") or {}) if is_default and isinstance(data.get("parameters"), dict) else {}
+            if isinstance(spec.get("parameters"), dict):
+                parameters.update(spec.get("parameters"))
             flows.append(Flow(
                 name=name,
                 label=spec.get("label", ""),
@@ -687,6 +706,7 @@ class ToolSettings(object):
                 icon_filter=spec.get("icon_filter", False),
                 metrics_file=spec.get("metrics_file", ""),
                 is_default=is_default,
+                parameters=parameters,
                 platforms=dict(
                     (platform, dict((job, execution.to_dict()) for job, execution in jobs.items()))
                     for platform, jobs in platforms.items()
@@ -745,6 +765,8 @@ class ToolSettings(object):
             default_flow = self.default_flow
             if default_flow is not None:
                 document["default_flow"] = default_flow.name
+                if default_flow.parameters:
+                    document["parameters"] = _parameters_map(default_flow.parameters)
                 for platform in PLATFORMS:
                     section = _write_platform_section(default_flow.platforms.get(platform, {}))
                     if len(section) > 0:
@@ -760,6 +782,8 @@ class ToolSettings(object):
                 if flow.icon_filter:
                     entry["icon_filter"] = True
                 if flow is not default_flow:
+                    if flow.parameters:
+                        entry["parameters"] = _parameters_map(flow.parameters)
                     for platform in PLATFORMS:
                         section = _write_platform_section(flow.platforms.get(platform, {}))
                         if len(section) > 0:
@@ -880,6 +904,8 @@ def overlay_document(name, overrides, flows, header=None):
                     entry[key] = str(value)
             if flow.icon_filter:
                 entry["icon_filter"] = True
+            if flow.parameters:
+                entry["parameters"] = _parameters_map(flow.parameters)
             for platform in PLATFORMS:
                 section = _write_platform_section(flow.platforms.get(platform, {}))
                 if len(section) > 0:
@@ -1101,9 +1127,42 @@ class Tool(Entry):
         return ToolSettings.from_dict(self.builtin_document)
 
     @property
+    def resolved_document(self):
+        """
+        What actually runs, the tool it extends included ("extends" in its
+        tool.yml): that tool's resolved document, with this one's merged on top,
+        the way Odatix resolves it at run time (see
+        odatix.lib.eda_tools.load_tool_settings).
+
+        Unlike :attr:`effective_document`, this is not what to edit: what a tool
+        inherits belongs to the tool it extends.
+        """
+        import odatix.lib.eda_tools as eda_tools
+
+        lineage = [self]
+        seen = set([self.name])
+        base = lineage[0].effective_document.get("extends")
+        while isinstance(base, str) and base.strip() and base.strip() not in seen:
+            base = base.strip()
+            seen.add(base)
+            try:
+                tool = self.workspace.tools[base]
+            except NotFoundError:
+                break
+            if not (tool.exists or tool.is_builtin):
+                break
+            lineage.insert(0, tool)
+            base = tool.effective_document.get("extends")
+
+        document = {}
+        for tool in lineage:
+            document = eda_tools._deep_merge(document, tool.effective_document)
+        return document
+
+    @property
     def effective_settings(self):
-        """What actually runs (see :attr:`effective_document`)."""
-        return ToolSettings.from_dict(self.effective_document)
+        """What actually runs (see :attr:`resolved_document`)."""
+        return ToolSettings.from_dict(self.resolved_document)
 
     ######################################
     # Metrics and targets
