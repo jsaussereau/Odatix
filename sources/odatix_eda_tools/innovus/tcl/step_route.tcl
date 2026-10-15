@@ -31,6 +31,10 @@ if {[catch {
     odatix_restore post_cts $signature
 
     routeDesign
+
+    # Post-route optimization is signal integrity aware, which Innovus only
+    # runs in on-chip variation mode.
+    setAnalysisMode -analysisType onChipVariation -cppr both
     optDesign -postRoute
 
     odatix_write_reports "route" $signature

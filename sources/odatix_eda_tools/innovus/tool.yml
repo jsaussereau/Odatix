@@ -32,7 +32,7 @@ default_flow: implementation
 unix:
   constants:
     - &innovus_unix innovus
-    - &innovus_args -no_gui -batch -files
+    - &innovus_args -no_gui -batch -overwrite -files
 
   # Command to check if the tool is installed
   tool_test_command:

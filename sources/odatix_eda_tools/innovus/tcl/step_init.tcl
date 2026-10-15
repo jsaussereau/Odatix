@@ -47,10 +47,39 @@ if {[catch {
     set init_top_cell $top_level_module
     init_design
 
-    read_sdc $source_sdc
+    # A technology script with an MMMC setup reads the synthesis constraints
+    # through its constraint mode; without one, they are read here.
+    if {![info exists init_mmmc_file] || $init_mmmc_file eq ""} {
+        read_sdc $source_sdc
+    }
 
-    # Floorplan. Replace with the one your design needs.
-    floorPlan -site core -r 1.0 0.7 5 5 5 5
+    # Floorplan. Replace with the one your design needs. The technology script
+    # names the site of its core rows ($odatix_core_site); without it, Innovus
+    # takes the default core site of the LEF.
+    if {[info exists odatix_core_site] && $odatix_core_site ne ""} {
+        floorPlan -site $odatix_core_site -r 1.0 0.7 10 10 10 10
+    } else {
+        floorPlan -r 1.0 0.7 10 10 10 10
+    }
+
+    # Power: connect the cell supply pins to the power nets the technology
+    # script declares ($init_pwr_net, $init_gnd_net), then a ring around the
+    # core and the follow-pin rails.
+    if {[info exists init_pwr_net] && [info exists init_gnd_net]} {
+        globalNetConnect $init_pwr_net -type pgpin -pin $init_pwr_net -all
+        globalNetConnect $init_gnd_net -type pgpin -pin $init_gnd_net -all
+        globalNetConnect $init_pwr_net -type tiehi
+        globalNetConnect $init_gnd_net -type tielo
+        # Horizontal then vertical layer of the core ring ($odatix_ring_layers,
+        # set by the technology script); no ring without it.
+        if {[info exists odatix_ring_layers] && [llength $odatix_ring_layers] == 2} {
+            set ring_layers $odatix_ring_layers
+            addRing -nets [list $init_pwr_net $init_gnd_net] -type core_rings -follow core \
+                -layer [list top [lindex $ring_layers 0] bottom [lindex $ring_layers 0] left [lindex $ring_layers 1] right [lindex $ring_layers 1]] \
+                -width 2 -spacing 1 -offset 1
+        }
+        sroute -connect {corePin} -nets [list $init_pwr_net $init_gnd_net]
+    }
 
     odatix_write_reports "init" $signature
     odatix_save post_init $signature

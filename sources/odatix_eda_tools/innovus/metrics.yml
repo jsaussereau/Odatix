@@ -4,14 +4,16 @@
 #
 # Post place & route numbers. The patterns below match the default Innovus
 # report format; adapt them if your flow writes its reports differently.
+# report_area prints a table whose first row not indented is the top level
+# module: "<top>  <instance count>  <total area>".
 
 pnr_metrics:
   Total_area:
     type: regex
     settings:
       file: report/area.rep
-      pattern: "^\\s*Total area of Standard cells:\\s*([0-9.]+)"
-      group_id: 1
+      pattern: "^\\S+\\s+([0-9]+)\\s+([0-9.]+)\\s*$"
+      group_id: 2
     format: "%.2f"
     unit: um²
 
@@ -20,7 +22,7 @@ pnr_metrics:
     error_if_missing: No
     settings:
       file: report/area.rep
-      pattern: "^\\s*Total number of cells:\\s*([0-9]+)"
+      pattern: "^\\S+\\s+([0-9]+)\\s+([0-9.]+)\\s*$"
       group_id: 1
     format: "%.0f"
 

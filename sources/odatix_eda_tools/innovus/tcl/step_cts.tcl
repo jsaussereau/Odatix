@@ -30,6 +30,18 @@ if {[catch {
 
     odatix_restore post_place $signature
 
+    # The design database does not keep the variables of the technology script.
+    source $script_path/technology_setup.tcl
+
+    # Clock cells the technology script names, for libraries that do not flag
+    # theirs as such.
+    if {[info exists odatix_cts_buffers] && $odatix_cts_buffers ne ""} {
+        set_ccopt_property buffer_cells $odatix_cts_buffers
+    }
+    if {[info exists odatix_cts_inverters] && $odatix_cts_inverters ne ""} {
+        set_ccopt_property inverter_cells $odatix_cts_inverters
+    }
+
     ccopt_design
     optDesign -postCTS
 
