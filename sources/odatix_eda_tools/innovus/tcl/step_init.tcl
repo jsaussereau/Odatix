@@ -53,13 +53,18 @@ if {[catch {
         read_sdc $source_sdc
     }
 
-    # Floorplan. Replace with the one your design needs. The technology script
-    # names the site of its core rows ($odatix_core_site); without it, Innovus
-    # takes the default core site of the LEF.
+    odatix_apply_flow_modes $signature
+
+    # Floorplan, sized by the flow (utilization, aspect_ratio and core_margin
+    # parameters). Replace with the one your design needs. The technology
+    # script names the site of its core rows ($odatix_core_site); without it,
+    # Innovus takes the default core site of the LEF.
+    set margin [odatix_flow_param core_margin 10]
+    set floorplan [list -r [odatix_flow_param aspect_ratio 1.0] [odatix_flow_param utilization 0.7] $margin $margin $margin $margin]
     if {[info exists odatix_core_site] && $odatix_core_site ne ""} {
-        floorPlan -site $odatix_core_site -r 1.0 0.7 10 10 10 10
+        floorPlan -site $odatix_core_site {*}$floorplan
     } else {
-        floorPlan -r 1.0 0.7 10 10 10 10
+        floorPlan {*}$floorplan
     }
 
     # Power: connect the cell supply pins to the power nets the technology

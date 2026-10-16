@@ -26,8 +26,32 @@ process_group: True
 # Default metrics file for this tool
 default_metrics_file: $eda_tools_path/innovus/metrics.yml
 
-# Name of the flow the commands declared in the platform section below belong to.
-default_flow: implementation
+# Name of the flow the commands declared in the platform section below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: standard
+
+# Parameters of the default flow: the strategy the step scripts follow (see
+# odatix_apply_flow_modes in tcl/pnr_common.tcl). Every flow starts from these
+# and changes only what it says, so the flows at the bottom of this file are
+# strategies, not scripts.
+parameters:
+  # setDesignMode -flowEffort: express, standard or extreme
+  flow_effort: standard
+  # setDesignMode -powerEffort: none, low or high
+  power_effort: none
+  # Floorplan: core utilization, aspect ratio (height / width) and the margin
+  # between the core and the die edge, in microns
+  utilization: 0.7
+  aspect_ratio: 1.0
+  core_margin: 10
+  # Options added to setDesignMode, setPlaceMode, setOptMode and
+  # setNanoRouteMode. Quote the booleans ("true"): a bare one reaches Tcl as 1.
+  design_options: []
+  place_options: []
+  opt_options: []
+  route_options: []
+  # Hold fixing after clock tree synthesis and after routing
+  fix_hold: false
 
 unix:
   constants:
@@ -84,11 +108,55 @@ unix:
 # Flows
 ##############################################
 
+# Each flow only sets the parameters it changes: the steps and the scripts are
+# the default flow's. Add a strategy of your own the same way, in the tool.yml
+# of your workspace.
+
 flows:
 
-  implementation:
-    label: "Implementation"
-    description: "Timing oriented place & route"
+  standard:
+    label: "Standard"
+    description: "Standard flow effort at 70% utilization, Innovus defaults otherwise"
+
+  express:
+    label: "Express"
+    description: "Express flow effort: the shortest runtime, for early estimates"
+    parameters:
+      flow_effort: express
+      # Without it, an express flow does not route at all (NRIG-142)
+      design_options: [-expressRoute, "true"]
+
+  extreme:
+    label: "Extreme"
+    description: "Extreme flow effort: the longest runtime, for the best results"
+    parameters:
+      flow_effort: extreme
+
+  timing:
+    label: "Timing"
+    description: "Lower utilization, high timing effort placement, useful skew, timing and SI driven routing, hold fixing"
+    parameters:
+      utilization: 0.6
+      place_options: [-place_global_timing_effort, high]
+      opt_options: [-usefulSkew, "true", -usefulSkewCCOpt, standard, -usefulSkewPostRoute, "true"]
+      route_options: [-routeWithTimingDriven, "true", -routeWithSiDriven, "true"]
+      fix_hold: true
+
+  area:
+    label: "Area"
+    description: "Dense floorplan with high congestion effort placement and area reclaim"
+    parameters:
+      utilization: 0.85
+      place_options: [-place_global_cong_effort, high]
+      opt_options: [-reclaimArea, "true"]
+
+  power:
+    label: "Power"
+    description: "High power effort, optimizing dynamic power as much as leakage"
+    parameters:
+      power_effort: high
+      # 1 (the default) only optimizes leakage, 0 only dynamic power
+      opt_options: [-leakageToDynamicRatio, 0.5]
 
 # Log formatting
 format:

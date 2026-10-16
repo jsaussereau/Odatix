@@ -29,6 +29,7 @@ if {[catch {
     source scripts/pnr_common.tcl
 
     odatix_restore post_cts $signature
+    odatix_apply_flow_modes $signature
 
     routeDesign
 
@@ -36,6 +37,9 @@ if {[catch {
     # runs in on-chip variation mode.
     setAnalysisMode -analysisType onChipVariation -cppr both
     optDesign -postRoute
+    if {[odatix_flow_param fix_hold 0]} {
+        optDesign -postRoute -hold
+    }
 
     odatix_write_reports "route" $signature
     odatix_save post_route $signature

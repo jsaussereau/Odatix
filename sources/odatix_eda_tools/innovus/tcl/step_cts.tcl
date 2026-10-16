@@ -29,6 +29,7 @@ if {[catch {
     source scripts/pnr_common.tcl
 
     odatix_restore post_place $signature
+    odatix_apply_flow_modes $signature
 
     # The design database does not keep the variables of the technology script.
     source $script_path/technology_setup.tcl
@@ -44,6 +45,9 @@ if {[catch {
 
     ccopt_design
     optDesign -postCTS
+    if {[odatix_flow_param fix_hold 0]} {
+        optDesign -postCTS -hold
+    }
 
     odatix_write_reports "cts" $signature
     odatix_save post_cts $signature

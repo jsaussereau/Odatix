@@ -29,6 +29,7 @@ if {[catch {
     source scripts/pnr_common.tcl
 
     odatix_restore post_init $signature
+    odatix_apply_flow_modes $signature
 
     setPlaceMode -place_global_place_io_pins true
     place_opt_design

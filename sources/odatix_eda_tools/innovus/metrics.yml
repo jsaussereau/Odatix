@@ -26,6 +26,25 @@ pnr_metrics:
       group_id: 1
     format: "%.0f"
 
+  Die_area:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/floorplan.rep
+      pattern: "Die area: ([0-9.]+)"
+      group_id: 1
+    format: "%.2f"
+    unit: um²
+
+  Core_utilization:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/floorplan.rep
+      pattern: "Core utilization: ([0-9.]+)"
+      group_id: 1
+    format: "%.4f"
+
   Total_power:
     type: regex
     error_if_missing: No
