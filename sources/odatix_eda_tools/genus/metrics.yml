@@ -125,7 +125,7 @@ metrics:
   Worst_Slack:
     type: operation
     settings:
-      op: Slack_ps / 1000
+      op: Worst_Slack_ps / 1000
     format: "%.3f"
     unit: ns
 

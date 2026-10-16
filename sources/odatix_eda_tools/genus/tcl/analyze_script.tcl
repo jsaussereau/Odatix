@@ -73,9 +73,6 @@ if {[catch {
             foreach file $verilog_filenames {
                 puts "  <cyan>- $file<end>"
             }
-            catch {
-                read_hdl -language v2001 $verilog_filenames
-            }
             if {[catch {
                 read_hdl -language v2001 $verilog_filenames
             } errmsg ]} {
@@ -98,9 +95,6 @@ if {[catch {
             foreach file $sverilog_filenames {
                 puts "  <cyan>- $file<end>"
             }
-            catch {
-                read_hdl -language sv $sverilog_filenames
-            } errmsg
             if {[catch {
                 read_hdl -language sv $sverilog_filenames
             } errmsg ]} {
@@ -125,9 +119,6 @@ if {[catch {
             foreach file $vhdl_filenames {
                 puts "  <cyan>- $file<end>"
             }
-            catch {
-                read_hdl -language vhdl $vhdl_filenames
-            } errmsg
             if {[catch {
                 read_hdl -language vhdl $vhdl_filenames
             } errmsg ]} {

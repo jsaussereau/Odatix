@@ -15,7 +15,28 @@ default_metrics_file: $eda_tools_path/genus/metrics.yml
 
 # Name of the flow the commands declared in the platform sections below belong
 # to. It is the flow used when "--flow" is not given.
-default_flow: synthesis
+default_flow: standard
+
+# Parameters of the default flow: the strategy the scripts follow when they
+# synthesize the design (see odatix_genus_synthesize in tcl/synth_common.tcl).
+# Every flow starts from these and changes only what it says, so the flows at
+# the bottom of this file are strategies, not scripts.
+parameters:
+  effort: high
+  generic_effort: ""
+  map_effort: ""
+  opt_effort: ""
+  auto_ungroup: ""
+  area_mode: false
+  tns_opto: ""
+  ultra_optimization: false
+  retime: false
+  clock_gating: false
+  power_effort: none
+  leakage_power_effort: ""
+  attributes: []
+  incremental: false
+  post_opt_passes: []
 
 unix:
   # Optional constants (anchors) for reuse
@@ -56,13 +77,61 @@ unix:
 ##############################################
 # Flows
 ##############################################
-# Different ways of running the same job type with this tool. The commands
-# declared in the platform sections above are those of the default flow.
+# A flow is a synthesis strategy. Flows of the same tool are alternatives meant
+# to be compared, so each one gets its own work directory ("genus@timing") and
+# its results are tagged with its name. A design space exploration can choose
+# between them (see "flow" in the DSE settings).
+#
+# Each flow only sets the parameters it changes: the commands and the scripts
+# are the default flow's. Add a strategy of your own the same way, in the
+# tool.yml of your workspace.
 
 flows:
-  synthesis:
-    label: "Synthesis"
-    description: "Logic synthesis"
+
+  standard:
+    label: "Standard"
+    description: "syn_generic, syn_map and syn_opt at high effort, the historical Odatix flow"
+
+  medium_effort:
+    label: "Medium effort"
+    description: "syn_generic, syn_map and syn_opt at medium effort, for a faster run"
+    parameters:
+      effort: medium
+
+  extreme:
+    label: "Extreme"
+    description: "extreme syn_opt effort, then an incremental pass with ultra optimization"
+    parameters:
+      opt_effort: extreme
+      ultra_optimization: true
+      incremental: true
+
+  timing:
+    label: "Timing"
+    description: "register retiming and extreme syn_opt effort, then an incremental pass"
+    parameters:
+      opt_effort: extreme
+      auto_ungroup: timing
+      retime: true
+      ultra_optimization: true
+      incremental: true
+
+  area:
+    label: "Area"
+    description: "area oriented datapath and ungrouping, only the worst path optimized, then an incremental pass"
+    parameters:
+      auto_ungroup: area
+      area_mode: true
+      tns_opto: false
+      incremental: true
+
+  power:
+    label: "Power"
+    description: "clock gating and high dynamic and leakage power optimization effort"
+    parameters:
+      clock_gating: true
+      power_effort: high
+      leakage_power_effort: high
 
 # Log formatting
 format:
