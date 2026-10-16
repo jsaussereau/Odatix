@@ -313,6 +313,31 @@ def copy_job_scripts(arch_instance, tool, resuming, script_name=""):
     return True
 
 
+def copy_target_script(arch_instance, script_name=""):
+    """
+    Copy the script the target file gives this job's target (script_copy_source,
+    the technology setup of an ASIC tool) into the job's script directory.
+    Returns False when the copy failed, after reporting it.
+    """
+    if not arch_instance.script_copy_enable:
+        return True
+    try:
+        shutil.copy2(arch_instance.script_copy_source, arch_instance.tmp_script_path)
+    except Exception as e:
+        printc.error(
+            'Could not copy "'
+            + arch_instance.script_copy_source
+            + '" to "'
+            + os.path.realpath(arch_instance.tmp_script_path)
+            + '"',
+            script_name,
+        )
+        printc.cyan("error details: ", end="", script_name=script_name)
+        print(str(e))
+        return False
+    return True
+
+
 def write_job_identity_files(arch_instance, flow=None):
     """
     Write the files naming what a job directory holds: its target, its
@@ -600,21 +625,8 @@ def build_prepare_synthesis_job(
                 print(str(e))
                 return
 
-        if arch_instance.script_copy_enable:
-            try:
-                shutil.copy2(arch_instance.script_copy_source, arch_instance.tmp_script_path)
-            except Exception as e:
-                printc.error(
-                    'Could not copy "'
-                    + arch_instance.script_copy_source
-                    + '" to "'
-                    + os.path.realpath(arch_instance.tmp_script_path)
-                    + '"',
-                    script_name,
-                )
-                printc.cyan("error details: ", end="", script_name=script_name)
-                print(str(e))
-                return
+        if not copy_target_script(arch_instance, script_name):
+            return
 
         if not constraint_files.copy_constraint_files(arch_instance):
             return

@@ -57,7 +57,7 @@ from odatix.lib.architecture_handler import Architecture, ArchitectureHandler
 from odatix.lib.constraint_files import ConstraintFileError
 from odatix.lib.run_report import Category
 from odatix.lib.settings import OdatixSettings
-from odatix.lib.variables import Variables
+from odatix.lib.variables import Variables, replace_variables
 from odatix.workspace.yaml_io import read_mapping
 
 script_name = os.path.basename(__file__)
@@ -191,8 +191,13 @@ class PnrJobHandler(ArchitectureHandler):
     # could have recorded them.
     pnr_constraints = self._read_target_constraints(install_path)
 
+    # The technology script of each target (script_copy_source), which the
+    # place & route flow sources: the synthesis copied the one of its own tool,
+    # this job needs the one of the place & route tool.
+    target_scripts = self._read_target_scripts(install_path)
+
     for source in pnr_source.match_sources(self.available_sources, selectors):
-      instance = self._build_instance(source, targets, install_path, constraint_filename, pnr_constraints)
+      instance = self._build_instance(source, targets, install_path, constraint_filename, pnr_constraints, target_scripts)
       if instance is not None:
         self.architecture_instances.append(instance)
 
@@ -238,7 +243,52 @@ class PnrJobHandler(ArchitectureHandler):
 
     return by_target
 
-  def _build_instance(self, source, targets, install_path, constraint_filename, pnr_constraints=None):
+  def _read_target_scripts(self, install_path):
+    """
+    The script the place & route tool's target file has copied into the jobs
+    of each target (script_copy_enable / script_copy_source).
+
+    Returns:
+        dict: {target: path}, plus a "" key for the targets without settings of
+            their own. A path is None when no script is copied.
+    """
+    if not self.eda_target_filename or not os.path.isfile(self.eda_target_filename):
+      return {}
+
+    variables = Variables(
+      tool_install_path=os.path.realpath(install_path) if install_path else "",
+      odatix_path=OdatixSettings.odatix_path,
+      odatix_eda_tools_path=OdatixSettings.odatix_eda_tools_path,
+    )
+
+    def script_of(settings, parent):
+      if not isinstance(settings, dict) or not settings.get("script_copy_enable"):
+        return None
+      path = replace_variables(str(settings.get("script_copy_source", "")), variables)
+      if not os.path.isfile(path):
+        printc.note(
+          'The script source file "' + path + '" specified in "' + self.eda_target_filename
+          + '"' + (" (" + parent + ")" if parent else "") + " does not exist. Script copy disabled.",
+          script_name,
+        )
+        return None
+      return path
+
+    try:
+      settings_data = read_mapping(self.eda_target_filename)
+    except Exception:
+      # Reported by _read_target_constraints, which reads the same file.
+      return {}
+
+    scripts = {"": script_of(settings_data, "")}
+    target_settings = settings_data.get("target_settings")
+    if isinstance(target_settings, dict):
+      for target, this_target_settings in target_settings.items():
+        if isinstance(this_target_settings, dict) and "script_copy_enable" in this_target_settings:
+          scripts[str(target)] = script_of(this_target_settings, "target_settings/" + str(target))
+    return scripts
+
+  def _build_instance(self, source, targets, install_path, constraint_filename, pnr_constraints=None, target_scripts=None):
     """
     Turn one source into the job that places & routes it, or None when it cannot
     be run (the reason is reported and the job is recorded as an error).
@@ -279,7 +329,10 @@ class PnrJobHandler(ArchitectureHandler):
     arch.generate_command = ""
     arch.design_path = None
     arch.file_copy_enable = False
-    arch.script_copy_enable = False
+    target_scripts = target_scripts or {}
+    target_script = target_scripts.get(source.target, target_scripts.get(""))
+    arch.script_copy_enable = target_script is not None
+    arch.script_copy_source = target_script if target_script is not None else "/dev/null"
     # Constraint files, on the other hand, are kept: the synthesis recorded the
     # ones the design and its target were given, and the "pnr" scoped ones are
     # precisely those meant to be read here. What this tool declares on its own

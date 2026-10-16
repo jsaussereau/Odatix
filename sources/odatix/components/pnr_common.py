@@ -36,6 +36,7 @@ import os
 
 import yaml
 
+import odatix.lib.constraint_files as constraint_files
 import odatix.lib.eda_tools as eda_tools
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.job_steps as job_steps
@@ -45,6 +46,7 @@ from odatix.components.synthesis_common import (
     build_job_variables,
     build_parallel_job,
     copy_job_scripts,
+    copy_target_script,
     load_synthesis_context,
     prepare_job_directory,
     rewrite_tcl_source_paths,
@@ -193,6 +195,12 @@ def build_prepare_pnr_job(
         prepare_job_directory(arch_instance, resuming)
 
         if not copy_job_scripts(arch_instance, tool, resuming, script_name):
+            return
+
+        if not copy_target_script(arch_instance, script_name):
+            return
+
+        if not constraint_files.copy_constraint_files(arch_instance):
             return
 
         write_job_identity_files(arch_instance, flow)

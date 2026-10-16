@@ -48,6 +48,11 @@ script_name = os.path.basename(__file__)
 # File value extraction
 ######################################
 
+# Reports are read whole, but their patterns are written line by line: "^" and
+# "$" match at every line boundary, not only at the ends of the file.
+REGEX_FLAGS = re.MULTILINE
+
+
 def parse_regex(file, pattern, group_id, error_if_missing=True, error_prefix=""):
     """Return the first regex match group in a file, or None."""
     if not os.path.isfile(file):
@@ -58,7 +63,7 @@ def parse_regex(file, pattern, group_id, error_if_missing=True, error_prefix="")
     with open(file, "r") as f:
         try:
             content = f.read()
-            match = re.search(pattern, content)
+            match = re.search(pattern, content, REGEX_FLAGS)
             if match:
                 return match.group(group_id)
         except Exception as e:
@@ -80,7 +85,7 @@ def parse_regex_all(file, pattern, group_id, error_if_missing=True, error_prefix
     with open(file, "r") as f:
         try:
             content = f.read()
-            values = [match.group(group_id) for match in re.finditer(pattern, content)]
+            values = [match.group(group_id) for match in re.finditer(pattern, content, REGEX_FLAGS)]
         except Exception as e:
             printc.error(error_prefix + 'Could not get values from regex "' + pattern + '" in file "' + file + '": ' + str(e), script_name=script_name)
             return None
