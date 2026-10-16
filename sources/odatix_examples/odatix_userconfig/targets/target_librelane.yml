@@ -1,0 +1,48 @@
+##############################################
+# Target settings for LibreLane
+##############################################
+
+# Name of the file the clock period of a run is written to (in the job directory)
+constraint_file: librelane_period.json
+
+# A LibreLane checkout (git clone https://github.com/librelane/librelane), run
+# through its nix-shell. Leave it empty when "librelane" is on your $PATH, for
+# instance when Odatix itself is started from that nix-shell.
+# /!\ UPDATE WITH YOUR OWN INSTALL PATH HERE /!\
+tool_install_path: ~/librelane
+
+force_single_thread: No
+
+script_copy_enable: No
+script_copy_source: /dev/null
+
+# Open PDK and standard cell library. LibreLane installs a PDK through ciel the
+# first time it is used.
+targets:
+  - sky130_hd
+  # - sky130_hs
+  # - sky130_ms
+  # - gf180mcu_7t
+  # - gf180mcu_9t
+  # - ihp_sg13g2
+
+# The technology script of each target (it must be named technology_setup.tcl)
+target_settings:
+  sky130_hd:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/librelane/technology/sky130_hd/technology_setup.tcl
+  sky130_hs:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/librelane/technology/sky130_hs/technology_setup.tcl
+  sky130_ms:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/librelane/technology/sky130_ms/technology_setup.tcl
+  gf180mcu_7t:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/librelane/technology/gf180mcu_7t/technology_setup.tcl
+  gf180mcu_9t:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/librelane/technology/gf180mcu_9t/technology_setup.tcl
+  ihp_sg13g2:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/librelane/technology/ihp_sg13g2/technology_setup.tcl

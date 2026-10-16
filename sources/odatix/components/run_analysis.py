@@ -177,6 +177,35 @@ def get_analysis_tools_from_settings(settings_filename):
   return tools
 
 
+def analysis_install_path(tool, target_path):
+  """
+  The install path an analysis runs the tool from.
+
+  An analysis targets no technology, so it reads nothing else from the target
+  file — but a tool that is not on the $PATH (LibreLane, run from the nix-shell
+  of its checkout) is found through the "tool_install_path" of that file all
+  the same. "/" (the tool is on the $PATH) when the file, or the key, is missing.
+  """
+  try:
+    target_file = eda_tools.resolve_target_file(tool, target_path)
+  except Exception:
+    return "/"
+  if not os.path.isfile(target_file):
+    return "/"
+  try:
+    with open(target_file, "r") as f:
+      settings_data = yaml.safe_load(f)
+  except Exception:
+    return "/"
+  if not isinstance(settings_data, dict):
+    return "/"
+  install_path = settings_data.get("tool_install_path")
+  if not install_path:
+    return "/"
+  install_path = os.path.realpath(os.path.expanduser(str(install_path)))
+  return install_path if os.path.isdir(install_path) else "/"
+
+
 def load_tool_context(tool, target_path, flow=None):
   """
   Validate an eda tool (tool directory) and load its tool settings, for the RTL
@@ -219,7 +248,7 @@ def load_tool_context(tool, target_path, flow=None):
   # defaults to "/" (tool expected on the $PATH).
   targets = [hard_settings.default_analysis_target]
   constraint_file = hard_settings.default_analysis_constraint_file
-  install_path = "/"
+  install_path = analysis_install_path(tool, target_path)
   force_single_thread = False
 
   # Concat all strings if it is a list

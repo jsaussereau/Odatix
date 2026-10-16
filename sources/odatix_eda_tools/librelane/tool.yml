@@ -1,0 +1,220 @@
+##############################################
+# Settings for LibreLane
+##############################################
+#
+# LibreLane (https://github.com/librelane/librelane) is the open source RTL to
+# GDSII flow, successor of OpenLane 2: Yosys for synthesis, OpenROAD for
+# floorplan, placement, clock tree, routing and timing, Magic, KLayout and
+# Netgen for signoff. It runs its "Classic" flow (or "VHDLClassic" for a VHDL
+# design) on the open PDKs it installs itself through ciel: sky130, gf180mcu and
+# ihp-sg13g2 (see target_librelane.yml).
+#
+# The scripts of this tool run in tclsh, in the LibreLane environment: from the
+# PATH when "librelane" is on it, otherwise in the nix-shell of the LibreLane
+# checkout given as tool_install_path in the target file (see
+# tcl/librelane_env.sh).
+#
+
+# Display metadata (used by the GUI tool selection page)
+label: "LibreLane"
+description: "Open source RTL to GDSII flow: Yosys, OpenROAD, Magic, KLayout"
+icon: "assets/icons/librelane.png"
+
+process_group: True
+
+# Default metrics file for this tool
+default_metrics_file: $eda_tools_path/librelane/metrics.yml
+
+# Name of the flow the commands declared in the platform sections below belong
+# to. It is the flow used when "--flow" is not given.
+default_flow: standard
+
+# Parameters of the default flow: the strategy LibreLane follows. A parameter
+# named in capitals is a LibreLane configuration variable, given to every run of
+# the job as "-c NAME=value" — unless it is empty, which leaves LibreLane's own
+# default (most often the PDK's). Any LibreLane variable can be added the same
+# way, in a flow of your own or as an axis of a design space exploration (see
+# https://librelane.readthedocs.io/en/latest/reference/step_config_vars.html).
+#
+# Every flow starts from these and changes only what it says, so the flows at
+# the bottom of this file are strategies, not scripts.
+parameters:
+  # LibreLane flow: "" chooses Classic, or VHDLClassic for a VHDL design
+  flow: ""
+  # More options for every librelane command line
+  extra_args: []
+  # Yosys / ABC mapping: "AREA 0" to "AREA 3", "DELAY 0" to "DELAY 4"
+  SYNTH_STRATEGY: ""
+  SYNTH_ABC_BUFFERING: ""
+  # Floorplan: core utilization (%) and aspect ratio (height / width)
+  FP_CORE_UTIL: ""
+  FP_ASPECT_RATIO: ""
+  # Global placement density (%)
+  PL_TARGET_DENSITY_PCT: ""
+  # Resizer timing repair after clock tree synthesis and after global routing
+  RUN_POST_CTS_RESIZER_TIMING: ""
+  RUN_POST_GRT_RESIZER_TIMING: ""
+  PL_RESIZER_SETUP_SLACK_MARGIN: ""
+  GRT_RESIZER_SETUP_SLACK_MARGIN: ""
+
+unix:
+  # Optional constants (anchors) for reuse
+  constants:
+    - &librelane_env bash scripts/librelane_env.sh "$tool_install_path" tclsh
+
+  # Command to check if the tool is installed
+  tool_test_command:
+    - bash $eda_tools_path/librelane/tcl/librelane_env.sh "$tool_install_path"
+    - librelane --version
+
+  ##############################################
+  # Steps
+  ##############################################
+  # Synthesis jobs are split into ordered steps, so a run can stop at any of
+  # them ("--until") and a later run picks up where it left off instead of
+  # starting over. Every flow of this tool runs these steps: the flows at the
+  # bottom of this file only change the parameters LibreLane follows.
+
+  # Steps of an fmax search. Each one is a search of its own, going as far as
+  # its name says: "synthesis" converges on the timing of the synthesized
+  # netlist (fast and optimistic, like the fmax of the other ASIC synthesis
+  # tools), "pnr" on the timing of the routed design, every iteration placing
+  # and routing it again (what the design really reaches).
+  fmax_synthesis_steps:
+    - name: synthesis
+      default: true
+      command:
+        - cd $work_path;
+        - *librelane_env
+        - scripts/step_fmax_synthesis.tcl
+    - name: pnr
+      command:
+        - cd $work_path;
+        - *librelane_env
+        - scripts/step_fmax_pnr.tcl
+
+  # Steps of a custom frequency synthesis: the Classic flow cut in six. Each
+  # step continues from the LibreLane state the previous one left, so nothing
+  # runs twice. "route" ends with the timing of the routed design, extracted
+  # parasitics included; "signoff" streams the layout out and runs the DRC and
+  # LVS checks, which take longer than everything else on a small design.
+  custom_freq_synthesis_steps:
+    - name: synthesis
+      command:
+        - cd $work_path;
+        - *librelane_env
+        - scripts/step.tcl synthesis
+    - name: floorplan
+      command:
+        - cd $work_path;
+        - *librelane_env
+        - scripts/step.tcl floorplan
+    - name: place
+      command:
+        - cd $work_path;
+        - *librelane_env
+        - scripts/step.tcl place
+    - name: cts
+      command:
+        - cd $work_path;
+        - *librelane_env
+        - scripts/step.tcl cts
+    - name: route
+      default: true
+      command:
+        - cd $work_path;
+        - *librelane_env
+        - scripts/step.tcl route
+    - name: signoff
+      command:
+        - cd $work_path;
+        - *librelane_env
+        - scripts/step.tcl signoff
+
+  # Command for RTL analysis: Verilator lint and Yosys elaboration
+  analysis_command:
+    - cd $work_path;
+    - *librelane_env
+    - scripts/analysis.tcl
+
+##############################################
+# Flows
+##############################################
+# A flow is a strategy. Flows of the same tool are alternatives meant to be
+# compared, so each one gets its own work directory ("librelane@timing") and its
+# results are tagged with its name. A design space exploration can choose
+# between them (see "flow" in the DSE settings).
+#
+# Each flow only sets the parameters it changes: the steps and the scripts are
+# the default flow's. Add a strategy of your own the same way, in the tool.yml
+# of your workspace.
+
+flows:
+
+  standard:
+    label: "Standard"
+    description: "LibreLane defaults: AREA 0 mapping, the PDK's floorplan and placement settings"
+
+  area:
+    label: "Area"
+    description: "AREA 2 mapping, denser floorplan"
+    parameters:
+      SYNTH_STRATEGY: "AREA 2"
+      FP_CORE_UTIL: 60
+
+  timing:
+    label: "Timing"
+    description: "DELAY 1 mapping with ABC buffering, roomier floorplan, resizer timing repair after global routing"
+    parameters:
+      SYNTH_STRATEGY: "DELAY 1"
+      SYNTH_ABC_BUFFERING: true
+      FP_CORE_UTIL: 40
+      RUN_POST_GRT_RESIZER_TIMING: true
+
+  timing_extreme:
+    label: "Timing - extreme"
+    description: "DELAY 4 mapping with ABC buffering, low utilization, resizer timing repair with setup margins"
+    parameters:
+      SYNTH_STRATEGY: "DELAY 4"
+      SYNTH_ABC_BUFFERING: true
+      FP_CORE_UTIL: 35
+      RUN_POST_GRT_RESIZER_TIMING: true
+      PL_RESIZER_SETUP_SLACK_MARGIN: 0.1
+      GRT_RESIZER_SETUP_SLACK_MARGIN: 0.05
+
+# Log formatting
+format:
+
+  # Format the whole log line
+  logs:
+    error:         ['<error>', '[ERROR]', ' ERROR ', '%Error']
+    warning:       ['<warning>', ' WARNING ', '%Warning']
+    info:          ['<note>']
+    trace:         ['<trace>']
+
+  # Format tags (replaced by the corresponding format escape code)
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    black:         ['<black>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    blue:          ['<blue>']
+    magenta:       ['<magenta>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+    white:         ['<lgrey>']
+    light_red:     ['<lred>']
+    light_green:   ['<lgreen>']
+    light_yellow:  ['<lyellow>']
+    light_blue:    ['<lblue>']
+    light_magenta: ['<lmagenta>']
+    light_cyan:    ['<lcyan>']
+    light_white:   ['<white>']
+
+  # Replace sequences (regular expressions)
+  replace:
+    - "(Running '[^']+' at '[^']+'…)": "<cyan>$1<end>"
+    - "(Flow complete\\.)": "<green>$1<end>"
+    - "(Smoke test passed\\.)": "<green>$1<end>"

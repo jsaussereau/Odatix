@@ -17,7 +17,8 @@ TOOL_NAMES = {
     "design_compiler": "SYNOPSYS DESIGN COMPILER",
     "genus": "CADENCE GENUS",
     "vivado": "XILINX VIVADO",
-    "verilator": "VERILATOR"
+    "verilator": "VERILATOR",
+    "librelane": "LIBRELANE"
 }
 
 ERROR_PRIORITY = [

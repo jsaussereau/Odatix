@@ -1,0 +1,258 @@
+##############################################
+# Metrics for LibreLane
+##############################################
+
+# Results are exported once per step of the flow (see odatix.lib.results_schema),
+# so a metric is declared once and read from the report of each step: "$step" in
+# a file name is the step the record being written is for. The area after
+# synthesis and after routing are therefore the same metric measured at two
+# steps.
+#
+# report/<step>/metrics.json holds the metrics LibreLane measured up to that
+# step, under the names below (power in mW); librelane_metrics.json next to it
+# holds all of them under LibreLane's own names, for metrics of your own. A
+# metric LibreLane has not measured yet at a step (the die area after synthesis)
+# simply has no value there.
+#
+# Cell_Area and Cell_count leave out the cells placement adds to fill the rows
+# (fill, decap, tap and endcap cells); Total_Cell_Area and Total_Cell_count
+# count them.
+
+fmax_synthesis_metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: report/$step/frequency_search.log
+      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 2
+    format: "%.0f"
+    unit: MHz
+
+custom_freq_synthesis_metrics:
+  Frequency:
+    type: regex
+    settings:
+      file: frequency.txt
+      pattern: "([0-9_]+) MHz"
+      group_id: 1
+    format: "%.0f"
+    unit: MHz
+
+metrics:
+  Cell_Area:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Cell_Area
+    format: "%.3f"
+    unit: um^2
+
+  Cell_count:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Cell_count
+    format: "%.0f"
+
+  Total_Cell_Area:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Total_Cell_Area
+    format: "%.3f"
+    unit: um^2
+
+  Total_Cell_count:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Total_Cell_count
+    format: "%.0f"
+
+  Die_area:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Die_area
+    format: "%.3f"
+    unit: um^2
+
+  Core_area:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Core_area
+    format: "%.3f"
+    unit: um^2
+
+  Core_utilization:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Core_utilization
+    format: "%.4f"
+
+  Total_Power:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Total_Power
+    format: "%.6f"
+    unit: mW
+
+  Internal_Power:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Internal_Power
+    format: "%.6f"
+    unit: mW
+
+  Switching_Power:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Switching_Power
+    format: "%.6f"
+    unit: mW
+
+  Leakage_Power:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Leakage_Power
+    format: "%.9f"
+    unit: mW
+
+  Worst_Slack:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Worst_Slack
+    format: "%.3f"
+    unit: ns
+
+  Setup_TNS:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Setup_TNS
+    format: "%.3f"
+    unit: ns
+
+  Hold_Slack:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Hold_Slack
+    format: "%.3f"
+    unit: ns
+
+  Setup_violations:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Setup_violations
+    format: "%.0f"
+
+  Hold_violations:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Hold_violations
+    format: "%.0f"
+
+  Wire_length:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Wire_length
+    format: "%.0f"
+    unit: um
+
+  Vias:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Vias
+    format: "%.0f"
+
+  DRC_errors:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: DRC_errors
+    format: "%.0f"
+
+  Antenna_violations:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Antenna_violations
+    format: "%.0f"
+
+  Max_slew_violations:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Max_slew_violations
+    format: "%.0f"
+
+  Max_cap_violations:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Max_cap_violations
+    format: "%.0f"
+
+  Magic_DRC_errors:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: Magic_DRC_errors
+    format: "%.0f"
+
+  KLayout_DRC_errors:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: KLayout_DRC_errors
+    format: "%.0f"
+
+  LVS_errors:
+    type: json
+    error_if_missing: No
+    settings:
+      file: report/$step/metrics.json
+      key: LVS_errors
+    format: "%.0f"
+
+  Param_Domains:
+    type: yaml
+    error_if_missing: No
+    settings:
+      file: param_domains.yml
