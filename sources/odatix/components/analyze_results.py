@@ -17,6 +17,7 @@ TOOL_NAMES = {
     "design_compiler": "SYNOPSYS DESIGN COMPILER",
     "genus": "CADENCE GENUS",
     "vivado": "XILINX VIVADO",
+    "quartus": "ALTERA QUARTUS",
     "verilator": "VERILATOR",
     "librelane": "LIBRELANE"
 }
@@ -93,6 +94,12 @@ def get_analysis_errors_and_warnings(log_file):
                     standard_warning_count += 1
                 continue
 
+            # Quartus: informational lines ("Info: ... 0 errors, 3 warnings")
+            # and the advice every Agilex design gets to use the Reset Release
+            # IP, which says nothing about the RTL
+            if line_str.startswith("Info") or "(20759)" in line_str:
+                continue
+
             # --- BROAD ENGINE WARNING CATCHMENT ---
             is_warning = (
                 any(line_str.lower().startswith(x) for x in ["warning:", "warn:", "(warning)", "critical warning:"]) or
@@ -154,6 +161,21 @@ def get_analysis_errors_and_warnings(log_file):
             # Missing HDL design
             elif "Could not find an HDL design" in line_str:
                 errors.append("Could not find HDL design")
+
+            # Quartus: undefined entity / module ("Error (12006): Node instance
+            # "u" instantiates undefined entity "foo"")
+            elif "instantiates undefined entity" in line_str:
+                match = re.search(r'undefined entity "([^"]+)"', line_str)
+                if match:
+                    errors.append(f"Module not found: {match.group(1)}")
+                else:
+                    errors.append("Module not found")
+
+            # Quartus: undeclared object ("Error (10161): ... object "foo" is not
+            # declared")
+            elif re.search(r'object "[^"]+" is not declared', line_str):
+                match = re.search(r'object "([^"]+)" is not declared', line_str)
+                errors.append(f"Undeclared signal: {match.group(1)}")
 
             # Vivado: undeclared signal
             elif "is not declared" in line_str:

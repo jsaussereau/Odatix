@@ -1112,24 +1112,25 @@ def main(args, settings=None):
         comparison[arch] = {}
       comparison[arch][tool_name] = result["status"]
 
-  # Global Cross-Validation Summary Layout (Expanded width to 96 for 4 columns)
+  # Global Cross-Validation Summary Layout (Expanded width to 109 for 5 columns)
   print()
-  printc.bold("=" * 96, printc.colors.CYAN)
-  printc.bold("SUMMARY".center(96), printc.colors.YELLOW)
-  printc.bold("=" * 96, printc.colors.CYAN)
+  printc.bold("=" * 109, printc.colors.CYAN)
+  printc.bold("SUMMARY".center(109), printc.colors.YELLOW)
+  printc.bold("=" * 109, printc.colors.CYAN)
 
   # Column headers match standard fixed widths + added Verilator column
-  print(f"{BOLD}{CYAN}{'Architecture':<44} {'DC':^12} {'Genus':^12} {'Vivado':^12} {'Verilator':^12}{RESET}")
-  print(f"{CYAN}{'-' * 96}{RESET}")
+  print(f"{BOLD}{CYAN}{'Architecture':<44} {'DC':^12} {'Genus':^12} {'Vivado':^12} {'Quartus':^12} {'Verilator':^12}{RESET}")
+  print(f"{CYAN}{'-' * 109}{RESET}")
 
   for arch in sorted(comparison):
       dc_cell = get_colored_table_symbol(comparison[arch].get("design_compiler", ""))
       genus_cell = get_colored_table_symbol(comparison[arch].get("genus", ""))
       vivado_cell = get_colored_table_symbol(comparison[arch].get("vivado", ""))
+      quartus_cell = get_colored_table_symbol(comparison[arch].get("quartus", ""))
       verilator_cell = get_colored_table_symbol(comparison[arch].get("verilator", ""))
 
-      # Print line with native space alignments cleanly respected across 4 columns
-      print(f"{arch:<44} {dc_cell} {genus_cell} {vivado_cell} {verilator_cell}")
+      # Print line with native space alignments cleanly respected across 5 columns
+      print(f"{arch:<44} {dc_cell} {genus_cell} {vivado_cell} {quartus_cell} {verilator_cell}")
   print()
 
 

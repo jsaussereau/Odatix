@@ -1,0 +1,247 @@
+##############################################
+# Settings for Quartus
+##############################################
+#
+# Altera Quartus Prime (Pro Edition: Agilex, Stratix 10, Arria 10...). The
+# scripts run in quartus_sh, which creates a project per job in its "work"
+# directory and runs on it the executables of each stage: quartus_syn,
+# quartus_fit, quartus_sta, quartus_pow and quartus_asm.
+#
+# The executables are taken from the PATH, or from the installation given as
+# tool_install_path in target_quartus.yml (see tcl/quartus_env.sh).
+#
+
+# Display metadata (used by the GUI tool selection page)
+label: "Quartus"
+description: "Altera Quartus® Prime"
+
+# Group processes
+process_group: True
+
+# Default metrics file for this tool
+default_metrics_file: "$eda_tools_path/quartus/metrics.yml"
+
+default_flow: standard
+
+# Parameters of the default flow: the strategy the scripts follow to compile
+# the design (see odatix_quartus_strategy in tcl/quartus_common.tcl). Every flow
+# starts from these and changes only what it says, so the flows at the bottom of
+# this file are strategies, not scripts.
+parameters:
+  # OPTIMIZATION_MODE of synthesis and fitter ("" for Quartus' default,
+  # BALANCED)
+  optimization_mode: "HIGH PERFORMANCE EFFORT"
+  # Fitter seed ("" for Quartus' default)
+  seed: ""
+  # Register retiming, in synthesis and by the Hyper-Retimer
+  allow_register_retiming: true
+  # FINAL_PLACEMENT_OPTIMIZATION: "ALWAYS", "NEVER" or "" for Quartus' default
+  final_placement_optimization: ""
+  # Every port but the clock and the reset is a virtual pin: the frequency is
+  # the one of the logic, and a design with more ports than the device has pins
+  # still fits. A programming file then only needs a location and an I/O
+  # standard for the clock and the reset (a "pnr" constraint file, see
+  # target_quartus.yml); turn it off for a design whose ports are its pins.
+  virtual_pins: true
+  # quartus_pow after timing analysis, with the default toggle rates
+  power_analysis: true
+  # Other global assignments, as "NAME value" items
+  # (e.g. "PHYSICAL_SYNTHESIS_EFFORT EXTRA")
+  assignments: []
+
+unix:
+  # Optional constants (anchors) that can be used in the file
+  constants:
+    - &quartus_env_unix bash scripts/quartus_env.sh "$tool_install_path"
+    - &quartus_run_unix quartus_sh -t scripts/run.tcl
+
+  # Command to check if the tool is installed
+  tool_test_command:
+    - bash $eda_tools_path/quartus/tcl/quartus_env.sh "$tool_install_path"
+    - quartus_sh --version
+
+  ##############################################
+  # Steps
+  ##############################################
+  # Synthesis jobs are split into ordered steps, so a run can stop at any of
+  # them ("--until") and a later run picks up where it left off instead of
+  # starting over. Being split into steps is a property of every flow of this
+  # tool, not of a flow of its own: the flows declared at the bottom of this file
+  # inherit them.
+  #
+  # Each step is a quartus_sh process of its own. The design goes from one step
+  # to the next through the project database, on disk, the way it goes from one
+  # Quartus executable to the next: there is nothing to save when a run stops.
+
+  # Steps of an fmax search. Each one is a search of its own, going as far as
+  # its name says: "synthesis" converges on post-synthesis timing (fast and
+  # approximate), "pnr" on post-route timing (what the design really reaches).
+  # Screen a design space with the first, implement only what deserves it.
+  fmax_synthesis_steps:
+    - name: synthesis
+      command:
+        - cd $work_path;
+        - *quartus_env_unix
+        - --log log/fmax_synthesis.log
+        - *quartus_run_unix
+        - scripts/step_fmax_synthesis.tcl
+    - name: pnr
+      default: true
+      command:
+        - cd $work_path;
+        - *quartus_env_unix
+        - --log log/pnr.log
+        - *quartus_run_unix
+        - scripts/step_fmax_pnr.tcl
+    - name: bitstream
+      command:
+        - cd $work_path;
+        - *quartus_env_unix
+        - --log log/bitstream.log
+        - *quartus_run_unix
+        - scripts/step_fmax_bitstream.tcl
+
+  # Steps of a custom frequency synthesis. From "synthesis" on, each one
+  # continues from the design the previous one left in the project: nothing is
+  # compiled twice.
+  #
+  # "elaboration" stands apart: it only elaborates the RTL, to tell in seconds
+  # which configurations do not ("--until elaboration"), and hands nothing over
+  # -- synthesis starts from the sources whatever it leaves behind.
+  custom_freq_synthesis_steps:
+    - name: elaboration
+      command:
+        - cd $work_path;
+        - *quartus_env_unix
+        - --log log/elaboration.log
+        - *quartus_run_unix
+        - scripts/init_script.tcl
+        - scripts/analyze_script.tcl
+        - scripts/step_elaboration.tcl
+    - name: synthesis
+      command:
+        - cd $work_path;
+        - *quartus_env_unix
+        - --log log/synthesis.log
+        - *quartus_run_unix
+        - scripts/init_script.tcl
+        - scripts/analyze_script.tcl
+        - scripts/step_synthesis.tcl
+    - name: pnr
+      default: true
+      command:
+        - cd $work_path;
+        - *quartus_env_unix
+        - --log log/pnr.log
+        - *quartus_run_unix
+        - scripts/step_pnr.tcl
+    - name: bitstream
+      command:
+        - cd $work_path;
+        - *quartus_env_unix
+        - --log log/bitstream.log
+        - *quartus_run_unix
+        - scripts/step_bitstream.tcl
+
+  # Command for RTL analysis
+  analysis_command:
+    - cd $work_path;
+    - *quartus_env_unix
+    - --log log/analysis.log
+    - *quartus_run_unix
+    - scripts/init_script.tcl
+    - scripts/analyze_script.tcl
+    - scripts/elaborate_script.tcl
+
+##############################################
+# Flows
+##############################################
+# A flow is a way of running this tool. Flows of the same tool are alternatives
+# meant to be compared, so each one gets its own work directory
+# ("quartus@performance") and its results are tagged with its name.
+#
+# Pick one with "--flow" on the command line, or from the tool's card in the
+# GUI. The "standard" flow is the default one.
+#
+# The flows below only change parameters: they run the same steps and the same
+# scripts, with another strategy, and "--until" works the same whichever one is
+# picked. A design space exploration can choose between them (see "flow" in the
+# DSE settings). Add a strategy of your own the same way, in the tool.yml of
+# your workspace.
+
+flows:
+
+  standard:
+    label: "Standard"
+    description: "High performance effort synthesis and fit"
+
+  balanced:
+    label: "Balanced"
+    description: "Quartus defaults: balanced optimization mode"
+    parameters:
+      optimization_mode: "BALANCED"
+
+  runtime:
+    label: "Runtime optimized"
+    description: "Aggressive compile time, no power analysis: fast screening"
+    parameters:
+      optimization_mode: "AGGRESSIVE COMPILE TIME"
+      power_analysis: false
+
+  performance:
+    label: "Performance"
+    description: "Superior performance with maximum placement effort, final placement optimization always on"
+    parameters:
+      optimization_mode: "SUPERIOR PERFORMANCE WITH MAXIMUM PLACEMENT EFFORT"
+      final_placement_optimization: "ALWAYS"
+
+  area:
+    label: "Area optimized"
+    description: "Aggressive area optimization, no register retiming"
+    parameters:
+      optimization_mode: "AGGRESSIVE AREA"
+      allow_register_retiming: false
+
+  power_opt:
+    label: "Power optimized"
+    description: "Aggressive power optimization"
+    parameters:
+      optimization_mode: "AGGRESSIVE POWER"
+
+# Log formatting
+format:
+
+  # Format the whole log line
+  logs:
+    error:         ['<error>', 'Error (', 'Error:']
+    crit_warning:  ['<crit_warning>', 'Critical Warning']
+    warning:       ['<warning>', 'Warning (', 'Warning:']
+    info:          ['<note>', 'Info (', 'Info:']
+    trace:         ['<trace>']
+
+  # Format tags (replaced by the corresponding format escape code)
+  tags:
+    bold:          ['<bold>']
+    end:           ['<end>']
+    black:         ['<black>']
+    red:           ['<red>']
+    green:         ['<green>']
+    yellow:        ['<yellow>']
+    blue:          ['<blue>']
+    magenta:       ['<magenta>']
+    cyan:          ['<cyan>']
+    grey:          ['<grey>']
+    white:         ['<lgrey>']
+    light_red:     ['<lred>']
+    light_green:   ['<lgreen>']
+    light_yellow:  ['<lyellow>']
+    light_blue:    ['<lblue>']
+    light_magenta: ['<lmagenta>']
+    light_cyan:    ['<lcyan>']
+    light_white:   ['<white>']
+
+  # Replace sequences (regular expressions)
+  replace:
+    - "(\\(VIOLATED\\))": "<red>$1<end>"
+    - "(\\(MET\\))": "<green>$1<end>"
+    - "(Quartus Prime .* was successful)": "<green>$1<end>"

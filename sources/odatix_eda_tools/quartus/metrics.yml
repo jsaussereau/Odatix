@@ -1,0 +1,213 @@
+##############################################
+# Metrics for Quartus
+##############################################
+
+# Results are exported once per step of the flow (see odatix.lib.results_schema),
+# so a metric is declared once and read from the report of each step: "$step" in
+# a file name is the step the record being written is for. Post-synthesis and
+# post-fit utilization are therefore the same metric measured at two steps, not
+# two metrics telling each other apart by their name.
+#
+# The reports are written by the scripts of this tool in formats of their own
+# (see tcl/quartus_common.tcl and tcl/sta_report.tcl), normalized from what
+# Quartus reports for any device family. The reports of Quartus itself are kept
+# next to them, as "quartus.*.rpt".
+#
+# The elaboration step writes no report: Quartus gives no estimate of an
+# elaborated design.
+
+fmax_synthesis_metrics:
+  Fmax:
+    type: regex
+    settings:
+      file: log/frequency_search.log
+      pattern: "(.*)Highest frequency with timing constraints being met: ([0-9_]+) MHz"
+      group_id: 2
+    format: "%.0f"
+    unit: MHz
+
+metrics:
+
+  # Utilization
+  #
+  # After synthesis, the resources the design needs; after the fit, the ones it
+  # takes. Percentages are of what the device offers. M20K are the block RAMs of
+  # the device, Memory_bits the bits of block RAM the design uses. I/O pins
+  # count only the real pins: the others are virtual (see "virtual_pins" in
+  # tool.yml).
+
+  ALM_count:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| ALMs\\s*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  ALM_percent:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| ALMs\\s*\\|[^|]*\\|[^|]*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.2f"
+
+  ALUT_count:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| ALUTs\\s*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  Reg_count:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| Registers\\s*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  Reg_percent:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| Registers\\s*\\|[^|]*\\|[^|]*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.2f"
+
+  BRAM_count:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| M20K\\s*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  BRAM_percent:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| M20K\\s*\\|[^|]*\\|[^|]*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.2f"
+
+  Memory_bits:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| MemoryBits\\s*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  DSP_count:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| DSPs\\s*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  DSP_percent:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| DSPs\\s*\\|[^|]*\\|[^|]*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.2f"
+
+  IO_count:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/utilization.rep
+      pattern: "\\| IOs\\s*\\|\\s*([0-9.]+)\\s*\\|"
+      group_id: 1
+    format: "%.0f"
+
+  ALM+Reg_count:
+    type: operation
+    error_if_missing: No
+    settings:
+      op: ALM_count + Reg_count
+    format: "%.0f"
+
+  # Timing
+  #
+  # Worst slack of the design over every corner Quartus analyzes: setup slack
+  # or minimum pulse width slack, whichever is the worst. An unconstrained
+  # design has "Worst Slack: inf" instead of a number, and simply gets no value
+  # here.
+
+  Worst_Slack:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/timing.rep
+      pattern: "Worst Slack \\(\\w+\\)\\s*:\\s*(-?[0-9.]+) ns"
+      group_id: 1
+    format: "%.3f"
+    unit: ns
+
+  # The frequency Quartus computes the design reaches, from the slacks of the
+  # run, limited to what the device allows its clock ("Restricted Fmax"). An
+  # estimate of the first clock of the design, given by every run, including a
+  # custom frequency one.
+
+  Restricted_Fmax:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/fmax.rep
+      pattern: "Restricted Fmax ([0-9.]+) MHz"
+      group_id: 1
+    format: "%.2f"
+    unit: MHz
+
+  # Power (implemented design only, default toggle rates)
+
+  Dynamic_Power:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/power.rep
+      pattern: "Total Dynamic Power Dissipation\\s*:\\s*([0-9.]+) W"
+      group_id: 1
+    format: "%.3f"
+    unit: W
+
+  Total_Power:
+    type: regex
+    error_if_missing: No
+    settings:
+      file: report/$step/power.rep
+      pattern: "Total On-Chip Power Dissipation\\s*:\\s*([0-9.]+) W"
+      group_id: 1
+    format: "%.3f"
+    unit: W
+
+  Static_Power:
+    type: operation
+    error_if_missing: No
+    settings:
+      op: Total_Power - Dynamic_Power
+    format: "%.3f"
+    unit: W
+
+  # Always
+
+  Param_Domains:
+    type: yaml
+    error_if_missing: No
+    settings:
+      file: param_domains.yml
