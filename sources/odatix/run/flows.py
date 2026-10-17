@@ -159,6 +159,7 @@ class SynthesisFlow(Flow):
             work_path=run.work_path,
             target_path=run.path("target_path"),
             selected_targets=options.targets,
+            selected_architectures=options.architectures,
             overwrite=options.overwrite,
             noask=options.noask,
             exit_when_done=options.exit_when_done,
@@ -341,6 +342,7 @@ class AnalysisFlow(Flow):
             cancel_event=run.cancel_event,
             tool_check_sink=run.tool_check_sink,
             flows=self._flows,
+            selected_architectures=options.architectures,
         ))
 
     def prepare(self, run, checked):
@@ -386,6 +388,8 @@ class SimulationFlow(Flow):
             arch_path=run.path("arch_path"),
             sim_path=run.path("sim_path"),
             work_path=run.work_path,
+            selected_simulations=options.simulations,
+            selected_architectures=options.architectures,
             overwrite=options.overwrite,
             noask=options.noask,
             exit_when_done=options.exit_when_done,

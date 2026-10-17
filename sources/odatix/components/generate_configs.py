@@ -45,7 +45,6 @@ def add_arguments(parser):
   parser.add_argument("-C", "--clean", action="store_true", help="delete the configurations an earlier generation wrote and the rules no longer describe")
   add_options(parser, "noask")
   parser.add_argument(
-    "-a",
     "--archpath",
     dest="arch_path",
     nargs="?",
@@ -61,6 +60,7 @@ def add_arguments(parser):
     help="workflow directory (optional path, default from settings if omitted)",
   )
   deprecated_option(parser, "-w", "-p/--workflowpath", dest="workflow_path", nargs="?", const="")
+  deprecated_option(parser, "-a", "--archpath", dest="arch_path", nargs="?", const="")
   add_options(parser, "debug", "config")
 
 

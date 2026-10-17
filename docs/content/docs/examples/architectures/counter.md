@@ -301,13 +301,13 @@ A single line in the run settings covers the seven widths:
 
 {{< code lang=yaml filename="fmax_settings.yml" >}}
 architectures:
-  - Example_Counter_Chisel_CLI
+  - Example_Counter_chisel_cli
 {{< /code >}}
 
 and one of them is selected with a `+`, on the command line or in the file:
 
 {{< code lang=shell prompt=true >}}
-$ odatix fmax -a Example_Counter_Chisel_CLI+width/16bits
+$ odatix fmax -a Example_Counter_chisel_cli+width/16bits
 {{< /code >}}
 
 > [!TIP]

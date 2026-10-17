@@ -395,7 +395,7 @@ Full guide: [Virtual parameter domains](/docs/configurations/virtual_param_domai
 For an architecture that generates its RTL (Chisel, HLS…), the same `${...}`
 placeholders are filled in `generate_command`, running the generation once per value.
 
-{{< code lang=yaml filename="architectures/Example_Counter_Chisel_CLI/_settings.yml" >}}
+{{< code lang=yaml filename="architectures/Example_Counter_chisel_cli/_settings.yml" >}}
 generate_rtl: Yes
 generate_command: "sbt 'runMain example.Counter --width ${width} --o=rtl'"
 generate_output: "rtl"
@@ -410,7 +410,7 @@ variables:
       list: [4, 8, 16, 32]
 {{< /code >}}
 
-Gives `Example_Counter_Chisel_CLI+width/4bits`, `…+width/8bits`, and so on.
+Gives `Example_Counter_chisel_cli+width/4bits`, `…+width/8bits`, and so on.
 
 Full guide: [Virtual parameter domains](/docs/configurations/virtual_param_domains/).
 {{% /tab %}}

@@ -36,7 +36,20 @@ import argparse
 
 from odatix.lib.settings import OdatixSettings
 
-__all__ = ["OPTIONS", "GROUPS", "add_options", "deprecated_option"]
+__all__ = ["OPTIONS", "GROUPS", "ExtendAction", "add_options", "deprecated_option"]
+
+class ExtendAction(argparse.Action):
+  """
+  One list out of every use of a repeatable option taking several values:
+  "-a A B -a C" gives ["A", "B", "C"]. What action="extend" does from Python
+  3.8 on.
+  """
+
+  def __call__(self, parser, namespace, values, option_string=None):
+    items = list(getattr(namespace, self.dest, None) or [])
+    items.extend(values if isinstance(values, list) else [values])
+    setattr(namespace, self.dest, items)
+
 
 #: Where the default of an option comes from, when not from Odatix itself.
 FROM_WORKSPACE = "of odatix.yml"
@@ -72,6 +85,17 @@ OPTIONS = {
   "tool": (("-t", "--tool"), dict(default=None, help='tool to run (default: "default_tool" ' + FROM_WORKSPACE + ', or the only tool with a target file)')),
   # No short form: -T is --trust.
   "targets": (("--target",), dict(action="append", dest="targets", default=None, metavar="TARGET", help="target to run on, out of those the target file of the tool enables (repeatable; default: all of them)")),
+  # As in "odatix dse".
+  "architectures": (("-a", "--architecture", "--arch"), dict(
+    action=ExtendAction, nargs="+", dest="architectures", default=None, metavar="SELECTOR",
+    help='architectures to run, written as entries of "architectures" in the run settings file, '
+         'e.g. "MyCPU/*" or "MyCPU/16bits" (several values, repeatable; replaces that list)',
+  )),
+  "simulations": (("-s", "--sim"), dict(
+    action=ExtendAction, nargs="+", dest="simulations", default=None, metavar="SIMULATION",
+    help='simulations to run, out of "simulations" in the run settings file, on the architectures it gives them '
+         '(several values, repeatable; default: all of them)',
+  )),
   "flow": (("-f", "--flow"), dict(default=None, help="flow of the tool to run (default: the tool's default flow)")),
   "until": (("-u", "--until"), dict(default=None, help="last step of the flow to run, inclusive (default: the flow's default step, or all its steps)")),
   "rerun_from": (("--rerun-from",), dict(dest="rerun_from", default=None, help="re-run this step and the following ones, even if already done")),
@@ -89,8 +113,10 @@ OPTIONS = {
   # Where things are
   ######################################
   "settings_file": (("-i", "--input"), dict(dest="settings_file", default=None, help="run settings file (default: the one " + FROM_WORKSPACE + " names for this command)")),
-  "arch_path": (("-a", "--archpath"), dict(dest="arch_path", help='architecture directory (default: "arch_path" ' + FROM_WORKSPACE + ')')),
-  "sim_path": (("-s", "--simpath"), dict(dest="sim_path", help='simulation directory (default: "sim_path" ' + FROM_WORKSPACE + ')')),
+  # No short form: -a is --architecture.
+  "arch_path": (("--archpath",), dict(dest="arch_path", help='architecture directory (default: "arch_path" ' + FROM_WORKSPACE + ')')),
+  # No short form: -s is --sim.
+  "sim_path": (("--simpath",), dict(dest="sim_path", help='simulation directory (default: "sim_path" ' + FROM_WORKSPACE + ')')),
   "workflow_path": (("-p", "--workflowpath"), dict(dest="workflow_path", help='workflow directory (default: "workflow_path" ' + FROM_WORKSPACE + ')')),
   "work_path": (("-w", "--work"), dict(dest="work_path", help='work directory (default: "work_path" ' + FROM_WORKSPACE + ')')),
   "result_path": (("-r", "--respath"), dict(dest="result_path", help='result directory (default: "result_path" ' + FROM_WORKSPACE + ')')),

@@ -67,12 +67,17 @@ files is selected the same way, its variable acting as a domain:
 
 {{< code lang=yaml >}}
 architectures:
-  - Example_Counter_Chisel_CLI                 # every value of every variable
-  - Example_Counter_Chisel_CLI + width/16bits  # just one
+  - Example_Counter_chisel_cli                 # every value of every variable
+  - Example_Counter_chisel_cli + width/16bits  # just one
 {{< /code >}}
 
-The run commands have no option to select architectures: the list is the one of
-the settings file, which `-i/--input` can replace by another.
+On the command line, `-a/--architecture` takes the same selectors and replaces
+this list for one run, the file staying as it is (`odatix fmax`, `synth` and
+`analyze`):
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix fmax -a "Example_Counter_sv/*" "Example_Counter_chisel_cli + width/16bits"
+{{< /code >}}
 
 ## `tools` — analysis only
 
@@ -161,6 +166,14 @@ simulations:
 
   - TB_Example_Counter_Verilator:
     - Example_Counter_sv/*
+{{< /code >}}
+
+On the command line, `odatix sim -s/--sim` runs some of these simulations only,
+and `-a/--architecture` replaces their architectures, written the same way; the
+file stays as it is:
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix sim -s TB_Example_Counter_Verilator -a "Example_Counter_sv/08bits"
 {{< /code >}}
 
 ## `workflows` — workflows and their parameters

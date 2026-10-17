@@ -54,6 +54,7 @@ unexpected error prints a one-line message and writes the full trace to
 | `-o`, `--overwrite` | Overwrite existing results. |
 | `-y`, `--noask` | Do not ask for confirmation before launch. |
 | `-t`, `--tool` | The eda tool (`fmax`, `synth`, `pnr`, `analyze`). Default: `default_tool` of `odatix.yml`, else the only tool the workspace has a target file for. |
+| `-a`, `--architecture` | Run these architectures instead of the `architectures` list of the settings file, written the same way (`"MyCPU/*"`, `"MyCPU/16bits"`, `"MyCPU + width/16bits"`). Several values, repeatable; `--arch` for short. (`fmax`, `synth`, `analyze`, `sim`, `dse`). |
 | `--target` | Run on this target only, out of those the target file of the tool enables. Repeatable. No short form: `-T` is `--trust`. (`fmax`, `synth`, `pnr`). |
 | `-d`, `--detach` | Enqueue jobs and return immediately (no monitor). |
 | `-S`, `--session` | Session name/selector for enqueue/attach/stop. |
@@ -69,13 +70,13 @@ unexpected error prints a one-line message and writes the full trace to
 
 | Command | Additional options |
 |---------|--------------------|
-| `odatix fmax` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--continue-on-error`, `-T/--trust`, `-e/--noexport` |
-| `odatix synth` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--step`, `--at` (repeatable), `-T/--trust`, `-e/--noexport` |
-| `odatix analyze` | `-t/--tool` (repeatable), `-f/--flow` (repeatable), `-T/--trust`, `-e/--noexport`, `-d/--detach`, `-S/--session` |
+| `odatix fmax` | `-t/--tool`, `-a/--architecture`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--continue-on-error`, `-T/--trust`, `-e/--noexport` |
+| `odatix synth` | `-t/--tool`, `-a/--architecture`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--step`, `--at` (repeatable), `-T/--trust`, `-e/--noexport` |
+| `odatix analyze` | `-t/--tool` (repeatable), `-a/--architecture`, `-f/--flow` (repeatable), `-T/--trust`, `-e/--noexport`, `-d/--detach`, `-S/--session` |
 | `odatix pnr` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from-type`, `--from-tool`, `--from-flow`, `-i/--input`, `-w/--work`, `-T/--trust`, `-e/--noexport` |
-| `odatix sim` | `-a/--archpath`, `-s/--simpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
+| `odatix sim` | `-s/--sim`, `-a/--architecture`, `--archpath`, `--simpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
 | `odatix workflow` | `-p/--workflowpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
-| `odatix dse` | `-p/--campaign`, `-t/--tool`, `-f/--flow`, `--target`, `-a/--architecture` (repeatable), `-r/--run`, `-s/--strategy`, `-m/--mode`, `-b/--budget`, `-B/--batch`, `--seed`, `-i/--input`, `-C/--check` |
+| `odatix dse` | `-p/--campaign`, `-t/--tool`, `-f/--flow`, `--target`, `-a/--architecture`, `-r/--run`, `-s/--strategy`, `-m/--mode`, `-b/--budget`, `-B/--batch`, `--seed`, `-i/--input`, `-C/--check` |
 
 ### Former spellings
 
@@ -91,9 +92,12 @@ instead:
 | `odatix generate -w` | `odatix generate -p/--workflowpath`, as `odatix workflow` |
 | `odatix clean -f/--force` | `odatix clean -y/--yes`, as the other commands that skip a question |
 | `odatix dse -T` | `odatix dse --target` |
+| `odatix generate -a` | `odatix generate --archpath`: `-a` is `--architecture`, as in `odatix dse` |
 
 Gone without a transition: `odatix synthesis` and `odatix explore` (use
-`synth` and `dse`), the `--force` spelling of `--continue-on-error`, `clean -v`
+`synth` and `dse`), `-a` for `--archpath` in `fmax`, `synth`, `analyze` and `sim`, where
+it now names architectures, `-s` for `--simpath` in `sim`, where it names
+simulations, the `--force` spelling of `--continue-on-error`, `clean -v`
 (now `-V/--verbose`: `-v` is the version), and `odatix res_benchmark` with the
 `-u/--use_benchmark`, `-B/--benchmark_file` and `-S/--sim_file` options of the
 exports: a benchmark score is a [simulation metric](/docs/results/metrics/) now.
@@ -202,7 +206,7 @@ by hand, use the [graphical interface](/docs/gui/app/), or the
 $ odatix generate                        # optional: a run resolves them on its own
 $ odatix generate -o                     # take configurations edited by hand back to their rule
 $ odatix generate -C                     # delete what the rules no longer describe
-$ odatix generate -a odatix_userconfig/architectures
+$ odatix generate --archpath odatix_userconfig/architectures
 $ odatix generate -p odatix_userconfig/workflows
 
 $ odatix replace -s "// <start>" -S "// </end>" -i input.v -r params.txt -o output.v
@@ -214,13 +218,20 @@ $ odatix replace -s "// <start>" -S "// </end>" -i input.v -r params.txt -o outp
 $ odatix fmax                              # default_tool of odatix.yml
 $ odatix fmax --tool vivado
 $ odatix fmax --tool vivado --target xc7a100t-csg324-1
+$ odatix fmax --tool vivado -a "Example_Counter_sv/*" "Example_ALU_sv/16bits"
 $ odatix fmax --tool design_compiler --from 100 --to 900
 
 $ odatix synth --tool openlane --at 50 --at 100 --at 150
 $ odatix synth --tool vivado --from 100 --to 500 --step 50
 
 $ odatix sim
+$ odatix sim -s TB_Example_Cordic_GHDL                     # one simulation, on its architectures
+$ odatix sim -s TB_Example_Cordic_Verilator -a "Example_Cordic_sv + iterations/* + width/16bits"
 {{< /code >}}
+
+`-s/--sim` runs some of the simulations of `sim_settings.yml`, on the
+architectures it gives them; `-a/--architecture` replaces those architectures,
+for every simulation run. Together, they run a simulation the file does not list.
 
 ### Place & route
 

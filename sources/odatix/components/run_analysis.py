@@ -66,7 +66,7 @@ script_name = os.path.basename(__file__)
 
 def add_arguments(parser):
   add_options(
-    parser, "tool", "flow", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path",
+    parser, "tool", "architectures", "flow", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path",
     "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "keep", "log_size_limit", "export_options", "config",
     tool={"nargs": "+", "default": None, "help": "tool(s) to run (default: \"tools\" of the analysis settings file, else \"default_tool\" of odatix.yml)"},
     flow={"nargs": "+", "help": "flow(s) to run, as \"flow\" (applied to every tool) or \"tool:flow\" (default: each tool's default flow)"},
@@ -277,6 +277,7 @@ def prepare_analysis(
   display_suffix="",
   debug=False,
   keep=False,
+  selected_architectures=None,
 ):
   """
   Check settings and prepare the analysis jobs of a single eda tool,
@@ -292,6 +293,9 @@ def prepare_analysis(
       exit_when_done, log_size_limit, nb_jobs, valid_arch_count).
   """
   _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = get_synth_settings(run_config_settings_filename)
+  # Architectures named by the run ("--arch") replace the list of the file.
+  if selected_architectures:
+    architectures = list(selected_architectures)
 
   # Two flows of the same tool are alternatives to compare: they each get their
   # own work sub-directory ("vivado@lint_strict"), the default flow keeping the
@@ -436,6 +440,7 @@ def check_settings(
   cancel_event=None,
   tool_check_sink=None,
   flows=None,
+  selected_architectures=None,
 ):
   """
   Validate the analysis settings of one or several eda tools and prepare (but
@@ -510,6 +515,7 @@ def check_settings(
       display_suffix=f" ({current_tool})" if multi_tool else "",
       debug=debug,
       keep=keep,
+      selected_architectures=selected_architectures,
     )
     prepared_tools.append((current_tool, context))
     _check_cancel(cancel_event)

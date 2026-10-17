@@ -82,6 +82,7 @@ def load_synthesis_context(
     selection_key="architectures",
     selection_noun="architectures",
     selected_targets=None,
+    selected_architectures=None,
 ):
     if check_cancel is not None:
         check_cancel()
@@ -92,6 +93,9 @@ def load_synthesis_context(
     # what the handler of the job type is handed.
     read_settings = settings_reader if settings_reader is not None else get_synth_settings
     _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, architectures = read_settings(run_config_settings_filename)
+    # Architectures named by the run ("--arch") replace the list of the file.
+    if selected_architectures:
+        architectures = list(selected_architectures)
 
     if architectures is None:
         printc.error('The "' + selection_key + '" section of "' + run_config_settings_filename + '" is empty.', script_name)

@@ -259,7 +259,7 @@ class TestSimCommand:
         assert args.config == OdatixSettings.DEFAULT_SETTINGS_FILE
 
     def test_paths(self):
-        args = parse("sim", "-i", "s.yml", "-a", "archs", "-s", "sims", "-w", "work", "-j", "4")
+        args = parse("sim", "-i", "s.yml", "--archpath", "archs", "--simpath", "sims", "-w", "work", "-j", "4")
         assert args.settings_file == "s.yml"
         assert args.arch_path == "archs"
         assert args.sim_path == "sims"
@@ -743,7 +743,7 @@ class TestRunOptionsFromCommandLine:
         from odatix.run.options import RunOptions
 
         options = RunOptions.from_namespace(parse(
-            "fmax", "-j", "4", "-a", "archs", "-i", "run.yml", "-w", "work", "-T", "-E",
+            "fmax", "-j", "4", "--archpath", "archs", "-i", "run.yml", "-w", "work", "-T", "-E",
             "--logsize", "50", "--from", "10", "--to", "20", "-y", "-d", "-S", "night",
         ))
         assert options.nb_jobs == "4"

@@ -32,7 +32,7 @@ import os
 import sys
 
 import odatix.lib.printc as printc
-from odatix.components.cli_options import add_options, deprecated_option
+from odatix.components.cli_options import ExtendAction, add_options, deprecated_option
 
 EXIT_SUCCESS = 0
 
@@ -57,8 +57,8 @@ def add_arguments(parser):
     parser.add_argument("-p", "--campaign", action="append", dest="campaigns",
                         help="campaign to run, i.e. a file of dse_campaigns/ saying what to search, "
                              "for which objectives and how (repeatable, overrides the settings file)")
-    parser.add_argument("-a", "--architecture", action="append", dest="architectures",
-                        help="architecture to explore (repeatable, overrides the campaign file)")
+    parser.add_argument("-a", "--architecture", "--arch", action=ExtendAction, nargs="+", dest="architectures",
+                        help="architectures to explore (several values, repeatable; overrides the campaign file)")
     parser.add_argument("-r", "--run", help="what evaluating one design runs (fmax_synthesis, ...)")
     parser.add_argument("-s", "--strategy", help="how the designs to evaluate are chosen: "
                                                  "exhaustive (a space small enough to measure whole), "

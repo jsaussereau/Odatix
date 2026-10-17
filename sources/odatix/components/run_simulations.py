@@ -65,8 +65,11 @@ SIMULATION_META_FILENAME = exp_sim_res.SIMULATION_META_FILENAME
 
 def add_arguments(parser):
     add_options(
-        parser, "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "sim_path", "work_path",
+        parser, "simulations", "architectures",
+        "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "sim_path", "work_path",
         "exit_when_done", "nb_jobs", "keep", "resume", "log_size_limit", "debug", "export_options", "config",
+        architectures={"help": 'architectures to simulate, written as the architectures of a simulation in the run settings file, '
+                               'e.g. "MyCPU/*" (several values, repeatable; replaces those of every simulation run)'},
         work_path={"help": "simulation work directory"},
         keep={"help": "store simulation batch with a timestamp in the configuration name"},
     )
@@ -207,6 +210,52 @@ def run_simulations(
     ))
 
 
+def select_simulations(simulations, names=None, architectures=None):
+    """
+    What a run simulates, out of the "simulations" of its settings file.
+
+    Args:
+        simulations (list): the "simulations" of the file, as written: a list
+            of {simulation: [architecture selectors]}. None when it is empty.
+        names (list): the simulations to run ("--sim"). All of the file's when
+            empty.
+        architectures (list): architecture selectors replacing those of every
+            simulation run ("--architecture").
+
+    Returns:
+        list: the same shape, or None when there is nothing to run.
+
+    Raises:
+        ValueError: a simulation is named that the file does not give
+            architectures to, and no architectures are named either.
+    """
+    file_lists = {}
+    for entry in simulations or []:
+        if isinstance(entry, dict):
+            for sim, arch_list in entry.items():
+                file_lists.setdefault(str(sim), []).extend(arch_list or [])
+
+    if not names:
+        if not architectures:
+            return simulations
+        if not file_lists:
+            raise ValueError("no simulation to run them with: name one with -s/--sim")
+        return [{sim: list(architectures)} for sim in file_lists]
+
+    selected = []
+    for sim in dict.fromkeys(str(name) for name in names):
+        if architectures:
+            selected.append({sim: list(architectures)})
+        elif file_lists.get(sim):
+            selected.append({sim: list(file_lists[sim])})
+        else:
+            raise ValueError(
+                'the run settings file gives no architecture to the simulation "' + sim
+                + '": name them with -a/--architecture'
+            )
+    return selected
+
+
 def check_settings(
     run_config_settings_filename,
     arch_path,
@@ -219,8 +268,17 @@ def check_settings(
     nb_jobs,
     debug=False,
     keep=False,
+    selected_simulations=None,
+    selected_architectures=None,
 ):
     _overwrite, ask_continue, _exit_when_done, _log_size_limit, _nb_jobs, simulations = get_sim_settings(run_config_settings_filename)
+    # Simulations and architectures named by the run ("--sim", "--architecture")
+    # take precedence over the list of the file.
+    try:
+        simulations = select_simulations(simulations, selected_simulations, selected_architectures)
+    except ValueError as error:
+        printc.error(str(error)[0].upper() + str(error)[1:] + ".", script_name)
+        sys.exit(-1)
 
     if simulations is None:
         printc.error('The "simulations" section of "' + run_config_settings_filename + '" is empty.', script_name)

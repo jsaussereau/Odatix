@@ -71,7 +71,7 @@ higher-level description ([`generate_rtl`](/docs/configurations/)): `generate_co
 accepts the very same `${...}` placeholders, filled from the architecture's parameter
 domains and from its variables.
 
-{{< code lang=yaml filename="architectures/Example_Counter_Chisel_CLI/_settings.yml" >}}
+{{< code lang=yaml filename="architectures/Example_Counter_chisel_cli/_settings.yml" >}}
 generate_rtl: Yes
 design_path: "examples/counter_chisel_cli"
 generate_command: "sbt 'runMain example.Counter --width ${width} --o=rtl'"
@@ -88,11 +88,11 @@ variables:
 {{< /code >}}
 
 Odatix runs the architecture once per value of `width`, exactly as if `width` were a
-folder-based parameter domain: `Example_Counter_Chisel_CLI+width/4bits`,
+folder-based parameter domain: `Example_Counter_chisel_cli+width/4bits`,
 `…+width/8bits`, and so on. Select one from the command line like any other domain:
 
 {{< code lang=bash >}}
-odatix fmax -a Example_Counter_Chisel_CLI+width/16bits
+odatix fmax -a Example_Counter_chisel_cli+width/16bits
 {{< /code >}}
 
 This one ships with `odatix init --examples`: it is the counter of

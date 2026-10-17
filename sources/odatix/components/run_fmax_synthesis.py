@@ -54,7 +54,7 @@ def _check_cancel(cancel_event):
 
 
 def add_arguments(parser):
-    add_options(parser, "tool", "flow", "targets", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs")
+    add_options(parser, "tool", "architectures", "flow", "targets", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs")
     parser.add_argument("--continue-on-error", dest="continue_on_error", action="store_true", help="keep searching when a synthesis of the fmax search fails")
     add_options(parser, "check_eda_tool", "debug")
     parser.add_argument("--from", dest="lower_bound", type=int, help="lowest frequency of the Fmax search, in MHz (default: \"lower_bound\" of \"fmax_synthesis\" in the architecture settings)")
@@ -179,6 +179,7 @@ def check_settings(
     continue_on_error,
     check_eda_tool,
     selected_targets=None,
+    selected_architectures=None,
     forced_fmax_lower_bound=None,
     forced_fmax_upper_bound=None,
     debug=False,
@@ -213,6 +214,7 @@ def check_settings(
         synth_type=None,
         flow=flow,
         selected_targets=selected_targets,
+        selected_architectures=selected_architectures,
         check_cancel=lambda: _check_cancel(cancel_event),
     )
 

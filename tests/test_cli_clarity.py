@@ -177,6 +177,166 @@ class TestTargets:
         assert seen["selected_targets"] == ["a", "b"]
 
 
+class TestArchitectures:
+    """
+    "--architecture" ("--arch"), as in "odatix dse", names the architectures to
+    run the way the "architectures" list of the run settings file does, and
+    replaces that list for one run.
+    """
+
+    @staticmethod
+    def job_names(plan):
+        return [entry["name"] for entry in plan.entries]
+
+    @needs_tclsh
+    def test_the_architectures_replace_the_list_of_the_file(self, dummy_workspace):
+        run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy", architectures=["Example_Counter_sv/*"])
+        names = self.job_names(run.check())
+        assert names
+        assert all("Example_Counter_sv" in name for name in names)
+        assert not any("Example_Counter_verilog" in name for name in names)
+
+    @needs_tclsh
+    def test_a_configuration_is_named_as_in_the_file(self, dummy_workspace):
+        whole = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy", architectures=["Example_Counter_sv/*"])
+        one = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy", architectures=["Example_Counter_sv/08bits"])
+        names = self.job_names(one.check())
+        assert names and all("08bits" in name for name in names)
+        assert len(names) < len(self.job_names(whole.check()))
+
+    @needs_tclsh
+    def test_a_file_without_architectures_runs_those_named(self, dummy_workspace):
+        settings = dummy_workspace / "odatix_userconfig" / "synth_settings.yml"
+        text = settings.read_text()
+        settings.write_text(text[:text.index("architectures:")] + "architectures:\n")
+        run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy", architectures=["Example_Counter_sv/04bits"])
+        assert run.check().run_count() > 0
+
+    def test_the_command_line_repeats_the_option(self):
+        from odatix.run import RunOptions
+
+        for command in ("fmax", "synth", "analyze", "sim"):
+            args = odatix_main.ArgParser.parse_arguments([command, "-a", "A/*", "--architecture", "B/8", "--arch", "C + width/16bits"])
+            assert RunOptions.from_namespace(args).architectures == ["A/*", "B/8", "C + width/16bits"]
+
+    def test_the_architecture_directory_lost_its_short_form(self):
+        for command in ("fmax", "synth", "analyze", "sim", "generate"):
+            args = odatix_main.ArgParser.parse_arguments([command, "--archpath", "archs"])
+            assert args.arch_path == "archs"
+
+    def test_where_a_stays_free_it_still_names_the_directory(self, capsys):
+        """For one version, with a warning: "generate" selects no architecture."""
+        args = odatix_main.ArgParser.parse_arguments(["generate", "-a", "archs"])
+        assert args.arch_path == "archs"
+        assert '"-a" is deprecated' in capsys.readouterr().out
+
+    def test_one_option_takes_several_selectors(self):
+        from odatix.run import RunOptions
+
+        args = odatix_main.ArgParser.parse_arguments(["fmax", "-a", "A/*", "B/*", "-t", "vivado", "-a", "C/8"])
+        assert RunOptions.from_namespace(args).architectures == ["A/*", "B/*", "C/8"]
+
+    def test_an_exploration_takes_the_same_spellings(self):
+        args = odatix_main.ArgParser.parse_arguments(["dse", "-a", "A", "B", "--architecture", "C", "--arch", "D"])
+        assert args.architectures == ["A", "B", "C", "D"]
+
+    @needs_tclsh
+    def test_the_documented_selectors_run(self, dummy_workspace):
+        """The forms the examples of the documentation give, domains included."""
+        for selector in ("Example_Counter_chisel_cli+width/16bits", "Example_Rom_Chisel + addr/12bits + data/*"):
+            run = Run(Workspace.open(), "custom_freq_synthesis", tool="dummy", architectures=[selector])
+            names = self.job_names(run.check())
+            assert names, selector
+            assert all(selector.split("+")[0].strip() in name for name in names)
+
+    def test_without_the_option_the_file_decides(self):
+        from odatix.run import RunOptions
+
+        args = odatix_main.ArgParser.parse_arguments(["fmax"])
+        assert RunOptions.from_namespace(args).architectures == []
+
+    def test_an_analysis_is_told_its_architectures(self, tmp_path, monkeypatch):
+        import odatix.components.run_analysis as run_analysis
+
+        seen = {}
+
+        def check_settings(**kwargs):
+            seen.update(kwargs)
+            raise SystemExit(-1)
+
+        monkeypatch.setattr(run_analysis, "check_settings", check_settings)
+        workspace = workspace_with(tmp_path, monkeypatch, "default_tool: verilator\n")
+        with pytest.raises(RunError):
+            Run(workspace, "analysis", architectures=["A/*"]).check()
+        assert seen["selected_architectures"] == ["A/*"]
+
+
+class TestSimulations:
+    """
+    "odatix sim" is told which simulations to run ("-s/--sim") and on which
+    architectures ("-a/--architecture"), the way its settings file says it.
+    """
+
+    FILE = [
+        {"TB_A": ["Arch_A/*"]},
+        {"TB_B": ["Arch_B/1", "Arch_B/2"]},
+        {"TB_A": ["Arch_C/*"]},
+    ]
+
+    @staticmethod
+    def select(*args, **kwargs):
+        from odatix.components.run_simulations import select_simulations
+
+        return select_simulations(*args, **kwargs)
+
+    def test_nothing_named_runs_the_file(self):
+        assert self.select(self.FILE) is self.FILE
+
+    def test_a_simulation_keeps_the_architectures_of_the_file(self):
+        assert self.select(self.FILE, ["TB_A"]) == [{"TB_A": ["Arch_A/*", "Arch_C/*"]}]
+
+    def test_architectures_replace_those_of_every_simulation(self):
+        assert self.select(self.FILE, architectures=["X/1"]) == [{"TB_A": ["X/1"]}, {"TB_B": ["X/1"]}]
+
+    def test_both_run_a_simulation_the_file_does_not_list(self):
+        assert self.select(None, ["TB_new"], ["X/*"]) == [{"TB_new": ["X/*"]}]
+
+    def test_a_simulation_without_architectures_is_refused(self):
+        with pytest.raises(ValueError) as error:
+            self.select(self.FILE, ["TB_new"])
+        assert "-a/--architecture" in str(error.value)
+
+    def test_architectures_without_any_simulation_are_refused(self):
+        with pytest.raises(ValueError) as error:
+            self.select(None, architectures=["X/*"])
+        assert "-s/--sim" in str(error.value)
+
+    def test_the_command_line(self):
+        from odatix.run import RunOptions
+
+        args = odatix_main.ArgParser.parse_arguments(["sim", "-s", "TB_A", "TB_B", "--sim", "TB_C", "-a", "X/*", "--simpath", "sims"])
+        options = RunOptions.from_namespace(args)
+        assert options.simulations == ["TB_A", "TB_B", "TB_C"]
+        assert options.architectures == ["X/*"]
+        assert options.sim_path == "sims"
+
+    def test_a_run_simulates_what_it_is_told(self, example_workspace):
+        run = Run(
+            Workspace.open(), "simulation",
+            simulations=["TB_Example_Cordic_Verilator"], architectures=["Example_Cordic_sv + iterations/* + width/*"],
+        )
+        names = [entry["name"] for entry in run.check().entries]
+        assert names
+        assert all(name.startswith("TB_Example_Cordic_Verilator") for name in names)
+
+    def test_a_run_is_told_a_simulation_of_the_file(self, example_workspace):
+        whole = Run(Workspace.open(), "simulation").check()
+        one = Run(Workspace.open(), "simulation", simulations=["TB_Example_Cordic_GHDL"]).check()
+        names = [entry["name"] for entry in one.entries]
+        assert names and all(name.startswith("TB_Example_Cordic_GHDL") for name in names)
+        assert len(names) < len(whole.entries)
+
+
 ######################################
 # odatix results
 ######################################

@@ -59,6 +59,19 @@ class RunOptions(Settings):
         factory=list, type="str_list",
         doc="Synthesis targets to run on, out of those the tool's target file enables. All of them when empty.",
     )
+    # The architectures to run, written as the entries of "architectures" in the
+    # run settings file: a command line names them the same way, and they replace
+    # that list for this run only, the file staying as it is.
+    architectures = Setting(
+        factory=list, type="str_list",
+        doc="Architectures to run, as entries of the run settings file's \"architectures\". Its own list when empty.",
+    )
+    # The simulations to run, by name, on the architectures the run settings
+    # file gives them -- or on "architectures" when set.
+    simulations = Setting(
+        factory=list, type="str_list",
+        doc="Simulations to run, by name. Every simulation of the run settings file when empty.",
+    )
     until = Setting(None, type="any", doc="Last step of the flow to run, inclusive.")
     rerun_from = Setting(None, type="any", doc="Step to run again, with the ones after it.")
 

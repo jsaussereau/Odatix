@@ -55,7 +55,7 @@ def _check_cancel(cancel_event):
 
 
 def add_arguments(parser):
-    add_options(parser, "tool", "flow", "targets", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs", "check_eda_tool", "debug")
+    add_options(parser, "tool", "architectures", "flow", "targets", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs", "check_eda_tool", "debug")
     parser.add_argument("--from", dest="from_freq", type=int, help="lowest frequency of the range, in MHz")
     parser.add_argument("--to", dest="to_freq", type=int, help="highest frequency of the range, in MHz")
     parser.add_argument("--step", dest="step_freq", type=int, help="step of the range, in MHz")
@@ -229,6 +229,7 @@ def check_settings(
     nb_jobs,
     check_eda_tool,
     selected_targets=None,
+    selected_architectures=None,
     custom_freq_list=None,
     debug=False,
     keep=False,
@@ -272,6 +273,7 @@ def check_settings(
         synth_type="custom_freq_synthesis",
         flow=flow,
         selected_targets=selected_targets,
+        selected_architectures=selected_architectures,
         check_cancel=lambda: _check_cancel(cancel_event),
     )
 
