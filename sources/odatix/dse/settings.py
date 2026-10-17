@@ -160,8 +160,10 @@ class SearchSettings(Settings):
     )
     patience = Setting(
         0, type="int",
-        comment="stop after this many batches that do not improve the front (0: never)",
-        doc="How many batches without progress the search puts up with.",
+        comment="stop after this many batches that do not improve the front (0: never)"
+                "\n (async: this many batches' worth of designs)",
+        doc="How many batches without progress the search puts up with "
+            "(in async mode, this many times the batch size, counted in designs).",
     )
     improvement = Setting(
         0.0, type="any",
@@ -197,6 +199,17 @@ class SearchSettings(Settings):
         None, type="optional_int",
         comment="bayesian only, empty: 12 - how many Monte Carlo draws value a candidate",
         doc="How many samples the acquisition function averages a candidate's value over.",
+    )
+    shortlist = Setting(
+        None, type="optional_int",
+        comment="bayesian only, empty: 24 - how many of the candidates get the full, costly score",
+        doc="How many candidates, once screened, the acquisition function scores in full.",
+    )
+    front_cap = Setting(
+        None, type="optional_int",
+        comment="bayesian only, empty: from the number of objectives - how many front points"
+                "\n a candidate is scored against at most",
+        doc="How many points of the front a candidate's expected gain is computed against.",
     )
     constraint_models = Setting(
         False, type="bool",

@@ -213,6 +213,7 @@ class Archive(object):
         objectives = objectives if objectives is not None else self.objectives
         restored = []
         genomes = []
+        seen = set()
         for record in content.get("evaluations") or []:
             if not isinstance(record, dict):
                 continue
@@ -222,8 +223,11 @@ class Archive(object):
                 # gained or lost a parameter since.
                 continue
             design = space.design(tuple(int(gene) for gene in genome))
-            if design is None:
+            if design is None or design.genome in seen:
+                # Gone from the space, or projected onto a design already
+                # restored: an exclusion added since folds two of them into one.
                 continue
+            seen.add(design.genome)
             metrics = record.get("metrics") or {}
             costs = None if record.get("failed") else objectives.costs(metrics)
             restored.append(Evaluation(

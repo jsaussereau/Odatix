@@ -141,6 +141,40 @@ def _freq_key(value):
     return str(int(number)) if number == int(number) else str(number)
 
 
+def _record_meta(record):
+    """What tells a record of a run apart from an older one of the same design."""
+    return record.get("meta") if isinstance(record, dict) else record
+
+
+def _finished_jobs(directories, known, listed, since):
+    """
+    The work directories of ``directories`` the daemon is done with.
+
+    One it lists with a finished status is done. One it does not list is done
+    only if it was listed before -- a session that exited took its jobs with
+    it -- or if it has not been listed once in :data:`DAEMON_GRACE`: a job
+    just enqueued may not be listed yet, and taking that for "finished" reads
+    results that do not exist yet.
+
+    Args:
+        directories (set): the work directories waited on.
+        known (dict): what the daemon says, by work directory.
+        listed (set): the directories the daemon has listed so far. Updated.
+        since (float): when the jobs were started.
+    """
+    done = set()
+    now = time.time()
+    for directory in directories:
+        status = known.get(directory)
+        if status is not None:
+            listed.add(directory)
+            if status in FINISHED_STATUSES:
+                done.add(directory)
+        elif directory in listed or now - since >= DAEMON_GRACE:
+            done.add(directory)
+    return done
+
+
 class EvaluationError(RuntimeError):
     """A batch could not be run at all -- which stops the campaign."""
 
@@ -251,16 +285,21 @@ class Pending(object):
     left (see :meth:`Evaluator.poll`).
     """
 
-    __slots__ = ("design", "tmp_dirs", "before_count", "failure")
+    __slots__ = ("design", "tmp_dirs", "before", "failure", "seen", "submitted_at")
 
-    def __init__(self, design, tmp_dirs, before_count, failure=None):
+    def __init__(self, design, tmp_dirs, before, failure=None):
         self.design = design
         self.tmp_dirs = set(tmp_dirs)
-        #: How many records this design's identity already had in the results
-        #: files at the moment it was submitted -- what :meth:`Evaluator.collect`
+        #: The records this design's identity already had in the results files
+        #: at the moment it was submitted -- what :meth:`Evaluator.collect`
         #: reads past, the same way :meth:`Evaluator.evaluate` reads past a
         #: whole batch's "before" (see :meth:`Evaluator.measure`).
-        self.before_count = before_count
+        self.before = list(before)
+        #: The work directories the daemon has listed at least once: one it
+        #: does not list is finished only if it was ever there (see
+        #: :meth:`Evaluator.poll`).
+        self.seen = set()
+        self.submitted_at = time.time()
         #: Why the submission itself did not go through, when it did not --
         #: a batch that turned out to be already cached is not this, and
         #: leaves it None.
@@ -795,6 +834,7 @@ class Evaluator(object):
         answered_at = [started]
         last_heartbeat = started
         first = True
+        listed = set()
         while pending:
             if self.cancel_event is not None and self.cancel_event.is_set():
                 raise EvaluationError("The exploration was cancelled while a batch was running.")
@@ -806,12 +846,7 @@ class Evaluator(object):
             if known is None:
                 continue
 
-            for directory in list(pending):
-                status = known.get(directory)
-                if status is None or status in FINISHED_STATUSES:
-                    # Either the daemon is done with it, or it does not know it
-                    # any more -- a session that exited took its jobs with it.
-                    pending.discard(directory)
+            pending -= _finished_jobs(pending, known, listed, started)
 
             now = time.time()
             if pending and now - last_heartbeat >= WAIT_HEARTBEAT:
@@ -854,7 +889,7 @@ class Evaluator(object):
             Pending: what to hand to :meth:`poll` and, once it is ready, to
             :meth:`collect`.
         """
-        before_count = len(self._records().get(self.design_identity(design), []))
+        before = self._records().get(self.design_identity(design), [])
 
         failures = []
         tmp_dirs = set()
@@ -875,7 +910,7 @@ class Evaluator(object):
             tmp_dirs |= self._tmp_dirs_of(parallel_jobs)
 
         self.count += 1
-        return Pending(design, tmp_dirs, before_count, failure="\n".join(failures) or None)
+        return Pending(design, tmp_dirs, before, failure="\n".join(failures) or None)
 
     @staticmethod
     def _tmp_dirs_of(parallel_jobs):
@@ -899,7 +934,9 @@ class Evaluator(object):
         Args:
             pending (list): the :class:`Pending` designs to wait on. Mutated
                 in place: what is returned is taken out of it.
-            cancel_event (threading.Event): asking the wait to stop.
+            cancel_event (threading.Event): asking the wait to stop. What is
+                already finished is still returned, possibly nothing, and the
+                rest is left running in ``pending``.
 
         Returns:
             list: the designs that are ready to :meth:`collect`, in no
@@ -916,14 +953,23 @@ class Evaluator(object):
         last_heartbeat = started
         first = True
         while True:
-            if cancel_event is not None and cancel_event.is_set():
-                raise EvaluationError("The exploration was cancelled while designs were running.")
-            if not first:
+            # Cancelling does not wait for what is running: the daemon is
+            # asked once more what is done, so that whatever already is gets
+            # archived, and the rest is left to finish on its own.
+            cancelled = cancel_event is not None and cancel_event.is_set()
+            if not first and not cancelled:
                 time.sleep(POLL_INTERVAL)
             first = False
 
-            known = self._daemon_statuses(answered_at, "waiting for designs")
+            try:
+                known = self._daemon_statuses(answered_at, "waiting for designs")
+            except EvaluationError:
+                if cancelled:
+                    return []
+                raise
             if known is None:
+                if cancelled:
+                    return []
                 continue
 
             now = time.time()
@@ -936,13 +982,10 @@ class Evaluator(object):
 
             finished = []
             for item in pending:
-                item.tmp_dirs = set(
-                    directory for directory in item.tmp_dirs
-                    if known.get(directory) is not None and known.get(directory) not in FINISHED_STATUSES
-                )
+                item.tmp_dirs -= _finished_jobs(item.tmp_dirs, known, item.seen, item.submitted_at)
                 if item.ready:
                     finished.append(item)
-            if finished:
+            if finished or cancelled:
                 for item in finished:
                     pending.remove(item)
                 return finished
@@ -958,7 +1001,7 @@ class Evaluator(object):
         """
         after = self._records()
         identity = self.design_identity(pending.design)
-        before = {identity: [None] * pending.before_count}
+        before = {identity: pending.before}
         evaluation = self.measure(pending.design, after, before)
         if not evaluation.measured and pending.failure:
             evaluation.note = pending.failure
@@ -1179,15 +1222,22 @@ class Evaluator(object):
         results file's business. The dimensions a record carries as numbers
         count as metrics too, which is how "frequency" -- where an fmax
         synthesis puts its answer -- is an objective like any other.
+
+        What the run produced is told apart from what was there before by the
+        meta of the records, timestamp included, not by how many there are: a
+        run replaces the records of the job it re-runs in place rather than
+        adding new ones. A design that only has records from before was
+        measured earlier and skipped by the run as already done, unless the
+        run was asked to overwrite: then it did run, and produced nothing.
         """
         identity = self.design_identity(design)
-        new = list(after.get(identity, []))
+        current = list(after.get(identity, []))
+        previous = [_record_meta(record) for record in before.get(identity, [])]
+        new = [record for record in current if _record_meta(record) not in previous]
         if not new:
-            return Evaluation(design, note="the run produced no result for this design")
-
-        previous = before.get(identity, [])
-        if len(new) > len(previous):
-            new = new[len(previous):]
+            if not current or getattr(self.settings, "overwrite", False):
+                return Evaluation(design, note="the run produced no result for this design")
+            new = current
 
         metrics, source = self.best_of(new)
         costs = self.objectives.costs(metrics)

@@ -48,8 +48,6 @@ of synthesis and the question is whether a change in the rules changed the
 answer.
 """
 
-import itertools
-
 from odatix.dse.objectives import crowding_distances, non_dominated_sort
 from odatix.dse.strategy import Strategy
 
@@ -71,17 +69,36 @@ class ExhaustiveSearch(Strategy):
     running this one with a budget larger than the space does exactly the same
     work as "odatix fmax" over the whole architecture, and stops early when the
     budget is smaller.
+
+    The designs it is told about -- an archive picked up again, results the
+    workspace already held -- are skipped when the sweep reaches them. A
+    campaign resumed after a thousand designs would otherwise be handed the
+    same thousand again, a batch at a time, and give up on the search before
+    the sweep got past them.
     """
 
     name = "exhaustive"
+    finite = True
 
     def __init__(self, space, rng, **options):
         super(ExhaustiveSearch, self).__init__(space, rng, **options)
-        self._remaining = space.genomes()
+        self._remaining = iter(space.genomes())
         self._done = False
+        self._evaluated = set()
+
+    def observe(self, evaluations):
+        self._evaluated.update(tuple(evaluation.genome) for evaluation in evaluations)
 
     def propose(self, count):
-        batch = [tuple(genome) for genome in itertools.islice(self._remaining, max(0, int(count)))]
+        count = max(0, int(count))
+        batch = []
+        while len(batch) < count:
+            genome = next(self._remaining, None)
+            if genome is None:
+                break
+            genome = tuple(genome)
+            if genome not in self._evaluated:
+                batch.append(genome)
         if not batch:
             self._done = True
         return batch

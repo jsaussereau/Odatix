@@ -155,6 +155,8 @@ class Campaign(object):
             batch=self.search.batch,
             candidates=self.search.candidates,
             samples=self.search.samples,
+            shortlist=self.search.shortlist,
+            front_cap=self.search.front_cap,
             constraints=self.objectives.constraints,
             constraint_models=self.search.constraint_models,
         )
@@ -404,10 +406,8 @@ class Campaign(object):
             self.evaluator.begin_async()
 
         while evaluated < self.budget:
-            if self.cancel_event is not None and self.cancel_event.is_set():
-                printc.note("The exploration was cancelled after {0}/{1} design(s).".format(
-                    evaluated, self.budget
-                ), script_name)
+            if self.cancelled:
+                self.note_cancelled(evaluated)
                 break
 
             started = time.time()
@@ -420,6 +420,9 @@ class Campaign(object):
             except EvaluationError as error:
                 raise CampaignError(str(error))
 
+            if not designs and self.cancelled:
+                self.note_cancelled(evaluated)
+                break
             if not designs:
                 printc.note(
                     "The search has nothing left to propose after {0} design(s): every design "
@@ -452,21 +455,28 @@ class Campaign(object):
                         volume_before=before)
             self.progress(evaluated)
 
-            idle = 0 if improved else idle + 1
-            if self.search.patience and idle >= self.search.patience:
+            # In async mode a round is however many designs happened to finish
+            # together, so patience is counted in designs there -- a batch's
+            # worth per unit of patience -- not in rounds.
+            if improved:
+                idle = 0
+            else:
+                idle += len(evaluations) if asynchronous else 1
+            unit = "design(s)" if asynchronous else "batch(es)"
+            limit = self.search.patience * (max(1, int(self.search.batch)) if asynchronous else 1)
+            if limit and idle >= limit:
                 printc.note(
-                    "The front has not grown in {0} batches: stopping there, "
-                    "{1} design(s) of the budget unspent.".format(
-                        idle, max(0, self.budget - evaluated)
+                    "The front has not grown in {0} {1}: stopping there, "
+                    "{2} design(s) of the budget unspent.".format(
+                        idle, unit, max(0, self.budget - evaluated)
                     ),
                     script_name,
                 )
                 break
             if idle:
-                printc.note("The front has not grown in {0} batch(es){1}.".format(
-                    idle,
-                    " (stopping after {0})".format(self.search.patience)
-                    if self.search.patience else "",
+                printc.note("The front has not grown in {0} {1}{2}.".format(
+                    idle, unit,
+                    " (stopping after {0})".format(limit) if limit else "",
                 ), script_name)
 
         if self.started_at is not None:
@@ -488,6 +498,30 @@ class Campaign(object):
         """
         units = getattr(self.evaluator, "units", None)
         self.archive.save(units=units() if callable(units) else None)
+
+    @property
+    def cancelled(self):
+        """Whether the campaign has been asked to stop."""
+        return self.cancel_event is not None and self.cancel_event.is_set()
+
+    def note_cancelled(self, evaluated):
+        """
+        Say that the campaign stops, and what it leaves running.
+
+        In ``async`` mode designs are still running when the campaign is
+        cancelled. They are not waited for -- that is what cancelling means --
+        nor lost: the daemon finishes them, and the next run of the campaign
+        picks their results up (see :meth:`adopt`).
+        """
+        printc.note("The exploration was cancelled after {0}/{1} design(s).".format(
+            evaluated, self.budget
+        ), script_name)
+        if self._pending:
+            printc.note(
+                "{0} design(s) still running were not waited for: their results will be "
+                "picked up the next time this campaign runs.".format(len(self._pending)),
+                script_name,
+            )
 
     def resume(self):
         """
@@ -517,6 +551,11 @@ class Campaign(object):
         evaluated = len([
             evaluation for evaluation in self.archive.evaluations if not evaluation.reused
         ])
+        # Batches are numbered on from where the archive stopped, so that the
+        # batch a design was found in still means something across a resume.
+        self.batch_index = max(
+            [evaluation.batch or 0 for evaluation in self.archive.evaluations] or [0]
+        )
         if genomes:
             self.seen.update(genomes)
             self.strategy.observe(self.archive.evaluations)
@@ -544,7 +583,8 @@ class Campaign(object):
         exploration evaluates, and it evaluated none of these. They are part of
         the answer all the same, so they go into the archive and are marked as
         reused there -- which is what keeps an exploration started a second
-        time from counting them as its own.
+        time from counting them as its own. No batch of this campaign found
+        them, so their batch is 0, the one before its first.
 
         Returns:
             list: the evaluations that were taken in.
@@ -593,18 +633,26 @@ class Campaign(object):
         A strategy is free to propose a design twice -- two parents often have a
         child that already exists -- so asking again is normal and is not a sign
         that it has run out. Asking a bounded number of times is what tells the
-        two apart.
+        two apart -- except for a strategy that walks a finite list, which says
+        by itself when it is done (see :attr:`~odatix.dse.strategy.Strategy.finite`).
+
+        Every proposal that is not run is handed back to the strategy (see
+        :meth:`~odatix.dse.strategy.Strategy.discard`), except a repeat of a
+        design still running: that one is reported on when it finishes.
         """
         designs = []
         attempts = 0
+        running = set(pending.design.genome for pending in self._pending)
         # Enough tries to fill a batch out of a strategy that keeps proposing
         # designs already evaluated, without spinning on a space that is spent.
-        while len(designs) < count and attempts < 20:
+        while len(designs) < count and (self.strategy.finite or attempts < 20):
             attempts += 1
             proposed = self.strategy.propose(count - len(designs))
-            if not proposed and self.strategy.exhausted:
+            if not proposed and (self.strategy.exhausted or self.strategy.finite):
                 break
+            discarded = []
             for genome in proposed:
+                genome = tuple(genome)
                 design = self.space.design(genome)
                 if design is None:
                     # The genome names nothing runnable -- a configuration the
@@ -612,13 +660,25 @@ class Campaign(object):
                     # out. Marked as seen so a constrained space is not asked
                     # about the same hole over and over.
                     self.seen.add(self.space.clamp(genome))
+                    discarded.append(genome)
                     continue
+                if design.genome != self.space.clamp(genome):
+                    # An exclusion moved it onto another design: the one
+                    # proposed is never run, and is marked as seen too, or a
+                    # strategy drawing at random can keep proposing it.
+                    self.seen.add(self.space.clamp(genome))
+                    discarded.append(genome)
                 if design.genome in self.seen:
+                    if design.genome not in running and genome not in discarded:
+                        discarded.append(genome)
                     continue
                 self.seen.add(design.genome)
+                running.add(design.genome)
                 designs.append(design)
                 if len(designs) >= count:
                     break
+            if discarded:
+                self.strategy.discard(discarded)
         return designs
 
     def next_wave(self, remaining):
@@ -653,7 +713,7 @@ class Campaign(object):
     def _top_up(self, remaining):
         """Submit designs until as many are running as the batch size asks for."""
         depth = min(max(1, int(self.search.batch)), max(0, remaining))
-        while len(self._pending) < depth:
+        while len(self._pending) < depth and not self.cancelled:
             designs = self.next_batch(1)
             if not designs:
                 break

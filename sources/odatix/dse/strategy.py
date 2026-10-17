@@ -49,6 +49,13 @@ class Strategy(object):
     #: The word a settings file uses for it.
     name = ""
 
+    #: Whether the strategy walks a finite list and says when it is done
+    #: (see :attr:`exhausted`). A campaign gives up on the others after a
+    #: bounded number of proposals that bring nothing new, since that is the
+    #: only sign it gets that they have run out; one that says so itself is
+    #: asked until it does.
+    finite = False
+
     def __init__(self, space, rng, **options):
         self.space = space
         self.rng = rng
@@ -71,6 +78,20 @@ class Strategy(object):
             evaluations (list): the :class:`~odatix.dse.evaluation.Evaluation`
                 of the batch, failures included: a design that could not be
                 built is something a search should learn to stay away from.
+        """
+
+    def discard(self, genomes):
+        """
+        Proposals the campaign will not run, and so will never report on.
+
+        A genome is discarded when it names nothing runnable, when it was
+        already run, or when the space projects it onto another design -- in
+        which case the evaluation comes back later under the projected genome,
+        and the one proposed is never heard of again. A strategy that keeps
+        track of what it proposed has to forget these, or wait for them forever.
+
+        Args:
+            genomes (list): the genomes, as they were proposed.
         """
 
     @property

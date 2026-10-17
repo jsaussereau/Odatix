@@ -104,6 +104,25 @@ def _below_zero(mean, deviation):
     return 0.5 * (1.0 + math.erf(-mean / (deviation * math.sqrt(2.0))))
 
 
+class ConstantModel(object):
+    """
+    What an objective every measured design agreed on is modeled by: that
+    value everywhere, with no doubt about it.
+
+    A Gaussian process fit to a flat surface is a division by zero, and an
+    objective may well stay flat for a whole campaign -- a metric the
+    parameters searched do not move. Leaving it unmodeled would leave the
+    search proposing at random for as long as it stays flat.
+    """
+
+    def __init__(self, value):
+        self.value = float(value)
+
+    def predict(self, points):
+        count = len(points)
+        return np.full(count, self.value), np.zeros(count)
+
+
 class BayesianSearch(Strategy):
     """
     Options:
@@ -233,6 +252,13 @@ class BayesianSearch(Strategy):
             self.violations.append(self._violations_of(getattr(evaluation, "metrics", None)))
         self._maybe_fit()
 
+    def discard(self, genomes):
+        # A proposal the campaign will not run keeps no liar: it would sit in
+        # the front and the reference forever, since no evaluation ever comes
+        # back under that genome to clear it.
+        for genome in genomes:
+            self.pending.pop(tuple(genome), None)
+
     def _violations_of(self, metrics):
         """
         What each constraint makes of one design's measurements, or ``None``
@@ -291,8 +317,8 @@ class BayesianSearch(Strategy):
             if np.allclose(y, y[0]):
                 # Every design measured the same on this objective so far: a
                 # GP fit to a flat surface is a division by zero waiting to
-                # happen, and there is nothing yet for it to have learned.
-                models.append(None)
+                # happen, and the flat surface is all there is to have learned.
+                models.append(ConstantModel(y[0]))
                 continue
             seed = self.rng.randrange(1 << 30)
             models.append(GaussianProcess(seed=seed).fit(X, y))
@@ -404,7 +430,10 @@ class BayesianSearch(Strategy):
             return genomes[0]
 
         def distance(index):
-            return sum(mean[index] - deviation[index] for mean, deviation in beliefs)
+            # Floored at zero per constraint: a candidate already expected to
+            # meet one constraint is not further along for meeting it by more,
+            # and must not make up that way for missing another.
+            return sum(max(0.0, mean[index] - deviation[index]) for mean, deviation in beliefs)
 
         return genomes[min(range(len(genomes)), key=distance)]
 
@@ -442,12 +471,26 @@ class BayesianSearch(Strategy):
         for _ in range(count):
             in_hand = len(self.genomes) + len(self.pending) + len(self.failed)
             if in_hand < self.warmup or not self._ready:
-                genome = tuple(self.rng.randrange(length) for length in self.space.lengths)
+                genome = self._random_genome()
             else:
                 genome = self._best_candidate()
             proposed.append(genome)
             self.pending[genome] = self._predict(genome)
         return proposed
+
+    def _random_genome(self):
+        """
+        A genome drawn at random, preferably one not already measured or in
+        flight: proposing one of those again only has the campaign discard it,
+        and a repeat of a design still running would take its liar with it.
+        """
+        known = set(self.genomes) | set(self.pending) | self.failed
+        genome = None
+        for _ in range(16):
+            genome = tuple(self.rng.randrange(length) for length in self.space.lengths)
+            if genome not in known:
+                break
+        return genome
 
     def _best_candidate(self):
         """
