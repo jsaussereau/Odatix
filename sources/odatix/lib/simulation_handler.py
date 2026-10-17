@@ -57,6 +57,7 @@ class Simulation:
     progress_file=None,
     progress_regex=None,
     invariant_domains=None,
+    testbench=None,
   ):
     self.sim_name = sim_name
     self.sim_display_name = sim_display_name
@@ -81,6 +82,31 @@ class Simulation:
     # collapsed to a single run (see SimulationHandler.get_simulations) and are
     # left out of the exported record, so it matches every value of them.
     self.invariant_domains = invariant_domains if isinstance(invariant_domains, dict) else {}
+    # The testbench the simulation declares ({"top", "files"}), if any, and what
+    # Odatix tells it about the design under test, once its work directory is
+    # prepared (see odatix.sim.design_info).
+    self.testbench = testbench if isinstance(testbench, dict) else {}
+    self.design_info = {}
+
+
+def check_testbench(testbench):
+  """
+  What is wrong with a "testbench" setting ({"top": name, "files": file or
+  list of files}), or None when it is valid.
+  """
+  if not isinstance(testbench, dict):
+    return "must be a mapping with the keys \"top\" and \"files\""
+  unknown = sorted(str(key) for key in testbench if key not in ("top", "files"))
+  if unknown:
+    return "has unknown keys: \"" + "\", \"".join(unknown) + "\" (expected \"top\" and \"files\")"
+  if testbench.get("top") is not None and not isinstance(testbench.get("top"), str):
+    return "\"top\" must be the name of a module or an entity"
+  files = testbench.get("files")
+  if files is not None and not isinstance(files, str) and not (
+    isinstance(files, list) and all(isinstance(path, str) for path in files)
+  ):
+    return "\"files\" must be a file or a list of files"
+  return None
 
 
 class SimulationHandler:
@@ -326,6 +352,7 @@ class SimulationHandler:
     # Workflow-style execution graph. Empty means "use the legacy 'make sim'
     # rule", which is what every simulation defined before tasks existed does.
     tasks = []
+    testbench = {}
     progress_file = hard_settings.sim_progress_file
     progress_regex = hard_settings.sim_status_pattern.pattern
 
@@ -368,6 +395,17 @@ class SimulationHandler:
             tasks = []
           if tasks in (False, None):
             tasks = []
+
+          # get the testbench (optional: its top and files are guessed otherwise)
+          testbench = settings_data.get('testbench')
+          if testbench is None:
+            testbench = {}
+          testbench_error = check_testbench(testbench)
+          if testbench_error:
+            printc.error("\"testbench\" in \"" + settings_filename + "\" " + testbench_error, script_name)
+            self.banned_sim_param.append(sim)
+            self.plan.add(sim_display_name, Category.ERROR)
+            return None
 
           # get progress tracking settings (optional)
           try:
@@ -690,6 +728,7 @@ class SimulationHandler:
       progress_file = progress_file,
       progress_regex = progress_regex,
       invariant_domains = self.get_invariant_domains(sim),
+      testbench = testbench,
     )
 
     return sim_instance

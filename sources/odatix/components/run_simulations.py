@@ -44,6 +44,7 @@ from odatix.components.cli_options import add_options
 from odatix.run.options import RunOptions
 import odatix.lib.hard_settings as hard_settings
 import odatix.lib.virtual_param_domain as virtual_param_domain
+import odatix.sim.design_info as design_info
 from odatix.lib.parallel_job_handler import ParallelJobHandler, ParallelJob
 from odatix.lib.settings import OdatixSettings
 from odatix.lib.simulation_handler import SimulationHandler
@@ -117,6 +118,7 @@ def build_simulation_command_substitutions(sim_instance):
         "arch_full": sim_instance.arch_full,
         "top_level_module": str(architecture.top_level_module or ""),
         "clock_signal": str(architecture.clock_signal or ""),
+        "reset_signal": str(getattr(architecture, "reset_signal", "") or ""),
         "work_path": os.path.realpath(sim_instance.tmp_dir),
         "rtl_path": hard_settings.work_rtl_path,
         "log_path": hard_settings.work_log_path,
@@ -132,12 +134,69 @@ def build_simulation_command_substitutions(sim_instance):
     substitutions["log_dir"] = substitutions["log_path"]
     substitutions["odatix_dir"] = substitutions["odatix_path"]
 
+    # What Odatix found out about the design under test: its sources, its
+    # testbench (see odatix.sim.design_info).
+    substitutions.update(design_info.substitutions(getattr(sim_instance, "design_info", None) or {}))
+    if not substitutions["reset_signal"]:
+        substitutions["reset_signal"] = str(getattr(architecture, "reset_signal", "") or "")
+
+    substitutions.update(domain_values(architecture))
+
+    return substitutions
+
+
+def domain_values(architecture):
+    """{domain: value} of the configuration run, for every parameter domain."""
+    values = {}
     for param_domain in getattr(architecture, "param_domains", []) or []:
         value = virtual_param_domain.read_command_parameter_value(param_domain.param_file)
         if value is not None:
-            substitutions[param_domain.domain] = value
+            values[param_domain.domain] = value
+    return values
 
-    return substitutions
+
+def write_design_info(sim_instance):
+    """
+    Tell the simulation about the design under test: write "odatix_sim.yml" and
+    "odatix_sim.f" into its work directory (see odatix.sim.design_info), and
+    keep what they say for the placeholders of its commands.
+    """
+    architecture = sim_instance.architecture
+    try:
+        info = design_info.build_info(
+            sim_instance.tmp_dir,
+            simulation=sim_instance.sim_name,
+            architecture=sim_instance.arch_param_dir,
+            configuration=sim_instance.arch_config,
+            arch_full=sim_instance.arch_full,
+            top=architecture.top_level_module,
+            clock=architecture.clock_signal,
+            reset=getattr(architecture, "reset_signal", ""),
+            param_domains=domain_values(architecture),
+            testbench=sim_instance.testbench,
+            rtl_generated=bool(architecture.generate_rtl),
+            rtl_dir=hard_settings.work_rtl_path,
+        )
+        design_info.write_info(sim_instance.tmp_dir, info)
+    except Exception as e:
+        printc.warning(
+            "Could not write \"" + design_info.SIM_INFO_FILENAME + "\" for \"" + sim_instance.sim_display_name + "\": " + str(e),
+            script_name,
+        )
+        info = {}
+    sim_instance.design_info = info
+    return info
+
+
+def generate_command(sim_instance):
+    """
+    The RTL generation command of the job, if any. A generated RTL only exists
+    once it has run, so the information file is written again right after.
+    """
+    architecture = sim_instance.architecture
+    if not architecture.generate_rtl:
+        return architecture.generate_command
+    return "(" + str(architecture.generate_command) + ") && " + design_info.refresh_command(".")
 
 
 def resolve_simulation_tasks(tasks, substitutions):
@@ -429,6 +488,9 @@ def check_settings(
                 silent=True
             )
 
+        # what the simulation is told about the design under test
+        write_design_info(sim_instance)
+
         command = build_simulation_command(sim_instance)
         if command is None:
             return
@@ -443,7 +505,7 @@ def check_settings(
             command=command,
             directory=sim_instance.tmp_dir,
             generate_rtl=sim_instance.architecture.generate_rtl,
-            generate_command=sim_instance.architecture.generate_command,
+            generate_command=generate_command(sim_instance),
             target="",
             arch="",
             display_name=sim_instance.sim_display_name,
