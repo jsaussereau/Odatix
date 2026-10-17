@@ -21,7 +21,7 @@ stop_delimiter: ")("
 fmax_synthesis:
   lower_bound: 50
   upper_bound: 1500
-custom_freq_synthesis:
+fixed_freq_synthesis:
   list: [50, 100]
 
 # Optional target-specific frequencies (in MHz)
@@ -30,29 +30,29 @@ overrides:
     fmax_synthesis:
       lower_bound: 100
       upper_bound: 900
-    custom_freq_synthesis:
+    fixed_freq_synthesis:
       list: [50, 100]
   - targets: xc7a100t-csg324-1
     fmax_synthesis:
       lower_bound: 250
       upper_bound: 900
-    custom_freq_synthesis:
+    fixed_freq_synthesis:
       list: [50, 100]
   - targets: xc7k70t-fbg676-2
     fmax_synthesis:
       lower_bound: 200
       upper_bound: 1800
-    custom_freq_synthesis:
+    fixed_freq_synthesis:
       list: [50, 100]
   - targets: XFAB180CMOS
     fmax_synthesis:
       lower_bound: 400
       upper_bound: 700
-    custom_freq_synthesis:
+    fixed_freq_synthesis:
       list: [50, 100]
   - targets: AMS350CMOS
     fmax_synthesis:
       lower_bound: 60
       upper_bound: 160
-    custom_freq_synthesis:
+    fixed_freq_synthesis:
       list: [50, 100]

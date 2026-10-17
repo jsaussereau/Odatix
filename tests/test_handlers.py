@@ -301,7 +301,7 @@ class TestMissingDesignPath:
         arch_instance = self._chisel_instance()
         tool_context = run_analysis.load_tool_context("vivado", "odatix_userconfig")
         context = run_analysis.prepare_analysis(
-            run_config_settings_filename="odatix_userconfig/analysis_settings.yml",
+            run_config_settings_filename="odatix_userconfig/analyze_settings.yml",
             arch_path="odatix_userconfig/architectures",
             tool="vivado",
             work_path="work/analysis",
@@ -539,7 +539,7 @@ class TestSessionAbortsWhenAllJobsFail:
 
         tool_context = run_analysis.load_tool_context("vivado", "odatix_userconfig")
         context = run_analysis.prepare_analysis(
-            run_config_settings_filename="odatix_userconfig/analysis_settings.yml",
+            run_config_settings_filename="odatix_userconfig/analyze_settings.yml",
             arch_path="odatix_userconfig/architectures",
             tool="vivado",
             work_path="work/analysis",

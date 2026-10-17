@@ -91,9 +91,9 @@ Two mechanisms are specific to simulations:
 
 ### From the configuration files and the CLI
 
-`simulations_settings.yml` maps each simulation to the configurations it runs on:
+`sim_settings.yml` maps each simulation to the configurations it runs on:
 
-{{< code lang=yaml filename="odatix_userconfig/simulations_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/sim_settings.yml" >}}
 nb_jobs: 8
 
 simulations:
@@ -152,7 +152,7 @@ Every key is on the
 
 `odatix-gui` → **RTL Architectures** → **Simulations** edits the testbench
 definition: its tasks and dependencies as cards, the parameter delimiters, the
-override pass, and the metrics editor for `_metrics.yml`. **Run Jobs** →
+override pass, and the metrics editor for `_metrics.yml`. **Run jobs** →
 **Simulation** then picks which simulation runs on which configurations, and
 launches into the same daemon.
 

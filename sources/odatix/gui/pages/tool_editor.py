@@ -90,8 +90,8 @@ page_path = "/tool_editor"
 dash.register_page(
     __name__,
     path=page_path,
-    title="Odatix - Tool Editor",
-    name="Tool Editor",
+    title="Odatix - Tool editor",
+    name="Tool editor",
     order=5,
 )
 
@@ -100,7 +100,7 @@ dash.register_page(
 JOBS = [
     ("tool_test", "Tool test", "Command run to check the tool is installed and reachable.", False),
     ("fmax_synthesis", "Fmax synthesis", "Command run to search for the maximum frequency of a design.", True),
-    ("custom_freq_synthesis", "Custom frequency synthesis", "Command run to synthesize a design at given frequencies.", True),
+    ("custom_freq_synthesis", "Fixed-frequency synthesis", "Command run to synthesize a design at given frequencies.", True),
     ("pnr", "Place & route", "Command run to place and route a netlist another tool has already synthesized.", True),
     ("analysis", "RTL analysis", "Command run to analyze (lint, elaborate) a design.", True),
 ]
@@ -140,7 +140,7 @@ STEP_KIND_OPTIONS = [
 # written back as a number (see _scalar).
 PARAM_TYPES = [
     {"label": "Text", "value": "text"},
-    {"label": "On / Off", "value": "bool"},
+    {"label": "On / off", "value": "bool"},
     {"label": "List", "value": "list"},
 ]
 PARAM_TYPE_LABELS = {option["value"]: option["label"] for option in PARAM_TYPES}
@@ -653,7 +653,7 @@ def tool_title(tool_name, overlay=False):
             ui.icon_button(
                 id="button-open-tool-metric-editor",
                 icon=icon("metrics", className="icon blue"),
-                text="Edit Metrics",
+                text="Edit metrics",
                 tooltip="Open the metrics editor for this tool",
                 tooltip_options="bottom delay",
                 color="default",
@@ -681,7 +681,7 @@ def tool_title(tool_name, overlay=False):
                                     value=f"{tool_name}",
                                     type="text",
                                     id="tool-title",
-                                    placeholder="Tool Name...",
+                                    placeholder="Tool name...",
                                     className="title-input",
                                     style={"width": "100%", "transform": "translate(-5px, 5px)"},
                                     disabled=overlay,
@@ -790,7 +790,7 @@ def base_tool_field(settings, options, overlay=False):
         # reader sees what the file says.
         options = [{"label": f"{extends} (not found)", "value": extends}] + list(options)
     return ui.form_dropdown(
-        "Base Tool", "tool-extends", options, value=extends,
+        "Base tool", "tool-extends", options, value=extends,
         placeholder="None, a standalone tool",
         tooltip="Another tool this one is a variant of: it runs that tool's flows and scripts, "
                 "and only says what differs, usually a parameter of the default flow (another "
@@ -2293,7 +2293,7 @@ def replace_section_title(overlay=False):
     """The heading of the log replacements section: they are cards, not a tile,
     so their reset button lives in the title tile."""
     return ui.title_tile(
-        text="Log Replacements", id="tool-replace-title",
+        text="Log replacements", id="tool-replace-title",
         tooltip="Regular expressions applied to the tool output to recolor or rewrite matching text.",
         buttons=reset_builtin_button(
             "replace", "Reset the replacements to what Odatix defines for this built-in tool",
@@ -2786,7 +2786,7 @@ layout = html.Div(
                     buttons=builtin_variables.variable_list("tool", id="tool-builtin-variables"),
                 ),
                 html.Div(id="tool-flows-container", className="odx-flows"),
-                ui.title_tile(text="Log Formatting", id="tool-format-title", tooltip="Tags and markers used to colorize the tool output in the job monitor."),
+                ui.title_tile(text="Log formatting", id="tool-format-title", tooltip="Tags and markers used to colorize the tool output in the job monitor."),
                 html.Div(id="tool-log-format-container"),
                 html.Div(id="tool-replace-title-container", children=replace_section_title()),
                 html.Div([

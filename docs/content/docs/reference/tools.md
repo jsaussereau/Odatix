@@ -10,8 +10,8 @@ A `tool.yml` tells Odatix **how to invoke an eda tool**: which command runs an
 fmax search, which one runs a custom-frequency synthesis, an analysis or a place
 & route, and how to check the tool is installed.
 
-Odatix ships definitions for Vivado, Design Compiler, Genus, OpenLane,
-Verilator, Innovus and IC Compiler II. Your own go in `tools_path` (default
+Odatix ships definitions for Vivado, Quartus, Design Compiler, Genus, LibreLane,
+OpenLane, Verilator, Innovus and IC Compiler II. Your own go in `tools_path` (default
 `odatix_userconfig/tools/<tool>/`).
 
 This page is the schema. For the walkthrough, see
@@ -27,9 +27,12 @@ This page is the schema. For the walkthrough, see
 | `label` | string | Human-readable name, shown in the GUI. |
 | `description` | string | One-line description, shown in the GUI. |
 | `icon` | path | Image replacing the default pictogram in the GUI. |
+| `icon_filter` | boolean | Recolor the icon to follow the theme (default: `false`). Useful for monochrome logos, invisible on a background of the same shade. |
 | `default_flow` | string | Name of the flow the `unix` / `windows` commands belong to. Default `default`. |
+| `extends` | string | A tool this one is a variant of. See [Extending a tool](#extending-a-tool). |
+| `parameters` | mapping | Parameters of the default flow, inherited by every other flow. See [Flow parameters](#flow-parameters). |
 | `default_metrics_file` | path | [Metrics definitions](/docs/reference/metrics/) for this tool. |
-| `process_group` | bool | Run each job in its own process group, so stopping a job kills the whole tool tree. |
+| `process_group` | bool | Run each job in its own process group, so stopping a job kills the whole tool tree (default `true`). With `false`, only the job's own process is signaled and the processes the tool started itself are left running. |
 | `unix` / `windows` | mapping | The commands, per platform. See below. |
 | `flows` | mapping | Additional [flows](#flows), keyed by name. |
 | `format` | mapping | [Log formatting](#log-formatting) rules for the monitor. |
@@ -68,10 +71,11 @@ is substituted before the command runs.
 
 ## Flows
 
-A **flow** is a way of running the same tool: a different script, different
-options, sometimes a different binary — Vivado timing-oriented versus
-power-oriented with clock gating, Design Compiler with `dc_shell` versus
-`dcnxt_shell`. Pick one with `-f/--flow`, or from the tool's card in the GUI.
+A **flow** is a way of running the same tool: a different strategy, different
+options, sometimes a different script — Vivado timing-oriented versus
+power-oriented with clock gating, Design Compiler `compile` versus
+`compile_ultra`. Pick one with `-f/--flow`, or from the tool's card in the GUI,
+or let a [design space exploration](/docs/reference/dse/) choose between them.
 
 The commands declared directly under `unix` / `windows` belong to the tool's
 **default flow**, named by `default_flow`. Additional flows go under `flows`.
@@ -81,7 +85,9 @@ The commands declared directly under `unix` / `windows` belong to the tool's
 | `flows.<name>.label` | string | Human-readable name, shown in the GUI. |
 | `flows.<name>.description` | string | One-line description, shown in the GUI. |
 | `flows.<name>.icon` | path | Optional image replacing the default pictogram. |
+| `flows.<name>.icon_filter` | boolean | Recolor the flow icon to follow the theme (default: `false`). |
 | `flows.<name>.metrics_file` | path | Metrics file specific to this flow (defaults to `default_metrics_file`). |
+| `flows.<name>.parameters` | mapping | The [parameters](#flow-parameters) this flow changes. |
 | `flows.<name>.unix` / `.windows` | mapping | The flow's own job-type commands or steps. |
 
 {{< code lang=yaml filename="tool.yml" >}}
@@ -117,6 +123,88 @@ cannot run a job type is an error rather than a silent run of the wrong thing.
 > [!NOTE]
 > A flow name becomes part of a directory name, so it cannot contain `@`, `/` or
 > `\`. A flow declared with such a name is ignored.
+
+### Flow parameters
+
+Most flows of a tool differ by a few options, not by their commands: which
+compile command, which directive, whether to insert clock gating. Such a flow
+declares only **parameters**, and runs the default flow's steps and scripts.
+
+Parameters declared at the top level belong to the default flow. Every flow
+starts from them and changes only the ones it names (they are merged key by
+key):
+
+{{< code lang=yaml filename="tool.yml" >}}
+parameters:                     # the default flow's
+  shell: dc_shell
+  compile: compile
+  compile_options: []
+
+unix:
+  custom_freq_synthesis_steps:
+    - name: synthesis
+      command: [cd $work_path;, $shell, -x, "'source scripts/step_synthesis.tcl; quit'"]
+
+flows:
+  ultra_timing:
+    label: "Ultra - timing"
+    parameters:                 # "shell" is inherited
+      compile: compile_ultra
+      compile_options: [-timing_high_effort_script, -retime]
+{{< /code >}}
+
+A parameter reaches the job two ways:
+
+* **in the commands**, as `$<name>` — a list reads as its words. A name only
+  matches as a whole word, so a parameter `work` leaves `$work_path` alone.
+* **in the tcl scripts**, through the job's `settings.tcl`:
+  `odatix_flow_param <name> ?default?` returns the value, or `default` when the
+  flow does not set it. A list comes back as a tcl list, a boolean as `1` or `0`.
+
+{{< code lang=tcl filename="tcl/step_common.tcl" >}}
+set compile_command [odatix_flow_param compile compile]
+set options [odatix_flow_param compile_options [list]]
+$compile_command {*}$options
+{{< /code >}}
+
+The built-in strategies are declared this way:
+
+| Tool | Flows |
+|------|-------|
+| Design Compiler (and DC NXT) | `standard` (`compile`, the historical flow), `high_effort` (high map and area effort, boundary optimization), `ultra` (`compile_ultra`), `ultra_timing` (high timing effort, retiming, incremental pass), `ultra_area` (area recovery with `set_max_area 0`, then `optimize_netlist -area`), `ultra_power` (clock gating, leakage and dynamic power optimization) |
+| Genus | `standard` (`syn_generic`, `syn_map` and `syn_opt` at high effort, the historical flow), `medium_effort` (medium effort, faster), `extreme` (extreme `syn_opt` effort, then an incremental pass with ultra optimization), `timing` (register retiming, extreme `syn_opt` effort, timing driven ungrouping, incremental pass), `area` (area oriented datapath and ungrouping, only the worst path optimized, incremental pass), `power` (clock gating, high dynamic and leakage power effort) |
+| Innovus | `standard` (standard flow effort, 70% utilization), `express` (express flow effort, shortest runtime), `extreme` (extreme flow effort), `timing` (60% utilization, high timing effort placement, useful skew, timing and SI driven routing, hold fixing), `area` (85% utilization, high congestion effort placement, area reclaim), `power` (high power effort, dynamic power weighted as much as leakage) |
+| Quartus | `standard` (`HIGH PERFORMANCE EFFORT`), `balanced` (the Quartus defaults, `BALANCED`), `runtime` (`AGGRESSIVE COMPILE TIME`, no power analysis), `performance` (`SUPERIOR PERFORMANCE WITH MAXIMUM PLACEMENT EFFORT`, final placement optimization always on), `area` (`AGGRESSIVE AREA`, no register retiming), `power_opt` (`AGGRESSIVE POWER`) |
+| Vivado | `standard` (the historical flow), `runtime` (`RuntimeOptimized` everywhere, no physical optimization), `performance` (`PerformanceOptimized` with retiming, `ExtraTimingOpt` placement, aggressive physical optimization and routing), `area` (`AreaOptimized_high`, `ExploreArea`), `power_opt` (clock gating conversion, `PowerOptimized_high`, `power_opt_design`) |
+
+The parameters each script reads are listed at the top of the built-in
+`tool.yml`. A strategy of your own is a few lines in the `tool.yml` of your
+workspace (see [Merging with a built-in tool](#merging-with-a-built-in-tool)).
+
+### Extending a tool
+
+`extends` makes a tool a variant of another one: it inherits everything that
+tool declares — its flows, steps, scripts, metrics, log formatting — and its own
+`tool.yml` says only what changes. Design Compiler NXT is shipped this way, as
+Design Compiler run by another binary:
+
+{{< code lang=yaml filename="dc_nxt/tool.yml" >}}
+extends: design_compiler
+label: "DC NXT"
+target_file: target_design_compiler.yml   # same technologies
+parameters:
+  shell: dcnxt_shell
+{{< /code >}}
+
+The two remain separate tools: each has its own work directory and its own
+results file, and every strategy of one exists for the other. That is the point
+of making the binary a tool rather than a flow: an exploration can choose the
+tool and the strategy independently (`tool: [design_compiler, dc_nxt]`,
+`flow: [ultra, ultra_timing]`).
+
+The tool's settings are merged over those of the tool it extends, key by key;
+the scripts of that tool are copied to the work directory first, so the
+extending tool can override one by shipping a file of the same name.
 
 ### Merging with a built-in tool
 
@@ -163,8 +251,8 @@ not have:
 
 {{< code lang=yaml filename="tool.yml" >}}
 flows:
-  power_opt:
-    label: "Power optimized"
+  gate_sim:
+    label: "Gate level simulation"
     unix:
       custom_freq_synthesis_steps:
         - name: synthesis            # "pnr" and "bitstream" are inherited
@@ -202,8 +290,9 @@ as the `step` meta key.
 
 Each step hands its state to the next through a file the tool writes —
 `write_checkpoint` / `open_checkpoint` for Vivado, `write -format ddc` for Design
-Compiler, `write_db` for Genus. That part lives in the tool's own scripts;
-Odatix only decides which steps to run.
+Compiler, `write_db` for Genus; Quartus needs none, the design staying in the
+project database of the job between steps. That part lives in the tool's own
+scripts; Odatix only decides which steps to run.
 
 ## Sessions
 
@@ -314,7 +403,7 @@ format:
 
 ## In the GUI
 
-**EDA Tools** (`/tools`) lists the tools of the workspace and, separately, the
+**Tools** (`/tools`) lists the tools of the workspace and, separately, the
 built-in ones — create, duplicate, edit flows and steps, and edit the metrics
 file, all writing this YAML. See [The Odatix GUI](/docs/gui/app/).
 

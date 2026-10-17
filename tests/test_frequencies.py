@@ -244,7 +244,7 @@ class TestThroughSettings:
         architecture_settings = ArchitectureSettings.from_dict(
             settings(global_block={"lower_bound": 100, "upper_bound": 300, "step": 100}, key="custom_freq_synthesis")
         )
-        assert architecture_settings.custom_freq_synthesis.step == 100
+        assert architecture_settings.fixed_freq_synthesis.step == 100
         resolved = architecture_settings.frequencies(target=TARGET, configuration=CONFIG, mode="custom_freq")
         assert resolved.frequencies == [100, 200, 300]
 
@@ -258,3 +258,25 @@ class TestCheckBounds:
 
     def test_the_upper_bound_must_be_the_highest(self):
         assert len(check_bounds(900, 100, 50)) == 1
+
+
+class TestFormerFixedFrequencyKey:
+    """"fixed_freq_synthesis" used to be called "custom_freq_synthesis": both are read."""
+
+    def test_the_former_key_is_read_at_the_root_and_in_a_rule(self):
+        data = {
+            "top_level_module": "counter",
+            "custom_freq_synthesis": {"list": [50]},
+            "overrides": [{"targets": TARGET, "custom_freq_synthesis": {"list": [70], "list_append": True}}],
+        }
+        resolved = resolve_frequencies(data, target=TARGET, configuration=CONFIG, mode="custom_freq")
+        assert sorted(resolved.frequencies) == [50, 70]
+
+    def test_a_settings_object_moves_it_to_the_current_key(self):
+        settings = ArchitectureSettings.from_dict({"custom_freq_synthesis": {"list": [50, 100]}})
+        assert settings.to_dict()["fixed_freq_synthesis"]["list"] == [50, 100]
+        assert "custom_freq_synthesis" not in settings.to_dict()
+
+    def test_the_current_key_wins_over_the_former(self):
+        data = {"custom_freq_synthesis": {"list": [1]}, "fixed_freq_synthesis": {"list": [2]}}
+        assert resolve_frequencies(data, mode="custom_freq").frequencies == [2]

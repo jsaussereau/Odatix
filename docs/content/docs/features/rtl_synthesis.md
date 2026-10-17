@@ -10,7 +10,7 @@ features:
   - title: "FPGA & ASIC"
     description: "Target FPGA devices and ASIC technologies from the same design and the same command."
   - title: "Multiple tools"
-    description: "Drives AMD Vivado, Synopsys Design Compiler, Cadence Genus and OpenLane — and anything you wrap yourself."
+    description: "Drives AMD Vivado, Altera Quartus, Synopsys Design Compiler, Cadence Genus and OpenLane — and anything you wrap yourself."
   - title: "Every configuration"
     description: "Each configuration of each design is synthesized independently, in parallel."
   - title: "Metrics out of the box"
@@ -64,8 +64,8 @@ result already exists is skipped unless you ask for `--overwrite`.
 Two mechanisms shape *how* a tool is run:
 
 - **[Flows](/docs/commands/#selecting-a-flow)** — alternative ways of running the
-  same tool (Vivado timing-oriented versus power-optimized with clock gating,
-  Design Compiler with `dc_shell` versus `dcnxt_shell`). Each runs in its own
+  same tool (Vivado timing, area or power oriented, Design Compiler `compile`
+  versus `compile_ultra` and its timing, area and power variants). Each runs in its own
   work directory and is exported into the same results file, tagged with a `flow`
   key, so Explorer compares them directly.
 - **[Steps](/docs/reference/tools/#steps)** — a flow split into resumable stages
@@ -93,7 +93,7 @@ Two mechanisms shape *how* a tool is run:
 
 Three files matter. Which designs to run:
 
-{{< code lang=yaml filename="odatix_userconfig/custom_freq_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/synth_settings.yml" >}}
 nb_jobs: 8
 
 architectures:
@@ -115,7 +115,7 @@ And which frequencies, in the design's own settings — globally, per target, or
 per configuration:
 
 {{< code lang=yaml filename="architectures/Example_ALU_sv/_settings.yml" >}}
-custom_freq_synthesis:
+fixed_freq_synthesis:
   lower_bound: 100
   upper_bound: 400
   step: 100
@@ -139,7 +139,7 @@ Every key is in the [architecture](/docs/reference/architecture/#frequency-setti
 
 ### From the GUI
 
-`odatix-gui` → **Run Jobs** → **Custom Frequency Synthesis** walks the same
+`odatix-gui` → **Run jobs** → **Fixed-frequency synthesis** walks the same
 path: pick the tool (its card shows the available flows, and the steps you can
 stop at), pick the targets, set the frequency range, the designs and the number
 of parallel jobs, and launch. The page writes the same settings files before

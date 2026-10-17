@@ -64,8 +64,8 @@ page_path = "/derived_metrics"
 dash.register_page(
     __name__,
     path=page_path,
-    title="Odatix - Derived Metrics Editor",
-    name="Derived Metrics Editor",
+    title="Odatix - Derived metrics editor",
+    name="Derived metrics editor",
     order=8,
 )
 
@@ -83,7 +83,7 @@ RESULT_TYPE_OPTIONS = [
     {"label": "Workflow", "value": "workflow"},
     {"label": "Synthesis (any)", "value": "synthesis"},
     {"label": "Fmax synthesis", "value": "fmax_synthesis"},
-    {"label": "Custom frequency synthesis", "value": "custom_freq_synthesis"},
+    {"label": "Fixed-frequency synthesis", "value": "custom_freq_synthesis"},
     {"label": "Any", "value": "any"},
 ]
 
@@ -396,7 +396,7 @@ def page_title():
                     children=[
                         html.Div(
                             children=[
-                                html.H3("Derived Metrics", style={"marginBottom": "0px", "display": "inline-block"}),
+                                html.H3("Derived metrics", style={"marginBottom": "0px", "display": "inline-block"}),
                                 ui.tooltip_icon(PAGE_TOOLTIP),
                             ],
                         ),
@@ -658,7 +658,7 @@ def metric_card(
                     icon=icon("more", className="icon normal rotate", id={"type": f"{METRIC_PREFIX}-more-fields-icon", "name": name}),
                     color="default",
                     id={"type": f"{METRIC_PREFIX}-more-fields", "name": name},
-                    tooltip="Show/Hide extra fields",
+                    tooltip="Show/hide extra fields",
                     tooltip_options="bottom small",
                 )
             ], style={"display": "flex", "alignItems": "center"}),

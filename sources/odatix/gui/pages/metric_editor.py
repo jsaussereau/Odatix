@@ -94,8 +94,8 @@ page_path = "/metric_editor"
 dash.register_page(
     __name__,
     path=page_path,
-    title="Odatix - Exported Metrics Editor",
-    name="Exported Metrics Editor",
+    title="Odatix - Exported metrics editor",
+    name="Exported metrics editor",
     order=6,
 )
 
@@ -118,7 +118,7 @@ META_TOOLTIP = (
 
 # Tool metric sections: (card-row prefix, section label, tooltip, metrics.yml key).
 FMAX_TOOLTIP = "Metrics extracted only for maximum-frequency synthesis."
-CUSTOM_FREQ_TOOLTIP = "Metrics extracted only for custom-frequency synthesis."
+CUSTOM_FREQ_TOOLTIP = "Metrics extracted only for fixed-frequency synthesis."
 COMMON_TOOLTIP = "Metrics extracted for every flow (e.g. area, resource counts)."
 
 WORKFLOW_SECTIONS = [
@@ -127,7 +127,7 @@ WORKFLOW_SECTIONS = [
 ]
 TOOL_SECTIONS = [
     (METRIC_PREFIX, "Fmax synthesis metrics", FMAX_TOOLTIP, "fmax_synthesis_metrics"),
-    (META_PREFIX, "Custom frequency synthesis metrics", CUSTOM_FREQ_TOOLTIP, "custom_freq_synthesis_metrics"),
+    (META_PREFIX, "Fixed-frequency synthesis metrics", CUSTOM_FREQ_TOOLTIP, "custom_freq_synthesis_metrics"),
     (THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, "metrics"),
 ]
 
@@ -634,7 +634,7 @@ def metric_card(
                     icon=icon("more", className="icon normal rotate", id={"type": f"{prefix}-more-fields-icon", "name": name}),
                     color="default",
                     id={"type": f"{prefix}-more-fields", "name": name},
-                    tooltip="Show/Hide extra fields",
+                    tooltip="Show/hide extra fields",
                     tooltip_options="bottom small",
                 )
             ], id={"type": f"{prefix}-more-fields-div", "name": name}, style={"display": "flex", "alignItems": "center"}),

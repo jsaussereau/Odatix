@@ -205,13 +205,25 @@ def update_param_domains(
     # _pnr_job_sections).
     if context["mode"] == "pnr":
         job_sections, baseline_selection = _pnr_job_sections(context, selection_settings)
+        # A place & route starts from what a synthesis left: say so first, and
+        # what to run when there is nothing to start from yet.
+        prerequisite = (
+            "A place & route starts from a synthesis already run: an Fmax or a fixed-frequency synthesis, "
+            "with a tool that writes a netlist this tool reads (Design Compiler or Genus for an ASIC flow). "
+            "Each tool that left one in the work directory is listed below."
+        )
         if not job_sections:
             job_sections = [
                 html.Div(
-                    f"No completed synthesis found in {context['base_path']}.",
+                    [
+                        html.Div(f"No completed synthesis found in {context['base_path']}."),
+                        html.Div(prerequisite, className="odx-panel-note"),
+                    ],
                     className="odx-panel odx-empty",
                 )
             ]
+        else:
+            job_sections = [html.Div(prerequisite, className="odx-panel-note odx-pnr-prerequisite")] + list(job_sections)
         saved_baseline = {
             context["selection_key"]: baseline_selection,
             **_job_settings_baseline(selection_settings),

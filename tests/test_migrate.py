@@ -277,3 +277,74 @@ class TestCommand:
                   lower_bound: 300
             """)
         assert run_cli("migrate", "-Q", cwd=str(workspace_dir)).returncode != 0
+
+
+######################################
+# Settings files named after their command
+######################################
+
+class TestSettingsFileNames:
+    def test_a_former_key_of_odatix_yml_is_still_read_and_said(self, workspace_dir, capsys):
+        from odatix.lib.settings import OdatixSettings
+
+        (workspace_dir / "odatix.yml").write_text("workspace: odatix\nfmax_synthesis_settings_file: my_fmax.yml\n")
+        assert Workspace.open().paths.fmax_settings_file.endswith("my_fmax.yml")
+        assert OdatixSettings().fmax_settings_file == "my_fmax.yml"
+        assert '"fmax_settings_file"' in capsys.readouterr().out
+
+    def test_a_file_under_its_former_name_is_still_read(self, workspace_dir):
+        write(workspace_dir / "odatix_userconfig" / "fmax_synthesis_settings.yml", "architectures: []\n")
+        assert Workspace.open().paths.fmax_settings_file.endswith("fmax_synthesis_settings.yml")
+
+    def test_the_current_name_wins_when_both_are_there(self, workspace_dir):
+        write(workspace_dir / "odatix_userconfig" / "fmax_synthesis_settings.yml", "architectures: []\n")
+        write(workspace_dir / "odatix_userconfig" / "fmax_settings.yml", "architectures: []\n")
+        assert Workspace.open().paths.fmax_settings_file.endswith("fmax_settings.yml")
+
+    def test_migrate_renames_the_files_and_the_keys(self, workspace_dir):
+        (workspace_dir / "odatix.yml").write_text(
+            "workspace: odatix\n# where the simulations are set\nsimulation_settings_file: odatix_userconfig/my_sims.yml\n"
+        )
+        write(workspace_dir / "odatix_userconfig" / "clean.yml", "remove_list: [work]\n")
+        write(workspace_dir / "odatix_userconfig" / "my_sims.yml", "simulations: []\n")
+        assert len(workspace_migrate.pending(Workspace.open())) == 2
+
+        workspace_migrate.migrate(Workspace.open())
+        assert (workspace_dir / "odatix_userconfig" / "clean_settings.yml").read_text() == "remove_list: [work]\n"
+        assert not (workspace_dir / "odatix_userconfig" / "clean.yml").exists()
+        settings = (workspace_dir / "odatix.yml").read_text()
+        assert "# where the simulations are set\nsim_settings_file: odatix_userconfig/my_sims.yml" in settings
+        assert "simulation_settings_file" not in settings
+        # named in odatix.yml: left where it is
+        assert (workspace_dir / "odatix_userconfig" / "my_sims.yml").exists()
+        assert workspace_migrate.pending(Workspace.open()) == []
+
+
+class TestFixedFrequencyKey:
+    def test_migrate_renames_the_block_everywhere(self, workspace_dir):
+        path = write(workspace_dir / "odatix_userconfig" / "architectures" / "Freq" / "_settings.yml", """
+            top_level_module: "mult"
+            # frequencies of every job
+            custom_freq_synthesis:
+              list: [50, 100]
+            overrides:
+              - targets: a
+                custom_freq_synthesis:
+                  list: [70]
+            """)
+        before = resolve_frequencies(read_yaml(str(path)), target="a", mode="custom_freq").frequencies
+        migration, = workspace_migrate.migrate(Workspace.open())
+        assert "custom_freq_synthesis" in migration.former_keys
+        text = path.read_text()
+        assert "custom_freq_synthesis" not in text
+        assert "# frequencies of every job\nfixed_freq_synthesis:" in text
+        assert resolve_frequencies(read_yaml(str(path)), target="a", mode="custom_freq").frequencies == before == [70]
+
+    def test_a_workspace_spelling_every_path_out_still_renames_the_files(self, workspace_dir):
+        # The GUI builds its workspace from settings that name every file,
+        # defaults included: only what odatix.yml says keeps a file where it is.
+        from odatix.lib.settings import OdatixSettings
+
+        write(workspace_dir / "odatix_userconfig" / "clean.yml", "remove_list: [work]\n")
+        workspace = Workspace.from_dict(OdatixSettings().to_dict(), root=str(workspace_dir))
+        assert [migration.kind for migration in workspace_migrate.plan(workspace)] == ["file name"]

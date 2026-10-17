@@ -105,7 +105,7 @@ stop_delimiter: ")("
 fmax_synthesis:
   lower_bound: 50
   upper_bound: 1500
-custom_freq_synthesis:
+fixed_freq_synthesis:
   list: [50, 100]
 {{< /code >}}
 
@@ -138,13 +138,13 @@ overrides:
     fmax_synthesis:
       lower_bound: 250
       upper_bound: 900
-    custom_freq_synthesis:
+    fixed_freq_synthesis:
       list: [50, 100]
   - targets: AMS350CMOS
     fmax_synthesis:
       lower_bound: 60
       upper_bound: 160
-    custom_freq_synthesis:
+    fixed_freq_synthesis:
       list: [50, 100]
 {{< /code >}}
 
@@ -299,7 +299,7 @@ val firtoolArgs =
 
 A single line in the run settings covers the seven widths:
 
-{{< code lang=yaml filename="fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="fmax_settings.yml" >}}
 architectures:
   - Example_Counter_Chisel_CLI
 {{< /code >}}
@@ -317,7 +317,7 @@ $ odatix fmax -a Example_Counter_Chisel_CLI+width/16bits
 
 The counter is what the shipped run settings enable out of the box:
 
-{{< code lang=yaml filename="fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="fmax_settings.yml" >}}
 architectures:
   - Example_Counter_verilog/04bits
   - Example_Counter_verilog/08bits
@@ -332,7 +332,7 @@ architectures:
 $ odatix fmax -t vivado
 {{< /code >}}
 
-The same list appears in `custom_freq_synthesis_settings.yml`, where each configuration is synthesized at 50 MHz and 100 MHz instead of being searched for its maximum frequency.
+The same list appears in `synth_settings.yml`, where each configuration is synthesized at 50 MHz and 100 MHz instead of being searched for its maximum frequency.
 
 > [!INFO]
 > `Example_Counter_verilog/04bits` is commented as failing with **OpenLane**: a 4-bit counter is small enough that the flow trips over a design with almost nothing in it. It is a genuine tool limitation, kept in the file as a warning rather than removed.
@@ -413,7 +413,7 @@ yaml << "checks_failed: " << (int(checks.size()) - passed) << std::endl;
 yaml << "status: " << (passed == int(checks.size()) ? "OK" : "KO") << std::endl;
 {{< /code >}}
 
-The simulation entries are present but commented out in `simulations_settings.yml`; uncomment them and run:
+The simulation entries are present but commented out in `sim_settings.yml`; uncomment them and run:
 
 {{< code lang=shell prompt=true >}}
 $ odatix sim

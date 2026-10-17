@@ -24,9 +24,9 @@ class TestRunPaths:
     """A run started from a script names nothing: the workspace knows it all."""
 
     @pytest.mark.parametrize("mode,settings_file,work_path", [
-        ("fmax_synthesis", "fmax_synthesis_settings.yml", "fmax_synthesis"),
-        ("custom_freq_synthesis", "custom_freq_synthesis_settings.yml", "custom_freq_synthesis"),
-        ("simulation", "simulations_settings.yml", "simulations"),
+        ("fmax_synthesis", "fmax_settings.yml", "fmax_synthesis"),
+        ("custom_freq_synthesis", "synth_settings.yml", "custom_freq_synthesis"),
+        ("simulation", "sim_settings.yml", "simulations"),
         ("workflow", "workflow_settings.yml", "workflows"),
     ])
     def test_paths_come_from_the_workspace(self, example_workspace, mode, settings_file, work_path):

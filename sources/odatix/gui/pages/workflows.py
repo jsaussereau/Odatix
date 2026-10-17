@@ -50,7 +50,7 @@ dash.register_page(
 
 def build_workflow_cards(workflows):
     workflow_cards = [normal_card(name) for name in workflows.names()]
-    workflow_cards.append(add_card("Create New Workflow"))
+    workflow_cards.append(add_card("Create new workflow"))
     return workflow_cards
 
 
@@ -79,7 +79,7 @@ def normal_card(name):
                             ui.icon_button(
                                 id=f"button-open-workflow-{name}",
                                 icon=icon("edit", className="icon black"),
-                                text="Edit Configs",
+                                text="Edit configs",
                                 color="default",
                                 link=f"/config_editor?workflow={name}",
                                 width="auto",

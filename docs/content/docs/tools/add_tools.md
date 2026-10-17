@@ -31,6 +31,7 @@ what you want is a [workflow](/docs/features/workflows/), not a tool.
 myTool/
 ├── tool.yml       # required — what to run
 ├── metrics.yml    # what to measure (any path, see default_metrics_file)
+├── analysis.yml   # how to read what its analysis reports (odatix analyze)
 └── tcl/           # optional — copied into the scripts/ directory of every job
     ├── synth_script.tcl
     └── ...
@@ -57,9 +58,8 @@ Nothing else is registered anywhere: dropping this directory in
 | `label` | string | the directory name | Display name in the GUI. |
 | `description` | string | — | One line, shown on the tool's card. |
 | `icon` | string | — | Image shown on the tool's card, relative to the GUI assets. |
-| `process_group` | bool | `true` | Group the tool's child processes so they can be terminated together. Set to `false` for tools that manage their own process group (containers, `make` wrappers). |
-| `report_path` | string | `report` | Where, relative to the job directory, the tool writes its reports. |
-| `default_metrics_file` | string | — | Metrics definition file used at export time. Required in practice; use `$tool_path/metrics.yml` to point inside your own tool directory. |
+| `process_group` | bool | `true` | Run each job in its own process group, so that pausing, resuming or killing it reaches the tool and everything it started. Set to `false` for tools that manage their own process group (containers, `make` wrappers): only the job's own process -- the shell running the command -- is then signaled, and whatever the tool started on its own is left running on purpose, for the tool to stop. See [Stopping a job](#stopping-a-job). |
+| `default_metrics_file` | string | — | Metrics definition file used at export time; use `$tool_path/metrics.yml` to point inside your own tool directory. Needed to export results: only a tool that measures nothing (an RTL linter) goes without. |
 | `target_file` | string | `target_<tool>.yml` | Name of the [target definition file](#target-definition-file). |
 | `default_flow` | string | `default` | Name the commands of the platform sections are known under. |
 | `unix` / `windows` | dict | — | What the tool runs on that platform — the commands of the default flow. |
@@ -83,6 +83,11 @@ Nothing else is registered anywhere: dropping this directory in
 
 A tool declares only the job types it can run: a linter declares
 `analysis_command` alone, and is simply not offered for a synthesis.
+
+What an analysis reports is read by the `analysis.yml` next to `tool.yml`: which
+log lines are errors and warnings, and what each one is about. A tool without
+one still gets the messages of the Odatix scripts; see
+[Analysis definitions](/docs/reference/analysis/) to write it.
 
 {{< code lang=yaml filename="tool.yml — a minimal, complete tool" >}}
 label: "My Tool"
@@ -242,6 +247,26 @@ A tool that declares `pnr_command` / `pnr_steps` but is never used as a synthesi
 source needs to *read* the handoff only; one that is only ever a source needs to
 *write* it only.
 
+### Stopping a job
+
+A job runs its command through the shell. When it is killed from the Job
+Monitor, or when its session ends, it receives `SIGTERM` (a break event under
+Windows) and has five seconds to exit before it is killed outright. Use them to
+write what is worth keeping; a tool that needs longer should not rely on them.
+
+What the signal reaches depends on `process_group`:
+
+- `true` (the default): the job runs in a process group of its own, and the
+  whole group is signaled -- the shell, the tool, and every process the tool
+  started. Pausing and resuming a job work the same way.
+- `false`: the job shares the process group of the Job Monitor, so only its own
+  process is signaled, never the group. With a single command the shell usually
+  hands its place over to the tool, which is then what gets the signal; with
+  several, the shell stops and **what the tool started keeps running**. This is
+  intended: it is what `false` is for, tools that manage their own processes
+  (containers, `make` wrappers), and the job log says so when it happens. Such
+  a tool has to stop its processes itself.
+
 ## Metrics
 
 `default_metrics_file` names the file describing what to extract, and from where.
@@ -347,14 +372,14 @@ variants): a tool only chooses which marker string maps to each of them.
 
 ## The Tool Editor
 
-`odatix-gui` → **EDA Tools** → **Create New Tool** creates the directory and a
+`odatix-gui` → **Tools** → **Create New Tool** creates the directory and a
 minimal `tool.yml`; **Settings** opens the editor:
 
 | Section | Keys |
 |---------|------|
 | **Tool Metadata** | `label`, `description`, `icon` |
-| **Behaviour** | `process_group`, `report_path`, `target_file`, `default_metrics_file` |
-| **Flows** | `default_flow`, `flows`, the platform sections, commands and steps |
+| **Behaviour** | `extends` (**Base Tool**), `process_group`, `target_file`, `default_metrics_file` |
+| **Flows** | `default_flow`, `flows`, the platform sections, commands, steps and `parameters` |
 | **Log Formatting** / **Log Replacements** | `format.logs`, `format.tags`, `format.replace` |
 
 The **Metrics** button opens the metrics editor for the same tool. Scripts are
@@ -363,6 +388,14 @@ not edited in the GUI: the folder button opens the tool directory.
 On a **built-in** tool the editor works as an overlay — its own flows are shown
 read-only, everything else can be overridden, only what actually differs is
 written, and each section has a button putting it back to the built-in state.
+
+Picking a **Base Tool** makes the tool a variant of another one (`extends`, see
+[Extending a tool](/docs/reference/tools/#extending-a-tool)): the flows of the
+base tool appear, locked and marked *from &lt;tool&gt;*, and the tool only says
+what differs. That is usually a parameter of its default flow — another
+executable, say: **Override** `shell` there and the change applies to every flow.
+Flows of its own can be added next to the inherited ones. Unsetting the base
+tool keeps the tool's own flows and the parameters its default flow changed.
 
 ## Checklist
 

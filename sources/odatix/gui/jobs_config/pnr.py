@@ -518,7 +518,7 @@ def _pnr_job_sections(context, selection_settings):
                 ui.icon_button(
                     icon=icon("metrics", className="icon blue"),
                     text=context["config_text"],
-                    tooltip="Open the Exported Metrics Editor for this tool",
+                    tooltip="Open the exported metrics editor for this tool",
                     tooltip_options="bottom delay",
                     color="default",
                     link=context["config_link"](work_dirname),

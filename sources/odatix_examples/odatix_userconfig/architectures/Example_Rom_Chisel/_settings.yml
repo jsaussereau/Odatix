@@ -26,6 +26,6 @@ use_parameters: No
 fmax_synthesis:
   lower_bound: 50
   upper_bound: 1500
-custom_freq_synthesis:
+fixed_freq_synthesis:
   list: [50, 100]
 

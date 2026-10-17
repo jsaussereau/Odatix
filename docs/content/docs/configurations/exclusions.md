@@ -25,8 +25,8 @@ graphical interface all leave out exactly the same points.
 ## Why
 
 Without them, a combination that does not exist is left out by *not writing the
-sweep line that would produce it*: once in `fmax_synthesis_settings.yml`, once
-in `simulations_settings.yml`, once per campaign. The knowledge lives in three
+sweep line that would produce it*: once in `fmax_settings.yml`, once
+in `sim_settings.yml`, once per campaign. The knowledge lives in three
 files, none of which says why, and a search reads none of them.
 
 ## Writing one

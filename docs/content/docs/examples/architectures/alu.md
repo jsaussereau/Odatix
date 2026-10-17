@@ -145,7 +145,7 @@ stop_delimiter: ")("
 fmax_synthesis:
   lower_bound: 50
   upper_bound: 1500
-custom_freq_synthesis:
+fixed_freq_synthesis:
   list: [50, 100]
 {{< /code >}}
 
@@ -264,7 +264,7 @@ Note that the Chisel version keeps Chisel's own `clock` and `reset` names, while
 
 The ALU entries live in the run settings, mostly commented out:
 
-{{< code lang=yaml filename="fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="fmax_settings.yml" >}}
 architectures:
   - Example_ALU_sv/08bits
   - Example_ALU_sv/16bits

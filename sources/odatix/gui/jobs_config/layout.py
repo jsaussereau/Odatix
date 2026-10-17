@@ -52,9 +52,9 @@ title_buttons = html.Div(
             id={"page": page_path, "action": "choose-targets"},
             icon=icon("gear", className="icon"),
             link="/select_targets",  # href updated from the url by update_choose_targets_link
-            text="Choose Targets",
+            text="Choose targets",
             multiline=True,
-            tooltip="Go to the Targets page to select targets",
+            tooltip="Go to the targets page to select targets",
             tooltip_options="bottom",
             color="default",
         ),
@@ -66,7 +66,7 @@ title_buttons = html.Div(
         ui.icon_button(
             id={"page": page_path, "action": "run-jobs"},
             icon=icon("play", className="icon"),
-            text="Run Jobs",
+            text="Run jobs",
             tooltip="Run all selected architecture configurations",
             tooltip_options="bottom",
             color="success",
@@ -123,7 +123,7 @@ layout = html.Div(
         html.Div(id={"page": page_path, "type": "title-div"}),
         ui.feedback("jobs-config-save-feedback"),
         ui.section(
-            "Job Settings",
+            "Job settings",
             html.Div(
                 html.Div(id="job-settings-form-container"),
                 id="jobs-settings-body",

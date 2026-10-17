@@ -63,8 +63,8 @@ configs_per_page = 30
 dash.register_page(
     __name__,
     path=page_path,
-    title='Odatix - Configuration Editor',
-    name='Configuration Editor',
+    title='Odatix - Configuration editor',
+    name='Configuration editor',
     order=4,
 )
 
@@ -371,9 +371,9 @@ def instance_title(mode:str="arch", instance_name:str="", arch:str=None):
                     dcc.Dropdown(
                         id="config-layout-dropdown",
                         options=[
-                            {"label": "Compact Layout", "value": "compact"},
-                            {"label": "Normal Layout", "value": "normal"},
-                            {"label": "Wide Layout", "value": "wide"},
+                            {"label": "Compact layout", "value": "compact"},
+                            {"label": "Normal layout", "value": "normal"},
+                            {"label": "Wide layout", "value": "wide"},
                         ],
                         value="normal",
                         clearable=False,
@@ -695,7 +695,7 @@ def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None,
     return html.Div(
         children=[
             sim_arch_entry_form(domain_uuid, entry) if entry is not None else html.Div(style={"display": "none"}),
-            ui.subtitle_div(text="Configuration Parameters", buttons=save_button),
+            ui.subtitle_div(text="Configuration parameters", buttons=save_button),
             dcc.Checklist(
                 options=[{"label": "Enable parameter replacement", "value": True}],
                 value=[True] if use_parameters else [],
@@ -706,17 +706,17 @@ def config_parameters_form(domain_uuid, settings, mode="arch", domain_name=None,
             html.Div(
                 children=[
                     html.Div([
-                        html.Label("Param Target File"),
+                        html.Label("Param target file"),
                         ui.tooltip_icon("The file used as the target for parameter replacement. This is typically the top-level design file or a design configuration file."),
                         dcc.Input(id={"type": "param_target_file", "domain_uuid": domain_uuid}, value=defval("param_target_file", ""), type="text", placeholder="Top level file used by default" if mode == "arch" else "", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
-                        html.Label("Start Delimiter"),
+                        html.Label("Start delimiter"),
                         ui.tooltip_icon("The delimiter that marks the beginning of a section to be replaced in the target file. Escape sequences such as \\n are supported."),
                         dcc.Input(id={"type": "start_delimiter", "domain_uuid": domain_uuid}, value=defval("start_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
                     html.Div([
-                        html.Label("Stop Delimiter"),
+                        html.Label("Stop delimiter"),
                         ui.tooltip_icon("The delimiter that marks the end of a section to be replaced in the target file. Escape sequences such as \\n are supported."),
                         dcc.Input(id={"type": "stop_delimiter", "domain_uuid": domain_uuid}, value=defval("stop_delimiter", ""), type="text", style={"width": "100%"}),
                     ], style={"marginBottom": "12px"}),
@@ -939,7 +939,7 @@ def preview_header(domain_uuid):
     """Header of the preview tile: title + config selector."""
     return html.Div(
         children=[
-            html.H3("Preview Pane", style={"margin": "0px"}),
+            html.H3("Preview pane", style={"margin": "0px"}),
             dcc.Dropdown(
                 id={"type": "preview-config-select", "domain_uuid": domain_uuid},
                 options=[],

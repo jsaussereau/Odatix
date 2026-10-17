@@ -32,8 +32,8 @@ page_path = "/choose_job_type"
 dash.register_page(
     __name__,
     path=page_path,
-    title='Odatix - Choose Job Type',
-    name='Run Jobs',
+    title='Odatix - Choose job type',
+    name='Run jobs',
     order=6,
 )
 
@@ -47,43 +47,43 @@ padding = 20
 
 run_jobs_cards = [
     {
-        "name": "Run Workflow",
+        "name": "Run workflow",
         "link":  "/run_jobs?type=workflow",
         "icon": "workflow",
         "description": "Run a workflow",
     },
     {
-        "name": "Run RTL Analysis",
+        "name": "Run RTL analysis",
         "link": "/run_jobs?type=analyze",
         "icon": "analysis",
-        "description": "Check if your RTL is synthetizable with the selected EDA tools",
+        "description": "Check that your RTL is synthesizable with the selected tools",
     },
     {
-        "name": "Run RTL Simulation",
+        "name": "Run RTL simulation",
         "link": "/run_jobs?type=simulation",
         "icon": "simulation",
         "description": "Run testbenches against your design configurations",
     },
     {
-        "name": "Run Fmax Synthesis",
+        "name": "Run Fmax synthesis",
         "link": "/choose_eda_tool?type=fmax_synthesis",
         "icon": "fmax",
         "description": "Find the maximum frequency for your design",
     },
     {
-        "name": "Run Custom Synthesis",
+        "name": "Run fixed-frequency synthesis",
         "link": "/choose_eda_tool?type=custom_freq_synthesis",
         "icon": "custom_freq",
-        "description": "Run synthesis at custom frequencies",
+        "description": "Run synthesis at fixed frequencies",
     },
     {
-        "name": "Design Space Exploration",
+        "name": "Design space exploration",
         "link": "/dse",
         "icon": "dse",
         "description": "Search a design space for optimal trade-offs",
     },
     {
-        "name": "Run Place & Route",
+        "name": "Run place & route",
         "link": "/choose_eda_tool?type=pnr",
         "icon": "pnr",
         "description": "Place & route designs another tool has already synthesized",
@@ -91,7 +91,7 @@ run_jobs_cards = [
 ]
 
 home_layout = [
-    ui.page_header("Run Jobs", "Choose what you want to run.", back_link="/"),
+    ui.page_header("Run jobs", "Choose what you want to run.", back_link="/"),
     html.Div(
         ui.card_grid([ui.create_card_button(card) for card in run_jobs_cards]),
         id=f"{__name__}-content",

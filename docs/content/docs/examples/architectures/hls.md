@@ -188,7 +188,7 @@ This is what makes the sweep possible without any parameter substitution: the so
 
 Add the architecture to the job settings file and run the synthesis:
 
-{{< code lang=yaml filename="odatix_userconfig/fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" >}}
 architectures:
   - Example_FIR_hls
 {{< /code >}}
@@ -199,7 +199,7 @@ $ odatix fmax -t vivado
 
 That single entry is 3 filter lengths × 3 initiation intervals × 3 partitions = **27 points**, each one a high-level synthesis followed by a full fmax search. That is a long run — a slice, or a single point, is selected the same way a parameter domain is:
 
-{{< code lang=yaml filename="odatix_userconfig/fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" >}}
 architectures:
   - Example_FIR_hls+taps/16taps+ii/1+partition/complete  # one point
   - Example_FIR_hls+taps/32taps+ii/1+partition/*         # the pragma comparison above

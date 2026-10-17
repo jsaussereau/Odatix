@@ -53,6 +53,7 @@ The per-job-type keys are **relative to `work_path`**.
 | `workflow_path` | path | `odatix_userconfig/workflows` | Where [workflows](/docs/reference/workflow/) are defined. |
 | `target_path` | path | `odatix_userconfig/targets` | Where [`target_<tool>.yml`](/docs/reference/targets/) files are looked up. |
 | `tools_path` | path | `odatix_userconfig/tools` | Where workspace [eda tool definitions](/docs/reference/tools/) live. |
+| `gui_theme_path` | path | `odatix_userconfig/themes/gui` | Where workspace [GUI themes](/docs/gui/themes/) live. |
 
 > [!NOTE]
 > A `target_<tool>.yml` not found in `target_path` is also looked up directly in
@@ -65,17 +66,27 @@ Each run command reads one settings file; these keys say which.
 
 | Key | Type | Default | Read by |
 |-----|------|---------|---------|
-| `fmax_synthesis_settings_file` | path | `odatix_userconfig/fmax_synthesis_settings.yml` | `odatix fmax` |
-| `custom_freq_synthesis_settings_file` | path | `odatix_userconfig/custom_freq_synthesis_settings.yml` | `odatix synth` |
-| `analysis_settings_file` | path | `odatix_userconfig/analysis_settings.yml` | `odatix analyze` |
-| `simulation_settings_file` | path | `odatix_userconfig/simulations_settings.yml` | `odatix sim` |
+| `fmax_settings_file` | path | `odatix_userconfig/fmax_settings.yml` | `odatix fmax` |
+| `synth_settings_file` | path | `odatix_userconfig/synth_settings.yml` | `odatix synth` |
+| `analyze_settings_file` | path | `odatix_userconfig/analyze_settings.yml` | `odatix analyze` |
+| `sim_settings_file` | path | `odatix_userconfig/sim_settings.yml` | `odatix sim` |
 | `workflow_settings_file` | path | `odatix_userconfig/workflow_settings.yml` | `odatix workflow` |
 | `pnr_settings_file` | path | `odatix_userconfig/pnr_settings.yml` | `odatix pnr` |
-| `clean_settings_file` | path | `odatix_userconfig/clean.yml` | `odatix clean` |
+| `clean_settings_file` | path | `odatix_userconfig/clean_settings.yml` | `odatix clean` |
 | `derived_metrics_file` | path | `odatix_userconfig/derived_metrics.yml` | `odatix results derived` and every export |
 
 Every one of them is also overridable per run with `-i/--input` (`--config` for
 the workspace file itself).
+
+> [!NOTE]
+> A settings file is named after the command that reads it. The former names
+> are still read for one version: the keys `fmax_synthesis_settings_file`,
+> `custom_freq_synthesis_settings_file`, `simulation_settings_file` and
+> `analysis_settings_file` (with a warning), and the files
+> `fmax_synthesis_settings.yml`, `custom_freq_synthesis_settings.yml`,
+> `simulations_settings.yml`, `analysis_settings.yml` and `clean.yml` when the
+> file of the current name does not exist. `odatix migrate` rewrites the keys
+> and renames the files.
 
 ## Results and export
 
@@ -87,6 +98,27 @@ the workspace file itself).
 [simulation metric](/docs/results/metrics/).
 
 See [Results & export](/docs/results/) for what lands there.
+
+## Resource guard
+
+While jobs run, Odatix watches the load of the machine. When the CPU or memory
+usage reaches its limit, it pauses the most recently started job, then resumes
+the jobs it paused once the usage has dropped 5 points below the limit.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `resource_guard` | bool | `true` | Pause running jobs while the machine is overloaded. |
+| `cpu_limit` | number | `98` | CPU usage (%) at which a job is paused. |
+| `mem_limit` | number | `98` | Memory usage (%) at which a job is paused. |
+
+These values apply to the sessions started afterwards. To switch the guard on a
+running session, use the **Auto-pause** switch of the [web monitor](/docs/sessions/gui_monitor/)
+or the `a` key of the [terminal monitor](/docs/sessions/terminal_monitor/): turning it off resumes
+the jobs it had paused right away.
+
+> [!NOTE]
+> The guard needs `psutil` (an optional dependency: `pip install psutil`), and does
+> nothing on Windows. Both monitors say so when it cannot run.
 
 ## Example
 

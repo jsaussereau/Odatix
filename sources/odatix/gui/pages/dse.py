@@ -181,7 +181,7 @@ def settings_form(settings):
                     "Maximum number of parallel jobs", "dse-nb-jobs",
                     value=str(resolve_nb_jobs(AUTO_NB_JOBS_KEYWORD)) if auto_nb_jobs else str(settings.nb_jobs),
                     type="number", disabled=auto_nb_jobs, style={"flex": "1"},
-                    tooltip="How many designs of a batch are synthesized at once.",
+                    tooltip="How many design points of a batch are synthesized at once.",
                 ),
                 ui.inline_switch(
                     "Auto", "dse-auto-nb-jobs", checked=auto_nb_jobs,
@@ -252,7 +252,7 @@ layout = html.Div(
                 html.Div(
                     children=[
                         html.Div(
-                            html.H1("Design Space Exploration", className="odx-title"),
+                            html.H1("Design space exploration", className="odx-title"),
                             className="odx-header-titles",
                         ),
                         title_buttons,
@@ -335,8 +335,8 @@ layout = scoped(PAGE_SCOPE, layout)
 dash.register_page(
     __name__,
     path=page_path,
-    title="Odatix - Design Space Exploration",
-    name="Design Space Exploration",
+    title="Odatix - Design space exploration",
+    name="Design space exploration",
     order=7,
 )
 

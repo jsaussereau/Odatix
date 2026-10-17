@@ -8,7 +8,7 @@ weight: 6
 
 One file per eda tool, in `target_path` (default
 `odatix_userconfig/targets/`), listing the **targets** that tool implements for:
-FPGA devices for Vivado, technology nodes for Design Compiler or OpenLane.
+FPGA devices for Vivado or Quartus, technology nodes for Design Compiler or OpenLane.
 
 Every run implements **every** target of the list, so a single `odatix fmax`
 compares a design across several devices.
@@ -16,6 +16,7 @@ compares a design across several devices.
 {{< code lang=text filename="Target files of a workspace" >}}
 odatix_userconfig/targets/
 ├── target_vivado.yml
+├── target_quartus.yml
 ├── target_design_compiler.yml
 ├── target_genus.yml
 ├── target_openlane.yml
@@ -108,7 +109,7 @@ of a [tool definition](/docs/reference/tools/):
 
 ## In the GUI
 
-**Run Jobs** → **Targets** lists the targets of the selected tool with a
+**Run jobs** → **Targets** lists the targets of the selected tool with a
 checkbox each, and writes the selection back to this file. See
 [The Odatix GUI](/docs/gui/app/).
 

@@ -55,8 +55,8 @@ page_path = "/tools"
 dash.register_page(
     __name__,
     path=page_path,
-    title="Odatix - EDA Tools",
-    name="EDA Tools",
+    title="Odatix - Tools",
+    name="Tools",
     order=4,
 )
 
@@ -123,7 +123,7 @@ def flows_line(name):
 
 def build_tool_cards(tools):
     cards = [workspace_tool_card(tools.entry(name)) for name in tools.names()]
-    cards.append(add_card("Add New Tool"))
+    cards.append(add_card("Add new tool"))
     return cards
 
 def build_builtin_cards(tools):
@@ -496,7 +496,7 @@ layout = html.Div(
         dcc.Location(id="url", refresh="callback-nav"),
         html.Div(
             children=[
-                ui.page_header("EDA Tools", "Add and configure the EDA tools of your workspace.", back_link="/"),
+                ui.page_header("Tools", "Add and configure the tools of your workspace.", back_link="/"),
                 ui.feedback("tool-feedback", className="centered"),
                 html.Div(id="tool-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
                 html.Div(

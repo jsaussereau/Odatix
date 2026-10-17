@@ -35,11 +35,14 @@ that command.
 {{< data-table filters="Target,Job types,Maturity" badgeRules="Job types::Fmax search=data-badge-violet|Synthesis=data-badge-blue|Place & route=data-badge-teal|RTL analysis=data-badge-amber;;Target::FPGA=data-badge-sky|ASIC=data-badge-fuchsia;;Maturity::Validated=data-badge-green|Legacy=data-badge-orange|WIP=data-badge-yellow;;License::Commercial=data-badge-orange|Open source=data-badge-lime" >}}
 | Tool | Vendor | Target | Job types | Flows | Maturity | License |
 |------|--------|--------|-----------|-------|----------|---------|
-| **Vivado** | AMD/Xilinx | FPGA | Fmax search, Synthesis, RTL analysis | `standard`, `power_opt` | Validated | Commercial |
-| **Design Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `dc_shell`, `dcnxt_shell` | Validated | Commercial |
-| **Genus** | Cadence | ASIC | Fmax search, Synthesis, RTL analysis | `synthesis` | Validated | Commercial |
+| **Vivado** | AMD/Xilinx | FPGA | Fmax search, Synthesis, RTL analysis | `standard`, `runtime`, `performance`, `area`, `power_opt` | Validated | Commercial |
+| **Quartus** | Altera | FPGA | Fmax search, Synthesis, RTL analysis | `standard`, `balanced`, `runtime`, `performance`, `area`, `power_opt` | Validated | Commercial |
+| **Design Compiler** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `high_effort`, `ultra`, `ultra_timing`, `ultra_area`, `ultra_power` | Validated | Commercial |
+| **DC NXT** | Synopsys | ASIC | Fmax search, Synthesis, RTL analysis | Those of Design Compiler, run by `dcnxt_shell` | Validated | Commercial |
+| **Genus** | Cadence | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `medium_effort`, `extreme`, `timing`, `area`, `power` | Validated | Commercial |
 | **IC Compiler II** | Synopsys | ASIC | Place & route | `implementation` | WIP | Commercial |
-| **Innovus** | Cadence | ASIC | Place & route | `implementation` | WIP | Commercial |
+| **Innovus** | Cadence | ASIC | Place & route | `standard`, `express`, `extreme`, `timing`, `area`, `power` | WIP | Commercial |
+| **LibreLane** | LibreLane | ASIC | Fmax search, Synthesis, RTL analysis | `standard`, `area`, `timing`, `timing_extreme` | WIP | Open source |
 | **OpenLane** | OpenROAD | ASIC | Fmax search | `synthesis` | Legacy | Open source |
 | **Verilator** | Veripool | Any | RTL analysis | `lint` | Validated | Open source |
 {{< /data-table >}}
@@ -48,10 +51,10 @@ that command.
 
 | Job type | Command | What it does | Tools |
 |----------|---------|--------------|-------|
-| **Fmax search** | `odatix fmax` | Binary search of the highest frequency the design closes timing at | Vivado, Design Compiler, Genus, OpenLane |
-| **Synthesis** | `odatix synth` | Synthesis (and, on FPGA, place & route and bitstream) at the frequencies you give | Vivado, Design Compiler, Genus |
+| **Fmax search** | `odatix fmax` | Binary search of the highest frequency the design closes timing at | Vivado, Quartus, Design Compiler, Genus, LibreLane, OpenLane |
+| **Synthesis** | `odatix synth` | Synthesis (and, on FPGA, place & route and bitstream; with LibreLane, the whole RTL to GDSII flow) at the frequencies you give | Vivado, Quartus, Design Compiler, Genus, LibreLane |
 | **Place & route** | `odatix pnr` | Places & routes a netlist a *previous* synthesis job produced, possibly with another tool (`--from-tool`) | IC Compiler II, Innovus |
-| **RTL analysis** | `odatix analyze` | Elaborates the RTL without synthesizing it: lint, elaboration errors, early estimates | Vivado, Design Compiler, Genus, Verilator |
+| **RTL analysis** | `odatix analyze` | Elaborates the RTL without synthesizing it: lint, elaboration errors, early estimates | Vivado, Quartus, Design Compiler, Genus, LibreLane, Verilator |
 
 Because place & route is a job type of its own, an ASIC chain is two commands
 rather than one monolithic flow — and the two halves need not come from the same
@@ -133,14 +136,14 @@ definition.
 > workspace.
 >
 > Everything else goes through untouched: flows of your own, the metadata,
-> `report_path`, `default_metrics_file`, the `format` section… And to start from
+> `target_file`, `default_metrics_file`, the `format` section… And to start from
 > what a built-in tool does and own all of it, **duplicate** it into your
 > workspace: the copy is a tool of its own, with nothing read-only left.
 
 ## Doing it from the GUI
 
 Everything on this page can be done without opening a text editor. `odatix-gui` →
-**EDA Tools** lists the tools of your workspace and, apart, the built-in ones:
+**Tools** lists the tools of your workspace and, apart, the built-in ones:
 
 - **Create New Tool** — a new workspace tool with a minimal `tool.yml`;
 - **Settings** — the [Tool Editor](/docs/tools/add_tools/#the-tool-editor):

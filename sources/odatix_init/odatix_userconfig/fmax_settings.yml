@@ -1,6 +1,6 @@
 
 ##############################################
-# Odatix settings for simulations
+# Odatix settings for Fmax synthesis
 ##############################################
 ---
 
@@ -8,10 +8,10 @@
 overwrite:        No   # overridden by -o / --overwrite
 
 # prompt 'Continue? (Y/n)' after settings checks
-ask_continue:     No   # overridden by -y / --noask
+ask_continue:     Yes  # overridden by -y / --noask
 
 # exit monitor when all jobs are done
-exit_when_done:   Yes  # overridden by -E / --exit
+exit_when_done:   No   # overridden by -E / --exit
 
 # size of the log history per job in the monitor
 log_size_limit:   300  # overridden by --logsize
@@ -19,21 +19,19 @@ log_size_limit:   300  # overridden by --logsize
 # maximum number of parallel jobs
 nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
-# targeted simulations
-simulations: 
+# targeted architectures
+architectures: 
 
 #--------------------------------------------#
-# Add your own designs!
+# Add your own architectures!
 #--------------------------------------------#
 
-  #- Your_Simulation:
-  #  - Your_Design/Your_1st_Configuration
-  #  - Your_Design/Your_2nd_Configuration
-  #  - Your_Design/Your_3rd_Configuration
+  #- Your_Design/Your_1st_Configuration
+  #- Your_Design/Your_2nd_Configuration
+  #- Your_Design/Your_3rd_Configuration
 
   # or 
-
-  #- Your_Simulation:
+  
   # - Your_Design/*
 
 ...

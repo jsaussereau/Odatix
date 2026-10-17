@@ -1,6 +1,6 @@
 
 ##############################################
-# Odatix settings for custom freq synthesis
+# Odatix settings for RTL analysis
 ##############################################
 ---
 
@@ -39,7 +39,7 @@ expected:
 architectures:
 
 #--------------------------------------------#
-# Add your own designs!
+# Add your own architectures!
 #--------------------------------------------#
 
   #- Your_Design/Your_1st_Configuration

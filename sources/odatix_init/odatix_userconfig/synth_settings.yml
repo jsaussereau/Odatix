@@ -1,7 +1,8 @@
 
 ##############################################
-# Odatix settings for custom freq synthesis
+# Odatix settings for fixed-frequency synthesis
 ##############################################
+---
 
 # overwrite existing results
 overwrite:        No   # overridden by -o / --overwrite
@@ -18,51 +19,19 @@ log_size_limit:   300  # overridden by --logsize
 # maximum number of parallel jobs
 nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
-# tested tools
-tools: 
-  - vivado
-  - verilator
-  # - design_compiler
-  # - genus
-
 # targeted architectures
 architectures: 
 
 #--------------------------------------------#
-# Add your own designs!
+# Add your own architectures!
 #--------------------------------------------#
 
   #- Your_Design/Your_1st_Configuration
   #- Your_Design/Your_2nd_Configuration
   #- Your_Design/Your_3rd_Configuration
-  
-  ### You can also use wildcards to include all configurations of your design: 
+
+  # or 
   
   # - Your_Design/*
 
-  ### If your design uses mutliple paramter domains:
-
-  # - Your_Design/* + Domain1/Configuration1 + Domain2/* 
-
-  ### Design without any configuration are of course supported:
-
-  # - Your_Design
-
-
-#--------------------------------------------#
-# Examples
-#--------------------------------------------#
-
-  - Example_Counter_sv/*
-  - Example_Counter_vhdl/*
-  - Example_Counter_verilog/*
-  # - Example_Counter_chisel/*
-  # - Example_Counter_Chisel_CLI/*
-
-  # - Example_ALU_sv/*
-  # - Example_ALU_chisel/*
-
-  # - Example_Shift_Register_sv/*
-  # - Example_Shift_Register_chisel/*
-
-  # - Example_Mult/*
+...

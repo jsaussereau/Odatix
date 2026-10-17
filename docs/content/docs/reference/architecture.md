@@ -138,7 +138,7 @@ fmax_synthesis:
   lower_bound: 100          # MHz, start of the binary search
   upper_bound: 900          # MHz, end of it
 
-custom_freq_synthesis:
+fixed_freq_synthesis:
   lower_bound: 100
   upper_bound: 500
   step: 50                  # -> 100, 150, 200, ... 500
@@ -150,35 +150,71 @@ custom_freq_synthesis:
 |-----|-------|------|-------------|
 | `lower_bound` | both | int (MHz) | Lowest frequency considered. |
 | `upper_bound` | both | int (MHz) | Highest frequency considered. |
-| `step` | `custom_freq_synthesis` | int (MHz) | Increment between two frequency points. |
-| `list` | `custom_freq_synthesis` | list of int | Explicit frequency points. |
-| `list_append` | `custom_freq_synthesis` | bool (default `false`) | `true` merges `list` with the range; `false` makes `list` the whole set. |
+| `step` | `fixed_freq_synthesis` | int (MHz) | Increment between two frequency points. |
+| `list` | `fixed_freq_synthesis` | list of int | Explicit frequency points. |
+| `list_append` | `fixed_freq_synthesis` | bool (default `false`) | `true` merges `list` with the range; `false` makes `list` the whole set. |
 
 `--from`, `--to`, `--step` and `--at` override these for one run.
 
-### Per-target and per-configuration overrides
+> [!NOTE]
+> `fixed_freq_synthesis` used to be called `custom_freq_synthesis`. The former
+> name is still read, at the root and in the rules of `overrides`, and
+> `odatix migrate` rewrites it.
 
-A key whose name is a **target** holds settings that apply to that target only;
-inside it, a key whose name is a **configuration** narrows it further. The most
-specific definition wins.
+### Overrides
+
+Everything above applies to every job the design produces. What applies to only
+some of them goes in the `overrides` section: an **ordered list of rules**, each
+saying which jobs it applies to and what those jobs should use instead.
+
+A rule selects jobs on three axes, and an axis it does not name it does not
+restrict:
+
+| Selector | Selects on | Example |
+|----------|------------|---------|
+| `tools` | The EDA tool running the job, optionally one of its flows | `vivado`, `genus@power_opt`, `[vivado, genus]` |
+| `targets` | The synthesis target | `xc7a100t-csg324-1`, `xc7a*` |
+| `configurations` | The configuration | `32bits`, `*bits` |
+
+Each takes one name, a list of names, or shell-style patterns. A tool named
+alone covers all of its flows; `tool@flow` covers that flow only, and
+`*@power_opt` that flow of whichever tool declares it.
+
+The rest of a rule is settings — any key of this file, not just the ones below.
 
 {{< code lang=yaml filename="_settings.yml" >}}
-fmax_synthesis:                  # applies to everything
+fmax_synthesis:                       # applies to every job
   lower_bound: 50
   upper_bound: 500
 
-xc7a100t-csg324-1:               # ... except on this target
-  fmax_synthesis:
-    lower_bound: 250
-    upper_bound: 900
-  custom_freq_synthesis:
-    list: [50, 100, 200]
+overrides:
+  - targets: xc7a100t-csg324-1        # ... except on this target
+    fmax_synthesis:
+      lower_bound: 250
+      upper_bound: 900
+    fixed_freq_synthesis:
+      list: [50, 100, 200]
 
-  32bits:                        # ... and this configuration of that target
+  - targets: xc7a100t-csg324-1        # ... and on this configuration of it
+    configurations: 32bits
     fmax_synthesis:
       lower_bound: 280
       upper_bound: 950
+
+  - tools: vivado@power_opt           # ... and whatever the target, in this flow
+    constraints:
+      - odatix_userconfig/constraints/floorplan.tcl @ pnr
 {{< /code >}}
+
+Rules apply **in order**, on top of the top level of the file: the last rule
+matching a job has the last word on the keys it names, and says nothing about
+the keys it does not. Two exceptions, which are what the keys mean rather than a
+special case of the ordering:
+
+- `constraints` **add up**: every matching rule's files are read, after the ones
+  declared at the top level, not instead of them.
+- a frequency `list` can ask to be added to the one of the level above it, with
+  `list_append`, instead of replacing it.
 
 Bounds that are too wide cost synthesis runs; bounds that are too narrow make a
 search stop at an edge. Setting them per target is what keeps a large campaign
@@ -196,15 +232,13 @@ generate them from a rule.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `generate_configurations` | bool | Enable generation for this design or domain. |
-| `generate_configurations_settings` | mapping | The rule: `template` and `name`. |
+| `configurations` | mapping | How the configurations are built: `name` and `template`. |
 | `variables` | mapping | The value sets the rule is applied to. A root key, since variables are not specific to generation. |
 
 {{< code lang=yaml filename="_settings.yml" >}}
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "parameter BITS = $var;"
+configurations:
   name: "config_${var}"
+  template: "parameter BITS = $var;"
 
 variables:
   var:
@@ -218,9 +252,33 @@ Every variable type (`bool`, `range`, `list`, `power_of_two`, `multiples`,
 `function`, `conversion`, `format`, set operations) is documented on
 [Variables](/docs/configurations/variables/). A `variables` block written inside
 `generate_configurations_settings`, where it used to be declared, is still read.
-Variables declared without `generate_configurations` and referenced in a
+Variables declared without a `configurations` block and referenced in a
 `generate_command` become
 [virtual parameter domains](/docs/configurations/virtual_param_domains/) instead.
+
+## Exclusions
+
+Combinations of the parameter domains of the design that are not part of its
+design space. Written once here, they apply to every sweep, every search and the
+configuration preview of the GUI alike. See
+[Exclusions](/docs/configurations/exclusions/).
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `exclusions` | list or mapping | The rules. A mapping also says what to `apply` and what to `ignore`. |
+| `exclusions[].when` | expression | The combination the rule is about. |
+| `exclusions[].require` | expression | What such a point has to be instead. The point is only rejected when this does not hold. |
+| `exclusions[].kind` | `illegal`, `duplicate` or `dominated` | What kind of exclusion it is. `illegal` by default; `dominated` is only applied when a campaign asks for it. |
+| `exclusions[].message` | string | Why, shown when a point is left out. |
+| `exclusions[].id` | string | How a campaign turns this one rule off. |
+
+{{< code lang=yaml filename="_settings.yml" >}}
+exclusions:
+  - id: overlap-single-port
+    when: "$Overlap == 'On' and $p_rf_sp == 1"
+    kind: illegal
+    message: "a single port register file cannot serve both accesses in one cycle"
+{{< /code >}}
 
 ## Parameter domain settings
 
@@ -234,7 +292,8 @@ design.
 | `stop_delimiter` | string | Yes | End of it. |
 | `param_target_file` | path | If not the top level | File this domain writes into. |
 | `use_parameters` | bool | No (default `Yes`) | Disable to make the domain values available as placeholders only. |
-| `generate_configurations` / `generate_configurations_settings` | — | No | Same as above, scoped to the domain. |
+| `configurations` | — | No | Same as above, scoped to the domain. |
+| `attributes` | mapping | No | How to read values off the name or the content of the configurations of this domain, so that [exclusions](/docs/configurations/exclusions/) can be written about hand-written ones (`defaults`, `from_name`, `from_content`, `values`). |
 
 {{< code lang=yaml filename="architectures/AsteRISC/DMEM/_settings.yml" >}}
 start_delimiter: "  // <dmem>"
@@ -246,14 +305,14 @@ Each domain must replace a **distinct** block of the target file. See
 
 ## In the GUI
 
-**RTL Architectures** (`/architectures`) edits this file field by field, lists
-the configurations with an editor for each parameter file, and exposes the
-**Configuration Generator** for the generation rules. See
-[The Odatix GUI](/docs/gui/app/).
+**RTL Architectures** (`/architectures`) edits this file field by field, and
+lists the configurations of each parameter domain — written as files or
+described by the rules of the domain, which the **Configuration rules** panel
+of that domain edits. See [The Odatix GUI](/docs/gui/app/).
 
 ## See also
 
 - Feature: [Architecture exploration](/docs/features/architecture-exploration/) — what this file is for.
-- Tutorial: [Implement your own RTL](/tutorials/own_designs/synthesis/).
+- Tutorial: [Implement your own RTL](/tutorials/own_designs/architecture/).
 - [Simulation settings](/docs/reference/simulation/) — how a testbench extends a design.
 - [Run settings files](/docs/reference/run_settings/) — selecting these designs for a run.

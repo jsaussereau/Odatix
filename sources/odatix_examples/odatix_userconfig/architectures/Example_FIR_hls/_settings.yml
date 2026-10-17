@@ -72,7 +72,7 @@ variables:
 fmax_synthesis:
   lower_bound: 50
   upper_bound: 600
-custom_freq_synthesis:
+fixed_freq_synthesis:
   list: [100]
 
 # Optional target-specific frequencies (in MHz)

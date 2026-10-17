@@ -85,7 +85,7 @@ def add_arguments(parser):
   """
   add_options(
     parser, "tool", "work_path", "result_path", "metrics", "config",
-    tool={"default": "all", "help": "eda tool in use, or 'all' (default: all)"},
+    tool={"default": "all", "help": "tool whose results to export, or 'all' (default: all)"},
   )
 
 
@@ -1073,7 +1073,7 @@ def main(args, settings=None):
     output=output,
     analysis_work_path=analysis_work_path,
     tools=tools,
-    expected=read_run_expectations(settings.analysis_settings_file) if settings.valid else None,
+    expected=read_run_expectations(settings.analyze_settings_file) if settings.valid else None,
   ) and success
 
   if not success:

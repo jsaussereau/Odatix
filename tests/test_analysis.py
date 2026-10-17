@@ -604,7 +604,7 @@ class TestCommands:
         monkeypatch.setattr(run_cli, "execute", lambda run: seen.setdefault("run", run))
         args = Namespace(config=OdatixSettings.DEFAULT_SETTINGS_FILE, tool=None, flow=None, detach=True, noask=True)
         run_analysis.main(args)
-        settings_file = str(example_workspace / "odatix_userconfig" / "analysis_settings.yml")
+        settings_file = str(example_workspace / "odatix_userconfig" / "analyze_settings.yml")
         assert seen["run"].options.tool == run_analysis.get_analysis_tools_from_settings(settings_file)
 
     def test_res_analysis(self, example_workspace):

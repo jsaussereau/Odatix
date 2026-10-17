@@ -368,7 +368,7 @@ def poll_prepare_log(n_intervals, run_status, run_popup_opened, render_key):
                     with prepare_state._prepare_enqueue_lock:
                         prepare_state._prepare_enqueued = False
                     run_status = {"status": "error", "error": str(exc)}
-                    prepare_state._prepare_messages.add("error", f"Failed to enqueue jobs in daemon session: {exc}")
+                    prepare_state._prepare_messages.add("error", f"Failed to enqueue jobs in session: {exc}")
                     return (
                         run_status,
                         _run_popup_body("error"),

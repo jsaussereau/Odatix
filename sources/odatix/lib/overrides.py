@@ -38,7 +38,7 @@ rules, each saying *which* jobs it applies to and *what* it changes about them.
 
       - tools: vivado@power_opt
         configurations: "*bits"
-        custom_freq_synthesis:
+        fixed_freq_synthesis:
           list: [50, 100]
 
 A rule selects jobs on four axes: the tool that runs them ("tools"), the

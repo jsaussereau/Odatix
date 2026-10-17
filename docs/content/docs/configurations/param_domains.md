@@ -105,7 +105,7 @@ variables:
 
 In your run settings, combine domains with `+`. Each line is one design variant:
 
-{{< code lang=yaml filename="fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="fmax_settings.yml" >}}
 architectures:
   - AsteRISC/M0000 + DMEM/1024 + IMEM/1024 + Baseline/I + Mul/Off
   - AsteRISC/M0001 + DMEM/1024 + IMEM/1024 + Baseline/I + Mul/Fast
@@ -113,7 +113,7 @@ architectures:
 
 Use the `*` wildcard to expand every matching configuration automatically:
 
-{{< code lang=yaml filename="fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="fmax_settings.yml" >}}
 architectures:
   # every combination of every domain
   - AsteRISC/* + DMEM/* + IMEM/* + Baseline/* + Mul/*

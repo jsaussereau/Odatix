@@ -50,7 +50,7 @@ import odatix.gui.ui_components as ui
 BUILTIN_VARIABLES = {
     "tool": [
         ("odatix_path", "Odatix installation directory."),
-        ("eda_tools_path", "Directory holding the EDA tool definitions."),
+        ("eda_tools_path", "Directory holding the tool definitions."),
         ("tool_path", "This tool's definition directory."),
         ("work_path", "The job's work directory."),
         ("tool_install_path", "Installation directory of the tool, from the target file."),

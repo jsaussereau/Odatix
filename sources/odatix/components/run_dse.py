@@ -48,7 +48,7 @@ def add_arguments(parser):
     # Repeatable: naming one fixes it for every design, naming several makes it
     # something the search chooses between.
     parser.add_argument("-t", "--tool", action="append", dest="tools",
-                        help="eda tool the evaluations run with (repeatable: the search chooses)")
+                        help="tool the evaluations run with (repeatable: the search chooses)")
     parser.add_argument("-f", "--flow", action="append", dest="flows",
                         help="flow of that tool (repeatable: the search chooses)")
     parser.add_argument("--target", action="append", dest="targets",
@@ -68,8 +68,8 @@ def add_arguments(parser):
     parser.add_argument("-m", "--mode", choices=["batch", "async"],
                         help="batch: decide once a whole batch is back (designs that take about as long as each other); "
                              "async: start a design as soon as a slot frees (some designs take far longer than others)")
-    parser.add_argument("-b", "--budget", type=int, help="how many designs to evaluate at most")
-    parser.add_argument("-B", "--batch", type=int, help="how many designs to evaluate together")
+    parser.add_argument("-b", "--budget", type=int, help="how many design points to evaluate at most")
+    parser.add_argument("-B", "--batch", type=int, help="how many design points to evaluate together")
     parser.add_argument("--seed", type=int, help="make the search reproducible")
     add_options(parser, "nb_jobs", nb_jobs={"help": "maximum number of parallel jobs"})
     parser.add_argument("--no-reuse", dest="no_reuse", action="store_true",

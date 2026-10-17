@@ -68,7 +68,7 @@ def add_arguments(parser):
   add_options(
     parser, "tool", "flow", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path",
     "exit_when_done", "nb_jobs", "check_eda_tool", "debug", "keep", "log_size_limit", "export_options", "config",
-    tool={"nargs": "+", "default": None, "help": "eda tool(s) to run (default: \"tools\" of the analysis settings file, else \"default_tool\" of odatix.yml)"},
+    tool={"nargs": "+", "default": None, "help": "tool(s) to run (default: \"tools\" of the analysis settings file, else \"default_tool\" of odatix.yml)"},
     flow={"nargs": "+", "help": "flow(s) to run, as \"flow\" (applied to every tool) or \"tool:flow\" (default: each tool's default flow)"},
   )
 
@@ -439,7 +439,7 @@ def check_settings(
 ):
   """
   Validate the analysis settings of one or several eda tools and prepare (but
-  do not build) their jobs, like run_custom_synthesis.check_settings does, so
+  do not build) their jobs, like run_fixed_freq_synthesis.check_settings does, so
   that odatix.run drives an analysis exactly like a synthesis. The jobs of
   every tool run in a single session, the eda tool shown like a target,
   "arch (tool)", in one merged global checklist.
@@ -447,7 +447,7 @@ def check_settings(
   Args:
       tool (str or list): eda tool(s) to run the analysis with.
 
-  Returns the same 8-tuple shape as run_custom_synthesis.check_settings:
+  Returns the same 8-tuple shape as run_fixed_freq_synthesis.check_settings:
       (architecture_instances, prepare_job, job_list, tool_settings_file,
        arch_handler, exit_when_done, log_size_limit, nb_jobs)
 
@@ -573,7 +573,7 @@ def prepare_synthesis(
 ):
   """
   Build the analysis jobs and return a ParallelJobHandler ready to run/enqueue,
-  without running it. Mirrors run_custom_synthesis.prepare_synthesis so the GUI
+  without running it. Mirrors run_fixed_freq_synthesis.prepare_synthesis so the GUI
   can enqueue analysis jobs into a daemon session.
 
   When ``export_output_dir`` and ``analysis_work_root`` are given, each job is
@@ -648,7 +648,7 @@ def main(args):
   options = RunOptions.from_namespace(args)
   # Without "--tool", the tools are those the settings file lists.
   if not options.tool:
-    settings_file = options.settings_file or workspace.paths.analysis_settings_file
+    settings_file = options.settings_file or workspace.paths.analyze_settings_file
     options.tool = get_analysis_tools_from_settings(settings_file)
 
   run = run_cli.execute(run_cli.command_run("analysis", workspace=workspace, options=options))

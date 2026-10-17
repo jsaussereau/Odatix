@@ -32,7 +32,7 @@ sys.path.append(sources_dir)
 from odatix.components.motd import *
 import odatix.components.run_simulations as run_sim
 import odatix.components.run_fmax_synthesis as run_synth
-import odatix.components.run_custom_synthesis as run_custom_synthesis_module
+import odatix.components.run_fixed_freq_synthesis as run_fixed_freq_synthesis_module
 import odatix.components.run_pnr as run_pnr_cmd
 import odatix.components.run_analysis as analyze
 import odatix.components.run_workflow as run_workflow
@@ -177,12 +177,12 @@ class ArgParser:
     add = lambda name, help, **keywords: subparsers.add_parser(name, help=help, description=help[:1].upper() + help[1:], formatter_class=formatter, **keywords)
 
     # Run
-    ArgParser.fmax_parser = add("fmax", "run fmax synthesis")
+    ArgParser.fmax_parser = add("fmax", "run Fmax synthesis")
     run_synth.add_arguments(ArgParser.fmax_parser)
     ArgParser.add_nobanner(ArgParser.fmax_parser)
 
     ArgParser.range_parser = add("synth", "run synthesis at given frequencies")
-    run_custom_synthesis_module.add_arguments(ArgParser.range_parser)
+    run_fixed_freq_synthesis_module.add_arguments(ArgParser.range_parser)
     ArgParser.add_nobanner(ArgParser.range_parser)
 
     ArgParser.pnr_parser = add("pnr", "place & route designs already synthesized")
@@ -215,7 +215,7 @@ class ArgParser:
     ArgParser.res_all_parser = add_type("all", "export synthesis, simulation and workflow results, then apply derived metrics")
     add_options(
       ArgParser.res_all_parser, "tool", "work_path", "result_path", "metrics", "config",
-      tool={"default": "all", "help": "eda tool whose synthesis results to export, or 'all' (default: all)"},
+      tool={"default": "all", "help": "tool whose synthesis results to export, or 'all' (default: all)"},
     )
     ArgParser.add_nobanner(ArgParser.res_all_parser)
 
@@ -583,7 +583,7 @@ COMMANDS = {
   "generate": lambda args: run_main(gen_configs.main, args),
   "replace": lambda args: run_main(replace_params.main, args),
   "fmax": lambda args: run_main(run_synth.main, args),
-  "synth": lambda args: run_main(run_custom_synthesis_module.main, args),
+  "synth": lambda args: run_main(run_fixed_freq_synthesis_module.main, args),
   "pnr": lambda args: run_main(run_pnr_cmd.main, args),
   "analyze": lambda args: run_main(analyze.main, args),
   "sim": lambda args: run_main(run_sim.main, args),

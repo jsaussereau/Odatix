@@ -593,7 +593,7 @@ class TestExitCodes:
         assert run_cli("clean", "-Q", cwd=str(example_workspace)).returncode == 0
 
     def test_clean_falls_back_to_the_default_settings(self, example_workspace):
-        (example_workspace / "odatix_userconfig" / "clean.yml").unlink()
+        (example_workspace / "odatix_userconfig" / "clean_settings.yml").unlink()
         result = run_cli("clean", "-Q", cwd=str(example_workspace))
         assert result.returncode == 0, result.stdout + result.stderr
 
@@ -846,7 +846,7 @@ def _readers(command):
     import odatix.components.migrate as migrate_cmd
     import odatix.components.replace_params as replace_params
     import odatix.components.run_analysis as run_analysis
-    import odatix.components.run_custom_synthesis as run_custom_synthesis
+    import odatix.components.run_fixed_freq_synthesis as run_fixed_freq_synthesis
     import odatix.components.run_dse as run_dse
     import odatix.components.run_fmax_synthesis as run_fmax_synthesis
     import odatix.components.run_pnr as run_pnr
@@ -859,7 +859,7 @@ def _readers(command):
         "generate": [gen_configs.main],
         "replace": [replace_params.main],
         "fmax": [run_fmax_synthesis.main],
-        "synth": [run_custom_synthesis.main],
+        "synth": [run_fixed_freq_synthesis.main],
         "pnr": [run_pnr.main],
         "analyze": [run_analysis.main],
         "sim": [run_simulations.main],

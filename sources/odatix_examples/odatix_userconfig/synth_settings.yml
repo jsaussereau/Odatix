@@ -1,6 +1,6 @@
 
 ##############################################
-# Odatix settings for fmax synthesis
+# Odatix settings for fixed-frequency synthesis
 ##############################################
 ---
 
@@ -20,16 +20,17 @@ log_size_limit:   300  # overridden by --logsize
 nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minus one)
 
 # targeted architectures
+
 architectures: 
 
 #--------------------------------------------#
-# Add your own designs!
+# Add your own architectures!
 #--------------------------------------------#
 
   #- Your_Design/Your_1st_Configuration
   #- Your_Design/Your_2nd_Configuration
   #- Your_Design/Your_3rd_Configuration
-
+  
   # or 
   
   # - Your_Design/*

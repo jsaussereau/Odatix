@@ -21,7 +21,7 @@ second tool. This tutorial runs that chain end to end.
 > You need a synthesis tool (Design Compiler or Genus) **and** a place & route
 > tool (Innovus or IC Compiler II), each with its own installation and licence.
 > The shipped place & route definitions are a starting point, not a validated
-> flow — see [Step 6](#step-6--adapt-the-flow-to-your-pdk).
+> flow — see [Step 6](#step-5--adapt-the-flow-to-your-pdk).
 
 
 ## Prerequisites
@@ -40,14 +40,12 @@ $ source odatix_venv/bin/activate
 {{< /code >}}
 ## Steps
 
-### Step 1 — Run a synthesis
-
-### Step 2 — Run the synthesis that will be the source
+### Step 1 — Run the synthesis that will be the source
 
 A place & route job has nothing to do without a synthesis to consume. Pick a
 small design and one frequency:
 
-{{< code lang=yaml filename="odatix_userconfig/custom_freq_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/synth_settings.yml" >}}
 nb_jobs: 4
 
 architectures:
@@ -55,11 +53,14 @@ architectures:
 {{< /code >}}
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix synth -t design_compiler --at 100
+$ odatix synth -t design_compiler --at 100 --until netlist
 {{< /code >}}
 
-When it finishes, the job's result directory holds the three **handoff files**
-place & route reads:
+A synthesis stops by default once its area, timing and power are known; the
+netlist is exported by the last step of the Design Compiler flow, `netlist`,
+hence `--until netlist`. A synthesis that already ran picks up from where it
+stopped. When it finishes, the job's result directory holds the three
+**handoff files** place & route reads:
 
 | File | Content |
 |------|---------|
@@ -71,7 +72,7 @@ place & route reads:
 > If those files are absent, the synthesis cannot be a source — whatever its
 > status says. A flow of your own must write them to be chainable.
 
-### Step 3 — Select which synthesis jobs to implement
+### Step 2 — Select which synthesis jobs to implement
 
 Open `odatix_userconfig/pnr_settings.yml`. Each entry is a **selector** pointing
 at completed synthesis jobs:
@@ -95,23 +96,33 @@ sources:
   - fmax_synthesis/genus/*/*/*
 {{< /code >}}
 
-### Step 4 — Choose the place & route target
+### Step 3 — Choose the place & route target
 
 Select the technology in the target file of your place & route tool —
-`odatix_userconfig/targets/target_innovus.yml` or `target_icc2.yml`. This is
-where the technology setup script that your PDK needs is brought in:
+`odatix_userconfig/targets/target_innovus.yml` or `target_icc2.yml`. A place &
+route job keeps the target of its synthesis, so list the same target names as
+your synthesis tool. This is also where the technology setup script that your
+PDK needs is brought in:
 
 {{< code lang=yaml filename="odatix_userconfig/targets/target_innovus.yml" >}}
-constraint_file: constraints.sdc
+constraint_file: timing_constraints.txt
 
-script_copy_enable: Yes
-script_copy_source: "techno/gf22_setup.tcl"
+script_copy_enable: No
+script_copy_source: /dev/null
 
 targets:
-  - gf22
+  - AMS_c35_1V8
+
+target_settings:
+  AMS_c35_1V8:
+    script_copy_enable: Yes
+    script_copy_source: $eda_tools_path/innovus/technology/AMS_c35_1V8/technology_setup.tcl
 {{< /code >}}
 
-### Step 5 — Run the place & route
+The Innovus flow sources the script under the name `technology_setup.tcl`.
+Odatix ships one for the AMS C35 1.8 V standard cells, to start yours from.
+
+### Step 4 — Run the place & route
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix pnr -t innovus --from-tool design_compiler
@@ -136,7 +147,7 @@ the settings file:
 | `--from-tool` | Only jobs run with this eda tool. |
 | `--from-flow` | Only jobs run with this flow of `--from-tool`. |
 
-### Step 6 — Adapt the flow to your PDK
+### Step 5 — Adapt the flow to your PDK
 
 > [!WARNING]
 > The shipped Innovus and IC Compiler II definitions run the usual sequence, but
@@ -144,12 +155,23 @@ the settings file:
 > and foundry specific. Adjust the scripts brought in by your target file before
 > trusting the numbers.
 
+For Innovus, the technology script declares what the flow steps need:
+
+| Variable | Used by | Content |
+|----------|---------|---------|
+| `init_lef_file`, `init_mmmc_file` | `init` | Technology and cell LEF, MMMC setup (whose constraint mode reads `$source_sdc`). Without `init_mmmc_file`, `init` reads `$source_sdc` itself. |
+| `init_pwr_net`, `init_gnd_net` | `init` | Power nets the cell supply pins are connected to. |
+| `odatix_core_site` | `init` | Site of the core rows (default: the core site of the LEF). |
+| `odatix_ring_layers` | `init` | Horizontal then vertical layer of the core power ring (no ring without it). |
+| `odatix_cts_buffers`, `odatix_cts_inverters` | `cts` | Clock tree cells, for libraries that do not flag theirs. |
+| `odatix_gds_map` | `signoff` | `streamOut` layer map file (no GDS without it). |
+
 Adding another place & route tool is the same work as adding any other tool:
 declare `pnr_steps` in a `tool.yml`. Your scripts reach the source job through
 `$source_netlist`, `$source_sdc`, `$source_sdf` and `$source_work_path`. See
 [Add non supported tools](/docs/tools/add_tools/).
 
-### Step 7 — Compare estimate against reality
+### Step 6 — Compare estimate against reality
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix-explorer
@@ -170,10 +192,11 @@ card runs up to that step.
 
 | Symptom | Likely cause |
 |---------|--------------|
-| No sources found | The selector matches nothing, or the synthesis did not write the three handoff files. |
+| No sources found | The selector matches nothing, or the synthesis did not write the three handoff files (with Design Compiler, run it `--until netlist`). |
+| `init` stops on "no technology_setup.tcl" | The target file brings in no technology script for this target. See [step 3](#step-3--choose-the-place--route-target). |
 | The tool is not offered | Its `tool.yml` declares no `pnr_command` / `pnr_steps`. |
 | A run restarts from the beginning | A step recorded in `log/steps.yml` no longer matches the flow — the `tool.yml` changed. |
-| Numbers look wrong | The technology setup is not yours yet. See [step 6](#step-6--adapt-the-flow-to-your-pdk). |
+| Numbers look wrong | The technology setup is not yours yet. See [step 5](#step-5--adapt-the-flow-to-your-pdk). |
 
 ## Related resources
 

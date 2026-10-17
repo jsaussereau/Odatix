@@ -10,11 +10,11 @@ features:
   - title: "Seconds, not hours"
     description: "Elaboration only — no placement, no routing, no licence-hungry synthesis run."
   - title: "Several tools at once"
-    description: "Vivado, Genus, Design Compiler and Verilator on the same RTL: each catches what the others accept."
+    description: "Vivado, Quartus, Genus, Design Compiler and Verilator on the same RTL: each catches what the others accept."
   - title: "Every configuration"
     description: "The whole design space is checked, not just the variant you happened to develop on."
-  - title: "Black boxes flagged"
-    description: "Critical warnings are singled out, because an empty module synthesizes beautifully."
+  - title: "What deserves attention"
+    description: "Findings sorted by kind across tools, the normal ones set apart: what is left is what to fix."
 ---
 
 > [!IMPORTANT] Requires Odatix 4.0+
@@ -48,28 +48,89 @@ tells you *which tool* disagrees with which.
 
 ## How it works
 
-Each analyzed configuration ends up in one of four states:
+Each analysis reads what the tool reported and turns it into **findings**: a
+severity, a category, what it is about and where. Categories are shared by
+every tool — a missing module is the same finding whether Vivado, Quartus or
+Verilator reports it — which is what makes tools comparable: the report says
+which tool flagged what.
+
+Each analyzed configuration ends up in one of six states:
 
 | Status | Meaning |
 |--------|---------|
-| **PASSED** | The tool elaborated the design and reported nothing. |
-| **WARNING** | It elaborated, but the tool warned — a black box, an unresolved reference, a lint complaint. |
-| **INCOMPLETE** | The run never reached its completion marker (interrupted, tool quit early). Its verdict cannot be trusted, so it is not reported as passed. |
-| **FAILED** | Errors were detected: a parse error, an undeclared signal, a module not found, a failed elaboration. |
+| **Failed** | The tool found errors in the design: a syntax error, an undeclared signal, a missing module or include, a port that does not exist. |
+| **Tool failure** | The tool could not analyze the design — no license, missing technology files, a script error. The design is not at fault. |
+| **Incomplete** | The run never reached its completion marker (stopped, tool died). Its verdict cannot be trusted, so it is not reported as passed. |
+| **Warnings** | It was analyzed, with warnings that deserve a look: a latch, multiple drivers, a width mismatch, an undriven output. |
+| **Not supported** | The design is written in a language the tool does not read (Verilator and VHDL): reported as such, not as a pile of syntax errors. |
+| **Passed** | The tool reported nothing, or nothing but expected findings. |
 
-Critical warnings are singled out from ordinary ones, for exactly the black-box
-reason above.
+### Expected findings
 
-Odatix prints a summary per tool at the end of the run, writes a report next to
-the work directory (`analysis.yml`), and exports one record per configuration to
-`results/results_analysis_<tool>.yml`. Four numeric metrics come with each
-record — `error_count`, `warning_count`, `critical_warning_count` and
-`standard_warning_count` — so a configuration's warning count can be charted like
-any other metric.
+Some findings are normal. Quartus advises the Reset Release IP for every Agilex
+design; a combinational design leaves its clock unused; a debug bus is only
+connected in the lab build. Those are **expected**: still reported, apart, with
+the reason they are normal — but they do not count. A design whose findings are
+all expected passes, so whatever remains in *Warnings* or *Failed* deserves
+attention.
+
+What each tool says of every design is declared expected by Odatix. What is
+normal for *your* designs goes in the `expected` section of
+`analyze_settings.yml`:
+
+{{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" >}}
+expected:
+  debug_bus:
+    category: unused
+    subject: dbg_*
+    reason: "Debug bus, only connected in the lab build"
+  rom_latch:
+    category: latch
+    architectures: [Legacy_ROM]
+    reason: "The legacy ROM uses a latch on purpose"
+{{< /code >}}
+
+### The report
+
+At the end of the run, `odatix analyze` prints:
+
+1. the status of every design with every tool, side by side, when several tools ran;
+2. the kinds of findings, and for how many design points each tool reported them;
+3. one line per design that is not clean: its most relevant finding, and where;
+4. the expected findings, grouped by reason.
+
+{{< code lang=text filename="Terminal" >}}
+ Findings                   quartus   verilator    vivado
+ Missing module                2          1          2
+ Combinational loop            ·          1          ·
+ Latch inferred                1          1          ·
+ ...
+
+ ✗ Failed (22)
+   D_missing_module · quartus     Instance "u_sub" instantiates undefined entity "sub_missing"  rtl/top.sv:2
+   D_missing_module · verilator   Cannot find file containing module: 'sub_missing'            rtl/top.sv:2
+ ...
+ ○ Expected (19, not counted)
+   Other      ×10 in 10 designs (quartus): Quartus advises the Reset Release IP for every Agilex design
+{{< /code >}}
+
+Every result is also a record of `results/results_analysis_<tool>.yml`, written
+as soon as its job ends — whether the tool succeeded or not. Five metrics come
+with each record — `error_count`, `critical_warning_count`, `warning_count`,
+`info_count` and `expected_count` — so they can be charted like any other metric.
+
+How each tool's reports are read is declared in the `analysis.yml` of the tool,
+not in Odatix: adding a tool, or teaching Odatix a message it does not know, is a
+few lines of YAML. See [Analysis definitions](/docs/reference/analysis/).
 
 Whether a tool supports analysis is a property of the tool: a
 [`tool.yml`](/docs/reference/tools/) supports it when it declares an
-`analysis_command`. Vivado, Genus, Design Compiler and Verilator all do.
+`analysis_command`. Vivado, Quartus, Genus, Design Compiler, Verilator and
+LibreLane all do.
+
+An analysis targets no device and no technology: Design Compiler and Genus
+elaborate the design into generic cells, so no PDK and no
+`target_<tool>.yml` is needed to analyze with them — only their license.
 
 ## Working with the rest of Odatix
 
@@ -85,11 +146,11 @@ Whether a tool supports analysis is a property of the tool: a
 
 ### From the configuration files and the CLI
 
-What to analyze lives in `odatix_userconfig/analysis_settings.yml`, in the same
+What to analyze lives in `odatix_userconfig/analyze_settings.yml`, in the same
 form as the synthesis settings files — plus a `tools` list, since analysis is
 the one job type that runs several tools at once:
 
-{{< code lang=yaml filename="odatix_userconfig/analysis_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" >}}
 nb_jobs: 8
 
 tools:
@@ -111,7 +172,14 @@ $ odatix analyze --tool vivado verilator --flow vivado:implementation
 `--flow` follows `--tool`: a bare flow name applies to every selected tool, while
 `tool:flow` targets one of them. Work directories go to `work/analysis/`, and
 jobs run through the same daemon as every other job type, so the
-[Job Monitor](/docs/gui/monitor/) shows their progress and logs live.
+[Job Monitor](/docs/gui/monitor/) shows their progress and logs live, and
+`-d/--detach` hands them over without waiting: `odatix res_analysis` then gives
+their report once they are done.
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix analyze -d -S nightly
+$ odatix res_analysis
+{{< /code >}}
 
 Every key is on the
 [run settings reference](/docs/reference/run_settings/); every option on the
@@ -119,16 +187,18 @@ Every key is on the
 
 ### From the GUI
 
-`odatix-gui` → **Run Jobs** → **RTL Analysis** lists the tools that declare an
+`odatix-gui` → **Run jobs** → **RTL Analysis** lists the tools that declare an
 analysis command, lets you tick several, then shows the same job settings as the
 settings file — designs, configurations, parallel jobs — and launches. Results
-land in the **RTL Analysis** dashboard of Explorer: architectures grouped by
-status, counts at a glance, and expandable details listing the errors and
-warnings the tool emitted, with the log file behind each one.
+land in the **RTL Analysis** dashboard of Explorer: the status of every design
+with every tool, the kinds of findings (click one to keep the designs it was
+reported for), and for each design what needs attention first — category,
+message, location, message id and the source excerpt — with its expected
+findings folded apart.
 
 ## Where to go next
 
 - **Tutorial** — [Analyze the example designs](/tutorials/run_examples/analysis/).
 - **Reference** — [Run settings files](/docs/reference/run_settings/) · [Commands](/docs/commands/)
-- **Reference** — [`analysis_settings.yml`](/docs/reference/run_settings/), including every status and option in full.
+- **Reference** — [`analyze_settings.yml`](/docs/reference/run_settings/), including every status and option in full.
 - **Next feature** — [Automated RTL synthesis](/docs/features/rtl_synthesis/), once every configuration elaborates.

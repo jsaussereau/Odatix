@@ -44,8 +44,8 @@ page_path = "/config_generator"
 dash.register_page(
     __name__,
     path=page_path,
-    title='Odatix - Configuration Editor',
-    name='Configuration Generator',
+    title='Odatix - Configuration editor',
+    name='Configuration generator',
     order=5,
 )
 

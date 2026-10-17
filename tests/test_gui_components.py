@@ -143,7 +143,7 @@ class TestNavigation:
         # Groups: (label, href, items) -- href may be "" (no page of its own)
         configure_href, configure_items = as_dict["Configure"]
         assert configure_href == ""
-        assert ("RTL Architectures", "/architectures") in configure_items
+        assert ("RTL architectures", "/architectures") in configure_items
         assert ("Workflows", "/workflows") in configure_items
 
         run_href, run_items = as_dict["Run"]
@@ -297,7 +297,7 @@ class TestRunContext:
         assert ctx["config_link"]("wf1") == "/config_editor?workflow=wf1"
 
     def test_fmax_context(self, jobs_config_module):
-        settings = {"arch_path": "cfg/archs", "fmax_synthesis_settings_file": "cfg/fmax.yml"}
+        settings = {"arch_path": "cfg/archs", "fmax_settings_file": "cfg/fmax.yml"}
         ctx = jobs_config_module._run_context("?type=fmax_synthesis", settings)
         assert ctx["mode"] == "arch"
         assert ctx["base_path"] == "cfg/archs"
@@ -412,7 +412,7 @@ class TestUpdateParamDomainsWithWildcards:
     def _render(self, jobs_config_module, settings_path, odatix_settings=None):
         odatix_settings = odatix_settings or {}
         odatix_settings.setdefault("arch_path", "odatix_userconfig/architectures")
-        odatix_settings.setdefault("custom_freq_synthesis_settings_file", settings_path)
+        odatix_settings.setdefault("synth_settings_file", settings_path)
         return jobs_config_module.update_param_domains(
             "?type=custom_freq_synthesis", "/run_jobs", odatix_settings
         )
@@ -602,7 +602,7 @@ class TestSavedBaselineOnLoad:
         return saved_baseline
 
     def test_fmax_no_false_unsaved(self, example_workspace):
-        settings_path = "odatix_userconfig/fmax_synthesis_settings.yml"
+        settings_path = "odatix_userconfig/fmax_settings.yml"
         with open(settings_path, "w") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
@@ -613,7 +613,7 @@ class TestSavedBaselineOnLoad:
             )
         jc = import_jobs_config()
         baseline = self._load_and_check(
-            jc, "?type=fmax_synthesis", "fmax_synthesis_settings_file", settings_path
+            jc, "?type=fmax_synthesis", "fmax_settings_file", settings_path
         )
         assert set(baseline["architectures"]) == {
             "Example_Counter_verilog/04bits", "Example_Counter_verilog/08bits"
@@ -622,7 +622,7 @@ class TestSavedBaselineOnLoad:
     def test_analyze_no_false_unsaved_with_tools_and_url_tool(self, example_workspace):
         # Reproduces the reported case: file has tools:[] but ?tool=vivado, and
         # architectures selected; a refresh must not show "Unsaved changes".
-        settings_path = "odatix_userconfig/analysis_settings.yml"
+        settings_path = "odatix_userconfig/analyze_settings.yml"
         with open(settings_path, "w") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
@@ -637,7 +637,7 @@ class TestSavedBaselineOnLoad:
         analysis_tools = jc._analysis_tools_selection("?type=analyze&tool=vivado", settings_path)
         assert analysis_tools == ["vivado"]  # sanity: matches the reported "current"
         baseline = self._load_and_check(
-            jc, "?type=analyze&tool=vivado", "analysis_settings_file", settings_path,
+            jc, "?type=analyze&tool=vivado", "analyze_settings_file", settings_path,
             analysis_tools=analysis_tools,
         )
         assert baseline["tools"] == ["vivado"]
@@ -645,7 +645,7 @@ class TestSavedBaselineOnLoad:
     def test_wildcard_selection_no_false_unsaved(self, example_workspace):
         # A saved wildcard entry expands in the widgets; the baseline must use
         # the same expanded form so no false "unsaved changes" on load.
-        settings_path = "odatix_userconfig/fmax_synthesis_settings.yml"
+        settings_path = "odatix_userconfig/fmax_settings.yml"
         with open(settings_path, "w") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
@@ -655,7 +655,7 @@ class TestSavedBaselineOnLoad:
             )
         jc = import_jobs_config()
         baseline = self._load_and_check(
-            jc, "?type=fmax_synthesis", "fmax_synthesis_settings_file", settings_path
+            jc, "?type=fmax_synthesis", "fmax_settings_file", settings_path
         )
         assert len(baseline["architectures"]) > 1  # expanded, not the raw wildcard entry
 
@@ -664,7 +664,7 @@ class TestSavedBaselineOnLoad:
         # "Unsaved changes!" (previously these fields were not wired at all).
         jc = import_jobs_config()
 
-        settings_path = "odatix_userconfig/fmax_synthesis_settings.yml"
+        settings_path = "odatix_userconfig/fmax_settings.yml"
         with open(settings_path, "w") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
@@ -673,7 +673,7 @@ class TestSavedBaselineOnLoad:
             )
         odatix_settings = {
             "arch_path": "odatix_userconfig/architectures",
-            "fmax_synthesis_settings_file": settings_path,
+            "fmax_settings_file": settings_path,
         }
         job_sections, _h, _t, baseline = jc.update_param_domains(
             "?type=fmax_synthesis", "/run_jobs", odatix_settings
@@ -707,7 +707,7 @@ class TestSavedBaselineOnLoad:
         jc = import_jobs_config()
         import dash as _dash
 
-        settings_path = "odatix_userconfig/analysis_settings.yml"
+        settings_path = "odatix_userconfig/analyze_settings.yml"
         with open(settings_path, "w") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
@@ -717,7 +717,7 @@ class TestSavedBaselineOnLoad:
             )
         odatix_settings = {
             "arch_path": "odatix_userconfig/architectures",
-            "analysis_settings_file": settings_path,
+            "analyze_settings_file": settings_path,
         }
         # Form widgets already rendered (tools=['vivado'] from ?tool=vivado) but
         # the arch section / baseline store are not ready yet: saved_selection=None.
@@ -779,7 +779,7 @@ class TestSimulationListedArchitectures:
         return {
             "arch_path": "odatix_userconfig/architectures",
             "sim_path": "odatix_userconfig/simulations",
-            "simulation_settings_file": "odatix_userconfig/simulation_settings.yml",
+            "sim_settings_file": "odatix_userconfig/simulation_settings.yml",
         }
 
     def _load(self, jc, workspace):
@@ -1586,7 +1586,7 @@ class TestStepSelectionReachesTheRun:
         jobs_config_module.start_check(mode, Workspace.open(), **options)
 
     def test_custom_freq_passes_the_last_step_to_the_runner(self, jobs_config_module, monkeypatch, in_tmp_dir):
-        import odatix.components.run_custom_synthesis as run_custom_synthesis
+        import odatix.components.run_fixed_freq_synthesis as run_fixed_freq_synthesis
 
         called = {}
 
@@ -1597,7 +1597,7 @@ class TestStepSelectionReachesTheRun:
             )
             return (None,) * 9
 
-        monkeypatch.setattr(run_custom_synthesis, "check_settings", fake_check_settings)
+        monkeypatch.setattr(run_fixed_freq_synthesis, "check_settings", fake_check_settings)
         self.check(
             jobs_config_module, "custom_freq_synthesis",
             tool="vivado", flow="staged", until="pnr", nb_jobs=4, log_size_limit=300,
@@ -1806,7 +1806,7 @@ class TestSimulationRunMode:
         return {
             "arch_path": "odatix_userconfig/architectures",
             "sim_path": "odatix_userconfig/simulations",
-            "simulation_settings_file": "odatix_userconfig/simulations_settings.yml",
+            "sim_settings_file": "odatix_userconfig/sim_settings.yml",
         }
 
     def test_run_context_targets_the_simulations(self, jobs_config_module, example_workspace):
@@ -1820,7 +1820,7 @@ class TestSimulationRunMode:
     def test_page_load_lists_one_section_per_simulation(self, jobs_config_module, example_workspace):
         # Selection written here rather than taken from the examples, which
         # change what they enable over time.
-        (example_workspace / "odatix_userconfig" / "simulations_settings.yml").write_text(
+        (example_workspace / "odatix_userconfig" / "sim_settings.yml").write_text(
             "simulations:\n"
             "  - TB_Example_Counter_GHDL:\n"
             "    - Example_Counter_vhdl/04bits\n"
@@ -1976,7 +1976,7 @@ class TestSimulationRunMode:
         # that is listed: it must survive the round-trip instead of being
         # silently dropped on the next save.
         self._make_huge_architecture()
-        with open("odatix_userconfig/simulations_settings.yml", "w") as f:
+        with open("odatix_userconfig/sim_settings.yml", "w") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\n"
@@ -1992,7 +1992,7 @@ class TestSimulationRunMode:
         assert "Huge_Arch+domain0/*" in baseline["simulations"]["TB_Example_Counter_GHDL"]
 
     def test_a_wildcard_entry_is_expanded_on_load(self, jobs_config_module, example_workspace):
-        with open("odatix_userconfig/simulations_settings.yml", "w") as f:
+        with open("odatix_userconfig/sim_settings.yml", "w") as f:
             f.write(
                 "overwrite: No\nask_continue: No\nexit_when_done: No\n"
                 "log_size_limit: 300\nnb_jobs: 8\n"
@@ -2225,7 +2225,7 @@ class TestArchitectureEditorOverrides:
             "file_copy_source": "extra.v",
             "targets": "xc7a100t-csg324-1",
             "fmax_synthesis": {"lower_bound": 300, "upper_bound": 900},
-            "custom_freq_synthesis": {"list": [50, 100]},
+            "fixed_freq_synthesis": {"list": [50, 100]},
             "constraints": [{"file": "pinout.xdc", "scope": "pnr"}],
         }]
 
@@ -2247,7 +2247,7 @@ class TestArchitectureEditorOverrides:
         section = [{
             "targets": ["xc7a100t-csg324-1"],
             "fmax_synthesis": {"lower_bound": 250, "upper_bound": 900},
-            "custom_freq_synthesis": {"list": [50, 100]},
+            "fixed_freq_synthesis": {"list": [50, 100]},
             "constraints": [{"files": ["a.xdc", "b.xdc"], "scope": "pnr"}],
         }]
         stored = architecture_editor_module.normalize_form_settings({"overrides": section})["overrides"]

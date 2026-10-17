@@ -110,7 +110,7 @@ def duplicate_button(id, large=False, tooltip:str="Duplicate"):
         id=id,
     )
 
-def save_button(id, text="Save All", disabled=False, tooltip:str="Save all changes"):
+def save_button(id, text="Save all", disabled=False, tooltip:str="Save all changes"):
     if isinstance(id, dict):
         icon_id = id.copy()
         icon_id.update({"is_icon": True})

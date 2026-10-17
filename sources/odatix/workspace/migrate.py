@@ -39,10 +39,18 @@ What is migrated:
   architecture, which become ``fmax_synthesis`` blocks wherever that keeps
   every job running at the same bounds (see
   :func:`odatix.workspace.architectures.carry_over_legacy_bounds`);
+- ``custom_freq_synthesis`` in the settings of an architecture, at its root and
+  in the rules of its ``overrides``, which becomes ``fixed_freq_synthesis``;
 - ``disabled_targets`` in a target file, which become commented-out entries
   of ``targets``;
 - metrics written at the top level of a ``_metrics.yml`` file, which move
-  under ``metrics``.
+  under ``metrics``;
+- the keys of ``odatix.yml`` naming a settings file the former way
+  (``fmax_synthesis_settings_file``...), which become the key named after the
+  command (``fmax_settings_file``...);
+- the settings files still under their former default name
+  (``fmax_synthesis_settings.yml``...), which are renamed after their command
+  (``fmax_settings.yml``...) unless ``odatix.yml`` names them.
 
 The deprecated parameter keys of a simulation (``use_parameters``,
 ``override_parameters``, ...) are not: replacing them by ``param_domains`` is a
@@ -54,7 +62,9 @@ import shutil
 import tempfile
 
 import odatix.lib.yaml_loader as yaml_loader
-from odatix.workspace.architectures import ArchitectureSettings, LEGACY_BOUND_KEYS, legacy_bound_keys
+from odatix.workspace.architectures import (
+    FIXED_FREQ_KEY, FORMER_FIXED_FREQ_KEY, LEGACY_BOUND_KEYS, ArchitectureSettings, legacy_bound_keys,
+)
 from odatix.workspace.configs import LEGACY_CONFIGURATION_KEYS
 from odatix.workspace.metrics import MetricsFile
 from odatix.workspace.settings import save_settings
@@ -82,19 +92,21 @@ class Migration(object):
         backup (str): the copy of the file as it was, once migrated with one.
     """
 
-    def __init__(self, path, kind, former_keys, changes=None, left=None, new_text=None):
+    def __init__(self, path, kind, former_keys, changes=None, left=None, new_text=None, rename_to=None):
         self.path = path
         self.kind = kind
         self.former_keys = list(former_keys)
         self.changes = list(changes) if changes else []
         self.left = list(left) if left else []
         self.new_text = new_text
+        #: The name the file takes, for a file only renamed.
+        self.rename_to = rename_to
         self.backup = None
 
     @property
     def changed(self):
-        """Whether the migration rewrites the file."""
-        return self.new_text is not None
+        """Whether the migration rewrites (or renames) the file."""
+        return self.new_text is not None or self.rename_to is not None
 
     def __repr__(self):
         return "<Migration {0} {1}>".format(self.kind, self.path)
@@ -146,7 +158,7 @@ def _former_settings_keys(data, architecture):
     if architecture:
         rules = data.get("overrides")
         rules = [rule for rule in rules if isinstance(rule, dict)] if isinstance(rules, list) else []
-        for key, _new in LEGACY_BOUND_KEYS:
+        for key, _new in LEGACY_BOUND_KEYS + ((FORMER_FIXED_FREQ_KEY, FIXED_FREQ_KEY),):
             if key in data or any(key in rule for rule in rules):
                 found.append(key)
     return found
@@ -268,6 +280,49 @@ def pending(workspace):
     for path in _metrics_files(workspace):
         if _former_metrics_layout(read_yaml(path, default={})):
             found.append((path, ["metrics at the top level"]))
+    from odatix.lib.settings import OdatixSettings
+
+    data = read_yaml(workspace.settings_file, default={}) if os.path.isfile(workspace.settings_file) else {}
+    keys = [key for key in OdatixSettings.FORMER_SETTINGS_KEYS if isinstance(data, dict) and key in data]
+    if keys:
+        found.append((workspace.settings_file, keys))
+    for former_path, _current_path in _renamed_settings_files(workspace):
+        found.append((former_path, ["former file name"]))
+    return found
+
+
+def _workspace_settings_migration(workspace):
+    """odatix.yml, when it still names a settings file with a former key."""
+    from odatix.lib.settings import OdatixSettings
+    from odatix.workspace.core import WorkspaceSettings
+
+    path = workspace.settings_file
+    if not os.path.isfile(path):
+        return None
+    data = read_yaml(path, default={})
+    former = [key for key in OdatixSettings.FORMER_SETTINGS_KEYS if isinstance(data, dict) and key in data]
+    if not former:
+        return None
+    settings = WorkspaceSettings.from_dict(data)
+    return _migration(path, "workspace", former, lambda copy, _directory: save_settings(settings, copy))
+
+
+def _renamed_settings_files(workspace):
+    """The settings files still under their former default name, and the name each takes."""
+    from odatix.lib.settings import OdatixSettings
+
+    # What odatix.yml itself says: the workspace may have been built from
+    # settings that spell every path out (the GUI's), defaults included.
+    written = read_yaml(workspace.settings_file, default={}) if os.path.isfile(workspace.settings_file) else {}
+    configured = OdatixSettings.carry_over_former_keys(written if isinstance(written, dict) else {}, silent=True)
+    found = []
+    for key, former in OdatixSettings.FORMER_DEFAULT_SETTINGS_FILES.items():
+        if configured.get(key):
+            continue  # odatix.yml names the file: it is where it says
+        former_path = workspace.paths.resolve(former)
+        current_path = workspace.paths.resolve(getattr(OdatixSettings, "DEFAULT_" + key.upper()))
+        if os.path.isfile(former_path) and not os.path.exists(current_path):
+            found.append((former_path, current_path))
     return found
 
 
@@ -286,6 +341,12 @@ def plan(workspace):
         migrations.append(_targets_migration(path, tool))
     for path in _metrics_files(workspace):
         migrations.append(_metrics_migration(path))
+    migrations.append(_workspace_settings_migration(workspace))
+    for former_path, current_path in _renamed_settings_files(workspace):
+        migrations.append(Migration(
+            former_path, "file name", ["former file name"],
+            changes=["> " + os.path.basename(current_path)], rename_to=current_path,
+        ))
     return [migration for migration in migrations if migration is not None]
 
 
@@ -316,6 +377,10 @@ def migrate(workspace, dry_run=False, backup=True):
         return migrations
     for migration in migrations:
         if not migration.changed:
+            continue
+        if migration.rename_to is not None:
+            # Renamed, not rewritten: the content is the same, nothing to back up.
+            os.rename(migration.path, migration.rename_to)
             continue
         if backup:
             migration.backup = _backup_path(migration.path)

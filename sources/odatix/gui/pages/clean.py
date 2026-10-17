@@ -22,7 +22,7 @@
 """
 Clean page (/clean).
 
-Edits the workspace "clean.yml" (see odatix.workspace.clean) and runs the clean
+Edits the workspace "clean_settings.yml" (see odatix.workspace.clean) and runs the clean
 it describes -- the same list, and the same removal, as "odatix clean".
 
 The file holds one thing: the paths and glob patterns to remove, resolved

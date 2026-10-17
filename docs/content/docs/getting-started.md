@@ -8,6 +8,7 @@ weight: 0
 
 This page gives you the mental model behind Odatix and explains the core concepts and associated terminology.   
 For guided, copy-paste walkthroughs, see the [tutorials](/tutorials/).
+Every term used here is defined, with the words Odatix avoids for it, in the [glossary](/docs/glossary/).
 
 {{< toc >}}
 

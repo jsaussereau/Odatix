@@ -121,12 +121,12 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                     children=[
                         html.Div(
                             children=[
-                                html.Span("EDA tools", style={"display": "inline-block"}),
+                                html.Span("Tools", style={"display": "inline-block"}),
                             ],
                             className="odx-panel-caption",
                             style={"display": "inline-block"},
                         ),
-                        ui.tooltip_icon("Select every eda tool the RTL analysis should run with (saved as the 'tools' list of the analysis settings file, overridden by -t / --tool). The jobs of all selected tools run together in a single monitor session.", tooltip_options="secondary bottom"),
+                        ui.tooltip_icon("Select every tool the RTL analysis should run with (saved as the 'tools' list of the analysis settings file, overridden by -t / --tool). The jobs of all selected tools run together in a single monitor session.", tooltip_options="secondary bottom"),
                     ],
                 ),
                 dcc.Checklist(
@@ -206,7 +206,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                 html.Div(
                     children=[
                         ui.form_field(
-                            label="Lower Bound (MHz)",
+                            label="Lower bound (MHz)",
                             id="lower_bound",
                             type="number",
                             value=str(fmax_bounds.get("lower_bound", "")),
@@ -214,7 +214,7 @@ def job_settings_form(settings, run_mode="default", selected_tools=None):
                             style={"flex": "1"},
                         ),
                         ui.form_field(
-                            label="Upper Bound (MHz)",
+                            label="Upper bound (MHz)",
                             id="upper_bound",
                             type="number",
                             value=str(fmax_bounds.get("upper_bound", "")),

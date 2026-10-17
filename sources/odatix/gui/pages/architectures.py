@@ -60,7 +60,7 @@ def normal_card(name, card_type: str = "arch"):
         second_button = ui.icon_button(
             id=f"button-open-{card_type}-{name}",
             icon=icon("metrics", className="icon black"),
-            text="Edit Metrics",
+            text="Edit metrics",
             color="default",
             link=f"/metric_editor?simulation={name}",
             width="auto",
@@ -70,7 +70,7 @@ def normal_card(name, card_type: str = "arch"):
         second_button = ui.icon_button(
             id=f"button-open-{card_type}-{name}",
             icon=icon("edit", className="icon black"),
-            text="Edit Configs",
+            text="Edit configs",
             color="default",
             link=f"/config_editor?{card_type}={name}",
             width="auto",
@@ -167,9 +167,9 @@ def update_cards(_, odatix_settings):
     simulations = ws.simulations.names()
 
     arch_cards = [normal_card(name, "arch") for name in architectures]
-    arch_cards.append(add_card("Create New Architecture", "arch"))
+    arch_cards.append(add_card("Create new architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]
-    sim_cards.append(add_card("Create New Simulation", "sim"))
+    sim_cards.append(add_card("Create new simulation", "sim"))
     return arch_cards, sim_cards
 
 @page_callback(PAGE_SCOPE,
@@ -221,9 +221,9 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     architectures = ws.architectures.names()
     simulations = ws.simulations.names()
     arch_cards = [normal_card(n, "arch") for n in architectures]
-    arch_cards.append(add_card("Create New Architecture", "arch"))
+    arch_cards.append(add_card("Create new architecture", "arch"))
     sim_cards = [normal_card(n, "sim") for n in simulations]
-    sim_cards.append(add_card("Create New Simulation", "sim"))
+    sim_cards.append(add_card("Create new simulation", "sim"))
     return arch_cards, sim_cards, ""
 
 # Open deletion popup
@@ -284,9 +284,9 @@ def do_delete(n_clicks, info, odatix_settings):
     architectures = ws.architectures.names()
     simulations = ws.simulations.names()
     arch_cards = [normal_card(name, "arch") for name in architectures]
-    arch_cards.append(add_card("Create New Architecture", "arch"))
+    arch_cards.append(add_card("Create new architecture", "arch"))
     sim_cards = [normal_card(name, "sim") for name in simulations]
-    sim_cards.append(add_card("Create New Simulation", "sim"))
+    sim_cards.append(add_card("Create new simulation", "sim"))
     return "overlay-odatix", "", arch_cards, sim_cards
 
 @page_callback(PAGE_SCOPE,

@@ -69,11 +69,11 @@ PATH_SETTINGS = (
     ("workflow_work_path", "DEFAULT_WORKFLOW_WORK_PATH"),
     ("result_path", "DEFAULT_RESULT_PATH"),
     ("clean_settings_file", "DEFAULT_CLEAN_SETTINGS_FILE"),
-    ("simulation_settings_file", "DEFAULT_SIMULATION_SETTINGS_FILE"),
-    ("fmax_synthesis_settings_file", "DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE"),
-    ("custom_freq_synthesis_settings_file", "DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE"),
+    ("sim_settings_file", "DEFAULT_SIM_SETTINGS_FILE"),
+    ("fmax_settings_file", "DEFAULT_FMAX_SETTINGS_FILE"),
+    ("synth_settings_file", "DEFAULT_SYNTH_SETTINGS_FILE"),
     ("pnr_settings_file", "DEFAULT_PNR_SETTINGS_FILE"),
-    ("analysis_settings_file", "DEFAULT_ANALYSIS_SETTINGS_FILE"),
+    ("analyze_settings_file", "DEFAULT_ANALYZE_SETTINGS_FILE"),
     ("workflow_settings_file", "DEFAULT_WORKFLOW_SETTINGS_FILE"),
     ("dse_settings_file", "DEFAULT_DSE_SETTINGS_FILE"),
     ("dse_campaign_path", "DEFAULT_DSE_CAMPAIGN_PATH"),
@@ -96,6 +96,10 @@ class WorkspaceSettings(Settings):
     (one a newer Odatix added, a deprecated one still read) stay as they were.
     """
 
+    #: The keys that named the settings files before they were named after
+    #: their command: saved under the current key, where the former one was.
+    moved_keys = tuple(OdatixSettings.FORMER_SETTINGS_KEYS.items())
+
     workspace = Setting("odatix", type="str", doc="Marks the directory as an Odatix workspace.")
 
     default_tool = Setting(
@@ -106,16 +110,16 @@ class WorkspaceSettings(Settings):
     arch_path = _path("Main paths", "Where the architectures are.")
     sim_path = _path(doc="Where the simulations are.")
     workflow_path = _path(doc="Where the workflows are.")
-    tools_path = _path(doc="Where the workspace's own EDA tools are.")
+    tools_path = _path(doc="Where the workspace's own tools are.")
     target_path = _path(doc="Where the target files are.")
     gui_theme_path = _path(doc="Where the user themes of the GUI are.")
 
     clean_settings_file = _path("Settings files", "What \"odatix clean\" removes.")
-    simulation_settings_file = _path(doc="Settings of \"odatix sim\".")
-    fmax_synthesis_settings_file = _path(doc="Settings of \"odatix fmax\".")
-    custom_freq_synthesis_settings_file = _path(doc="Settings of \"odatix synth\".")
+    sim_settings_file = _path(doc="Settings of \"odatix sim\".")
+    fmax_settings_file = _path(doc="Settings of \"odatix fmax\".")
+    synth_settings_file = _path(doc="Settings of \"odatix synth\".")
     pnr_settings_file = _path(doc="Settings of \"odatix pnr\".")
-    analysis_settings_file = _path(doc="Settings of \"odatix analyze\".")
+    analyze_settings_file = _path(doc="Settings of \"odatix analyze\".")
     workflow_settings_file = _path(doc="Settings of \"odatix workflow\".")
     dse_settings_file = _path(doc="Settings of \"odatix dse\".")
     dse_campaign_path = _path(doc="Where the exploration campaigns are kept.")
@@ -123,8 +127,8 @@ class WorkspaceSettings(Settings):
 
     work_path = _path("Work directories", "Where jobs run.")
     simulation_work_path = _path(doc="Sub-directory of the work path for simulations.")
-    fmax_synthesis_work_path = _path(doc="Sub-directory of the work path for fmax synthesis.")
-    custom_freq_synthesis_work_path = _path(doc="Sub-directory of the work path for custom frequency synthesis.")
+    fmax_synthesis_work_path = _path(doc="Sub-directory of the work path for Fmax synthesis.")
+    custom_freq_synthesis_work_path = _path(doc="Sub-directory of the work path for fixed-frequency synthesis.")
     pnr_work_path = _path(doc="Sub-directory of the work path for place and route.")
     analysis_work_path = _path(doc="Sub-directory of the work path for analyses.")
     workflow_work_path = _path(doc="Sub-directory of the work path for workflows.")
@@ -137,6 +141,15 @@ class WorkspaceSettings(Settings):
     )
     cpu_limit = Setting("", type="any", skip_if_empty=True, doc="CPU usage (%) above which jobs are paused.")
     mem_limit = Setting("", type="any", skip_if_empty=True, doc="Memory usage (%) above which jobs are paused.")
+
+    def normalize(self):
+        """Read a former settings file key as the current one (see :attr:`moved_keys`)."""
+        for former, key in self.moved_keys:
+            if former in self.extra:
+                value = self.extra.pop(former)
+                if not self[key]:
+                    self[key] = value
+        return self
 
 
 #: Header of a settings file generated from scratch.
@@ -179,10 +192,14 @@ class WorkspacePaths(object):
         # against the workspace directory. The ones naming a sub-directory of
         # the work directory are only meaningful that way (see :meth:`under`).
         self._raw = {}
+        settings = OdatixSettings.carry_over_former_keys(settings, silent=True)
         for name, default_attribute in PATH_SETTINGS:
             value = settings.get(name)
             if not isinstance(value, str) or value.strip() == "":
-                value = getattr(OdatixSettings, default_attribute)
+                if name in OdatixSettings.FORMER_DEFAULT_SETTINGS_FILES:
+                    value = OdatixSettings.default_settings_file(name, self.resolve)
+                else:
+                    value = getattr(OdatixSettings, default_attribute)
             self._raw[name] = value
             setattr(self, name, self.resolve(value))
         #: Where a target file kept at the old default location is looked up.

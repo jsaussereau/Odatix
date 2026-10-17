@@ -1,6 +1,6 @@
 
 ##############################################
-# Odatix settings for workflow
+# Odatix settings for workflows
 ##############################################
 ---
 
@@ -22,7 +22,7 @@ nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minu
 workflows:
 
 #--------------------------------------------#
-# Add your own designs!
+# Add your own workflows!
 #--------------------------------------------#
 
   #- Your_Design/Your_1st_Configuration

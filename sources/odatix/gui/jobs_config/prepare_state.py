@@ -172,11 +172,11 @@ def _tool_check_card(state):
     elif state["status"] == "failed":
         glyph, style = "✗", "failed"
         count = str(len(state["tools"]))
-        label = "EDA tool not found: " + ", ".join(state["tools"])
+        label = "Tool not found: " + ", ".join(state["tools"])
     else:
         glyph, style = "✓", "passed"
         count = str(state["total"])
-        label = "EDA tool ready" if state["total"] == 1 else "EDA tools ready"
+        label = "Tool ready" if state["total"] == 1 else "Tools ready"
 
     return html.Div(
         [

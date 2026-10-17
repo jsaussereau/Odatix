@@ -96,7 +96,7 @@ def _what_runs_panel(workspace, campaign):
             tooltip="What each evaluation of the search runs on the design it chose.",
         ),
         ui.form_dropdown(
-            "EDA tools", "dse-editor-tools", tool_options(), value=tools, multi=True,
+            "Tools", "dse-editor-tools", tool_options(), value=tools, multi=True,
             placeholder="the tool the evaluations run with",
             tooltip="One tool, or several: naming several makes what runs a design "
                     "one more thing the search chooses.",
@@ -129,7 +129,7 @@ def _frequencies_panel(campaign):
     return html.Div([
         _panel_caption(
             "Frequencies",
-            "A custom frequency synthesis is the one run that is told a frequency: "
+            "A fixed-frequency synthesis is the one run that is told a frequency: "
             "either it is fixed here, or the search chooses it like a parameter.",
         ),
         html.Div(
@@ -173,9 +173,9 @@ def _search_panel(campaign):
         ], className="odx-field-row"),
         html.Div([
             ui.form_field("Budget", "dse-editor-budget", value=str(search.budget), type="number", style={"flex": "1"},
-                          tooltip="How many designs are evaluated at most, per architecture."),
+                          tooltip="How many design points are evaluated at most, per architecture."),
             ui.form_field("Batch", "dse-editor-batch", value=str(search.batch), type="number", style={"flex": "1"},
-                          tooltip="How many designs are evaluated together, between two decisions."),
+                          tooltip="How many design points are evaluated together, between two decisions."),
         ], className="odx-field-row"),
         html.Div([
             ui.form_field("Patience", "dse-editor-patience", value=str(search.patience), type="number", style={"flex": "1"},
@@ -192,9 +192,9 @@ def _search_panel(campaign):
                               tooltip="How often a parameter is changed when a design is derived from "
                                       "another. Empty: one parameter per design on average."),
                 ui.form_field("Tournament", "dse-editor-tournament", value=str(search.tournament), type="number", style={"flex": "1"},
-                              tooltip="How many designs a parent is picked out of."),
+                              tooltip="How many design points a parent is picked out of."),
                 ui.form_field("Population", "dse-editor-population", value="" if search.population is None else str(search.population), type="number", style={"flex": "1"},
-                              tooltip="How many designs the search keeps to look around. Empty: four batches' worth."),
+                              tooltip="How many design points the search keeps to look around. Empty: four batches' worth."),
             ], className="odx-field-row"),
         ], id="dse-editor-genetic", style={"display": "block" if strategy == "genetic" else "none"}),
         html.Div([
@@ -375,8 +375,8 @@ def _delete_popup():
 dash.register_page(
     __name__,
     path=editor_path,
-    title="Odatix - Exploration Campaign",
-    name="Exploration Campaign",
+    title="Odatix - Exploration campaign",
+    name="Exploration campaign",
     layout=layout,
     order=8,
 )

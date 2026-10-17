@@ -200,15 +200,36 @@ $ odatix-gui
 {{< /code >}}
 
 **Workflows** shows the same definitions as editable cards — tasks,
-dependencies, variables, metrics — and **Run Jobs** → **Workflow** selects what
+dependencies, variables, metrics — and **Run jobs** → **Workflow** selects what
 to launch. It writes the same YAML files, so you can move between the two freely.
+
+### Step 8 — When there are too many configurations to run them all
+
+The knobs of a workflow are arguments on a command line, so nothing stops five
+of them from describing a hundred thousand runs. `image_codec`, the codec
+example, already describes 3150 of them — which is why
+`workflow_settings.yml` does not select it.
+
+A [design space exploration](/docs/reference/dse/#exploring-a-workflow) searches
+those instead of running them: it evaluates a batch, looks at what came out and
+chooses the next batch from there.
+
+{{< code lang=bash filename="Terminal" prompt="true" >}}
+$ odatix dse -p image_codec_rate_quality
+{{< /code >}}
+
+It runs sixty encoders out of the 3150 and comes back with the rate/quality
+curve none of them is beaten on. The campaign that says so is
+`odatix_userconfig/dse_campaigns/image_codec_rate_quality.yml`, and the only
+thing that makes it a workflow campaign rather than a synthesis one is
+`run: workflow` at the top of it.
 
 ## Troubleshooting
 
 | Symptom | Likely cause |
 |---------|--------------|
 | Progress bar stays at 0 % | `progress.file` or `progress.regex` does not match what the tasks write. |
-| A `${var}` reaches the shell literally | The name matches no variable, domain or workflow value — check the spelling in `generate_configurations_settings`. |
+| A `${var}` reaches the shell literally | The name matches no variable, domain or workflow value — check the spelling in `variables`. |
 | No results in Explorer | The workflow has no `_metrics.yml`, or the file the metric reads was never written. |
 | Jobs are skipped | They already have results; add `-o/--overwrite`, or `-r/--resume` to reuse the work directories. |
 
@@ -218,3 +239,4 @@ to launch. It writes the same YAML files, so you can move between the two freely
 - **Feature** — [Custom workflows](/docs/features/workflows/).
 - **Reference** — [Workflow settings](/docs/reference/workflow/) · [Run settings files](/docs/reference/run_settings/) · [Metrics files](/docs/reference/metrics/)
 - **Guides** — [Define a workflow](/docs/reference/workflow/) · [Virtual parameter domains](/docs/configurations/virtual_param_domains/)
+- **Too many configurations** — [Exploring a workflow](/docs/reference/dse/#exploring-a-workflow)

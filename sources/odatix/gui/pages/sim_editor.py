@@ -46,8 +46,8 @@ page_path = "/sim_editor"
 dash.register_page(
     __name__,
     path=page_path,
-    title="Odatix - Simulation Editor",
-    name="Simulation Editor",
+    title="Odatix - Simulation editor",
+    name="Simulation editor",
     order=7,
 )
 
@@ -303,8 +303,8 @@ def simulation_title(sim_name):
             ui.icon_button(
                 id="button-open-sim-metric-editor",
                 icon=icon("metrics", className="icon blue"),
-                text="Edit Metrics",
-                tooltip="Open the Exported Metrics Editor for this simulation",
+                text="Edit metrics",
+                tooltip="Open the exported metrics editor for this simulation",
                 tooltip_options="bottom delay",
                 color="default",
                 link=f"/metric_editor?simulation={sim_name}",
@@ -331,7 +331,7 @@ def simulation_title(sim_name):
                                     value=f"{sim_name}",
                                     type="text",
                                     id="sim-title",
-                                    placeholder="Simulation Name...",
+                                    placeholder="Simulation name...",
                                     className="title-input",
                                     style={"width": "100%", "transform": "translate(-5px, 5px)"},
                                 )
@@ -380,7 +380,7 @@ def sim_form(settings):
         children=[
             html.Div(
                 [
-                    html.H3("Parameters Replacement (deprecated)"),
+                    html.H3("Parameters replacement (deprecated)"),
                     html.Div(
                         "Superseded by the Architectures section below, which does the same per "
                         "architecture and per parameter domain instead of once for all of them. "
@@ -407,20 +407,20 @@ def sim_form(settings):
                     html.Div(
                         children=[
                             sim_form_field(
-                                label="Parameter Target File",
+                                label="Parameter target file",
                                 id="sim-param-target-file",
                                 value=defval("param_target_file", ""),
                                 placeholder="tb/tb_counter.vhdl",
                                 tooltip="File of the simulation sources where replacements are applied.",
                             ),
                             sim_form_field(
-                                label="Start Delimiter",
+                                label="Start delimiter",
                                 id="sim-start-delimiter",
                                 value=defval("start_delimiter", ""),
                                 tooltip="Start marker for replacement. Escape sequences such as \\n are supported.",
                             ),
                             sim_form_field(
-                                label="Stop Delimiter",
+                                label="Stop delimiter",
                                 id="sim-stop-delimiter",
                                 value=defval("stop_delimiter", ""),
                                 tooltip="Stop marker for replacement. Escape sequences such as \\n are supported.",
@@ -436,7 +436,7 @@ def sim_form(settings):
             ),
             html.Div(
                 [
-                    html.H3("Parameters Override (deprecated)"),
+                    html.H3("Parameters override (deprecated)"),
                     html.Div(
                         "Superseded by the Architectures section below: under an architecture, a domain "
                         "name matching none of its own declares a replacement of the simulation's own, "
@@ -463,25 +463,25 @@ def sim_form(settings):
                     html.Div(
                         children=[
                             sim_form_field(
-                                label="Override Parameter File",
+                                label="Override parameter file",
                                 id="sim-override-param-file",
                                 value=defval("override_param_file", ""),
                                 tooltip="File of the simulation holding the overriding values.",
                             ),
                             sim_form_field(
-                                label="Override Parameter Target File",
+                                label="Override parameter target file",
                                 id="sim-override-param-target-file",
                                 value=defval("override_param_target_file", ""),
                                 tooltip="File where the overriding values are written.",
                             ),
                             sim_form_field(
-                                label="Override Start Delimiter",
+                                label="Override start delimiter",
                                 id="sim-override-start-delimiter",
                                 value=defval("override_start_delimiter", ""),
                                 tooltip="Start marker for the override replacement. Escape sequences such as \\n are supported.",
                             ),
                             sim_form_field(
-                                label="Override Stop Delimiter",
+                                label="Override stop delimiter",
                                 id="sim-override-stop-delimiter",
                                 value=defval("override_stop_delimiter", ""),
                                 tooltip="Stop marker for the override replacement. Escape sequences such as \\n are supported.",
@@ -497,16 +497,16 @@ def sim_form(settings):
             ),
             html.Div(
                 [
-                    html.H3("Progress Tracking"),
+                    html.H3("Progress tracking"),
                     sim_form_field(
-                        label="Progress File",
+                        label="Progress file",
                         id="sim-progress-file",
                         value=progress.get("file", ""),
                         placeholder=hard_settings.sim_progress_file,
                         tooltip="Path of the progress file written by the simulation.",
                     ),
                     sim_form_field(
-                        label="Progress Regex",
+                        label="Progress regex",
                         id="sim-progress-regex",
                         value=progress.get("regex", ""),
                         placeholder=hard_settings.sim_status_pattern.pattern,
@@ -517,7 +517,7 @@ def sim_form(settings):
             ),
             html.Div(
                 [
-                    html.H3("Invariant Parameter Domains"),
+                    html.H3("Invariant parameter domains"),
                     sim_form_field(
                         label="Domains",
                         id="sim-invariant-domains",
@@ -1354,7 +1354,7 @@ layout = html.Div(
         html.Div(
             children=[
                 ui.title_tile(
-                    text="Task Definition",
+                    text="Task definition",
                     id="sim-task-title",
                     tooltip=(
                         "Tasks define the steps of the simulation. Without any task, the simulation runs "

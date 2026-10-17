@@ -333,15 +333,15 @@ class WorkflowJobSettings(JobSettings):
 #: workspace settings, what it holds, and how it is named to a user.
 JOB_MODES = {
     "fmax_synthesis": {
-        "label": "fmax synthesis",
+        "label": "Fmax synthesis",
         "settings_class": FmaxSynthesisJobSettings,
-        "settings_file": "fmax_synthesis_settings_file",
+        "settings_file": "fmax_settings_file",
         "command": "fmax",
     },
     "custom_freq_synthesis": {
-        "label": "custom frequency synthesis",
+        "label": "fixed-frequency synthesis",
         "settings_class": CustomFreqSynthesisJobSettings,
-        "settings_file": "custom_freq_synthesis_settings_file",
+        "settings_file": "synth_settings_file",
         "command": "synth",
     },
     "pnr": {
@@ -353,7 +353,7 @@ JOB_MODES = {
     "simulation": {
         "label": "simulations",
         "settings_class": SimulationJobSettings,
-        "settings_file": "simulation_settings_file",
+        "settings_file": "sim_settings_file",
         "command": "sim",
     },
     "workflow": {
@@ -365,7 +365,7 @@ JOB_MODES = {
     "analysis": {
         "label": "RTL analysis",
         "settings_class": AnalysisJobSettings,
-        "settings_file": "analysis_settings_file",
+        "settings_file": "analyze_settings_file",
         "command": "analyze",
     },
 }

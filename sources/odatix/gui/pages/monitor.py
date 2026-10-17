@@ -351,7 +351,7 @@ def _format_monitor_error(error, daemon_state: Optional[dict] = None):
             address = daemon_state.get("address") or "the daemon API"
             session_id = str(daemon_state.get("session_id", "")).strip()
             if session_id != "":
-                return f"Could not reach daemon session '{session_id}' on {address}"
+                return f"Could not reach session '{session_id}' on {address}"
             return f"Could not reach daemon on {address}"
         return "Could not reach daemon API"
 
@@ -966,7 +966,7 @@ def _fetch_full_log_on_selection(selected_job_id, format_yaml, daemon_state, sea
 _MODE_BY_BUTTON = {
     "monitor-mode-split": "split",
     "monitor-mode-stacked": "stacked",
-    "monitor-mode-tasks": "list",
+    "monitor-mode-jobs": "list",
     "monitor-mode-log": "log",
 }
 _VALID_MODES = ("split", "stacked", "list", "log")
@@ -976,7 +976,7 @@ _VALID_MODES = ("split", "stacked", "list", "log")
     Output("monitor-layout", "data"),
     Input("monitor-mode-split", "n_clicks"),
     Input("monitor-mode-stacked", "n_clicks"),
-    Input("monitor-mode-tasks", "n_clicks"),
+    Input("monitor-mode-jobs", "n_clicks"),
     Input("monitor-mode-log", "n_clicks"),
     prevent_initial_call=True,
 )
@@ -991,7 +991,7 @@ def _set_layout_mode(*_clicks):
     Output("monitor-split", "className"),
     Output("monitor-mode-split", "className"),
     Output("monitor-mode-stacked", "className"),
-    Output("monitor-mode-tasks", "className"),
+    Output("monitor-mode-jobs", "className"),
     Output("monitor-mode-log", "className"),
     Input("monitor-layout", "data"),
 )
@@ -1002,7 +1002,7 @@ def _compose_split_class(layout):
     if layout == "stacked":
         classes.append("stacked")
     elif layout == "list":
-        classes.append("log-collapsed")   # tasks only
+        classes.append("log-collapsed")   # jobs only
     elif layout == "log":
         classes.append("list-collapsed")  # log only
     else:
@@ -1266,9 +1266,9 @@ def _announce_finished(counts, announced, selected_session, daemon_state):
         if total == 1:
             message = "The task finished with an error!"
         elif failed == total:
-            message = f"All {total} tasks finished with an error!"
+            message = f"All {total} jobs finished with an error!"
         else:
-            message = f"{total} tasks finished, {failed} of them failed."
+            message = f"{total} jobs finished, {failed} of them failed."
     else:
         title = "All jobs completed"
         badge = "monitor-finished-badge success"
@@ -1276,9 +1276,9 @@ def _announce_finished(counts, announced, selected_session, daemon_state):
         if total == 1:
             message = "The task completed successfully."
         elif total == 2:
-            message = "Both tasks completed successfully."
+            message = "Both jobs completed successfully."
         else:
-            message = f"All {total} tasks completed successfully."
+            message = f"All {total} jobs completed successfully."
 
     stats = [
         _finished_stat(total, "Total", "total"),
@@ -1397,7 +1397,7 @@ monitor_toolbar = html.Div(
                     children=[
                         _mode_button("monitor-mode-split", "Split", "Task list and log side by side"),
                         _mode_button("monitor-mode-stacked", "Stacked", "Task list above, log below"),
-                        _mode_button("monitor-mode-tasks", "Tasks", "Task list only"),
+                        _mode_button("monitor-mode-jobs", "Jobs", "Job list only"),
                         _mode_button("monitor-mode-log", "Log", "Log only"),
                     ],
                 ),
@@ -1406,7 +1406,7 @@ monitor_toolbar = html.Div(
                     icon=icon("cross_solid", className="icon solid"),
                     color="caution",
                     multiline=True,
-                    tooltip="Kill all tasks and exit session",
+                    tooltip="Kill all jobs and stop the session",
                 ),
             ],
         ),
@@ -1459,7 +1459,7 @@ list_panel = html.Div(
                 html.Div(
                     className="monitor-panel-title-group",
                     children=[
-                        html.Span("Tasks", className="monitor-panel-title"),
+                        html.Span("Jobs", className="monitor-panel-title"),
                         dcc.RadioItems(
                             id="monitor-filter",
                             className="monitor-filter",

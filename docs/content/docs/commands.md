@@ -40,6 +40,7 @@ unexpected error prints a one-line message and writes the full trace to
 | Configuration | `odatix config` | Read and change the configuration of the workspace. |
 | Generation | `odatix generate`, `odatix replace` | Generate parameter files and replace delimited sections. |
 | Execution | `odatix fmax`, `odatix synth`, `odatix pnr`, `odatix analyze`, `odatix sim`, `odatix workflow` | Enqueue and run synthesis, place & route, RTL analysis, simulation and workflow jobs. |
+| Exploration | `odatix dse` | Search a design space instead of sweeping it. |
 | Daemon sessions | `odatix ls`, `odatix monitor`, `odatix stop` | Inspect, attach and stop daemon sessions. |
 | Export | `odatix results [all\|synth\|sim\|workflow\|analysis\|derived]` | Export synthesis, simulation, workflow and analysis results, and apply derived metrics. |
 | Maintenance | `odatix clean`, `odatix migrate` | Remove generated files from a clean profile, and rewrite settings files written in a former format. |
@@ -71,10 +72,11 @@ unexpected error prints a one-line message and writes the full trace to
 |---------|--------------------|
 | `odatix fmax` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--continue-on-error`, `-T/--trust`, `-e/--noexport` |
 | `odatix synth` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from`, `--to`, `--step`, `--at` (repeatable), `-T/--trust`, `-e/--noexport` |
-| `odatix analyze` | `-t/--tool` (repeatable), `-f/--flow` (repeatable), `-T/--trust`, `-e/--noexport` |
+| `odatix analyze` | `-t/--tool` (repeatable), `-f/--flow` (repeatable), `-T/--trust`, `-e/--noexport`, `-d/--detach`, `-S/--session` |
 | `odatix pnr` | `-t/--tool`, `-f/--flow`, `--target`, `-u/--until`, `--rerun-from`, `--from-type`, `--from-tool`, `--from-flow`, `-i/--input`, `-w/--work`, `-T/--trust`, `-e/--noexport` |
-| `odatix sim` | `-a/--archpath`, `-s/--simpath`, `-w/--work` |
+| `odatix sim` | `-a/--archpath`, `-s/--simpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
 | `odatix workflow` | `-p/--workflowpath`, `-w/--work`, `-r/--resume`, `-e/--noexport` |
+| `odatix dse` | `-p/--campaign`, `-t/--tool`, `-f/--flow`, `--target`, `-a/--architecture` (repeatable), `-r/--run`, `-s/--strategy`, `-m/--mode`, `-b/--budget`, `-B/--batch`, `--seed`, `-i/--input`, `-C/--check` |
 
 ### Former spellings
 
@@ -102,12 +104,29 @@ exports: a benchmark score is a [simulation metric](/docs/results/metrics/) now.
 > else. The exploration settings file is given with `-i/--input`; one given to
 > `-c` is refused with that hint.
 
+## Exit status
+
+Every command exits with `0` when it did what it was asked, and with a non-zero
+status otherwise, so that it can be chained in a script (`odatix fmax -y -d &&
+...`). This includes the export commands when a results file cannot be written,
+`odatix results` when deriving the metrics fails, `odatix stop` when a session
+could not be confirmed stopped, and `odatix replace` when its delimiters match
+nothing (the output is then a plain copy of the input).
+
+The status of a run command (`fmax`, `synth`, `pnr`, `sim`, `workflow`) says
+whether its jobs could be checked, prepared and handed over to the daemon, not
+whether each of them then succeeded: the monitor and the results say that.
+
 ## Selecting a flow
 
-A **flow** is a way of running an eda tool: a different script, different
-options, sometimes a different binary. Vivado ships a timing oriented flow and a
-power oriented one (automatic clock gating); Design Compiler ships a `dc_shell`
-flow and a `dcnxt_shell` one.
+A **flow** is a way of running an eda tool: a different strategy, different
+options, sometimes a different script. Vivado ships `standard`, `runtime`,
+`performance`, `area` and `power_opt`; Quartus ships `standard`, `balanced`,
+`runtime`, `performance`, `area` and `power_opt`; Design Compiler (and DC NXT, the same
+flows run by `dcnxt_shell`) ships `standard` (`compile`), `high_effort`,
+`ultra`, `ultra_timing`, `ultra_area` and `ultra_power`; Genus ships
+`standard`, `medium_effort`, `extreme`, `timing`, `area` and `power`; Innovus ships
+`standard`, `express`, `extreme`, `timing`, `area` and `power`.
 
 The flows of a tool are declared in the `flows` section of its `tool.yml`. When
 `-f/--flow` is not given, the tool's default flow is used (its `default_flow`
@@ -116,7 +135,10 @@ key).
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix synth --tool vivado                     # default flow ("standard")
 $ odatix synth --tool vivado --flow power_opt    # clock gating + power optimization
-$ odatix fmax --tool design_compiler --flow dcnxt      # dcnxt_shell instead of dc_shell
+$ odatix fmax --tool design_compiler --flow ultra_timing   # compile_ultra, retiming
+$ odatix fmax --tool dc_nxt --flow ultra_timing            # same, run by dcnxt_shell
+$ odatix fmax --tool genus --flow timing                   # retiming, extreme syn_opt effort
+$ odatix pnr --tool innovus --flow timing --from-tool design_compiler   # useful skew, hold fixing
 {{< /code >}}
 
 Flows of the same tool are alternatives meant to be compared, so each one runs in
@@ -150,7 +172,7 @@ $ odatix synth -t vivado --rerun-from pnr               # redo place & route onw
 $ odatix fmax -t vivado --until synthesis              # fmax from synthesis timing only
 {{< /code >}}
 
-In the GUI, everything is on the **Select an EDA Tool** page, laid out inside
+In the GUI, everything is on the **Select a tool** page, laid out inside
 each tool's card: its flows as buttons, and, for a flow split into steps, its
 steps as "run up to here" buttons. Every one of them leads straight to the job
 settings, so a run stays one click away whatever the tool offers.
@@ -190,7 +212,9 @@ $ odatix config job show fmax_synthesis
 ### Generation and replacement
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix generate
+$ odatix generate                        # optional: a run resolves them on its own
+$ odatix generate -o                     # take configurations edited by hand back to their rule
+$ odatix generate -C                     # delete what the rules no longer describe
 $ odatix generate -a odatix_userconfig/architectures
 $ odatix generate -p odatix_userconfig/workflows
 
@@ -219,6 +243,7 @@ Place & route a netlist another tool synthesized â€” see [Place & route](/docs/f
 $ odatix pnr --tool innovus --from-tool design_compiler
 $ odatix pnr --tool icc2 --from-type fmax_synthesis
 $ odatix pnr --tool innovus --until route
+$ odatix pnr --tool innovus --flow area                # dense floorplan, area reclaim
 {{< /code >}}
 
 ### RTL analysis
@@ -229,7 +254,15 @@ Elaborate every configuration with one or several tools and report its status â€
 $ odatix analyze
 $ odatix analyze --tool vivado verilator genus
 $ odatix analyze --tool vivado verilator --flow vivado:implementation
+$ odatix analyze -d -S nightly          # hand the jobs over to the daemon, report later
+$ odatix results analysis                   # the report of the analyses of the work directory
+$ odatix results analysis -t verilator -e   # one tool, without writing the results files
 {{< /code >}}
+
+`odatix analyze` runs its jobs through the daemon like every other run, and
+prints its report once they are done. Detached (`-d`), the jobs are only
+starting when it returns: `odatix results analysis` gives their report later, and
+exports their results again.
 
 ### Workflows
 
@@ -251,7 +284,13 @@ $ odatix monitor -S nightly
 $ odatix stop
 $ odatix stop -S nightly
 $ odatix stop --all
+
+$ odatix ls -R user@server              # sessions of another machine, over ssh
+$ odatix monitor -R user@server -S nightly
+$ odatix stop -R user@server -S nightly
 {{< /code >}}
+
+Sessions are private to the user who owns them and every request to one is authenticated; see [Sessions & Job Monitor](/docs/sessions/#security).
 
 ### Results export
 
@@ -277,7 +316,7 @@ metrics, which read what the others wrote. The options of a type come after it:
 $ odatix clean
 $ odatix clean -y                # also remove the paths that look dangerous
 $ odatix clean -V                # say what is removed
-$ odatix clean -i odatix_userconfig/clean.yml
+$ odatix clean -i odatix_userconfig/clean_settings.yml
 {{< /code >}}
 
 ### Migration

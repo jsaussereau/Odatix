@@ -46,7 +46,7 @@ ARCHITECTURES_BASELINE_KEY = "__architectures__"
 # shown as a tag in the summary strip of the header.
 RUN_MODE_LABELS = {
     "fmax_synthesis": "Fmax synthesis",
-    "custom_freq_synthesis": "Custom frequency synthesis",
+    "custom_freq_synthesis": "Fixed-frequency synthesis",
     "pnr": "Place & route",
     "analyze": "RTL analysis",
     "workflow": "Workflow",
@@ -119,13 +119,13 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
     run_mode = get_key_from_url(search, "type")
     if run_mode == "custom_freq_synthesis":
         return odatix_settings.get(
-            "custom_freq_synthesis_settings_file",
-            OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
+            "synth_settings_file",
+            OdatixSettings.DEFAULT_SYNTH_SETTINGS_FILE,
         )
     if run_mode == "fmax_synthesis":
         return odatix_settings.get(
-            "fmax_synthesis_settings_file",
-            OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+            "fmax_settings_file",
+            OdatixSettings.DEFAULT_FMAX_SETTINGS_FILE,
         )
     if run_mode == "pnr":
         return odatix_settings.get(
@@ -134,13 +134,13 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
         )
     if run_mode == "analyze":
         return odatix_settings.get(
-            "analysis_settings_file",
-            OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE,
+            "analyze_settings_file",
+            OdatixSettings.DEFAULT_ANALYZE_SETTINGS_FILE,
         )
     if run_mode == "simulation":
         return odatix_settings.get(
-            "simulation_settings_file",
-            OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
+            "sim_settings_file",
+            OdatixSettings.DEFAULT_SIM_SETTINGS_FILE,
         )
     if run_mode == "workflow":
         # Without this, the Job Settings form of a workflow run would be filled
@@ -152,8 +152,8 @@ def _get_synth_settings_path(search: str, odatix_settings: dict) -> str:
             OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE,
         )
     return odatix_settings.get(
-        "fmax_synthesis_settings_file",
-        OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+        "fmax_settings_file",
+        OdatixSettings.DEFAULT_FMAX_SETTINGS_FILE,
     )
 
 def _select_all_buttons(button_type: str, id_keys: dict) -> html.Div:

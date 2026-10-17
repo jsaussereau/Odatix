@@ -43,19 +43,19 @@ side_bar_width = "0px"
 nav_groups = [
     ("Configure", "", [
         ("Workflows", "/workflows"),
-        ("RTL Architectures", "/architectures"),
-        ("RTL Simulations", "/architectures#simulations"),
-        ("EDA Tools", "/tools"),
-        ("Derived Metrics", "/derived_metrics"),
+        ("RTL architectures", "/architectures"),
+        ("RTL simulations", "/architectures#simulations"),
+        ("Tools", "/tools"),
+        ("Derived metrics", "/derived_metrics"),
     ]),
     ("Run", "/choose_job_type", [
         ("Workflows", "/run_jobs?type=workflow"),
         ("Simulations", "/run_jobs?type=simulation"),
-        ("RTL Analysis", "/run_jobs?type=analyze"),
-        ("Fmax Synthesis", "/choose_eda_tool?type=fmax_synthesis"),
-        ("Custom Synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
-        ("Place & Route", "/choose_eda_tool?type=pnr"),
-        ("Design Space Exploration", "/dse"),
+        ("RTL analysis", "/run_jobs?type=analyze"),
+        ("Fmax synthesis", "/choose_eda_tool?type=fmax_synthesis"),
+        ("Fixed-frequency synthesis", "/choose_eda_tool?type=custom_freq_synthesis"),
+        ("Place & route", "/choose_eda_tool?type=pnr"),
+        ("Design space exploration", "/dse"),
     ]),
     ("Monitor", "/monitor"),
     ("Explorer", "/explorer", [
@@ -66,12 +66,12 @@ nav_groups = [
         ("Radar", "/explorer/radar"),
         ("Table", "/explorer/table"),
         ("Overview", "/explorer/overview"),
-        ("RTL Analysis", "/explorer/analysis"),
-        ("Design Space Exploration", "/explorer/dse"),
+        ("RTL analysis", "/explorer/analysis"),
+        ("Design space exploration", "/explorer/dse"),
     ]),
     ("Workspace", "", [
         ("Clean", "/clean"),
-        ("Derived Metrics", "/derived_metrics"),
+        ("Derived metrics", "/derived_metrics"),
         ("Settings", "/workspace"),
     ]),
 ]
@@ -152,7 +152,7 @@ def top_bar(gui):
                             )
                         ],
                         className="nav-theme tooltip delay bottom auto",
-                        **{"data-tooltip": "Select Theme"},
+                        **{"data-tooltip": "Select theme"},
                     ),
                 ],
                 id="nav-menu",

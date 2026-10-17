@@ -1,12 +1,114 @@
 ##############################################
-# Odatix Workspace Settings
+# Odatix workspace settings
 ##############################################
 
-# Default workspace settings can be overridden here.
+# Every key is optional. A key left commented out takes the value shown,
+# which is the Odatix default: uncomment it to change it.
 
+# marks the directory as an Odatix workspace
 workspace: odatix
 
-# EDA tool the run commands (fmax, synth, analyze) use when -t/--tool does
-# not name one. Without it, a workspace with a single target file uses that
-# tool, and any other asks for -t/--tool.
-default_tool: vivado
+# tool the run commands (fmax, synth, analyze) use when -t/--tool names none;
+# without it, a workspace with a single target file uses that tool
+default_tool: vivado  # overridden by -t / --tool
+
+#--------------------------------------------#
+# Main paths
+#--------------------------------------------#
+
+# where the architectures are
+# arch_path: odatix_userconfig/architectures
+
+# where the simulations are
+# sim_path: odatix_userconfig/simulations
+
+# where the workflows are
+# workflow_path: odatix_userconfig/workflows
+
+# where the workspace's own tools are
+# tools_path: odatix_userconfig/tools
+
+# where the target files are
+# target_path: odatix_userconfig/targets
+
+# where the user themes of the GUI are
+# gui_theme_path: odatix_userconfig/themes/gui
+
+#--------------------------------------------#
+# Settings files
+#--------------------------------------------#
+
+# what "odatix clean" removes
+# clean_settings_file: odatix_userconfig/clean_settings.yml
+
+# settings of "odatix sim"
+# sim_settings_file: odatix_userconfig/sim_settings.yml
+
+# settings of "odatix fmax"
+# fmax_settings_file: odatix_userconfig/fmax_settings.yml
+
+# settings of "odatix synth"
+# synth_settings_file: odatix_userconfig/synth_settings.yml
+
+# settings of "odatix pnr"
+# pnr_settings_file: odatix_userconfig/pnr_settings.yml
+
+# settings of "odatix analyze"
+# analyze_settings_file: odatix_userconfig/analyze_settings.yml
+
+# settings of "odatix workflow"
+# workflow_settings_file: odatix_userconfig/workflow_settings.yml
+
+# settings of "odatix dse"
+# dse_settings_file: odatix_userconfig/dse_settings.yml
+
+# where the exploration campaigns are kept
+# dse_campaign_path: odatix_userconfig/dse_campaigns
+
+# the metrics computed from the ones runs produce
+# derived_metrics_file: odatix_userconfig/derived_metrics.yml
+
+#--------------------------------------------#
+# Work directories
+#--------------------------------------------#
+
+# where jobs run
+# work_path: work
+
+# sub-directory of the work path for simulations
+# simulation_work_path: simulations
+
+# sub-directory of the work path for Fmax synthesis
+# fmax_synthesis_work_path: fmax_synthesis
+
+# sub-directory of the work path for fixed-frequency synthesis
+# custom_freq_synthesis_work_path: custom_freq_synthesis
+
+# sub-directory of the work path for place and route
+# pnr_work_path: pnr
+
+# sub-directory of the work path for analyses
+# analysis_work_path: analysis
+
+# sub-directory of the work path for workflows
+# workflow_work_path: workflows
+
+#--------------------------------------------#
+# Results
+#--------------------------------------------#
+
+# where results are written
+# result_path: results
+
+#--------------------------------------------#
+# Resource guard
+#--------------------------------------------#
+
+# whether running jobs are paused while the machine is overloaded
+# resource_guard: Yes
+
+# CPU usage (%) above which jobs are paused
+# cpu_limit: 98
+
+# memory usage (%) above which jobs are paused
+# mem_limit: 98

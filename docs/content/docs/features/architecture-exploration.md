@@ -93,7 +93,7 @@ parameters (memory depth, ISA extensions, multiplier type…) into separate
 folders, each replacing a different delimited block. Combine them with `+`, or
 expand everything with `*`:
 
-{{< code lang=yaml filename="fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="fmax_settings.yml" >}}
 architectures:
   - AsteRISC/* + DMEM/* + IMEM/* + Baseline/* + Mul/*
 {{< /code >}}
@@ -103,10 +103,9 @@ the parameter files themselves from compact rules — ranges, powers of two,
 explicit lists, multiples, computed functions, and set operations:
 
 {{< code lang=yaml filename="_settings.yml" >}}
-generate_configurations: Yes
-generate_configurations_settings:
-  template: "parameter BITS = $var;"
+configurations:
   name: "config_${var}"
+  template: "parameter BITS = $var;"
 
 variables:
   var:
@@ -174,7 +173,7 @@ $ odatix replace --startdel "#(" --stopdel ")(" \
     --input rtl/alu_top.sv --replace architectures/ALU/16bits.txt \
     --output /tmp/alu_top_16bits.sv     # inspect what a job would build
 
-$ odatix generate                        # write the generated parameter files
+$ odatix generate                        # optional: write the parameter files out
 $ odatix fmax -t vivado                  # run every selected configuration
 {{< /code >}}
 
@@ -187,15 +186,16 @@ syntax is on the [run settings reference](/docs/reference/run_settings/#architec
 `odatix-gui` → **RTL Architectures** (`/architectures`) does the same without
 YAML: a form for the sources, top level, clock, reset and delimiters, the list of
 configurations with an editor for each parameter file, and per-target frequency
-bounds. The **Configuration Generator** builds a whole set of parameter files
-from a rule, previewing the values before writing them.
+bounds. The **Configuration rules** panel of a parameter domain describes a
+whole set of configurations from a rule, previewing the values as they are
+edited.
 
-From there, **Run Jobs** picks the configurations to launch. Everything the GUI
+From there, **Run jobs** picks the configurations to launch. Everything the GUI
 writes is the same YAML described above — the two interfaces edit one workspace. -->
 
 ## Where to go next
 
-- **Tutorial** — [Implement your own RTL](/tutorials/own_designs/synthesis/): a design, its configurations and a first run, end to end.
+- **Tutorial** — [Implement your own RTL](/tutorials/own_designs/architecture/): a design, its configurations and a first run, end to end.
 - **Reference** — [Architecture settings](/docs/reference/architecture/) · [Run settings files](/docs/reference/run_settings/)
 - **Guides** — [Parameter domains](/docs/configurations/param_domains/) · [Configuration generation](/docs/configurations/config_generation/) · [Virtual parameter domains](/docs/configurations/virtual_param_domains/)
 - **Next feature** — [RTL analysis](/docs/features/analysis/), the cheap check to run before implementing a whole space.

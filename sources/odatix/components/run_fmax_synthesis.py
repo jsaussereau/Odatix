@@ -57,8 +57,8 @@ def add_arguments(parser):
     add_options(parser, "tool", "flow", "targets", "until", "rerun_from", "overwrite", "noask", "daemon_options", "settings_file", "arch_path", "work_path", "exit_when_done", "nb_jobs")
     parser.add_argument("--continue-on-error", dest="continue_on_error", action="store_true", help="keep searching when a synthesis of the fmax search fails")
     add_options(parser, "check_eda_tool", "debug")
-    parser.add_argument("--from", dest="lower_bound", type=int, help="override lower bound for fmax synthesis (in MHz)")
-    parser.add_argument("--to", dest="upper_bound", type=int, help="override upper bound for fmax synthesis (in MHz)")
+    parser.add_argument("--from", dest="lower_bound", type=int, help="lowest frequency of the Fmax search, in MHz (default: \"lower_bound\" of \"fmax_synthesis\" in the architecture settings)")
+    parser.add_argument("--to", dest="upper_bound", type=int, help="highest frequency of the Fmax search, in MHz (default: \"upper_bound\" of \"fmax_synthesis\" in the architecture settings)")
     add_options(parser, "keep", "log_size_limit", "export_options", "config", keep={"help": "store synthesis batch with a timestamp in the configuration name"})
 
 

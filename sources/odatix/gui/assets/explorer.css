@@ -697,6 +697,18 @@
     opacity: 0.7;
 }
 
+.xp-home-note {
+    margin-top: 28px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--theme-subtle-text-color);
+}
+
+.xp-home-note a {
+    color: inherit;
+    text-decoration: underline;
+}
+
 .xp-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));

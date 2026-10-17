@@ -167,11 +167,11 @@ gui_theme_path: 'themes'
 
 # Settings files
 clean_settings_file: cfg/clean.yml
-simulation_settings_file: cfg/sim.yml
-fmax_synthesis_settings_file: cfg/fmax.yml
-custom_freq_synthesis_settings_file: cfg/freq.yml
+sim_settings_file: cfg/sim.yml
+fmax_settings_file: cfg/fmax.yml
+synth_settings_file: cfg/freq.yml
 pnr_settings_file: cfg/pnr.yml
-analysis_settings_file: cfg/analysis.yml
+analyze_settings_file: cfg/analysis.yml
 workflow_settings_file: cfg/workflow.yml
 dse_settings_file: cfg/dse.yml
 dse_campaign_path: campaigns
@@ -245,3 +245,32 @@ class TestSaveWorkspaceSettings:
             "arch_path: archs  #", "arch_path: new_archs #"
         )
         assert workspace.paths.arch_path == os.path.join(str(tmp_path), "new_archs")
+
+
+class TestInitSettingsFile:
+    """The odatix.yml "odatix init" writes says every key, with its default."""
+
+    def test_every_key_is_there_with_its_default(self):
+        import os
+        import re
+
+        from odatix.lib.settings import OdatixSettings
+        from odatix.workspace.core import PATH_SETTINGS, WorkspaceSettings
+
+        with open(os.path.join(OdatixSettings.odatix_init_path, "odatix.yml")) as f:
+            text = f.read()
+        defaults = dict((name, getattr(OdatixSettings, attribute)) for name, attribute in PATH_SETTINGS)
+        for spec in WorkspaceSettings.specs():
+            match = re.search(r"^#? ?" + spec.key + r": (.*)$", text, re.MULTILINE)
+            assert match, spec.key
+            if spec.key in defaults:
+                assert match.group(1).strip() == defaults[spec.key], spec.key
+
+    def test_only_the_workspace_and_its_tool_are_set(self):
+        import os
+
+        from odatix.lib.settings import OdatixSettings
+        from odatix.workspace.yaml_io import read_yaml
+
+        data = read_yaml(os.path.join(OdatixSettings.odatix_init_path, "odatix.yml"))
+        assert data == {"workspace": "odatix", "default_tool": "vivado"}

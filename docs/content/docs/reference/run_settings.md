@@ -1,6 +1,6 @@
 ---
 title: "Run Settings Files"
-description: "The six files that say what each odatix run command executes — plus the selector grammars they use and clean.yml."
+description: "The six files that say what each odatix run command executes — plus the selector grammars they use and clean_settings.yml."
 weight: 2
 ---
 
@@ -12,12 +12,13 @@ simulations, workflows or synthesis results).
 
 | Command | Settings file | Selection key |
 |---------|---------------|---------------|
-| `odatix fmax` | `odatix_userconfig/fmax_synthesis_settings.yml` | `architectures` |
-| `odatix synth` | `odatix_userconfig/custom_freq_synthesis_settings.yml` | `architectures` |
-| `odatix analyze` | `odatix_userconfig/analysis_settings.yml` | `architectures` + `tools` |
-| `odatix sim` | `odatix_userconfig/simulations_settings.yml` | `simulations` |
+| `odatix fmax` | `odatix_userconfig/fmax_settings.yml` | `architectures` |
+| `odatix synth` | `odatix_userconfig/synth_settings.yml` | `architectures` |
+| `odatix analyze` | `odatix_userconfig/analyze_settings.yml` | `architectures` + `tools` |
+| `odatix sim` | `odatix_userconfig/sim_settings.yml` | `simulations` |
 | `odatix workflow` | `odatix_userconfig/workflow_settings.yml` | `workflows` |
 | `odatix pnr` | `odatix_userconfig/pnr_settings.yml` | `sources` |
+| `odatix dse` | `odatix_userconfig/dse_settings.yml` | `campaigns` |
 
 Each path is a default and can be changed in
 [`odatix.yml`](/docs/reference/workspace/) or, for one run, with `-i/--input`.
@@ -52,7 +53,7 @@ to run: a design, one of its configurations, and optionally one value per
 `*` stands for "every one of them" and can be used at any level; a line
 containing wildcards expands to every matching combination.
 
-{{< code lang=yaml filename="odatix_userconfig/fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" >}}
 architectures:
   - Example_Counter_sv/08bits                        # one configuration
   - Example_ALU_sv/*                                 # every configuration of a design
@@ -74,10 +75,10 @@ The same selectors are accepted by `-a/--architectures` on the command line.
 
 ## `tools` — analysis only
 
-`analysis_settings.yml` additionally lists the eda tools to elaborate with, since
+`analyze_settings.yml` additionally lists the eda tools to elaborate with, since
 `odatix analyze` runs several at once. `-t/--tool` overrides the list.
 
-{{< code lang=yaml filename="odatix_userconfig/analysis_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" >}}
 tools:
   - vivado
   - verilator
@@ -86,12 +87,27 @@ architectures:
   - Example_Counter_sv/*
 {{< /code >}}
 
+## `expected` — analysis only
+
+What is normal for the designs of `analyze_settings.yml`: the findings it
+describes are reported apart, as *expected*, and do not count — a design whose
+findings are all expected passes. Each entry is a set of conditions and a
+reason; see [Expected findings](/docs/reference/analysis/#expected-findings).
+
+{{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" >}}
+expected:
+  debug_bus:
+    category: unused
+    subject: dbg_*
+    reason: "Debug bus, only connected in the lab build"
+{{< /code >}}
+
 ## `simulations` — testbench to configurations
 
-`simulations_settings.yml` maps each [simulation](/docs/reference/simulation/) to
+`sim_settings.yml` maps each [simulation](/docs/reference/simulation/) to
 the architecture selectors it runs on. The selectors are the ones above.
 
-{{< code lang=yaml filename="odatix_userconfig/simulations_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/sim_settings.yml" >}}
 simulations:
   - TB_Example_Counter_GHDL:
     - Example_Counter_vhdl/04bits
@@ -155,7 +171,7 @@ The command line narrows the same selection without editing the file, with
 `--from-type`, `--from-tool` and `--from-flow`. See
 [Place & route](/docs/features/pnr/).
 
-## `clean.yml`
+## `clean_settings.yml`
 
 Read by `odatix clean`. One key, one list of glob patterns removed from the
 workspace — the junk EDA tools leave in the current directory.
@@ -164,7 +180,7 @@ workspace — the junk EDA tools leave in the current directory.
 |-----|------|-------------|
 | `remove_list` | list of globs | Files and directories `odatix clean` deletes. |
 
-{{< code lang=yaml filename="odatix_userconfig/clean.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/clean_settings.yml" >}}
 remove_list:
   # Design Compiler
   - alib-*
@@ -185,7 +201,7 @@ remove_list:
 
 ## In the GUI
 
-**Run Jobs** builds these files for you: choosing a job type, a tool, targets and
+**Run jobs** builds these files for you: choosing a job type, a tool, targets and
 designs and pressing **Run** writes the corresponding settings file before
 enqueueing the jobs. Everything you set there is the same YAML documented here.
 See [The Odatix GUI](/docs/gui/app/).

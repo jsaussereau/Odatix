@@ -259,7 +259,7 @@ def task_card(prefix, name="main", values=None, main_is_deletable=False):
                     ),
                     color="default",
                     id={"type": f"{prefix}-more-fields-task", "name": name},
-                    tooltip="Show/Hide extra fields",
+                    tooltip="Show/hide extra fields",
                     tooltip_options="bottom small",
                 )
             ], id={"type": f"{prefix}-more-fields-task-div", "name": name}, style={"display": "flex", "alignItems": "center"}),

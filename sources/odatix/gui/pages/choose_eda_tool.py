@@ -55,7 +55,7 @@ page_path = "/choose_eda_tool"
 dash.register_page(
     __name__,
     path=page_path,
-    title='Odatix - Choose EDA Tool',
+    title='Odatix - Choose a tool',
     name='choose_eda_tool',
     order=9,
 )
@@ -294,12 +294,12 @@ def get_tool_cards(job_type):
 
 def get_layout(job_type):
     if not job_type:
-        return [ui.page_header("Select an EDA Tool", "No job type selected.", back_link="/choose_job_type")]
+        return [ui.page_header("Select a tool", "No job type selected.", back_link="/choose_job_type")]
 
     workspace_cards, builtin_cards = get_tool_cards(job_type)
 
     if not workspace_cards and not builtin_cards:
-        content = [ui.empty_state("No eda tool can run this job type.")]
+        content = [ui.empty_state("No tool can run this job type.")]
     else:
         content = []
         if workspace_cards:
@@ -316,7 +316,7 @@ def get_layout(job_type):
 
     return [
         ui.page_header(
-            "Select an EDA Tool",
+            "Select a tool",
             "Choose the tool to run this job with, and how it should run.",
             back_link="/choose_job_type",
         ),

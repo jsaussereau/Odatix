@@ -192,7 +192,7 @@ class SynthesisFlow(Flow):
 
 class FmaxSynthesisFlow(SynthesisFlow):
     mode = "fmax_synthesis"
-    settings_file_setting = "fmax_synthesis_settings_file"
+    settings_file_setting = "fmax_settings_file"
     work_path_setting = "fmax_synthesis_work_path"
 
     def module(self):
@@ -208,18 +208,18 @@ class FmaxSynthesisFlow(SynthesisFlow):
         return arguments
 
 
-class CustomFreqSynthesisFlow(SynthesisFlow):
+class FixedFreqSynthesisFlow(SynthesisFlow):
     mode = "custom_freq_synthesis"
-    settings_file_setting = "custom_freq_synthesis_settings_file"
+    settings_file_setting = "synth_settings_file"
     work_path_setting = "custom_freq_synthesis_work_path"
 
     def module(self):
-        import odatix.components.run_custom_synthesis as module
+        import odatix.components.run_fixed_freq_synthesis as module
 
         return module
 
     def check_arguments(self, run):
-        arguments = super(CustomFreqSynthesisFlow, self).check_arguments(run)
+        arguments = super(FixedFreqSynthesisFlow, self).check_arguments(run)
         arguments["custom_freq_list"] = list(run.options.frequencies)
         return arguments
 
@@ -305,7 +305,7 @@ class PnrFlow(Flow):
 
 class AnalysisFlow(Flow):
     mode = "analysis"
-    settings_file_setting = "analysis_settings_file"
+    settings_file_setting = "analyze_settings_file"
     work_path_setting = "analysis_work_path"
 
     def module(self):
@@ -367,7 +367,7 @@ class AnalysisFlow(Flow):
 
 class SimulationFlow(Flow):
     mode = "simulation"
-    settings_file_setting = "simulation_settings_file"
+    settings_file_setting = "sim_settings_file"
     work_path_setting = "simulation_work_path"
     needs_tool = False
 
@@ -463,7 +463,7 @@ class WorkflowFlow(Flow):
 #: Every kind of run, by the name :data:`odatix.workspace.JOB_MODES` gives it.
 FLOWS = {
     "fmax_synthesis": FmaxSynthesisFlow,
-    "custom_freq_synthesis": CustomFreqSynthesisFlow,
+    "custom_freq_synthesis": FixedFreqSynthesisFlow,
     "pnr": PnrFlow,
     "analysis": AnalysisFlow,
     "simulation": SimulationFlow,

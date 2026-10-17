@@ -115,7 +115,7 @@ stop_delimiter: ""
 fmax_synthesis:
   lower_bound: 50
   upper_bound: 800
-custom_freq_synthesis:
+fixed_freq_synthesis:
   list: [50, 100, 200]
 {{< /code >}}
 
@@ -223,7 +223,7 @@ GHDL does the same and passes `-gWIDTH=... -gITERATIONS=...` to the run; the Viv
 
 The two domains are combined with `+`, and `*` expands every value:
 
-{{< code lang=yaml filename="simulations_settings.yml" >}}
+{{< code lang=yaml filename="sim_settings.yml" >}}
   - TB_Example_Cordic_Verilator:
     - Example_Cordic_sv + iterations/* + width/*
 

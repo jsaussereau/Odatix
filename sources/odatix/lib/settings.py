@@ -109,12 +109,31 @@ class OdatixSettings:
     DEFAULT_RESOURCE_GUARD = True
     DEFAULT_CPU_LIMIT = 98.0
     DEFAULT_MEM_LIMIT = 98.0
-    DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml")
-    DEFAULT_SIMULATION_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml")
-    DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml")
-    DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml")
+    # A settings file is named after the command that reads it.
+    DEFAULT_CLEAN_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "clean_settings.yml")
+    DEFAULT_SIM_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "sim_settings.yml")
+    DEFAULT_FMAX_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_settings.yml")
+    DEFAULT_SYNTH_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "synth_settings.yml")
     DEFAULT_PNR_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "pnr_settings.yml")
-    DEFAULT_ANALYSIS_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "analysis_settings.yml")
+    DEFAULT_ANALYZE_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "analyze_settings.yml")
+    # What those of them that were renamed used to be called. A workspace that
+    # still has a file of the former name, and names none in odatix.yml, keeps
+    # reading it until "odatix migrate" renames it.
+    FORMER_DEFAULT_SETTINGS_FILES = {
+        "clean_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "clean.yml"),
+        "sim_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "simulations_settings.yml"),
+        "fmax_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "fmax_synthesis_settings.yml"),
+        "synth_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "custom_freq_synthesis_settings.yml"),
+        "analyze_settings_file": os.path.join(DEFAULT_USERCONFIG_PATH, "analysis_settings.yml"),
+    }
+    # The keys of odatix.yml that named the settings files before they were
+    # named after their command, and the key each one became. Still read.
+    FORMER_SETTINGS_KEYS = {
+        "simulation_settings_file": "sim_settings_file",
+        "fmax_synthesis_settings_file": "fmax_settings_file",
+        "custom_freq_synthesis_settings_file": "synth_settings_file",
+        "analysis_settings_file": "analyze_settings_file",
+    }
     DEFAULT_WORKFLOW_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "workflow_settings.yml")
     DEFAULT_DSE_SETTINGS_FILE = os.path.join(DEFAULT_USERCONFIG_PATH, "dse_settings.yml")
     DEFAULT_DSE_CAMPAIGN_PATH = os.path.join(DEFAULT_USERCONFIG_PATH, "dse_campaigns")
@@ -195,7 +214,49 @@ class OdatixSettings:
                 script_name,
             )
             return None
+        return OdatixSettings.carry_over_former_keys(settings_data, settings_filename, silent=silent)
+
+    _warned_former_keys = set()
+
+    @staticmethod
+    def carry_over_former_keys(settings_data, settings_filename="", silent=False):
+        """
+        The settings with the former key of each renamed setting read as the
+        current one (unless the file says both), saying so once per file.
+        """
+        settings_data = dict(settings_data)
+        for former, key in OdatixSettings.FORMER_SETTINGS_KEYS.items():
+            if former not in settings_data:
+                continue
+            if key not in settings_data:
+                settings_data[key] = settings_data[former]
+            # Said whatever "silent" says (it only quiets the note about a
+            # missing file), but once per file and key: the file is read often.
+            seen = (os.path.realpath(settings_filename) if settings_filename else "", former)
+            if settings_filename and seen not in OdatixSettings._warned_former_keys:
+                OdatixSettings._warned_former_keys.add(seen)
+                printc.warning(
+                    '"{0}" of "{1}" is now called "{2}": run "odatix migrate" to rewrite it'.format(former, settings_filename, key),
+                    script_name,
+                )
         return settings_data
+
+    @staticmethod
+    def default_settings_file(name, resolve=None):
+        """
+        The default path of a settings file setting: its current name, or the
+        former one when only a file of the former name is there.
+
+        Args:
+            name (str): the setting ("fmax_settings_file", ...).
+            resolve (callable): turns a workspace path into one usable from here.
+        """
+        resolve = resolve or (lambda path: path)
+        default = getattr(OdatixSettings, "DEFAULT_" + name.upper())
+        former = OdatixSettings.FORMER_DEFAULT_SETTINGS_FILES.get(name)
+        if former and not os.path.exists(resolve(default)) and os.path.exists(resolve(former)):
+            return former
+        return default
 
     def read_settings_file(self, settings_filename=DEFAULT_SETTINGS_FILE):
         """
@@ -235,12 +296,12 @@ class OdatixSettings:
         self.target_path, _ = get_from_dict("target_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_TARGET_PATH, silent=silent, script_name=script_name)
         self.resource_guard, self.cpu_limit, self.mem_limit = OdatixSettings.read_resource_guard(settings_data, settings_filename)
         OdatixSettings.resource_guard_settings = (self.resource_guard, self.cpu_limit, self.mem_limit)
-        self.clean_settings_file, _ = get_from_dict("clean_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CLEAN_SETTINGS_FILE, silent=silent, script_name=script_name)
-        self.simulation_settings_file, _ = get_from_dict("simulation_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE, silent=silent, script_name=script_name)
-        self.fmax_synthesis_settings_file, _ = get_from_dict("fmax_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
-        self.custom_freq_synthesis_settings_file, _ = get_from_dict("custom_freq_synthesis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE , silent=silent, script_name=script_name)
+        self.clean_settings_file, _ = get_from_dict("clean_settings_file", settings_data, settings_filename, default_value=OdatixSettings.default_settings_file("clean_settings_file"), silent=silent, script_name=script_name)
+        self.sim_settings_file, _ = get_from_dict("sim_settings_file", settings_data, settings_filename, default_value=OdatixSettings.default_settings_file("sim_settings_file"), silent=silent, script_name=script_name)
+        self.fmax_settings_file, _ = get_from_dict("fmax_settings_file", settings_data, settings_filename, default_value=OdatixSettings.default_settings_file("fmax_settings_file") , silent=silent, script_name=script_name)
+        self.synth_settings_file, _ = get_from_dict("synth_settings_file", settings_data, settings_filename, default_value=OdatixSettings.default_settings_file("synth_settings_file") , silent=silent, script_name=script_name)
         self.pnr_settings_file, _ = get_from_dict("pnr_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_PNR_SETTINGS_FILE , silent=silent, script_name=script_name)
-        self.analysis_settings_file, _ = get_from_dict("analysis_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_ANALYSIS_SETTINGS_FILE , silent=silent, script_name=script_name)
+        self.analyze_settings_file, _ = get_from_dict("analyze_settings_file", settings_data, settings_filename, default_value=OdatixSettings.default_settings_file("analyze_settings_file") , silent=silent, script_name=script_name)
         self.workflow_settings_file, _ = get_from_dict("workflow_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_WORKFLOW_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.dse_settings_file, _ = get_from_dict("dse_settings_file", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_DSE_SETTINGS_FILE , silent=silent, script_name=script_name)
         self.dse_campaign_path, _ = get_from_dict("dse_campaign_path", settings_data, settings_filename, default_value=OdatixSettings.DEFAULT_DSE_CAMPAIGN_PATH , silent=silent, script_name=script_name)

@@ -235,7 +235,7 @@ def add_arguments(parser):
 
   add_options(
     parser, "tool", "settings_file", "work_path", "result_path", "noexport", "config",
-    tool={"nargs": "+", "default": None, "help": "only report the analyses of these eda tools"},
+    tool={"nargs": "+", "default": None, "help": "only report the analyses of these tools"},
     settings_file={"help": "analysis settings file, whose \"expected\" section says what is normal (default: the workspace's)"},
     work_path={"help": "work directory (default: the workspace's)"},
     noexport={"help": "only print the report, without writing the results files"},
@@ -256,7 +256,7 @@ def main(args):
     printc.note("Run an analysis with \"odatix analyze\" first", script_name)
     return False
 
-  settings_file = args.settings_file or paths.analysis_settings_file
+  settings_file = args.settings_file or paths.analyze_settings_file
   results, success = export_analysis_from_work(
     analysis_root,
     args.result_path or paths.result_path,

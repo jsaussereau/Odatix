@@ -24,7 +24,10 @@ lint issues early.
 
 For this tutorial, you need **at least one** of the following tools installed and available in your `PATH`:
 - [Verilator](https://www.veripool.org/verilator/)
-- [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (for Xilinx FPGAs)
+- [AMD Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (for Xilinx FPGAs)
+- [Altera Quartus Prime Pro](https://www.altera.com/downloads) (for Altera FPGAs)
+- [Synopsys Design Compiler](https://www.synopsys.com/implementation-and-signoff/rtl-synthesis.html) (for ASICs)
+- [Cadence Genus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/synthesis/genus-synthesis-solution.html) (for ASICs)
 
 Make sure you have [Odatix installed](/install/) and available in your `PATH`. For example, if you installed Odatix in a virtual environment, activate it first:
 
@@ -59,13 +62,13 @@ $ odatix init --examples
 
 ### Step 2 — Select the targeted tools and configurations
 
-Open `odatix_userconfig/analysis_settings.yml`.
+Open `odatix_userconfig/analyze_settings.yml`.
 This is where you define the tools and configurations to check.  
 Select the tool and
 configurations to check.  
 To disable a tool, comment it out with `#` or simply remove the line.
 
-{{< code lang=yaml filename="odatix_userconfig/analysis_settings.yml" linenos="true" linenostart="24" >}}
+{{< code lang=yaml filename="odatix_userconfig/analyze_settings.yml" linenos="true" linenostart="24" >}}
 tools:
   - vivado
   - verilator
@@ -129,8 +132,14 @@ Total: 28
 Continue? (Y/n)
 {{< /code >}}
 
-Odatix creates jobs in `work/analysis/`, then reports one of four outcomes for
-every configuration: **PASSED**, **WARNING**, **INCOMPLETE** or **FAILED**.
+Odatix creates jobs in `work/analysis/`, runs them through the daemon, and once
+they are done prints its report: the status of every configuration with each
+tool — **Passed**, **Warnings**, **Failed**, **Tool failure**, **Incomplete** or
+**Not supported** — the kinds of findings each tool reported, and one line per
+configuration that needs attention. Verilator does not read VHDL: the
+`Example_Counter_vhdl` configurations are reported as *not supported* by it.
+See [RTL Analysis](/docs/features/analysis/#how-it-works) for what each status
+means.
 
 You can also override the tool selection on the command line, for example to check only Vivado:
 {{< code filename="Terminal" prompt="true" fold="true" >}}

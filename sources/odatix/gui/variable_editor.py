@@ -57,7 +57,7 @@ VARIABLE_TYPE_OPTIONS = [
     {"label": "Conversion", "value": "conversion"},
     {"label": "Format", "value": "format"},
     {"label": "Union", "value": "union"},
-    {"label": "Disjunctive Union", "value": "disjunctive_union"},
+    {"label": "Disjunctive union", "value": "disjunctive_union"},
     {"label": "Intersection", "value": "intersection"},
     {"label": "Difference", "value": "difference"},
 ]
@@ -318,7 +318,7 @@ def variable_card(
         ),
         color="default",
         id=component_id(prefix, "variable-collapse", name, scope),
-        tooltip="Show/Hide this variable's fields",
+        tooltip="Show/hide this variable's fields",
         tooltip_options="bottom small",
     ) if collapsible else None
     duplicate_button = ui.duplicate_button(id=component_id(prefix, "duplicate-var", name, scope))

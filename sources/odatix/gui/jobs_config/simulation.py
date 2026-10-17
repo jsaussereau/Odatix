@@ -352,7 +352,7 @@ def _simulation_job_sections(context, selection_settings):
                 ui.icon_button(
                     icon=icon("metrics", className="icon blue"),
                     text=context["config_text"],
-                    tooltip="Open the Exported Metrics Editor for this simulation",
+                    tooltip="Open the exported metrics editor for this simulation",
                     tooltip_options="bottom delay",
                     color="default",
                     link=context["config_link"](sim_name),

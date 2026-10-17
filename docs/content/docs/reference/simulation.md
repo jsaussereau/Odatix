@@ -32,7 +32,7 @@ used and Odatix runs `make sim` from the simulation's `Makefile`.
 
 Task entries take exactly the same keys as a
 [workflow's](/docs/reference/workflow/#task-entries): `name`, `commands`,
-`dependencies`, `path`, `platforms`. Execution always starts at the task named
+`on_failure_commands`, `dependencies`, `path`, `platforms`. Execution always starts at the task named
 **`main`**.
 
 {{< code lang=yaml filename="_settings.yml" >}}
@@ -119,7 +119,7 @@ An architecture that needs something done differently holds it under its name:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `architectures.<architecture>.param_domains` | mapping | How the configuration values are substituted for this architecture (see below). |
+| `architectures.<architecture>.param_domains` | mapping | How the configuration values are substituted for this architecture, one list of substitutions per domain (see below). |
 | `architectures.<architecture>.metrics_file` | path | Metrics file to extract this architecture's runs with, instead of `_metrics.yml`. |
 
 {{< code lang=yaml filename="_settings.yml" >}}
@@ -161,16 +161,179 @@ before the testbench runs. `param_domains` adjusts that for one architecture —
 the testbench often needs the same value the design got, but in a file of its
 own.
 
+The value of a domain is the **list of the replacements** it triggers: one value
+often has consequences in more than one file — the testbench reads it, the
+Makefile building the testbench passes it on, a wrapper declares it — and each
+of them is one item of the list, with its own target file, delimiters and
+parameters.
+
 | Key | Type | Required | Description |
 |-----|------|----------|-------------|
-| `<domain>.use_parameters` | bool | No | Disable (or re-enable) the replacement for this domain. |
-| `<domain>.param_target_file` | path | No | File the replacement is applied to, instead of the design's. |
-| `<domain>.start_delimiter` / `.stop_delimiter` | string | No | Markers of the replaced block. |
-| `<domain>.param_file` | path | No | Parameter file, relative to the simulation directory, instead of the configuration's. |
+| `use_parameters` | bool | No | Disable (or re-enable) the replacement. |
+| `param_target_file` | path | No | File the replacement is applied to, instead of the design's. |
+| `start_delimiter` / `stop_delimiter` | string | No | Markers of the replaced block. |
+| `param_file` | path | No | Parameter file, relative to the simulation directory, used whichever configuration of the domain runs, or, along `param_dir`, the default of the configurations it does not describe. |
+| `param_dir` | path | No | Directory of the simulation holding **one parameter file per configuration** of the domain, or naming several of them at once with [selectors](#naming-several-configurations-at-once). |
+| `combine` | `replace` \| `both` | No | Whether the architecture's own replacement for this domain is dropped in favour of this one, or still applied as well. Unwritten, the first item of the list replaces it and the ones after it are added. |
+
+{{< code lang=yaml filename="_settings.yml" >}}
+architectures:
+  - Example_Cordic_sv:
+      param_domains:
+        width:
+          - param_target_file: "tb/tb_cordic.sv"   # the value the testbench reads
+          - param_target_file: "Makefile"          # and the one its Makefile passes on
+            start_delimiter:   "# ODATIX PARAMS START"
+            stop_delimiter:    "# ODATIX PARAMS STOP"
+            param_dir:         "make_params/width"
+{{< /code >}}
+
+A domain replaced in a single place may be written as that replacement itself,
+without the list — the shorter form of a list of one:
+
+{{< code lang=yaml filename="_settings.yml" >}}
+architectures:
+  - Example_Cordic_sv:
+      param_domains:
+        width:
+          param_target_file: "tb/tb_cordic.sv"
+{{< /code >}}
 
 Every key is optional: what is not listed is inherited from the domain's own
 settings in the architecture. Domain names match the directories under the
 architecture (`width/`, `iterations/`, …).
+
+Where a replacement names a `param_dir`, that directory says how its parameters
+are written, in its own `_settings.yml` — `use_parameters`, `param_target_file`,
+`start_delimiter` and `stop_delimiter`, exactly like a parameter domain of an
+architecture says them. The replacement then holds only what points at it
+(`param_dir`, `param_file`, `combine`). The same keys written next to it are
+still read, and still win.
+
+#### Per-configuration parameters
+
+`param_file` writes the same text whichever configuration of the domain runs.
+`param_dir` writes one per configuration instead: it names a directory of the
+simulation holding the configurations of that domain, **by file or by rule**,
+exactly like a [parameter domain](/docs/configurations/param_domains/) of an
+architecture — `<value>.txt` files, a `_settings.yml` declaring
+`configurations` and `variables`, or both. The configuration the architecture
+runs is the one looked up there, and a rule is resolved on the fly, so nothing
+has to be generated beforehand.
+
+Both together make `param_file` the **default** of the domain: the directory is
+looked up first, and the configurations it does not describe fall back to the
+file instead of being an error.
+
+{{< code lang=yaml filename="_settings.yml" >}}
+architectures:
+  - Example_Cordic_sv:
+      param_domains:
+        width:
+          param_dir: "tb_params/width"          # tb_params/width/8bits.txt, 16bits.txt, ...
+{{< /code >}}
+
+{{< code lang=yaml filename="tb_params/width/_settings.yml" >}}
+param_target_file: "tb/tb_cordic.sv"
+
+configurations:
+  name: "${width}bits"
+  template: "localparam TB_WIDTH = ${width};"
+
+variables:
+  width:
+    type: range
+    settings: {from: 8, to: 64, step: 8}
+{{< /code >}}
+
+These directories are edited like any other configurations: *Edit parameter
+domains*, on the architecture card of the simulation editor, opens the
+[configuration editor](/docs/gui/app/) on what this simulation substitutes for
+that architecture — one section per domain, holding what it points at, how its
+values are written, and the configurations themselves, preview included.
+
+#### Naming several configurations at once
+
+A directory does not have to hold one file per configuration of the domain. Its
+`_settings.yml` may name **several configurations at once**, under `match`, as
+`selector: configuration` — a testbench usually has one set of parameters for a
+whole family of designs, and writing that family out one identical file per
+member is copying the same thing many times.
+
+{{< code lang=yaml filename="make_params/_settings.yml" >}}
+param_target_file: "Makefile"
+start_delimiter: "# ODATIX PARAMS START"
+stop_delimiter:  "# ODATIX PARAMS STOP"
+
+match:
+  "P*":            small_params    # every configuration whose name starts with "P"
+  "$value > 7":    wide_params     # every configuration whose value is above 7
+  "/^M[0-9]{4}$/": riscv_params    # every configuration whose name matches the regex
+  "*":             default_params  # everything else
+{{< /code >}}
+
+Four kinds of selectors, told apart by how they are written:
+
+| Selector | Matches |
+|----------|---------|
+| `small` | that configuration, and no other |
+| `P*`, `M?0[01]` | the names this pattern matches (`*`, `?` and `[...]`, as a shell glob) |
+| `/^M[0-9]+$/` | the names this regular expression matches (unanchored: `/^P/` and `/P/` differ) |
+| `$value > 7`, `$name == 'P8'` | the configurations satisfying this condition |
+
+A condition reads two values:
+
+- `$name` — the name of the configuration being run (`P8`, `M0000`);
+- `$value` — what that configuration substitutes, **when it is a single
+  number**. A configuration writing several parameters, or something that is not
+  a number, has no `$value`, and a condition reading it simply matches nothing.
+
+Both compare as numbers when both sides are numbers, and as text otherwise, so
+`$name > 62` and `$name == 'P8'` both say what they look like they say. The
+usual operators are available (`==`, `!=`, `<`, `<=`, `>`, `>=`, `and`, `or`,
+`not`, parentheses), as in `$value >= 4 and $value < 16`.
+
+A configuration the directory holds **under its own name** — as a file or as one
+its rules describe — is always used as it is: selectors only answer for the ones
+left. When several of them match, the most specific wins (a name over a pattern,
+a pattern over `*`), and the first one written breaks a tie — so the narrow
+selectors are written above the broad ones, and a `*` stays the fallback
+wherever it sits. A `param_file` written next to the `param_dir` is still the
+last resort, for the configurations no selector answers for either.
+
+Selectors are edited under *Matching*, in the section of the domain of the
+[configuration editor](/docs/gui/app/): one `selector -> configuration` per
+line, with the values and the wildcards highlighted, and a line saying how many
+of them point at a configuration this directory does not hold.
+
+#### One replacement, or both
+
+A domain of the architecture already replaces something somewhere — a block of
+the design's source. What a simulation writes under the same domain name
+**takes its place** by default: only the replacement described here is applied,
+which is what you want when the value has moved to a file of the testbench.
+
+`combine: both` keeps the architecture's replacement *and* applies the one
+described here as a second replacement: the same domain written into the design
+**and** into the testbench, each with its own target file, delimiters and
+parameters. Anything the replacement does not say is inherited from the
+architecture's domain, so a second target file is often all it takes.
+
+Written nowhere, `combine` follows the place in the list: the **first**
+replacement takes the architecture's place, the ones **after** it are added. A
+list is therefore read the way it looks — every item is a replacement that
+happens — and `combine` is only written to depart from it, `both` on the first
+item to keep the design's own replacement alongside.
+
+{{< code lang=yaml filename="_settings.yml" >}}
+architectures:
+  - Example_Cordic_sv:
+      param_domains:
+        width:
+          - combine: both                        # the design keeps its own replacement
+            param_dir: "tb_params/width"         # and the testbench gets one too,
+                                                 # written where that directory says
+{{< /code >}}
 
 {{< code lang=yaml filename="_settings.yml" >}}
 architectures:
@@ -184,9 +347,10 @@ architectures:
 
 #### Simulation-only domains
 
-A name that matches **no** domain of the architecture declares a replacement of
+A name that matches **no** domain of the architecture declares replacements of
 the simulation's own. Use it for values only the testbench cares about — a run
-length, a seed, a verbosity level. `param_file`, `start_delimiter` and
+length, a seed, a verbosity level. `param_file` (or `param_dir`, with
+`domain_value` naming the configuration to run), `start_delimiter` and
 `stop_delimiter` are then required, since there is nothing to inherit them from.
 
 {{< code lang=yaml filename="_settings.yml" >}}
@@ -261,7 +425,7 @@ metrics:
 editor as workflows, and the metrics editor for `_metrics.yml`. See
 [The Odatix GUI](/docs/gui/app/).
 
-**Run Jobs** → *Simulations* shows only the architectures a simulation lists.
+**Run jobs** → *Simulations* shows only the architectures a simulation lists.
 The cross next to an architecture takes it out of the list, and the dropdown at
 the bottom of the simulation card puts one back. Both are edits like any other:
 the **Save** button turns orange, and `architectures` is written to this file

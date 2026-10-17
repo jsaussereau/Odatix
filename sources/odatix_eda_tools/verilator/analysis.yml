@@ -64,7 +64,7 @@ codes:
 
 # What Verilator says with "-Wall" that is normal: reported apart, it does not
 # make a design worth looking at. Add your own in the "expected" section of
-# analysis_settings.yml rather than here.
+# analyze_settings.yml rather than here.
 expected:
   style:
     category: style

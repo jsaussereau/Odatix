@@ -118,7 +118,7 @@ class ArchitectureSettings(WithVariables, Settings):
     "overrides" section: an ordered list of rules, each selecting the jobs it
     applies to by tool, flow, target and configuration, and holding whatever
     those jobs should use instead ("constraints", "file_copy_*",
-    "fmax_synthesis", "custom_freq_synthesis", or any other key of this file).
+    "fmax_synthesis", "fixed_freq_synthesis", or any other key of this file).
     See :mod:`odatix.lib.overrides`. The section is not declared here, but it is
     preserved: like any other key Odatix does not know about, it stays in the
     file and in ``settings.extra``.
@@ -126,7 +126,10 @@ class ArchitectureSettings(WithVariables, Settings):
 
     dropped_keys = LEGACY_CONFIGURATION_KEYS
     replacement_key = CONFIGURATIONS_KEY
-    moved_keys = (("fmax_lower_bound", "fmax_synthesis"), ("fmax_upper_bound", "fmax_synthesis"))
+    moved_keys = (
+        ("fmax_lower_bound", "fmax_synthesis"), ("fmax_upper_bound", "fmax_synthesis"),
+        ("custom_freq_synthesis", "fixed_freq_synthesis"),
+    )
 
     # RTL generation
     generate_rtl = Setting(
@@ -196,9 +199,10 @@ class ArchitectureSettings(WithVariables, Settings):
         type=FrequencyBounds, section="Default frequencies (in MHz)", skip_if_empty=True,
         doc="Bounds of the fmax binary search for this architecture.",
     )
-    custom_freq_synthesis = Setting(
+    fixed_freq_synthesis = Setting(
         type=CustomFrequencies, skip_if_empty=True,
-        doc="Frequencies a custom frequency synthesis runs this architecture at.",
+        doc="Frequencies a fixed-frequency synthesis runs this architecture at "
+            "(formerly \"custom_freq_synthesis\", still read).",
     )
 
     # Configurations
@@ -244,6 +248,7 @@ class ArchitectureSettings(WithVariables, Settings):
         """
         super(ArchitectureSettings, self).normalize()
         carry_over_legacy_bounds(self)
+        carry_over_fixed_freq_key(self)
         return self
 
     def frequencies(self, target="", configuration="", tool="", flow="", mode="fmax", fallback=None):
@@ -330,6 +335,63 @@ def carry_over_legacy_bounds(settings):
     if changed_rules:
         settings.extra["overrides"] = rules
     return legacy_bound_keys(settings)
+
+
+######################################
+# The fixed-frequency block, formerly "custom_freq_synthesis"
+######################################
+
+#: The key of the frequencies of a fixed-frequency synthesis, named after the
+#: term of the glossary, and the one it had before.
+FIXED_FREQ_KEY = "fixed_freq_synthesis"
+FORMER_FIXED_FREQ_KEY = "custom_freq_synthesis"
+
+
+def _rules_holding(rules, key):
+    return isinstance(rules, list) and any(isinstance(rule, dict) and key in rule for rule in rules)
+
+
+def _renamed_in_rules(rules):
+    """The rules of "overrides" with their former block read as the current one."""
+    renamed = copy.deepcopy(rules)
+    for rule in renamed:
+        if isinstance(rule, dict) and FORMER_FIXED_FREQ_KEY in rule:
+            value = rule.pop(FORMER_FIXED_FREQ_KEY)
+            if FIXED_FREQ_KEY not in rule:
+                rule[FIXED_FREQ_KEY] = value
+    return renamed
+
+
+def with_fixed_freq_key(data):
+    """
+    A plain settings mapping with its "custom_freq_synthesis" blocks read as
+    "fixed_freq_synthesis", at the root and in every rule of "overrides". A
+    level that says both keeps the current one.
+    """
+    if not isinstance(data, dict):
+        return data
+    rules = data.get("overrides")
+    if FORMER_FIXED_FREQ_KEY not in data and not _rules_holding(rules, FORMER_FIXED_FREQ_KEY):
+        return data
+    data = dict(data)
+    if FORMER_FIXED_FREQ_KEY in data:
+        value = data.pop(FORMER_FIXED_FREQ_KEY)
+        if FIXED_FREQ_KEY not in data:
+            data[FIXED_FREQ_KEY] = value
+    if _rules_holding(rules, FORMER_FIXED_FREQ_KEY):
+        data["overrides"] = _renamed_in_rules(rules)
+    return data
+
+
+def carry_over_fixed_freq_key(settings):
+    """The same, on an :class:`ArchitectureSettings` (see :meth:`ArchitectureSettings.normalize`)."""
+    if FORMER_FIXED_FREQ_KEY in settings.extra:
+        value = settings.extra.pop(FORMER_FIXED_FREQ_KEY)
+        if FIXED_FREQ_KEY not in settings._file_data:
+            settings.fixed_freq_synthesis = value
+    rules = settings.extra.get("overrides")
+    if _rules_holding(rules, FORMER_FIXED_FREQ_KEY):
+        settings.extra["overrides"] = _renamed_in_rules(rules)
 
 
 ######################################
@@ -521,8 +583,9 @@ def resolve_frequencies(settings, target="", configuration="", tool="", flow="",
                 messages.append(Message("error", 'Key "{0}" does not hold a list of settings.'.format(key)))
         return blocks
 
+    data = with_fixed_freq_key(data)
     if mode == "custom_freq":
-        return _resolve_custom_frequencies(levels("custom_freq_synthesis"), fallback, messages)
+        return _resolve_custom_frequencies(levels(FIXED_FREQ_KEY), fallback, messages)
     return _resolve_fmax_bounds(levels("fmax_synthesis"), _legacy_bound_levels(data, tool, flow, target, configuration), messages)
 
 

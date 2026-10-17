@@ -23,7 +23,7 @@ nb_jobs:          8    # overridden by -j / --jobs ('auto' = number of CPUs minu
 simulations: 
 
 #--------------------------------------------#
-# Add your own designs!
+# Add your own simulations!
 #--------------------------------------------#
 
   #- Your_Simulation:

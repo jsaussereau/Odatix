@@ -48,8 +48,8 @@ page_path = "/workflow_editor"
 dash.register_page(
     __name__,
     path=page_path,
-    title="Odatix - Workflow Editor",
-    name="Workflow Editor",
+    title="Odatix - Workflow editor",
+    name="Workflow editor",
     order=5,
 )
 
@@ -182,8 +182,8 @@ def workflow_title(workflow_name):
             ui.icon_button(
                 id=f"button-open-metric-editor",
                 icon=icon("metrics", className="icon blue"),
-                text="Edit Metrics",
-                tooltip="Open the Exported Metrics Editor for this workflow",
+                text="Edit metrics",
+                tooltip="Open the exported metrics editor for this workflow",
                 tooltip_options="bottom delay",
                 color="default",
                 link=f"/metric_editor?workflow={workflow_name}",
@@ -193,8 +193,8 @@ def workflow_title(workflow_name):
             ui.icon_button(
                 id=f"button-open-config-editor",
                 icon=icon("edit", className="icon blue"),
-                text="Edit Configs",
-                tooltip="Open the Configuration Editor for this workflow",
+                text="Edit configs",
+                tooltip="Open the configuration editor for this workflow",
                 tooltip_options="bottom delay",
                 color="default",
                 link=f"/config_editor?workflow={workflow_name}",
@@ -221,7 +221,7 @@ def workflow_title(workflow_name):
                                     value=f"{workflow_name}",
                                     type="text",
                                     id="workflow-title",
-                                    placeholder="Workflow Name...",
+                                    placeholder="Workflow name...",
                                     className="title-input",
                                     style={"width": "100%", "transform": "translate(-5px, 5px)"},
                                 )
@@ -275,22 +275,22 @@ def workflow_form(settings):
         children=[
             html.Div(
                 [
-                    html.H3("Workflow Sources"),
+                    html.H3("Workflow sources"),
                     workflow_form_field(
-                        label="Source Path",
+                        label="Source path",
                         id="wf-source-path",
                         value=sources.get("path", ""),
                         tooltip="Directory copied in each workflow work directory before running tasks.",
                     ),
                     workflow_form_field(
-                        label="Source Whitelist",
+                        label="Source whitelist",
                         id="wf-source-whitelist",
                         value=", ".join(sources.get("whitelist", [])),
                         placeholder="src/**, scripts/**",
                         tooltip="Optional comma-separated inclusion patterns.",
                     ),
                     workflow_form_field(
-                        label="Source Blacklist",
+                        label="Source blacklist",
                         id="wf-source-blacklist",
                         value=", ".join(sources.get("blacklist", [])),
                         placeholder="*.log, tmp/**",
@@ -301,7 +301,7 @@ def workflow_form(settings):
             ),
             html.Div(
                 [
-                    html.H3("Parameters Replacement"),
+                    html.H3("Parameters replacement"),
                     html.Div(
                         children=[
                             dcc.Checklist(
@@ -318,19 +318,19 @@ def workflow_form(settings):
                     html.Div(
                         children=[
                             workflow_form_field(
-                                label="Parameter Target File",
+                                label="Parameter target file",
                                 id="wf-param-target-file",
                                 value=defval("param_target_file", ""),
                                 tooltip="File in the copied sources where replacements are applied.",
                             ),
                             workflow_form_field(
-                                label="Start Delimiter",
+                                label="Start delimiter",
                                 id="wf-start-delimiter",
                                 value=defval("start_delimiter", ""),
                                 tooltip="Start marker for replacement. Escape sequences such as \\n are supported.",
                             ),
                             workflow_form_field(
-                                label="Stop Delimiter",
+                                label="Stop delimiter",
                                 id="wf-stop-delimiter",
                                 value=defval("stop_delimiter", ""),
                                 tooltip="Stop marker for replacement. Escape sequences such as \\n are supported.",
@@ -345,15 +345,15 @@ def workflow_form(settings):
             ),
             html.Div(
                 [
-                    html.H3("Progress Tracking"),
+                    html.H3("Progress tracking"),
                     workflow_form_field(
-                        label="Progress File",
+                        label="Progress file",
                         id="wf-progress-file",
                         value=progress.get("file", ""),
                         tooltip="Path of the progress file generated by tasks.",
                     ),
                     workflow_form_field(
-                        label="Progress Regex",
+                        label="Progress regex",
                         id="wf-progress-regex",
                         value=progress.get("regex", ""),
                         tooltip="Regex containing one capture group for completion percentage.",
@@ -922,7 +922,7 @@ layout = html.Div(
         html.Div(
             children=[
                 ui.title_tile(
-                    text="Task Definition", id="wf-task-title",
+                    text="Task definition", id="wf-task-title",
                     tooltip="Tasks can be used to define the steps of the workflow.",
                     buttons=builtin_variables.variable_list("workflow", id="wf-builtin-variables"),
                 ),
@@ -934,7 +934,7 @@ layout = html.Div(
                         style={"display": "flex", "justifyContent": "flex-start", "alignItems": "flex-start", "flexWrap": "wrap", "marginBottom": "30px", "columnGap": "var(--tile-gap)"},
                     ),
                 ]),
-                ui.title_tile(text="Variable Definition", id="wf-variable-title", tooltip="Variables can be used inside commands and can also be used to generate configurations."),
+                ui.title_tile(text="Variable definition", id="wf-variable-title", tooltip="Variables can be used inside commands and can also be used to generate configurations."),
                 html.Div([
                     html.Div(
                         id="wf-variable-cards-row",

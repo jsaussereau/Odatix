@@ -31,8 +31,8 @@ Eight cards, matching the eight things you do with Odatix:
 |------|---------|
 | **Workflows** | Configure your workflows. |
 | **RTL Architectures** | Configure your designs, their configurations and their simulations. |
-| **EDA Tools** | Add and configure the EDA tools of the workspace. |
-| **Run Jobs** | Launch workflows, RTL analysis, synthesis, place & route. |
+| **Tools** | Add and configure the EDA tools of the workspace. |
+| **Run jobs** | Launch workflows, RTL analysis, synthesis, place & route. |
 | **Monitor Jobs** | Follow the jobs currently running. |
 | **Explore Results** | Open Odatix Explorer on the exported results. |
 | **Workspace Settings** | Paths, settings files, and the workspace layout. |
@@ -46,23 +46,23 @@ If you start the GUI in a directory that is not a workspace yet, it offers to cr
 
 | Page | What it edits |
 |------|---------------|
-| **RTL Architectures** (`/architectures`) | Your designs: sources, top level, clock and reset, parameter delimiters, target-specific bounds. Each design lists its configurations, with an editor for each parameter file. |
+| **RTL Architectures** (`/architectures`) | Your designs: sources, top level, clock and reset, parameter delimiters, per-tool/target/configuration overrides. Each design lists its configurations, with an editor for each parameter file, and the rules its parameter domains describe them with. |
 | **Simulations** (`/architectures#simulations`) | The testbenches of the workspace and their `_settings.yml`. |
 | **Workflows** (`/workflows`) | Workflow definitions: tasks, dependencies, variables, and the metrics they export. |
-| **EDA Tools** (`/tools`) | The tools of the workspace and, apart, the built-in ones. Create, duplicate, edit flows and steps, edit metrics. |
+| **Tools** (`/tools`) | The tools of the workspace and, apart, the built-in ones. Create, duplicate, edit flows and steps, edit metrics. |
 | **Derived Metrics** (`/derived_metrics`) | The workspace `derived_metrics.yml` — groups and derived metric definitions. |
 | **Workspace Settings** (`/workspace`) | Where everything lives: settings files, work and result directories. |
 
 Two editors are worth knowing by name because they save real work:
 
-- The **Configuration Generator** turns a rule into a whole set of parameter files — ranges, powers of two, lists, functions — instead of writing them one by one. See [Configuration generation](/docs/configurations/config_generation/).
+- The **Configuration rules** panel of each parameter domain describes a whole set of configurations with a rule — ranges, powers of two, lists, functions — instead of writing them one by one. What the rule produces appears straight away among the configurations of the domain, without anything being written to disk. See [Configuration generation](/docs/configurations/config_generation/).
 - The **Metrics editors** build `metrics.yml` and `_metrics.yml` entries with the extraction type, file and pattern in a form. See [Base metrics](/docs/results/metrics/).
 
 A **save** button in the header turns to a warning colour as soon as something is unsaved, so you always know whether what you see is on disk.
 
 ## Launching jobs
 
-**Run Jobs** walks you through the same choices the command line takes as options:
+**Run jobs** walks you through the same choices the command line takes as options:
 
 {{< code lang=text filename="Run a job" >}}
  Job type ──► EDA tool ──► flow / step ──► targets ──► job settings ──► Run

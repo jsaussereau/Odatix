@@ -479,7 +479,7 @@ class Evaluator(object):
 
         The batch is written as a run settings file of its own, next to the work
         directory rather than in the workspace: a campaign must not rewrite the
-        selection the user keeps in "fmax_synthesis_settings.yml".
+        selection the user keeps in "fmax_settings.yml".
 
         Nothing is attached and nothing is reconfigured: the batch goes into the
         session the exploration is itself running in (see odatix.dse.driver),

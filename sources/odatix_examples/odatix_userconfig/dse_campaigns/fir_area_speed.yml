@@ -44,7 +44,7 @@ simulations:      []              # e.g. [TB_Example_Cordic_Verilator]
 # it as one more axis of the space and gives each design its own.
 #
 # Saying nothing here leaves the frequencies of
-# "custom_freq_synthesis_settings.yml" alone, like every other setting of the
+# "synth_settings.yml" alone, like every other setting of the
 # command being run.
 frequencies:
   explore:        No      # yes: each design gets a frequency of its own, chosen in the range below
@@ -108,7 +108,7 @@ search:
 architectures:
 
 #--------------------------------------------#
-# Add your own designs!
+# Add your own architectures!
 #--------------------------------------------#
 
   #- Your_Design

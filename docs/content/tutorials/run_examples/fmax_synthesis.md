@@ -17,6 +17,7 @@ In this tutorial you will find the **maximum operating frequency** (Fmax) of sev
 
 For this tutorial, you need **at least one** of the following tools installed and available in your `PATH`:
 - [AMD Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (for Xilinx FPGAs)
+- [Altera Quartus Prime Pro](https://www.altera.com/downloads) (for Altera FPGAs)
 - [Synopsys Design Compiler](https://www.synopsys.com/implementation-and-signoff/rtl-synthesis.html) (for ASICs)
 - [Cadence Genus](https://www.cadence.com/en_US/home/tools/digital-design-and-signoff/synthesis/genus-synthesis-solution.html) (for ASICs)
 
@@ -55,7 +56,7 @@ $ odatix init --examples
 
 ### Step 2 — Choose your target
 
-Open the device or technology in the target file for your tool (`target_vivado.yml`, `target_design_compiler.yml`, or `target_openlane.yml`).
+Open the device or technology in the target file for your tool (`target_vivado.yml`, `target_quartus.yml`, `target_design_compiler.yml`, or `target_openlane.yml`).
 
 For instance for Vivado, open `odatix_userconfig/targets/target_vivado.yml` and select the target device:
 
@@ -81,9 +82,9 @@ To disable a target, comment it out with `#` or simply remove the line.
 
 ### Step 3 — Choose design configurations
 
-Open `odatix_userconfig/fmax_synthesis_settings.yml` and select the architectures to run, exactly as for Fmax synthesis.
+Open `odatix_userconfig/fmax_settings.yml` and select the architectures to run, exactly as for Fmax synthesis.
 
-{{< code lang=yaml filename="odatix_userconfig/fmax_synthesis_settings.yml" linenos="true" linenostart="44" >}}
+{{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" linenos="true" linenostart="44" >}}
   - Example_Counter_verilog/04bits
   - Example_Counter_verilog/08bits
   - Example_Counter_verilog/16bits

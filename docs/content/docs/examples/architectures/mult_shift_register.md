@@ -207,7 +207,7 @@ so their configuration directories are identical, byte for byte. This is a direc
 
 ## Running the sweeps
 
-{{< code lang=yaml filename="fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="fmax_settings.yml" >}}
 architectures:
   - Example_Shift_Register_sv/16bits
   - Example_Shift_Register_sv/24bits

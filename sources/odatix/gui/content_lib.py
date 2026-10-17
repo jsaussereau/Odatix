@@ -48,9 +48,9 @@ def generate_error_div(e):
       html.Summary("Error details"),
       html.Pre(
         [
-          html.Div("System Information:"),
+          html.Div("System information:"),
           *[html.Div("  " + key + ": " + value + "\n") for key, value in system_info.items()],
-          html.Div("\nOdatix Version: " + str(odatix.components.motd.read_version())),
+          html.Div("\nOdatix version: " + str(odatix.components.motd.read_version())),
           html.Div("\nCommand: " + command_line),
           html.Div("\n" + error_traceback),
         ]

@@ -38,7 +38,7 @@ editor_path = "/dse_campaign"
 #: What evaluating one design may run.
 RUN_OPTIONS = [
     {"label": "Fmax synthesis", "value": "fmax_synthesis"},
-    {"label": "Custom frequency synthesis", "value": "custom_freq_synthesis"},
+    {"label": "Fixed-frequency synthesis", "value": "custom_freq_synthesis"},
     {"label": "Workflow", "value": "workflow"},
 ]
 

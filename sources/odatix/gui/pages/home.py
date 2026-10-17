@@ -26,6 +26,9 @@ from dash import dcc, html, Input, Output
 from odatix.components import home_shared
 from odatix.gui.icons import pictogram
 import odatix.gui.navigation as navigation
+
+#: Where the words of Odatix are defined (see the glossary of the documentation).
+GLOSSARY_URL = "https://odatix.readthedocs.io/docs/glossary/"
 from odatix.lib.settings import OdatixSettings
 
 page_path = "/"
@@ -53,37 +56,37 @@ home_cards = [
         "description": "Configure your workflows",
     },
     {
-        "name": "RTL Architectures",
+        "name": "RTL architectures",
         "link": "/architectures",
         "icon": "architecture",
         "description": "Configure your RTL architectures and simulations",
     },
     {
-        "name": "EDA Tools",
+        "name": "Tools",
         "link": "/tools",
         "icon": "tool",
-        "description": "Add and configure your EDA tools",
+        "description": "Add and configure your tools",
     },
     {
-        "name": "Run Jobs",
+        "name": "Run jobs",
         "link": "/choose_job_type",
         "icon": "run",
-        "description": "Run workflows, RTL analysis, logic synthesis at Fmax and custom frequencies",
+        "description": "Run workflows, RTL analysis, Fmax and fixed-frequency synthesis",
     },
     {
-        "name": "Monitor Jobs",
+        "name": "Monitor jobs",
         "link": "/monitor",
         "icon": "monitor",
         "description": "Monitor currently running jobs",
     },
     {
-        "name": "Explore Results",
+        "name": "Explore results",
         "link": "/explorer",
         "icon": "explorer",
         "description": "Explore results in an interactive interface",
     },
     {
-        "name": "Workspace Settings",
+        "name": "Workspace settings",
         "link": "/workspace",
         "icon": "workspace",
         "description": "Adjust workspace settings",
@@ -105,6 +108,14 @@ home_layout = html.Div(
     [
         home_shared.home_header("Odatix", "Configure, run and explore your design space exploration."),
         home_shared.home_card_grid(home_cards, _card_visual),
+        html.Div(
+            [
+                "New to the words Odatix uses? Each one is defined in the ",
+                html.A("glossary", href=GLOSSARY_URL, target="_blank", rel="noopener"),
+                ".",
+            ],
+            className="xp-home-note",
+        ),
     ],
     className="xp-home",
 )

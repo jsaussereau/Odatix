@@ -711,7 +711,7 @@ def advanced_section(domain_uuid, blocks, variables, open=False):
                         ),
                         color="default",
                         id={"type": "cfg-advanced-toggle", "domain_uuid": domain_uuid},
-                        tooltip="Show/Hide the name and content templates",
+                        tooltip="Show/hide the name and content templates",
                         tooltip_options="bottom small",
                     ),
                     html.H3("Advanced", style={"margin": "0px"}),

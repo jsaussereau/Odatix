@@ -57,7 +57,7 @@ def _run_context(search, odatix_settings) -> dict:
             # the architecture directory too (unlike every other job type, where
             # base_path is the only directory involved).
             "arch_path": settings.get("arch_path", OdatixSettings.DEFAULT_ARCH_PATH),
-            "settings_path": settings.get("simulation_settings_file", OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE),
+            "settings_path": settings.get("sim_settings_file", OdatixSettings.DEFAULT_SIM_SETTINGS_FILE),
             "selection_key": "simulations",
             "instances": ws.simulations.names(),
             "settings_link": lambda name: f"/sim_editor?sim={name}",

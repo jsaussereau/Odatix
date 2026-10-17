@@ -39,8 +39,8 @@ page_path = "/arch_editor"
 dash.register_page(
     __name__,
     path=page_path,
-    title='Odatix - Architecture Editor',
-    name='Architecture Editor',
+    title='Odatix - Architecture editor',
+    name='Architecture editor',
     order=3,
 )
 
@@ -54,8 +54,8 @@ def architecture_title(arch_name):
             ui.icon_button(
                 id=f"button-open-config-editor",
                 icon=icon("edit", className="icon blue"),
-                text="Edit Configs",
-                tooltip="Open the Configuration Editor for this architecture",
+                text="Edit configs",
+                tooltip="Open the configuration editor for this architecture",
                 tooltip_options="bottom delay",
                 color="default",
                 link=f"/config_editor?arch={arch_name}",
@@ -83,7 +83,7 @@ def architecture_title(arch_name):
                                     value=f"{arch_name}",
                                     type="text",
                                     id="arch-title",
-                                    placeholder="Architecture Name...",
+                                    placeholder="Architecture name...",
                                     className="title-input",
                                     style={"width": "100%", "transform": "translate(-5px, 5px)"},
                                 )
@@ -206,7 +206,7 @@ def constraints_from_text(text):
 # names or nothing at all in the file.
 SELECTOR_FIELDS = (
     ("tools", "Tools", "vivado, genus@power_opt, *",
-     "EDA tools whose jobs this rule applies to, comma-separated. A tool alone covers all of its "
+     "Tools whose jobs this rule applies to, comma-separated. A tool alone covers all of its "
      "flows; \"tool@flow\" covers that flow only. Patterns such as \"vivado*\" are accepted. Empty for every tool."),
     ("targets", "Targets", "xc7a100t-csg324-1, xc7k70t-*",
      "Synthesis targets this rule applies to, comma-separated. Patterns such as \"xc7a*\" are accepted. "
@@ -250,7 +250,7 @@ def override_card(index, rule=None):
     """
     rule = rule if isinstance(rule, dict) else {}
     fmax = rule.get("fmax_synthesis") or {}
-    custom_freq = rule.get("custom_freq_synthesis") or {}
+    custom_freq = rule.get("fixed_freq_synthesis") or {}
 
     head = html.Div(
         children=[
@@ -285,7 +285,7 @@ def override_card(index, rule=None):
             html.Div(
                 children=[
                     ui.form_field(
-                        label="Fmax Lower Bound (MHz)",
+                        label="Fmax lower bound (MHz)",
                         id={"type": "arch-override-fmax-lower", "index": index},
                         value=fmax.get("lower_bound", "") if fmax.get("lower_bound") is not None else "",
                         placeholder="Same as above",
@@ -293,7 +293,7 @@ def override_card(index, rule=None):
                         tooltip="Lower bound of the fmax binary search for these jobs. Empty to use the bound of the architecture.",
                     ),
                     ui.form_field(
-                        label="Fmax Upper Bound (MHz)",
+                        label="Fmax upper bound (MHz)",
                         id={"type": "arch-override-fmax-upper", "index": index},
                         value=fmax.get("upper_bound", "") if fmax.get("upper_bound") is not None else "",
                         placeholder="Same as above",
@@ -304,15 +304,15 @@ def override_card(index, rule=None):
                 className="odx-field-row",
             ),
             ui.form_field(
-                label="Custom Frequencies (MHz)",
+                label="Fixed frequencies (MHz)",
                 id={"type": "arch-override-custom-freq", "index": index},
                 value=", ".join(map(str, custom_freq.get("list") or [])),
                 placeholder="Same as above",
                 type="text",
-                tooltip="Comma-separated frequencies a custom frequency synthesis runs these jobs at. Empty to use the list of the architecture.",
+                tooltip="Comma-separated frequencies a fixed-frequency synthesis runs these jobs at. Empty to use the list of the architecture.",
             ),
             ui.form_area(
-                label="Constraint Files",
+                label="Constraint files",
                 id={"type": "arch-override-constraints", "index": index},
                 value=constraints_to_text(rule.get("constraints")),
                 placeholder=CONSTRAINTS_PLACEHOLDER,
@@ -339,7 +339,7 @@ def override_card(index, rule=None):
 
 #: The keys of a rule the card shows, selectors included. Anything else is a
 #: setting the form does not know about and hands back untouched.
-CARD_KEYS = ("fmax_synthesis", "custom_freq_synthesis", "constraints") + overrides_lib.SELECTORS
+CARD_KEYS = ("fmax_synthesis", "fixed_freq_synthesis", "constraints") + overrides_lib.SELECTORS
 
 
 def override_rest(rule):
@@ -422,7 +422,7 @@ def build_overrides(selectors, fmax_lowers, fmax_uppers, custom_freqs, constrain
 
         for key, value in (
             ("fmax_synthesis", fmax),
-            ("custom_freq_synthesis", {"list": frequencies} if frequencies else {}),
+            ("fixed_freq_synthesis", {"list": frequencies} if frequencies else {}),
             ("constraints", declaration),
         ):
             if value:
@@ -453,7 +453,7 @@ def architecture_form(settings):
             html.Div([
                 html.Div(
                     children=[
-                        html.H3("RTL Generation", style={"marginBottom": "0px"}),
+                        html.H3("RTL generation", style={"marginBottom": "0px"}),
                         builtin_variables.variable_list("architecture", id="arch-builtin-variables"),
                     ],
                     className="title-tile-flex",
@@ -466,7 +466,7 @@ def architecture_form(settings):
                 ),
                 html.Div([
                     dcc.Checklist(
-                        options=[{"label": "Enable RTL Generation", "value": True}],
+                        options=[{"label": "Enable RTL generation", "value": True}],
                         value=[True] if generate_rtl else [],
                         id="generate_rtl",
                         className="checklist-switch",
@@ -477,7 +477,7 @@ def architecture_form(settings):
                 html.Div(
                     children=[
                         architecture_form_field(
-                            label="Design Path",
+                            label="Design path",
                             id="design_path",
                             value=defval("design_path", ""),
                             tooltip="Path to the design files needed for RTL generation. The whole path will be copied for each configuration, so use white/blacklists below to filter files if needed.",
@@ -485,14 +485,14 @@ def architecture_form(settings):
                         html.Div(
                             children=[
                                 architecture_form_field(
-                                    label="Design Path Whitelist",
+                                    label="Design path whitelist",
                                     id="design_path_whitelist",
                                     value=", ".join(defval("design_path_whitelist", [])),
                                     placeholder="src, project, build.sbt",
                                     tooltip="Comma-separated list of patterns to include files from the design path. Only files matching these patterns will be included. Leave empty to include all files.",
                                 ),
                                 architecture_form_field(
-                                    label="Design Path Blacklist",
+                                    label="Design path blacklist",
                                     id="design_path_blacklist",
                                     value=", ".join(defval("design_path_blacklist", [])),
                                     placeholder="*.txt, docs/, tmp/",
@@ -503,7 +503,7 @@ def architecture_form(settings):
                             className="animated-section" + ("" if expand_design_path_filters else " hide"),
                         ),
                         architecture_form_field(
-                            label="Generation Command",
+                            label="Generation command",
                             id="generate_command",
                             value=defval("generate_command", ""),
                             tooltip="Command to generate the RTL files. This command will be executed in each copy of the design path directory. Make sure all files needed for this command to succeed are included in the design path. You can use ${name} to insert the value of a parameter domain or of a variable: a variable used here generates one run per value, like a parameter domain would.",
@@ -511,7 +511,7 @@ def architecture_form(settings):
                             className="odatix-command-field",
                         ),
                         architecture_form_field(
-                            label="Generation Output",
+                            label="Generation output",
                             id="generate_output",
                             value=defval("generate_output", ""),
                             tooltip="Path to the generated RTL files relative to the design path.",
@@ -526,7 +526,7 @@ def architecture_form(settings):
                                     ),
                                     color="default",
                                     id="more-fields-design-path-filters-toggle",
-                                    tooltip="Show/Hide whitelist and blacklist fields",
+                                    tooltip="Show/hide whitelist and blacklist fields",
                                 ),
                             ],
                             style={"marginTop": "20px"},
@@ -538,11 +538,11 @@ def architecture_form(settings):
                 ),
             ], className="tile config"),
             html.Div([
-                html.H3("Top Level Settings"),
+                html.H3("Top level settings"),
                 html.Div(
                     children=[
                         architecture_form_field(
-                            label="RTL Path",
+                            label="RTL path",
                             id="rtl_path",
                             value=defval("rtl_path", ""),
                             tooltip="The path to the directory containing the RTL source files.",
@@ -553,36 +553,36 @@ def architecture_form(settings):
                     style={"overflow": "visible"},
                 ),
                 architecture_form_field(
-                    label="Top Level File",
+                    label="Top level file",
                     id="top_level_file",
                     value=defval("top_level_file", ""),
                     tooltip="The path of the file containing the top level (main) module/entity definition. This path is relative to the RTL path.",
                 ),
                 architecture_form_field(
-                    label="Top Level Module",
+                    label="Top level module",
                     id="top_level_module",
                     value=defval("top_level_module", ""),
                     tooltip="The name of the top level module/entity in your top level file.",
                 ),
                 architecture_form_field(
-                    label="Clock Signal",
+                    label="Clock signal",
                     id="clock_signal",
                     value=defval("clock_signal", ""),
                     tooltip="The name of the clock signal in your top level module/entity.",
                 ),
                 architecture_form_field(
-                    label="Reset Signal",
+                    label="Reset signal",
                     id="reset_signal",
                     value=defval("reset_signal", ""),
                     tooltip="The name of the reset signal in your top level module/entity.",
                 ),
             ], className="tile config"),
             html.Div([
-                html.H3("Synthesis Settings"),
-                html.H4("Fmax Synthesis (MHz)", style={"margin": "10px 0"}),
+                html.H3("Synthesis settings"),
+                html.H4("Fmax synthesis (MHz)", style={"margin": "10px 0"}),
                 html.Div([
                     architecture_form_field(
-                        label="Lower Bound",
+                        label="Lower bound",
                         id="fmax_synthesis_lower",
                         value=defval("fmax_synthesis", {}).get("lower_bound", ""),
                         placeholder=str(hard_settings.default_fmax_lower_bound),
@@ -591,7 +591,7 @@ def architecture_form(settings):
                         type="number",
                     ),
                     architecture_form_field(
-                        label="Upper Bound",
+                        label="Upper bound",
                         id="fmax_synthesis_upper",
                         value=defval("fmax_synthesis", {}).get("upper_bound", ""),
                         placeholder=str(hard_settings.default_fmax_upper_bound),
@@ -600,13 +600,13 @@ def architecture_form(settings):
                         type="number",
                     ),
                 ], className="odx-field-row"),
-                html.H4("Custom Freq Synthesis (MHz)", style={"margin": "10px 0"}),
+                html.H4("Fixed-frequency synthesis (MHz)", style={"margin": "10px 0"}),
                 architecture_form_field(
                     label="List",
-                    id="custom_freq_synthesis_list",
-                    value=", ".join(map(str, defval("custom_freq_synthesis", {}).get("list", []))),
+                    id="fixed_freq_synthesis_list",
+                    value=", ".join(map(str, defval("fixed_freq_synthesis", {}).get("list", []))),
                     placeholder=", ".join(map(str, hard_settings.default_custom_freq_list)),
-                    tooltip="Comma-separated list of custom frequencies for synthesis (in MHz). The synthesis will be run for each frequency in this list ('odatix synth' command). Theses values can be overriden by the argument --at (ex: 'odatix synth --at 50 --at 100') or --from, --to and --step (ex: 'odatix synth --from 50 --to 200 --step 10').",
+                    tooltip="Comma-separated list of frequencies for a fixed-frequency synthesis (in MHz). The synthesis will be run for each frequency in this list ('odatix synth' command). Theses values can be overriden by the argument --at (ex: 'odatix synth --at 50 --at 100') or --from, --to and --step (ex: 'odatix synth --from 50 --to 200 --step 10').",
                     tooltip_options="secondary large",
                     type="text",
                 ),
@@ -614,7 +614,7 @@ def architecture_form(settings):
             html.Div([
                 html.H3("Constraints"),
                 ui.form_area(
-                    label="Constraint Files",
+                    label="Constraint files",
                     id="constraints",
                     value=constraints_to_text(defval("constraints", [])),
                     placeholder=CONSTRAINTS_PLACEHOLDER,
@@ -655,7 +655,7 @@ def normalize_form_settings(settings):
     the user can edit.
     """
     fmax = settings.get("fmax_synthesis") or {}
-    custom_freq = settings.get("custom_freq_synthesis") or {}
+    custom_freq = settings.get("fixed_freq_synthesis") or {}
     freq_list = custom_freq.get("list")
     return {
         **settings,
@@ -664,7 +664,7 @@ def normalize_form_settings(settings):
             for key in ("lower_bound", "upper_bound")
             if fmax.get(key) not in (None, "")
         },
-        "custom_freq_synthesis": {"list": freq_list} if freq_list else {},
+        "fixed_freq_synthesis": {"list": freq_list} if freq_list else {},
         "constraints": constraints_from_text(constraints_to_text(settings.get("constraints"))),
         "overrides": normalize_overrides(settings.get("overrides")),
     }
@@ -691,11 +691,11 @@ def normalize_overrides(rules):
         fmax = {
             key: fmax[key] for key in ("lower_bound", "upper_bound") if fmax.get(key) not in (None, "")
         }
-        freq_list = (rule.get("custom_freq_synthesis") or {}).get("list")
+        freq_list = (rule.get("fixed_freq_synthesis") or {}).get("list")
         declaration = constraints_from_text(constraints_to_text(rule.get("constraints")))
         for key, value in (
             ("fmax_synthesis", fmax),
-            ("custom_freq_synthesis", {"list": list(freq_list)} if freq_list else {}),
+            ("fixed_freq_synthesis", {"list": list(freq_list)} if freq_list else {}),
             ("constraints", declaration),
         ):
             if value:
@@ -711,7 +711,7 @@ def normalize_overrides(rules):
 # the file (or to Odatix' defaults) and must survive a save from the GUI.
 form_sub_settings = {
     "fmax_synthesis": ("lower_bound", "upper_bound"),
-    "custom_freq_synthesis": ("list",),
+    "fixed_freq_synthesis": ("list",),
 }
 
 
@@ -781,7 +781,7 @@ def init_form(search, page, odatix_settings):
             "reset_signal": full_settings.get("reset_signal", ""),
 
             "fmax_synthesis": full_settings.get("fmax_synthesis", {}),
-            "custom_freq_synthesis": full_settings.get("custom_freq_synthesis", {}),
+            "fixed_freq_synthesis": full_settings.get("fixed_freq_synthesis", {}),
 
             "constraints": full_settings.get("constraints", []),
             "overrides": full_settings.get("overrides", []),
@@ -812,7 +812,7 @@ def init_form(search, page, odatix_settings):
     Input("reset_signal", "value"),
     Input("fmax_synthesis_lower", "value"),
     Input("fmax_synthesis_upper", "value"),
-    Input("custom_freq_synthesis_list", "value"),
+    Input("fixed_freq_synthesis_list", "value"),
     Input("constraints", "value"),
     Input({"type": "arch-override-tools", "index": dash.ALL}, "value"),
     Input({"type": "arch-override-targets", "index": dash.ALL}, "value"),
@@ -877,7 +877,7 @@ def save_and_status(
         } if fmax_lower != "" else {
             "upper_bound": fmax_upper,
         } if fmax_upper != "" else {},
-        "custom_freq_synthesis": {
+        "fixed_freq_synthesis": {
             "list": [int(x.strip()) for x in custom_freq_list.split(", ") if x.strip()],
         } if custom_freq_list != "" else {},
         "constraints": constraints_from_text(constraints),

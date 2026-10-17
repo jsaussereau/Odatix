@@ -25,14 +25,14 @@ of them can be moved in [`odatix.yml`](/docs/reference/workspace/).
 {{< code lang=text filename="An Odatix workspace" >}}
 odatix.yml                                  # workspace settings: where everything lives
 odatix_userconfig/
-├── fmax_synthesis_settings.yml             # what "odatix fmax" runs
-├── custom_freq_synthesis_settings.yml      # what "odatix synth" runs
-├── analysis_settings.yml                   # what "odatix analyze" runs
-├── simulations_settings.yml                # what "odatix sim" runs
+├── fmax_settings.yml             # what "odatix fmax" runs
+├── synth_settings.yml      # what "odatix synth" runs
+├── analyze_settings.yml                   # what "odatix analyze" runs
+├── sim_settings.yml                # what "odatix sim" runs
 ├── workflow_settings.yml                   # what "odatix workflow" runs
 ├── pnr_settings.yml                        # what "odatix pnr" runs
 ├── derived_metrics.yml                     # metrics computed from other metrics
-├── clean.yml                               # what "odatix clean" removes
+├── clean_settings.yml                               # what "odatix clean" removes
 ├── architectures/<design>/_settings.yml    # a parametrizable design
 │                        /<config>.txt      # one configuration of it
 ├── simulations/<sim>/_settings.yml         # a testbench and how it runs
@@ -42,6 +42,7 @@ odatix_userconfig/
 ├── targets/target_<tool>.yml               # devices/technologies for one eda tool
 └── tools/<tool>/tool.yml                   # an eda tool of your own
              /metrics.yml                   # what to extract from its reports
+             /analysis.yml                  # how to read what its analysis reports
 {{< /code >}}
 
 ## Reference pages
@@ -49,13 +50,14 @@ odatix_userconfig/
 | Page | Files it documents |
 |------|--------------------|
 | [Workspace settings](/docs/reference/workspace/) | `odatix.yml` |
-| [Run settings files](/docs/reference/run_settings/) | `fmax_synthesis_settings.yml`, `custom_freq_synthesis_settings.yml`, `analysis_settings.yml`, `simulations_settings.yml`, `workflow_settings.yml`, `pnr_settings.yml`, `clean.yml` |
+| [Run settings files](/docs/reference/run_settings/) | `fmax_settings.yml`, `synth_settings.yml`, `analyze_settings.yml`, `sim_settings.yml`, `workflow_settings.yml`, `pnr_settings.yml`, `clean_settings.yml` |
 | [Architecture settings](/docs/reference/architecture/) | `architectures/<design>/_settings.yml` and its parameter files |
 | [Simulation settings](/docs/reference/simulation/) | `simulations/<sim>/_settings.yml` |
 | [Workflow settings](/docs/reference/workflow/) | `workflows/<name>/_settings.yml` |
 | [Target files](/docs/reference/targets/) | `targets/target_<tool>.yml` |
 | [Tool definitions](/docs/reference/tools/) | `tools/<tool>/tool.yml`, flows and steps |
 | [Metrics files](/docs/reference/metrics/) | `metrics.yml`, `_metrics.yml`, `derived_metrics.yml` |
+| [Analysis definitions](/docs/reference/analysis/) | `tools/<tool>/analysis.yml`: how the reports of a tool become findings |
 | [Configuration API](/docs/reference/python_api/) | Reading and writing all of them from Python or with `odatix config` |
 
 ## How settings are resolved
@@ -63,7 +65,7 @@ odatix_userconfig/
 Configuration is resolved in this order, highest priority first:
 
 1. **Command-line options** — `--jobs`, `--overwrite`, `--tool`, `--config`…
-2. **Run settings files** — `fmax_synthesis_settings.yml` and friends.
+2. **Run settings files** — `fmax_settings.yml` and friends.
 3. **Workspace settings** — `odatix.yml`.
 4. **Internal defaults**.
 

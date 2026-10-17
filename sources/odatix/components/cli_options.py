@@ -59,7 +59,7 @@ OPTIONS = {
   # Talking to the daemon
   ######################################
   "detach": (("-d", "--detach"), dict(action="store_true", help="enqueue jobs to daemon and return without attaching monitor")),
-  "session": (("-S", "--session"), dict(default=None, help="daemon session name or selector")),
+  "session": (("-S", "--session"), dict(default=None, help="session name or selector")),
   "host": (("--host",), dict(default=None, help="daemon API host (default: current workspace daemon host)")),
   "port": (("--port",), dict(type=int, default=None, help="daemon API port (default: current workspace daemon port)")),
   "token": (("--token",), dict(default=None, help="session token, when an explicit --host/--port is used (default: $ODATIX_DAEMON_TOKEN)")),
@@ -69,10 +69,10 @@ OPTIONS = {
   ######################################
   # What a run does
   ######################################
-  "tool": (("-t", "--tool"), dict(default=None, help='eda tool to run (default: "default_tool" ' + FROM_WORKSPACE + ', or the only tool with a target file)')),
+  "tool": (("-t", "--tool"), dict(default=None, help='tool to run (default: "default_tool" ' + FROM_WORKSPACE + ', or the only tool with a target file)')),
   # No short form: -T is --trust.
   "targets": (("--target",), dict(action="append", dest="targets", default=None, metavar="TARGET", help="target to run on, out of those the target file of the tool enables (repeatable; default: all of them)")),
-  "flow": (("-f", "--flow"), dict(default=None, help="flow of the eda tool to run (default: the tool's default flow)")),
+  "flow": (("-f", "--flow"), dict(default=None, help="flow of the tool to run (default: the tool's default flow)")),
   "until": (("-u", "--until"), dict(default=None, help="last step of the flow to run, inclusive (default: the flow's default step, or all its steps)")),
   "rerun_from": (("--rerun-from",), dict(dest="rerun_from", default=None, help="re-run this step and the following ones, even if already done")),
   "overwrite": (("-o", "--overwrite"), dict(action="store_true", help='overwrite existing results (default: "overwrite" ' + FROM_RUN_SETTINGS + ')')),
@@ -80,7 +80,7 @@ OPTIONS = {
   "exit_when_done": (("-E", "--exit"), dict(dest="exit_when_done", action="store_true", help='exit the monitor when all jobs are done (default: "exit_when_done" ' + FROM_RUN_SETTINGS + ')')),
   "nb_jobs": (("-j", "--jobs"), dict(dest="nb_jobs", help='maximum number of parallel jobs, "auto" for the number of CPUs minus one (default: "nb_jobs" ' + FROM_RUN_SETTINGS + ')')),
   "log_size_limit": (("--logsize",), dict(dest="log_size_limit", help='size of the log history per job in the monitor (default: "log_size_limit" ' + FROM_RUN_SETTINGS + ')')),
-  "check_eda_tool": (("-T", "--trust"), dict(dest="check_eda_tool", action="store_false", help="do not check the eda tool before running jobs (saves time)")),
+  "check_eda_tool": (("-T", "--trust"), dict(dest="check_eda_tool", action="store_false", help="do not check the tool before running jobs (saves time)")),
   "debug": (("-D", "--debug"), dict(action="store_true", help="enable debug mode to help troubleshoot settings files")),
   "keep": (("-k", "--keep"), dict(action="store_true", help="store the batch with a timestamp in the configuration name")),
   "resume": (("-r", "--resume"), dict(action="store_true", help="resume from existing work directories (do not delete/recreate them)")),

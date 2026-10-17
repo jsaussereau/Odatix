@@ -103,10 +103,10 @@ Result files are small; the work directories they were extracted from are not. O
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix clean
-$ odatix clean -i odatix_userconfig/clean.yml
+$ odatix clean -i odatix_userconfig/clean_settings.yml
 {{< /code >}}
 
-The profile's `remove_list` (see [Configuration reference](/docs/reference/run_settings/#cleanyml)) lists the glob patterns to delete. Keep in mind that once the work directories are gone, re-exporting is no longer possible — only `odatix results derived`, which works from the result files themselves, still is.
+The profile's `remove_list` (see [Configuration reference](/docs/reference/run_settings/#clean_settingsyml)) lists the glob patterns to delete. Keep in mind that once the work directories are gone, re-exporting is no longer possible — only `odatix results derived`, which works from the result files themselves, still is.
 
 ## In this section
 

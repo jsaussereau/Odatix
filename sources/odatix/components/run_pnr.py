@@ -76,7 +76,7 @@ def _check_cancel(cancel_event):
 
 def add_arguments(parser):
     add_options(parser, "tool", "flow", "targets", "until", "rerun_from",
-                tool={"help": "eda tool running the place & route"},
+                tool={"help": "tool running the place & route"},
                 until={"help": "last step of the flow to run, inclusive (default: all its steps)"})
     parser.add_argument(
         "--from-type",
@@ -85,7 +85,7 @@ def add_arguments(parser):
         choices=list(pnr_source.SOURCE_JOB_TYPES),
         help="only place & route the synthesis jobs of this type",
     )
-    parser.add_argument("--from-tool", dest="from_tool", default=None, help="only place & route the synthesis jobs run with this eda tool")
+    parser.add_argument("--from-tool", dest="from_tool", default=None, help="only place & route the synthesis jobs run with this tool")
     parser.add_argument("--from-flow", dest="from_flow", default=None, help="only place & route the synthesis jobs run with this flow of --from-tool")
     add_options(parser, "overwrite", "noask", "daemon_options", "settings_file")
     # The work directory of a place & route is the whole work tree: its

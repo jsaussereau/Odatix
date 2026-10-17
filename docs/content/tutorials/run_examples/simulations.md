@@ -55,9 +55,9 @@ $ odatix init --examples
 
 ### Step 2 — Choose what to simulate
 
-Open `odatix_userconfig/simulations_settings.yml`. Each entry maps a **simulation** to the list of **architectures** to run it on:
+Open `odatix_userconfig/sim_settings.yml`. Each entry maps a **simulation** to the list of **architectures** to run it on:
 
-{{< code lang=yaml filename="odatix_userconfig/simulations_settings.yml" linenos="true" linenostart="23" >}}
+{{< code lang=yaml filename="odatix_userconfig/sim_settings.yml" linenos="true" linenostart="23" >}}
 simulations:
   - TB_Example_Cordic_Verilator:
     - Example_Cordic_sv + iterations/* + width/*

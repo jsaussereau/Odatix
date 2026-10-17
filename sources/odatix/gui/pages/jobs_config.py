@@ -37,7 +37,7 @@ from odatix.gui.jobs_config import callbacks_sim
 dash.register_page(
     __name__,
     path=page_path,
-    title='Odatix - Job Selection',
+    title='Odatix - Job selection',
     name='Run jobs',
     order=3,
 )

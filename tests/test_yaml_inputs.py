@@ -261,7 +261,7 @@ class TestCustomFrequencySettings:
     """The "frequencies" section of the custom frequency synthesis settings."""
 
     def load(self, tmp_path, text):
-        from odatix.components.run_custom_synthesis import _load_settings_custom_frequencies
+        from odatix.components.run_fixed_freq_synthesis import _load_settings_custom_frequencies
 
         f = tmp_path / "custom_freq_synthesis_settings.yml"
         f.write_text(text)

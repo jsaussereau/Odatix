@@ -108,7 +108,7 @@ Which designs and how many jobs at once come from the run settings file, and the
 targets from the tool's target file — exactly as for
 [custom-frequency synthesis](/docs/features/rtl_synthesis/#from-the-configuration-files-and-the-cli):
 
-{{< code lang=yaml filename="odatix_userconfig/fmax_synthesis_settings.yml" >}}
+{{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" >}}
 nb_jobs: 12
 
 architectures:
@@ -128,7 +128,7 @@ every option on the [commands reference](/docs/commands/).
 
 ### From the GUI
 
-`odatix-gui` → **Run Jobs** → **Fmax Synthesis** picks the tool and flow, the
+`odatix-gui` → **Run jobs** → **Fmax synthesis** picks the tool and flow, the
 targets, and the designs, with the search bounds editable per target from the
 **RTL Architectures** page. Launching enqueues the jobs in the same daemon and
 opens the Monitor, where each binary search reports the frequency it is currently

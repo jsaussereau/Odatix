@@ -40,8 +40,8 @@ page_path = "/select_targets"
 dash.register_page(
     __name__,
     path=page_path,
-    title='Odatix - Target Selection',
-    name='Select Targets',
+    title='Odatix - Target selection',
+    name='Select targets',
     order=3,
 )
 
@@ -108,7 +108,7 @@ def target_card(target):
                         ),
                         color="default",
                         id={"type": "target-more", "name": name},
-                        tooltip="Show/Hide extra fields",
+                        tooltip="Show/hide extra fields",
                         tooltip_options="bottom small",
                     )
                 ], style={"display": "flex", "alignItems": "center"}),
@@ -204,7 +204,7 @@ def build_cards(search, odatix_settings):
     tool = get_key_from_url(search, "tool")
     if not tool:
         return [html.Div(
-            "No EDA tool selected. Open this page with ?tool=<tool> (e.g. from the Run Jobs page).",
+            "No tool selected. Open this page with ?tool=<tool> (e.g. from the Run jobs page).",
             className="error-message",
             style={"width": "100%", "marginTop": "20px"},
         )]

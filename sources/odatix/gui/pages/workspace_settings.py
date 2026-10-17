@@ -41,7 +41,7 @@ page_path = "/workspace"
 dash.register_page(
     __name__,
     path=page_path,
-    title='Odatix - Workspace Settings',
+    title='Odatix - Workspace settings',
     name='Workspace',
     order=10,
 )
@@ -50,11 +50,31 @@ dash.register_page(
 # UI Components
 ######################################
 
+def tool_options():
+    """Every eda tool the workspace can run, built-in ones included."""
+    try:
+        return [{"label": name, "value": name} for name in get_workspace().tools.all_names()]
+    except Exception:
+        return []
+
+
 def workspace_form(settings):
     defval = lambda k, v=None: settings.get(k, v)
 
     return ui.grid(
         children=[
+            ui.panel(body=[
+                ui.caption("Tools"),
+                ui.form_dropdown(
+                    label="Default tool",
+                    id="default_tool",
+                    placeholder="None",
+                    options=tool_options(),
+                    value=defval("default_tool", "") or None,
+                    tooltip="The tool the run commands use when -t/--tool does not name one. "
+                            "Left empty, a workspace with a single target file uses that tool.",
+                ),
+            ]),
             ui.panel(body=[
                 ui.caption("Main paths"),
                 ui.form_field(
@@ -72,7 +92,7 @@ def workspace_form(settings):
                     tooltip="The path to the architecture directory where all simulations definitions are stored.",
                 ),
                 ui.form_field(
-                    label="Target Definition directory",
+                    label="Target definition directory",
                     id="target_path",
                     value=defval("target_path", ""),
                     placeholder=OdatixSettings.DEFAULT_TARGET_PATH,
@@ -91,23 +111,23 @@ def workspace_form(settings):
                 ),
                 ui.form_field(
                     label="Simulation settings",
-                    id="simulation_settings_file",
-                    value=defval("simulation_settings_file", ""),
-                    placeholder=OdatixSettings.DEFAULT_SIMULATION_SETTINGS_FILE,
+                    id="sim_settings_file",
+                    value=defval("sim_settings_file", ""),
+                    placeholder=OdatixSettings.DEFAULT_SIM_SETTINGS_FILE,
                     tooltip="The path to the settings file used by 'odatix sim' command.",
                 ),
                 ui.form_field(
                     label="Fmax synthesis settings",
-                    id="fmax_synthesis_settings_file",
-                    value=defval("fmax_synthesis_settings_file", ""),
-                    placeholder=OdatixSettings.DEFAULT_FMAX_SYNTHESIS_SETTINGS_FILE,
+                    id="fmax_settings_file",
+                    value=defval("fmax_settings_file", ""),
+                    placeholder=OdatixSettings.DEFAULT_FMAX_SETTINGS_FILE,
                     tooltip="The path to the settings file used by 'odatix fmax' command.",
                 ),
                 ui.form_field(
-                    label="Custom synthesis settings",
-                    id="custom_freq_synthesis_settings_file",
-                    value=defval("custom_freq_synthesis_settings_file", ""),
-                    placeholder=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_SETTINGS_FILE,
+                    label="Fixed-frequency synthesis settings",
+                    id="synth_settings_file",
+                    value=defval("synth_settings_file", ""),
+                    placeholder=OdatixSettings.DEFAULT_SYNTH_SETTINGS_FILE,
                     tooltip="The path to the settings file used by 'odatix synth' command.",
                 ),
             ]),
@@ -135,11 +155,11 @@ def workspace_form(settings):
                     tooltip="The path where temporary files will be stored during Fmax synthesis, relative to the main work path.",
                 ),
                 ui.form_field(
-                    label="Custom synthesis work path",
+                    label="Fixed-frequency synthesis work path",
                     id="custom_freq_synthesis_work_path",
                     value=defval("custom_freq_synthesis_work_path", ""),
                     placeholder=OdatixSettings.DEFAULT_CUSTOM_FREQ_SYNTHESIS_WORK_PATH,
-                    tooltip="The path where temporary files will be stored during custom frequency synthesis, relative to the main work path.",
+                    tooltip="The path where temporary files will be stored during fixed-frequency synthesis, relative to the main work path.",
                 ),
             ]),
             ui.panel(body=[
@@ -214,13 +234,14 @@ def init_form(search, page):
     Output("workspace-saved-settings", "data"),
     Output("workspace-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
+    Input("default_tool", "value"),
     Input("arch_path", "value"),
     Input("sim_path", "value"),
     Input("target_path", "value"),
     Input("clean_settings_file", "value"),
-    Input("simulation_settings_file", "value"),
-    Input("fmax_synthesis_settings_file", "value"),
-    Input("custom_freq_synthesis_settings_file", "value"),
+    Input("sim_settings_file", "value"),
+    Input("fmax_settings_file", "value"),
+    Input("synth_settings_file", "value"),
     Input("work_path", "value"),
     Input("simulation_work_path", "value"),
     Input("fmax_synthesis_work_path", "value"),
@@ -235,9 +256,9 @@ def init_form(search, page):
     prevent_initial_call=True,
 )
 def save_and_status(
-    save_n_clicks, arch_path, sim_path, target_path,
-    clean_settings_file, simulation_settings_file, fmax_synthesis_settings_file,
-    custom_freq_synthesis_settings_file, work_path, simulation_work_path,
+    save_n_clicks, default_tool, arch_path, sim_path, target_path,
+    clean_settings_file, sim_settings_file, fmax_settings_file,
+    synth_settings_file, work_path, simulation_work_path,
     fmax_synthesis_work_path, custom_freq_synthesis_work_path, result_path,
     resource_guard, cpu_limit, mem_limit,
     page, initial_settings, saved_settings
@@ -247,13 +268,14 @@ def save_and_status(
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     current_settings_subset = {
+        "default_tool": default_tool or "",
         "arch_path": arch_path,
         "sim_path": sim_path,
         "target_path": target_path,
         "clean_settings_file": clean_settings_file,
-        "simulation_settings_file": simulation_settings_file,
-        "fmax_synthesis_settings_file": fmax_synthesis_settings_file,
-        "custom_freq_synthesis_settings_file": custom_freq_synthesis_settings_file,
+        "sim_settings_file": sim_settings_file,
+        "fmax_settings_file": fmax_settings_file,
+        "synth_settings_file": synth_settings_file,
         "work_path": work_path,
         "simulation_work_path": simulation_work_path,
         "fmax_synthesis_work_path": fmax_synthesis_work_path,
@@ -290,13 +312,14 @@ def save_and_status(
 
 
 @page_callback(PAGE_SCOPE,
+    Output("default_tool", "value"),
     Output("arch_path", "value"),
     Output("sim_path", "value"),
     Output("target_path", "value"),
     Output("clean_settings_file", "value"),
-    Output("simulation_settings_file", "value"),
-    Output("fmax_synthesis_settings_file", "value"),
-    Output("custom_freq_synthesis_settings_file", "value"),
+    Output("sim_settings_file", "value"),
+    Output("fmax_settings_file", "value"),
+    Output("synth_settings_file", "value"),
     Output("work_path", "value"),
     Output("simulation_work_path", "value"),
     Output("fmax_synthesis_work_path", "value"),
@@ -320,12 +343,12 @@ def reset_to_defaults(
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return [dash.no_update] * 15
+        return [dash.no_update] * 16
     
     if triggered_id == {"page": page_path, "action": "reset-defaults"}:
         # Reset to defaults
-        return [""] * 15
-    return [dash.no_update] * 15
+        return [None] + [""] * 15
+    return [dash.no_update] * 16
 
 @page_callback(PAGE_SCOPE,
     Output("workspace-migration", "className"),
@@ -347,7 +370,7 @@ def migration(search, n_clicks, odatix_settings):
             if left:
                 feedback = ui.error("Rewritten: {0} file(s). Left to rewrite by hand: {1}".format(len(rewritten), " ".join(left)))
             else:
-                feedback = ui.success("Rewritten: {0} file(s). The former versions are kept as .bak files.".format(len(rewritten)))
+                feedback = ui.success("Migrated: {0} file(s). Each rewritten file keeps its former version as a .bak file.".format(len(rewritten)))
         found = workspace_migrate.pending(workspace)
     except Exception as e:
         return "odx-migration hide", "", ui.error(f"Could not migrate: {e}")
@@ -384,7 +407,7 @@ layout = html.Div(
         dcc.Location(id=f"url_{page_path}"),
         html.Div(
             ui.page_bar(
-                "Workspace Settings",
+                "Workspace settings",
                 actions=title_buttons,
                 back_link="/",
                 extra=html.Div(
