@@ -138,7 +138,7 @@ class TestTestbench:
         write(tmp_path, "tb/tb_dut.sv", "module tb_dut; dut u (.a(1)); endmodule\n")
         write(tmp_path, "tb/model.cpp", "int main() {}\n")
         testbench = design_info.collect_testbench(str(tmp_path), dut_top="dut")
-        assert testbench == {"top": "tb_dut", "files": ["tb/tb_dut.sv"], "languages": ["sv"]}
+        assert testbench == {"top": "tb_dut", "files": ["tb/tb_dut.sv"], "languages": ["sv"], "parameters": {}}
 
     def test_the_top_is_the_unit_nothing_instantiates(self, tmp_path):
         write(tmp_path, "tb/bench.vhd", """
@@ -157,14 +157,20 @@ class TestTestbench:
         write(tmp_path, "bench/a.sv", "module a; endmodule\n")
         write(tmp_path, "bench/b.sv", "module b; endmodule\n")
         write(tmp_path, "tb/ignored.sv", "module ignored; endmodule\n")
-        testbench = design_info.collect_testbench(str(tmp_path), {"top": "b", "files": ["bench/*.sv"]})
-        assert testbench == {"top": "b", "files": ["bench/a.sv", "bench/b.sv"], "languages": ["sv"]}
+        testbench = design_info.collect_testbench(
+            str(tmp_path), {"top": "b", "files": ["bench/*.sv"], "parameters": {"WIDTH": 8}}
+        )
+        assert testbench == {
+            "top": "b", "files": ["bench/a.sv", "bench/b.sv"], "languages": ["sv"], "parameters": {"WIDTH": "8"},
+        }
 
     def test_the_setting_is_checked(self):
         from odatix.lib.simulation_handler import check_testbench
 
         assert check_testbench({"top": "tb", "files": ["tb/a.sv"]}) is None
         assert check_testbench({"files": "tb/a.sv"}) is None
+        assert check_testbench({"parameters": {"WIDTH": "${width}"}}) is None
+        assert "parameters" in check_testbench({"parameters": ["WIDTH"]})
         assert "mapping" in check_testbench(["tb/a.sv"])
         assert "unknown keys" in check_testbench({"topp": "tb"})
         assert "files" in check_testbench({"files": 3})

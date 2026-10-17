@@ -84,3 +84,13 @@ class TestPackageData:
             words = line.split()
             if words and words[0] in ("include", "recursive-include"):
                 assert os.path.exists(os.path.join(SOURCES_DIR, words[1])), line
+
+    def test_data_directories_are_shipped(self):
+        """Directories Odatix reads at run time, with no Python package of their own."""
+        with open(os.path.join(SOURCES_DIR, "setup.py")) as f:
+            setup_py = f.read()
+        with open(os.path.join(SOURCES_DIR, "MANIFEST.in")) as f:
+            manifest = f.read()
+        for directory in ("odatix_eda_tools", "odatix_sim_templates", "odatix_examples", "odatix_init"):
+            assert "package_files('" + directory + "')" in setup_py, directory
+            assert "recursive-include " + directory + " *" in manifest, directory

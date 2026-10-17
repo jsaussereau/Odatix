@@ -1,0 +1,67 @@
+##############################################
+# Metrics of a simulation template
+##############################################
+# Read from "sim_report.yml", which every template writes (see
+# odatix.sim.runner). A simulation starting from a template adds its own
+# metrics to these in its "_metrics.yml"; one of the same name replaces it.
+
+metrics:
+  sim_status:
+    type: yaml
+    settings:
+      file: sim_report.yml
+      key: status
+
+  sim_errors:
+    type: yaml
+    settings:
+      file: sim_report.yml
+      key: errors
+    format: "%.0f"
+
+  sim_warnings:
+    type: yaml
+    settings:
+      file: sim_report.yml
+      key: warnings
+    format: "%.0f"
+
+  compile_time:
+    type: yaml
+    settings:
+      file: sim_report.yml
+      key: compile_time
+    unit: "s"
+    format: "%.2f"
+
+  elaboration_time:
+    type: yaml
+    settings:
+      file: sim_report.yml
+      key: elaboration_time
+    unit: "s"
+    format: "%.2f"
+
+  simulation_time:
+    type: yaml
+    settings:
+      file: sim_report.yml
+      key: simulation_time
+    unit: "s"
+    format: "%.2f"
+
+  simulated_cycles:
+    type: yaml
+    settings:
+      file: sim_report.yml
+      key: cycles
+    unit: "cycles"
+    format: "%.0f"
+
+  cycles_per_second:
+    type: yaml
+    settings:
+      file: sim_report.yml
+      key: cycles_per_second
+    unit: "cycles/s"
+    format: "%.0f"

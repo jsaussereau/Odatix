@@ -35,6 +35,7 @@ def package_files(package, subdirectory=""):
 package_list = find_packages()
 package_list.append('odatix_examples')
 package_list.append('odatix_eda_tools')
+package_list.append('odatix_sim_templates')
 package_list.append('odatix_init')
 
 setup(
@@ -52,6 +53,7 @@ setup(
         'odatix': ['version.txt'] + package_files('odatix', 'gui/assets') + package_files('odatix', 'gui/pages'),
         'odatix_examples': package_files('odatix_examples'),
         'odatix_eda_tools': package_files('odatix_eda_tools'),
+        'odatix_sim_templates': package_files('odatix_sim_templates'),
         'odatix_init': package_files('odatix_init'),
     },
     classifiers=[

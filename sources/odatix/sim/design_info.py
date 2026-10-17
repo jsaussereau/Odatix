@@ -333,6 +333,18 @@ def languages_of(sources):
   return [language for language in LANGUAGES if sources.get(language)]
 
 
+def source_languages(rtl_dir):
+  """The languages of the RTL in a directory, before it is copied anywhere."""
+  if not rtl_dir or not os.path.isdir(rtl_dir):
+    return []
+  filelist = os.path.join(rtl_dir, USER_FILELIST_FILENAME)
+  if os.path.isfile(filelist):
+    files, _include_dirs = read_filelist(filelist, rtl_dir)
+  else:
+    files, _include_dirs = scan_directory(rtl_dir, rtl_dir)
+  return languages_of(split_by_language(files))
+
+
 ######################################
 # Testbench
 ######################################
@@ -390,8 +402,8 @@ def collect_testbench(work_dir, declared=None, dut_top=""):
   The testbench a simulation runs, relative to the work directory.
 
   Args:
-    declared (dict): the "testbench" a simulation declares ({"top", "files"}),
-      if any. Files may be glob patterns, relative to the work directory, where
+    declared (dict): the "testbench" a simulation declares ({"top", "files",
+      "parameters"}), if any. Files may be glob patterns, relative to the work directory, where
       the simulation's own files are copied. Without files, every HDL file of
       its "tb" directory is taken.
     dut_top (str): top of the design under test, used to guess the testbench
@@ -423,10 +435,12 @@ def collect_testbench(work_dir, declared=None, dut_top=""):
   files = vhdl + vlog
 
   top = str(declared.get("top") or "") or guess_testbench_top(files, work_dir, dut_top)
+  parameters = declared.get("parameters")
   return {
     "top": top,
     "files": files,
     "languages": languages_of(split_by_language(files)),
+    "parameters": {str(name): str(value) for name, value in parameters.items()} if isinstance(parameters, dict) else {},
   }
 
 

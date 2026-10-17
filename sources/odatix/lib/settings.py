@@ -141,6 +141,9 @@ class OdatixSettings:
 
     odatix_path = os.path.realpath(os.path.join(base_path, os.pardir))
     odatix_eda_tools_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_eda_tools"))
+    # The simulation templates Odatix provides, one directory per simulator
+    # (see odatix.sim.templates).
+    odatix_sim_templates_path = os.path.realpath(os.path.join(odatix_path, os.pardir, "odatix_sim_templates"))
     # User eda tools directory, resolved from the workspace settings file when it
     # is read (defaults to DEFAULT_TOOLS_PATH, relative to the current directory).
     # This class-level latch mirrors odatix_eda_tools_path so the many tool

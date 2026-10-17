@@ -1,0 +1,24 @@
+##############################################
+# Simulation template: Verilator
+##############################################
+# Provided by Odatix. Compiles, elaborates and runs the design under test and
+# its testbench, as "odatix_sim.yml" describes them (see run.py). Name it in
+# the run settings, or start a simulation from it with "template: verilator".
+
+description: "Verilator, for Verilog and SystemVerilog designs"
+
+# The languages it compiles: a design written in another one is refused when
+# the run is checked.
+languages: [verilog, sv]
+
+# Tells whether the simulator is installed.
+test_command: [verilator, --version]
+
+tasks:
+  - name: main
+    commands:
+      - '"${python}" run.py "${odatix_path}"'
+
+progress:
+  file: "log/progress.log"
+  regex: "(.*): ([0-9]+)%(.*)"

@@ -110,6 +110,10 @@ def _run_identity(run_dir, work_root, sim_path):
         # re-exporting an old run gives the same record as running it again.
         invariant_domains = _declared_invariant_domains(simulation_definition_dir)
 
+    metrics_files = meta.get("metrics_files")
+    if not isinstance(metrics_files, list):
+        metrics_files = None
+
     return {
         "simulation": simulation,
         "architecture": architecture,
@@ -117,6 +121,7 @@ def _run_identity(run_dir, work_root, sim_path):
         "arch_full": arch_full,
         "simulation_definition_dir": simulation_definition_dir,
         "invariant_domains": sorted(invariant_domains),
+        "metrics_files": metrics_files,
     }
 
 
@@ -188,6 +193,9 @@ def _extract_records_for_run(run_dir, work_root, sim_path):
     declared_metrics_file = _declared_metrics_file(
         identity["simulation_definition_dir"], identity["architecture"]
     )
+    if not declared_metrics_file and identity.get("metrics_files"):
+        # A simulation starting from a template: the template's metrics, then its own.
+        return _extract_merged_records(run_dir, identity)
     metrics_file = os.path.join(
         identity["simulation_definition_dir"], declared_metrics_file or SIMULATION_METRICS_FILENAME
     )
@@ -207,6 +215,29 @@ def _extract_records_for_run(run_dir, work_root, sim_path):
     metrics_def, metadata_def = _load_metrics(metrics_file)
     if metrics_def is None:
         return None, None
+    if len(metrics_def) == 0 and len(metadata_def) == 0:
+        return [], {}
+
+    error_prefix = identity["simulation"] + " => " + identity["arch_full"] + " => "
+    run_records, units = _extract_run_records(run_dir, metrics_def, metadata_def, error_prefix=error_prefix)
+    return _build_simulation_records(run_records, identity, run_dir), units
+
+
+def _extract_merged_records(run_dir, identity):
+    """
+    Extract the records of a run whose metrics are spread over several files
+    (a template's, then the simulation's): a metric defined twice is the one of
+    the last file.
+    """
+    metrics_def, metadata_def = {}, {}
+    for metrics_file in identity["metrics_files"]:
+        if not os.path.isfile(str(metrics_file)):
+            continue
+        file_metrics, file_metadata = _load_metrics(str(metrics_file))
+        if file_metrics is None:
+            return None, None
+        metrics_def.update(file_metrics)
+        metadata_def.update(file_metadata)
     if len(metrics_def) == 0 and len(metadata_def) == 0:
         return [], {}
 

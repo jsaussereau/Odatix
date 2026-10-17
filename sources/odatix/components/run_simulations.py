@@ -162,6 +162,15 @@ def write_design_info(sim_instance):
     keep what they say for the placeholders of its commands.
     """
     architecture = sim_instance.architecture
+    # The values of the testbench parameters may use the placeholders of the
+    # commands: ${width} gives the testbench the width of the configuration.
+    testbench = dict(sim_instance.testbench or {})
+    if isinstance(testbench.get("parameters"), dict):
+        values = build_simulation_command_substitutions(sim_instance)
+        testbench["parameters"] = {
+            str(name): virtual_param_domain.replace_command_vars(str(value), values)
+            for name, value in testbench["parameters"].items()
+        }
     try:
         info = design_info.build_info(
             sim_instance.tmp_dir,
@@ -173,7 +182,7 @@ def write_design_info(sim_instance):
             clock=architecture.clock_signal,
             reset=getattr(architecture, "reset_signal", ""),
             param_domains=domain_values(architecture),
-            testbench=sim_instance.testbench,
+            testbench=testbench,
             rtl_generated=bool(architecture.generate_rtl),
             rtl_dir=hard_settings.work_rtl_path,
         )
@@ -414,8 +423,9 @@ def check_settings(
         # write run metadata to make post-processing/export robust
         write_simulation_meta(sim_instance)
 
-        # copy simulation sources
-        copytree(sim_instance.source_sim_dir, sim_instance.tmp_dir, dirs_exist_ok = True)
+        # copy simulation sources: the template it starts from first, then its own
+        for definition_dir in sim_instance.definition_dirs:
+            copytree(definition_dir, sim_instance.tmp_dir, dirs_exist_ok = True)
 
         # copy design
         if sim_instance.architecture.design_path is not None:
@@ -542,6 +552,9 @@ def write_simulation_meta(sim_instance):
                     # must leave out to match every value of them, so it travels
                     # with the run rather than being looked up again at export.
                     "invariant_domains": sorted(sim_instance.invariant_domains),
+                    # What to extract: the "_metrics.yml" of the template the
+                    # simulation starts from, then its own, merged.
+                    "metrics_files": list(sim_instance.metrics_files),
                 },
                 f,
                 default_flow_style=False,

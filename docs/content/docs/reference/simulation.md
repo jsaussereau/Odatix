@@ -22,6 +22,10 @@ odatix_userconfig/simulations/TB_Example_Counter_GHDL/
 `_settings.yml` is **optional**. Without it, the architecture's own settings are
 used and Odatix runs `make sim` from the simulation's `Makefile`.
 
+A simulation does not have to be written from scratch: Odatix provides a
+[template](#templates) for each common simulator, which a simulation can start
+from, or which a run can name directly.
+
 {{< toc >}}
 
 ## What the simulation runs
@@ -94,11 +98,15 @@ from.
 |-----|------|----------|-------------|
 | `testbench.top` | string | No | Module or entity at the top of the testbench. |
 | `testbench.files` | path or list | No | Its sources, relative to the simulation directory. Glob patterns are accepted. |
+| `testbench.parameters` | mapping | No | Parameters (generics) given to the top of the testbench. Values may use the [placeholders](#placeholders-available-in-commands). Read by the [templates](#templates). |
 
 {{< code lang=yaml filename="_settings.yml" >}}
 testbench:
   top: tb_cordic
   files: [tb/tb_cordic.sv]
+  parameters:
+    WIDTH: ${width}
+    ITERATIONS: ${iterations}
 {{< /code >}}
 
 Without `files`, every HDL file of the simulation's `tb/` directory is taken.
@@ -484,6 +492,112 @@ invariant_domains:
 
 See [Derived metrics](/docs/results/derived_metrics/) for why this matters when
 simulation and synthesis figures are combined.
+
+## Templates
+
+Odatix provides a simulation for each of these simulators. Each one compiles,
+elaborates and runs the design under test and its testbench, as
+[`odatix_sim.yml`](#what-odatix-tells-the-simulation) describes them: nothing
+in it is specific to a design.
+
+| Template | Simulator | Languages | Commands |
+|----------|-----------|-----------|----------|
+| `ghdl` | GHDL | VHDL | `ghdl -i`, `ghdl -m`, `ghdl -r` |
+| `verilator` | Verilator 5 | Verilog, SystemVerilog | `verilator --binary`, no C++ to write |
+| `questa` | Questa, ModelSim | VHDL, Verilog, SystemVerilog, mixed | `vlib`, `vcom`, `vlog`, `vsim -c` |
+| `xsim` | Vivado simulator | VHDL, Verilog, SystemVerilog, mixed | `xvhdl`, `xvlog`, `xelab`, `xsim` |
+| `icarus` | Icarus Verilog | Verilog, part of SystemVerilog | `iverilog`, `vvp` |
+
+There are two ways to use one.
+
+**Name it in a run**, with no simulation directory at all:
+
+{{< code lang=yaml filename="sim_settings.yml" >}}
+simulations:
+  - questa: [Example_Cordic_sv/*, Example_Cordic_vhdl/*]
+{{< /code >}}
+
+The testbench then comes from the architecture (see [`testbench` in the
+architecture settings](/docs/reference/architecture/)).
+
+**Start a simulation from it**, with the `template` key, and say only what
+changes, usually the testbench:
+
+{{< code lang=yaml filename="simulations/TB_Cordic/_settings.yml" >}}
+template: xsim
+testbench:
+  top: tb_cordic
+  files: [tb/tb_cordic.sv]
+{{< /code >}}
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `template` | string | Template the simulation starts from. |
+
+The simulation's settings are the template's, merged with its own: a mapping
+key by key, anything else (a list of tasks, for instance) replaced. Its work
+directory gets the template's files first, then its own, which replace those of
+the same name: a simulation holding a `run.py` runs its own. A template can
+itself start from another one.
+
+A simulation is looked up by name in the workspace first, then among the
+templates: a simulation called `questa` replaces the template for the whole
+workspace. If it says `template: questa`, it starts from the one Odatix
+provides.
+
+### Languages
+
+A template declares the languages its simulator compiles:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `languages` | list | `vhdl`, `verilog`, `sv`. A design written in another one is refused when the run is checked. |
+| `test_command` | list | Command telling whether the simulator is installed. |
+
+Running `verilator` on a VHDL design is reported before anything starts, with
+the design in the list of invalid jobs.
+
+### What a template reports
+
+Every template writes `sim_report.yml` in the job's work directory, which its
+`_metrics.yml` exports:
+
+| Metric | Value |
+|--------|-------|
+| `sim_status` | `passed`, or `failed` when a command failed or printed an error. |
+| `sim_errors`, `sim_warnings` | Errors and warnings the simulator printed. |
+| `compile_time`, `elaboration_time`, `simulation_time` | Time spent in each stage, in seconds. |
+| `simulated_cycles` | Cycles the testbench simulated, when it prints `odatix_cycles: <n>`. |
+| `cycles_per_second` | Simulated cycles per second of simulation time. |
+
+A simulation starting from a template adds its own metrics in its
+`_metrics.yml`: both files are read, and a metric of the same name replaces the
+template's.
+
+Each command's output is kept in the job's `log/` directory, and the progress
+is written to `log/progress.log`.
+
+### Writing a template
+
+A template's script is `run.py`, a short Python script built on
+`odatix.sim.runner`. Copy one of Odatix's into a workspace simulation of the
+same name to change it:
+
+{{< code lang=python filename="run.py" >}}
+from odatix.sim.runner import SimRunner, parameter_args
+
+sim = SimRunner("ghdl", languages=["vhdl"])
+options = ["--std=08", "--workdir=ghdl_work"]
+sim.run("compile", ["ghdl", "-i"] + options + sim.files("vhdl"))
+sim.run("elaborate", ["ghdl", "-m"] + options + [sim.tb_top])
+sim.run("simulate", ["ghdl", "-r"] + options + [sim.tb_top]
+        + parameter_args(sim.tb_parameters, "-g{name}={value}"))
+sim.finish()
+{{< /code >}}
+
+`sim.compile(files, command)` compiles the files all at once and, should the
+order be wrong, one by one until they all compile: the last resort when the
+[compilation order](#compilation-order) Odatix computed is not the right one.
 
 ## `_metrics.yml`
 

@@ -25,5 +25,8 @@ What a simulation needs besides its own files.
   - :mod:`odatix.sim.design_info`: what Odatix tells a simulation about the
     design under test (its sources in compilation order, its top, its clock and
     reset, the value of each parameter domain), written into the work directory
-    of every simulation job.
+    of every simulation job;
+  - :mod:`odatix.sim.templates`: the simulations Odatix provides for each
+    simulator, which a run can name and a simulation can start from;
+  - :mod:`odatix.sim.runner`: what the script of a template is written with.
 """
