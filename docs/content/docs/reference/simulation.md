@@ -99,6 +99,9 @@ from.
 | `testbench.top` | string | No | Module or entity at the top of the testbench. |
 | `testbench.files` | path or list | No | Its sources, relative to the simulation directory. Glob patterns are accepted. |
 | `testbench.parameters` | mapping | No | Parameters (generics) given to the top of the testbench. Values may use the [placeholders](#placeholders-available-in-commands). Read by the [templates](#templates). |
+| `testbench.cycles` | int | No | Cycles the [generated testbench](#generated-testbench) runs. Default 1000. |
+| `testbench.stimulus` | string | No | What it drives the inputs with: `random` (default) or `zero`. |
+| `testbench.waves` | bool | No | Whether it dumps a VCD, `odatix_sim.vcd`. Default `Yes`. |
 
 {{< code lang=yaml filename="_settings.yml" >}}
 testbench:
@@ -118,9 +121,49 @@ The testbench a job runs is, by priority:
 2. the [testbench of the architecture](/docs/reference/architecture/#testbench),
    copied into the job's `testbench/` directory: this is how a
    [template](#templates) runs any design with no simulation of its own;
-3. every HDL file of the simulation's `tb/` directory.
+3. every HDL file of the simulation's `tb/` directory;
+4. when there is none, a [generated testbench](#generated-testbench).
 
 `parameters` go with the testbench chosen.
+
+### Generated testbench
+
+A design without a testbench still runs with a [template](#templates): Odatix
+generates a minimal one when the job starts, once the RTL exists, in the
+language of the top of the design (VHDL for a VHDL entity, SystemVerilog
+otherwise). It does not check what the design computes. It:
+
+- instantiates the design, generates its clock and applies its reset;
+- drives the inputs with random values (or zeros, `stimulus: zero`) for
+  `cycles` cycles;
+- dumps a VCD, `odatix_sim.vcd`, which gives a realistic activity to estimate
+  the power from;
+- fails the simulation when an output is unknown (X) once out of reset, or when
+  an assertion of the design fires.
+
+That covers compiling, elaborating and the speed of the simulator on every
+configuration. The header of the top is copied as written: its parameters
+(which already hold the values of the configuration) become local parameters,
+its ports signals, and the packages it imports are imported, so a width like
+`[WIDTH-1:0]` stays valid without being evaluated.
+
+The reset is active high unless its name says otherwise (`rst_n`, `resetn`,
+`nreset`), or the architecture says so with `reset_active_low`.
+
+What it cannot handle (an interface port, a Verilog header listing only port
+names, a type parameter, an unconstrained VHDL port) fails the simulation with
+a message saying so: give the design a [testbench of its
+own](/docs/reference/architecture/#testbench) then.
+
+The options can be given by the architecture, for every simulation, or by a
+simulation:
+
+{{< code lang=yaml filename="architectures/MyCPU/_settings.yml" >}}
+testbench:
+  cycles: 10000
+  stimulus: random
+  waves: No
+{{< /code >}}
 
 ## What Odatix tells the simulation
 

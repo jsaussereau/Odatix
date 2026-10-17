@@ -45,8 +45,6 @@ asks three things of it:
   its top**, here `BITS`.
 
 {{< code lang=systemverilog filename="tb/tb_counter.sv" linenos="true" >}}
-`timescale 1ns / 1ps
-
 module tb_counter #(
   parameter BITS = 8
 );
@@ -192,6 +190,10 @@ in its `_settings.yml`).
 
 ## Going further
 
+- **No testbench yet.** Run a template on a design that has none: Odatix
+  generates a minimal testbench, which drives the inputs with random values
+  and fails on an unknown output. It checks that every configuration compiles
+  and runs, and dumps a VCD. See [Generated testbench](/docs/reference/simulation/#generated-testbench).
 - **Compilation order.** Odatix orders the sources itself, VHDL packages and
   SystemVerilog packages first. A `filelist.f` at the root of the RTL directory
   gives the order instead. See [Compilation order](/docs/reference/simulation/#compilation-order).

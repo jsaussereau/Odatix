@@ -33,6 +33,7 @@ odatix_userconfig/architectures/Example_ALU_sv/
 | `top_level_module` | string | Yes | Name of the top-level module or entity. |
 | `clock_signal` | string | Yes | Name of the main clock signal, used to write the timing constraint. |
 | `reset_signal` | string | Yes | Name of the main reset signal. |
+| `reset_active_low` | bool | No | Whether the reset is active low. Guessed from its name when absent (`rst_n`, `resetn`, `nreset`). Read by the [generated testbench](/docs/reference/simulation/#generated-testbench). |
 
 {{< code lang=yaml filename="architectures/Example_ALU_sv/_settings.yml" >}}
 rtl_path: "examples/alu_sv"
@@ -136,8 +137,9 @@ run can simulate the design with any simulator without a simulation of its own.
 | Key | Type | Required | Description |
 |-----|------|----------|-------------|
 | `testbench.top` | string | No | Module or entity at the top of the testbench. Guessed from its files when empty. |
-| `testbench.files` | path or list | Yes | Its sources, relative to the workspace (like `rtl_path`). Glob patterns are accepted. |
+| `testbench.files` | path or list | No | Its sources, relative to the workspace (like `rtl_path`). Glob patterns are accepted. |
 | `testbench.parameters` | mapping | No | Parameters (generics) given to its top. Values may use the [simulation placeholders](/docs/reference/simulation/#placeholders-available-in-commands). |
+| `testbench.cycles`, `stimulus`, `waves` | | No | Without `files`, what the [generated testbench](/docs/reference/simulation/#generated-testbench) does. |
 
 {{< code lang=yaml filename="architectures/Example_Cordic_vhdl/_settings.yml" >}}
 testbench:

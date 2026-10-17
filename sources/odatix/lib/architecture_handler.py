@@ -114,6 +114,9 @@ class Architecture:
         # The testbench of the design ({"top", "files", "parameters"}), which the
         # simulation templates run it with (see odatix.sim.templates).
         self.testbench = {}
+        # The polarity of the reset, None when its name tells it (see
+        # odatix.sim.design_info.reset_is_active_low).
+        self.reset_active_low = None
 
     # Keys of a ParamDomain serialized in the job's settings.yml. Writing them all
     # is what lets read_yaml rebuild the domains instead of only their values.
@@ -1226,6 +1229,7 @@ class ArchitectureHandler:
             force_single_thread=self.force_single_thread,
         )
         arch_instance.testbench = settings.testbench.to_dict()
+        arch_instance.reset_active_low = settings.reset_active_low
 
         return arch_instance
 

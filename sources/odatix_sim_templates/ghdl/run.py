@@ -30,5 +30,7 @@ sim.run("compile", ["ghdl", "-i"] + OPTIONS + sim.files("vhdl"), log="ghdl_impor
 sim.run("elaborate", ["ghdl", "-m"] + OPTIONS + [top], log="ghdl_make")
 # The generics of the top are run options: with the GCC and LLVM backends,
 # "-m" has already built the simulation.
-sim.run("simulate", ["ghdl", "-r"] + OPTIONS + [top] + generics, log="ghdl_run")
+# The VHDL testbench Odatix generates leaves its waves to the simulator.
+waves = ["--vcd=" + sim.waves] if sim.waves else []
+sim.run("simulate", ["ghdl", "-r"] + OPTIONS + [top] + generics + waves, log="ghdl_run")
 sim.finish()

@@ -24,6 +24,9 @@ command = [
     "verilator", "--binary", "--assert", "-j", "0", "-Wno-fatal",
     "--top-module", top, "-Mdir", "obj_dir", "-o", "odatix_sim",
 ]
+if sim.waves:
+    # "$dumpvars" in the testbench only records something when traced
+    command += ["--trace"]
 command += ["+incdir+" + directory for directory in sim.include_dirs]
 command += parameter_args(sim.tb_parameters, "-G{name}={value}")
 command += sim.files("verilog", "sv")

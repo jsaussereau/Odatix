@@ -126,8 +126,31 @@ class SimRunner(object):
     self.progress(1)
     if not self.info:
       self.fail('"' + design_info.SIM_INFO_FILENAME + '" is missing: this script is run by Odatix, as a simulation')
+    if self.generated_testbench:
+      self._generate_testbench()
     if languages is not None:
       self.check_languages(languages)
+
+  def _generate_testbench(self):
+    """
+    Write the minimal testbench of a design that has none, now that its RTL
+    exists (see odatix.sim.testbench_gen), and run it.
+    """
+    import odatix.sim.hdl_header as hdl_header
+    import odatix.sim.testbench_gen as testbench_gen
+
+    try:
+      path, top, language = testbench_gen.write(self.info, self.work_dir)
+    except hdl_header.HeaderError as e:
+      self.fail(
+        "No testbench, and none can be generated for \"" + self.dut_top + "\": " + str(e)
+        + '. Give the design a testbench of its own ("testbench" in the settings of its architecture)'
+      )
+    testbench = self.info.setdefault("testbench", {})
+    testbench.update({"top": top, "files": [path], "languages": [language]})
+    print("No testbench: generated " + path + " (" + str(testbench.get("cycles")) + " cycles, "
+          + str(testbench.get("stimulus")) + " inputs)")
+    design_info.write_info(self.work_dir, self.info)
 
   ######################################
   # What to run
@@ -146,6 +169,26 @@ class SimRunner(object):
         "and its top could not be found in the files given"
       )
     return top
+
+  @property
+  def generated_testbench(self):
+    """Whether the testbench is the one Odatix generates (see odatix.sim.testbench_gen)."""
+    return bool(self.info.get("testbench", {}).get("generated"))
+
+  @property
+  def waves(self):
+    """
+    The VCD the generated testbench dumps, or None. A simulator that needs to
+    be told to record it (Verilator, GHDL for VHDL) is told by its template.
+    """
+    testbench = self.info.get("testbench", {})
+    if testbench.get("generated") and testbench.get("waves"):
+      return "odatix_sim.vcd"
+    return None
+
+  @property
+  def tb_languages(self):
+    return list(self.info.get("testbench", {}).get("languages", []))
 
   @property
   def tb_parameters(self):

@@ -224,6 +224,7 @@ def write_design_info(sim_instance):
             testbench=testbench,
             rtl_generated=bool(architecture.generate_rtl),
             rtl_dir=hard_settings.work_rtl_path,
+            reset_active_low=reset_active_low(architecture),
         )
         design_info.write_info(sim_instance.tmp_dir, info)
     except Exception as e:
@@ -257,7 +258,14 @@ def select_testbench(sim_instance):
         return own
     arch_testbench = getattr(sim_instance.architecture, "testbench", None) or {}
     if not arch_testbench.get("files"):
-        return own
+        # The "tb" directory, or else the testbench Odatix generates: with what
+        # the architecture says of it, unless the simulation says otherwise.
+        generated = {
+            key: value for key, value in arch_testbench.items()
+            if key in design_info.GENERATED_TESTBENCH_DEFAULTS and value not in (None, "")
+        }
+        generated.update(own)
+        return generated
 
     patterns = arch_testbench["files"]
     patterns = [patterns] if isinstance(patterns, str) else patterns
@@ -285,6 +293,16 @@ def select_testbench(sim_instance):
         "files": files,
         "parameters": dict(arch_testbench.get("parameters") or {}),
     }
+
+
+def reset_active_low(architecture):
+    """The polarity the architecture gives its reset, or None to guess it from its name."""
+    value = getattr(architecture, "reset_active_low", None)
+    if value in (None, ""):
+        return None
+    from odatix.workspace.yaml_io import parse_bool
+
+    return parse_bool(value, False)
 
 
 def generate_command(sim_instance):

@@ -519,6 +519,7 @@ Declared settings:
 | **Signals** | | | |
 | `clock_signal` | `str` |  | Name of the clock signal of the top level. |
 | `reset_signal` | `str` |  | Name of the reset signal of the top level. |
+| `reset_active_low` | `any` |  | Whether the reset is active low. Guessed from its name when empty (rst_n, resetn, nreset). |
 | **Delimiters for parameter files** | | | |
 | `use_parameters` | `bool` | `False` | Whether the configurations of the main domain are substituted into a file. |
 | `param_target_file` | `str` |  | File the parameters are written into. The top level file, when empty. |
@@ -530,7 +531,7 @@ Declared settings:
 | **Constraints** | | | |
 | `constraints` | `list` |  | Constraint files read by the jobs of this architecture. Either file paths, or mappings with a "files" key and a "scope" among "synthesis", "pnr" and "all". |
 | **Testbench** | | | |
-| `testbench` | `Testbench` | `Testbench(top='', files=[], parameters={})` | Testbench of the design: "top", "files" and "parameters". Any simulation template runs it, unless the simulation names its own. |
+| `testbench` | `Testbench` | `Testbench(top='', files=[], parameters={}, cycles=None, stimulus='', waves=None)` | Testbench of the design: "top", "files" and "parameters". Any simulation template runs it, unless the simulation names its own. |
 | **Default frequencies (in MHz)** | | | |
 | `fmax_synthesis` | `FrequencyBounds` | `FrequencyBounds(lower_bound=None, upper_bound=None)` | Bounds of the fmax binary search for this architecture. |
 | `fixed_freq_synthesis` | `CustomFrequencies` | `CustomFrequencies(frequencies=[], list_append=False, lower_bound=None, upper_bound=None, step=None)` | Frequencies a fixed-frequency synthesis runs this architecture at (formerly "custom_freq_synthesis", still read). |

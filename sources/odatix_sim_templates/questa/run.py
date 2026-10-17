@@ -41,11 +41,19 @@ for part in ("design", "testbench"):
 
 # vsim elaborates, then runs the script: what it prints in between tells the
 # elaboration time from the simulation time.
+script = "echo odatix_elaborated; "
+if sim.waves and "vhdl" in sim.tb_languages:
+    # A SystemVerilog testbench dumps its waves itself ($dumpvars), a VHDL one
+    # leaves it to the simulator.
+    script += "vcd file " + sim.waves + "; vcd add -r /" + top + "/dut/*; "
+script += "run -all; quit -f"
 sim.run(
     "simulate",
     ["vsim", "-c", "-onfinish", "stop", "-work", LIBRARY]
+    # "$dumpvars" needs the signals to be kept.
+    + (["-voptargs=+acc"] if sim.waves else [])
     + parameter_args(sim.tb_parameters, "-G{name}={value}")
-    + [LIBRARY + "." + top, "-do", "echo odatix_elaborated; run -all; quit -f"],
+    + [LIBRARY + "." + top, "-do", script],
     log="vsim",
     elaborated_mark="odatix_elaborated",
 )

@@ -128,6 +128,13 @@ class Testbench(Settings):
         doc="Parameters (generics) its top is given. Values may use the placeholders of the "
             "simulation commands: ${width} is the value of the domain \"width\".",
     )
+    # Without files, Odatix generates a minimal testbench (see odatix.sim.testbench_gen)
+    cycles = Setting(None, type="optional_int", skip_if_empty=True, doc="Cycles the generated testbench runs (1000 when empty).")
+    stimulus = Setting(
+        "", type="str", skip_if_empty=True,
+        doc="What the generated testbench drives the inputs with: \"random\" (when empty) or \"zero\".",
+    )
+    waves = Setting(None, type="any", skip_if_empty=True, doc="Whether the generated testbench dumps a VCD (Yes when empty).")
 
 
 class ArchitectureSettings(WithVariables, Settings):
@@ -183,6 +190,10 @@ class ArchitectureSettings(WithVariables, Settings):
     # Signals
     clock_signal = Setting("", type="str", section="Signals", doc="Name of the clock signal of the top level.")
     reset_signal = Setting("", type="str", doc="Name of the reset signal of the top level.")
+    reset_active_low = Setting(
+        None, type="any", style="yesno", skip_if_empty=True,
+        doc="Whether the reset is active low. Guessed from its name when empty (rst_n, resetn, nreset).",
+    )
 
     # Parameters
     use_parameters = Setting(

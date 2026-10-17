@@ -44,9 +44,17 @@ sim.run(
     "elaborate",
     # A default timescale for the modules without one, which xelab refuses to
     # mix with modules that have one.
-    ["xelab", "-L", LIBRARY, "-debug", "off", "--timescale", "1ns/1ps", "-s", SNAPSHOT]
+    # "$dumpvars" needs the signals to be kept.
+    ["xelab", "-L", LIBRARY, "-debug", "typical" if sim.waves else "off", "--timescale", "1ns/1ps", "-s", SNAPSHOT]
     + generics + [LIBRARY + "." + top],
     log="xelab",
 )
-sim.run("simulate", ["xsim", SNAPSHOT, "-R"], log="xsim")
+if sim.waves and "vhdl" in sim.tb_languages:
+    # A SystemVerilog testbench dumps its waves itself ($dumpvars), a VHDL one
+    # leaves it to the simulator.
+    with open("odatix_xsim.tcl", "w") as script:
+        script.write("open_vcd " + sim.waves + "\nlog_vcd /" + top + "/dut/*\nrun all\nclose_vcd\nquit\n")
+    sim.run("simulate", ["xsim", SNAPSHOT, "-tclbatch", "odatix_xsim.tcl"], log="xsim")
+else:
+    sim.run("simulate", ["xsim", SNAPSHOT, "-R"], log="xsim")
 sim.finish()

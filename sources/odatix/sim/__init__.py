@@ -28,5 +28,7 @@ What a simulation needs besides its own files.
     of every simulation job;
   - :mod:`odatix.sim.templates`: the simulations Odatix provides for each
     simulator, which a run can name and a simulation can start from;
-  - :mod:`odatix.sim.runner`: what the script of a template is written with.
+  - :mod:`odatix.sim.runner`: what the script of a template is written with;
+  - :mod:`odatix.sim.hdl_header` and :mod:`odatix.sim.testbench_gen`: the
+    minimal testbench generated for a design that has none.
 """
