@@ -250,6 +250,7 @@ def update_card_enabled_style(enable_value):
 @page_callback(PAGE_SCOPE,
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output("target-cards-row", "children", allow_duplicate=True),
+    Output("target-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"type": "target-title", "name": ALL}, "value"),
     Input({"type": "target-enable", "name": ALL}, "value"),
@@ -265,10 +266,10 @@ def save_or_mark_dirty(save_n_clicks, titles, enables, script_copy_enables, scri
 
     if trigger_id == {"page": page_path, "action": "save-all"}:
         if not save_n_clicks:
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update
         tool = get_key_from_url(search, "tool")
         if not tool:
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update
         target_file = get_workspace(odatix_settings).targets[tool]
         target_file.targets = [
             {
@@ -280,25 +281,29 @@ def save_or_mark_dirty(save_n_clicks, titles, enables, script_copy_enables, scri
             }
             for i, meta in enumerate(metadata)
         ]
-        target_file.save()
-        return save_button_disabled, build_cards(search, odatix_settings)
+        try:
+            target_file.save()
+        except Exception as e:
+            return save_button_enabled, dash.no_update, ui.error(f"Targets not saved: {e}")
+        return save_button_disabled, build_cards(search, odatix_settings), ui.success()
 
     # Any other trigger: compare current values against the loaded metadata
     for i, meta in enumerate(metadata):
         if str(titles[i] or "") != str(meta.get("name", "")):
-            return save_button_enabled, dash.no_update
+            return save_button_enabled, dash.no_update, dash.no_update
         if bool(enables[i]) != bool(meta.get("enabled", True)):
-            return save_button_enabled, dash.no_update
+            return save_button_enabled, dash.no_update, dash.no_update
         if bool(script_copy_enables[i]) != bool(meta.get("script_copy_enable", False)):
-            return save_button_enabled, dash.no_update
+            return save_button_enabled, dash.no_update, dash.no_update
         if str(script_copy_sources[i] or "") != str(meta.get("script_copy_source", "")):
-            return save_button_enabled, dash.no_update
-    return save_button_disabled, dash.no_update
+            return save_button_enabled, dash.no_update, dash.no_update
+    return save_button_disabled, dash.no_update, dash.no_update
 
 
 # Add a new target
 @dash.callback(
     Output("target-cards-row", "children", allow_duplicate=True),
+    Output("target-feedback", "children", allow_duplicate=True),
     Input("add-target-card", "n_clicks"),
     State(f"url_{page_path}", "search"),
     State("odatix-settings", "data"),
@@ -306,10 +311,10 @@ def save_or_mark_dirty(save_n_clicks, titles, enables, script_copy_enables, scri
 )
 def handle_add_target(n_clicks, search, odatix_settings):
     if not n_clicks:
-        return dash.no_update
+        return dash.no_update, dash.no_update
     tool = get_key_from_url(search, "tool")
     if not tool:
-        return dash.no_update
+        return dash.no_update, dash.no_update
     target_file = get_workspace(odatix_settings).targets[tool]
 
     for i in range(1, 1001):
@@ -317,18 +322,19 @@ def handle_add_target(n_clicks, search, odatix_settings):
         if candidate not in target_file:
             break
     else:
-        return dash.no_update
+        return dash.no_update, ui.error("No target added: new_target_1 to new_target_1000 are all taken.")
 
     try:
         target_file.add(candidate)
-    except Exception:
-        return dash.no_update
-    return build_cards(search, odatix_settings)
+    except Exception as e:
+        return dash.no_update, ui.error(f"Could not add a target: {e}")
+    return build_cards(search, odatix_settings), ""
 
 
 # Duplicate a target
 @page_callback(PAGE_SCOPE,
     Output("target-cards-row", "children", allow_duplicate=True),
+    Output("target-feedback", "children", allow_duplicate=True),
     Input({"type": "target-duplicate", "name": ALL}, "n_clicks_timestamp"),
     State({"type": "target-duplicate", "name": ALL}, "id"),
     State(f"url_{page_path}", "search"),
@@ -338,15 +344,15 @@ def handle_add_target(n_clicks, search, odatix_settings):
 def handle_duplicate_target(timestamps, btn_ids, search, odatix_settings):
     triggered = ctx.triggered_id
     if not triggered or not isinstance(triggered, dict) or not timestamps or not btn_ids:
-        return dash.no_update
+        return dash.no_update, dash.no_update
 
     idx = max(range(len(timestamps)), key=lambda i: timestamps[i] or 0)
     if btn_ids[idx] != triggered or not timestamps[idx]:
-        return dash.no_update
+        return dash.no_update, dash.no_update
 
     tool = get_key_from_url(search, "tool")
     if not tool:
-        return dash.no_update
+        return dash.no_update, dash.no_update
     target_file = get_workspace(odatix_settings).targets[tool]
 
     name = triggered["name"]
@@ -355,13 +361,13 @@ def handle_duplicate_target(timestamps, btn_ids, search, odatix_settings):
         if candidate not in target_file:
             break
     else:
-        return dash.no_update
+        return dash.no_update, ui.error(f"Target '{name}' not duplicated: {name}_copy1 to {name}_copy1000 are all taken.")
 
     try:
         target_file.duplicate(name, candidate)
-    except Exception:
-        return dash.no_update
-    return build_cards(search, odatix_settings)
+    except Exception as e:
+        return dash.no_update, ui.error(f"Could not duplicate target '{name}': {e}")
+    return build_cards(search, odatix_settings), ""
 
 
 # Open the delete confirmation popup
@@ -412,11 +418,11 @@ def do_delete_target(n_clicks, info, search, odatix_settings):
 
     name = info["name"]
     if name not in target_file:
-        return dash.no_update, "Target not found.", dash.no_update
+        return dash.no_update, ui.error("Target not found."), dash.no_update
     try:
         target_file.remove(name)
     except Exception as e:
-        return dash.no_update, f"Error: {e}", dash.no_update
+        return dash.no_update, ui.error(f"Could not delete target '{name}': {e}"), dash.no_update
     return "overlay-odatix", "", build_cards(search, odatix_settings)
 
 
@@ -440,6 +446,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}", refresh=False),
         ui.title_tile("Targets", id="select-targets-title", buttons=title_buttons, style={"marginTop": "10px", "marginBottom": "20px"}),
+        ui.feedback("target-feedback", className="centered"),
         html.Div(id="target-section", style={"marginBottom": "10px"}, children=[
             html.Div(
                 id="target-cards-row",
@@ -469,7 +476,7 @@ layout = html.Div(
                         ),
                         html.Button("Cancel", id="target-delete-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
                     ], style={"marginTop": "18px", "display": "flex", "justifyContent": "center"}),
-                    html.Div(id="target-delete-error", style={"color": "red", "marginTop": "10px"}),
+                    ui.feedback("target-delete-error"),
                 ], className="popup-odatix")
             ]
         ),

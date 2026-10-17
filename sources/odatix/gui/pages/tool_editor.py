@@ -2609,6 +2609,7 @@ def flow_errors(flows):
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output(f"url_{page_path}", "search"),
     Output("tool-saved-settings", "data"),
+    Output("tool-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("tool-title", "value"),
     Input("tool-extends", "value"),
@@ -2651,8 +2652,9 @@ def save_and_status(*args):
     # the markers inputs' ids, not from an editable field.
     tag_names = [tid.get("name") if isinstance(tid, dict) else None for tid in (tag_ids or [])]
     triggered_id = ctx.triggered_id
+    saving = triggered_id == {"page": page_path, "action": "save-all"}
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     flows = gather_flows(fields)
     log_values = {
@@ -2677,15 +2679,15 @@ def save_and_status(*args):
     error_class = "color-button error-status icon-button tooltip bottom"
 
     if not tool_title_value:
-        return error_class, "Tool name cannot be empty", dash.no_update, saved_settings
+        return error_class, "Tool name cannot be empty", dash.no_update, saved_settings, (ui.error("Not saved: Tool name cannot be empty") if saving else dash.no_update)
     for character in hard_settings.invalid_filename_characters:
         if character in tool_title_value:
             label_char = "' ' (space)" if character == " " else f"'{character}'"
-            return error_class, f"Unauthorized character in tool name: {label_char}", dash.no_update, saved_settings
+            return error_class, f"Unauthorized character in tool name: {label_char}", dash.no_update, saved_settings, (ui.error(f"Not saved: Unauthorized character in tool name: {label_char}") if saving else dash.no_update)
 
     errors = flow_errors(flows)
     if errors:
-        return error_class, errors, dash.no_update, saved_settings
+        return error_class, errors, dash.no_update, saved_settings, (ui.error(f"Not saved: {errors}") if saving else dash.no_update)
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
         new_search = dash.no_update
@@ -2706,24 +2708,25 @@ def save_and_status(*args):
                     "Nothing to save",
                     dash.no_update,
                     current_settings,
+                    ui.success(),
                 )
-            except Exception:
-                return error_class + " small", "Failed to save...", dash.no_update, saved_settings
+            except Exception as e:
+                return error_class + " small", "Failed to save...", dash.no_update, saved_settings, ui.error(f"Not saved: {e}")
 
         if tool_name and tool_title_value != tool_name:
             if tools.exists(tool_title_value):
-                return error_class, f"'{tool_title_value}' already exists", dash.no_update, saved_settings
+                return error_class, f"'{tool_title_value}' already exists", dash.no_update, saved_settings, (ui.error(f"Not saved: '{tool_title_value}' already exists") if saving else dash.no_update)
             if _builtin_tool_exists(tool_title_value):
-                return error_class, f"'{tool_title_value}' is a built-in tool name", dash.no_update, saved_settings
+                return error_class, f"'{tool_title_value}' is a built-in tool name", dash.no_update, saved_settings, (ui.error(f"Not saved: '{tool_title_value}' is a built-in tool name") if saving else dash.no_update)
             if tools.exists(tool_name):
                 tools.rename(tool_name, tool_title_value)
             tool_name = tool_title_value
             new_search = f"?tool={tool_name}"
         elif not tool_name:
             if tools.exists(tool_title_value):
-                return error_class, f"'{tool_title_value}' already exists", dash.no_update, saved_settings
+                return error_class, f"'{tool_title_value}' already exists", dash.no_update, saved_settings, (ui.error(f"Not saved: '{tool_title_value}' already exists") if saving else dash.no_update)
             if _builtin_tool_exists(tool_title_value):
-                return error_class, f"'{tool_title_value}' is a built-in tool name", dash.no_update, saved_settings
+                return error_class, f"'{tool_title_value}' is a built-in tool name", dash.no_update, saved_settings, (ui.error(f"Not saved: '{tool_title_value}' is a built-in tool name") if saving else dash.no_update)
             tool_name = tool_title_value
             new_search = f"?tool={tool_name}"
 
@@ -2739,14 +2742,16 @@ def save_and_status(*args):
                 "Nothing to save",
                 new_search,
                 current_settings,
+                ui.success(),
             )
-        except Exception:
-            return error_class + " small", "Failed to save...", dash.no_update, saved_settings
+        except Exception as e:
+            return error_class + " small", "Failed to save...", dash.no_update, saved_settings, ui.error(f"Not saved: {e}")
 
     if current_compare != reference_settings or tool_title_value != (tool_name or ""):
         return (
             "color-button warning icon-button tooltip bottom small",
             "Unsaved changes!",
+            dash.no_update,
             dash.no_update,
             dash.no_update,
         )
@@ -2756,6 +2761,7 @@ def save_and_status(*args):
         "Nothing to save",
         dash.no_update,
         saved_settings,
+        dash.no_update,
     )
 
 
@@ -2767,6 +2773,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "tool-title-div"}, style={"marginTop": "20px"}),
+        html.Div(ui.feedback("tool-save-feedback"), className="card-matrix config"),
         html.Div(id="tool-overlay-notice"),
         html.Div(id="tool-form-container"),
         html.Div(

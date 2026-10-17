@@ -1085,6 +1085,7 @@ def init_form(search, page, odatix_settings):
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output(f"url_{page_path}", "search"),
     Output("sim-saved-settings", "data"),
+    Output("sim-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("sim-title", "value"),
     Input("sim-use-parameters", "value"),
@@ -1141,8 +1142,9 @@ def save_and_status(
     odatix_settings,
 ):
     triggered_id = ctx.triggered_id
+    saving = triggered_id == {"page": page_path, "action": "save-all"}
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     if saved_settings is None:
         reference_settings = normalize_simulation_settings(initial_settings)
@@ -1191,6 +1193,7 @@ def save_and_status(
             "Simulation name cannot be empty",
             dash.no_update,
             saved_settings,
+            (ui.error("Not saved: Simulation name cannot be empty") if saving else dash.no_update),
         )
 
     for character in hard_settings.invalid_filename_characters:
@@ -1201,6 +1204,7 @@ def save_and_status(
                 f"Unauthorized character in simulation name: {label}",
                 dash.no_update,
                 saved_settings,
+                (ui.error(f"Not saved: Unauthorized character in simulation name: {label}") if saving else dash.no_update),
             )
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
@@ -1213,6 +1217,7 @@ def save_and_status(
                     f"'{sim_title_value}' already exists",
                     dash.no_update,
                     saved_settings,
+                    (ui.error(f"Not saved: '{sim_title_value}' already exists") if saving else dash.no_update),
                 )
             if sim_name in simulations:
                 simulations.rename(sim_name, sim_title_value)
@@ -1235,19 +1240,22 @@ def save_and_status(
                 "Nothing to save",
                 new_search,
                 current_settings,
+                ui.success(),
             )
-        except Exception:
+        except Exception as e:
             return (
                 "color-button error-status icon-button tooltip bottom small",
                 "Failed to save...",
                 dash.no_update,
                 saved_settings,
+                ui.error(f"Not saved: {e}"),
             )
 
     if current_settings != reference_settings or sim_title_value != (sim_name or ""):
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
+            dash.no_update,
             dash.no_update,
             dash.no_update,
         )
@@ -1257,6 +1265,7 @@ def save_and_status(
         "Nothing to save",
         dash.no_update,
         saved_settings,
+        dash.no_update,
     )
 
 
@@ -1313,6 +1322,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "sim-title-div"}, style={"marginTop": "20px"}),
+        html.Div(ui.feedback("sim-save-feedback"), className="card-matrix config"),
         html.Div(id="sim-form-container"),
         html.Div(
             children=[

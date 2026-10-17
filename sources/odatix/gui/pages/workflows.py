@@ -163,6 +163,7 @@ def update_cards(_, odatix_settings):
 
 @page_callback(PAGE_SCOPE,
     Output("workflow-cards-matrix", "children", allow_duplicate=True),
+    Output("workflow-feedback", "children", allow_duplicate=True),
     Input({"type": "workflow-button-duplicate", "name": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "workflow-button-duplicate", "name": dash.ALL}, "id"),
     State("odatix-settings", "data"),
@@ -171,15 +172,15 @@ def update_cards(_, odatix_settings):
 def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     triggered = ctx.triggered_id
     if not triggered or not isinstance(triggered, dict):
-        return dash.no_update
+        return dash.no_update, dash.no_update
 
     if not dupl_timestamps or not btn_ids:
-        return dash.no_update
+        return dash.no_update, dash.no_update
 
     idx = max(range(len(dupl_timestamps)), key=lambda i: dupl_timestamps[i] or 0)
     btn_id = btn_ids[idx]
     if btn_id != triggered or not dupl_timestamps[idx]:
-        return dash.no_update
+        return dash.no_update, dash.no_update
 
     workflows = get_workspace(odatix_settings).workflows
     name = btn_id["name"]
@@ -192,14 +193,14 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
             break
         suffix += 1
         if suffix > 1000:
-            return dash.no_update
+            return dash.no_update, ui.error(f"Workflow '{name}' not duplicated: {name}_copy1 to {name}_copy1000 are all taken.")
 
     try:
         workflows.duplicate(name, new_name)
-    except Exception:
-        return dash.no_update
+    except Exception as e:
+        return dash.no_update, ui.error(f"Could not duplicate workflow '{name}': {e}")
 
-    return build_workflow_cards(workflows)
+    return build_workflow_cards(workflows), ""
 
 @page_callback(PAGE_SCOPE,
     Output("workflow-delete-popup", "className"),
@@ -240,12 +241,12 @@ def do_delete(n_clicks, info, odatix_settings):
     workflows = get_workspace(odatix_settings).workflows
     name = info["name"]
     if name not in workflows:
-        return dash.no_update, "Workflow not found.", dash.no_update
+        return dash.no_update, ui.error("Workflow not found."), dash.no_update
 
     try:
         workflows.delete(name)
     except Exception as e:
-        return dash.no_update, f"Error: {e}", dash.no_update
+        return dash.no_update, ui.error(f"Could not delete workflow '{name}': {e}"), dash.no_update
 
     return "overlay-odatix", "", build_workflow_cards(workflows)
 
@@ -280,6 +281,7 @@ layout = html.Div(
         html.Div(
             children=[
                 ui.page_header("Workflows", "Configure your workflows and their configurations.", back_link="/"),
+                ui.feedback("workflow-feedback", className="centered"),
                 html.Div(id="workflow-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
             ],
             style={
@@ -312,7 +314,7 @@ layout = html.Div(
                             ],
                             style={"marginTop": "18px", "display": "flex", "justifyContent": "center"},
                         ),
-                        html.Div(id="workflow-delete-error", style={"color": "red", "marginTop": "10px"}),
+                        ui.feedback("workflow-delete-error"),
                     ],
                     className="popup-odatix",
                 )

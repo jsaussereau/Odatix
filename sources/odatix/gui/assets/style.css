@@ -532,7 +532,7 @@ textarea {
 
 .dash-dropdown, .Select, .Select-control, .Select-input input {
     border: none !important;
-    border-radius: var(--main-border-radius);
+    border-radius: var(--theme-normal-border-radius);
     background-color: #00000000 !important;
 }
 
@@ -602,7 +602,7 @@ textarea {
 
 .Select-value:hover {
     background-color: var(--dropdown-background-hover);
-    border-color: var(--main-border-color-hover);
+    border-color: var(--theme-border-color-hover);
 }
 .navbar .Select-value:hover {
     background-color: var(--navbar-dropdown-background-hover);
@@ -974,6 +974,15 @@ textarea {
     max-width: calc(2 * var(--tile-width) + var(--tile-gap));
     height: fit-content;
 }
+/* A feedback line in a grid of tiles is as wide as a title tile. */
+.card-matrix.config > .odx-feedback {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: 100%;
+    max-width: calc(2 * var(--tile-width) + var(--tile-gap));
+    margin-top: var(--tile-gap);
+}
+
 .tile.title.add {
     background: var(--add-card-background);
     border: var(--add-card-border);
@@ -1414,7 +1423,6 @@ button.tooltip {
     color: var(--success-button-text-color);
     --button-icon-color: var(--success-button-icon-color);
     box-shadow: var(--success-button-box-shadow);
-    animation: var(--success-button-animation);
 }
 .color-button.success:hover {
     background: var(--success-button-background-hover);

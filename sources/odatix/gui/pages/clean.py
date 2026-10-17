@@ -224,6 +224,7 @@ def init_page(page, odatix_settings):
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("clean-saved", "data"),
+    Output("clean-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("clean-remove-list", "value"),
     State(f"url_{page_path}", "pathname"),
@@ -234,7 +235,7 @@ def init_page(page, odatix_settings):
 )
 def save_and_status(n_clicks, patterns_text, page, initial, saved, odatix_settings):
     if page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     disabled = ("color-button disabled icon-button tooltip delay bottom small", "Nothing to save")
     warning = ("color-button warning icon-button tooltip bottom small", "Unsaved changes!")
@@ -248,14 +249,14 @@ def save_and_status(n_clicks, patterns_text, page, initial, saved, odatix_settin
             settings = get_workspace(odatix_settings).clean_settings
             settings.remove_list = current
             settings.save()
-            return disabled[0], disabled[1], current
-        except Exception:
-            return error, "Failed to save...", dash.no_update
+            return disabled[0], disabled[1], current, ui.success()
+        except Exception as e:
+            return error, "Failed to save...", dash.no_update, ui.error(f"Not saved: {e}")
 
     if not isinstance(reference, list) or current != reference:
-        return warning[0], warning[1], dash.no_update
+        return warning[0], warning[1], dash.no_update, dash.no_update
 
-    return disabled[0], disabled[1], dash.no_update
+    return disabled[0], disabled[1], dash.no_update, dash.no_update
 
 
 @page_callback(PAGE_SCOPE,
@@ -353,6 +354,7 @@ layout = html.Div(
                 className="odx-summary",
             ),
         ),
+        ui.feedback("clean-save-feedback"),
         html.Div(id="clean-form-container"),
         ui.section("Last clean", html.Div(id="clean-results", children=ui.empty_state("Nothing cleaned yet."))),
         dcc.ConfirmDialog(id="clean-confirm", message=""),

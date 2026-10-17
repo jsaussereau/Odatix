@@ -237,6 +237,7 @@ def init_form(search, page):
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("odatix-settings", "data", allow_duplicate=True),
     Output("workspace-saved-settings", "data"),
+    Output("workspace-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("arch_path", "value"),
     Input("sim_path", "value"),
@@ -271,7 +272,7 @@ def save_and_status(
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     current_settings_subset = {
         "arch_path": arch_path,
@@ -301,9 +302,9 @@ def save_and_status(
         try:
             OdatixSettings.save_dict_to_file(current_settings)
             current_settings = OdatixSettings().to_dict()
-            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", current_settings, current_settings_subset
+            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", current_settings, current_settings_subset, ui.success()
         except Exception as e:
-            return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update
+            return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update, ui.error(f"Not saved: {e}")
 
     else:
         # Compare against what the settings file actually holds (the store
@@ -313,9 +314,9 @@ def save_and_status(
         reference = saved_settings if saved_settings is not None else (initial_settings or {})
         saved_subset = {key: reference.get(key, "") for key in current_settings_subset}
         if current_settings_subset != saved_subset:
-            return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update, dash.no_update
+            return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update, dash.no_update, dash.no_update
 
-    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, dash.no_update
+    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, dash.no_update, dash.no_update
 
 
 @page_callback(PAGE_SCOPE,
@@ -402,6 +403,7 @@ layout = html.Div(
             ),
             id={"page": page_path, "type": "workspace-title-div"},
         ),
+        ui.feedback("workspace-save-feedback"),
         html.Div(id="workspace-form-container"),
         dcc.Store(id="save-state", data=""),
         dcc.Store(id="workspace-initial-settings", data=None),

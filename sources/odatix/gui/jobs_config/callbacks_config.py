@@ -794,6 +794,7 @@ def update_preview_title(preview_value, arch_metadata):
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("jobs-config-saved-selection", "data"),
+    Output("jobs-config-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"type": "arch-title", "arch": dash.ALL, "is_switch": True}, "value"),
     Input({"type": "preview-config-checklist", "arch": dash.ALL}, "value"),
@@ -860,7 +861,7 @@ def save_architecture_selections(
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     context = _run_context(search, odatix_settings)
     run_mode = get_key_from_url(search, "type")
@@ -925,12 +926,14 @@ def save_architecture_selections(
                 "color-button disabled icon-button tooltip delay bottom small",
                 "Nothing to save",
                 {**current_settings, ARCHITECTURES_BASELINE_KEY: current_listed},
+                ui.success(),
             )
-        except Exception:
+        except Exception as e:
             return (
                 "color-button error-status icon-button tooltip bottom small",
                 "Failed to save...",
                 dash.no_update,
+                ui.error(f"Not saved: {e}"),
             )
 
     # The baseline is only set once update_param_domains() has finished loading
@@ -938,12 +941,13 @@ def save_architecture_selections(
     # and triggers this callback first). Until then, do not judge/flash
     # "Unsaved changes!": leave the button untouched (it starts disabled).
     if saved_selection is None:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     if saved_settings.get(selection_key, []) != current_settings.get(selection_key, []):
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
+            dash.no_update,
             dash.no_update,
         )
 
@@ -951,6 +955,7 @@ def save_architecture_selections(
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
+            dash.no_update,
             dash.no_update,
         )
 
@@ -963,6 +968,7 @@ def save_architecture_selections(
                     "color-button warning icon-button tooltip bottom small tooltip",
                     "Unsaved changes!",
                     dash.no_update,
+                    dash.no_update,
                 )
 
     if run_mode == "custom_freq_synthesis":
@@ -972,6 +978,7 @@ def save_architecture_selections(
                 "color-button warning icon-button tooltip bottom small tooltip",
                 "Unsaved changes!",
                 dash.no_update,
+                dash.no_update,
             )
 
     if run_mode == "fmax_synthesis":
@@ -979,6 +986,7 @@ def save_architecture_selections(
             return (
                 "color-button warning icon-button tooltip bottom small tooltip",
                 "Unsaved changes!",
+                dash.no_update,
                 dash.no_update,
             )
 
@@ -988,10 +996,12 @@ def save_architecture_selections(
                 "color-button warning icon-button tooltip bottom small tooltip",
                 "Unsaved changes!",
                 dash.no_update,
+                dash.no_update,
             )
 
     return (
         "color-button disabled icon-button tooltip delay bottom small",
         "Nothing to save",
+        dash.no_update,
         dash.no_update,
     )

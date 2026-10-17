@@ -550,7 +550,7 @@ class TestSavedBaselineOnLoad:
         # Feed the freshly-rendered widget state back into the save callback,
         # with the baseline update_param_domains() just emitted: it must report
         # "Nothing to save", not "Unsaved changes!".
-        className, tooltip, _store = jobs_config_module.save_architecture_selections(
+        className, tooltip, _store, _feedback = jobs_config_module.save_architecture_selections(
             None,                 # save-all n_clicks
             switch_values,
             preview_values,
@@ -661,7 +661,7 @@ class TestSavedBaselineOnLoad:
         switches = self._collect(job_sections, "arch-title", extra_key=("is_switch", True))
         previews = self._collect(job_sections, "preview-config-checklist")
 
-        className, tooltip, _store = jc.save_architecture_selections(
+        className, tooltip, _store, _feedback = jc.save_architecture_selections(
             None,
             [v for v, _ in switches], [v for v, _ in previews],
             [],                            # sim-selection stores (simulation mode only)
@@ -699,7 +699,7 @@ class TestSavedBaselineOnLoad:
         }
         # Form widgets already rendered (tools=['vivado'] from ?tool=vivado) but
         # the arch section / baseline store are not ready yet: saved_selection=None.
-        className, tooltip, store = jc.save_architecture_selections(
+        className, tooltip, store, _feedback = jc.save_architecture_selections(
             None,
             [], [],                        # no arch widgets yet
             [],                            # sim-selection stores (simulation mode only)

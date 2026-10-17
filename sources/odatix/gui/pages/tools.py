@@ -309,6 +309,7 @@ def update_cards(_, odatix_settings):
 @page_callback(PAGE_SCOPE,
     Output("tool-cards-matrix", "children", allow_duplicate=True),
     Output("builtin-tool-cards-matrix", "children", allow_duplicate=True),
+    Output("tool-feedback", "children", allow_duplicate=True),
     Input({"type": "tool-button-duplicate", "name": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "tool-button-duplicate", "name": dash.ALL}, "id"),
     State("odatix-settings", "data"),
@@ -317,14 +318,14 @@ def update_cards(_, odatix_settings):
 def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     triggered = ctx.triggered_id
     if not triggered or not isinstance(triggered, dict):
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
     if not dupl_timestamps or not btn_ids:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     idx = max(range(len(dupl_timestamps)), key=lambda i: dupl_timestamps[i] or 0)
     btn_id = btn_ids[idx]
     if btn_id != triggered or not dupl_timestamps[idx]:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     tools = get_workspace(odatix_settings).tools
     name = btn_id["name"]
@@ -337,18 +338,19 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
             break
         suffix += 1
         if suffix > 1000:
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, ui.error(f"Tool '{name}' not duplicated: {name}_copy1 to {name}_copy1000 are all taken.")
 
     try:
         tools.duplicate(name, new_name)
-    except Exception:
-        return dash.no_update, dash.no_update
+    except Exception as e:
+        return dash.no_update, dash.no_update, ui.error(f"Could not duplicate tool '{name}': {e}")
 
-    return build_tool_cards(tools), build_builtin_cards(tools)
+    return build_tool_cards(tools), build_builtin_cards(tools), ""
 
 @page_callback(PAGE_SCOPE,
     Output("tool-cards-matrix", "children", allow_duplicate=True),
     Output("builtin-tool-cards-matrix", "children", allow_duplicate=True),
+    Output("tool-feedback", "children", allow_duplicate=True),
     Input({"type": "tool-button-fork", "name": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "tool-button-fork", "name": dash.ALL}, "id"),
     State("odatix-settings", "data"),
@@ -357,14 +359,14 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
 def fork_builtin(fork_timestamps, btn_ids, odatix_settings):
     triggered = ctx.triggered_id
     if not triggered or not isinstance(triggered, dict):
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
     if not fork_timestamps or not btn_ids:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     idx = max(range(len(fork_timestamps)), key=lambda i: fork_timestamps[i] or 0)
     btn_id = btn_ids[idx]
     if btn_id != triggered or not fork_timestamps[idx]:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     tools = get_workspace(odatix_settings).tools
     name = btn_id["name"]
@@ -376,17 +378,18 @@ def fork_builtin(fork_timestamps, btn_ids, odatix_settings):
             break
         suffix += 1
         if suffix > 1000:
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, ui.error(f"Tool '{name}' not copied: {name}_copy1 to {name}_copy1000 are all taken.")
 
     try:
         tools.import_builtin(name, target_name)
-    except Exception:
-        return dash.no_update, dash.no_update
+    except Exception as e:
+        return dash.no_update, dash.no_update, ui.error(f"Could not copy built-in tool '{name}' into the workspace: {e}")
 
-    return build_tool_cards(tools), build_builtin_cards(tools)
+    return build_tool_cards(tools), build_builtin_cards(tools), ""
 
 @page_callback(PAGE_SCOPE,
     Output("tool-open-dummy", "data"),
+    Output("tool-feedback", "children", allow_duplicate=True),
     Input({"type": "tool-button-open", "name": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "tool-button-open", "name": dash.ALL}, "id"),
     State("odatix-settings", "data"),
@@ -395,25 +398,25 @@ def fork_builtin(fork_timestamps, btn_ids, odatix_settings):
 def open_tool_directory(open_timestamps, btn_ids, odatix_settings):
     triggered = ctx.triggered_id
     if not triggered or not isinstance(triggered, dict):
-        return dash.no_update
+        return dash.no_update, dash.no_update
     if not open_timestamps or not btn_ids:
-        return dash.no_update
+        return dash.no_update, dash.no_update
 
     idx = max(range(len(open_timestamps)), key=lambda i: open_timestamps[i] or 0)
     btn_id = btn_ids[idx]
     if btn_id != triggered or not open_timestamps[idx]:
-        return dash.no_update
+        return dash.no_update, dash.no_update
 
     tool_dir = get_workspace(odatix_settings).tools.entry(btn_id["name"]).path
     if not os.path.isdir(tool_dir):
-        return dash.no_update
+        return dash.no_update, ui.error(f"Tool directory not found: {tool_dir}")
 
     try:
         open_path_in_explorer(tool_dir)
-    except Exception:
-        return dash.no_update
+    except Exception as e:
+        return dash.no_update, ui.error(f"Could not open {tool_dir}: {e}")
 
-    return dash.no_update
+    return dash.no_update, ""
 
 @page_callback(PAGE_SCOPE,
     Output("tool-delete-popup", "className"),
@@ -454,12 +457,12 @@ def do_delete(n_clicks, info, odatix_settings):
     tools = get_workspace(odatix_settings).tools
     name = info["name"]
     if not tools.exists(name):
-        return dash.no_update, "Tool not found.", dash.no_update, dash.no_update
+        return dash.no_update, ui.error("Tool not found."), dash.no_update, dash.no_update
 
     try:
         tools.delete(name)
     except Exception as e:
-        return dash.no_update, f"Error: {e}", dash.no_update, dash.no_update
+        return dash.no_update, ui.error(f"Could not delete tool '{name}': {e}"), dash.no_update, dash.no_update
 
     return "overlay-odatix", "", build_tool_cards(tools), build_builtin_cards(tools)
 
@@ -494,6 +497,7 @@ layout = html.Div(
         html.Div(
             children=[
                 ui.page_header("EDA Tools", "Add and configure the EDA tools of your workspace.", back_link="/"),
+                ui.feedback("tool-feedback", className="centered"),
                 html.Div(id="tool-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
                 html.Div(
                     [
@@ -537,7 +541,7 @@ layout = html.Div(
                             ],
                             style={"marginTop": "18px", "display": "flex", "justifyContent": "center"},
                         ),
-                        html.Div(id="tool-delete-error", style={"color": "red", "marginTop": "10px"}),
+                        ui.feedback("tool-delete-error"),
                     ],
                     className="popup-odatix",
                 )

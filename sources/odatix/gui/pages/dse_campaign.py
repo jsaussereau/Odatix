@@ -44,6 +44,8 @@ from odatix.gui.dse_config.common import (
     STRATEGY_OPTIONS,
     architecture_entries,
     architecture_options,
+    campaign_link,
+    campaign_name_error,
     campaign_names,
     checked,
     constraint_entries,
@@ -301,7 +303,7 @@ def layout(campaign=None, **_kwargs):
             dcc.Store(id="dse-editor-known-names", data=campaign_names(workspace)),
             form.metric_datalist(metric_names(workspace)),
             _header(name),
-            html.Div(id="dse-editor-feedback", className="dse-feedback"),
+            ui.feedback("dse-editor-feedback"),
             ui.section(
                 "Evaluation",
                 ui.grid([
@@ -696,12 +698,9 @@ def save(n_clicks, original_name, name, run_mode, tools, flows, targets, simulat
 
     workspace = get_workspace()
     name = str(name or "").strip()
-    if not name:
-        return SAVE_DIRTY, _error("A campaign needs a name."), dash.no_update, dash.no_update, dash.no_update
-    if any(character in name for character in "/\\ "):
-        return SAVE_DIRTY, _error("A campaign name is a file name: no space, no slash."), dash.no_update, dash.no_update, dash.no_update
-    if name != original_name and name in campaign_names(workspace):
-        return SAVE_DIRTY, _error('A campaign called "{0}" already exists.'.format(name)), dash.no_update, dash.no_update, dash.no_update
+    reason = campaign_name_error(name, campaign_names(workspace), original_name)
+    if reason:
+        return SAVE_DIRTY, ui.error(reason), dash.no_update, dash.no_update, dash.no_update
 
     settings = _campaign_from_form(
         workspace, original_name, run_mode, tools, flows, targets, simulations,
@@ -713,7 +712,7 @@ def save(n_clicks, original_name, name, run_mode, tools, flows, targets, simulat
     )
 
     if not settings.objectives:
-        return SAVE_DIRTY, _error(
+        return SAVE_DIRTY, ui.error(
             "The campaign has no objective: a search with nothing to look for cannot "
             "tell one design from another."
         ), dash.no_update, dash.no_update, dash.no_update
@@ -725,14 +724,14 @@ def save(n_clicks, original_name, name, run_mode, tools, flows, targets, simulat
             delete_campaign(workspace, original_name)
             _rename_in_settings(workspace, original_name, name)
     except Exception as error:
-        return SAVE_DIRTY, _error(str(error)), dash.no_update, dash.no_update, dash.no_update
+        return SAVE_DIRTY, ui.error(str(error)), dash.no_update, dash.no_update, dash.no_update
 
     # A renamed campaign is a new file and a new url: the page follows it, so a
     # refresh lands on the campaign that was just saved.
-    href = "{0}?campaign={1}".format(editor_path, name) if renamed else dash.no_update
+    href = campaign_link(editor_path, name) if renamed else dash.no_update
     return (
         SAVE_IDLE,
-        _saved('Campaign "{0}" saved.'.format(name)),
+        ui.success('Campaign "{0}" saved.'.format(name)),
         name,
         href,
         {"name": name, "campaign": settings.to_dict()},
@@ -747,14 +746,6 @@ def _rename_in_settings(workspace, old_name, new_name):
         return
     settings.campaigns = [new_name if entry == old_name else entry for entry in entries]
     save_dse_settings(workspace, settings)
-
-
-def _error(message):
-    return html.Div(message, className="dse-message error")
-
-
-def _saved(message):
-    return html.Div(message, className="dse-message success")
 
 
 ######################################
@@ -802,5 +793,5 @@ def do_delete(n_clicks, name):
             settings.campaigns = [entry for entry in entries if entry != name]
             save_dse_settings(workspace, settings)
     except Exception as error:
-        return dash.no_update, _error(str(error))
+        return dash.no_update, ui.error(str(error))
     return page_path, dash.no_update

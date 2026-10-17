@@ -45,6 +45,7 @@ from odatix.gui.dse_config import exploration, popup
 from odatix.gui.dse_config.common import (
     DSE_SETTINGS_DEFAULTS,
     campaign_badges,
+    campaign_link,
     campaign_names,
     checked,
     dse_settings,
@@ -131,7 +132,7 @@ def campaign_card(name, selected, badges):
                         icon=icon("edit", className="icon"),
                         text="Edit",
                         color="default",
-                        link="{0}?campaign={1}".format(editor_path, name),
+                        link=campaign_link(editor_path, name),
                         width="auto",
                         bold=False,
                     ),
@@ -262,7 +263,7 @@ layout = html.Div(
             ],
             className="odx-header",
         ),
-        html.Div(id="dse-feedback", className="dse-feedback"),
+        ui.feedback("dse-feedback"),
         ui.section("Exploration settings", html.Div(id="dse-settings-form")),
         ui.section(
             "Campaigns",
@@ -516,10 +517,10 @@ def save_all(n_clicks, overwrite, nb_jobs, auto_nb_jobs, log_size, exit_when_don
     try:
         save_dse_settings(workspace, settings)
     except Exception as error:
-        return SAVE_DIRTY, html.Div(str(error), className="dse-message error"), dash.no_update
+        return SAVE_DIRTY, ui.error(str(error)), dash.no_update
     return (
         SAVE_IDLE,
-        html.Div("Exploration settings saved.", className="dse-message success"),
+        ui.success("Exploration settings saved."),
         settings.to_dict(),
     )
 
@@ -537,11 +538,12 @@ def add_campaign(n_clicks):
     if not n_clicks:
         raise dash.exceptions.PreventUpdate
     name = unique_campaign_name(get_workspace(), "New_Campaign")
-    return "{0}?campaign={1}".format(editor_path, name)
+    return campaign_link(editor_path, name)
 
 
 @page_callback(PAGE_SCOPE,
     Output("dse-campaign-cards", "children", allow_duplicate=True),
+    Output("dse-feedback", "children", allow_duplicate=True),
     Input({"type": "dse-campaign-duplicate", "name": ALL}, "n_clicks"),
     prevent_initial_call=True,
 )
@@ -554,9 +556,9 @@ def duplicate_campaign(clicks):
     new_name = unique_campaign_name(workspace, "{0}_copy".format(name))
     try:
         save_campaign(workspace, new_name, read_campaign(workspace, name))
-    except Exception:
-        raise dash.exceptions.PreventUpdate
-    return build_campaign_cards(workspace)
+    except Exception as error:
+        return dash.no_update, ui.error('Could not duplicate campaign "{0}": {1}'.format(name, error))
+    return build_campaign_cards(workspace), ""
 
 
 @page_callback(PAGE_SCOPE,
@@ -590,6 +592,7 @@ def close_delete_popup(_n):
 @dash.callback(
     Output("dse-delete-popup", "className", allow_duplicate=True),
     Output("dse-campaign-cards", "children", allow_duplicate=True),
+    Output("dse-feedback", "children", allow_duplicate=True),
     Input("dse-delete-confirm", "n_clicks"),
     State("dse-delete-info", "data"),
     prevent_initial_call=True,
@@ -605,9 +608,13 @@ def do_delete(n_clicks, info):
         if name in settings.campaign_names():
             settings.campaigns = [entry for entry in settings.campaign_names() if entry != name]
             save_dse_settings(workspace, settings)
-    except Exception:
-        pass
-    return "overlay-odatix", build_campaign_cards(workspace)
+    except Exception as error:
+        # The cards are read again all the same: the file may be gone even
+        # though the list of the campaigns that run could not be rewritten.
+        return "overlay-odatix", build_campaign_cards(workspace), ui.error(
+            'Could not delete campaign "{0}": {1}'.format(name, error)
+        )
+    return "overlay-odatix", build_campaign_cards(workspace), ""
 
 
 ######################################

@@ -112,6 +112,11 @@ def sim_arch_context(search, odatix_settings):
     return simulation, arch, entries, position
 
 
+def config_title(name):
+    """A configuration name as its title field shows it: without its ".txt"."""
+    return name[:-4] if name.endswith(".txt") else name
+
+
 def config_title_error(title, other_titles, initial_title):
     """
     Reason why a configuration cannot be saved under `title`, or None if it is valid.
@@ -227,7 +232,9 @@ def config_card(domain_uuid, config_uuid, config_name, content, initial_content,
                 id={"type": "config-title", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
                 className="title-input odx-config-name preview" if from_rules else "title-input odx-config-name",
                 readOnly=from_rules,
-            )
+            ),
+            # Why the name cannot be saved, under the name (assets/config_editor.js).
+            ui.field_error(id={"type": "config-title-error", "domain_uuid": domain_uuid, "config_uuid": config_uuid}),
         ]),
         dcc.Textarea(
             id={"type": "config-content", "domain_uuid": domain_uuid, "config_uuid": config_uuid},
@@ -1749,6 +1756,7 @@ def update_param_domains(
 
 @dash.callback(
     Output({"type": "config-cards-row", "domain_uuid": dash.ALL}, "children"),
+    Output("config-editor-feedback", "children", allow_duplicate=True),
     State("url", "search"),
     Input("param-domains-section-initialized", "data"),
     Input("config-layout-dropdown", "value"),
@@ -1773,7 +1781,10 @@ def update_config_cards(
 ):
     mode, instance_name, instances = get_instance_collection_context(search, odatix_settings)
     if not instance_name:
-        return [html.Div(no_instance_message(mode), className="error")]
+        return [html.Div(no_instance_message(mode), className="error")], dash.no_update
+
+    # How the action the user asked for went. Loading the page says nothing.
+    feedback = dash.no_update
 
     triggered_id = ctx.triggered_id
     # A blacklist toggle answers the very click this callback answers. Dash holds
@@ -1829,16 +1840,18 @@ def update_config_cards(
             )
             # Only the domain whose rules changed is read again: what is being
             # edited in the other domains stays as the user left it.
-            return [cards if i == trig_domain_idx else dash.no_update for i in range(len(config_cards_row))]
+            return [cards if i == trig_domain_idx else dash.no_update for i in range(len(config_cards_row))], feedback
 
         # A section holding no directory of configurations shows none, so none
         # of the actions below can have come from it.
         if trig_type in ["new-config", "save-config", "delete-config", "duplicate-config"] and not trig_domain_name:
-            return [dash.no_update for _ in range(len(config_cards_row))]
+            return [dash.no_update for _ in range(len(config_cards_row))], feedback
 
         if trig_type in ["new-config", "save-config", "delete-config", "duplicate-config"]:
             # Every branch below rewrites this one row, and only this one.
             changed_rows.add(trig_domain_idx)
+            # What an earlier action said is no longer news.
+            feedback = ""
             trig_domain_configs = []
             trig_config_uuid = triggered_id.get("config_uuid", "")
             trig_config_name = ""
@@ -1867,7 +1880,7 @@ def update_config_cards(
             # The blacklist toggle owns rule-produced cards. Its saved signal
             # rebuilds this row once the domain has been updated.
             if trig_type == "delete-config" and trig_config_origin in (ORIGIN_GENERATED, ORIGIN_BLACKLISTED):
-                return [dash.no_update for _ in range(len(config_cards_row))]
+                return [dash.no_update for _ in range(len(config_cards_row))], feedback
             
             if trig_type == "new-config" and add_click:
                 for idx in range(1, 1001):
@@ -1888,7 +1901,9 @@ def update_config_cards(
                         )
                         break
                 else:
-                    error_msg = "Too many config creation fails (1000 max)."
+                    feedback = ui.error(
+                        "No configuration added: new_config1 to new_config1000 are all taken in this domain."
+                    )
 
             elif trig_type in ["save-config", "delete-config", "duplicate-config"]:         
                 trig_config_content = contents[trig_global_idx] if trig_global_idx >= 0 and trig_global_idx < len(contents) else ""
@@ -1897,23 +1912,30 @@ def update_config_cards(
                 if trig_type == "save-config":
                     config_new_title = title_values[trig_global_idx] if trig_global_idx >= 0 and trig_global_idx < len(title_values) else ""
                     config_old_title = trig_config_name
-                    
-                    if not config_new_title.endswith(".txt"):
-                        config_new_title = config_new_title + ".txt"
+
+                    # The field shows names without their ".txt", and so does
+                    # the check: "a.txt" typed over "b" is a rename to "a".
+                    reason = config_title_error(
+                        config_title(config_new_title or ""),
+                        [config_title(name) for name in trig_domain_configs],
+                        config_title(config_old_title),
+                    )
+                    if reason:
+                        # Nothing is written: the card keeps what the user typed.
+                        return [dash.no_update for _ in range(len(config_cards_row))], ui.error(
+                            f"Configuration '{config_title(config_old_title)}' not saved: {reason}"
+                        )
+                    config_new_title = config_title(config_new_title) + ".txt"
                     if config_new_title != config_old_title:
                         if verbose:
                             print(f"Renaming config from '{config_old_title}' to '{config_new_title}'")
-                        if config_new_title in trig_domain_configs:
-                            if verbose:
-                                print(f"File '{config_new_title}' already exists.")
-                        else:
-                            path = instance_domain(instances, instance_name, trig_domain_name).path
-                            old_path = os.path.join(path, config_old_title)
-                            new_path = os.path.join(path, config_new_title)
-                            if verbose:
-                                print(f"Renaming {old_path} to {new_path}")
-                            os.rename(old_path, new_path)
-                            config_old_title = config_new_title
+                        path = instance_domain(instances, instance_name, trig_domain_name).path
+                        old_path = os.path.join(path, config_old_title)
+                        new_path = os.path.join(path, config_new_title)
+                        if verbose:
+                            print(f"Renaming {old_path} to {new_path}")
+                        os.rename(old_path, new_path)
+                        config_old_title = config_new_title
                     if verbose:
                         print(f"Saving config '{config_old_title}' in domain '{trig_domain_name}'")
                     domain = instance_domain(instances, instance_name, trig_domain_name)
@@ -1928,6 +1950,7 @@ def update_config_cards(
                         config_layout=config_layout,
                         origin=origin_of(domain, config_old_title),
                     )
+                    feedback = ui.success(f"Configuration '{config_title(config_old_title)}' saved.")
 
                 # Delete config
                 if trig_type == "delete-config" and trig_config_name:
@@ -1989,7 +2012,7 @@ def update_config_cards(
             config_cards_row.append(build_config_cards(
                 instance_domain(instances, instance_name, domain_name), domain_uuid, config_layout,
             ))
-        return config_cards_row
+        return config_cards_row, feedback
     
     # If a domain was duplicated, load the new domain configs
     elif triggered_id == "param-domains-section-update":
@@ -2005,7 +2028,7 @@ def update_config_cards(
     return [
         row if i in changed_rows else dash.no_update
         for i, row in enumerate(config_cards_row)
-    ]
+    ], feedback
 
 
 @page_callback(PAGE_SCOPE,
@@ -2439,6 +2462,7 @@ dash.clientside_callback(
     dash.ClientsideFunction(namespace="odatix_config_editor", function_name="save_status"),
     Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "className"),
     Output({"type": "save-config", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "data-tooltip"),
+    Output({"type": "config-title-error", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "children"),
     Input("param-domains-section", "children"),
     Input({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     Input({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
@@ -2621,6 +2645,7 @@ page_clientside_callback(
     Output({"type": "config-params-store", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
     Output({"type": "simarch-entry-store", "domain_uuid": dash.ALL}, "data", allow_duplicate=True),
     Output("sim-arch-reload", "data", allow_duplicate=True),
+    Output("config-editor-feedback", "children", allow_duplicate=True),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     State({"type": "config-title", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
     State({"type": "config-content", "domain_uuid": dash.ALL, "config_uuid": dash.ALL}, "value"),
@@ -2654,7 +2679,7 @@ def save_all(
     no_domain_update = [dash.no_update] * nb_domains
     no_entry_update = [dash.no_update] * len(entry_names)
     nothing = (no_config_update, no_config_update, no_config_update, no_domain_update,
-               no_entry_update, dash.no_update)
+               no_entry_update, dash.no_update, dash.no_update)
 
     if not n_clicks:
         return nothing
@@ -2668,6 +2693,8 @@ def save_all(
     new_titles = list(no_config_update)
     new_contents = list(no_config_update)
     new_metadata = list(no_config_update)
+    # The configurations left unsaved, and why: each is said once, here.
+    refused = []
 
     # Configurations
     for i, metadata in enumerate(config_metadata):
@@ -2675,7 +2702,7 @@ def save_all(
         domain_name = domain_names.get(domain_uuid, domain_uuid)
         old_name = metadata.get("config_name", "")
         old_content = metadata.get("config_content", "")
-        old_title = old_name[:-4] if old_name.endswith(".txt") else old_name
+        old_title = config_title(old_name)
         new_title = title_values[i] if i < len(title_values) else ""
         new_content = contents[i] if i < len(contents) else ""
 
@@ -2684,14 +2711,16 @@ def save_all(
 
         # Names already taken in this domain, this config's own name excluded
         domain_titles = [
-            (data.get("config_name", "")[:-4] if data.get("config_name", "").endswith(".txt") else data.get("config_name", ""))
+            config_title(data.get("config_name", ""))
             for j, data in enumerate(config_metadata)
             if j != i and data.get("domain_uuid", "") == domain_uuid
         ]
-        if config_title_error(new_title, domain_titles, old_title):
+        reason = config_title_error(config_title(new_title or ""), domain_titles, old_title)
+        if reason:
+            refused.append(f"'{old_title}' ({domain_name}): {reason}")
             continue
 
-        new_name = new_title if new_title.endswith(".txt") else new_title + ".txt"
+        new_name = config_title(new_title) + ".txt"
         domain = instance_domain(instances, instance_name, domain_name)
         if domain is None:
             continue
@@ -2753,9 +2782,17 @@ def save_all(
             substitutions=substitutions,
         )
 
+    if refused:
+        feedback = ui.error(
+            ["Everything else was saved, except:"] + [html.Br()] +
+            [part for line in refused for part in (line, html.Br())][:-1]
+        )
+    else:
+        feedback = ui.success()
     return (
         new_titles, new_contents, new_metadata, new_params, new_entry_stores,
         (reload_count or 0) + 1 if reload_needed else dash.no_update,
+        feedback,
     )
 
 @dash.callback(
@@ -2994,6 +3031,7 @@ layout = html.Div(
         # client-side name validation (see assets/config_editor.js).
         dcc.Store(id="cfg-invalid-chars", data=hard_settings.invalid_filename_characters),
         html.Div(id={"page": page_path, "type": "instance-title-div"}, style={"marginTop": "20px"}),
+        html.Div(ui.feedback("config-editor-feedback"), className="card-matrix config"),
         # What this page does, said once, above every domain of it -- folded
         # away, since it is only ever read once.
         html.Div(

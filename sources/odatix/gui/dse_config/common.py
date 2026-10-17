@@ -23,8 +23,10 @@
 the small conversions between what a widget holds and what a settings file says."""
 
 import os
+from urllib.parse import quote
 
 import odatix.lib.eda_tools as eda_tools
+import odatix.lib.hard_settings as hard_settings
 from odatix.dse.campaigns import EXTENSIONS, available_campaigns, campaign_path, load_campaign
 from odatix.dse.settings import CampaignSettings, DseSettings
 from odatix.workspace.settings import load_settings, save_settings
@@ -117,6 +119,32 @@ def delete_campaign(workspace, name):
         path = os.path.join(directory, "{0}{1}".format(name, extension))
         if os.path.isfile(path):
             os.remove(path)
+
+
+def campaign_name_error(name, existing, original_name=None):
+    """
+    Why a campaign cannot be saved as `name`, or None when it can.
+
+    The name is the one of a file of the campaign directory: it must be a file
+    name, and one the campaign list shows -- a name starting with a dot is a
+    hidden file, which takes "." and ".." with it.
+    """
+    if not name:
+        return "A campaign needs a name."
+    for character in hard_settings.invalid_filename_characters:
+        if character in name:
+            shown = "' ' (space)" if character == " " else "'{0}'".format(character)
+            return "A campaign name is a file name: it cannot contain {0}.".format(shown)
+    if name.startswith("."):
+        return "A campaign name cannot start with a dot."
+    if name != original_name and name in existing:
+        return 'A campaign called "{0}" already exists.'.format(name)
+    return None
+
+
+def campaign_link(editor_path, name):
+    """The editor of one campaign, whatever its name holds."""
+    return "{0}?campaign={1}".format(editor_path, quote(name, safe=""))
 
 
 def campaign_exists(workspace, name):

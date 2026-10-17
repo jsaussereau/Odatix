@@ -981,6 +981,7 @@ def init_page(page, odatix_settings):
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("dm-saved", "data"),
+    Output("dm-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input({"type": f"{METRIC_PREFIX}-title", "name": dash.ALL}, "value"),
     Input({"type": f"{METRIC_PREFIX}-kind", "name": dash.ALL}, "value"),
@@ -1016,7 +1017,7 @@ def save_and_status(
     page, initial, saved, odatix_settings,
 ):
     if page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     disabled = ("color-button disabled icon-button tooltip delay bottom small", "Nothing to save")
     warning = ("color-button warning icon-button tooltip bottom small", "Unsaved changes!")
@@ -1038,14 +1039,14 @@ def save_and_status(
             derived.groups = current["groups"]
             derived.metrics = current["metrics"]
             derived.save()
-            return disabled[0], disabled[1], current
-        except Exception:
-            return error, "Failed to save...", dash.no_update
+            return disabled[0], disabled[1], current, ui.success()
+        except Exception as e:
+            return error, "Failed to save...", dash.no_update, ui.error(f"Not saved: {e}")
 
     if not isinstance(reference, dict) or current != reference:
-        return warning[0], warning[1], dash.no_update
+        return warning[0], warning[1], dash.no_update, dash.no_update
 
-    return disabled[0], disabled[1], dash.no_update
+    return disabled[0], disabled[1], dash.no_update, dash.no_update
 
 
 ######################################
@@ -1080,6 +1081,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(page_title(), style={"marginTop": "20px"}),
+        ui.feedback("dm-save-feedback"),
         _section_block(GROUP_PREFIX, "Groups", GROUP_TOOLTIP, "Add new group"),
         _section_block(METRIC_PREFIX, "Derived Metrics", METRIC_SECTION_TOOLTIP, "Add new derived metric"),
         dcc.Store(id="dm-initial", data={"groups": {}, "metrics": {}}),

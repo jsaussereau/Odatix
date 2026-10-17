@@ -121,6 +121,7 @@ layout = html.Div(
         dcc.Location(id=f"url_{page_path}", refresh=False),
         page_header,
         html.Div(id={"page": page_path, "type": "title-div"}),
+        ui.feedback("jobs-config-save-feedback"),
         ui.section(
             "Job Settings",
             html.Div(

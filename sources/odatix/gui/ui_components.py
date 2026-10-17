@@ -536,6 +536,33 @@ def add_card(id: Union[str, dict], text: str="Add", className: str="") -> Compon
     )
 
 
+def feedback(id: Union[str, dict], className: str="") -> Component:
+    """
+    Where a page tells the user how an action went: empty, hence invisible,
+    until a callback fills it with error() or success().
+    """
+    return html.Div(id=id, className=f"odx-feedback {className}".strip())
+
+
+def error(message) -> Component:
+    """An action that failed, and why: the children of a feedback()."""
+    return html.Div(message, className="odx-message error")
+
+
+def success(message="Saved.") -> Component:
+    """An action that went through: the children of a feedback()."""
+    return html.Div(message, className="odx-message success")
+
+
+def field_error(message="", id: Optional[Union[str, dict]]=None) -> Component:
+    """
+    What is wrong with one field, shown right under it. Empty, it takes no
+    room: a callback can then fill it with the reason as plain text.
+    """
+    kwargs = {"id": id} if id is not None else {}
+    return html.Div(message, className="odx-message error field", **kwargs)
+
+
 def empty_state(text: str, className: str="") -> Component:
     return html.Div(text, className=f"odx-panel odx-empty {className}".strip())
 

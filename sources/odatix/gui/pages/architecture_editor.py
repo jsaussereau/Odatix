@@ -796,6 +796,7 @@ def init_form(search, page, odatix_settings):
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output(f"url_{page_path}", "search"),
     Output("architecture-saved-settings", "data"),
+    Output("architecture-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("arch-title", "value"),
     Input("design_path", "value"),
@@ -839,7 +840,7 @@ def save_and_status(
 ):
     triggered_id = ctx.triggered_id
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     if saved_settings is None:
         settings = initial_settings
@@ -892,12 +893,18 @@ def save_and_status(
     }
 
     if not arch_title:
-        return "color-button error-status icon-button tooltip bottom", "Architecture name cannot be empty", dash.no_update, saved_settings
+        reason = "Architecture name cannot be empty"
+        return "color-button error-status icon-button tooltip bottom", reason, dash.no_update, saved_settings, (
+            ui.error(f"Not saved: {reason}") if triggered_id == {"page": page_path, "action": "save-all"} else dash.no_update
+        )
     
     for c in hard_settings.invalid_filename_characters:
         if c in arch_title:
             c = "' ' (space)" if c == " " else f"'{c}'"
-            return "color-button error-status icon-button tooltip bottom", f"Unauthorized character in architecture name: {c}", dash.no_update, saved_settings
+            reason = f"Unauthorized character in architecture name: {c}"
+            return "color-button error-status icon-button tooltip bottom", reason, dash.no_update, saved_settings, (
+                ui.error(f"Not saved: {reason}") if triggered_id == {"page": page_path, "action": "save-all"} else dash.no_update
+            )
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
         # Rename architecture if needed
@@ -906,14 +913,18 @@ def save_and_status(
             old_name = arch_name
             new_name = arch_title
             if new_name in architectures:
-                return "color-button error-status icon-button tooltip bottom", f"'{new_name}' already exists", dash.no_update, dash.no_update
+                return "color-button error-status icon-button tooltip bottom", f"'{new_name}' already exists", dash.no_update, dash.no_update, ui.error(
+                    f"Not saved: an architecture called '{new_name}' already exists."
+                )
             try:
                 if old_name in architectures:
                     architectures.rename(old_name, new_name)
                 arch_name = new_name
                 new_search = f"?arch={new_name}"
             except Exception as e:
-                return "color-button error-status icon-button tooltip bottom", "Failed renaming architecture", dash.no_update, dash.no_update
+                return "color-button error-status icon-button tooltip bottom", "Failed renaming architecture", dash.no_update, dash.no_update, ui.error(
+                    f"Could not rename '{old_name}' to '{new_name}': {e}"
+                )
         
         # Create architecture if it does not exist yet
         architecture = architectures.get(arch_name)
@@ -923,14 +934,14 @@ def save_and_status(
         # Save settings
         try:
             apply_form_settings(architecture, current_settings_subset)
-            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", new_search, current_settings_subset
+            return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", new_search, current_settings_subset, ui.success()
         except Exception as e:
-            return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update
+            return "color-button error-status icon-button tooltip bottom small", "Failed to save...", dash.no_update, dash.no_update, ui.error(f"Not saved: {e}")
     else:
         if current_settings_subset != settings or arch_title != arch_name:
-            return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update, dash.no_update
+            return "color-button warning icon-button tooltip bottom small tooltip", "Unsaved changes!", dash.no_update, dash.no_update, dash.no_update
 
-    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, saved_settings
+    return "color-button disabled icon-button tooltip delay bottom small", "Nothing to save", dash.no_update, saved_settings, dash.no_update
 
 @dash.callback(
     Output("arch-hl-param-domains", "data"),
@@ -1083,6 +1094,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "architecture-title-div"}, style={"marginTop": "20px"}),
+        html.Div(ui.feedback("architecture-save-feedback"), className="card-matrix config"),
         html.Div(id="arch-form-container"),
         dcc.Store(id="save-state", data=""),
         dcc.Store(id="architecture-initial-settings", data=None),

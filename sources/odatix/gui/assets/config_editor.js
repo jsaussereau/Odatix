@@ -119,6 +119,7 @@ window.dash_clientside.odatix_config_editor.save_status = function(_section, tit
     }
     const classes = [];
     const tooltips = [];
+    const errors = [];
     for (let i = 0; i < titles.length; i++) {
         const title = titles[i];
         const initialTitle = initialTitles[i];
@@ -138,6 +139,7 @@ window.dash_clientside.odatix_config_editor.save_status = function(_section, tit
                 error = "A configuration with this name already exists in the domain.";
             }
         }
+        errors.push(error || "");
         if (error) {
             classes.push("color-button error-status " + base);
             tooltips.push(error);
@@ -149,7 +151,7 @@ window.dash_clientside.odatix_config_editor.save_status = function(_section, tit
             tooltips.push("Nothing to save");
         }
     }
-    return [classes, tooltips];
+    return [classes, tooltips, errors];
 };
 
 /*

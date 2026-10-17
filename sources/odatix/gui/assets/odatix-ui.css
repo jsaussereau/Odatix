@@ -745,6 +745,54 @@
     opacity: 1;
 }
 
+/* --- Feedback (ui.feedback / ui.error / ui.success) -------------------- */
+/* How an action went. The line takes no room until a callback fills it. */
+.odx-feedback:empty {
+    display: none;
+}
+.odx-message {
+    border-radius: var(--theme-normal-border-radius);
+    padding: var(--space-2) var(--space-4);
+    margin-bottom: var(--space-3);
+    font-size: 14px;
+    border: 1px solid transparent;
+    text-align: left;
+}
+.odx-message.success {
+    color: var(--theme-success-color);
+    border-color: color-mix(in srgb, var(--theme-success-color) 35%, transparent);
+    background: color-mix(in srgb, var(--theme-success-color) 10%, transparent);
+}
+.odx-message.error {
+    color: var(--theme-caution-color);
+    border-color: color-mix(in srgb, var(--theme-caution-color) 35%, transparent);
+    background: color-mix(in srgb, var(--theme-caution-color) 10%, transparent);
+}
+/* On a page of centered cards, the line is centered with them. */
+.odx-feedback.centered {
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+}
+/* In a popup, the line comes after the buttons. */
+.popup-odatix .odx-feedback {
+    margin-top: var(--space-3);
+}
+.popup-odatix .odx-message {
+    margin-bottom: 0;
+}
+/* Under the field it is about: a line of text, not a banner. */
+.odx-message.field:empty {
+    display: none;
+}
+.odx-message.field {
+    padding: 0;
+    margin: var(--space-1) 0 0 0;
+    font-size: 12px;
+    border: none;
+    background: none;
+}
+
 /* The add card is sometimes wrapped by a div carrying the id its callbacks
    look for: keep the wrapper transparent for the grid. */
 .odx-add-card-wrap {

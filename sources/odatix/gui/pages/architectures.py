@@ -175,6 +175,7 @@ def update_cards(_, odatix_settings):
 @page_callback(PAGE_SCOPE,
     Output("arch-cards-matrix", "children", allow_duplicate=True),
     Output("sim-cards-matrix", "children", allow_duplicate=True),
+    Output("architectures-feedback", "children", allow_duplicate=True),
     Input({"type": "button-duplicate", "card_type": dash.ALL, "name": dash.ALL}, "n_clicks_timestamp"),
     State({"type": "button-duplicate", "card_type": dash.ALL, "name": dash.ALL}, "id"),
     State("odatix-settings", "data"),
@@ -183,10 +184,10 @@ def update_cards(_, odatix_settings):
 def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     triggered = ctx.triggered_id
     if not triggered or not isinstance(triggered, dict):
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     if not dupl_timestamps or not btn_ids:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     ws = get_workspace(odatix_settings)
 
@@ -194,7 +195,7 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     btn_id = btn_ids[idx]
 
     if btn_id != triggered or not dupl_timestamps[idx]:
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     card_type = btn_id["card_type"]
     name = btn_id["name"]
@@ -209,12 +210,12 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
             break
         suffix += 1
         if suffix > 1000:
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, ui.error(f"'{name}' not duplicated: {name}_copy1 to {name}_copy1000 are all taken.")
 
     try:
         collection.duplicate(name, new_name)
-    except Exception:
-        return dash.no_update, dash.no_update
+    except Exception as e:
+        return dash.no_update, dash.no_update, ui.error(f"Could not duplicate '{name}': {e}")
 
     # Refresh the cards
     architectures = ws.architectures.names()
@@ -223,7 +224,7 @@ def direct_duplicate(dupl_timestamps, btn_ids, odatix_settings):
     arch_cards.append(add_card("Create New Architecture", "arch"))
     sim_cards = [normal_card(n, "sim") for n in simulations]
     sim_cards.append(add_card("Create New Simulation", "sim"))
-    return arch_cards, sim_cards
+    return arch_cards, sim_cards, ""
 
 # Open deletion popup
 @page_callback(PAGE_SCOPE,
@@ -273,12 +274,11 @@ def do_delete(n_clicks, info, odatix_settings):
     name = info["name"]
     collection = ws.architectures if card_type == "arch" else ws.simulations
     if name not in collection:
-        return dash.no_update, "Item not found.", dash.no_update, dash.no_update
+        return dash.no_update, ui.error(f"'{name}' not found."), dash.no_update, dash.no_update
     try:
         collection.delete(name)
     except Exception as e:
-        print("Error during deletion:", e)
-        return dash.no_update, f"Error: {e}", dash.no_update, dash.no_update
+        return dash.no_update, ui.error(f"Could not delete '{name}': {e}"), dash.no_update, dash.no_update
 
     # Refresh the cards
     architectures = ws.architectures.names()
@@ -330,6 +330,7 @@ layout = html.Div(
         html.Div(
             children=[
                 ui.page_header("Architectures", "Configure your RTL architectures and their configurations.", back_link="/"),
+                ui.feedback("architectures-feedback", className="centered"),
                 html.Div(id="arch-cards-matrix", className="card-matrix configs", style={"gap": "var(--tile-gap)"}),
                 # Simulations live here rather than on a page of their own:
                 # they are always tied to the architectures above (a simulation
@@ -393,7 +394,7 @@ layout = html.Div(
                         ),
                         html.Button("Cancel", id="delete-cancel-btn", n_clicks=0, style={"marginLeft": "10px", "width": "90px"}),
                     ], style={"marginTop": "18px", "display": "flex", "justifyContent": "center"}),
-                    html.Div(id="delete-error", style={"color": "red", "marginTop": "10px"}),
+                    ui.feedback("delete-error"),
                 ], className="popup-odatix")
             ]
         ),

@@ -549,6 +549,7 @@ dash.clientside_callback(
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output(f"url_{page_path}", "search"),
     Output("workflow-saved-settings", "data"),
+    Output("workflow-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     Input("workflow-title", "value"),
     Input("wf-source-path", "value"),
@@ -625,8 +626,9 @@ def save_and_status(
     odatix_settings,
 ):
     triggered_id = ctx.triggered_id
+    saving = triggered_id == {"page": page_path, "action": "save-all"}
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     if saved_settings is None:
         reference_settings = normalize_workflow_settings(initial_settings)
@@ -678,6 +680,7 @@ def save_and_status(
             "Workflow name cannot be empty",
             dash.no_update,
             saved_settings,
+            (ui.error("Not saved: Workflow name cannot be empty") if saving else dash.no_update),
         )
 
     for character in hard_settings.invalid_filename_characters:
@@ -688,6 +691,7 @@ def save_and_status(
                 f"Unauthorized character in workflow name: {label}",
                 dash.no_update,
                 saved_settings,
+                (ui.error(f"Not saved: Unauthorized character in workflow name: {label}") if saving else dash.no_update),
             )
 
     if triggered_id == {"page": page_path, "action": "save-all"}:
@@ -700,6 +704,7 @@ def save_and_status(
                     f"'{workflow_title_value}' already exists",
                     dash.no_update,
                     saved_settings,
+                    (ui.error(f"Not saved: '{workflow_title_value}' already exists") if saving else dash.no_update),
                 )
             if workflow_name in workflows:
                 workflows.rename(workflow_name, workflow_title_value)
@@ -720,19 +725,22 @@ def save_and_status(
                 "Nothing to save",
                 new_search,
                 current_settings,
+                ui.success(),
             )
-        except Exception:
+        except Exception as e:
             return (
                 "color-button error-status icon-button tooltip bottom small",
                 "Failed to save...",
                 dash.no_update,
                 saved_settings,
+                ui.error(f"Not saved: {e}"),
             )
 
     if current_settings != reference_settings or workflow_title_value != (workflow_name or ""):
         return (
             "color-button warning icon-button tooltip bottom small tooltip",
             "Unsaved changes!",
+            dash.no_update,
             dash.no_update,
             dash.no_update,
         )
@@ -742,6 +750,7 @@ def save_and_status(
         "Nothing to save",
         dash.no_update,
         saved_settings,
+        dash.no_update,
     )
 
 @dash.callback(
@@ -908,6 +917,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "workflow-title-div"}, style={"marginTop": "20px"}),
+        html.Div(ui.feedback("workflow-save-feedback"), className="card-matrix config"),
         html.Div(id="workflow-form-container"),
         html.Div(
             children=[

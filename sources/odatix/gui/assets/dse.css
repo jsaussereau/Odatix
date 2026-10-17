@@ -21,27 +21,7 @@
 */
 
 
-/* --- Feedback line ------------------------------------------------------ */
-.dse-feedback:empty {
-    display: none;
-}
-.dse-message {
-    border-radius: var(--theme-normal-border-radius);
-    padding: var(--space-2) var(--space-4);
-    margin-bottom: var(--space-3);
-    font-size: 14px;
-    border: 1px solid transparent;
-}
-.dse-message.success {
-    color: var(--theme-success-color);
-    border-color: color-mix(in srgb, var(--theme-success-color) 35%, transparent);
-    background: color-mix(in srgb, var(--theme-success-color) 10%, transparent);
-}
-.dse-message.error {
-    color: var(--theme-caution-color);
-    border-color: color-mix(in srgb, var(--theme-caution-color) 35%, transparent);
-    background: color-mix(in srgb, var(--theme-caution-color) 10%, transparent);
-}
+/* The feedback line is the shared odx-feedback (odatix-ui.css). */
 .dse-danger {
     margin-top: var(--space-3);
     color: var(--theme-caution-color);

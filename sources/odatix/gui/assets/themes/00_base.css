@@ -38,6 +38,7 @@
     --theme-large-font-size: 16px;
     --theme-default-font-size: 14px;
     --theme-small-font-size: 11px;
+    --theme-font-size: var(--theme-large-font-size); /* text of the page, unless an element sets its own */
     --theme-background-color: #f5f7fa;
     --theme-element-background-color: #fff; /* mainly cards and tiles background */
     --theme-dimmed-element-background-color: #fff0;
@@ -45,6 +46,7 @@
     --theme-primary-color: #228BE6; /* accent color for tooltips and switches */
     --theme-secondary-color: #228BE6; /* accent color for important buttons */
     --theme-tertiary-color: #f5f7fa; /* background color for fields  */
+    --theme-accent-color: var(--theme-primary-color); /* accent icons */
     --theme-tertiary-color-light: #f5f7fa90;
     --theme-disabled-color: #798ba64f;
     --theme-disabled-error-color: #fa5252ab;

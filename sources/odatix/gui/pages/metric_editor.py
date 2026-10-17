@@ -1077,6 +1077,7 @@ def init_page(search, page, odatix_settings):
     Output({"page": page_path, "action": "save-all"}, "className"),
     Output({"page": page_path, "action": "save-all"}, "data-tooltip"),
     Output("metric-saved", "data"),
+    Output("metric-save-feedback", "children"),
     Input({"page": page_path, "action": "save-all"}, "n_clicks"),
     # Metrics section
     Input({"type": f"{METRIC_PREFIX}-title", "name": dash.ALL}, "value"),
@@ -1133,8 +1134,9 @@ def save_and_status(
     search, page, initial, saved, builtin_data, odatix_settings,
 ):
     triggered_id = ctx.triggered_id
+    saving = triggered_id == {"page": page_path, "action": "save-all"}
     if triggered_id == f"url_{page_path}" and page != page_path:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     disabled = ("color-button disabled icon-button tooltip delay bottom small", "Nothing to save")
     warning = ("color-button warning icon-button tooltip bottom small", "Unsaved changes!")
@@ -1172,12 +1174,12 @@ def save_and_status(
         for name in (fields[0] or []):
             clean = str(name).strip() if name is not None else ""
             if clean == "":
-                return error, f"{label} name cannot be empty", dash.no_update
+                return error, f"{label} name cannot be empty", dash.no_update, (ui.error(f"Not saved: {label} name cannot be empty") if saving else dash.no_update)
             for character in hard_settings.invalid_filename_characters:
                 if character in clean and character != " ":
-                    return error, f"Unauthorized character in {label} name: '{character}'", dash.no_update
+                    return error, f"Unauthorized character in {label} name: '{character}'", dash.no_update, (ui.error(f"Not saved: Unauthorized character in {label} name: '{character}'") if saving else dash.no_update)
             if clean in seen:
-                return error, f"Duplicate {label} name: '{clean}'", dash.no_update
+                return error, f"Duplicate {label} name: '{clean}'", dash.no_update, (ui.error(f"Not saved: Duplicate {label} name: '{clean}'") if saving else dash.no_update)
             seen.add(clean)
 
     current = {"mode": mode, "sections": current_sections}
@@ -1189,40 +1191,40 @@ def save_and_status(
     if triggered_id == {"page": page_path, "action": "save-all"}:
         if is_tool:
             if not tool_name:
-                return error, "No tool selected", dash.no_update
+                return error, "No tool selected", dash.no_update, (ui.error("Not saved: No tool selected") if saving else dash.no_update)
             key_sections = {key: current_sections[prefix] for prefix, _l, _t, key in sections}
             try:
                 tool_metrics = get_workspace(odatix_settings).tools.entry(tool_name).metrics
                 tool_metrics.sections = key_sections
                 tool_metrics.save()
-                return disabled[0], disabled[1], current
-            except Exception:
-                return error, "Failed to save...", dash.no_update
+                return disabled[0], disabled[1], current, ui.success()
+            except Exception as e:
+                return error, "Failed to save...", dash.no_update, ui.error(f"Not saved: {e}")
         elif is_simulation:
             try:
                 metrics_file = get_workspace(odatix_settings).simulations.entry(simulation_name).metrics
                 metrics_file.metrics = current_sections.get(METRIC_PREFIX, {})
                 metrics_file.metadata = current_sections.get(META_PREFIX, {})
                 metrics_file.save()
-                return disabled[0], disabled[1], current
-            except Exception:
-                return error, "Failed to save...", dash.no_update
+                return disabled[0], disabled[1], current, ui.success()
+            except Exception as e:
+                return error, "Failed to save...", dash.no_update, ui.error(f"Not saved: {e}")
         else:
             if not workflow_name:
-                return error, "No workflow selected", dash.no_update
+                return error, "No workflow selected", dash.no_update, (ui.error("Not saved: No workflow selected") if saving else dash.no_update)
             try:
                 metrics_file = get_workspace(odatix_settings).workflows.entry(workflow_name).metrics
                 metrics_file.metrics = current_sections.get(METRIC_PREFIX, {})
                 metrics_file.metadata = current_sections.get(META_PREFIX, {})
                 metrics_file.save()
-                return disabled[0], disabled[1], current
-            except Exception:
-                return error, "Failed to save...", dash.no_update
+                return disabled[0], disabled[1], current, ui.success()
+            except Exception as e:
+                return error, "Failed to save...", dash.no_update, ui.error(f"Not saved: {e}")
 
     if current.get("sections") != reference.get("sections"):
-        return warning[0], warning[1], dash.no_update
+        return warning[0], warning[1], dash.no_update, dash.no_update
 
-    return disabled[0], disabled[1], dash.no_update
+    return disabled[0], disabled[1], dash.no_update, dash.no_update
 
 
 ######################################
@@ -1254,6 +1256,7 @@ layout = html.Div(
     children=[
         dcc.Location(id=f"url_{page_path}"),
         html.Div(id={"page": page_path, "type": "metric-title-div"}, style={"marginTop": "20px"}),
+        ui.feedback("metric-save-feedback"),
         _section_block(METRIC_PREFIX, "Metrics", METRIC_TOOLTIP),
         _section_block(META_PREFIX, "Metadata Dimensions", META_TOOLTIP),
         _section_block(THIRD_PREFIX, "Common metrics", COMMON_TOOLTIP, wrapper_style={"display": "none"}),
