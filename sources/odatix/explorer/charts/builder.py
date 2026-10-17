@@ -245,9 +245,18 @@ def build_figure(df, spec, dimensions, metrics, units, chrome, global_dimensions
   fig = go.Figure()
 
   if spec.kind == "parcoords":
+    excluded = 0
     if not df.empty and spec.y_metrics:
-      fig.add_trace(_parcoords_trace(df, spec, units, palette))
+      df, excluded = _parcoords_rows(df, spec)
+      if not df.empty:
+        fig.add_trace(_parcoords_trace(df, spec, units, palette))
     _apply_layout(fig, spec, [], units, chrome, height, plot_theme)
+    if excluded:
+      fig.add_annotation(
+        text=str(excluded) + (" design" if excluded == 1 else " designs") + " without a value excluded",
+        xref="paper", yref="paper", x=0, y=0, xanchor="left", yanchor="top",
+        yshift=-25, showarrow=False, font=dict(size=11), opacity=0.7,
+      )
     return fig
 
   if df.empty or spec.y is None:
@@ -323,13 +332,18 @@ def _x_categories(df, spec):
     dim_key = tuple(min(schema.sort_key(value) for value in sub[dim]) for dim in sort_dims)
     if by_y:
       mean = sub["__y"].mean()
-      last = (1, 0.0) if pd.isna(mean) else (0, float(mean))  # missing y goes last
+      # Missing y goes last in both directions: descending negates the mean
+      # instead of reversing, which would bring the blanks to the front.
+      if pd.isna(mean):
+        last = (1, 0.0)
+      else:
+        last = (0, -float(mean) if order == "y_desc" else float(mean))
     else:
       last = (0, natural_rank.get(category, 0))
     keys[category] = (dim_key, last)
 
   ordered = sorted(categories, key=lambda category: keys[category])
-  if order in ("reverse", "y_desc"):
+  if order == "reverse":
     ordered.reverse()
   return ordered
 
@@ -413,12 +427,40 @@ def _radar_trace(sub_df, spec, categories, units, color, symbol_index, hover_hea
   )
 
 
+def _parcoords_numeric_color(df, spec):
+  """The numeric "Color by" column of a parcoords, or None (solid/categorical)."""
+  if not spec.color_by or spec.color_by[0] not in df.columns:
+    return None
+  column = spec.color_by[0]
+  return column if pd.to_numeric(df[column], errors="coerce").notna().any() else None
+
+
+def _parcoords_rows(df, spec):
+  """
+  The rows a parcoords can draw honestly, and how many were left out.
+
+  ``go.Parcoords`` has no notion of a missing value (and no hover to say so):
+  any filler -- the mean, zero -- draws a line through a value that was never
+  measured. A row missing one of the charted metrics, or the numeric color, is
+  dropped instead, and the caller says how many.
+  """
+  columns = [metric for metric in spec.y_metrics if metric in df.columns]
+  color_column = _parcoords_numeric_color(df, spec)
+  if color_column is not None and color_column not in columns:
+    columns.append(color_column)
+  if not columns:
+    return df, 0
+  present = pd.DataFrame({column: pd.to_numeric(df[column], errors="coerce") for column in columns}).notna().all(axis=1)
+  return df[present], int((~present).sum())
+
+
 def _parcoords_trace(df, spec, units, palette):
   """One parallel-coordinates axis per metric of spec.y_metrics.
 
   Unlike the other kinds, this is a single trace over the whole selection
   (parcoords has no notion of separate traces): lines are colored by the first
   "Color by" dimension when it holds numeric values, one solid color otherwise.
+  Rows with a missing value are expected to be gone already (_parcoords_rows).
   """
   dimensions = []
   for metric in spec.y_metrics:
@@ -427,7 +469,7 @@ def _parcoords_trace(df, spec, units, palette):
     series = pd.to_numeric(df[metric], errors="coerce")
     dimensions.append(dict(
       label=schema.axis_title(metric, units),
-      values=series.fillna(series.mean() if series.notna().any() else 0).tolist(),
+      values=series.tolist(),
     ))
 
   line = dict(color=palettes.get_color(0, palette))
@@ -437,7 +479,7 @@ def _parcoords_trace(df, spec, units, palette):
       color_series = pd.to_numeric(df[color_column], errors="coerce")
       if color_series.notna().any():
         line = dict(
-          color=color_series.fillna(color_series.mean()).tolist(),
+          color=color_series.tolist(),
           colorscale="Viridis",
           showscale=True,
           colorbar=dict(title=schema.metric_display_name(color_column)),

@@ -117,6 +117,12 @@ MAX_SHAPE_REPEATS = 2
 # source: it answers a question no per-source chart can.
 CROSS_SOURCE_BONUS = 0.2
 
+# Appended to a card whose saved view cannot reproduce its exact selection.
+WIDENED_VIEW_NOTE = (
+  " The opened view keeps every combination of these architectures and"
+  " configurations, including some that not every source ran."
+)
+
 # How strongly the user's stated interest reorders the results. High enough to
 # float a named metric to the top, low enough that a truly flat metric stays
 # down where it belongs.
@@ -282,7 +288,8 @@ class Context(object):
   """
 
   def __init__(self, store, sources, df, dimensions, metrics, units,
-               filters=None, rule_state=None, base_dimensions=None, intent=None):
+               filters=None, rule_state=None, base_dimensions=None, intent=None,
+               designs=None, widened=False):
     self.store = store
     self.sources = list(sources or [])
     self.df = df
@@ -301,6 +308,11 @@ class Context(object):
     # and a short human name for the scope, quoted in the descriptions.
     self.compare_by = None
     self.label = ""
+    # The exact designs the selection is narrowed to (a cross-source scope),
+    # and whether the per-dimension filters a saved view can hold admit more
+    # than those: then the card opens a wider selection than it was measured on.
+    self.designs = designs
+    self.widened = widened
     self.rows = len(df)
     self.metric_stats = dict(
       (metric, MetricStat(metric, df[metric], metric_direction(metric, self.units)))
@@ -459,10 +471,35 @@ class Context(object):
     return None if pd.isna(value) else float(value)
 
 
-def build_context(store, sources=None, filters=None, rule_state=None):
-  """Measure the current selection, ready to be handed to ``recommend``."""
+def _keep_designs(df, designs):
+  """
+  The rows of ``df`` belonging to one of ``designs`` ("architecture ::
+  configuration" keys), and whether any other design was dropped.
+
+  Per-dimension filters can only express a cartesian product: architectures A
+  and B with configurations x and y also admit (A, y) even when only (A, x) and
+  (B, y) were run by every source. Filtering on the design key is exact.
+  """
+  keyed = _design_keys(df)
+  if keyed is None:
+    return df, False
+  _sources, keys, named = keyed
+  inside = keys.isin(designs)
+  return named[inside.values], not inside.all()
+
+
+def build_context(store, sources=None, filters=None, rule_state=None, designs=None):
+  """
+  Measure the current selection, ready to be handed to ``recommend``.
+
+  ``designs`` narrows it further to exact (architecture, configuration) pairs,
+  which ``filters`` alone cannot express (see ``_keep_designs``).
+  """
   sources = list(sources) if sources else store.source_names()
   df = query.select_dataframe(store, sources=sources, filters=filters, rule_state=rule_state)
+  widened = False
+  if designs is not None:
+    df, widened = _keep_designs(df, designs)
   dimensions, metrics = query.discover(df, store, sources)
 
   if filters or rule_state:
@@ -474,6 +511,7 @@ def build_context(store, sources=None, filters=None, rule_state=None):
   return Context(
     store, sources, df, dimensions, metrics, store.units(sources),
     filters=filters, rule_state=rule_state, base_dimensions=base_dimensions,
+    designs=designs, widened=widened,
   )
 
 
@@ -524,6 +562,7 @@ def make_view(ctx, kind, controls=None, toggles=None, name=None, description="",
       effective[dimension] = [value for value in current if str(value) in kept]
 
   hidden = {}
+  shown = {}
   for dimension, allowed in effective.items():
     if dimension not in ctx.base_dimensions or allowed is None:
       continue
@@ -531,6 +570,14 @@ def make_view(ctx, kind, controls=None, toggles=None, name=None, description="",
     dropped = [value for value in ctx.base_dimensions[dimension] if str(value) not in kept]
     if dropped:
       hidden[dimension] = dropped
+    # Kept values the filter panel unchecks by default must be said so, or the
+    # opened view quietly drops them again.
+    forced = [
+      value for value in ctx.base_dimensions[dimension]
+      if str(value) in kept and not schema.default_selected(dimension, value)
+    ]
+    if forced:
+      shown[dimension] = forced
 
   return {
     views.VIEW_SCHEMA_KEY: views.VIEW_SCHEMA_VERSION,
@@ -540,6 +587,7 @@ def make_view(ctx, kind, controls=None, toggles=None, name=None, description="",
     "sources": list(ctx.sources),
     "controls": controls,
     "filters": hidden,
+    "shown": shown,
     "rules": rules.normalize(ctx.rule_state),
     "palette": palettes.DEFAULT_PALETTE,
     "plot_theme": plot_themes.DEFAULT_PLOT_THEME,
@@ -569,14 +617,20 @@ def _view_thumbnail(ctx, view, thumb_kind):
     # The view may narrow the selection further than the context (see the
     # ``restrict`` argument of make_view); its hidden values say by how much.
     filters = {}
+    shown = view.get("shown") or {}
     for dimension, dropped in (view.get("filters") or {}).items():
       hidden = set(str(value) for value in dropped)
+      forced = set(str(value) for value in shown.get(dimension, ()))
       filters[dimension] = [
-        value for value in ctx.base_dimensions.get(dimension, []) if str(value) not in hidden
+        value for value in ctx.base_dimensions.get(dimension, [])
+        if str(value) not in hidden
+        and (schema.default_selected(dimension, value) or str(value) in forced)
       ]
     df = query.select_dataframe(
       ctx.store, sources=ctx.sources, filters=filters or None, rule_state=ctx.rule_state
     )
+    if ctx.designs is not None:
+      df, _widened = _keep_designs(df, ctx.designs)
     dimensions, metrics = query.discover(df, ctx.store, ctx.sources)
     toggles = tuple(view.get("toggles") or ())
     spec = resolve_defaults(
@@ -739,8 +793,10 @@ def _pareto_recipe(ctx):
   Cost against performance: the trade-off chart, the one people open first.
 
   Needs a metric to minimize and one to maximize; the pairs whose values fight
-  each other the most (most negative correlation) are the interesting ones,
-  since two metrics that rise together tell you nothing about a compromise.
+  each other the most are the interesting ones. One is better low and the other
+  better high, so a real compromise shows as a *positive* correlation of the
+  raw columns (paying more cost buys more gain); a negative one means the
+  cheaper designs are also the better ones, and there is nothing to arbitrate.
   One chart per worthwhile pair, so a workspace measuring area *and* power
   against Fmax gets both readings instead of an arbitrary one.
   """
@@ -760,7 +816,7 @@ def _pareto_recipe(ctx):
       correlation = ctx.correlation(cost, gain)
       # Unknown correlation is treated as neutral rather than disqualifying:
       # sparse data still deserves a trade-off chart.
-      tension = 0.5 if correlation is None else (1.0 - correlation) / 2.0
+      tension = 0.5 if correlation is None else (1.0 + correlation) / 2.0
       quality = ctx.metric_stats[cost].interest * ctx.metric_stats[gain].interest
       pairs.append((0.55 + 0.3 * tension + 0.15 * quality, cost, gain, correlation, paired))
   pairs.sort(key=lambda pair: (-pair[0], pair[1], pair[2]))
@@ -774,10 +830,10 @@ def _pareto_recipe(ctx):
     color_by = _color_for(ctx, gain)
 
     why = "How much " + _display(cost) + " each point of " + _display(gain) + " costs, over " + str(paired) + " designs."
-    if correlation is not None and correlation < -0.3:
+    if correlation is not None and correlation > 0.3:
       why += " They pull against each other here, so the compromise is real."
-    elif correlation is not None and correlation > 0.5:
-      why += " They rise together on this data, so there is little to arbitrate."
+    elif correlation is not None and correlation < -0.5:
+      why += " The cheaper designs are also the better ones on this data, so there is little to arbitrate."
       score -= 0.15
     why += _involved(ctx, restrict)
 
@@ -1039,6 +1095,12 @@ def recommend(ctx, intent=None, limit=DEFAULT_LIMIT):
       # A recipe misreading unusual data must not take the whole gallery down.
       continue
     for title, why, score, view in built or []:
+      if ctx.widened:
+        # A saved view can only hide values one dimension at a time, so it
+        # reopens every architecture x configuration combination, not just the
+        # pairs measured here.
+        why += WIDENED_VIEW_NOTE
+        view["description"] = why
       view["name"] = title
       thumb_kind = "lines" if view["kind"] == "overview" else view["kind"]
       view["thumb"] = _view_thumbnail(ctx, view, thumb_kind)
@@ -1091,8 +1153,11 @@ class Scope(object):
   spoke about "10 sources" without any of them holding the same designs.
   """
 
-  def __init__(self, key, label, sources, filters, compare_by=None, bonus=0.0):
+  def __init__(self, key, label, sources, filters, compare_by=None, bonus=0.0, designs=None):
     self.key = key
+    # Exact designs the scope is restricted to, on top of ``filters`` (which
+    # can only approximate them, see ``_keep_designs``).
+    self.designs = designs
     self.label = label
     self.sources = list(sources)
     self.filters = filters
@@ -1170,7 +1235,6 @@ def comparable_sources(designs, measured=None):
   counter share every configuration and not one metric. So a cross-source scope
   exists only when such a common ground is found, and it is restricted to it.
   """
-  measured = measured or {}
   order = sorted(designs, key=lambda name: (-len(designs[name]), name))
   best = None
   for anchor in order[:4]:
@@ -1239,7 +1303,7 @@ def plan_scopes(store, sources, filters=None, rule_state=None):
     # count is all that fits.
     label = " vs ".join(members) if len(members) <= 3 else str(len(members)) + " sources compared"
     scopes.insert(0, Scope("cross", label, members, combined,
-                           compare_by=schema.COL_SOURCE, bonus=CROSS_SOURCE_BONUS))
+                           compare_by=schema.COL_SOURCE, bonus=CROSS_SOURCE_BONUS, designs=set(shared)))
   return scopes
 
 
@@ -1292,7 +1356,8 @@ def recommend_gallery(store, sources=None, filters=None, rule_state=None, intent
 
   ranked = []
   for scope in plan_scopes(store, sources, filters, rule_state):
-    context = build_context(store, sources=scope.sources, filters=scope.filters, rule_state=rule_state)
+    context = build_context(store, sources=scope.sources, filters=scope.filters, rule_state=rule_state,
+                            designs=scope.designs)
     context.compare_by = scope.compare_by
     context.label = scope.label
     found = recommend(context, intent=intent, limit=limit)

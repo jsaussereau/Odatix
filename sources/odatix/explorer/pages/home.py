@@ -111,6 +111,8 @@ def _source_card(source):
     detail = "⚠ " + str(source.error)
   else:
     detail = str(source.record_count) + " records · " + source.schema
+    if source.warnings:
+      detail += " · ⚠ " + "; ".join(source.warnings)
   return html.Div(
     [
       html.Div(_source_icon(), className="xp-source-icon-box"),

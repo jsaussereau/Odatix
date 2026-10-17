@@ -89,3 +89,59 @@ class TestAutoLineGrouping:
         for trace in fig.data:
             # each trace's own x values must already be monotonically sorted
             assert list(trace.x) == sorted(trace.x)
+
+
+class TestScatterLabels:
+    def test_labels_follow_their_points_when_lines_reorder_them(self):
+        df = pd.DataFrame({
+            schema.COL_CONFIGURATION: ["c", "a", "b"],
+            "F": [3.0, 1.0, 2.0], "A": [30.0, 10.0, 20.0], "name": ["three", "one", "two"],
+        })
+        spec = FigureSpec(kind="scatter", x="F", y="A", label_by="name", toggles=("scatter_lines", "labels"))
+        fig = builder.build_figure(df, spec, {"name": ["one", "three", "two"]}, metrics=["F", "A"], units={}, chrome={})
+        trace = fig.data[0]
+        assert list(trace.x) == [1.0, 2.0, 3.0]
+        assert list(trace.text) == ["one", "two", "three"]
+
+
+class TestXOrder:
+    def _df(self):
+        return pd.DataFrame({"v": ["p", "q", "r"], "A": [1.0, None, 3.0]})
+
+    def test_a_category_without_value_goes_last_ascending(self):
+        assert builder._x_categories(self._df(), FigureSpec(kind="bar", x="v", y="A", sort_x_order="y_asc")) == ["p", "r", "q"]
+
+    def test_a_category_without_value_goes_last_descending(self):
+        assert builder._x_categories(self._df(), FigureSpec(kind="bar", x="v", y="A", sort_x_order="y_desc")) == ["r", "p", "q"]
+
+    def test_reverse_still_reverses_the_natural_order(self):
+        assert builder._x_categories(self._df(), FigureSpec(kind="bar", x="v", y="A", sort_x_order="reverse")) == ["r", "q", "p"]
+
+
+class TestParcoordsMissingValues:
+    def _df(self):
+        return pd.DataFrame({
+            schema.COL_CONFIGURATION: ["a", "b", "c", "d"],
+            "area": [10.0, None, 30.0, 40.0],
+            "fmax": [100.0, 200.0, 300.0, 400.0],
+            "power": [1.0, 2.0, 3.0, None],
+        })
+
+    def _figure(self, df, **spec):
+        spec = FigureSpec(kind="parcoords", y_metrics=("area", "fmax"), **spec)
+        return builder.build_figure(df, spec, {}, metrics=["area", "fmax", "power"], units={}, chrome={})
+
+    def test_a_design_missing_a_charted_metric_is_left_out_and_counted(self):
+        fig = self._figure(self._df())
+        values = [list(dimension["values"]) for dimension in fig.data[0].dimensions]
+        assert values == [[10.0, 30.0, 40.0], [100.0, 300.0, 400.0]]
+        assert [annotation.text for annotation in fig.layout.annotations] == ["1 design without a value excluded"]
+
+    def test_a_missing_numeric_color_is_left_out_too(self):
+        fig = self._figure(self._df(), color_by=("power",))
+        assert list(fig.data[0].line.color) == [1.0, 3.0]
+        assert fig.layout.annotations[0].text == "2 designs without a value excluded"
+
+    def test_nothing_excluded_says_nothing(self):
+        fig = self._figure(self._df().dropna())
+        assert not fig.layout.annotations

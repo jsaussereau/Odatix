@@ -185,6 +185,7 @@ def register_callbacks():
           "y_metrics": y_metrics,
         },
         "filters": views.filters_to_hidden(filter_state, base_dimensions),
+        "shown": views.filters_to_shown(filter_state, base_dimensions),
         "rules": rules.normalize(rule_state),
         "palette": palette,
         "plot_theme": plot_theme,

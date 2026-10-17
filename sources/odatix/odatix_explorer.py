@@ -21,6 +21,7 @@
 
 import os
 import sys
+import time
 from threading import Thread
 import logging
 import argparse
@@ -151,6 +152,9 @@ def start_result_explorer(input, network=False, preferred_port=None, normal_term
                     key = msvcrt.getch().decode("utf-8").lower()
                     if key == 'q':
                         close_server(old_settings)
+                else:
+                    # kbhit() does not block: without a pause the loop spins a core
+                    time.sleep(0.5)
             else:
                 if sys.stdin in select.select([sys.stdin], [], [], 0.5)[0]:
                     key = sys.stdin.read(1).lower()

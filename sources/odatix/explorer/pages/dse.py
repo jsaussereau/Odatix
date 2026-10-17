@@ -39,6 +39,8 @@ Three questions, in the order they get asked:
 The page polls, because an exploration is read while it runs.
 """
 
+import math
+
 import dash
 from dash import dcc, html, dash_table, Input, Output, State
 import plotly.graph_objects as go
@@ -525,6 +527,10 @@ def _metric_of(record, metric):
   else:
     return None
   if isinstance(value, bool) or not isinstance(value, (int, float)):
+    return None
+  # A failed measurement reads back as NaN: a number to isinstance, a hole in
+  # the chart (and a poisoned axis range) to plotly.
+  if math.isnan(value):
     return None
   return value
 
@@ -1455,7 +1461,9 @@ def _row_filter_query(row):
   """
   parts = []
   if row.get("configuration") is not None:
-    parts.append('{{configuration}} = "{0}"'.format(str(row["configuration"]).replace('"', '\\"')))
+    # Backslash first: the table's query lexer unescapes any \x to x.
+    value = str(row["configuration"]).replace("\\", "\\\\").replace('"', '\\"')
+    parts.append('{{configuration}} = "{0}"'.format(value))
   if row.get("batch") is not None:
     parts.append("{{batch}} = {0}".format(row["batch"]))
   if row.get("frequency") is not None:
@@ -1492,8 +1500,16 @@ def _front_table(campaign, highlight_key=None, filters=()):
                else "The campaign has not measured any design yet.")
     return html.Div(message, className="xp-dse-empty")
 
+  # The union of every row's fields, in first-seen order: the first design on
+  # the front may lack a frequency or a feasibility the next ones have.
+  keys = []
+  for row in rows:
+    for key in row:
+      if key not in keys:
+        keys.append(key)
+
   columns = []
-  for key in rows[0].keys():
+  for key in keys:
     if key == "_key":
       continue
     # An older archive knows no batch, and an empty column titled "batch" reads

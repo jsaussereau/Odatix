@@ -168,8 +168,14 @@ def load_view(result_path, name):
 def _sanitize_rules(node, metrics, warnings):
   """
   Drop, recursively, the rules comparing a metric this data does not have, then
-  the groups left empty by that. Returns the pruned node.
+  the groups left empty by that. Returns the pruned node, or None.
+
+  Callers normally hand over ``rules.normalize`` output, but a hand-edited view
+  can still smuggle in a non-dict child or a node without an id: those are
+  dropped (or treated as an ordinary group) rather than raising.
   """
+  if not isinstance(node, dict):
+    return None
   if node.get("kind") != "group":
     # "other" only matters while the rule compares two metrics: an unused
     # leftover from the constant mode must not disqualify the rule.
@@ -187,7 +193,7 @@ def _sanitize_rules(node, metrics, warnings):
     if kept is not None:
       children.append(kept)
   node["children"] = children
-  if not children and node["id"] != rules.ROOT_ID:
+  if not children and node.get("id") != rules.ROOT_ID:
     return None
   return node
 
@@ -273,19 +279,25 @@ def sanitize_view(view, store):
     else:
       warnings.append('"' + value + '" (' + key.replace("_", " ") + ") does not exist in this data")
 
-  # --- Filters (saved as hidden values per dimension) ---
+  # --- Filters ---
+  # "filters" holds the hidden values per dimension; "shown" (absent from views
+  # saved before it existed) the values checked although unchecked by default
+  # (see schema.default_selected), which "hidden" alone cannot express.
   filter_state = {}
-  for dimension, hidden in (view.get("filters") or {}).items():
-    dimension = str(dimension)
-    if dimension not in dimensions:
-      warnings.append('Filter dimension "' + dimension + '" does not exist in this data')
-      continue
-    known = [str(value) for value in hidden or [] if str(value) in dimensions[dimension]]
-    unknown = [str(value) for value in hidden or [] if str(value) not in dimensions[dimension]]
-    if unknown:
-      warnings.append('Filtered-out values missing from "' + dimension + '": ' + ", ".join(unknown))
-    if known:
-      filter_state[dimension] = {value: False for value in known}
+  for key, selected, label in (("filters", False, "Filtered-out"), ("shown", True, "Shown")):
+    saved = view.get(key)
+    for dimension, values in (saved if isinstance(saved, dict) else {}).items():
+      dimension = str(dimension)
+      if dimension not in dimensions:
+        warnings.append('Filter dimension "' + dimension + '" does not exist in this data')
+        continue
+      values = values if isinstance(values, (list, tuple)) else [values]
+      known = [str(value) for value in values if str(value) in dimensions[dimension]]
+      unknown = [str(value) for value in values if str(value) not in dimensions[dimension]]
+      if unknown:
+        warnings.append(label + ' values missing from "' + dimension + '": ' + ", ".join(unknown))
+      for value in known:
+        filter_state.setdefault(dimension, {})[value] = selected
 
   # --- Metric rules ---
   # Absent from views saved before rules existed: normalize() then yields an
@@ -338,19 +350,36 @@ def sanitize_view(view, store):
   return payload, warnings
 
 
+def _selected_values(filter_state, dimensions, selected):
+  """The values of each dimension whose effective selection is ``selected``
+  while their default is not, {dim: [values]} -- restricted to what currently
+  exists in the data so the file stays clean and shareable."""
+  found = {}
+  for dimension, values in (dimensions or {}).items():
+    remembered = (filter_state or {}).get(dimension, {})
+    picked = [
+      value for value in values
+      if bool(remembered.get(value, schema.default_selected(dimension, value))) == selected
+      and schema.default_selected(dimension, value) != selected
+    ]
+    if picked:
+      found[dimension] = picked
+  return found
+
+
 def filters_to_hidden(filter_state, dimensions):
   """
   Convert the session filter state ({dim: {value: bool}}) into the saved form:
-  {dim: [hidden values]}, restricted to what currently exists in the data so
-  the file stays clean and shareable.
+  {dim: [hidden values]}. A value not remembered has its default selection,
+  so one unchecked by default is not recorded as hidden.
   """
-  hidden = {}
-  for dimension, values in (dimensions or {}).items():
-    remembered = (filter_state or {}).get(dimension, {})
-    off = [value for value in values if remembered.get(value, True) is False]
-    if off:
-      hidden[dimension] = off
-  return hidden
+  return _selected_values(filter_state, dimensions, False)
+
+
+def filters_to_shown(filter_state, dimensions):
+  """The "shown" counterpart of ``filters_to_hidden``: {dim: [values]} checked
+  although unchecked by default (an intermediate step scope, say)."""
+  return _selected_values(filter_state, dimensions, True)
 
 
 ######################################

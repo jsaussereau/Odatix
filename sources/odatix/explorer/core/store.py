@@ -44,6 +44,42 @@ import odatix.explorer.core.schema as schema
 DEFAULT_PREFIX = "results_"
 MIN_SCAN_INTERVAL = 1.0  # seconds between two directory scans
 
+# Unit shown for a metric the selected sources give different units: no unit
+# would read as dimensionless, and either one would be wrong for the others
+# (and could flip the direction guessed from it, see recommend.metric_direction).
+MIXED_UNITS = "mixed units"
+
+# Appended to a metric named like a dimension column: both would otherwise land
+# in the same DataFrame column, the metric overwriting the dimension.
+METRIC_COLLISION_SUFFIX = " (metric)"
+
+
+def _same_value(left, right):
+  """Whether a meta value and a metric value say the same thing ("100" and 100.0 do)."""
+  try:
+    return float(left) == float(right)
+  except (TypeError, ValueError):
+    return str(left) == str(right)
+
+
+def _colliding_metrics(built):
+  """
+  {metric: column} for the metrics of one source that would overwrite a
+  dimension of the same record with a different value, e.g. a "Frequency"
+  metric on an Fmax row, whose Frequency dimension is the Fmax sentinel.
+
+  A metric that merely repeats its record's dimension (the frequency of a
+  custom-frequency synthesis, a parameter a simulation also reports) is the
+  same column and is left alone: renaming it would split one quantity in two.
+  """
+  renamed = {}
+  for row, metrics in built:
+    for key, value in metrics.items():
+      key = str(key)
+      if key in row and key not in renamed and not _same_value(row[key], value):
+        renamed[key] = key + METRIC_COLLISION_SUFFIX
+  return renamed
+
 
 class SourceInfo:
   """State of one result file."""
@@ -56,6 +92,7 @@ class SourceInfo:
     self.schema = results_schema.FORMAT_UNKNOWN
     self.record_count = 0
     self.error = None         # parse error message, or None
+    self.warnings = []        # data problems that do not prevent loading
 
 
 class ResultStore:
@@ -69,6 +106,7 @@ class ResultStore:
     self._dimension_columns = {}  # display name -> list of dimension columns
     self._metric_columns = {}     # display name -> list of metric columns
     self._chartable_sources = set()  # display names with >=1 chartable record
+    self._renamed_metrics = {}  # display name -> {metric: column} (see METRIC_COLLISION_SUFFIX)
     self._version = 0
     self._last_scan = 0.0
     self.last_load_time = None
@@ -94,6 +132,7 @@ class ResultStore:
       self._dimension_columns = {}
       self._metric_columns = {}
       self._chartable_sources = set()
+      self._renamed_metrics = {}
       self._last_scan = 0.0
       self.poll(force=True)
       return True
@@ -225,11 +264,13 @@ class ResultStore:
     dimension_columns = {}
     metric_columns = {}
     chartable_sources = set()
+    renamed_metrics = {}
 
     for name in self._files:
       results_file = self._files[name]
       source_dimensions = [schema.COL_SOURCE]
       source_metrics = []
+      built = []
       for record in results_file.records:
         meta = record.get("meta", {})
         # Non-chartable records (e.g. RTL analysis, which has its own dashboard
@@ -271,16 +312,20 @@ class ResultStore:
           if schema.COL_FREQUENCY not in source_dimensions:
             source_dimensions.append(schema.COL_FREQUENCY)
 
+        built.append((row, metrics))
+
+      renamed = _colliding_metrics(built)
+      for row, metrics in built:
         for key, value in metrics.items():
-          key = str(key)
+          key = renamed.get(str(key), str(key))
           row[key] = value
           if key not in source_metrics:
             source_metrics.append(key)
-
         rows.append(row)
 
       dimension_columns[name] = source_dimensions
       metric_columns[name] = source_metrics
+      renamed_metrics[name] = renamed
 
     df = pd.DataFrame(rows)
     if not df.empty:
@@ -291,6 +336,34 @@ class ResultStore:
     self._dimension_columns = dimension_columns
     self._metric_columns = metric_columns
     self._chartable_sources = chartable_sources
+    self._renamed_metrics = renamed_metrics
+    self._update_warnings()
+
+  def _source_units(self, name):
+    """{column: unit} of one source, keyed like the DataFrame columns, blanks left out."""
+    renamed = self._renamed_metrics.get(name, {})
+    units = {}
+    for metric, unit in (self._files[name].units or {}).items():
+      unit = "" if unit is None else str(unit).strip()
+      if unit:
+        units[renamed.get(str(metric), str(metric))] = unit
+    return units
+
+  def _update_warnings(self):
+    """Name, on each source, the data problems the explorer worked around."""
+    seen = {}
+    for name in self._files:
+      for metric, unit in self._source_units(name).items():
+        seen.setdefault(metric, {}).setdefault(unit, []).append(name)
+    for name, source in self._sources.items():
+      warnings = []
+      for metric, column in sorted(self._renamed_metrics.get(name, {}).items()):
+        warnings.append('metric "' + metric + '" is named like a dimension, shown as "' + column + '"')
+      for metric, unit in sorted(self._source_units(name).items()) if name in self._files else ():
+        others = sorted(other for other in seen.get(metric, {}) if other != unit)
+        if others:
+          warnings.append('metric "' + metric + '" is in ' + unit + " here but in " + ", ".join(others) + " elsewhere")
+      source.warnings = warnings
 
   def _ordered_columns(self, columns, dimension_columns, metric_columns):
     """Stable column order: reserved dimensions, free dimensions, metrics, info."""
@@ -371,13 +444,22 @@ class ResultStore:
     return [per_source[name] for name in sources if name in per_source]
 
   def units(self, sources=None):
-    """Merged units of the given sources (all sources if None)."""
+    """
+    Units of the given sources (all sources if None), {column: unit}.
+
+    A unit is kept only when every source giving one agrees; otherwise the
+    metric is labelled MIXED_UNITS. Converting between them is not attempted.
+    """
     with self._lock:
-      merged = {}
       names = sorted(self._files) if sources is None else [name for name in sources if name in self._files]
+      found = {}
       for name in names:
-        merged.update(self._files[name].units)
-      return merged
+        for metric, unit in self._source_units(name).items():
+          found.setdefault(metric, set()).add(unit)
+      return dict(
+        (metric, next(iter(units)) if len(units) == 1 else MIXED_UNITS)
+        for metric, units in found.items()
+      )
 
 
 STORE = ResultStore()
