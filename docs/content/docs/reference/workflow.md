@@ -50,6 +50,7 @@ first, and independent branches run concurrently.
 |-----|------|----------|-------------|
 | `name` | string | Yes | Task identifier, referenced by other tasks' `dependencies`. |
 | `commands` | list of strings | No | Shell commands, run in order. |
+| `on_failure_commands` | list of strings | No | Fallback commands, run in order when one of `commands` fails. The task then succeeds if they do. |
 | `dependencies` | list of strings | No | Task names that must complete first. |
 | `path` | path | No | Working directory of this task — absolute, or relative to the run directory. |
 | `platforms` | string or list | No | Platforms this implementation applies to (`linux`, `darwin`, `win32`). |
@@ -99,9 +100,27 @@ tasks:
 > `platform` (singular) is the legacy spelling of `platforms`. Declaring both on
 > the same entry is an error.
 
+### A fallback when a task fails
+
+`on_failure_commands` is a second way of doing what a task does, tried when the
+first one fails: the task runs as `(commands) || (on_failure_commands)`. A
+dependency task that installs something is the typical use, as in the
+[TensorFlow example](/docs/examples/workflows/tensorflow/):
+
+{{< code lang=yaml filename="_settings.yml" >}}
+tasks:
+  - name: env
+    commands:
+      - python3 -m venv env
+      - env/bin/python3 -m pip install tensorflow
+    on_failure_commands:          # tensorflow not available for that python
+      - python3.10 -m venv --clear env
+      - env/bin/python3 -m pip install tensorflow
+{{< /code >}}
+
 ### Placeholders in commands and paths
 
-`${name}` placeholders in `commands` and `path` are substituted from the
+`${name}` placeholders in `commands`, `on_failure_commands` and `path` are substituted from the
 resolved configuration:
 
 | Placeholder | Value |
@@ -139,7 +158,7 @@ progress:
 {{< /code >}}
 
 Whenever a task writes `Progress: 60` to that file, the
-[Job Monitor](/docs/gui/monitor/) shows 60 %.
+[Job Monitor](/docs/sessions/gui_monitor/) shows 60 %.
 
 ## Parameters
 
@@ -206,7 +225,7 @@ mechanism itself on
 
 What the workflow exports, in the format documented on
 [Metrics files](/docs/reference/metrics/). Results land in
-`results/results_workflow.yml` and are re-exportable with `odatix res_workflow`.
+`results/results_workflow.yml` and are re-exportable with `odatix results workflow`.
 
 {{< code lang=yaml filename="workflows/<name>/_metrics.yml" >}}
 metrics:

@@ -58,7 +58,7 @@ odatix_userconfig/
 | [Tool definitions](/docs/reference/tools/) | `tools/<tool>/tool.yml`, flows and steps |
 | [Metrics files](/docs/reference/metrics/) | `metrics.yml`, `_metrics.yml`, `derived_metrics.yml` |
 | [Analysis definitions](/docs/reference/analysis/) | `tools/<tool>/analysis.yml`: how the reports of a tool become findings |
-| [Configuration API](/docs/reference/python_api/) | Reading and writing all of them from Python or with `odatix config` |
+| [Configuration API](/docs/python_api/) | Reading and writing all of them from Python |
 
 ## How settings are resolved
 

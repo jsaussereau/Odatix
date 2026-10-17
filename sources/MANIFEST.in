@@ -1,7 +1,9 @@
 include requirements.txt
+include requirements_win32.txt
 include README.md
 include odatix/version.txt
-recursive-include odatix/explorer/assets *
-recursive-include odatix/eda_tools *
+recursive-include odatix/gui/assets *
+recursive-include odatix_eda_tools *
 recursive-include odatix_examples *
 recursive-include odatix_init *
+global-exclude __pycache__ *.py[cod]

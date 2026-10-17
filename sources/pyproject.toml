@@ -1,0 +1,5 @@
+[build-system]
+# setup.py lists the data files itself, so any setuptools able to build the
+# package will do, down to the last one that runs on Python 3.6.
+requires = ["setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta"

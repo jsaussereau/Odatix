@@ -38,7 +38,7 @@ layout: "faq"
                 },
                 {
                     "question": "Do I need to run odatix generate ?",
-                    "answer": "Only when a design or workflow enables `generate_configurations` in its settings. Hand-written configuration files and ordinary parameter-domain files can be run directly."
+                    "answer": "No. A design or workflow that describes its configurations in a `configurations` block has them resolved when it runs. `odatix generate` only writes them out as files, which is useful to read them or to edit one by hand."
                 },
                 {
                     "question": "Where do I find a failed job's logs ?",
@@ -56,7 +56,7 @@ layout: "faq"
             "questions": [
                 {
                     "question": "How do I join simulation and synthesis results ?",
-                    "answer": "Export the source result files, define entries in `odatix_userconfig/derived_metrics.yml`, then run `odatix res_derived`. Derived metrics can compute values such as runtime or energy from matching records."
+                    "answer": "Export the source result files, define entries in `odatix_userconfig/derived_metrics.yml`, then run `odatix results derived`. Derived metrics can compute values such as runtime or energy from matching records."
                 }
             ]
         }

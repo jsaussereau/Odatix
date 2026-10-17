@@ -58,7 +58,7 @@ tool's script and extracts the metrics from its reports.
 
 Jobs are scheduled across your CPU cores through the Odatix daemon, so a large
 sweep finishes as fast as your machine allows, and the
-[Job Monitor](/docs/gui/monitor/) shows progress and logs live. A job whose
+[Job Monitor](/docs/sessions/gui_monitor/) shows progress and logs live. A job whose
 result already exists is skipped unless you ask for `--overwrite`.
 
 Two mechanisms shape *how* a tool is run:

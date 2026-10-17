@@ -13,7 +13,10 @@ workflows:
   - tensorflow + epochs/*
 {{< /code >}}
 
-The last example trains a small classifier for a swept number of epochs. It is the only one with an external dependency, and it handles it inside the workflow rather than requiring a pre-installed environment:
+The last example trains a small classifier for a swept number of epochs. It is the only one with an external dependency, and it handles it inside the workflow rather than requiring a pre-installed environment.
+
+> [!WARNING] Prerequisite: a Python TensorFlow supports
+> The workflow installs TensorFlow for the default `python3` of the machine, and, if TensorFlow does not support it (a too recent version, typically), for `python3.10`. One of the two must be a version TensorFlow supports, and the machine needs network access to install it. It is the one workflow that will not run out of the box everywhere.
 
 {{< code lang=yaml filename="workflows/tensorflow/_settings.yml" >}}
 tasks:
@@ -25,18 +28,18 @@ tasks:
 
   - name: /tmp/odatix_tensorflow_example_env/bin/python3
     commands:
-      - python3.10 -m venv /tmp/odatix_tensorflow_example_env
+      - python3 -m venv /tmp/odatix_tensorflow_example_env
       - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install --upgrade pip
       - /tmp/odatix_tensorflow_example_env/bin/python3 -m pip install tensorflow
     on_failure_commands:
-      - python3.10 -m venv /tmp/odatix_tensorflow_example_env
+      - python3.10 -m venv --clear /tmp/odatix_tensorflow_example_env
       - ...
 {{< /code >}}
 
 Three things are going on:
 
 - The dependency task is **named after the file it produces**, so the virtualenv is built once and reused by every subsequent job instead of being rebuilt ten times.
-- **`on_failure_commands`** gives a fallback path when the primary one does not work — a different interpreter version, here.
+- **`on_failure_commands`** gives a fallback path when the primary one does not work — a different interpreter version, here: if TensorFlow cannot be installed for the default `python3`, the environment is rebuilt with Python 3.10.
 - The training script reports progress from inside a Keras callback, so the job monitor tracks epochs:
 
 {{< code lang=python filename="examples/workflow_tensorflow/train.py" >}}
@@ -89,9 +92,6 @@ metrics:
 {{< /code >}}
 
 Plotting `generalization_gap` against `epochs` in the [Explorer](/docs/features/explorer/) shows the training loss and the validation loss parting company — the same kind of curve, read the same way, as an area-versus-frequency trade-off.
-
-> [!WARNING]
-> This example needs a Python interpreter TensorFlow supports, available as `python3.10` on the machine. It is the one workflow that will not run out of the box everywhere.
 
 ## Where to go next
 

@@ -26,7 +26,7 @@ Reconnect later and re-attach the monitor:
 $ odatix monitor -S nightly
 {{< /code >}}
 
-See [Job Monitor & sessions](/docs/gui/monitor/) for the full session model.
+See [Job Monitor & sessions](/docs/sessions/) for the full session model.
 
 ## Access Odatix Explorer over the network
 
@@ -72,5 +72,5 @@ $ odatix-explorer --network --port 8052
 ## See also
 
 - [SSH tutorial](/tutorials/ssh/)
-- [Job Monitor & sessions](/docs/gui/monitor/)
+- [Job Monitor & sessions](/docs/sessions/)
 - [Odatix Explorer](/docs/gui/explorer/)

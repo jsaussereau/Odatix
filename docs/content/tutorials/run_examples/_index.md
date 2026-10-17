@@ -24,4 +24,4 @@ Once these work, bring in your own project:
 
 > [!NOTE]
 > All run commands are daemon-driven. To detach, re-attach, list and stop
-> sessions, see [Job Monitor & sessions](/docs/gui/monitor/).
+> sessions, see [Job Monitor & sessions](/docs/sessions/).

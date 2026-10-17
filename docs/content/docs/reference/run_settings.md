@@ -71,7 +71,8 @@ architectures:
   - Example_Counter_Chisel_CLI + width/16bits  # just one
 {{< /code >}}
 
-The same selectors are accepted by `-a/--architectures` on the command line.
+The run commands have no option to select architectures: the list is the one of
+the settings file, which `-i/--input` can replace by another.
 
 ## `tools` — analysis only
 
@@ -101,6 +102,51 @@ expected:
     subject: dbg_*
     reason: "Debug bus, only connected in the lab build"
 {{< /code >}}
+
+## `fmax_synthesis` — fmax only
+
+`fmax_settings.yml` can give the bounds of the binary search for the whole run.
+
+| Key | Type | Default | Overridden by | Description |
+|-----|------|---------|---------------|-------------|
+| `override` | bool | `No` | | Use the bounds below. With `No`, they are ignored and each design point keeps the bounds of its [architecture](/docs/reference/architecture/#frequency-settings). |
+| `lower_bound` | int (MHz) | empty | `--from` | Lowest frequency tried. Empty: the bound of the architecture. |
+| `upper_bound` | int (MHz) | empty | `--to` | Highest frequency tried. Empty: the bound of the architecture. |
+
+{{< code lang=yaml filename="odatix_userconfig/fmax_settings.yml" >}}
+fmax_synthesis:
+  override:    Yes
+  lower_bound: 50
+  upper_bound: 500
+{{< /code >}}
+
+## `frequencies` — fixed-frequency synthesis only
+
+`synth_settings.yml` can give the frequencies to synthesize at, as a list, a
+range, or both (their union).
+
+| Key | Type | Default | Overridden by | Description |
+|-----|------|---------|---------------|-------------|
+| `override` | bool | `No` | | `Yes`: these frequencies replace those of the architectures. `No`: they are only used for an architecture that gives none. |
+| `list` | list of int (MHz) | `[50, 100]` | `--at` | Frequencies to synthesize at. |
+| `range` | mapping | | `--from`, `--to`, `--step` | `from`, `to` and `step`, in MHz: every frequency from `from` to `to`, `step` apart. |
+| `disabled_list` | list of int (MHz) | | | A `list` switched off: kept in the file, not run. |
+| `disabled_range` | mapping | | | A `range` switched off: kept in the file, not run. |
+
+{{< code lang=yaml filename="odatix_userconfig/synth_settings.yml" >}}
+frequencies:
+  override: Yes
+  list: [50, 100, 250]
+  disabled_range:          # remembered, not run
+    from: 100
+    to:   500
+    step: 50
+{{< /code >}}
+
+`disabled_list` and `disabled_range` are what the GUI writes when the **List**
+or **Range** switch of the synthesis frequencies is off: the values are
+remembered for when the switch is turned back on. The command line never runs
+them.
 
 ## `simulations` — testbench to configurations
 

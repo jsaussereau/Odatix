@@ -38,9 +38,6 @@ $ source .venv/bin/activate          # if this is where Odatix was installed
 $ module load vivado                 # only on sites using environment modules
 {{< /code >}}
 
-The optional [environment-modules tutorial](/tutorials/modules/) explains how
-to make that step repeatable on a shared cluster.
-
 If you use VS Code, the Remote - SSH extension can open the same server
 workspace directly. The terminal commands below remain the same.
 
@@ -72,7 +69,7 @@ $ odatix monitor -S nightly
 {{< /code >}}
 
 Use `odatix ls` to list sessions, or `odatix stop -S nightly` to stop the one
-named `nightly`. See [Job Monitor & sessions](/docs/gui/monitor/) for the full
+named `nightly`. See [Job Monitor & sessions](/docs/sessions/) for the full
 session model.
 
 ## Step 4 — Start Explorer on the server
@@ -116,5 +113,4 @@ $ tmux attach -t odatix-explorer
 ## Next steps
 
 - [Hosting on a server](/docs/gui/host_server/) — reference for remote use
-- [Environment modules](/tutorials/modules/) — load site-managed EDA tools
 - [Troubleshooting](/docs/troubleshooting/) — resolve daemon and remote-access problems

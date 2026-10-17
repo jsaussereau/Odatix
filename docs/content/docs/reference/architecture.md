@@ -72,7 +72,7 @@ The parameter file holds the exact replacement text, nothing else:
 > [!TIP]
 > `odatix replace` applies the same replacement outside of any job, so a new
 > design's delimiters can be checked in a second instead of at the end of a
-> synthesis. See [Configurations](/docs/configurations/#test-a-replacement-on-its-own).
+> synthesis. See [Generation and replacement](/docs/commands/#generation-and-replacement).
 
 Set `use_parameters: No` for a design with no configuration file — for instance
 one swept through [variables](/docs/configurations/virtual_param_domains/) on a

@@ -90,10 +90,10 @@ If a run was launched with `-e/--noexport`, or you changed a metric definition,
 re-export without re-running anything:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix res_synth        # synthesis and place & route results
-$ odatix res_simulation   # simulation results
-$ odatix res_workflow     # workflow results
-$ odatix res_derived      # apply derived_metrics.yml
+$ odatix results synth     # synthesis and place & route results
+$ odatix results sim       # simulation results
+$ odatix results workflow  # workflow results
+$ odatix results derived   # apply derived_metrics.yml
 {{< /code >}}
 
 What lands in `results/` and in which file is documented in
@@ -112,6 +112,6 @@ workstation.
 
 ## Where to go next
 
-- **Tutorial** — [Explore your results](/tutorials/run_examples/rtl_analysis/).
+- **Tutorial** — [Explore your results](/tutorials/run_examples/synthesis/#step-6--explore-the-results).
 - **Reference** — [Metrics files](/docs/reference/metrics/) · [Commands](/docs/commands/)
 - **Guides** — [Odatix Explorer](/docs/gui/explorer/) · [Results & export](/docs/results/) · [Derived metrics](/docs/results/derived_metrics/)

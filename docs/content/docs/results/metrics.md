@@ -78,7 +78,7 @@ Fmax:
 | Setting | Description |
 |---------|-------------|
 | `file` | File to search, relative to the work directory. |
-| `pattern` | Python regular expression. Remember to escape backslashes in YAML (`\\|`, `\\s`). |
+| `pattern` | Python regular expression. Remember to escape backslashes in YAML (`\\|`, `\\s`). The first match in the file is used; `^` and `$` match at the start and end of every line. |
 | `group_id` | 1-based index of the capture group holding the value. |
 {{% /tab %}}
 
@@ -193,9 +193,9 @@ Odatix expands that run into one exported record per row, each tagged with its o
 Metrics are extracted at **export** time, not during the run, so you can fix a pattern and re-export without re-running any job:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix results          # re-export everything with the current definitions
-$ odatix res_workflow     # workflow results only
-$ odatix res_simulation   # simulation results only
+$ odatix results           # re-export everything with the current definitions
+$ odatix results workflow  # workflow results only
+$ odatix results sim       # simulation results only
 {{< /code >}}
 
 If a value cannot be found, Odatix reports an error naming the metric and the file — unless you set `error_if_missing: false`.

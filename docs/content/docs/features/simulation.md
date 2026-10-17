@@ -65,7 +65,7 @@ entire contract for a first testbench.
 To drive the tools yourself instead, declare a **task graph**: the same format as
 a [workflow](/docs/features/workflows/), with dependencies, per-platform variants
 and placeholders for the configuration under test. Progress reported to a log
-file feeds the [Job Monitor](/docs/gui/monitor/)'s progress bar.
+file feeds the [Job Monitor](/docs/sessions/gui_monitor/)'s progress bar.
 
 Two mechanisms are specific to simulations:
 
@@ -137,7 +137,7 @@ metrics:
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix sim
 $ odatix sim -d -S nightly     # detached, named session
-$ odatix res_simulation        # re-export after editing _metrics.yml
+$ odatix results sim           # re-export after editing _metrics.yml
 {{< /code >}}
 
 Results land in `results/results_simulation.yml`, tagged with both the simulation

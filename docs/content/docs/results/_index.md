@@ -80,7 +80,7 @@ A metric extracted this way can only describe the job that produced it. But the 
 
 **Derived metrics** close that gap. Declared once for the whole workspace in `odatix_userconfig/derived_metrics.yml`, they can import a metric from another result — matched on architecture, configuration, target, parameter domains — and compute new values from it. Cycles + Fmax gives runtime; runtime + power gives energy per operation.
 
-Because they are recomputed from the existing result files, `odatix res_derived` applies them in seconds, without touching a single job.
+Because they are recomputed from the existing result files, `odatix results derived` applies them in seconds, without touching a single job.
 
 {{< card title="Derived metrics" link="/docs/results/derived_metrics/" >}}
 Import a metric from a matching result, control how the two are joined, and compute values across simulation, synthesis and workflows.

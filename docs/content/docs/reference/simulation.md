@@ -70,7 +70,7 @@ tasks:
 
 `${rtl_dir}`, `${log_dir}` and `${odatix_dir}` are the former names of
 `${rtl_path}`, `${log_path}` and `${odatix_path}`. They still work, but the new
-ones match the variables of the [EDA tools](/docs/reference/tool/) and are what
+ones match the variables of the [EDA tools](/docs/reference/tools/) and are what
 the editors offer.
 
 ## Progress reporting
@@ -86,7 +86,7 @@ progress:
   regex: "(.*): ([0-9]+)%(.*)"
 {{< /code >}}
 
-The value feeds the progress bar of the [Job Monitor](/docs/gui/monitor/).
+The value feeds the progress bar of the [Job Monitor](/docs/sessions/gui_monitor/).
 
 ## Architectures
 

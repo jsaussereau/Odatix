@@ -1,6 +1,6 @@
 ---
 title: "Python API"
-description: "odatix.workspace, odatix.run and odatix config — reading and writing the configuration of a workspace, and running what it describes, from Python instead of by hand."
+description: "odatix.workspace and odatix.run — reading and writing the configuration of a workspace, and running what it describes, from Python instead of by hand."
 weight: 20
 ---
 
@@ -12,8 +12,8 @@ Every file documented in this section can be written by hand, and that is often
 the shortest path. When it is not — a workspace generated from a spreadsheet, a
 CI job that adds a target, a script that sweeps a design over several
 technologies — the same files are read and written by the **`odatix.workspace`**
-API, and by the **`odatix config`** command built on it. What they describe is
-then run through **`odatix.run`**.
+API. What they describe is then run through **`odatix.run`**. There is no
+command-line equivalent: this API, the graphical interface or a text editor.
 
 These are the very APIs Odatix itself uses: what a page of the graphical
 interface does to a workspace, and what a command runs, is exactly what a script
@@ -118,19 +118,19 @@ architecture.combinations()                  # what a run would sweep
 architecture.count_combinations()
 {{< /code >}}
 
-Configurations can be generated instead of written, from the same settings
-[`odatix generate`](/docs/configurations/config_generation/) reads:
+Configurations can be described instead of written, from the same settings
+[`odatix generate`](/docs/configurations/config_generation/) reads. A run
+resolves them on its own — writing them out is optional:
 
 {{< code lang=python filename="generate.py" >}}
-generation = width.settings.generate_configurations_settings
-generation.name = "${width}bits"
-generation.template = "WIDTH = ${width}"
+width.settings.configurations.name = "${width}bits"
+width.settings.configurations.template = "WIDTH = ${width}"
 width.settings.set_variable("width", "range", {"from": 8, "to": 64, "step": 8})
-width.settings.generate_configurations = True
 width.save()
 
+width.configuration_names()                  # what the domain holds, generated or not
 width.preview_configurations()               # {name: content}, writes nothing
-width.generate_configurations(overwrite=True)
+width.generate_configurations()              # optional: write them out as files
 {{< /code >}}
 
 ## Tools and targets
@@ -249,5 +249,7 @@ go on) and `RunCancelled` (it was asked to stop).
 
 ## See also
 
+- [`odatix.workspace`](/docs/python_api/workspace/) — every class, method and setting of the configuration API.
+- [`odatix.run`](/docs/python_api/run/) — every class, method and setting of the run API.
 - [Configuration file reference](/docs/reference/) — every file, every key.
 - [Commands reference](/docs/commands/) — every command and its options.

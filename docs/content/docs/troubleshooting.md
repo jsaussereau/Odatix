@@ -35,7 +35,7 @@ workspace root.
 | A parameter block cannot be found | `start_delimiter` or `stop_delimiter` does not exactly match the copied source. | Use `odatix replace` to test the delimiters against one source/configuration pair. |
 | A job is skipped unexpectedly | A matching work directory is already managed by an active daemon or contains a completed step. | Use `odatix ls`; use `--rerun-from` for a stepped flow or `-o` only when overwriting is intended. |
 | Explorer has no new data | The relevant result file was not exported, or Explorer points to a different directory. | Re-export the job type and start Explorer with `--input <results-directory>`. |
-| A derived metric is missing | Its source result is absent or no result matches its join criteria. | Export source job types first, inspect `derived_metrics.yml`, then run `odatix res_derived`. |
+| A derived metric is missing | Its source result is absent or no result matches its join criteria. | Export source job types first, inspect `derived_metrics.yml`, then run `odatix results derived`. |
 
 ## Tool and environment checks
 
@@ -52,8 +52,9 @@ $ odatix analyze --tool verilator -D
 execution environment is already known to be correct — it does not repair a
 missing executable, licence or PDK.
 
-On a shared machine, load required modules before launching the session. See
-[Environment modules](/tutorials/modules/).
+On a shared machine, load the required environment modules (`module load ...`)
+before launching the session: its jobs run with the environment of the command
+that started it, including the jobs added to it later.
 
 ## Configuration and parameter problems
 
@@ -63,7 +64,7 @@ A new design should be validated in small steps:
    reset names in the architecture `_settings.yml` match the sources.
 2. If parameters are enabled, run `odatix replace` with one parameter file and
    inspect the output.
-3. If configuration generation is enabled, run `odatix generate -D` and verify
+3. If the settings file describes its configurations, run `odatix generate -D` and verify
    the generated `.txt` files before a job run.
 4. Run [RTL analysis](/docs/features/analysis/) on one configuration before launching a
    broad synthesis selection.
@@ -84,7 +85,7 @@ $ odatix stop -S nightly
 {{< /code >}}
 
 Use a meaningful `-S`/`--session` name for detached runs. The [Job Monitor &
-Sessions](/docs/gui/monitor/) page explains selectors, reattachment and the
+Sessions](/docs/sessions/) page explains selectors, reattachment and the
 scheduling policy.
 
 ## Export and metric problems
@@ -93,10 +94,10 @@ Successful jobs and successful exports are separate concerns. If the job
 output exists but a chart is empty, re-run the smallest applicable exporter:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix res_synth
-$ odatix res_simulation
-$ odatix res_workflow
-$ odatix res_derived
+$ odatix results synth
+$ odatix results sim
+$ odatix results workflow
+$ odatix results derived
 {{< /code >}}
 
 Check the relevant `metrics.yml` or `_metrics.yml` paths and patterns against

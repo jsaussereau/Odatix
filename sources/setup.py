@@ -16,6 +16,22 @@ def read_requirements():
         requirements.extend(win_requirements)
     return requirements
 
+def package_files(package, subdirectory=""):
+    """
+    Every file under a directory of a package, relative to the package.
+
+    A "**" pattern in package_data only recurses from setuptools 62.3 on, which
+    no longer runs on Python 3.6: listing the files keeps every version of
+    setuptools from leaving the deeper ones out of the wheel.
+    """
+    files = []
+    for root, dirs, names in os.walk(os.path.join(package, subdirectory)):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for name in names:
+            if not name.endswith((".pyc", ".pyo")):
+                files.append(os.path.relpath(os.path.join(root, name), package))
+    return files
+
 package_list = find_packages()
 package_list.append('odatix_examples')
 package_list.append('odatix_eda_tools')
@@ -32,22 +48,11 @@ setup(
     url="https://github.com/jsaussereau/Odatix",
     packages=package_list,
     package_data={
-        'odatix': [
-            'version.txt',
-            'explorer/**/*',
-            'gui/**/*',
-            'init/**/*',
-            'eda_tools/**/*',
-        ],
-        'odatix_examples': [
-            '**/*'
-        ],
-        'odatix_eda_tools': [
-            '**/*'
-        ],
-        'odatix_init': [
-            '**/*'
-        ]
+        # gui/pages holds no __init__.py: Dash loads its modules by path.
+        'odatix': ['version.txt'] + package_files('odatix', 'gui/assets') + package_files('odatix', 'gui/pages'),
+        'odatix_examples': package_files('odatix_examples'),
+        'odatix_eda_tools': package_files('odatix_eda_tools'),
+        'odatix_init': package_files('odatix_init'),
     },
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -56,6 +61,9 @@ setup(
     ],
     python_requires=">=3.6",
     install_requires=read_requirements(),
+    extras_require={
+        "test": ["pytest>=7", "pytest-cov>=4"],
+    },
     entry_points={
         "console_scripts": [
             "odatix=odatix.odatix_main:main",

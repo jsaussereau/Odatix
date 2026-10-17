@@ -76,7 +76,7 @@ Parameters reach a workflow in two ways:
 
 Progress comes from a file your tasks write to and a regex that reads a
 percentage out of it, which is what fills the
-[Job Monitor](/docs/gui/monitor/)'s progress bar.
+[Job Monitor](/docs/sessions/gui_monitor/)'s progress bar.
 
 ## Working with the rest of Odatix
 
@@ -86,7 +86,7 @@ percentage out of it, which is what fills the
 | [Simulation](/docs/features/simulation/) | Simulations run on the very same task engine — a workflow is where to go when one testbench command is not enough. |
 | [Explorer](/docs/features/explorer/) | Workflow metrics are ordinary records: chartable and correlatable against synthesis figures. |
 | [Derived metrics](/docs/results/derived_metrics/) | Combine a workflow's numbers with a synthesis's, across job types. |
-| [Job Monitor](/docs/gui/monitor/) | Progress, logs and session control, identical to a synthesis campaign. |
+| [Job Monitor](/docs/sessions/gui_monitor/) | Progress, logs and session control, identical to a synthesis campaign. |
 
 ## Using it
 
@@ -153,7 +153,7 @@ workflows:
 $ odatix workflow
 $ odatix workflow -d -S experiments   # detached, named session
 $ odatix workflow -r                  # resume existing work directories
-$ odatix res_workflow                 # re-export after editing _metrics.yml
+$ odatix results workflow             # re-export after editing _metrics.yml
 {{< /code >}}
 
 Every key is on the [workflow settings reference](/docs/reference/workflow/) and

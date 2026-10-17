@@ -194,4 +194,4 @@ For validation pipelines with several steps, dependencies or non-HDL tools, use 
 - **Your own testbench** — [Simulate your own RTL](/tutorials/own_designs/simulations/).
 - **Feature** — [Simulation & validation](/docs/features/simulation/).
 - **Reference** — [Simulation settings](/docs/reference/simulation/) · [Run settings files](/docs/reference/run_settings/#simulations--testbench-to-configurations) · [Metrics files](/docs/reference/metrics/)
-- **Next** — [Explore your results](/tutorials/run_examples/rtl_analysis/).
+- **Next** — [Run a workflow](/tutorials/run_examples/workflows/).

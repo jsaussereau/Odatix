@@ -14,7 +14,7 @@ change.
 
 > [!NOTE]
 > All run commands are daemon-driven. To detach, re-attach, list and stop
-> sessions, see [Job Monitor & sessions](/docs/gui/monitor/).
+> sessions, see [Job Monitor & sessions](/docs/sessions/).
 
 ## Run the built-in examples
 
@@ -44,11 +44,11 @@ both are things you can add yourself.
 
 | Feature | Tutorial |
 |---------|----------|
-| [Architecture exploration](/docs/features/architecture-exploration/) | [Implement your own RTL](/tutorials/own_designs/synthesis/) |
+| [Architecture exploration](/docs/features/architecture-exploration/) | [Implement your own RTL](/tutorials/own_designs/architecture/) |
 | [RTL analysis](/docs/features/analysis/) | [RTL analysis](/tutorials/run_examples/analysis/) |
 | [RTL synthesis](/docs/features/rtl_synthesis/) | [Custom-frequency synthesis](/tutorials/run_examples/synthesis/) |
 | [Fmax synthesis](/docs/features/rtl_fmax_synthesis/) | [Parallel Fmax synthesis](/tutorials/run_examples/fmax_synthesis/) |
 | [Place & route](/docs/features/pnr/) | [Place & route a synthesized design](/tutorials/run_examples/pnr/) |
 | [Simulation](/docs/features/simulation/) | [Parallel simulations](/tutorials/run_examples/simulations/) · [Simulate your own RTL](/tutorials/own_designs/simulations/) |
 | [Workflows](/docs/features/workflows/) | [Run a workflow](/tutorials/run_examples/workflows/) · [Create your own workflow](/tutorials/own_designs/workflows/) |
-| [Results exploration](/docs/features/explorer/) | [Explore your results](/tutorials/run_examples/rtl_analysis/) |
+| [Results exploration](/docs/features/explorer/) | [Explore your results](/tutorials/run_examples/synthesis/#step-6--explore-the-results) |

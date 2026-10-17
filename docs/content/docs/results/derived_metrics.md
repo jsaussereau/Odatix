@@ -66,8 +66,8 @@ The GUI has a **Derived Metrics** page that edits this file, if you prefer not t
 |-----|---------|-------------|
 | `type` | inferred | `import` or `operation`. Inferred from `op` / `from` when omitted. |
 | `from` | — | Which results to read: `simulation`, `workflow`, `fmax_synthesis`, `custom_freq_synthesis`, `synthesis`, `any`, or a list. Import only. |
-| `metric` | the metric's own name | Name of the metric to read in the source result. |
-| `op` | — | Expression over metric names, e.g. `"Cycles / Fmax"`. Operation only. |
+| `metric` | the metric's own name | Name of the metric to read in the source result. `meta.<key>` reads a [meta field](#reading-meta-fields) instead. |
+| `op` | — | Expression over metric names, e.g. `"Cycles / Fmax"`. `meta.<key>` reads a [meta field](#reading-meta-fields). Operation only. |
 | `apply_to` | `synthesis` | Which kinds of results receive the metric. Same vocabulary as `from`. |
 | `for` | `*` | Which instances receive it: a pattern, a list, or `"@group"`. Matched against architecture, `architecture/configuration`, workflow name and simulation name. |
 | `where` | — | `{meta key: patterns}` — only results matching this receive the metric. |
@@ -77,6 +77,29 @@ The GUI has a **Derived Metrics** page that edits this file, if you prefer not t
 | `on_multiple` | `error` | What to do when several source results match: `error`, `first`, `last`, `skip`, `mean`, `min`, `max`, `sum`. |
 | `optional` | `false` | Do not warn when no source result matches. |
 | `overwrite` | `false` | Replace a value the result already has. |
+
+## Reading meta fields
+
+Not everything worth computing with is a metric. The frequency a custom frequency synthesis ran at, the target it ran on, or the value of a parameter domain live in the result's **meta**, not in its metrics. `meta.<key>` reaches them, both as the metric an `import` copies and inside an `op` expression.
+
+{{< code lang=yaml filename="derived_metrics.yml" >}}
+derived_metrics:
+  Frequency:              # the frequency a custom frequency synthesis ran at
+    from: custom_freq
+    metric: meta.frequency
+    unit: MHz
+  Runtime:
+    type: operation
+    op: "Cycles / meta.frequency"
+    unit: us
+{{< /code >}}
+
+In an `import`, `meta.<key>` is read on the **source** result; in an `operation`, on the result being computed.
+
+Values that read as numbers are converted to numbers, the others stay text — so `op: "meta.target == 'xc7a100t' "` compares fine. A key the result does not carry makes the operation skip that result, exactly like an unknown metric name does. For a key that is not a valid Python name, write `meta["Data width"]`.
+
+> [!NOTE]
+> `meta` is a reserved name inside an `op`: a metric of your own named `meta` would be shadowed by it.
 
 ## Groups
 
@@ -194,8 +217,8 @@ Derived metrics are **not** computed at export time — the result they need may
 They are recomputed from scratch over the whole result set every time they run, so applying them twice changes nothing, and a value whose source disappeared is removed rather than left stale.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix res_derived   # apply derived metrics to the result files
-$ odatix results       # export everything, then apply them
+$ odatix results derived  # apply derived metrics to the result files
+$ odatix results          # export everything, then apply them
 {{< /code >}}
 
 If no source result matches, Odatix warns once per metric, naming a few of the affected results — set `optional: true` when that is expected.

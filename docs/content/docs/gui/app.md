@@ -79,7 +79,7 @@ Launching enqueues the jobs into the daemon exactly like the CLI does, and drops
 
 ## Monitoring and exploring
 
-- **Monitor** (`/monitor`) — the graphical Job Monitor: live progress, per-job logs, and the list of daemon sessions. See [Job Monitor & sessions](/docs/gui/monitor/).
+- **Monitor** (`/monitor`) — the graphical Job Monitor: live progress, per-job logs, and the list of daemon sessions. See [Job Monitor & sessions](/docs/sessions/).
 - **Explorer** (`/explorer`) — the results dashboard, reachable from the same interface, with its chart pages listed in the top bar. See [Odatix Explorer](/docs/gui/explorer/).
 
 ## Options
@@ -106,6 +106,6 @@ Running it on a remote machine — a build server, a licence server — works th
 
 ## See also
 
-- [Job Monitor & sessions](/docs/gui/monitor/) — following jobs, from the GUI or the terminal.
+- [Job Monitor & sessions](/docs/sessions/) — following jobs, from the GUI or the terminal.
 - [Odatix Explorer](/docs/gui/explorer/) — the results dashboard.
 - [Commands reference](/docs/commands/) — the CLI equivalent of every page here.

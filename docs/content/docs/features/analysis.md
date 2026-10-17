@@ -172,13 +172,13 @@ $ odatix analyze --tool vivado verilator --flow vivado:implementation
 `--flow` follows `--tool`: a bare flow name applies to every selected tool, while
 `tool:flow` targets one of them. Work directories go to `work/analysis/`, and
 jobs run through the same daemon as every other job type, so the
-[Job Monitor](/docs/gui/monitor/) shows their progress and logs live, and
-`-d/--detach` hands them over without waiting: `odatix res_analysis` then gives
+[Job Monitor](/docs/sessions/gui_monitor/) shows their progress and logs live, and
+`-d/--detach` hands them over without waiting: `odatix results analysis` then gives
 their report once they are done.
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
 $ odatix analyze -d -S nightly
-$ odatix res_analysis
+$ odatix results analysis
 {{< /code >}}
 
 Every key is on the

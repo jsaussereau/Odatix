@@ -2,7 +2,7 @@
 title: "Install Odatix"
 description: "Odatix is a Python package: one command in most cases. The only real question is where the package comes from."
 quick_command: "pip install odatix"
-quick_note: "Python 3.6 or later — see the [prerequisites](/install/prerequisites/)."
+quick_note: "Python 3.6 or later — see the [prerequisites](/install/pypi/#prerequisites)."
 ---
 
 ## Choose where the package comes from
@@ -19,7 +19,7 @@ package is installed, two things are left before your first job.
     <span class="install-next__step" aria-hidden="true">1</span>
     <span>
       <h3 class="install-next__title">Install your EDA tools</h3>
-      <p class="install-next__text">Vivado, Design Compiler, Genus, OpenLane, Verilator, GHDL… at least one supported tool is required.</p>
+      <p class="install-next__text">Vivado, Quartus, Design Compiler, Genus, OpenLane, Verilator, GHDL… at least one supported tool is required.</p>
     </span>
   </a>
   <a class="install-next__card" href="/tutorials/" style="--accent:#0d9488">

@@ -622,7 +622,7 @@ architectures:
 {{< /code >}}
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix synth --tool vivado --fmax
+$ odatix fmax --tool vivado
 {{< /code >}}
 
 {{% /tab %}}

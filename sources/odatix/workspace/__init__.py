@@ -23,7 +23,7 @@
 The Odatix workspace configuration API.
 
 Everything a user configures by hand in the YAML files of a workspace can be
-read and written from here, from Python or from the "odatix config" command.
+read and written from here, from Python.
 The graphical interface uses the very same API, so nothing it can do is out of
 reach of a script.
 

@@ -54,7 +54,7 @@ result rules out — closing timing raises the floor, failing lowers the ceiling
 until the interval collapses on the highest frequency that still passes.
 
 Every search runs as an independent job in the daemon, so a whole design space
-converges in parallel and the [Job Monitor](/docs/gui/monitor/) shows each search
+converges in parallel and the [Job Monitor](/docs/sessions/gui_monitor/) shows each search
 narrowing live.
 
 Bounds matter. Too wide and you pay for synthesis runs that were never going to

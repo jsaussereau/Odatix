@@ -8,11 +8,13 @@ weight: 3
 
 > [!IMPORTANT] Requires Odatix 4.0+
 
-A **flow** is a way of running an eda tool: different options, different scripts,
-sometimes a different binary. Vivado ships a timing oriented flow and a power
-oriented one; Design Compiler ships a `dc_shell` flow and a `dcnxt_shell` one.
-Flows of the same tool are **alternatives meant to be compared**, so each one
-runs in its own work directory and tags the results it produces.
+A **flow** is a way of running an eda tool: a different strategy, different
+options, sometimes different scripts. Vivado ships runtime, performance, area
+and power oriented flows next to its standard one; Design Compiler ships
+`compile`, `compile_ultra` and timing, area and power oriented variants of the
+latter. Flows of the same tool are **alternatives meant to be compared**, so each
+one runs in its own work directory and tags the results it produces — and a
+[design space exploration](/docs/reference/dse/) can choose between them.
 
 Adding a flow is the shortest path to running your own scripts under Odatix:
 you keep the tool, its metrics and its targets, and change only what runs.
@@ -42,20 +44,31 @@ flows:
 
 ## Declaring another flow
 
-Every other flow is an entry of the `flows` section, with its own platform
-sections:
+Every other flow is an entry of the `flows` section. Most flows are a
+**strategy**: the same steps and scripts, other options. Such a flow declares
+only the [parameters](#parameters-a-strategy-in-a-few-lines) it changes:
 
 {{< code lang=yaml filename="tool.yml" >}}
 flows:
   power_opt:
     label: "Power optimized"
-    description: "Automatic clock gating and power optimization pass"
+    description: "Clock gating conversion and a power optimization pass"
+    parameters:
+      synth_options: [-flatten_hierarchy, full, -gated_clock_conversion, auto]
+      power_opt: true
+{{< /code >}}
+
+A flow running something else altogether declares its own platform sections:
+
+{{< code lang=yaml filename="tool.yml" >}}
+flows:
+  my_script:
+    label: "My script"
     unix:
       custom_freq_synthesis_command:
         - vivado -mode tcl -notrace
         - -source $script_path/init_script.tcl
-        - -source $script_path/flow_power_opt.tcl
-        - -source $script_path/synth_script.tcl
+        - -source $script_path/my_synth_script.tcl
         - -source $script_path/exit.tcl
 {{< /code >}}
 
@@ -70,6 +83,7 @@ which is the readable way to write a long command line.
 | `description` | string | One line, shown on the tool's card in the GUI. |
 | `icon` | string | Optional image replacing the default pictogram. |
 | `metrics_file` | string | Metrics definition file specific to this flow. Defaults to the tool's `default_metrics_file`. |
+| `parameters` | dict | The parameters this flow changes (see [Parameters](#parameters-a-strategy-in-a-few-lines)). |
 | `unix` / `windows` | dict | What this flow runs on that platform (see below). |
 
 ### What a platform section of a flow may declare
@@ -105,8 +119,50 @@ overrides only what it declares. For a given job type:
   **key by key**, so a flow changing where the log goes, or adding a script every
   session must source, says that much and keeps the steps as they are.
 
-This is why the Vivado `power_opt` flow above is four lines and not a copy of the
-whole tool: everything it does not mention still comes from `standard`.
+This is why the `my_script` flow above is four lines and not a copy of the whole
+tool: everything it does not mention still comes from `standard`.
+
+## Parameters: a strategy in a few lines
+
+Parameters are the knobs a tool's scripts read. The default flow's are declared
+at the top level of `tool.yml`; every flow starts from them and changes only the
+ones it names, so a strategy never repeats a command:
+
+{{< code lang=yaml filename="tool.yml" >}}
+parameters:                     # the default flow's
+  compile: compile
+  compile_options: []
+
+flows:
+  ultra_area:
+    parameters:
+      compile: compile_ultra
+      compile_options: [-area_high_effort_script]
+      max_area: 0
+{{< /code >}}
+
+A script reads them from the job's `settings.tcl`:
+
+{{< code lang=tcl filename="tcl/step_common.tcl" >}}
+set compile_command [odatix_flow_param compile compile]   ;# name, default
+$compile_command {*}[odatix_flow_param compile_options [list]]
+{{< /code >}}
+
+and a command uses them as `$<name>` — which is how one `tool.yml` runs either
+`dc_shell` or `dcnxt_shell` (see
+[Extending a tool](/docs/reference/tools/#extending-a-tool)).
+
+The built-in tools list what their scripts read at the top of their `tool.yml`:
+
+| Tool | Parameters |
+|------|------------|
+| Design Compiler | `compile`, `compile_options`, `max_area`, `leakage_optimization`, `dynamic_optimization`, `gate_clock`, `incremental`, `incremental_options`, `post_compile_passes`, `shell` |
+| Quartus | `optimization_mode`, `seed`, `allow_register_retiming`, `final_placement_optimization`, `virtual_pins`, `power_analysis`, `assignments` |
+| Vivado | `synth_options`, `opt_passes`, `power_opt`, `place_options`, `phys_opt_passes`, `route_options`, `post_route_passes` |
+
+Every iteration of an fmax search and every step of a synthesis go through the
+same procedures (`odatix_dc_compile`, `odatix_vivado_synthesize`,
+`odatix_vivado_implement`), so a strategy applies whatever the job.
 
 A flow therefore supports every job type the tool supports, unless it explicitly
 replaces one. Asking for a flow that cannot run a job type is an error naming the
@@ -155,16 +211,16 @@ where it already was, and steps the default flow does not have are appended.
 
 {{< code lang=yaml filename="tool.yml" >}}
 flows:
-  power_opt:
+  my_synthesis:
     unix:
       custom_freq_synthesis_steps:
         - name: synthesis            # "pnr" and "bitstream" are inherited
           command: ...
 {{< /code >}}
 
-That is the honest model of what actually differs: a power optimization pass
-changes how the design is synthesized, and a checkpoint carries the result into a
-place & route that has no reason to change.
+That is the honest model of what actually differs: a script of your own changes
+how the design is synthesized, and a checkpoint carries the result into a place &
+route that has no reason to change.
 
 > [!NOTE]
 > An **fmax search** is a special case: it reruns the whole flow at every
@@ -228,7 +284,8 @@ each being a whole search of its own.
 Odatix decides *which* steps to run; carrying the design from one to the next is
 the scripts' job. Tools do it with their own checkpoint mechanism —
 `write_checkpoint` / `open_checkpoint` for Vivado, `write -format ddc` for Design
-Compiler, `write_db` for Genus.
+Compiler, `write_db` for Genus. Quartus needs none: each step is a `quartus_sh`
+process of its own, and the design stays in the project database of the job.
 
 Inside one session the design is still in memory, so a step should skip reading
 back what the previous one wrote. Odatix's Vivado steps track what the process
@@ -262,13 +319,24 @@ Commands are expanded before being run:
 
 Create a `tool.yml` under `odatix_userconfig/tools/<builtin name>/` holding
 nothing but your flow. It is merged over the built-in definition, so the tool
-keeps its commands, its metrics and its log formatting:
+keeps its commands, its metrics and its log formatting. A strategy is a few
+parameters:
 
 {{< code lang=yaml filename="odatix_userconfig/tools/vivado/tool.yml" >}}
 flows:
   retiming:
     label: "Retiming"
     description: "Timing oriented synthesis with global retiming enabled"
+    parameters:
+      synth_options: [-flatten_hierarchy, full, -retiming]
+{{< /code >}}
+
+A flow running scripts of your own declares its steps instead:
+
+{{< code lang=yaml filename="odatix_userconfig/tools/vivado/tool.yml" >}}
+flows:
+  retiming:
+    label: "Retiming"
     unix:
       custom_freq_synthesis_steps:
         - name: synthesis
@@ -301,7 +369,7 @@ existed keep resolving.
 All the flows of a tool export into that tool's single results file, told apart
 by the `flow` meta key — which is what lets Odatix Explorer plot them against
 each other. The flow is also written into the job directory (`flow.txt`), so a
-full re-export (`odatix res_synth`) keeps the flow of results produced earlier.
+full re-export (`odatix results synth`) keeps the flow of results produced earlier.
 
 `flow` and `step` are both dimensions. A result record is identified by the run
 it comes from — its architecture, its configuration, its target, its tool, its
@@ -433,7 +501,24 @@ that declares a session join it.
 
 One flow is marked as the default. Built-in flows appear locked; **Add a flow**
 creates yours, and the duplicate button on a flow is the fastest way to start
-from one that already works.
+from one that already works — a duplicated strategy keeps its parameters.
+
+Each flow has a **Parameters** panel, above its commands, listing its
+[parameters](#parameters-a-strategy-in-a-few-lines) in the same order in every
+flow, so that two flows read side by side:
+
+- on the default flow, each parameter is a name, a type (**Text**, **On / Off**
+  or **List**, one item per line) and a value; **+ Add parameter** declares one;
+- on any other flow, the parameters it inherits are listed with their value as
+  it comes from the default flow, kept up to date while the default flow is
+  edited. **Override** gives one a value of its own — the value it replaces is
+  shown underneath — and the reset button puts it back to the inherited one.
+  The panel header counts what the flow sets and what it inherits.
+
+A folded flow shows the parameters it sets in its head (`compile = compile_ultra`),
+which tells strategies apart at a glance. Parameter names used in a command
+(`$shell`) are colored like the other variables. A name has to be a plain
+identifier: the save button reports any other.
 
 ## See also
 

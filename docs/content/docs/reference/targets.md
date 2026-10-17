@@ -53,6 +53,22 @@ targets:
   - xcku035-fbva676-3-e
 {{< /code >}}
 
+## Disabling a target
+
+A target is switched off by commenting out its line: it stays in the file, and
+the GUI lists it, unchecked. Checking it in the GUI uncomments the line.
+
+{{< code lang=yaml >}}
+targets:
+  - xc7a100t-csg324-1
+  # - xc7k70t-fbg676-2      # disabled
+{{< /code >}}
+
+> [!NOTE]
+> Former target files kept the disabled targets in a `disabled_targets` list
+> instead. It is still read, and never run; `odatix migrate` turns its entries
+> into commented-out lines of `targets`.
+
 ## Per-target overrides
 
 `target_settings` overrides the script copy for one target — the usual case

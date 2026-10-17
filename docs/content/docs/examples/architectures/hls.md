@@ -175,7 +175,7 @@ The two are explored differently on purpose:
 This is what makes the sweep possible without any parameter substitution: the source is identical for all twenty-seven runs, and only the arguments of the script change. It also keeps the C++ readable and reusable outside Odatix — the same property the [delimiter-based examples](/docs/examples/architectures/cordic/) preserve for RTL.
 
 > [!NOTE]
-> Directives can only be swept this way because they are a Tcl API. If a pragma you need has no `set_directive_*` equivalent, it has to stay in the source — and then it is explored with [delimiter-based substitution](/docs/configurations/param_files/), exactly like a Verilog parameter, with the `#pragma HLS` line as its delimiter.
+> Directives can only be swept this way because they are a Tcl API. If a pragma you need has no `set_directive_*` equivalent, it has to stay in the source — and then it is explored with [delimiter-based substitution](/docs/configurations/#writing-parameter-files-by-hand), exactly like a Verilog parameter, with the `#pragma HLS` line as its delimiter.
 
 ### All three knobs are virtual parameter domains
 

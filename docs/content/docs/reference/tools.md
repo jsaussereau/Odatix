@@ -387,18 +387,38 @@ dimension — two flows run in separate directories and are meant to be compared
 
 ## Log formatting
 
-`format` maps tokens a tool's scripts print to colours and replacements in the
-[Job Monitor](/docs/gui/monitor/).
+`format` colors the output of a tool in the [Job Monitor](/docs/sessions/gui_monitor/).
+It has three keys, applied to each line in this order:
+
+| Key | Type | What it does |
+|-----|------|--------------|
+| `replace` | list of `{regex: replacement}` | Regular expression substitutions. `$1`, `$2`... in the replacement are the groups of the match. Usually used to insert the tags below around what matters. |
+| `logs` | mapping: level → list of markers | The first marker found in a line colors the line from that marker to its end. The levels, tried in this order, are `error` (light red, bold), `crit_warning` (light yellow, bold), `warning` (yellow), `info` (light cyan) and `trace` (magenta). |
+| `tags` | mapping: style → list of markers | Each marker is replaced by the escape code of its style, wherever it is in the line. |
+
+The styles of `tags` are a fixed set: `bold`, `end_bold`, `end` (back to the
+default style), `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`,
+`white`, `grey`, and `light_red`, `light_green`, `light_yellow`, `light_blue`,
+`light_magenta`, `light_cyan`, `light_white`. A tool chooses which marker strings
+map to them, and its scripts print those markers. A tool without `format`
+shows its output unchanged.
 
 {{< code lang=yaml filename="tool.yml" >}}
 format:
+  replace:
+    - "(Slack \\(VIOLATED\\))": "<red>$1<end>"
+    - "(.* completed successfully)": "<green>$1<end>"
+  logs:
+    error:         ['<error>', 'ERROR:']
+    crit_warning:  ['CRITICAL WARNING:']
+    warning:       ['WARNING:']
+    info:          ['INFO:']
+    trace:         ['Command:']
   tags:
     bold:  ['<bold>']
     end:   ['<end>']
     red:   ['<red>']
     green: ['<green>']
-  replace:
-    ...
 {{< /code >}}
 
 ## In the GUI

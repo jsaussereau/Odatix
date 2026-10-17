@@ -37,7 +37,6 @@ unexpected error prints a one-line message and writes the full trace to
 | Category | Commands | Purpose |
 |----------|----------|---------|
 | Initialization | `odatix init` | Initialize workspace files. |
-| Configuration | `odatix config` | Read and change the configuration of the workspace. |
 | Generation | `odatix generate`, `odatix replace` | Generate parameter files and replace delimited sections. |
 | Execution | `odatix fmax`, `odatix synth`, `odatix pnr`, `odatix analyze`, `odatix sim`, `odatix workflow` | Enqueue and run synthesis, place & route, RTL analysis, simulation and workflow jobs. |
 | Exploration | `odatix dse` | Search a design space instead of sweeping it. |
@@ -192,22 +191,10 @@ commands use when `-t/--tool` names none.
 
 ### Configuration
 
-`odatix config` reads and writes the configuration files of the workspace: the
-same files documented in the [reference](/docs/reference/), through the same API
-the graphical interface uses (see [Configuration
-API](/docs/reference/python_api/) for the whole surface and its Python form).
-
-{{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix config show                      # what the workspace holds
-$ odatix config arch list
-$ odatix config arch set MyCPU clock_signal=clk fmax_synthesis.lower_bound=50
-$ odatix config target enable vivado xc7a100t-csg324-1
-$ odatix config job show fmax_synthesis
-{{< /code >}}
-
-| Option | Description |
-|--------|-------------|
-| `-C`, `--directory` | Workspace directory (default: the current one). |
+There is no command to edit the configuration: the settings files are plain
+YAML, documented in the [reference](/docs/reference/). To change them other than
+by hand, use the [graphical interface](/docs/gui/app/), or the
+[Python API](/docs/python_api/) (`odatix.workspace`) in a script.
 
 ### Generation and replacement
 
@@ -329,7 +316,7 @@ $ odatix migrate
 $ odatix migrate --no-backup     # do not keep the .bak files
 {{< /code >}}
 
-It rewrites `generate_configurations` and `generate_configurations_settings` as `configurations` and `variables`, `fmax_lower_bound` and `fmax_upper_bound` as `fmax_synthesis` blocks, `disabled_targets` as commented-out entries of `targets`, and moves metrics written at the top level of a `_metrics.yml` file under `metrics`. Every job keeps running exactly as before. Former bounds set in some rules of `overrides` while other rules set `fmax_synthesis` are left alone, because which one wins depends on the job: the command reports them and exits with a non-zero status. The workspace settings page of the GUI offers the same migration.
+It rewrites `generate_configurations` and `generate_configurations_settings` as `configurations` and `variables`, `fmax_lower_bound` and `fmax_upper_bound` as `fmax_synthesis` blocks, `custom_freq_synthesis` blocks as `fixed_freq_synthesis`, `disabled_targets` as commented-out entries of `targets`, and moves metrics written at the top level of a `_metrics.yml` file under `metrics`. It also gives the settings files their [current names](/docs/reference/workspace/#settings-files): the keys of `odatix.yml` that name one the former way (`fmax_synthesis_settings_file`...) become the key named after the command (`fmax_settings_file`...), and a file still under its former default name (`fmax_synthesis_settings.yml`...) is renamed (`fmax_settings.yml`...), unless `odatix.yml` names it. Every job keeps running exactly as before. Former bounds set in some rules of `overrides` while other rules set `fmax_synthesis` are left alone, because which one wins depends on the job: the command reports them and exits with a non-zero status. The workspace settings page of the GUI offers the same migration.
 
 ### Explorer
 
@@ -354,6 +341,6 @@ See [The Odatix GUI](/docs/gui/app/) for what each page does.
 ## See also
 
 - [The Odatix GUI](/docs/gui/app/) — the graphical equivalent of these commands
-- [Daemon sessions & the Job Monitor](/docs/gui/monitor/)
+- [Daemon sessions & the Job Monitor](/docs/sessions/)
 - [Configuration reference](/docs/reference/)
 - [Results & export](/docs/results/)

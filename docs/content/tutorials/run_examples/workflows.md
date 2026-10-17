@@ -126,7 +126,7 @@ $ odatix workflow
 
 Odatix copies the sources into one work directory per configuration under
 `work/workflows/`, runs the task graph there, and attaches the
-[Job Monitor](/docs/gui/monitor/) — where the progress bar moves as the tasks
+[Job Monitor](/docs/sessions/gui_monitor/) — where the progress bar moves as the tasks
 write to `progress.txt`, and each job's log is one keystroke away.
 
 To free your terminal instead, run detached and re-attach later:
@@ -190,7 +190,7 @@ versus `max_speed`, grouped by `num_vehicles`, takes a few clicks. If you edit
 `_metrics.yml` afterwards, re-export without re-running anything:
 
 {{< code lang=bash filename="Terminal" prompt="true" >}}
-$ odatix res_workflow
+$ odatix results workflow
 {{< /code >}}
 
 ### Step 7 — The same thing from the GUI
